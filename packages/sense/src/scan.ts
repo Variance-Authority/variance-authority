@@ -96,7 +96,7 @@ export interface ScanOptions extends ResolveOptions {
 /** Files whose declarations are not components, matching the component index. */
 const NOT_DECLARING = ['.test.', '.spec.', '.stories.', '.d.ts'];
 
-const READABLE = [...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS];
+const READABLE = new Set([...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS]);
 
 /**
  * Every file reachable from `dirs`, with its outgoing edges and declarations.
@@ -127,14 +127,16 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   const tree = digests === undefined ? undefined : await treeShapeOf({ root, digests, options });
   if (tree !== undefined) reuse?.under(tree.shape);
 
+  // The queue is repository-relative throughout. An edge already carries the
+  // path this scan uses as a key, and the absolute form is wanted only where a
+  // file is opened — which on a run that reuses everything is nowhere.
   const queue = [...seedFiles(root, options.dirs)];
 
   // A queue with a moving head rather than `shift()`: the frontier of a monorepo
   // scan is thousands of paths, and `shift()` is linear in that.
   for (let head = 0; head < queue.length; head += 1) {
-    const absolute = queue[head]!;
-    const file = toRepoPath(root, absolute);
-    if (file === undefined || built.has(file)) continue;
+    const file = queue[head]!;
+    if (built.has(file)) continue;
 
     const digest = digests?.get(file);
     const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
@@ -142,7 +144,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const fresh =
       remembered === undefined
         ? await recordFor({
-          absolute,
+          absolute: join(root, file),
           file,
           root,
           resolvers,
@@ -163,8 +165,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     else if (digest !== undefined) cache.keep?.(digest);
 
     for (const edge of record.edges ?? []) {
-      const next = join(root, edge.to);
-      if (!built.has(edge.to) && READABLE.includes(extname(edge.to))) queue.push(next);
+      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
     }
   }
 
@@ -292,15 +293,21 @@ function parsedFrom(file: string, contents: string, style: boolean): Parsed {
   };
 }
 
-/** Every readable file under the configured roots. */
+/** Every readable file under the configured roots, named the way the scan keys them. */
 function seedFiles(root: string, dirs: readonly string[]): readonly string[] {
   const found: string[] = [];
-  for (const dir of dirs) walk(isAbsolute(dir) ? dir : join(root, dir), found);
+  for (const dir of dirs) {
+    const absolute = isAbsolute(dir) ? dir : join(root, dir);
+    // The walk descends into known directories, so it can spell the relative
+    // path as it goes instead of deriving it again from every file it finds.
+    const prefix = absolute === root ? '' : toRepoPath(root, absolute);
+    if (prefix !== undefined) walk(absolute, prefix, found);
+  }
 
   return found;
 }
 
-function walk(dir: string, into: string[]): void {
+function walk(dir: string, prefix: string, into: string[]): void {
   let entries: readonly Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -312,10 +319,10 @@ function walk(dir: string, into: string[]): void {
   }
 
   for (const entry of entries) {
-    const path = join(dir, entry.name);
+    const at = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) {
-      if (!EXCLUDE_DIRS.includes(entry.name)) walk(path, into);
-    } else if (READABLE.includes(extname(entry.name))) into.push(path);
+      if (!EXCLUDE_DIRS.includes(entry.name)) walk(join(dir, entry.name), at, into);
+    } else if (READABLE.has(extname(entry.name))) into.push(at);
   }
 }
 

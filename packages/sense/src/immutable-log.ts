@@ -30,6 +30,8 @@ interface Manifest {
 
 export interface ImmutableLog {
   readonly segments: readonly Buffer[];
+  /** The committed chain's segment digests, in order: the identity of what was read. */
+  readonly digests: readonly Digest[];
   readonly legacy: boolean;
   readonly committed: boolean;
   /**
@@ -114,6 +116,7 @@ function logAt(
 ): ImmutableLog {
   return {
     segments,
+    digests: references.map((reference) => reference.digest),
     legacy,
     committed,
     async publish(delta, compacted) {

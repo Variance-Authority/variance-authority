@@ -10,7 +10,7 @@
 import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, Parsed } from './cache.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
-import { readSourceIndex, writeSourceIndex, type IndexedRecord } from './source-index-file.js';
+import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 
 export interface PersistentSourceIndex {
   /** Content-keyed facts passed to `scanRelations` as `cache`. */
@@ -28,7 +28,8 @@ export interface PersistentSourceIndex {
  * cache. It can make this scan slower and cannot change the resulting graph.
  */
 export async function openSourceIndex(path: string): Promise<PersistentSourceIndex> {
-  const stored = await readSourceIndex(path);
+  const file = await openSourceIndexFile(path);
+  const stored = file.stored;
   const available = new Map(stored.records);
   const held: TreeShape | undefined = stored.config === undefined
     ? undefined
@@ -76,7 +77,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     cache,
     reuse,
     async save() {
-      await writeSourceIndex(path, {
+      await file.save({
         parses,
         ...(adopted?.config === undefined
           ? stored.config === undefined ? {} : { config: stored.config }

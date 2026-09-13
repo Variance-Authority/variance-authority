@@ -56,7 +56,7 @@ import { basename } from 'node:path';
 import { digestString, type Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
-import { readSourceIndex, writeSourceIndex, type IndexedRecord } from './source-index-file.js';
+import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 import { aliasesIn, directoriesOf, movedDirectories, type Aliases } from './witness.js';
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
@@ -185,7 +185,8 @@ export function memoryRecordCache(): RecordCache {
  * scan, which is what would have happened without a cache at all.
  */
 export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
-  const generation = await readSourceIndex(path);
+  const file = await openSourceIndexFile(path);
+  const generation = file.stored;
   const entries = new Map(generation.records);
   const held: TreeShape | undefined = generation.config === undefined
     ? undefined
@@ -213,7 +214,7 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
     async save() {
       if (adopted === undefined) return;
 
-      await writeSourceIndex(path, {
+      await file.save({
         parses: generation.parses,
         config: adopted.config,
         directories: adopted.directories,

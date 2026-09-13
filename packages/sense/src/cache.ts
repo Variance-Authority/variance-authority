@@ -24,7 +24,7 @@
 
 import type { Digest } from '@variance-authority/core/format';
 import type { Export, Request } from './read.js';
-import { readSourceIndex, writeSourceIndex } from './source-index-file.js';
+import { openSourceIndexFile } from './source-index-file.js';
 
 /** Everything reading one file produced that does not depend on where it sits. */
 export interface Parsed {
@@ -89,7 +89,8 @@ export function memoryParseCache(): ParseCache {
  * for a saving.
  */
 export async function openParseCache(path: string): Promise<PersistentParseCache> {
-  const generation = await readSourceIndex(path);
+  const file = await openSourceIndexFile(path);
+  const generation = file.stored;
   const stored = generation.parses;
   const used = new Map<Digest, Parsed>();
 
@@ -110,7 +111,7 @@ export async function openParseCache(path: string): Promise<PersistentParseCache
       if (parsed !== undefined) used.set(digest, parsed);
     },
     async save() {
-      await writeSourceIndex(path, { ...generation, parses: used });
+      await file.save({ ...generation, parses: used });
     },
   };
 }

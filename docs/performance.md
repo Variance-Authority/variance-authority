@@ -23,25 +23,26 @@ cache.
 
 | The tree is                          | Total    | Records rebuilt | Files opened |
 | ------------------------------------ | -------- | --------------- | ------------ |
-| new — no index at all                | 3,180 ms | 24,909          | 24,825       |
-| unchanged since last run             | 694 ms   | 0               | 0            |
-| four files edited                    | 668 ms   | 4               | 4            |
-| five hundred files edited            | 738 ms   | 500             | 478          |
-| one file added                       | 691 ms   | 104             | 1            |
-| a hundred in, a hundred out, five hundred edited | 794 ms | 1,064 | 479 |
+| new — no index at all                | 2,900 ms | 24,909          | 24,825       |
+| unchanged since last run             | 344 ms   | 0               | 0            |
+| four files edited                    | 345 ms   | 4               | 4            |
+| five hundred files edited            | 428 ms   | 500             | 478          |
+| one file added                       | 405 ms   | 104             | 1            |
+| a hundred in, a hundred out, five hundred edited | 455 ms | 1,064 | 479 |
 
 The first row is the one people ask about and the least interesting. It happens
 once per machine, and a machine that never has it happen is a machine that never
 got a cold checkout.
 
 **An edit is priced correctly and a fixed toll is charged on top of it.** Five
-hundred files edited cost 70 ms more than four did — about a seventh of a
-millisecond each, which is a file read, parsed and resolved. The 650 ms
-underneath is charged whether anything changed or not. It is the walk: every path
-in the repository visited and checked against its digest in order to decide not
-to do anything about it. That cost is proportional to the repository and not to
-the diff — two thirds of a second here, five on a repository ten times the size —
-and it is the bug this stage has, stated as a number rather than as a caveat.
+hundred files edited cost 83 ms more than four did — about a sixth of a
+millisecond each, which is a file read, parsed and resolved. The 340 ms underneath
+is charged whether anything changed or not, and a quarter of it is git. The rest
+is the walk — every path in the repository visited and checked against its digest
+in order to decide not to do anything about it — plus the index decoded so that
+there is something to check it against. Both are proportional to the repository
+rather than to the diff, and that is the shape this stage still has to answer for
+on a checkout ten times this size.
 
 **A path appearing costs the directory it appeared in.** One file added rebuilds
 104 records, because a record's edges depend on the bytes of the file, on how
@@ -80,23 +81,31 @@ every record. That is a real cost and it is charged on that repository only.
 [ADR-0059](context/adr/0059-a-record-is-invalidated-by-what-could-have-answered-it.md)
 carries the argument for why the bound is sound everywhere else.
 
-## Where the half-second is
+## Where the third of a second is
 
-Of a warm run's 694 ms, roughly 113 is decoding the index, 387 is the scan, and
-195 is publishing. Inside the scan, about 84 ms is git answering what the working
-tree looks like; the rest is walking 24,909 records and checking each against its
-digest.
+Of a warm run's 344 ms, roughly 112 is decoding the index, 216 is the scan, and 15
+is publishing. Inside the scan, 86 ms is git answering what the working tree looks
+like, which leaves about 130 ms of ours: 24,909 records walked and each checked
+against its digest.
 
-The publish is the part worth looking at, because of what it writes. A run that
-changed nothing writes **nothing at all** — the index is an append-only chain of
-immutable segments and an unchanged run has no segment to append. A run that
-edited four files appends about **14,000 bytes** to a 7.7 MB index. The whole of
-it is re-encoded only when the chain has grown past eight segments, which is one
+The publish is the smallest of the three because of how little it writes. A run
+that changed nothing writes **nothing at all** — the index is an append-only chain
+of immutable segments, and an unchanged run has no segment to append. A run that
+edited four files appends about **14,000 bytes** to a 7.7 MB index. The whole of it
+is re-encoded only when the chain has grown past eight segments, which is one
 publish in eight and costs about 150 ms more than an append.
 
-So the 195 ms is not writing. It is a chain decoded a second time in order to
-compare against it, and a deep comparison of 24,825 parses and 24,909 records to
-discover there is nothing to say. Both are ours and both are removable.
+Deciding what to append is the rest of it, and what bounds that is keeping the
+generation the run opened. A save compares against the chain already in memory and
+re-reads only the manifest — one small file naming the segments — so the segments
+are decoded a second time only on the run where another writer published
+underneath this one. A row the scan reused is the row it was handed, so most of
+that comparison answers on a pointer.
+
+The walk is bounded by the same kind of frugality. A record's key is its
+repository-relative path, and a resolved edge already carries one; converting it
+to an absolute path and back in order to visit it is 48,738 conversions on this
+repository for a run that opens no files at all.
 
 ## The floor
 
@@ -104,14 +113,14 @@ Read every module and parse it, with nothing else happening:
 
 | Doing only this                 | Costs  |
 | ------------------------------- | ------ |
-| read 24,519 files from disk     | 254 ms |
-| parse them with oxc             | 171 ms |
-| **what a scan cannot go below** | **425 ms** |
+| read 24,519 files from disk     | 253 ms |
+| parse them with oxc             | 173 ms |
+| **what a scan cannot go below** | **426 ms** |
 
-A cold scan is 3,033 ms against a floor of 425. The parser is not the problem —
-it is 6% of the run, it is already compiled code, and it reads 24.9 MB of
-TypeScript in 171 ms. The other 2,608 ms is resolution, specifier collection and
-declaration indexing, all of it ours and all of it JavaScript.
+A cold scan is 2,736 ms against a floor of 426. The parser is not the problem — it
+is 6% of the run, it is already compiled code, and it reads 24.9 MB of TypeScript
+in 173 ms. The other 2,310 ms is resolution, specifier collection and declaration
+indexing, all of it ours and all of it JavaScript.
 
 That measurement is why [where the native code is](native-code.md) reads the way
 it does. The gap is not the language; it is the amount of work being done above a
@@ -124,23 +133,28 @@ Everything this system knows about a working tree comes from git, and that is a
 deliberate position: git is the arbiter of what changed, because it is the thing
 a person will believe when the answer is wrong. It also means git's cost is ours.
 
-| Asking git              | Costs | Which is                                     |
-| ----------------------- | ----- | -------------------------------------------- |
-| `ls-tree`               | 22 ms | the commit — does not grow with the checkout |
-| `status`                | 84 ms | the working tree                             |
-| `status`, watched       | 47 ms | the same answer, from a file-system monitor  |
+| Asking git                 | Costs | Which is                                     |
+| -------------------------- | ----- | -------------------------------------------- |
+| `ls-tree`                  | 23 ms | the commit — does not grow with the checkout |
+| `status`                   | 86 ms | the working tree                             |
+| `status`, watched          | 49 ms | the same answer, from a file-system monitor  |
+| `status`, watched and cached | 47 ms | the untracked walk remembered as well      |
 
-Git ships the monitor. One line, in the repository being scanned:
+Git ships both. Two lines, in the repository being scanned:
 
 ```bash
 git config core.fsmonitor true
+git config core.untrackedCache true
 ```
 
-It halves the half of git that scales with the checkout, and on a repository
-where `git status` already takes seconds — which is the case at a few hundred
-thousand files, with no unusual configuration required to get there — it is the
-largest single change available, and none of it is code this project has to
-ship.
+The monitor answers for tracked files, and it is what takes `status` from 86 ms to
+49 here. The untracked cache answers the other half of the same question — what is
+on disk that the index has never heard of — and it does not move this row, because
+these figures require a clean checkout and the walk it spares therefore finds
+nothing. On a working tree with build output in it, that is the half that costs.
+
+Both scale with the checkout rather than with the diff, so they matter more the
+larger the working tree gets, and neither is code this project has to ship.
 
 The daemon is an accelerator and not a source of truth. It can be wrong after a
 crash, on a network filesystem, and across a container boundary, and the answer

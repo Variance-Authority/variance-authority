@@ -16,8 +16,11 @@
  *
  * The tree is timed separately because it is git's, not ours: `ls-tree` reads the
  * commit and `status` reads the working tree, and only the second one scales with
- * the checkout. It is measured with and without `core.fsmonitor`, passed as `-c`
- * so that nothing in the target repository's configuration is changed.
+ * the checkout. Two accelerators are measured because neither one answers the
+ * whole question: `core.fsmonitor` tells git which tracked files moved, and
+ * `core.untrackedCache` is what spares it the walk for everything else. Both are
+ * passed as `-c` so that nothing in the target repository's configuration is
+ * changed.
  *
  * The floor is read and parse over the same files with nothing else happening.
  * Everything above it is ours, and naming it is the point: a scan that costs six
@@ -73,18 +76,23 @@ const bytes = { cwd: REPO, encoding: 'buffer', maxBuffer: MAX_OUTPUT };
 // One priming call so the daemon is running and the timing is of a warm watcher
 // rather than of starting one.
 await run('git', ['-c', 'core.fsmonitor=true', ...status], bytes);
+const off = ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false'];
+const on = ['-c', 'core.fsmonitor=true'];
 const tree = {
   listing: await median(() => run('git', listing, bytes)),
-  cold: await median(() => run('git', ['-c', 'core.fsmonitor=false', ...status], bytes)),
-  watched: await median(() => run('git', ['-c', 'core.fsmonitor=true', ...status], bytes)),
+  cold: await median(() => run('git', [...off, ...status], bytes)),
+  watched: await median(() => run('git', [...on, '-c', 'core.untrackedCache=false', ...status], bytes)),
+  cached: await median(() => run('git', [...on, '-c', 'core.untrackedCache=true', ...status], bytes)),
 };
 await run('git', ['fsmonitor--daemon', 'stop'], git).catch(() => {});
 console.log(
   `\nthe tree, which is git's\n` +
     `  ls-tree                    ${tree.listing.toFixed(0).padStart(5)} ms   the commit; does not move with the checkout\n` +
     `  status                     ${tree.cold.toFixed(0).padStart(5)} ms   the working tree\n` +
-    `  status, core.fsmonitor     ${tree.watched.toFixed(0).padStart(5)} ms   the same answer from a watcher` +
-    `  (${(tree.cold / tree.watched).toFixed(1)}x)`,
+    `  status, fsmonitor          ${tree.watched.toFixed(0).padStart(5)} ms   tracked files answered by a watcher` +
+    `  (${(tree.cold / tree.watched).toFixed(1)}x)\n` +
+    `  status, and untrackedCache ${tree.cached.toFixed(0).padStart(5)} ms   the untracked walk cached too` +
+    `  (${(tree.cold / tree.cached).toFixed(1)}x)`,
 );
 
 const MODULE = /\.(?:[cm]?[jt]sx?)$/;
