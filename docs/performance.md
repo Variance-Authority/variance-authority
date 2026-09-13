@@ -15,41 +15,54 @@ node packages/sense/scripts/source-index.mjs {MATERIAL-UI}
 
 ## One whole run
 
-A run opens the index, walks the repository, and publishes what it learned.
+A run opens the index, walks the repository, and publishes what it learned. Each
+row is a working tree put into that shape and then put back, and the last two
+columns are counted rather than inferred: a record is either reused or rebuilt,
+and a rebuild either opens the file or answers from the content-keyed parse
+cache.
 
-| The tree is                | Total    | Open   | Scan   | Publish |
-| -------------------------- | -------- | ------ | ------ | ------- |
-| new — no index at all      | 2,648 ms | —      | 2,523  | 125     |
-| unchanged since last run   | 568 ms   | 91     | 314    | 163     |
-| four files edited          | 583 ms   | 96     | 313    | 174     |
-| one file added             | 1,053 ms | 91     | 790    | 172     |
-| one file removed           | 1,035 ms | 98     | 777    | 160     |
+| The tree is                          | Total    | Records rebuilt | Files opened |
+| ------------------------------------ | -------- | --------------- | ------------ |
+| new — no index at all                | 2,953 ms | 24,909          | 24,825       |
+| unchanged since last run             | 622 ms   | 0               | 0            |
+| four files edited                    | 599 ms   | 4               | 4            |
+| five hundred files edited            | 639 ms   | 500             | 478          |
+| one file added                       | 1,253 ms | 24,909          | 1            |
+| a hundred in, a hundred out, five hundred edited | 1,293 ms | 24,909 | 479 |
 
 The first row is the one people ask about and the least interesting. It happens
 once per machine, and a machine that never has it happen is a machine that never
 got a cold checkout.
 
-The second and third rows are the interesting ones, and what they say is not
-flattering: **editing four files costs the same as editing none.** Nothing in the
-warm path is proportional to the diff. It is proportional to the repository —
-half a second here, and five seconds on a repository ten times the size. The
-scan does avoid the expensive work per file, which is why the row is 568 ms and
-not 2,648, but avoiding work still means visiting every path to decide to avoid
-it. That is the bug this stage has, stated as a number rather than as a caveat.
+**An edit is priced correctly and a fixed toll is charged on top of it.** Five
+hundred files edited cost 40 ms more than four did — about a tenth of a
+millisecond each, which is a file read, parsed and resolved. The 600 ms
+underneath is charged whether anything changed or not. It is the walk: every path
+in the repository visited and checked against its digest in order to decide not
+to do anything about it. That cost is proportional to the repository and not to
+the diff — half a second here, five on a repository ten times the size — and it
+is the bug this stage has, stated as a number rather than as a caveat.
 
-The last two rows are a second bug, and a coarser one. A file appearing or
-disappearing invalidates every resolved record in the repository, because a
+**A path appearing or disappearing charges the whole repository, once.** One file
+added costs 1,253 ms. A hundred added, a hundred removed and five hundred edited
+costs 1,293 ms — the same run, because the second one is not seven hundred times
+the work. Both rebuild all 24,909 records, and the counters say why that is
+survivable and why it is still wrong: 479 files were opened, not 24,909. A
 resolution that answered `./Button` answered it out of a set of paths that just
-changed, and the index has no finer statement than *the set of paths changed*.
-The rebuild is cheap — parses are keyed by content, survive the invalidation, and
-are what the records are rebuilt from — so it costs 480 ms rather than another
-cold build. It should cost nothing, and it will when a resolution is invalidated
-by the paths that could have answered it rather than by the tree as a whole.
+changed, so every resolved record is invalidated; but parses are keyed by content
+and survive it, so the rebuild reads almost nothing from disk and re-runs
+resolution instead.
+
+So the diff stops mattering the moment a path moves. A branch with a hundred
+pull requests landing an hour is a branch where a path moves constantly, which
+makes the fixed 1,250 ms the real number and the 600 ms the optimistic one. It
+should cost nothing, and it will when a resolution is invalidated by the paths
+that could have answered it rather than by the tree as a whole.
 
 ## Where the half-second is
 
-Of a warm run's 568 ms, roughly 90 is decoding the index, 314 is the scan, and
-165 is publishing. Inside the scan, about 86 ms is git answering what the working
+Of a warm run's 622 ms, roughly 96 is decoding the index, 349 is the scan, and
+177 is publishing. Inside the scan, about 84 ms is git answering what the working
 tree looks like; the rest is walking 24,909 records and checking each against its
 digest.
 
@@ -60,7 +73,7 @@ edited four files appends **4,136 bytes** to a 7.4 MB index. The whole of it is
 re-encoded only when the chain has grown past eight segments, which is one
 publish in eight and costs about 110 ms when it happens.
 
-So the 165 ms is not writing. It is a chain decoded a second time in order to
+So the 177 ms is not writing. It is a chain decoded a second time in order to
 compare against it, and a deep comparison of 24,825 parses and 24,909 records to
 discover there is nothing to say. Both are ours and both are removable.
 
@@ -70,13 +83,13 @@ Read every module and parse it, with nothing else happening:
 
 | Doing only this                 | Costs  |
 | ------------------------------- | ------ |
-| read 24,519 files from disk     | 226 ms |
-| parse them with oxc             | 152 ms |
-| **what a scan cannot go below** | **378 ms** |
+| read 24,519 files from disk     | 268 ms |
+| parse them with oxc             | 179 ms |
+| **what a scan cannot go below** | **447 ms** |
 
-A cold scan is 2,523 ms against a floor of 378. The parser is not the problem —
+A cold scan is 2,796 ms against a floor of 447. The parser is not the problem —
 it is 6% of the run, it is already compiled code, and it reads 24.9 MB of
-TypeScript in 152 ms. The other 2,145 ms is resolution, specifier collection and
+TypeScript in 179 ms. The other 2,349 ms is resolution, specifier collection and
 declaration indexing, all of it ours and all of it JavaScript.
 
 That measurement is why [where the native code is](native-code.md) reads the way

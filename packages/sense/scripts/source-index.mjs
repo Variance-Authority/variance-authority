@@ -115,16 +115,43 @@ const held = () => {
   return total;
 };
 
-/** One whole run, reported the way a caller pays for it. */
+/**
+ * One whole run, reported the way a caller pays for it — and counted.
+ *
+ * The timing alone does not say why a row is the size it is, and the two
+ * plausible readings of a slow row are opposite: a scan that re-read the
+ * repository, or a scan that reused everything and spent the time deciding to.
+ * The counters separate them. A record is either reused or rebuilt, and a
+ * rebuild either re-parses the file or answers from the content-keyed cache,
+ * which is the difference between a repository read again and a repository
+ * merely walked again.
+ */
 async function scan(label) {
   const [opening, session] = await took(() => openSourceIndex(index));
-  const [scanning, records] = await took(() =>
-    scanRelations({ root: REPO, dirs: DIRS, cache: session.cache, reuse: session.reuse }),
-  );
+  const counted = { reused: 0, rebuilt: 0, parsed: 0 };
+  // Only the rare door is wrapped. A counter on `get` sits on the hottest path
+  // there is and reads 130 ms onto the row it is there to explain.
+  const cache = Object.create(session.cache);
+  cache.set = (digest, parsed) => {
+    counted.parsed += 1;
+    session.cache.set(digest, parsed);
+  };
+  const reuse = {
+    under: (layout) => session.reuse.under(layout),
+    get: (file, digest) => {
+      const record = session.reuse.get(file, digest);
+      counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
+      return record;
+    },
+    set: (record) => session.reuse.set(record),
+  };
+  const [scanning, records] = await took(() => scanRelations({ root: REPO, dirs: DIRS, cache, reuse }));
   const [saving] = await took(() => session.save());
   console.log(
-    `  ${label.padEnd(24)}${(opening + scanning + saving).toFixed(0).padStart(5)} ms` +
-      `   = open ${opening.toFixed(0)} + scan ${scanning.toFixed(0)} + publish ${saving.toFixed(0)}`,
+    `  ${label.padEnd(31)}${(opening + scanning + saving).toFixed(0).padStart(5)} ms` +
+      `   = open ${opening.toFixed(0)} + scan ${scanning.toFixed(0)} + publish ${saving.toFixed(0)}` +
+      `\n  ${' '.repeat(31)}      ${counted.reused} records reused, ${counted.rebuilt} rebuilt,` +
+      ` of which ${counted.parsed} opened the file`,
   );
   return records.length;
 }
@@ -134,20 +161,42 @@ const records = await scan('cold, no index');
 console.log(`  ${'—'.repeat(5)}  ${records} records, ${(held() / 1e6).toFixed(1)} MB on disk`);
 await scan('nothing changed');
 
-const edited = execFileSync('git', ['ls-files', ...DIRS], git)
+/**
+ * A working tree put into a stated shape, and put back.
+ *
+ * Every file it touches is read first and written back from memory, so the
+ * repository ends where it started without anything being asked of git — which
+ * matters because the thing being measured is what git says about the tree.
+ * Removals are moved aside rather than deleted for the same reason.
+ */
+const modules = execFileSync('git', ['ls-files', ...DIRS], git)
   .split('\n')
-  .filter((file) => MODULE.test(file) && !file.endsWith('.d.ts'))
-  .slice(0, 4)
-  .map((file) => [file, readFileSync(join(REPO, file), 'utf8')]);
-for (const [file, text] of edited) writeFileSync(join(REPO, file), `${text}\n// edited by the benchmark\n`);
-await scan('4 files edited');
-for (const [file, text] of edited) writeFileSync(join(REPO, file), text);
-await scan('the same 4 reverted');
+  .filter((file) => MODULE.test(file) && !file.endsWith('.d.ts'));
 
-const appeared = join(REPO, DIRS[0], '__benchmark-added.ts');
-writeFileSync(appeared, 'export const added = 1;\n');
-await scan('1 file added');
-rmSync(appeared);
+async function diff(label, { edit = 0, remove = 0, add = 0 }) {
+  const editing = modules.slice(0, edit).map((file) => [file, readFileSync(join(REPO, file), 'utf8')]);
+  const removing = modules.slice(-remove || modules.length).map((file) => [file, readFileSync(join(REPO, file), 'utf8')]);
+  const adding = Array.from({ length: add }, (_, at) => join(REPO, DIRS[0], `__benchmark-${at}.ts`));
+
+  for (const [file, text] of editing) writeFileSync(join(REPO, file), `${text}\n// edited by the benchmark\n`);
+  if (remove > 0) for (const [file] of removing) rmSync(join(REPO, file));
+  for (const file of adding) writeFileSync(file, 'export const added = 1;\n');
+  try {
+    await scan(label);
+  } finally {
+    for (const [file, text] of editing) writeFileSync(join(REPO, file), text);
+    if (remove > 0) for (const [file, text] of removing) writeFileSync(join(REPO, file), text);
+    for (const file of adding) rmSync(file);
+  }
+}
+
+await diff('4 files edited', { edit: 4 });
+await scan('the same 4 reverted');
+await diff('500 files edited', { edit: 500 });
+await scan('the same 500 reverted');
+await diff('1 file added', { add: 1 });
 await scan('the same 1 removed');
+await diff('100 in, 100 out, 500 edited', { add: 100, remove: 100, edit: 500 });
+await scan('all of that reverted');
 
 rmSync(directory, { recursive: true, force: true });
