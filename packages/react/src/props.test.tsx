@@ -8,7 +8,8 @@
 // `attached` is checked inside the test rather than assumed.
 
 import { describe, expect, it } from 'vitest';
-import { provenanceOf, tapCommits } from './index.js';
+import { digestPass, provenanceOf, tapCommits } from './index.js';
+import { boundaryPropsDigest } from './props.js';
 
 const installed = tapCommits();
 
@@ -79,5 +80,43 @@ describe('the props digest both records are joined on', () => {
       root.unmount();
     });
     container.remove();
+  });
+});
+
+describe('a digest pass', () => {
+  it('answers for a props object it has already digested', () => {
+    const props = { variant: 'contained', theme: { palette: { mode: 'light' } } };
+    const pass = digestPass();
+
+    expect(boundaryPropsDigest(props, pass)).toBe(boundaryPropsDigest(props, pass));
+    // The memo is invisible in the value: what it returns is what the projection
+    // returns without it, or every capture taken with one would disagree with
+    // every capture taken without.
+    expect(boundaryPropsDigest(props, pass)).toBe(boundaryPropsDigest(props));
+  });
+
+  it('separates two props objects that happen to be equal', () => {
+    const pass = digestPass();
+    const one = { variant: 'contained' };
+    const other = { variant: 'text' };
+
+    expect(boundaryPropsDigest(one, pass)).not.toBe(boundaryPropsDigest(other, pass));
+  });
+
+  it('does not carry an answer into the next pass', () => {
+    // The case the scoping exists for: a prop holding a mutable handle keeps its
+    // identity while its contents move. Within one collection that cannot happen
+    // — the page is held still — so the memo answers. Across collections it
+    // must not, or a grid whose rows arrived between two captures would digest
+    // as the grid that had none.
+    const handle = { current: { rows: [] as number[] } };
+    const props = { apiRef: handle };
+
+    const first = digestPass();
+    const before = boundaryPropsDigest(props, first);
+    handle.current.rows.push(1);
+    expect(boundaryPropsDigest(props, first)).toBe(before);
+
+    expect(boundaryPropsDigest(props, digestPass())).not.toBe(before);
   });
 });

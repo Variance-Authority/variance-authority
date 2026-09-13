@@ -16,8 +16,16 @@
  *
  * So the algorithm lives here. It is fully specified by FIPS 180-4, so this
  * produces byte-identical output to any other correct implementation on any
- * runtime, which is exactly the determinism Principle 2 requires. Performance is
- * not a consideration until a gate in ADR-0004 fires; none has.
+ * runtime, which is exactly the determinism Principle 2 requires.
+ *
+ * Performance was declared a non-consideration here until a gate fired. One has.
+ * A props digest is taken for every composite boundary enclosing every node of a
+ * subject, and on a page that hands its components a theme object or a data
+ * grid's API handle that is megabytes of canonical text per capture — so this
+ * function's throughput is a term in how long photographing a page takes. What
+ * that bought is allocation removal only: the block loop and the encoder below
+ * are the same arithmetic they were, and every digest this file has ever
+ * produced it still produces.
  */
 
 const K = new Uint32Array([
@@ -82,34 +90,46 @@ export function sha256HexBytes(bytes: Uint8Array): string {
       w[i] = (w[i - 16]! + s0 + w[i - 7]! + s1) >>> 0;
     }
 
-    let [a, b, c, d, e, f, g, h] = state as unknown as number[];
+    // Read by index rather than destructured. `state` is a `Uint32Array`, and
+    // array destructuring goes through the iterator protocol — one iterator
+    // object and eight `next()` results allocated per 64-byte block, which on a
+    // page digesting megabytes of props is most of the garbage this function
+    // makes.
+    let a = state[0]!;
+    let b = state[1]!;
+    let c = state[2]!;
+    let d = state[3]!;
+    let e = state[4]!;
+    let f = state[5]!;
+    let g = state[6]!;
+    let h = state[7]!;
 
     for (let i = 0; i < 64; i += 1) {
-      const S1 = rotr(e!, 6) ^ rotr(e!, 11) ^ rotr(e!, 25);
-      const ch = (e! & f!) ^ (~e! & g!);
-      const temp1 = (h! + S1 + ch + K[i]! + w[i]!) >>> 0;
-      const S0 = rotr(a!, 2) ^ rotr(a!, 13) ^ rotr(a!, 22);
-      const maj = (a! & b!) ^ (a! & c!) ^ (b! & c!);
+      const S1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+      const ch = (e & f) ^ (~e & g);
+      const temp1 = (h + S1 + ch + K[i]! + w[i]!) >>> 0;
+      const S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+      const maj = (a & b) ^ (a & c) ^ (b & c);
       const temp2 = (S0 + maj) >>> 0;
 
       h = g;
       g = f;
       f = e;
-      e = (d! + temp1) >>> 0;
+      e = (d + temp1) >>> 0;
       d = c;
       c = b;
       b = a;
       a = (temp1 + temp2) >>> 0;
     }
 
-    state[0] = (state[0]! + a!) >>> 0;
-    state[1] = (state[1]! + b!) >>> 0;
-    state[2] = (state[2]! + c!) >>> 0;
-    state[3] = (state[3]! + d!) >>> 0;
-    state[4] = (state[4]! + e!) >>> 0;
-    state[5] = (state[5]! + f!) >>> 0;
-    state[6] = (state[6]! + g!) >>> 0;
-    state[7] = (state[7]! + h!) >>> 0;
+    state[0] = (state[0]! + a) >>> 0;
+    state[1] = (state[1]! + b) >>> 0;
+    state[2] = (state[2]! + c) >>> 0;
+    state[3] = (state[3]! + d) >>> 0;
+    state[4] = (state[4]! + e) >>> 0;
+    state[5] = (state[5]! + f) >>> 0;
+    state[6] = (state[6]! + g) >>> 0;
+    state[7] = (state[7]! + h) >>> 0;
   }
 
   let hex = '';
@@ -133,7 +153,14 @@ function rotr(value: number, bits: number): number {
  * two different digests on two runtimes.
  */
 function utf8Bytes(input: string): Uint8Array {
-  const bytes: number[] = [];
+  // Written into a buffer sized for the worst case rather than pushed onto a
+  // `number[]` that is then copied. Three bytes per UTF-16 unit is exactly the
+  // ceiling: a unit below U+0800 costs at most two, one at or above it costs
+  // three, and a surrogate pair costs four across two units. The alternative
+  // allocated a boxed array the length of the text and then a second copy of it,
+  // and a page digesting megabytes of props pays for both.
+  const bytes = new Uint8Array(input.length * 3);
+  let length = 0;
 
   for (let i = 0; i < input.length; i += 1) {
     let code = input.charCodeAt(i);
@@ -151,20 +178,21 @@ function utf8Bytes(input: string): Uint8Array {
     }
 
     if (code < 0x80) {
-      bytes.push(code);
+      bytes[length++] = code;
     } else if (code < 0x800) {
-      bytes.push(0xc0 | (code >> 6), 0x80 | (code & 0x3f));
+      bytes[length++] = 0xc0 | (code >> 6);
+      bytes[length++] = 0x80 | (code & 0x3f);
     } else if (code < 0x10000) {
-      bytes.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 0x3f), 0x80 | (code & 0x3f));
+      bytes[length++] = 0xe0 | (code >> 12);
+      bytes[length++] = 0x80 | ((code >> 6) & 0x3f);
+      bytes[length++] = 0x80 | (code & 0x3f);
     } else {
-      bytes.push(
-        0xf0 | (code >> 18),
-        0x80 | ((code >> 12) & 0x3f),
-        0x80 | ((code >> 6) & 0x3f),
-        0x80 | (code & 0x3f),
-      );
+      bytes[length++] = 0xf0 | (code >> 18);
+      bytes[length++] = 0x80 | ((code >> 12) & 0x3f);
+      bytes[length++] = 0x80 | ((code >> 6) & 0x3f);
+      bytes[length++] = 0x80 | (code & 0x3f);
     }
   }
 
-  return Uint8Array.from(bytes);
+  return bytes.subarray(0, length);
 }

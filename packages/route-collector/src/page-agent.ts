@@ -10,6 +10,7 @@ import {
   holdingOf,
   portalContentOf,
   provenanceOf,
+  digestPass,
   wiringOf,
 } from '@variance-authority/react';
 import type { SuspenseSettlement } from '@variance-authority/react';
@@ -179,6 +180,8 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(Object.keys(assets).length > 0 ? { assets } : {}),
   };
 
+  const pass = digestPass();
+
   // The style index is built once and handed to both, which is not only a
   // saving: two indexes built either side of a lazily-inserted `<style>` would
   // describe two different documents, and the run would compare an image of one
@@ -188,7 +191,10 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...shared,
     engine: request.engine,
     portalsOf: portalContentOf,
-    provenanceOf: (node: Node) => provenanceOf(node, declared),
+    // One memo for this collection: `provenanceOf` walks the owner chain of
+    // every node, so without it each boundary's props are digested once per
+    // descendant. See `DigestPass`.
+    provenanceOf: (node: Node) => provenanceOf(node, declared, pass),
     ...(request.wiring === false ? {} : { wiringOf }),
     // FIXME: reading holdings changes `structureHash` — a node carrying one
     // survives the inert-wrapper collapse — and nothing in what comes back says

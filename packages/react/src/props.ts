@@ -25,8 +25,46 @@ import { propsDigest, type Digest } from '@variance-authority/core/format';
  */
 export function boundaryPropsDigest(
   props: Readonly<Record<string, unknown>> | null,
+  pass?: DigestPass,
 ): Digest {
-  return propsDigest(digestableProps(props));
+  if (props === null || pass === undefined) return propsDigest(digestableProps(props));
+
+  const remembered = pass.get(props);
+  if (remembered !== undefined) return remembered;
+
+  const digest = propsDigest(digestableProps(props));
+  pass.set(props, digest);
+  return digest;
+}
+
+/**
+ * What one collection already digested, so it does not digest it again.
+ *
+ * The waste this removes is not incidental. `provenanceOf` runs per DOM node and
+ * walks that node's owner chain, so a component twenty boundaries deep has every
+ * one of those twenty props objects digested again for each of its descendants.
+ * Measured on MUI's `docs-product-x/XHero`: 27,950 calls over 1,470 distinct
+ * props objects, a 19x repetition; on its dashboard template, 33x. Each of those
+ * calls walks a prop graph that, on a page handing components a theme or a grid
+ * API handle, is large enough that the repetition alone accounted for minutes.
+ *
+ * Keyed on the props object's identity, so a hit returns the digest the same
+ * input would have produced — the projection is a pure function of the object,
+ * and nothing about the value recorded depends on the cache existing.
+ *
+ * **Scoped to one collection, and it has to be.** React allocates a fresh props
+ * object per render, so identity is a sound key *within* a moment. It is not one
+ * across moments: a prop holding a mutable handle — a `useRef` cell, a grid's
+ * private API — keeps its identity while its contents move, and a memo that
+ * outlived the collection would answer a later question about a changed graph
+ * with an earlier answer. A pass begins where a page agent begins a capture and
+ * ends with it, which is the interval the page is held still for anyway.
+ */
+export type DigestPass = WeakMap<Readonly<Record<string, unknown>>, Digest>;
+
+/** A memo for one collection. See {@link DigestPass}. */
+export function digestPass(): DigestPass {
+  return new WeakMap();
 }
 
 /**

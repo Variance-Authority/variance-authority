@@ -28,6 +28,8 @@ export type {
   NoFiberReason,
 } from './resolve.js';
 export { resolveProvenance, provenanceOf, NO_FIBER, UNMOUNTED } from './resolve.js';
+export type { DigestPass } from './props.js';
+export { digestPass } from './props.js';
 
 export type { DeclaredComponents, DeclarationRegistry, DeclarationSink } from './declared.js';
 export { createDeclarationRegistry, componentFunction } from './declared.js';

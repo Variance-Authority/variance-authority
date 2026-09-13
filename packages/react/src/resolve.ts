@@ -9,7 +9,7 @@ import {
 import type { DeclarationSink } from './declared.js';
 import { FiberTag, findFiber, isOwnerFrame, type Fiber } from './fiber.js';
 import { debugOwnerName, fiberComponentName } from './names.js';
-import { boundaryPropsDigest } from './props.js';
+import { boundaryPropsDigest, type DigestPass } from './props.js';
 
 /**
  * Turning a DOM node into the `Provenance` value `core` defines.
@@ -95,7 +95,11 @@ const MAX_CHAIN_DEPTH = 10_000;
  * are held somewhere the engine can be asked about them (see `declared.ts`).
  * The chain itself is the same with or without it.
  */
-export function resolveProvenance(node: Node, declared?: DeclarationSink): ProvenanceResult {
+export function resolveProvenance(
+  node: Node,
+  declared?: DeclarationSink,
+  pass?: DigestPass,
+): ProvenanceResult {
   let fiber: Fiber | null;
   try {
     fiber = findFiber(node);
@@ -113,7 +117,7 @@ export function resolveProvenance(node: Node, declared?: DeclarationSink): Prove
   }
 
   try {
-    return { status: 'resolved', provenance: provenanceFromFiber(fiber, declared) };
+    return { status: 'resolved', provenance: provenanceFromFiber(fiber, declared, pass) };
   } catch {
     return NO_FIBER;
   }
@@ -125,8 +129,12 @@ export function resolveProvenance(node: Node, declared?: DeclarationSink): Prove
  * Discards *why* provenance is missing. Use `resolveProvenance` where the reason
  * belongs in a diagnostic.
  */
-export function provenanceOf(node: Node, declared?: DeclarationSink): Provenance | undefined {
-  const result = resolveProvenance(node, declared);
+export function provenanceOf(
+  node: Node,
+  declared?: DeclarationSink,
+  pass?: DigestPass,
+): Provenance | undefined {
+  const result = resolveProvenance(node, declared, pass);
   return result.status === 'resolved' ? result.provenance : undefined;
 }
 
@@ -140,8 +148,12 @@ function hasStaleFiber(node: Node): boolean {
   return false;
 }
 
-function provenanceFromFiber(fiber: Fiber, declared?: DeclarationSink): Provenance {
-  const owners = ownerChain(fiber, declared);
+function provenanceFromFiber(
+  fiber: Fiber,
+  declared?: DeclarationSink,
+  pass?: DigestPass,
+): Provenance {
+  const owners = ownerChain(fiber, declared, pass);
   const createdBy = debugOwnerName(fiber._debugOwner);
   noteOwner(fiber._debugOwner, declared);
   const source = sourceLocation(fiber);
@@ -228,7 +240,11 @@ const MAX_CALL_SITE_FRAMES = 4;
  * and is skipped, so a React release that adds or renumbers work tags shortens
  * a chain instead of crashing the collector (see `fiber.ts`).
  */
-function ownerChain(fiber: Fiber, declared?: DeclarationSink): readonly OwnerFrame[] {
+function ownerChain(
+  fiber: Fiber,
+  declared?: DeclarationSink,
+  pass?: DigestPass,
+): readonly OwnerFrame[] {
   const frames: OwnerFrame[] = [];
   let node: Fiber | null = fiber;
 
@@ -241,7 +257,7 @@ function ownerChain(fiber: Fiber, declared?: DeclarationSink): readonly OwnerFra
       noteOwner(node._debugOwner, declared);
       frames.push({
         name: fiberComponentName(node),
-        propsDigest: boundaryPropsDigest(node.memoizedProps),
+        propsDigest: boundaryPropsDigest(node.memoizedProps, pass),
         // Development-only, like every `_debugOwner` read. Absent in a
         // production build, which degrades structural attribution to the
         // enclosing component rather than breaking it.

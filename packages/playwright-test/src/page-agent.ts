@@ -5,6 +5,7 @@ import {
   holdingOf,
   portalContentOf,
   provenanceOf,
+  digestPass,
   wiringOf,
 } from '@variance-authority/react';
 import type { DeclaredComponents, SuspenseSettlement } from '@variance-authority/react';
@@ -151,13 +152,17 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
   // One mount, two products, deliberately. Two mounts would be two renders, and
   // any disagreement between the image and the names attached to it would be a
   // story about which of them was looking at what.
+  const pass = digestPass();
   const portals = portalContentOf(root);
   const document = { ...acquireDocument(root, shared), baseUrl: root.ownerDocument.baseURI };
   const capture = collect(root, {
     ...shared,
     engine: request.engine,
     portalsOf: () => portals,
-    provenanceOf: (node: Node) => provenanceOf(node, declared),
+    // One memo for this collection: `provenanceOf` walks the owner chain of
+    // every node, so without it each boundary's props are digested once per
+    // descendant. See `DigestPass`.
+    provenanceOf: (node: Node) => provenanceOf(node, declared, pass),
     ...(request.wiring === false ? {} : { wiringOf }),
     ...(request.holdings === true ? { holdingOf } : {}),
     ...(held.digest !== undefined ? { stabilization: held.digest } : {}),
