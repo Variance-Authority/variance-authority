@@ -157,7 +157,7 @@ describe('a byte column stored as runs', () => {
     const values = new Uint8Array(randomBytes(RUN * 2));
     const packed = packBytes(values);
 
-    // A tag byte per run and the run index, and nothing brotli would have added.
+    // A tag byte per run and the run index, and nothing a frame would have added.
     expect(packed.length).toBe(values.length + 2 + 4 + 3 * 4);
     expect(openBytes(packed, values.length).all()).toEqual(values);
   });

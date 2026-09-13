@@ -289,8 +289,13 @@ function dictionary(coverage: TestCoverage): readonly string[] {
       values.add(block.name);
       values.add(block.path);
       values.add(block.digest);
-      for (const testFile of block.testFiles) values.add(testFile);
-      for (const testFile of block.loadedBy ?? []) values.add(testFile);
+      // Not the crossings, and not what loaded the module. Both name a test
+      // file, every one of which the walk over `tests` above already added, and
+      // one that names a file no test observed is refused by the encode a few
+      // lines below. So a loop over them here could only ever re-add a string
+      // the set already held, or add one on an input about to throw — a read
+      // per crossing, and a snapshot has an order of magnitude more crossings
+      // than it has distinct strings.
     }
   }
   return [...values].sort(codeUnitOrder);
@@ -340,7 +345,7 @@ function ordered<T>(values: readonly T[], name: (value: T) => string): readonly 
   return values;
 }
 
-function settledModule(module: CoverageModule): CoverageModule {
+export function settledModule(module: CoverageModule): CoverageModule {
   const blocks = settle(byOrdinal(module.blocks), settledBlock);
   return blocks === module.blocks ? module : { ...module, blocks };
 }
@@ -375,7 +380,7 @@ function distinct(values: readonly string[]): readonly string[] {
   return values;
 }
 
-function settledTest(test: CoverageTest): CoverageTest {
+export function settledTest(test: CoverageTest): CoverageTest {
   const preconditions = uniquePreconditions(test.preconditions);
   return preconditions === test.preconditions ? test : { ...test, preconditions };
 }

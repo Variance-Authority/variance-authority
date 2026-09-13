@@ -175,6 +175,9 @@ export function lostCrossings(before: CoverageModule, after: CoverageModule): re
  * constant — move the root's digest and retire every crossing in the file, which
  * is the whole suite demoted for a function nobody calls yet.
  */
-export function reusableBlock(current: CoverageBlock, previous: CoverageBlock): boolean {
+export function reusableBlock(
+  current: Pick<CoverageBlock, 'kind'>,
+  previous: Pick<CoverageBlock, 'kind'>,
+): boolean {
   return current.kind === previous.kind;
 }

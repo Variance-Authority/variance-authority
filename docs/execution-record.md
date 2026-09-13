@@ -304,10 +304,13 @@ compression is the expensive one, at nineteen, for a fifth off its size. That is
 why the threshold is stated as a size: a section is stored as runs only when the
 runs come out smaller than the column was, and a run compression would have
 expanded is kept as the bytes it already is. Compressing what does not compress
-buys nothing in either currency. Brotli at quality 4; zstd reads the same
-columns twenty milliseconds faster for three per cent more bytes, which is not
-worth a floor of Node 22.15 for a cost that lands where the next paragraph shows
-it does not matter.
+buys nothing in either currency. Zstd at two levels, because the runs are two
+kinds of data: six for the varints, one for the string blob, which is file paths
+and hex digests and gains nothing above it. Against brotli at quality 4 over the
+same twenty thousand columns, that is 319 milliseconds of compression down to
+120 and a file 86 kilobytes smaller — the blob alone was 187 milliseconds and
+7.169 megabytes, against 30 and 7.083. It costs a floor of Node 22.15, which is
+where `zlib.zstdCompressSync` arrived.
 `packWords` and `openWords` at
 `packages/sense/src/test-selection/columns.ts:71` and `:99` are the codec. A
 repository of twenty thousand modules, six hundred thousand regions and eight

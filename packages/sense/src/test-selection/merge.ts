@@ -282,12 +282,17 @@ export function mergeCoverage(
   };
 }
 
+/** What a carried module is named by, which is all {@link readSources} reads. */
+export interface CarriedModule {
+  readonly file: string;
+  readonly sourceDigest: string;
+}
+
 /**
- * The text {@link mergeCoverage} re-cuts carried rows from: the modules
- * `previous` holds that `current` did not record, and whose text has moved
- * since it was recorded. This is the whole of the I/O, so the merge itself
- * stays a function of two snapshots. A file that is not there is not named,
- * and is carried as it was.
+ * The text {@link mergeCoverage} re-cuts carried rows from: of the modules the
+ * caller names, the ones whose text has moved since their rows were cut. This
+ * is the whole of the I/O, so the merge itself stays a function of two
+ * snapshots. A file that is not there is not named, and is carried as it was.
  *
  * What the map deliberately does not hold is every other module. A run that
  * re-records ten files of two hundred thousand carries the rest, and almost
@@ -296,25 +301,22 @@ export function mergeCoverage(
  * own digest answers in sixteen bytes. So each file is read, decided, and let
  * go, and only text a re-cut will actually read is kept.
  *
+ * The caller names them rather than handing over a snapshot to be filtered,
+ * because the caller that wants this most does not have a decoded snapshot: a
+ * layer reads the same three columns off the file it is about to write over,
+ * and materializing the model to name them would be the cost the layer exists
+ * to avoid.
+ *
  * The reads run {@link AT_ONCE} at a time. They are the one unbounded loop in
  * the merge — one iteration per module the index holds — and awaiting them one
  * after another spends the whole of it waiting on a syscall that was never the
  * limit.
  */
-export async function sourcesOnDisk(
+export async function readSources(
   root: string,
-  previous: TestCoverage | undefined,
-  current: TestCoverage,
+  carried: readonly CarriedModule[],
 ): Promise<ReadonlyMap<string, string>> {
   const sources = new Map<string, string>();
-  if (previous === undefined) return sources;
-  const recorded = new Set(current.modules.map((module) => module.file));
-  // A module recorded as unread is not re-cut at all: that row says this build
-  // never measured the module, and cutting regions out of its text would answer
-  // an unknown with a table of regions no run ever entered.
-  const carried = previous.modules.filter(
-    (module) => module.instrumented && !recorded.has(module.file),
-  );
   let next = 0;
   const reader = async (): Promise<void> => {
     for (let index = next++; index < carried.length; index = next++) {
@@ -337,7 +339,7 @@ export async function sourcesOnDisk(
 }
 
 /**
- * Files read at once by {@link sourcesOnDisk}.
+ * Files read at once by {@link readSources}.
  *
  * Enough to keep the disk busy, few enough that the descriptors are a constant
  * rather than a function of how many modules the index holds — a merge that
@@ -371,7 +373,7 @@ export async function existingCoverage(file: string): Promise<TestCoverage | und
   }
 }
 
-function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
+export function samePreconditions(left: CoverageTest, right: CoverageTest): boolean {
   const keys = (test: CoverageTest): ReadonlySet<string> =>
     new Set(test.preconditions.map((input) => `${input.name}\0${input.digest}`));
   const leftKeys = keys(left);

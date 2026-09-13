@@ -4335,6 +4335,7 @@ __metadata:
     "@types/react-dom": "npm:^19"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/history": "workspace:^"
+    "@variance-authority/png": "workspace:^"
     "@variance-authority/raster": "workspace:^"
     "@variance-authority/remote": "workspace:^"
     "@variance-authority/report": "workspace:^"

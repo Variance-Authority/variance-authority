@@ -260,12 +260,11 @@ export async function indexPosition(
     // a run started from either is asked for from both.
     let commit: string | undefined;
     for (const candidate of new Set([root, repository])) {
-      try {
-        ({ commit } = await selection.readTestCoverage(selection.testCoverageFile(candidate)));
-        if (commit !== undefined) break;
-      } catch {
-        // Not here; the next candidate may hold it.
-      }
+      // The position, and nothing else decoded to reach it: a snapshot of a
+      // repository holds hundreds of thousands of regions and this asks it for
+      // forty characters.
+      commit = await selection.recordedCommit(selection.testCoverageFile(candidate));
+      if (commit !== undefined) break;
     }
     if (commit === undefined) return undefined;
     const changed = (await changedFiles(run, repository, commit)).length;

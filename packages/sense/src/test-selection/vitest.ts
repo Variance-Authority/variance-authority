@@ -10,7 +10,7 @@ import { nameModules, readModuleNames, type ModuleNames } from '../module-names.
 import journalFormat from './journal-format.cjs';
 import { priorMap, type TransformingContext } from './probes.js';
 import { commitOf } from './commit.js';
-import { existingCoverage, mergeCoverage, sourcesOnDisk } from './merge.js';
+import { layeredCoverage } from './format-layer.js';
 import {
   cleanId,
   codeUnitOrder,
@@ -28,7 +28,7 @@ import {
 import { sourceLines } from './source-lines.js';
 import {
   testCoverageFile,
-  writeTestCoverage,
+  writeCoverageBytes,
   type CoverageModule,
   type CoveragePrecondition,
   type CoverageTest,
@@ -209,11 +209,7 @@ function selectionReporter(
           ))
           .sort((left, right) => codeUnitOrder(left.file, right.file)),
       };
-      const previous = await existingCoverage(coverageFile);
-      await writeTestCoverage(
-        coverageFile,
-        mergeCoverage(previous, current, await sourcesOnDisk(root, previous, current)),
-      );
+      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.
       await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));

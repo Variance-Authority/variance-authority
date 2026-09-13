@@ -26,29 +26,29 @@ jobs:
   check:
     runs-on: ubuntu-24.04
 
-    # A matrix rather than a pin, because the pin is what hid a bug.
-    #
-    # This said `node-version: '22'` from the day CI was added, chosen by nobody
-    # in particular, while `docker/linux-verify.sh` ran the same code on Node 24.
-    # Nothing tested the difference, and the difference was real: a remote call
-    # built its `AbortSignal` from whatever realm a jsdom test environment had
-    # installed, which the newer runtime brand-checks and refuses. It surfaced
-    # once, in the image, and CI could not have seen it.
-    #
-    # 22 is the floor this repository has always run on; 24 is what the
-    # verification image ships. A runtime nothing runs on is a runtime nobody
-    # supports, and stating that as one number was the mistake.
-    strategy:
-      fail-fast: false
-      matrix:
-        node: ['22', '24']
-
     steps:
       - uses: actions/checkout@v4
 
+      # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
+      #
+      # This was a `['22', '24']` matrix, added because a pin at 22 had hidden a
+      # bug the image found: a remote call built its `AbortSignal` from whatever
+      # realm a jsdom test environment had installed, which the newer runtime
+      # brand-checks and refuses. The lesson there was that CI must run the
+      # runtime something actually runs on, and the matrix was one answer to it.
+      #
+      # The 22 leg was never the answer it looked like. `setup-node` resolves
+      # `'22'` to the newest 22 there is, so the leg tested a runtime that moves
+      # under it and never once tested the floor the packages declare. It was a
+      # second modern Node, bought at twice the runner time.
+      #
+      # So the floor is now a claim and not a check: `sense` and its dependents
+      # say `>=22.15` because that is where `zlib.zstdCompressSync` arrived, and
+      # nothing here proves a 22.15 install works. Stating that is the point of
+      # this comment. What is tested is 24, and 24 is what the image ships.
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
 
       - name: install
         shell: bash

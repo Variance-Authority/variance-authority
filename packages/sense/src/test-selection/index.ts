@@ -42,6 +42,10 @@ export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, Sel
 export { journeyDivergences };
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, mergeCoverage };
+// The write path's counterpart to `mergeCoverage`: the same fold, over the
+// columns of the file it is about to write over rather than over a model
+// somebody decoded first.
+export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export type { CoverageShard };
 
 export interface CoverageBlock {
@@ -201,9 +205,20 @@ export async function readTestCoverage(file: string): Promise<TestCoverage> {
  * merged on its own would make the second one impossible.
  */
 export async function writeTestCoverage(file: string, coverage: TestCoverage): Promise<void> {
+  await writeCoverageBytes(file, encodeTestCoverage(coverage));
+}
+
+/**
+ * The same write, for a caller that already holds the bytes.
+ *
+ * Which is what `layeredCoverage` hands back: it merges and encodes in one pass
+ * over the columns, so there is no model at the end of it to hand a writer that
+ * insists on one.
+ */
+export async function writeCoverageBytes(file: string, bytes: Uint8Array): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
   const temporary = `${file}.${process.pid}-${randomUUID()}.tmp`;
-  await writeFile(temporary, encodeTestCoverage(coverage));
+  await writeFile(temporary, bytes);
   await rename(temporary, file);
 }
 
@@ -251,6 +266,28 @@ export async function journeysApart(
   options: JourneyDivergenceOptions = {},
 ): Promise<readonly JourneyDivergence[]> {
   return journeyDivergences(await readTestCoverage(file), options);
+}
+
+/**
+ * Where a snapshot was recorded, without decoding it.
+ *
+ * The one field a caller asking "what has changed since the index was written"
+ * needs, and the whole of what it needs. Reading it through
+ * {@link readTestCoverage} builds every module and region in the file to reach
+ * forty hex characters at the head of it — most of a second at a repository's
+ * scale, on a command an operator is waiting at a prompt for. Opening parses the
+ * section index and the one string.
+ *
+ * `undefined` for an index recorded outside a checkout, which has no position,
+ * and for a file this build cannot read — the caller's next move is the same
+ * either way, and it is not to explain a format to somebody asking about a diff.
+ */
+export async function recordedCommit(file: string): Promise<string | undefined> {
+  try {
+    return openTestCoverage(await readFile(file)).commit;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Compare per-test execution slices with the static code each test can reach. */

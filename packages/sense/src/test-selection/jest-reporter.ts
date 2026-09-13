@@ -23,7 +23,7 @@ import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { commitOf } from './commit.js';
-import { existingCoverage, mergeCoverage, sourcesOnDisk } from './merge.js';
+import { layeredCoverage } from './format-layer.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -38,7 +38,7 @@ import {
 } from './instrumented-modules.js';
 import { jestStore, RUN_DIRECTORY_VARIABLE, type SelectionReporterConfig } from './jest.js';
 import {
-  writeTestCoverage,
+  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -113,11 +113,7 @@ class SelectionReporter {
         ))
         .sort((left, right) => codeUnitOrder(left.file, right.file)),
     };
-    const previous = await existingCoverage(coverageFile);
-    await writeTestCoverage(
-      coverageFile,
-      mergeCoverage(previous, current, await sourcesOnDisk(root, previous, current)),
-    );
+    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
     // Everything this run saw, numbered for the next one. A file first met today
     // was instrumented under its path; from here on it has a number.
     await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));
