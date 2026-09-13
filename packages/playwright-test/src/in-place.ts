@@ -12,7 +12,12 @@ import type { Locator, Page } from '@playwright/test';
 import { digestValue, documentDigest } from '@variance-authority/core/format';
 import type { AttributedRegion } from '@variance-authority/core/attribute';
 import type { Raster, RenderIdentity, SemanticSnapshot } from '@variance-authority/core/format';
+import { normalize } from '@variance-authority/core/rules';
 import { observeRasters } from '@variance-authority/observe';
+import { suspenseRefusal } from '@variance-authority/react';
+import { acquireFrom } from './acquire.js';
+import { driftBetween, listDrift } from './drift.js';
+import type { AcquireRequest } from './page-agent.js';
 import type { InPlaceCaptureOptions } from './options.js';
 
 export async function stableRaster(
@@ -100,4 +105,112 @@ function whereUnstable(regions: readonly AttributedRegion[]): string {
   const shown = names.slice(0, 4);
   const rest = names.length - shown.length;
   return ` — moving in ${shown.join(', ')}${rest > 0 ? ` and ${rest} more` : ''}`;
+}
+
+/**
+ * One held reading of the subject and the raster taken of it.
+ *
+ * `held` is the acquisition the raster belongs to -- not necessarily the first
+ * one, because a subject that was still moving is read again.
+ */
+export interface SettledCapture {
+  readonly held: Awaited<ReturnType<typeof acquireFrom>>;
+  readonly snapshot: SemanticSnapshot;
+  readonly raster: Raster;
+}
+
+/**
+ * Photograph a live subject, letting it come to rest first.
+ *
+ * A subject captured in place is captured while the application is still
+ * running, so "the page moved between the two reads that prove it held still"
+ * describes the ordinary case as often as the pathological one: a menu that just
+ * opened, a snackbar sliding in, a grid that has just been given its rows.
+ * Refusing on the first disagreement made every one of those a failed test.
+ *
+ * So the cycle is retried. The confirming read of a failed attempt is already a
+ * fresh acquisition, which is what the next attempt starts from -- a retry costs
+ * a screenshot pair and no extra round-trip. A subject that repaints on every
+ * screenshot still exhausts the budget and is still refused, and the message
+ * says how many attempts bought nothing.
+ */
+export async function settledCapture(
+  where: {
+    readonly page: Page;
+    readonly locator: Locator;
+    readonly request: AcquireRequest;
+    readonly materialization: InPlaceCaptureOptions;
+  },
+  first: { readonly acquired: SettledCapture['held']; readonly snapshot: SemanticSnapshot },
+  about: {
+    readonly subjectId: string;
+    readonly fonts: readonly string[];
+    readonly loading: boolean;
+  },
+): Promise<SettledCapture> {
+  const { page, locator, request, materialization } = where;
+  let held = first.acquired;
+  let heldSnapshot = first.snapshot;
+  let restless: string | undefined;
+  const attempts = Math.max(1, materialization.settleAttempts ?? 3);
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    // Widening pauses rather than an immediate retry. What is being waited out
+    // is a transition with a duration, and three reads taken back to back all
+    // land inside the same one.
+    if (attempt > 0) await page.waitForTimeout(attempt * 100);
+    let taken: Raster;
+    try {
+      taken = await stableRaster(
+        page,
+        locator,
+        held.document,
+        about.fonts,
+        held.stabilization.digest,
+        materialization,
+        heldSnapshot,
+      );
+    } catch (error) {
+      restless = error instanceof Error ? error.message : String(error);
+      held = await acquireFrom(page, locator, request);
+      heldSnapshot = normalize(held.capture);
+      continue;
+    }
+
+    const confirmed = await acquireFrom(page, locator, request);
+    const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
+      subjectId: about.subjectId,
+      declaredLoading: about.loading,
+    });
+    // Not retried: a subtree still showing a fallback is a decision the test has
+    // to make, not a state that settles on its own within this budget.
+    if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
+    const confirmedSnapshot = normalize(confirmed.capture);
+    const drifted = driftBetween(
+      {
+        document: held.document,
+        snapshot: heldSnapshot,
+        accessibility: held.accessibility,
+        stabilization: held.stabilization,
+      },
+      {
+        document: confirmed.document,
+        snapshot: confirmedSnapshot,
+        accessibility: confirmed.accessibility,
+        stabilization: confirmed.stabilization,
+      },
+    );
+    if (drifted.length === 0) return { held, snapshot: heldSnapshot, raster: taken };
+
+    restless =
+      `in-place capture for ${about.subjectId} changed between acquisition and screenshots: ` +
+      `${listDrift(drifted)} moved while the page was being photographed`;
+    held = confirmed;
+    heldSnapshot = confirmedSnapshot;
+  }
+
+  throw new Error(
+    `${restless ?? `in-place capture for ${about.subjectId} never held still`}` +
+      ` (${attempts} attempt${attempts === 1 ? '' : 's'})`,
+  );
 }

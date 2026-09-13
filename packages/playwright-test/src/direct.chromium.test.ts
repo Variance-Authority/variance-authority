@@ -205,10 +205,13 @@ chromium_('the additive Playwright path', () => {
     });
 
     try {
+      // Refused only after the settle budget is spent, and the message says how
+      // many attempts bought nothing -- a subject that repaints on every
+      // screenshot is never going to hold still.
       await expect(
         session.observe(changing, { subjectId: 'cart/in-place-unstable' }),
-      ).rejects.toThrow(/is unstable: .*pixels differ/);
-      expect(screenshots).toBe(2);
+      ).rejects.toThrow(/is unstable: .*pixels differ.*\(3 attempts\)/);
+      expect(screenshots).toBe(6);
     } finally {
       await target.evaluate((element) => {
         (element as HTMLElement).style.removeProperty('background-color');
@@ -217,7 +220,7 @@ chromium_('the additive Playwright path', () => {
     }
   }, 60_000);
 
-  it('refuses a stable image acquired from stale semantics', async () => {
+  it('lets a subject that moved once during acquisition settle', async () => {
     const target = page!.locator('#cart');
     let screenshots = 0;
     const mutating = new Proxy(target, {
@@ -246,10 +249,15 @@ chromium_('the additive Playwright path', () => {
     });
 
     try {
-      await expect(
-        session.observe(mutating, { subjectId: 'cart/in-place-stale-semantics' }),
-      ).rejects.toThrow('changed between acquisition and screenshots');
-      expect(screenshots).toBe(2);
+      // The first attempt reads semantics, then the page changes under it, and
+      // the confirming read disagrees. The second attempt sees a page that has
+      // stopped moving -- which is what a menu opening or a snackbar arriving
+      // looks like, and refusing it outright was the defect.
+      const observation = await session.observe(mutating, {
+        subjectId: 'cart/in-place-stale-semantics',
+      });
+      expect(observation.verdict).toBe('new');
+      expect(screenshots).toBe(4);
     } finally {
       await target.locator('p').evaluate((element) => {
         element.textContent = 'Empty';

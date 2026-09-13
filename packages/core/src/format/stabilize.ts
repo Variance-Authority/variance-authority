@@ -341,6 +341,12 @@ export const RASTER_RECIPE: Recipe = [...LAYOUT_RECIPE, hideCaret];
 export const COLLECT_RECIPE: Recipe = [
   pinAnimations,
   hideScrollbars,
+  // Here as well as in {@link RASTER_RECIPE}, because the in-place path
+  // photographs the live page and applies no screenshot options of its own: the
+  // only caret hold that reaches that image is one installed here. A subject
+  // holding a focused input otherwise disagrees with itself between two
+  // screenshots taken 600ms apart, and is refused for blinking.
+  hideCaret,
   waitForFonts,
   waitForImages,
 ];

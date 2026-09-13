@@ -87,6 +87,20 @@ export interface InPlaceCaptureOptions {
   };
   /** Independent screenshots required to agree. Defaults to 2; minimum 2. */
   readonly stabilityChecks?: number;
+  /**
+   * How many times to let a moving subject come to rest. Defaults to 3; minimum 1.
+   *
+   * A subject photographed in place is photographed while the application is
+   * still running, and a finite transition that has not finished is the ordinary
+   * case rather than the pathological one -- a menu that just opened, a snackbar
+   * sliding in, a grid that just received its rows. Refusing the first time two
+   * readings disagree turns every one of those into a failed test, so the cycle
+   * is retried, using the confirming read as the next attempt's acquisition.
+   *
+   * One attempt is the old behaviour, for a suite that wants a subject which
+   * moves at all to be a failure.
+   */
+  readonly settleAttempts?: number;
 }
 
 export type MaterializationOptions =

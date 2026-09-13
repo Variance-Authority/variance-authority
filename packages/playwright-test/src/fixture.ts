@@ -31,8 +31,7 @@ import type { MaterializationOptions, VarianceOptions } from './options.js';
 import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
-import { driftBetween, listDrift } from './drift.js';
-import { stableRaster } from './in-place.js';
+import { settledCapture } from './in-place.js';
 import {
   createExecutionRecorder,
   ownerOf,
@@ -303,7 +302,7 @@ export async function observeLocator(
   };
 
   const acquired = await acquireFrom(page, locator, request);
-  const { document, capture, suspense, stabilization, accessibility } = acquired;
+  const { document, capture, suspense, accessibility } = acquired;
 
   // The engine's answer laid over the caller's index, read after the acquisition
   // that registered this subject's components. Absent altogether when neither
@@ -319,52 +318,26 @@ export async function observeLocator(
   const materialization = runtime.materialization ?? { kind: 'deferred' };
 
   if (materialization.kind === 'in-place') {
-    const candidate = await stableRaster(
-      page,
-      locator,
-      document,
-      options.fonts ?? [],
-      stabilization.digest,
-      materialization,
-      snapshot,
+    const { held, snapshot: heldSnapshot, raster: candidate } = await settledCapture(
+      { page, locator, request, materialization },
+      { acquired, snapshot },
+      { subjectId: subject.id, fonts: options.fonts ?? [], loading: options.loading === true },
     );
-    const confirmed = await acquireFrom(page, locator, request);
-    const confirmedUnsettled = suspenseRefusal(confirmed.suspense, {
-      subjectId: subject.id,
-      declaredLoading: options.loading === true,
-    });
-    if (confirmedUnsettled !== undefined) throw new Error(confirmedUnsettled);
-    const confirmedSnapshot = normalize(confirmed.capture);
-    const drifted = driftBetween(
-      { document, snapshot, accessibility, stabilization },
-      {
-        document: confirmed.document,
-        snapshot: confirmedSnapshot,
-        accessibility: confirmed.accessibility,
-        stabilization: confirmed.stabilization,
-      },
-    );
-    if (drifted.length > 0) {
-      throw new Error(
-        `in-place capture for ${subject.id} changed between acquisition and screenshots: ` +
-          `${listDrift(drifted)} moved while the page was being photographed`,
-      );
-    }
     const artifact: CaptureArtifact = {
       artifactVersion: 1,
       subject,
       material: { kind: 'raster', raster: candidate },
-      snapshot,
-      accessibility,
+      snapshot: heldSnapshot,
+      accessibility: held.accessibility,
       ...(source === undefined ? {} : { source }),
-      stabilization: stabilization.ids,
+      stabilization: held.stabilization.ids,
     };
     const observation = await observeCaptureAgainstBaseline(artifact, key, { store });
     if (run.accepting === true && observation.verdict !== 'unchanged') {
       await store.put(key, {
         ...candidate,
-        components: hashComponents(snapshot),
-        accessibility,
+        components: hashComponents(heldSnapshot),
+        accessibility: held.accessibility,
       });
       return accepted(observation);
     }

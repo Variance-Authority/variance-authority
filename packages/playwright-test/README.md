@@ -240,6 +240,15 @@ suite's own Chromium (`headless` and the ordered `launchArgs`), which is what
 enters renderer identity; `stabilityChecks` defaults to `2` and cannot go lower
 than two captures.
 
+A subject photographed in place is photographed while the application is still
+running, so a menu that has just opened or a snackbar sliding in will disagree
+with itself between two reads. `settleAttempts` is how many times it is given to
+come to rest, `3` by default; the confirming read of a failed attempt is the next
+attempt's acquisition, so a retry costs a screenshot pair and no extra
+round-trip. Set it to `1` for a suite that wants a subject which moves at all to
+be a failure. A subject that never holds still is still refused, and the refusal
+says how many attempts bought nothing.
+
 ### Optional fixture composition
 
 | Fixture | Purpose | Default |
