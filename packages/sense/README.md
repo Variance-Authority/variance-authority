@@ -115,9 +115,11 @@ const records = await scanRelations({
 ```
 
 `mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
-story and setup files and subtracts the mocked specifier; a mock whose factory
-reaches for the real module, or whose specifier is not a string literal, keeps
-the edge. Pass `callers` to name other mocking objects and `files` to widen
+story and setup files and subtracts the mocked specifier. The edge is kept
+when the factory reaches for the real module through `importActual`,
+`requireActual` or `importOriginal`, when the factory is written somewhere
+this cannot read, when the mock is a `doMock` that the static imports above it
+have already evaluated past, and when the specifier is not a string literal. Pass `callers` to name other mocking objects and `files` to widen
 which files are read. `taintFile` reads a JSON table you keep beside the
 repository, keyed by file path with `-` and `+` rows:
 
@@ -137,7 +139,8 @@ subtractions are unioned and so are the additions, and an addition beats a
 subtraction: two taints that disagree describe a file one of them is wrong
 about, and the graph keeps the edge. A subtraction removes the file's own edge
 and nothing further — the module the test imports still reaches the mocked
-module through its own imports, which over-includes.
+module through its own imports, which over-includes: a test that mocks what
+its component imports is still selected by a change to the mocked module.
 
 ## Entrypoints
 

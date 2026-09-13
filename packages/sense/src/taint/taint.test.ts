@@ -41,6 +41,22 @@ beforeAll(async () => {
     'src/panel.jest.test.ts',
     "import { api } from './api';\njest.mock('./api');\njest.mock('./panel', () => ({}), { virtual: true });\nexport const t = api;",
   );
+  await write(
+    root,
+    'src/original.test.ts',
+    "import { vi } from 'vitest';\nimport { api } from './api';\nvi.mock('./api', async (importOriginal) => ({ ...(await importOriginal()) }));\nexport const t = api;",
+  );
+  await write(
+    root,
+    'src/named.test.ts',
+    "import { vi } from 'vitest';\nimport { api } from './api';\nimport { factory } from './factory';\nvi.mock('./api', factory);\nexport const t = api;",
+  );
+  await write(root, 'src/factory.ts', "export const factory = () => ({});");
+  await write(
+    root,
+    'src/late.test.ts',
+    "import { vi } from 'vitest';\nimport { api } from './api';\nvi.doMock('./api');\nexport const t = api;",
+  );
   await write(root, 'src/relay.ts', "declare const jsresource: (name: string) => unknown;\nexport const lazy = jsresource('./panel');");
 });
 
@@ -128,8 +144,14 @@ describe('the mock taint', () => {
     expect((await edgesOf(taints, 'src/panel.jest.test.ts'))?.edges).toBeUndefined();
   });
 
-  it('keeps the edge when the factory reaches for the real module', async () => {
-    expect((await edgesOf([mockTaint()], 'src/actual.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/api.ts']);
+  it('keeps the edge when the factory reaches for the real module, or is written elsewhere', async () => {
+    for (const file of ['src/actual.test.ts', 'src/original.test.ts', 'src/named.test.ts']) {
+      expect((await edgesOf([mockTaint()], file))?.edges?.map((edge) => edge.to), file).toContain('src/api.ts');
+    }
+  });
+
+  it('does not read a doMock: the static imports above it ran the real module', async () => {
+    expect((await edgesOf([mockTaint()], 'src/late.test.ts'))?.edges?.map((edge) => edge.to)).toEqual(['src/api.ts']);
   });
 
   it('cuts the file\'s own edge and no further', async () => {
@@ -160,7 +182,14 @@ describe('the mock taint', () => {
     };
     await scanRelations({ root, dirs: ['src'], digests: false, taints: [spy] });
 
-    expect(opened).toEqual(['src/actual.test.ts', 'src/card.test.ts', 'src/panel.jest.test.ts']);
+    expect(opened).toEqual([
+      'src/actual.test.ts',
+      'src/card.test.ts',
+      'src/late.test.ts',
+      'src/named.test.ts',
+      'src/original.test.ts',
+      'src/panel.jest.test.ts',
+    ]);
   });
 });
 

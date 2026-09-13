@@ -10,11 +10,16 @@
  * ## What is not subtracted
  *
  * A mock that reaches for the real module keeps the edge: a factory calling
- * `vi.importActual` or `jest.requireActual`, and a `{ spy: true }` option,
- * both run the original. `vi.unmock` and `jest.unmock` restore an edge the
- * file wrote, and the file's own row already has it. A mock whose specifier
- * is not a string literal names a module this cannot see, and an edge this
- * cannot see is kept.
+ * `vi.importActual` or `jest.requireActual`, or taking vitest's
+ * `importOriginal` argument, and a `{ spy: true }` option, all run the
+ * original. A factory that is not written inside the call — an identifier, a
+ * member, anything but a function literal — has a body this cannot read, and
+ * a body this cannot read is assumed to reach the original. `vi.doMock` and
+ * `jest.doMock` replace only what is imported after they run, and the static
+ * imports above them ran the real module: they are not read. `vi.unmock` and
+ * `jest.unmock` restore an edge the file wrote, and the file's own row already
+ * has it. A mock whose specifier is not a string literal names a module this
+ * cannot see, and an edge this cannot see is kept.
  *
  * ## Which files are opened
  *
@@ -35,8 +40,8 @@ export interface MockTaintOptions {
 }
 
 const CALLERS = ['jest', 'sb', 'vi'];
-const MOCKING = new Set(['doMock', 'mock']);
-const ACTUAL = new Set(['importActual', 'requireActual']);
+const MOCKING = new Set(['mock']);
+const ACTUAL = new Set(['importActual', 'importOriginal', 'requireActual']);
 
 export function mockTaint(options: MockTaintOptions = {}): Taint {
   const callers = new Set(options.callers ?? CALLERS);
@@ -59,7 +64,7 @@ export function isTestLike(file: string): boolean {
 
 function mocksIn(subject: TaintSubject, callers: ReadonlySet<string>): ImportDiff | undefined {
   // A file with no `.mock(` in it has no mock. The parse is the cost this skips.
-  if (!subject.source.includes('.mock(') && !subject.source.includes('.doMock(')) return undefined;
+  if (!subject.source.includes('.mock(')) return undefined;
 
   const minus: string[] = [];
   each(subject.program(), (node) => {
@@ -74,7 +79,7 @@ function mocksIn(subject: TaintSubject, callers: ReadonlySet<string>): ImportDif
     const [subjectArgument, ...rest] = node.arguments as readonly Node[];
     const specifier = specifierOf(subjectArgument);
     if (specifier === undefined) return;
-    if (rest.some((argument) => reachesActual(argument) || spies(argument))) return;
+    if (rest.some((argument) => opaque(argument) || reachesActual(argument) || spies(argument))) return;
 
     minus.push(specifier);
   });
@@ -99,6 +104,11 @@ function specifierOf(node: Node | undefined): string | undefined {
   if (node.type === 'ImportExpression') return specifierOf(node.source as Node);
 
   return undefined;
+}
+
+/** A factory whose body is elsewhere: `vi.mock('./api', factory)`. */
+function opaque(node: Node): boolean {
+  return !['ArrowFunctionExpression', 'FunctionExpression', 'ObjectExpression', 'Literal'].includes(node.type);
 }
 
 function reachesActual(node: Node): boolean {
