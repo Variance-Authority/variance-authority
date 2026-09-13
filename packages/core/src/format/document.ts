@@ -122,6 +122,16 @@ export interface RenderResource {
   /** Response bytes, base64. */
   readonly bytes: string;
   readonly digest: Digest;
+
+  /**
+   * The status a renderer answers this URL with. Absent means 200.
+   *
+   * A subject is allowed to reference something that is not there: a fallback
+   * test does it on purpose, and the browser it was acquired in painted the
+   * broken state rather than the image. Recording the failure as a failure is
+   * what lets a renderer reproduce that state without asking the network.
+   */
+  readonly status?: number;
 }
 
 export interface RenderFrame {

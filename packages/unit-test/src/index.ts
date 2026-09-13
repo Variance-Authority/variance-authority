@@ -1,5 +1,6 @@
 export { capture } from './capture.js';
 export type {
+  AbsentResource,
   ResolvedResource,
   UnitCaptureOptions,
 } from './capture.js';

@@ -93,6 +93,31 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     }
   });
 
+  it('answers a resource recorded as absent with its status, not the network', async () => {
+    const renderer = await createPlaywrightRenderer({ waitForFonts: false });
+    const empty = Buffer.from('');
+    const url = 'https://assets.example/components/missing.png';
+    const document: RenderDocument = {
+      ...documentOf('fixture:absent', '#fff'),
+      baseUrl: 'https://assets.example/components/',
+      html: '<div data-va-path="0"><img src="missing.png" alt="none" width="20" height="20"></div>',
+      assets: { [url]: digestBytes(empty) },
+      resources: {
+        [url]: { contentType: '', bytes: '', digest: digestBytes(empty), status: 404 },
+      },
+    };
+
+    try {
+      // A missing resource makes the renderer refuse the document as incomplete.
+      // This one is complete: the absence is what was recorded.
+      await expect(renderer.render(document)).resolves.toMatchObject({
+        documentDigest: documentDigest(document),
+      });
+    } finally {
+      await renderer.close();
+    }
+  });
+
   it('refuses queued HTTP and WebSocket egress from a resource-closed document', async () => {
     const renderer = await createPlaywrightRenderer({ waitForFonts: false });
     const closed = {

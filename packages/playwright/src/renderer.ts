@@ -10,7 +10,6 @@ import {
 import {
   RASTER_RECIPE,
   conflicts,
-  digestBytes,
   digestValue,
   documentDigest,
   recipeCss,
@@ -24,6 +23,11 @@ import {
   type Viewport,
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
+import {
+  assertClosedResources,
+  refuseMissingResources,
+  serveClosedResources,
+} from './resources.js';
 import {
   assemble,
   familiesOf,
@@ -228,33 +232,7 @@ export async function createPlaywrightRenderer(
           await context.unrouteAll({ behavior: 'wait' });
           if (closed) {
             activeResources.set(context, missingResources);
-            await context.route('**/*', async (route) => {
-              const url = route.request().url();
-              const resource = document.resources?.[url];
-              if (resource === undefined) {
-                missingResources.add(url);
-                await route.abort('blockedbyclient');
-                return;
-              }
-
-              const bytes = Buffer.from(resource.bytes, 'base64');
-              const actual = digestBytes(bytes);
-              if (actual !== resource.digest) {
-                missingResources.add(`${url} (digest ${resource.digest} does not match ${actual})`);
-                await route.abort('blockedbyclient');
-                return;
-              }
-
-              await route.fulfill({
-                body: bytes,
-                contentType: resource.contentType,
-                headers: {
-                  'access-control-allow-origin': '*',
-                  'cross-origin-resource-policy': 'cross-origin',
-                  'cache-control': 'public, max-age=31536000, immutable',
-                },
-              });
-            });
+            await serveClosedResources(context, document, missingResources);
           }
 
           await page.setContent(assemble(document, options.assemble ?? {}), {
@@ -327,24 +305,6 @@ export async function createPlaywrightRenderer(
   }
 }
 
-function assertClosedResources(document: RenderDocument): void {
-  if (document.resources === undefined) return;
-
-  for (const [url, expected] of Object.entries(document.assets ?? {})) {
-    const resource = document.resources[url];
-    if (resource === undefined) {
-      throw new Error(
-        `resource-closed document ${document.subject.id} has no bytes for ${url}`,
-      );
-    }
-    const actual = digestBytes(Buffer.from(resource.bytes, 'base64'));
-    if (actual !== expected || actual !== resource.digest) {
-      throw new Error(
-        `resource-closed document ${document.subject.id} has inconsistent bytes for ${url}`,
-      );
-    }
-  }
-}
 
 /**
  * Which of these families the renderer does not actually have.
@@ -486,10 +446,3 @@ class PagePool {
   }
 }
 
-function refuseMissingResources(document: RenderDocument, missing: ReadonlySet<string>): void {
-  if (missing.size === 0) return;
-  throw new Error(
-    `resource-closed document ${document.subject.id} requested unavailable resources: ` +
-      [...missing].sort().join(', '),
-  );
-}

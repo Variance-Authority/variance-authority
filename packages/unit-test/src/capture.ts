@@ -23,6 +23,20 @@ export interface ResolvedResource {
   readonly bytes: Uint8Array;
 }
 
+/**
+ * A URL the resolver knows does not resolve.
+ *
+ * Returning this is not a failure to archive. A fixture that points an `<img>`
+ * at a path nobody serves is testing the fallback, and the subject is the
+ * broken state; the renderer answers the same status instead of reaching for a
+ * network it is not allowed to have.
+ */
+export interface AbsentResource {
+  readonly absent: true;
+  /** Defaults to 404. */
+  readonly status?: number;
+}
+
 export interface UnitCaptureOptions {
   readonly subject: string | SubjectRef;
   readonly viewport: Viewport;
@@ -30,7 +44,9 @@ export interface UnitCaptureOptions {
   readonly fonts?: readonly string[];
   readonly features?: Readonly<Record<string, string>>;
   readonly sourceRoot?: string;
-  readonly resolveResource?: (url: string) => Promise<ResolvedResource | null>;
+  readonly resolveResource?: (
+    url: string,
+  ) => Promise<ResolvedResource | AbsentResource | null>;
 
   /**
    * Framework readers, passed straight through to `collect`.
@@ -175,6 +191,16 @@ async function closeResources(
   for (const url of urls) {
     const response = await resolve!(url);
     if (response === null) throw new Error(`capture could not archive resource: ${url}`);
+    if ('absent' in response) {
+      const empty = new Uint8Array();
+      closed[url] = {
+        contentType: '',
+        bytes: '',
+        digest: digestBytes(empty),
+        status: response.status ?? 404,
+      };
+      continue;
+    }
     closed[url] = {
       contentType: response.contentType,
       bytes: Buffer.from(response.bytes).toString('base64'),

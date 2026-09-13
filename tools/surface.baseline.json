@@ -2809,6 +2809,7 @@
     },
     "names": {
       ".": {
+        "AbsentResource": "interface",
         "CAPTURE_SUFFIX": "const",
         "CaptureCollectorOptions": "interface",
         "Collected": "type",

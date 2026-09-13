@@ -104,6 +104,22 @@ describe('browserless capture archive', () => {
     ).toEqual(['https://assets.example/a.png?x=1&y=2']);
   });
 
+  it('records a resource the resolver says is not there', async () => {
+    const root = mount('<img src="https://assets.example/missing.png" alt="none">');
+
+    const artifact = await capture(root, {
+      subject: 'fallback',
+      viewport: VIEWPORT,
+      resolveResource: async () => ({ absent: true }),
+    });
+
+    expect(
+      artifact.material.kind === 'document'
+        ? artifact.material.document.resources?.['https://assets.example/missing.png']
+        : undefined,
+    ).toMatchObject({ bytes: '', status: 404 });
+  });
+
   it('refuses an archive whose version is not understood', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-unit-'));
     temporary.push(directory);
