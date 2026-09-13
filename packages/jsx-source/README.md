@@ -55,9 +55,9 @@ arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
 survives minification and does not enter the document or any compared digest.
 
 It does not intercept `React.createElement`. React 18 with an unchanged classic
-esbuild transform therefore remains uninstrumented: `jsxDev: true` alone does
-not change classic output. To use this package for that build, switch the
-transform to automatic JSX and enable its development emission. A classic
+transform therefore remains uninstrumented: development emission alone does not
+change classic output. To use this package for that build, switch the transform
+to automatic JSX and enable its development emission. A classic
 transform that already emits `__source` gives React 18 its native
 `_debugSource`, so this package is unnecessary there.
 
@@ -80,9 +80,16 @@ import { jsxSource } from '@variance-authority/jsx-source/vite';
 
 export default {
   plugins: [jsxSource()],
-  esbuild: { jsx: 'automatic', jsxDev: true },
+  oxc: { jsx: { runtime: 'automatic', development: true, refresh: false } },
 };
 ```
+
+That is Vite 8, which transforms with oxc. On Vite 7 and below the same two
+settings are spelled `esbuild: { jsx: 'automatic', jsxDev: true }`. Check which
+major you are on before copying either — see
+[the transform must emit `jsxDEV`](#either-way-the-transform-must-emit-jsxdev)
+for what the wrong one costs. `refresh: false` keeps Fast Refresh out of a build
+that is not a dev server.
 
 `jsxImportSource` is not mentioned here — leave it wherever it already is.
 Vite is three build tools at once here: the same plugin serves a Vite
@@ -112,15 +119,21 @@ Then take `jsxImportSource` directly. It is a compiler setting rather than a
 plugin, so there is nothing to keep working across a bundler upgrade:
 
 ```js
-// vite.config.js — or the `esbuild` block of a framework that wraps it
+// vite.config.js — or the transform block of a framework that wraps it
 export default {
-  esbuild: {
-    jsx: 'automatic',
-    jsxDev: true,
-    jsxImportSource: '@variance-authority/jsx-source',
+  oxc: {
+    jsx: {
+      runtime: 'automatic',
+      development: true,
+      refresh: false,
+      importSource: '@variance-authority/jsx-source',
+    },
   },
 };
 ```
+
+Vite 7 and below spell the same three under `esbuild`, as `jsx: 'automatic'`,
+`jsxDev: true` and `jsxImportSource`.
 
 For Babel, set `runtime: 'automatic'`, `development: true` and `importSource` on
 `@babel/preset-react`. For TypeScript's own emit, use `"jsx": "react-jsxdev"`
@@ -133,10 +146,28 @@ development JSX emission — it is what makes the transform emit a call site at
 all. Turning it on in a production build is supported: a call site is data the
 compiler emitted, so unlike a component name it survives minification.
 
-After that build runs, render an element and inspect it through
-`@variance-authority/react`'s `provenanceOf`. Its result should carry a
-resolved source location; if that is absent, check the emitted bundle's
-runtime request and `jsxDev` setting before changing application code.
+Where the setting lives is the one thing to get right, because the build does
+not tell you when you miss:
+
+| your transform | automatic JSX | development emission |
+|---|---|---|
+| Vite 8 (oxc) | `oxc.jsx.runtime: 'automatic'` | `oxc.jsx.development: true` |
+| Vite 7 and below (esbuild) | `esbuild.jsx: 'automatic'` | `esbuild.jsxDev: true` |
+| Babel | `runtime: 'automatic'` | `development: true` |
+| `tsc` | `"jsx": "react-jsxdev"` | included in that value |
+
+A Vite config carries whichever keys it is given and reads only the ones its own
+major knows, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 — is
+not a build error, not a warning, and not a log line. The plugin still installs,
+the bundle still runs, every subject still renders, and every report names the
+line a component is declared on rather than the line that wrote the element. It
+fails in the direction that looks like it worked.
+
+So read the result rather than the config. After the build runs, render an
+element and inspect it through `@variance-authority/react`'s `provenanceOf`: it
+should carry a resolved source location. If it does not, check the emitted
+bundle's runtime request and the transform's development setting before changing
+application code.
 
 ## Entrypoints
 
@@ -177,13 +208,15 @@ happens.
 
 ## When it does not work
 
-- **Call sites are absent everywhere:** `jsxDev` is off, so the transform is
-  emitting calls to `jsx` and `jsxs` and passing no source. Check the setting in
-  the build that actually produced the bundle, not the one in the
-  development server.
+- **Call sites are absent everywhere:** development emission is off, so the
+  transform is emitting calls to `jsx` and `jsxs` and passing no source. Check
+  the setting in the build that actually produced the bundle, not the one in the
+  development server — and check it is spelled for that build's own transform,
+  since a key belonging to a different Vite major is read by nothing and
+  reported by nothing.
 - **The build still emits `React.createElement`:** this package wraps
   `react/jsx-dev-runtime`; it does not patch `createElement`. Select the automatic
-  transform as well as enabling `jsxDev`.
+  transform as well as turning development emission on.
 - **Call sites are absent in one package:** a dependency shipped
   pre-compiled JSX. Its elements were transformed by its own build and never
   passed through this runtime.

@@ -95,9 +95,11 @@ One optional capability is bought in the build rather than beside it. A built,
 minified Storybook reports the line each component is **declared** on; resolving
 a changed element to the line it is *written* on additionally requires the
 [`jsx-source`](../packages/jsx-source) plugin and automatic development JSX
-emission. `esbuild.keepNames` separately preserves component names. A
-development Storybook needs none of these settings, and every other part of
-collection is unaffected either way.
+emission. Preserving component names through minification is a separate
+setting, and it moved with Vite: `build.rolldownOptions.output.keepNames` on
+Vite 8, `esbuild.keepNames` on Vite 7 and below. A development Storybook needs
+none of these settings, and every other part of collection is unaffected either
+way.
 
 This route deliberately produces documents. A run may paint them locally, reuse
 a cached raster, or use a remote renderer that can reach the same resources. The

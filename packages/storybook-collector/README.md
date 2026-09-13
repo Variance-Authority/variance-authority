@@ -198,8 +198,12 @@ the other side.
   resolved. Fix what it awaits, or add the story to `loading` if the fallback is
   what you intend to review.
 - **Components have names but no source lines:** add or correct `source.dirs`.
-  Production minification must also preserve component function names; the
-  worked case uses `esbuild.keepNames: true` for this reason.
+  Production minification must also preserve component function names. Vite 8
+  spells that `build.rolldownOptions.output.keepNames: true`; Vite 7 and below,
+  including the worked case, spell it `esbuild.keepNames: true`. A config
+  carrying the other major's key is read by nothing and warns about nothing, so
+  the symptom is a confident report naming a component that appears nowhere in
+  your source.
 - **Elements report their component's declaration rather than their own line:**
   this is the expected fallback for an uninstrumented built Storybook. Install
   `jsx-source` only when the report must distinguish the exact element instance,
