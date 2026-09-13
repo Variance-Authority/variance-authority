@@ -56,6 +56,14 @@ export async function stableRaster(
       screenshot,
     }),
   };
+  // Asked once, before the first screenshot. A family the host lacks measures
+  // as the generic it falls back to, which is the only evidence left that the
+  // pixels were painted with a substitute -- and `missingFonts` is what the
+  // docket counts and `push` refuses to approve over. The deferred renderer has
+  // asked this since it shipped; in-place capture reported an empty list and so
+  // reported every host as complete.
+  const missingFonts = (await page.evaluate(PROBE_FONTS)) as string[];
+
   const count = Math.max(2, options.stabilityChecks ?? 2);
   const rasters: Raster[] = [];
 
@@ -69,7 +77,7 @@ export async function stableRaster(
       width: Math.round(box.width * document.viewport.deviceScaleFactor),
       height: Math.round(box.height * document.viewport.deviceScaleFactor),
       bytes: bytes.toString('base64'),
-      missingFonts: [],
+      missingFonts,
     });
   }
 
@@ -85,6 +93,34 @@ export async function stableRaster(
   }
   return first;
 }
+
+/**
+ * Families the page declared that this host answers with a generic.
+ *
+ * Source, not a function reference. A test run instruments this module for
+ * coverage, and a function handed to `page.evaluate` is serialized *after* that
+ * rewrite -- the page then evaluates a body calling counters that exist only in
+ * the test process. A string closes over nothing and cannot be rewritten.
+ *
+ * A family whose stack measures exactly as the bare generic contributed
+ * nothing: either it never loaded or the host does not have it, and both
+ * produce the same substituted metrics.
+ */
+const PROBE_FONTS = `(() => {
+  const context = document.createElement('canvas').getContext('2d');
+  if (context === null) return [];
+  const SAMPLE = 'mmmmmmmmmmlliWWWWQ@#0123456789';
+  const widthOf = (stack) => {
+    context.font = '72px ' + stack;
+    return context.measureText(SAMPLE).width;
+  };
+  const families = [...new Set([...document.fonts].map((face) => face.family))];
+  return families.filter((family) =>
+    ['monospace', 'sans-serif', 'serif'].every(
+      (generic) => widthOf('"' + family + '",' + generic) === widthOf(generic),
+    ),
+  );
+})()`;
 
 /**
  * The nodes two screenshots of one unheld state disagreed about.

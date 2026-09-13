@@ -178,6 +178,37 @@ chromium_('the additive Playwright path', () => {
     }
   }, 60_000);
 
+  it('names a font the host did not have, captured in place', async () => {
+    // The deferred renderer has probed for substituted families since it
+    // shipped; in-place capture reported an empty list, so a host missing half
+    // the design system's faces looked complete and the docket counted none.
+    const own = await browser!.newPage({ viewport: { width: 800, height: 600 } });
+    try {
+      await own.setContent(
+        '<style>@font-face { font-family: "Ledger Sans"; src: url(/absent.woff2) format("woff2"); }' +
+          '#priced { font-family: "Ledger Sans"; }</style>' +
+          '<main><section id="priced">Total 12.00</section></main>',
+      );
+      const session = await createVariance(own, info('all'), {
+        baselines,
+        materialization: {
+          kind: 'in-place',
+          browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+        },
+      });
+      try {
+        const observation = await session.observe(own.locator('#priced'), {
+          subjectId: 'cart/absent-face',
+        });
+        expect(observation.missingFonts).toContain('Ledger Sans');
+      } finally {
+        await session.close();
+      }
+    } finally {
+      await own.close();
+    }
+  }, 60_000);
+
   it('absorbs a band the subject is not asserted on, and says whose declaration did it', async () => {
     // What a threshold is usually reached for, done by name. The recolour below
     // repaints the whole subject -- no threshold small enough to be safe would

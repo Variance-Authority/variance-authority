@@ -55,6 +55,7 @@ export const CROSSES = [
   'packages/playwright-test/src/direct',
   'packages/playwright-test/src/events',
   'packages/playwright-test/src/fixture',
+  'packages/playwright-test/src/in-place',
   'packages/presentation/src/playwright',
   'packages/route-collector/src/world',
   'packages/storybook/src/preview',

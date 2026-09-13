@@ -368,8 +368,8 @@ second run onward.
 
 ---
 
-**Further:** [`distance.md`](distance.md) for how far the change travelled to
-each selected test, and the bands that reading cuts the run into ·
+**Further:** [`distance.md`](distance.md) for ordering the selected tests by
+how far the change travelled to each one, and running the nearest first ·
 [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
 remembers both ·

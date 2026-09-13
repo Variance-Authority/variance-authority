@@ -57,7 +57,14 @@ export const TOKENS_CSS = `/*
   --va-shadow-1: 0 1px 2px rgba(16, 20, 24, 0.12);
   --va-shadow-2: 0 4px 12px rgba(16, 20, 24, 0.18);
 
-  --va-font-sans: system-ui, sans-serif;
+  /* A named face before the generic, on purpose. \`system-ui\` asks the host to
+     pick the typeface, and a host that picks differently moves every glyph in
+     every baseline with nothing in the code having changed -- the collector says
+     so, as \`host-chosen-font\`. Naming Helvetica does not guarantee the host has
+     it either, but a named family that is missing measures as its generic and is
+     reported, which is the difference between a substitution you can see and one
+     you cannot. */
+  --va-font-sans: 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --va-font-size-sm: 12px;
   --va-font-size-md: 14px;
   --va-font-size-lg: 20px;

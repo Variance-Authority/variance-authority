@@ -18,6 +18,7 @@ import { inheritedSeed } from './inherit.js';
 import type { ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
 import { detectProfile } from './profile.js';
+import { hostChosenFonts } from './typeface.js';
 export { detectProfile } from './profile.js';
 
 /**
@@ -248,6 +249,21 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
     });
   }
 
+  const rootNode = captureNode(root, profile, index, view, options, couplings, ignores.marks);
+
+  const hostChosen = hostChosenFonts(rootNode);
+  if (hostChosen !== undefined) {
+    diagnostics.push({
+      severity: 'warn',
+      code: 'host-chosen-font',
+      message:
+        `text in this subject asks for \`${hostChosen.family}\` and names no face before it` +
+        `${hostChosen.more > 0 ? ` (and ${hostChosen.more} more run${hostChosen.more === 1 ? '' : 's'} like it)` : ''}` +
+        `; the host picks which typeface answers a generic family, two hosts -- or two renderer ` +
+        'processes on one host -- can pick differently, and the pixels then move with no change to the code',
+    });
+  }
+
   const capture: RawCapture = {
     captureVersion: 1,
     subject: options.subject,
@@ -267,7 +283,7 @@ export function collect(root: Element, options: CollectOptions): RawCapture {
         ? { stabilization: options.stabilization }
         : {}),
     },
-    root: captureNode(root, profile, index, view, options, couplings, ignores.marks),
+    root: rootNode,
     inheritedSeed: inheritedSeed(root, profile, view, index),
     ...(couplings.size > 0 ? { couplings: [...couplings].sort() } : {}),
     ...(portalRoots.length > 0
@@ -399,6 +415,7 @@ function textNode(text: string, provenance: Provenance | undefined): RawNode {
     children: [],
   };
 }
+
 
 function computedStyleOf(element: Element, view: Window): Record<string, string> {
   const computed = view.getComputedStyle(element);

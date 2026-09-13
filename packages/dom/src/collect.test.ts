@@ -332,6 +332,28 @@ describe('profile detection', () => {
     expect(diffSnapshots(before, after).unobserved).toContain('geometry');
   });
 
+  it('warns when the host, not the code, is choosing the typeface', () => {
+    const capture = collect(
+      render('<p class="code">const x = 1;</p>', '.code { font-family: monospace; }'),
+      { ...options, profile: CHROMIUM_PROFILE },
+    );
+
+    expect(capture.diagnostics).toContainEqual(
+      expect.objectContaining({ code: 'host-chosen-font' }),
+    );
+  });
+
+  it('says nothing about a stack that names a face before the generic', () => {
+    const capture = collect(
+      render('<p class="code">const x = 1;</p>', '.code { font-family: Menlo, monospace; }'),
+      { ...options, profile: CHROMIUM_PROFILE },
+    );
+
+    expect(capture.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: 'host-chosen-font' }),
+    );
+  });
+
   it('warns when font content hashes were not supplied', () => {
     const { fonts: _omitted, ...withoutFonts } = options;
     const capture = collect(render(SUBJECT_HTML, SUBJECT_CSS), withoutFonts);
