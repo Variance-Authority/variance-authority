@@ -57,6 +57,18 @@ describe('the assets a subtree references', () => {
     ]);
   });
 
+  it('still reads attributes when the suite replaced getComputedStyle', () => {
+    // A layout test stubs `getComputedStyle` to return the two properties the
+    // component reads and nothing else. That removes computed styles from the
+    // page; it does not remove the `<img>`.
+    const root = subtree('<img src="/brand/mark.svg">');
+    const view = root.ownerDocument.defaultView!;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (view as any).getComputedStyle = () => ({ width: '10px' });
+
+    expect(referencedAssets(root)).toEqual(['https://shop.example/brand/mark.svg']);
+  });
+
   it('reads a background image, including one painted by a pseudo-element', () => {
     const root = subtree(
       '<div style="background-image: url(bg.png)"></div>' +

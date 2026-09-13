@@ -97,6 +97,12 @@ export function referencedAssets(root: Element): readonly string[] {
 
     for (const selector of [null, ...pseudo]) {
       const style = view.getComputedStyle(element, selector);
+      // A suite that stubs `getComputedStyle` -- to drive a layout it cannot
+      // otherwise produce -- hands back a plain object with the two properties
+      // the component under test reads. There is no computed style to scan,
+      // and there is nothing to fail about: whatever it would have named, the
+      // stub has already removed from the page.
+      if (typeof style?.getPropertyValue !== 'function') continue;
       for (const property of URL_PROPERTIES) {
         for (const url of urlsIn(style.getPropertyValue(property))) add(url);
       }
