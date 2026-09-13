@@ -95,32 +95,33 @@ not look like either a nearby test or an unexplained connection.
 
 ## Example from this repository
 
-For a one-line change to `packages/core/src/format/canonical.ts`, the repository's
-recorded selection contains 256 of 377 test files:
+For a one-line change to `packages/core/src/format/canonical.ts`, the
+repository's recorded selection contains 259 of 377 test files:
 
 ```text
-test:since: 256 of 377 files, in 8 band(s).
-  base     8c7d2f5dcf1b — where the snapshot was recorded
+test:since: 259 of 377 files, at 8 distance(s).
+  base     92fcbeb5a44e — where the snapshot was recorded
   changed  1 path(s): 1 measured, 0 test file(s), 0 the suite cannot open
-  skipped  121 file(s) the snapshot saw whole and which entered none of it
+  skipped  118 file(s) the snapshot saw whole and which entered none of it
 
-    1  1 hop          1 file(s)
-    2  2 hops       101 file(s)
-    3  3 hops        56 file(s)
-    4  4 hops        38 file(s)
-    5  5 hops        21 file(s)
-    6  6 hops         3 file(s)
-    7  9 hops         1 file(s)
-    ·  unplaced      35 file(s)
+    1  hop            1 file(s)
+    2  hops         101 file(s)
+    3  hops          57 file(s)
+    4  hops          39 file(s)
+    5  hops          19 file(s)
+    6  hops           3 file(s)
+    9  hops           1 file(s)
+    ·  unplaced      38 file(s)
 
-  band 1-3: running 158, leaving 98 for a later leg.
-  A green band is not a green suite, and `yarn test` is still the gate.
+  0-2 hops: running 102, leaving 157 for a later leg.
+  A green leg is not a green suite, and `yarn test` is still the gate.
 ```
 
-
-In this measurement, the first three bands take 17 seconds and the remaining
-bands take 49 seconds. Against a bad edit, the first band contains one test and
-reports a failure in 2.3 seconds; the whole suite takes 49 seconds.
+The left column is the hop count, and it is also what you pass to
+`--at-distance`. In this measurement `0-1` is the single test file that imports
+the changed module directly, and it finishes in under two seconds. `0-2` runs
+102 files in 17 seconds, `3-` runs the remaining 157 in 15, and the whole suite
+takes 25.
 
 **Distance does not predict runtime.** Nearby tests can be slow, and splitting
 a run can increase total time. The benefit is earlier, focused feedback: a
