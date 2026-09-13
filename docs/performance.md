@@ -6,10 +6,11 @@ paths, of which 24,519 are modules and 24.9 MB is source. Scanning it produces
 24,909 records and a 7.4 MB index. It was chosen because it is large enough to
 break things, public enough to check, and nobody here can tune for it.
 
-Every figure below comes from one script, which is in the repository:
+Every figure below comes from one script, which is in the repository and takes a
+clone of that repository as its argument:
 
 ```bash
-node packages/sense/scripts/source-index.mjs ~/dev/material-ui
+node packages/sense/scripts/source-index.mjs {MATERIAL-UI}
 ```
 
 ## One whole run

@@ -23,8 +23,8 @@
  * Everything above it is ours, and naming it is the point: a scan that costs six
  * times its floor is not waiting on the parser.
  *
- * Run:  node packages/sense/scripts/source-index.mjs ~/dev/material-ui
- *       node packages/sense/scripts/source-index.mjs <repo> packages docs/src
+ * Run:  node packages/sense/scripts/source-index.mjs {MATERIAL-UI}
+ *       node packages/sense/scripts/source-index.mjs <repository> packages docs/src
  */
 import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
