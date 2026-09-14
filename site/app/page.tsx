@@ -14,7 +14,7 @@ import SectionHead from "./components/SectionHead";
 import Since from "./components/Since";
 import WithoutABaseline from "./components/WithoutABaseline";
 import WhatTheRunKnew from "./components/WhatTheRunKnew";
-import { GITHUB } from "./links";
+import { EXAMPLE_BUILD, GITHUB } from "./links";
 
 export default function Page() {
   return (
@@ -107,6 +107,18 @@ export default function Page() {
             <div className="mt-12">
               <DiffReport />
             </div>
+            <p className="mt-6 max-w-3xl text-sm leading-6 text-quiet">
+              That is the viewer at figure size. A build from the example
+              storefront is public at full size, with its changed regions, the
+              components named as their cause, and the states still waiting on a
+              decision.{" "}
+              <a
+                href={EXAMPLE_BUILD}
+                className="text-orange underline decoration-hairline underline-offset-4 transition-colors hover:text-ivory"
+              >
+                Open the example build &rarr;
+              </a>
+            </p>
             <div className="mt-8 grid gap-4 md:grid-cols-2 [&>*]:min-w-0">
               <article className="rounded-2xl border border-hairline bg-panel p-6">
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
@@ -147,12 +159,20 @@ export default function Page() {
                   Cloudflare Worker and is not a hosted Variance Authority
                   endpoint.
                 </p>
-                <a
-                  href={`${GITHUB}/tree/main/packages/tribunal`}
-                  className="mt-5 inline-block font-mono text-xs text-orange transition-colors hover:text-ivory"
-                >
-                  self-host the Tribunal →
-                </a>
+                <p className="mt-5 flex flex-wrap gap-x-4 gap-y-2 font-mono text-xs">
+                  <a
+                    href={EXAMPLE_BUILD}
+                    className="text-orange transition-colors hover:text-ivory"
+                  >
+                    read a build →
+                  </a>
+                  <a
+                    href={`${GITHUB}/tree/main/packages/tribunal`}
+                    className="text-orange transition-colors hover:text-ivory"
+                  >
+                    self-host the Tribunal →
+                  </a>
+                </p>
               </article>
             </div>
           </section>

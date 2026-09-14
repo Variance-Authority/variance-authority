@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { GITHUB, MACHINE_GARDEN, MACHINE_GARDEN_GITHUB } from "../links";
+import {
+  EXAMPLE_BUILD,
+  GITHUB,
+  MACHINE_GARDEN,
+  MACHINE_GARDEN_GITHUB,
+} from "../links";
 import Mark from "./Mark";
 
 /** Product anchors and documentation destinations shared across every route. */
@@ -23,6 +28,7 @@ const FOOTER = [
       { href: "/docs/architecture", label: "Architecture" },
       { href: "/docs/attribution", label: "Attribution" },
       { href: "/reference/comparison", label: "Comparison" },
+      { href: EXAMPLE_BUILD, label: "Example build" },
       { href: GITHUB, label: "GitHub" },
     ],
   },
