@@ -5,7 +5,9 @@ safe for one outcome, relevant to another, and unknowable from a third vantage.
 Running everything does not resolve that uncertainty. It only produces more
 activity.
 
-## Seven moves. Use any one.
+## What Variance Authority lets you do
+
+Start anywhere. Use only what your question needs.
 
 <div class="doc-link-grid doc-link-grid--capabilities">
 <a class="doc-link-card doc-link-card--compact" href="run-relevant-work.md">
@@ -13,6 +15,12 @@ activity.
 <strong>Run less</strong>
 <p>Choose only the tests a change can reach, then start with the nearest.</p>
 <em>Run relevant work →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="start.md">
+<span>Observe</span>
+<strong>Run visual regression</strong>
+<p>Compare one stable UI state through capture, review, and explicit acceptance.</p>
+<em>Observe one state →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="vantage.md">
 <span>Watch</span>
@@ -44,7 +52,7 @@ activity.
 <p>Choose the host, surface, renderer, store, and consumer independently.</p>
 <em>Compose an observation →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact doc-link-card--wide" href="agents.md">
+<a class="doc-link-card doc-link-card--compact" href="agents.md">
 <span>Guide</span>
 <strong>Give the next actor evidence</strong>
 <p>Let a person or agent ask source, live-run, comparison, and code-search questions.</p>

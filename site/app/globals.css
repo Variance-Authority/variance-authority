@@ -474,16 +474,11 @@ html {
 }
 
 .doc-link-grid--capabilities {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .doc-link-card--compact {
   min-height: 10rem;
-}
-
-.doc-link-card--wide {
-  grid-column: 1 / -1;
-  min-height: 0;
 }
 
 .doc-callout {
@@ -577,10 +572,6 @@ html {
 @media (max-width: 639px) {
   .doc-link-grid {
     grid-template-columns: 1fr;
-  }
-
-  .doc-link-card--wide {
-    grid-column: auto;
   }
 }
 
