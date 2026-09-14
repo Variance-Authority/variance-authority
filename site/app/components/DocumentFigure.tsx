@@ -3,6 +3,7 @@ import Attribution from "./Attribution";
 import DiffReport from "./DiffReport";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
+import PresentationPaint from "./PresentationPaint";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
 import Subjects from "./Subjects";
@@ -21,6 +22,8 @@ const CAPTIONS: Record<string, string> = {
     "Static reach explains what a change could affect; prior execution evidence names the tests that actually entered it.",
   instruments:
     "Independent readings stay independent, so an absent signal cannot be mistaken for an observed empty result.",
+  presentation:
+    "A focused report paints the repeated records and the relationship finding it measured. The overlay identifies evidence; it does not prescribe a design change.",
   journeys:
     "One decision is one mark, however many regions the run records for it. An arm that entered is lit, and the line that fell through is dashed.",
 };
@@ -73,6 +76,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS.instruments!}>
           <EvidenceSlices />
+        </Figure>
+      );
+    case "presentation":
+      return (
+        <Figure caption={CAPTIONS.presentation!}>
+          <PresentationPaint />
         </Figure>
       );
     case "journeys":
