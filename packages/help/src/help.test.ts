@@ -111,6 +111,66 @@ describe('one name in full', () => {
   });
 });
 
+describe('what the workspace says when the declaration says nothing', () => {
+  const text = call('docs_symbol', { name: 'Reading' });
+
+  it('finds the README passage that names it, and says which file that was', () => {
+    expect(text).toContain('packages/alpha/README.md:');
+    expect(text).toContain('A `Reading` is one measurement, kept.');
+  });
+
+  it('still reports the declaration as silent, rather than passing prose off as a doc', () => {
+    // The sentence is the contract `docs_gaps` counts on. A README paragraph is
+    // written about a package and may not describe the signature above it.
+    expect(text).toContain('Nothing is written above this declaration.');
+    expect(call('docs_gaps')).toContain('Reading');
+  });
+
+  it('says only that a name is silent when no prose names it either', () => {
+    expect(call('docs_symbol', { name: 'Span' })).not.toContain('README.md');
+  });
+});
+
+describe('where the repository already writes a name', () => {
+  it('names every place it is imported, with a line to open', () => {
+    const text = call('docs_uses', { name: 'behind' });
+    expect(text).toContain('`behind` is imported in 4 places.');
+    expect(text).toContain('packages/beta/src/index.ts:2 — beta');
+  });
+
+  it('separates the files written to show it in use from the ones that depend on it', () => {
+    const text = call('docs_uses', { name: 'behind' });
+    expect(text).toContain('Stories — written to show it in use:');
+    expect(text).toContain('packages/beta/src/again.stories.jsx:1');
+    expect(text).toContain('Tests — written to pin what it does:');
+    expect(text).toContain('packages/beta/src/again.test.js:1');
+  });
+
+  it('puts the sites that share most of their path with a named file first', () => {
+    const text = call('docs_uses', { name: 'behind', from: 'packages/beta/src/inner/other.ts' });
+    const inner = text.indexOf('packages/beta/src/inner/deeper.ts');
+    const outer = text.indexOf('packages/beta/src/index.ts');
+    expect(inner).toBeGreaterThan(-1);
+    expect(outer).toBeGreaterThan(-1);
+    expect(inner).toBeLessThan(outer);
+  });
+
+  it('orders by path when no file is named, and says so rather than implying a ranking', () => {
+    expect(call('docs_uses', { name: 'behind' })).toContain('pass `from`');
+    expect(call('docs_uses', { name: 'behind', from: 'packages/beta/src/inner/other.ts' })).toContain(
+      'Nearest first',
+    );
+  });
+
+  it('answers plainly when a published name is imported by nothing', () => {
+    expect(call('docs_uses', { name: 'Span' })).toContain('nothing in this workspace imports it');
+  });
+
+  it('refuses an unknown name by pointing at the tool that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/docs_search/);
+  });
+});
+
 describe('finding a name somebody can only describe', () => {
   it('matches the documentation, not only the name', () => {
     expect(call('docs_search', { query: 'how much of it' })).toContain('measure');

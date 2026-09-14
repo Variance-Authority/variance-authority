@@ -55,6 +55,27 @@ export function block(published: Documented, held: Opening, entry: Entry): strin
   ];
 
   if (entry.signature !== undefined) lines.push('', entry.signature);
-  lines.push('', entry.doc ?? 'Nothing is written above this declaration.');
+  lines.push('', ...said(entry));
   return lines.join('\n');
+}
+
+/**
+ * What the project says about a name, and which of the two places it said it.
+ *
+ * A doc comment answers directly. For a name with nothing above it there is one
+ * more place to look before reporting silence, and the passage that comes back
+ * is labelled with the file it came from rather than dressed as a doc comment.
+ * The label is the whole point: a reader told *the README says this* knows the
+ * prose was written about a package and may not describe the signature above,
+ * and a reader handed the same paragraph unlabelled does not.
+ */
+export function said(entry: Entry): readonly string[] {
+  if (entry.doc !== undefined) return [entry.doc];
+  if (entry.mention === undefined) return ['Nothing is written above this declaration.'];
+
+  return [
+    `Nothing is written above this declaration. ${entry.mention.at}:${entry.mention.line} names it:`,
+    '',
+    entry.mention.text,
+  ];
 }
