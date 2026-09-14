@@ -372,6 +372,42 @@ owner and cross-wrapper alignment model; the named Underwriter page remains the
 next external run when its artifact or reachable URL is available.
 The existing open fronts remain below and are not active moves.
 
+**The packages are on npm, and the acceptance test is eight repositories that
+are not clones.** `@variance-authority/*` published `0.1.0` and `0.1.1` on
+2026-09-03 and `0.2.0` on 2026-09-14, one number across all thirty-three
+packages, tagged from what the registry accepted. Every consumer example is its
+own repository, depends on published ranges, resolves them from
+`registry.npmjs.org` and commits the lockfile; `example-static-site` reaches a
+verdict — two subjects, `unchanged`, exit 0 — from an installed CLI with no path
+back into this workspace. The spec is discharged into
+[ADR-0060](adr/0060-a-release-is-one-version-and-a-pressed-button.md) and
+deleted.
+
+**The acceptance test has been taken once, and it caught something.**
+`example-static-site` raised to `^0.2.0`, installed, ran, and came back
+`incomparable` on both subjects: `stabilization` identical, `rasterization`
+moved. The cause is in this repository rather than in the example.
+`hideCaret` became a `caret-color` stylesheet in 0.2.0 — the driver's caret
+switch writes `style` back onto focusable elements and the in-place path reads
+the DOM on both sides of a screenshot — and `rasterization` was digesting the
+recipe's screenshot options alongside the browser's, so a trick that kept its id
+still moved the store key. The images are byte-identical to the 0.1.1 baselines,
+checked by hash. The fix takes the recipe back out of `rasterization`, which
+`stabilization` already names, and carries a regression test; the key moves once
+more with it, and stored baselines want one `accept` against the version that
+carries the fix. The example is back on `^0.1.1` with a clean worktree, because
+`0.2.0` is not a version to adopt.
+
+**The release workflow has never been the route.** All three releases were
+published by hand from a checkout. The wire is sound — `workspace:^` arrives on
+the registry rewritten to a real range and `dist` is in the tarballs, so both
+hazards were navigated — but the properties that only the workflow can supply are
+absent: no published tarball carries a provenance attestation, and the button
+that is supposed to be the sole path to npm has never been pressed. The current
+release is also incomplete on this side of the wire: `0.2.0` is on npm for all
+thirty-three packages with its thirty-three tags unpushed, and the version commit
+that produced it is uncommitted.
+
 **History (B12) has a caller now, and what is left is a run rather than code.**
 The wiring landed on 2026-08-10: a run records itself, the hashes that moved and
 every subject that failed to read the same way twice, then asks the record how

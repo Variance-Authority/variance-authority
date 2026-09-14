@@ -173,7 +173,11 @@ export async function createPlaywrightRenderer(
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
   const shot = recipeScreenshot(recipe);
-  const screenshot = { type: 'png', ...shot } as const;
+  // Two objects, because two identity fields ask different questions. `raster`
+  // is what this renderer decided; `screenshot` is that plus whatever the recipe
+  // asked the driver for.
+  const raster = { type: 'png' } as const;
+  const screenshot = { ...raster, ...shot } as const;
 
   // Refused rather than resolved. Two tricks over one property means one wins by
   // accident of ordering, and which one is invisible in every image that follows.
@@ -198,9 +202,20 @@ export async function createPlaywrightRenderer(
       deviceScaleFactor: 1,
       fonts: options.fonts ?? [],
       stabilization: recipeDigest(recipe),
+      // The recipe's screenshot options are deliberately not in here.
+      // `stabilization` already names the recipe, and it names it by which
+      // tricks are present rather than by how each one is spelled — so a trick
+      // that moves from a driver option to a stylesheet is the same recipe and
+      // keeps the same digest. Folding `shot` in as well made `rasterization`
+      // disagree: `hideCaret` moved from `screenshot: { caret: 'hide' }` to a
+      // `caret-color` hold in 0.2.0, the images came out byte-identical, and
+      // every baseline in the world went `incomparable` over a spelling.
+      //
+      // What belongs here is what the machine does to the pixels no recipe
+      // asked for: which browser, launched how, photographed into what format.
       rasterization: digestValue({
         browser: { headless, launchArgs: [...launchArgs] },
-        screenshot,
+        screenshot: raster,
       }),
     };
 

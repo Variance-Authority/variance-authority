@@ -5,6 +5,7 @@ import {
   digestBytes,
   documentDigest,
   identityDigest,
+  type Recipe,
   type RenderDocument,
 } from '@variance-authority/core/format';
 import { comparePngs, decode } from '@variance-authority/png';
@@ -58,6 +59,39 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
       expect(identityDigest(pinned.identity)).not.toBe(identityDigest(changed.identity));
     } finally {
       await Promise.all([pinned.close(), changed.close()]);
+    }
+  });
+
+  /**
+   * The regression 0.2.0 shipped.
+   *
+   * `hideCaret` moved from `screenshot: { caret: 'hide' }` to a `caret-color`
+   * stylesheet — same trick, same id, byte-identical images — and every stored
+   * baseline went `incomparable`, because the recipe's screenshot options were
+   * folded into `rasterization` as well as into `stabilization`. `stabilization`
+   * is keyed on which tricks are present and correctly did not move. The two
+   * fields disagreed, and the one that had no business reading the recipe won.
+   */
+  it('does not key rasterization on how a recipe spells a trick', async () => {
+    const trick = {
+      id: 'hide-caret',
+      trick: 'support',
+      needs: 'raster',
+      governs: 'caret',
+      because: 'text caret hidden, because it blinks on its own schedule',
+    } as const;
+    const asOption: Recipe = [{ ...trick, screenshot: { caret: 'hide' } }];
+    const asStylesheet: Recipe = [{ ...trick, css: '*{caret-color:transparent !important}' }];
+
+    const option = await createPlaywrightRenderer({ stabilization: asOption });
+    const stylesheet = await createPlaywrightRenderer({ stabilization: asStylesheet });
+
+    try {
+      expect(stylesheet.identity.rasterization).toBe(option.identity.rasterization);
+      expect(stylesheet.identity.stabilization).toBe(option.identity.stabilization);
+      expect(identityDigest(stylesheet.identity)).toBe(identityDigest(option.identity));
+    } finally {
+      await Promise.all([option.close(), stylesheet.close()]);
     }
   });
 

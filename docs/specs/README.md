@@ -26,7 +26,6 @@ hiding it.
 | [Storage and cache primitives](0011-storage-and-cache-primitives.md) | Applicability pruning, component hashes, nine inspection rules, three baseline backends, both placements — `flat` for a corpus and `beside` for baselines that belong to code in the same tree — a settlement path that reads no baseline image when nothing moved, and a `RenderCache` whose failures cost a render rather than the run. | **Three seams.** The layout is a closed union of two words, so a third placement is a pull request rather than a config key; the rule set is a closed union, so a lens cannot be added; nothing reduces a render document before hashing it. Items 0 and 1 of five are discharged, 2 is half-discharged, and the rest are in the file, ordered. Where the record lives once the image is placed in the tree is [0040](0040-a-baseline-in-git-is-a-picture.md), whose first step — a `records` root of its own — has landed. |
 | [Hosted: who the caller is, and what the bill counts](0014-hosted-who-the-caller-is-and-what-the-bill-counts.md) | Two capability tokens in `tribunal` with a constant-time comparison and one indistinguishable refusal; a history service that will not start without a token; a remote baseline store that takes a bearer. | **An identity, a meter, and a deployable artifact.** A token resolves to a capability and never to *who* or *whose*: the schema is already project-keyed on every table, but the project arrives from a deployment setting and from `?project=`, so nothing stops a credential naming another tenant's. An approval names nobody. Nothing counts anything, and a counter would be a number the customer cannot check. `serveRenderer` has no authentication at all. |
 | [A real agent](0013-a-real-agent.md) | Eight MCP tools as pure functions over a report, a protocol codec, `variance serve` — tested against text. `variance adjudicate --claims` and `variance_adjudicate` read a finished run back against a declaration, all three arms, over-claiming visible. The docket-shaped `adjudicate` in `core` still has no caller. | **The author loop.** An agent editing components has no way to hold an observation, observe again, and be answered with the difference — the one setting where two documents, and so the strongest answer, are structurally guaranteed. The intent wire answers over a completed run, not a held one. Missing: the session boundary, `observe` and `claim`, and the recorded sessions that would correct the tool list. |
-| [The first published release](0015-the-first-published-release.md) | MIT licensing, non-private manifests, a lockstep version stamper, and a release workflow that versions on merge and publishes only when a person presses the button. | **A pushed tag, and an install that proves it.** No tag exists, so nothing has reached a registry and no consumer outside this workspace can resolve `@variance-authority/*`. The acceptance test is an install in a directory that is not a clone. |
 | [CI that has run](0016-ci-that-has-run.md) | The workflow, the composite action, `variance comment` and its marker, the commit-back with its three refusals, and a Bitbucket recipe. | **One execution.** Nothing has fired on a real pull request: no comment posted, none updated in place, no baseline committed back. The docket is exercised; the delivery is not. |
 | [git-LFS proven as git-LFS](0018-git-lfs-proven-as-git-lfs.md) | The store, producing verdicts identical to the directory and remote backends on the same scenarios. | **The filter, ever running.** No image has been committed through clean/smudge, so an un-smudged checkout handing back a pointer file where a PNG should be has only ever been simulated. |
 | [Provenance without React](0019-provenance-without-react.md) | `attributeProvenance` — 25 lines over two `data-*` attributes — and a provenance callback that makes the framework a count of implementations. | **An application.** No Vue, Svelte or Angular tree has been through it, so the claim rests on twenty-five lines and two ecosystem facts. |
@@ -68,6 +67,7 @@ lifecycle, not that one was skipped.
 | Storybook adapter | [ADR-0020 — read the artifact, not the configuration](../context/adr/0020-read-the-artifact-not-the-configuration.md) |
 | Inspection rules, and where they stop | [ADR-0015 — a rule belongs here if a stored snapshot can decide it](../context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) |
 | Self-hosted review backend | [ADR-0021 — approval promotes an image that already exists](../context/adr/0021-approval-promotes-an-image-that-already-exists.md), [ADR-0022 — deciding is not writing](../context/adr/0022-deciding-is-not-writing.md), [ADR-0023 — a service is named for what it is](../context/adr/0023-a-service-is-named-for-what-it-is.md) |
+| The first published release | [ADR-0060 — a release is one version across every package, and a person presses it](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md) |
 
 **Linux verification has no ADR of its own**, and that is the honest outcome: it
 forces no decision. It restates ADR-0010's portability claim and ADR-0011's
@@ -95,11 +95,12 @@ CLI's commands is the binary's own.
 
 These hold for anything built here and do not need restating.
 
-- **Nothing has been published, and no tag has been pushed.** The packages are
-  MIT and publishable, so what stands between them and a registry is the `v*`
-  tag the release workflow waits for — until it exists, obtaining this software
-  means cloning it, and no installed version constrains a change made here
-  ([0015](0015-the-first-published-release.md)).
+- **A published version constrains a change made here.** `@variance-authority/*`
+  is on npm under one number for every package, so a rename has adopters and the
+  consumer examples are where it is felt first
+  ([ADR-0060](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md)).
+  Obtaining this software does not mean cloning it, and nothing a spec proposes
+  may assume it does.
 - **No telemetry, no analytics, no phone-home.** The only outbound network call
   in the system is to a renderer endpoint the operator supplies.
 - **The cheap path requires no infrastructure.** Any capability that needs a
