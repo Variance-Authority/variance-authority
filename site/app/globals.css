@@ -272,6 +272,10 @@ html {
   line-height: 1.25;
 }
 
+.docs-content > h2:first-child {
+  margin-top: 0;
+}
+
 :where(.docs-content h3) {
   margin-top: 2.25rem;
   margin-bottom: 0.75rem;
@@ -469,6 +473,19 @@ html {
   text-transform: none;
 }
 
+.doc-link-grid--capabilities {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.doc-link-card--compact {
+  min-height: 10rem;
+}
+
+.doc-link-card--wide {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
 .doc-callout {
   margin-block: 1.5rem;
   border: 1px solid rgba(255, 74, 25, 0.45);
@@ -560,6 +577,10 @@ html {
 @media (max-width: 639px) {
   .doc-link-grid {
     grid-template-columns: 1fr;
+  }
+
+  .doc-link-card--wide {
+    grid-column: auto;
   }
 }
 

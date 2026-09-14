@@ -5,6 +5,53 @@ safe for one outcome, relevant to another, and unknowable from a third vantage.
 Running everything does not resolve that uncertainty. It only produces more
 activity.
 
+## Seven moves. Use any one.
+
+<div class="doc-link-grid doc-link-grid--capabilities">
+<a class="doc-link-card doc-link-card--compact" href="run-relevant-work.md">
+<span>Select</span>
+<strong>Run less</strong>
+<p>Choose only the tests a change can reach, then start with the nearest.</p>
+<em>Run relevant work →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="vantage.md">
+<span>Watch</span>
+<strong>See a run alive</strong>
+<p>Ask what is running, speaking, waiting, or unfinished before it exits.</p>
+<em>Choose a vantage →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="understand-execution.md">
+<span>Retain</span>
+<strong>Ask beyond assertions</strong>
+<p>Keep what the test addressed, where it travelled, and what updated.</p>
+<em>Understand execution →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="understand-interface.md">
+<span>Read</span>
+<strong>Understand one interface</strong>
+<p>See grouping, alignment, emphasis, and ownership without a baseline.</p>
+<em>Understand an interface →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="explain-variance.md">
+<span>Explain</span>
+<strong>Turn changes into causes</strong>
+<p>Find where readings parted and which differences share one cause.</p>
+<em>Explain variance →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="compose-observation.md">
+<span>Compose</span>
+<strong>Build the observation you need</strong>
+<p>Choose the host, surface, renderer, store, and consumer independently.</p>
+<em>Compose an observation →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact doc-link-card--wide" href="agents.md">
+<span>Guide</span>
+<strong>Give the next actor evidence</strong>
+<p>Let a person or agent ask source, live-run, comparison, and code-search questions.</p>
+<em>Choose an agent workflow →</em>
+</a>
+</div>
+
 Variance Authority is a flexible method, backed by composable evidence tools,
 for deciding what a changing codebase gives you reason to do. It starts with
 the outcome you need, follows the question across source, execution, interface,
