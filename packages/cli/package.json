@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/cli",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Run the Variance Authority workflow from a project config: collect subjects, compare, render what moved, report, accept.",
   "keywords": [
     "variance-authority",

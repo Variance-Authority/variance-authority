@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/png-sharp",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.",
   "keywords": [
     "variance-authority",

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/presentation",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.",
   "keywords": [
     "variance-authority",

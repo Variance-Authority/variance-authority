@@ -1,5 +1,129 @@
 # @variance-authority/playwright-test
 
+## 0.2.0
+
+### Minor Changes
+
+- 8efba76: A run that changed ten files stops rewriting the whole selection index
+
+  Every run after the first reads the selection index, lays its own recording over
+  it, and writes it back. At a repository's scale almost all of that was spent
+  making objects nobody reads: a run that re-records ten modules of twenty thousand
+  decoded six hundred thousand regions into a model, merged ten of them, and
+  encoded the model back — the other 99.95% of the index materialized and
+  re-serialized to arrive at the bytes it was read from.
+
+  `layerTestCoverage` does the merge and the encode as one pass over the columns
+  the previous snapshot is already stored in. A module the run did not touch is
+  never made an object: its rows are copied column to column as integers, its
+  strings blob to blob as bytes, and the only thing that happens to either is the
+  renumbering the new dictionary implies. Objects are made for what the merge has
+  to reason about — the tests, the modules this run re-recorded, and the carried
+  modules whose text moved on disk. Over twenty thousand modules that is 1855 ms to
+  616, and it is byte for byte the same file, which a gate asserts across every
+  case the merge distinguishes.
+
+  The columns are now zstd rather than brotli, at two levels, because the runs are
+  two kinds of data. A varint run is a dense stream of small integers and answers
+  to a long search; a run of the string blob is file paths and hex digests, which
+  zstd finds most of at level 1 and nothing more of above it. Against the brotli
+  quality 4 it replaces, over the same snapshot: 319 ms to compress became 120, and
+  the file got 86 KB smaller.
+
+  `zlib.zstdCompressSync` arrived in Node 22.15, so that is the floor these
+  packages declare. The snapshot's layout version moved with the codec, which means
+  an index written by an earlier build is refused at its header and rebuilt — one
+  full run, and nothing a reader has to think about.
+
+### Patch Changes
+
+- e546e21: A collector's complaints travel into the observation
+
+  A finding produced at collection reached the CLI's record and nobody else. A
+  suite driving this from its own runner asks the observation what is wrong with a
+  subject, and the one diagnostic that explained the moved pixels — the host, not
+  the stylesheet, chose the typeface — was produced, carried, and dropped one call
+  short of the person reading the failure.
+
+  `mergeDiagnostics` dedupes on every field, so the CLI, which now meets the same
+  list twice, says a shared complaint once.
+- e546e21: A subject with no pixels is a baseline without an image, not a subject that got away
+
+  A wrapper whose only child went to a portal, or a conformance mount with no
+  children, occupies nothing. Refusing to photograph it is right; refusing the
+  subject was not. On Material UI's unit tier that was 1109 of 4371 subjects
+  reported as unobserved while the capture held their markup, their rules, their
+  component hashes and their accessibility tree — none of which was in doubt.
+
+  `Raster` makes the image optional: `bytes`, `width` and `height` are absent
+  together or present together, and `pictured` is the one place that narrows all
+  three. Absent means *this subject has no pixels*, which is a measurement — it
+  never means the image was lost. `occupiesPixels` asks the same question of a
+  record read without bytes, which is the only form a sidecar takes. `observe`
+  gets a second tier in `unpictured.ts`, where the comparison such a subject can
+  still take — document digest, component hashes, accessibility — is the whole
+  verdict. `promotionOf` promotes the sidecar alone when there is no `after`,
+  because the subject reached a verdict and the only missing half is the one a
+  camera would have produced.
+
+  The file-backed store carries the same nullable pair, and with it the split of a
+  baseline's two halves into two path prefixes. `identities` scans the record root,
+  because a subject with no pixels has no image directory to be found in and the
+  sibling scan would otherwise call another machine's baseline new.
+
+  Capture stops handing this to Playwright to fail on. Both screenshot paths used
+  to refuse a zero-area subject in terms of their own arguments — the clip path
+  with `Expected options.clip.height to be greater than 0`, the element path by
+  spending the full actionability timeout and then complaining about visibility —
+  so a reader had a component that rendered nothing and a sentence about a
+  rectangle. `captureSubject` decides it now, and the renderer names the subject.
+
+  **Operators:** this is schema **18**. `baselines` and `render_cache` drop
+  `NOT NULL` from `width` and `height`, shipped as `0016_pixel-less-baselines.sql`.
+  Apply it before pointing a CLI of this version at the deployment; `GET /version`
+  reports the schema a build expects.
+- e546e21: Four ways a large unit tier lost subjects, none of which said so
+
+  **The styling was gone before the capture looked.** A capture taken from a setup
+  file runs in the outermost `afterEach` a run has; every hook registered inside a
+  `describe` has already finished, and `onTestFinished` runs later still. CSS-in-JS
+  teardown lives in exactly those inner hooks — emotion's test renderer removes each
+  `<style>` tag it inserted — so the capture read the page with the styling taken
+  back off it. The class names were all still in the markup, they matched nothing,
+  and every subject captured, compared and passed against a photograph of unstyled
+  DOM. Measured on Material UI's unit tier: 399 of 400 captures carried no CSS at
+  all, and 1201 subjects laid out to zero height because nothing was sizing them.
+  `retainStyles` records style elements as they are inserted and puts the removed
+  ones back, in insertion order, for the length of one capture. The next test still
+  gets a clean page.
+
+  **A subject id can be longer than a filename.** A suite that names subjects after
+  the test that produced them — a file path and a full test name — passes 255 bytes
+  on ordinary tests, and the point of that convention is that the id says where the
+  subject came from. `fileNameFor` in core is now the one rule: a readable prefix,
+  plus a digest of the whole id when the id does not fit, because truncation alone
+  merges two tests into one file. The baseline store, the capture archive, the
+  CLI's image directory, the Playwright evidence directory and the Eyes journal all
+  use it; before this, each was one long subject id away from a raw `ENAMETOOLONG`
+  that never mentions a subject. `@variance-authority/eyes` declares
+  `@variance-authority/core` directly rather than reaching it through `react` — the
+  host stacks it keeps optional are Playwright and Testing Library, and a filename
+  rule is not one of them.
+
+  **An inline `url()` is spelled in entities.** `style="background-image:url(&quot;/a.png&quot;)"`
+  reaches the scan through HTML serialization, and reading it literally asked the
+  caller for bytes at a URL that exists nowhere but in the escaping. The HTML half
+  is scanned with the attribute's entities undone; the stylesheet half, which was
+  never escaped, is scanned as before.
+
+  **A stubbed `getComputedStyle` is not a broken asset scan.** Replacing
+  `window.getComputedStyle` with a map of the two properties a component reads is
+  the only way to drive some layouts in jsdom. The scan called `getPropertyValue`
+  on the plain object it got back, and every test in the file died on a `TypeError`
+  raised four frames below anything you wrote. There is nothing to scan and nothing
+  to complain about — whatever those styles would have named, the stub already
+  removed from the page. The attributes on the element are still read.
+
 ## 0.1.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
