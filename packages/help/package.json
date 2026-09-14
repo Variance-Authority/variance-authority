@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/help",
   "version": "0.1.1",
-  "description": "Find the public name, signature, documentation and consumers of an exported TypeScript workspace symbol, over MCP.",
+  "description": "Find the public name, signature, documentation, consumers and call sites of an exported TypeScript workspace symbol, over MCP.",
   "keywords": [
     "variance-authority",
     "mcp",
@@ -42,7 +42,8 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
-    "mark.svg"
+    "mark.svg",
+    "skill"
   ],
   "scripts": {
     "build": "tsc --build"

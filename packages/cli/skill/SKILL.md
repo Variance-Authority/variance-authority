@@ -11,7 +11,10 @@ test runner or mutate the page from this skill.
 
 Choosing which tests to run after an edit, and which of them to run first, is a
 different question with its own skill: `variance-test-selection`, shipped at
-`packages/sense/skill/SKILL.md`.
+`packages/sense/skill/SKILL.md`. What a workspace publishes, where a symbol is
+declared and which story already calls it is a third: `variance-workspace-api`,
+shipped at `packages/help/skill/SKILL.md`. Neither reads a run, and neither of
+those questions is answered from evidence.
 
 ## Ask the run, from the shell
 

@@ -5,7 +5,9 @@ Variance Authority has three entrances, not three products:
 - the CLI reads files and live watchers from a shell;
 - MCP exposes the same readings when a producer already owns a connection;
 - the `variance-authority` skill chooses the next question and, for test
-  reduction, runs the counterfactual verification loop.
+  reduction, runs the counterfactual verification loop;
+- the `variance-workspace-api` skill routes the source-reading questions, which
+  need no run and no evidence at all.
 
 The evidence decides which question is available. A missing domain is
 unavailable, never an empty measurement.
@@ -18,6 +20,7 @@ unavailable, never an empty measurement.
 | live watcher | Is this the watcher the suite reached? | `variance ask self` | `variance_self` |
 | Eyes archive and/or execution index | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What does this package publish? | — | `docs_packages` on the workspace API server |
+| current workspace source | Where is this symbol already used, and what shows how to call it? | — | `docs_uses` on the workspace API server |
 
 `variance ask` with no question lists every report or watcher question and its
 arguments. `variance_observability` inventories the domains supplied to a

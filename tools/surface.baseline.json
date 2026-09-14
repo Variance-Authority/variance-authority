@@ -870,7 +870,8 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
-        "mark.svg"
+        "mark.svg",
+        "skill"
       ],
       "bin": {
         "variance-authority-help": "./dist/bin.js"
@@ -903,9 +904,12 @@
         "packageOf": "function",
         "packages": "const",
         "reach": "function",
+        "said": "function",
         "search": "const",
+        "sharedSegments": "function",
         "specifierOf": "function",
-        "symbol": "const"
+        "symbol": "const",
+        "uses": "const"
       }
     }
   },
@@ -1228,15 +1232,21 @@
         "Entry": "interface",
         "Help": "interface",
         "HelpOptions": "interface",
+        "Mention": "interface",
         "Opening": "interface",
         "Page": "interface",
+        "Readmes": "type",
         "Usage": "interface",
         "UsageOptions": "interface",
         "Use": "interface",
+        "UseKind": "type",
         "everyEntry": "function",
+        "kindOf": "function",
         "opening": "function",
         "readHelp": "function",
+        "readMention": "function",
         "readUsage": "function",
+        "readmes": "function",
         "undocumented": "function",
         "writeGaps": "function",
         "writeIndex": "function",

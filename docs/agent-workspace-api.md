@@ -1,9 +1,9 @@
 # Inspect the workspace public API
 
 Use the workspace API server when an agent needs the name, import path,
-signature, documentation, or package consumers of an exported TypeScript
-symbol. It reads the current checkout on every request; no build or generated
-API site stands between the question and the source.
+signature, documentation, package consumers, or call sites of an exported
+TypeScript symbol. It reads the current checkout on every request; no build or
+generated API site stands between the question and the source.
 
 ## Point the server at the workspace
 
@@ -41,6 +41,15 @@ ranked by how many workspace packages import them. Then call `docs_symbol` for
 the import line, declaration, signature, source documentation, and importing
 packages of the name you are investigating.
 
+Call `docs_uses` when the question is how the name is written here rather than
+what it claims to be. It returns the file and line of every import, with the
+stories and the tests — the files written to show the name in use — listed apart
+from the source that depends on it. Pass `from` with the file you are editing and
+the sites arrive ordered by how many leading path segments they share with it.
+
+Open those files yourself. The server names the place and the line; it does not
+serve the text, so what you read is the file as it is now.
+
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
 ranking. The package reference owns the remaining maintenance and generated-page
@@ -56,6 +65,28 @@ claim about runtime execution or external adoption.
 Missing documentation remains missing, and a search with no exact substring
 match returns no substitute. Those absences are source facts, not prompts for
 the server to infer an answer.
+
+Where nothing is written above a declaration, the server may quote the nearest
+`README.md` that names the symbol, labelled with the file and line it came from.
+Read it as prose written about a package, not as a description of the signature
+above it: the name still counts as undocumented in `docs_gaps`.
+
+Proximity in `docs_uses` is shared path segments, a fact about the filesystem.
+Import distance through the module graph is
+[`@variance-authority/sense`](distance.md).
+
+## Point an agent at it
+
+For Codex, install the `variance-workspace-api` skill from this repository:
+
+```text
+$skill-installer install https://github.com/Variance-Authority/variance-authority/tree/main/packages/help/skill as variance-workspace-api
+```
+
+Invoke it as `$variance-workspace-api`, or let Codex select it when a question
+is about what this workspace publishes. Installing `@variance-authority/help`
+supplies the server and the same skill source; registering the skill is a
+separate step.
 
 The full tool and source-reading contract lives in the
 [`@variance-authority/help` package reference](../packages/help/README.md).
