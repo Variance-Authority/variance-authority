@@ -18,7 +18,7 @@ export default function Page() {
   return (
     <DocsPage
       current="/start"
-      eyebrow="Get started"
+      eyebrow="Rendered comparison"
       title={title}
       description={description}
       toc={documentToc(document.source)}

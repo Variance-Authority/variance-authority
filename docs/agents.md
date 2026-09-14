@@ -29,6 +29,7 @@ or treat unavailable evidence as an empty measurement. The producer remains
 canonical for what was observed; the workspace remains canonical for what it
 publishes.
 
-If there is no observation to inspect yet, first [put one state through a
-complete review loop](start.md). Once evidence exists, return here and choose
-the question its lifetime can answer.
+If the question requires an observation and none exists, choose the process
+that already owns the state in [choosing a composition](cases.md). A durable
+rendered comparison can begin by [observing one state](start.md); a source
+question needs no rendered observation.

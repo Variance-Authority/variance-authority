@@ -18,7 +18,7 @@ export default function Page() {
   return (
     <DocsPage
       current="/docs"
-      eyebrow="Documentation"
+      eyebrow="The method"
       title={title}
       description={description}
       toc={documentToc(document.source)}

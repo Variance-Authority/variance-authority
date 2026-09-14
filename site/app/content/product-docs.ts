@@ -11,6 +11,7 @@ import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
 import composition from "../../../docs/composition.md?raw";
 import distance from "../../../docs/distance.md?raw";
+import distill from "../../../docs/distill.md?raw";
 import eyes from "../../../docs/eyes.md?raw";
 import flakiness from "../../../docs/flakiness.md?raw";
 import flows from "../../../docs/flows.md?raw";
@@ -22,15 +23,19 @@ import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
+import lexicon from "../../../docs/lexicon.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
+import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
+import performance from "../../../docs/performance.md?raw";
 import replacing from "../../../docs/replacing.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
+import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
 import executionRecord from "../../../docs/execution-record.md?raw";
@@ -89,11 +94,13 @@ const documents = [
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["distance", distance, "docs/distance.md"],
+  ["distill", distill, "docs/distill.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
   ["source-structures", sourceStructures, "docs/source-structures.md"],
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
+  ["lexicon", lexicon, "docs/lexicon.md"],
   ["presentation", presentation, "docs/presentation.md"],
   ["scenarios", scenarios, "docs/scenarios.md"],
   ["vantage", vantage, "docs/vantage.md"],
@@ -102,6 +109,9 @@ const documents = [
   ["information", information, "docs/information.md"],
   ["instruments", instruments, "docs/instruments.md"],
   ["metrics", metrics, "docs/metrics.md"],
+  ["native-code", nativeCode, "docs/native-code.md"],
+  ["performance", performance, "docs/performance.md"],
+  ["sharing", sharing, "docs/sharing.md"],
 ] as const;
 
 export const PRODUCT_DOCUMENTS: readonly ProductDocument[] = documents.map(

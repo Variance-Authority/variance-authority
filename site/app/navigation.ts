@@ -10,14 +10,14 @@ export interface NavigationSection {
   readonly items: readonly NavigationItem[];
 }
 
-/** The public reading order. Sidebars, breadcrumbs, and pagination share it. */
+/** Public navigation. Pagination stays within one question cluster. */
 export const NAVIGATION = [
   {
     label: "Overview",
-    items: [{ href: "/docs", label: "Documentation overview" }],
+    items: [{ href: "/docs", label: "Method and entry points" }],
   },
   {
-    label: "Get started",
+    label: "Rendered comparison",
     items: [
       { href: "/start", label: "Observe one state" },
       {
@@ -53,22 +53,137 @@ export const NAVIGATION = [
     ],
   },
   {
-    label: "Learn by task",
+    label: "Enter by question",
     items: [
       {
-        href: "/docs/surface",
-        label: "Choose what to observe",
-        cluster: "Shape the workflow",
+        href: "/docs/selecting",
+        label: "Select the tests that matter",
+        cluster: "Run relevant work",
+      },
+      {
+        href: "/docs/distance",
+        label: "Run the nearest tests first",
+        cluster: "Run relevant work",
+      },
+      {
+        href: "/docs/source",
+        label: "Map what a source change can reach",
+        cluster: "Run relevant work",
+      },
+      {
+        href: "/docs/vantage",
+        label: "Watch a run that has not finished",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/observability",
+        label: "Ask a question the test did not",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/eyes",
+        label: "See what a test addressed",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/journeys",
+        label: "Read the path an execution took",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/scenarios",
+        label: "Compare state transitions",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/distill",
+        label: "Distill structural attention",
+        cluster: "Understand an execution",
+      },
+      {
+        href: "/docs/presentation",
+        label: "Inspect presentation relationships",
+        cluster: "Understand an interface",
+      },
+      {
+        href: "/docs/framework",
+        label: "Keep framework evidence",
+        cluster: "Understand an interface",
+      },
+      {
+        href: "/docs/attribution",
+        label: "Trace a visible change to source",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/parting",
+        label: "Find where two readings part",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/flakiness",
+        label: "Trace instability to its owner",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/stabilization",
+        label: "Hold a subject still",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/variations",
+        label: "Compare related states",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/composition",
+        label: "Group repeated changes",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/sensitivity",
+        label: "Choose which changes matter",
+        cluster: "Explain variance",
+      },
+      {
+        href: "/docs/ignores",
+        label: "Exclude noise without hiding it",
+        cluster: "Explain variance",
       },
       {
         href: "/docs/cases",
-        label: "Choose where capture runs",
-        cluster: "Shape the workflow",
+        label: "Choose where observation runs",
+        cluster: "Compose an observation",
+      },
+      {
+        href: "/docs/surface",
+        label: "Choose what to observe",
+        cluster: "Compose an observation",
       },
       {
         href: "/docs/flows",
         label: "Compose the evidence flow",
-        cluster: "Shape the workflow",
+        cluster: "Compose an observation",
+      },
+      {
+        href: "/docs/placement",
+        label: "Place and compare baselines",
+        cluster: "Compose an observation",
+      },
+      {
+        href: "/docs/changelog",
+        label: "Record why a baseline changed",
+        cluster: "Decide and retain",
+      },
+      {
+        href: "/docs/history",
+        label: "Find changes that keep returning",
+        cluster: "Decide and retain",
+      },
+      {
+        href: "/docs/sharing",
+        label: "Share evidence across systems",
+        cluster: "Decide and retain",
       },
       {
         href: "/docs/replacing",
@@ -79,116 +194,6 @@ export const NAVIGATION = [
         href: "/docs/gates",
         label: "Decide whether it can gate",
         cluster: "Adopt it",
-      },
-      {
-        href: "/docs/attribution",
-        label: "Trace a pixel to source",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/ignores",
-        label: "Exclude noise without hiding it",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/sensitivity",
-        label: "Choose which changes matter",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/variations",
-        label: "Compare related UI states",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/composition",
-        label: "Group repeated changes",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/changelog",
-        label: "Record why a baseline changed",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/placement",
-        label: "Place and compare baselines",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/history",
-        label: "Find changes that keep returning",
-        cluster: "Explain and review a change",
-      },
-      {
-        href: "/docs/stabilization",
-        label: "Hold a subject still",
-        cluster: "Make the result reliable",
-      },
-      {
-        href: "/docs/flakiness",
-        label: "Trace a flake to its cause",
-        cluster: "Make the result reliable",
-      },
-      {
-        href: "/docs/framework",
-        label: "Keep framework evidence",
-        cluster: "Make the result reliable",
-      },
-      {
-        href: "/docs/parting",
-        label: "Separate a change from a flake",
-        cluster: "Make the result reliable",
-      },
-      {
-        href: "/docs/source",
-        label: "Map what a source change can reach",
-        cluster: "Run less",
-      },
-      {
-        href: "/docs/selecting",
-        label: "Select the tests that matter",
-        cluster: "Run less",
-      },
-      {
-        href: "/docs/distance",
-        label: "Run the nearest tests first",
-        cluster: "Run less",
-      },
-      {
-        href: "/docs/source-index",
-        label: "Reuse the source index",
-        cluster: "Run less",
-      },
-      {
-        href: "/docs/observability",
-        label: "Ask a question the test did not",
-        cluster: "Read without a baseline",
-      },
-      {
-        href: "/docs/eyes",
-        label: "See what a test addressed",
-        cluster: "Read without a baseline",
-      },
-      {
-        href: "/docs/vantage",
-        label: "Watch a run that has not finished",
-        cluster: "Read without a baseline",
-      },
-      {
-        href: "/docs/journeys",
-        label: "Read the path an execution took",
-        cluster: "Read without a baseline",
-      },
-      {
-        href: "/docs/scenarios",
-        label: "Compare state transitions",
-        cluster: "Read without a baseline",
-      },
-      {
-        href: "/docs/presentation",
-        label: "Inspect presentation relationships",
-        cluster: "Read without a baseline",
       },
     ],
   },
@@ -225,7 +230,13 @@ export const NAVIGATION = [
       { href: "/docs/architecture", label: "Architecture" },
       { href: "/docs/information", label: "Information model" },
       { href: "/docs/instruments", label: "Evidence instruments" },
+      { href: "/docs/lexicon", label: "Lexicon" },
       { href: "/docs/metrics", label: "Metrics" },
+      { href: "/docs/source-index", label: "Source index" },
+      { href: "/docs/source-structures", label: "Source structures" },
+      { href: "/docs/execution-record", label: "Execution record" },
+      { href: "/docs/performance", label: "Performance" },
+      { href: "/docs/native-code", label: "Native code" },
       { href: "/reference/packages", label: "Package reference" },
       { href: "/reference/comparison", label: "Product comparison" },
     ],
@@ -255,9 +266,14 @@ export function navigationNeighbors(href: string): {
   readonly next?: LocatedNavigationItem;
 } {
   const current = navigationItem(href);
-  if (current?.alternative) return {};
+  if (!current || current.alternative) return {};
 
-  const readingOrder = NAVIGATION_ITEMS.filter((item) => !item.alternative);
+  const readingOrder = NAVIGATION_ITEMS.filter(
+    (item) =>
+      !item.alternative &&
+      item.section === current.section &&
+      item.cluster === current.cluster,
+  );
   const index = readingOrder.findIndex((item) => item.href === href);
   if (index < 0) return {};
 

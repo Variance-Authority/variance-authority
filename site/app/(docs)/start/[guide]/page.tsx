@@ -51,7 +51,7 @@ export default async function Page({ params }: PageProps) {
   return (
     <DocsPage
       current={`/start/${slug}`}
-      eyebrow="Get started"
+      eyebrow="Rendered comparison"
       title={title}
       description={description}
       toc={documentToc(document.source)}
