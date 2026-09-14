@@ -105,3 +105,69 @@ describe('the documentation gap', () => {
     );
   });
 });
+
+const NEAR = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/near');
+const NEARBY = readHelp(NEAR);
+
+function near(name: string): Entry {
+  return entry(name, NEARBY);
+}
+
+describe('where a name is written, not only who writes it', () => {
+  it('keeps the file and line of every place a name is imported', () => {
+    expect(near('measure').sites.map((site) => `${site.at}:${site.line}`)).toEqual([
+      'packages/far/src/index.ts:1',
+      'packages/near/src/index.stories.jsx:1',
+      'packages/near/src/index.test.js:1',
+      'packages/near/src/index.ts:1',
+    ]);
+  });
+
+  it('says which of them are stories and tests, so an example can be told from a consumer', () => {
+    const kinds = Object.fromEntries(near('measure').sites.map((site) => [site.at, site.kind]));
+    expect(kinds).toEqual({
+      'packages/far/src/index.ts': 'source',
+      'packages/near/src/index.stories.jsx': 'story',
+      'packages/near/src/index.test.js': 'test',
+      'packages/near/src/index.ts': 'source',
+    });
+  });
+
+  it('counts the same sites the audience is counted from', () => {
+    // `usedBy` and `uses` are this list read two ways. A site list that could
+    // disagree with the count beside it would make the ranking unfalsifiable.
+    const entry = near('measure');
+    expect(entry.uses).toBe(entry.sites.length);
+    expect([...new Set(entry.sites.map((site) => site.by))].sort()).toEqual(['far', 'near']);
+  });
+});
+
+describe('what a README says about a name with nothing above it', () => {
+  it('finds the passage that names the symbol', () => {
+    expect(near('Frame').mention).toMatchObject({ at: 'packages/lib/README.md' });
+    expect(near('Frame').mention?.text).toContain('one captured moment');
+  });
+
+  it('prefers the README nearest the declaration over the one above it', () => {
+    // Both name `Deeply`. The one beside the file that declares it is about that
+    // file; the package's is about the package.
+    expect(near('Deeply').mention?.at).toBe('packages/lib/src/inner/README.md');
+  });
+
+  it('says nothing for a name the prose never names', () => {
+    expect(near('measure').mention).toBeUndefined();
+  });
+
+  it('leaves the doc comment alone where there is one', () => {
+    // A paragraph about a package is not a comment about a declaration, and
+    // merging the two would close the gap `undocumented` exists to report.
+    expect(near('measure').doc).toBe('Measures the thing.');
+    expect(undocumented(NEARBY).map((held) => held.name)).toContain('Frame');
+  });
+
+  it('returns a passage that names the symbol, every time', () => {
+    for (const [, , held] of everyEntry(NEARBY)) {
+      if (held.mention !== undefined) expect(held.mention.text).toContain(held.name);
+    }
+  });
+});

@@ -1,0 +1,5 @@
+{
+  "name": "near-workspace",
+  "private": true,
+  "workspaces": ["packages/*"]
+}

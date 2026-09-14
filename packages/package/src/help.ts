@@ -2,7 +2,8 @@ import { relative, resolve } from 'node:path';
 import type { Declaration } from './declare.js';
 import { type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy } from './reach.js';
-import { type Deep, type Usage, type UsageOptions, readUsage } from './use.js';
+import { type Mention, type Readmes, readMention, readmes } from './mention.js';
+import { type Deep, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
 
 /**
  * What a workspace publishes, what it says about it, and what uses it.
@@ -50,6 +51,23 @@ export interface Entry {
   readonly usedBy: readonly string[];
   /** How many places import it, counting each import statement once. */
   readonly uses: number;
+  /**
+   * Every place that imports it, including the declaring package's own files.
+   *
+   * `usedBy` and `uses` are this list counted two ways, and both counts are what
+   * a *ranking* needs. They are not what somebody writing the call needs, which
+   * is a file and a line they can open — so the sites are kept rather than
+   * summarised away, and whoever renders them decides how many to show.
+   */
+  readonly sites: readonly Use[];
+  /**
+   * Where the nearest README names this, for a name with no doc comment.
+   *
+   * Present only when `doc` is absent and the prose exists. Never merged into
+   * `doc`: a paragraph about a package is not a comment about a declaration, and
+   * counting it as one would empty the work queue without closing it.
+   */
+  readonly mention?: Mention;
 }
 
 /** One subpath a manifest opens, and everything behind it. */
@@ -88,21 +106,28 @@ export interface HelpOptions extends OfferingOptions, UsageOptions {}
  * load-bearing, and dropping them entirely would lose the fact that the name is
  * exercised at all.
  */
-function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses'> {
+function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites'> {
   const uses = usage.names.get(key)?.get(name) ?? [];
   const by: string[] = [];
   for (const use of uses) {
     if (use.by !== owner && !by.includes(use.by)) by.push(use.by);
   }
-  return { usedBy: by, uses: uses.length };
+  return { usedBy: by, uses: uses.length, sites: uses };
 }
 
-function entryOf(name: string, kinds: ReadonlyMap<string, Declaration>, reached: Pick<Entry, 'usedBy' | 'uses'>): Entry {
+function entryOf(
+  name: string,
+  kinds: ReadonlyMap<string, Declaration>,
+  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites'>,
+  found: (at: string) => Mention | undefined,
+): Entry {
   // The kinds of one name are one thing declared once — an interface merged with
   // a const is written in one place, under one comment — so the first of them
   // carries the place and the prose, and the rest contribute their word.
   const [first] = [...kinds.values()];
   if (first === undefined) throw new Error(`\`${name}\` was reached with no declaration behind it`);
+
+  const mention = first.doc === undefined ? found(first.at) : undefined;
 
   return {
     name,
@@ -111,6 +136,7 @@ function entryOf(name: string, kinds: ReadonlyMap<string, Declaration>, reached:
     line: first.line,
     ...(first.signature === undefined ? {} : { signature: first.signature }),
     ...(first.doc === undefined ? {} : { doc: first.doc }),
+    ...(mention === undefined ? {} : { mention }),
     ...reached,
   };
 }
@@ -137,13 +163,25 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
   const reader = createReader(where, entrypoints);
   const usage = readUsage(where, new Set(entrypoints.keys()), options, reader.parses);
 
+  // One cache for one reading, and one lookup per declaring file: a barrel and a
+  // subpath publishing the same declaration ask the same question twice.
+  const held: Readmes = readmes();
+  const mentions = new Map<string, Mention | undefined>();
+  const mentionOf = (name: string) => (at: string) => {
+    const key = `${at} ${name}`;
+    if (!mentions.has(key)) mentions.set(key, readMention(where, at, name, held));
+    return mentions.get(key);
+  };
+
   const packages = offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
     openings: offering.entrypoints.map((entry) => {
       const key = `${offering.name} ${entry.subpath}`;
       const entries = [...namesReachedBy(reader, entry.source)]
-        .map(([name, kinds]) => entryOf(name, kinds, reachedFrom(usage, key, name, offering.name)))
+        .map(([name, kinds]) =>
+          entryOf(name, kinds, reachedFrom(usage, key, name, offering.name), mentionOf(name)),
+        )
         .sort(
           (a, b) =>
             b.usedBy.length - a.usedBy.length ||
@@ -193,6 +231,8 @@ export function undocumented(help: Help): readonly Entry[] {
  */
 export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { readUsage } from './use.js';
-export type { Deep, Usage, UsageOptions, Use } from './use.js';
+export { readUsage, kindOf } from './use.js';
+export type { Deep, Usage, UsageOptions, Use, UseKind } from './use.js';
+export { readMention, readmes } from './mention.js';
+export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';

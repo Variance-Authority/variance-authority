@@ -33,6 +33,10 @@ packages import them, so the ones most consumers depend on sort first. It is a
 separate entrypoint because that ranking requires walking every file in the
 repository, and a plain published-surface reading does not.
 
+That walk already knows the file and the line of every import, so `/help` keeps
+them rather than only counting them, and marks each one a story, a test or
+ordinary source by the marker in its own filename.
+
 ## What it checks
 
 A consumer depends on a name at an exported subpath, not on a source file.
@@ -92,6 +96,25 @@ Entries arrive ordered by how many packages import them. `skip` adds directory
 names the walk never descends into, on top of the defaults `node_modules`,
 `coverage`, `build` and `out`; a package's own build output needs no entry,
 since where it lands is read from that package's `tsconfig.json`.
+
+Each entry carries `sites` alongside the count: every place that imports the
+name, with the file, the line, and whether that file is a story, a test or
+ordinary source. A story and a test are written to *show* a name in use, which
+is what an example is, so they answer a different question from a consumer and
+are separable without re-reading a path.
+
+```ts
+const entry = core?.openings[0]?.entries[0];
+entry?.sites.filter((site) => site.kind === 'story'); // where it is demonstrated
+entry?.mention; // what the nearest README says, when nothing is written above it
+```
+
+`mention` is present only where `doc` is absent and the nearest `README.md` above
+the declaring file writes the name as a whole word. It carries the file, the line
+and the passage, and it is never merged into `doc`: prose written about a package
+is written for a different reader than a comment written above a function, and
+counting the first as the second would take the name out of `undocumented`
+without anybody having documented it.
 
 `help.deep` is the other half of the same reading: every specifier that reaches
 into a workspace package past what its `exports` map opens — an import that
@@ -163,6 +186,12 @@ interface, `const`, and so on) and nothing more, so **a signature that changes
 under a name that does not is a change the surface misses**. `readHelp` carries
 the head of each declaration — everything written before the body — for a
 consumer that needs to watch signatures too.
+
+A site is an import, not a call. `readHelp` records the line a name was brought
+into a file on, and where it is used inside that file is a question for a
+language server. Nor is a site ranked by import distance: `sites` is a list in
+reading order, and how far one module sits from another through the graph is
+`@variance-authority/sense`'s reading, over an index this one does not build.
 
 What neither reads is `dist`. An emitted `.d.ts` states what a compiler inferred;
 source states what somebody wrote, so `export const jsxDEV = runtime.jsxDEV`

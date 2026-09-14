@@ -36,6 +36,29 @@ import { requested } from './manifest.js';
  * it counts against the package and against no name in it.
  */
 
+/**
+ * What kind of file reached for a name.
+ *
+ * A story and a test are not ordinary consumers. Both exist to *show* the thing
+ * being used, which is what an example is, and a reader asking how a name is
+ * written has a different question from a reader asking who depends on it. The
+ * distinction is carried here rather than recovered from the path downstream,
+ * because two ends deciding separately what counts as a story is two answers.
+ */
+export type UseKind = 'story' | 'test' | 'source';
+
+/** Filename markers, read off the segment rather than the whole path. */
+const STORY = ['.stories.'];
+const TEST = ['.test.', '.spec.', '.check.'];
+
+/** Which kind of file a path is, by the marker its own filename carries. */
+export function kindOf(at: string): UseKind {
+  const file = at.slice(at.lastIndexOf('/') + 1);
+  if (STORY.some((mark) => file.includes(mark))) return 'story';
+  if (TEST.some((mark) => file.includes(mark))) return 'test';
+  return 'source';
+}
+
 /** One place a published name is imported. */
 export interface Use {
   /** The package whose source imports it — the nearest manifest above the file. */
@@ -46,6 +69,8 @@ export interface Use {
   readonly line: number;
   /** `import type { x }` and `import { type x }` alike. */
   readonly type: boolean;
+  /** Whether the importing file is a story, a test, or ordinary source. */
+  readonly kind: UseKind;
 }
 
 /** A specifier that reaches into a package past what its `exports` map opens. */
@@ -182,7 +207,7 @@ export function readUsage(
       names.set(key, held);
       const uses = held.get(imported) ?? [];
       held.set(imported, uses);
-      uses.push({ by, at, line, type });
+      uses.push({ by, at, line, type, kind: kindOf(at) });
     };
 
     for (const statement of source.parsed.module.staticImports) {
