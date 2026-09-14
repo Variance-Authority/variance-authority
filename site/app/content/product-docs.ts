@@ -13,6 +13,7 @@ import composeObservation from "../../../docs/compose-observation.md?raw";
 import composition from "../../../docs/composition.md?raw";
 import distance from "../../../docs/distance.md?raw";
 import distill from "../../../docs/distill.md?raw";
+import evidenceField from "../../../docs/evidence-field.md?raw";
 import explainVariance from "../../../docs/explain-variance.md?raw";
 import eyes from "../../../docs/eyes.md?raw";
 import flakiness from "../../../docs/flakiness.md?raw";
@@ -34,6 +35,7 @@ import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
 import performance from "../../../docs/performance.md?raw";
 import replacing from "../../../docs/replacing.md?raw";
+import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
@@ -65,6 +67,8 @@ export interface ProductDocument {
 
 const documents = [
   ["overview", index, "docs/README.md"],
+  ["reasoning", reasoning, "docs/reasoning.md"],
+  ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],

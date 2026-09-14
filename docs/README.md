@@ -15,58 +15,19 @@ test selection, live-run diagnosis, presentation analysis, and agent-facing
 code search are different uses of the same method. Adopt the parts your
 question crosses. Keep the systems that already answer the rest.
 
-## One method wherever the question lands
+## Read the overview at the depth you need
 
-Every use follows the same grammar:
+The overview has three pages because orientation, method, and coverage answer
+different questions.
 
-**Name the outcome → frame the variance → choose an eye and a vantage → sense
-or instrument → read the evidence → act or step back.**
+| Page | The question it answers |
+| --- | --- |
+| **Why Variance Authority** — this page | What problem the method exists to solve, and where can I enter? |
+| [Follow the reasoning loop](reasoning.md) | How does a question become an observation and a bounded result? |
+| [See the evidence field](evidence-field.md) | How do the aspects fit together without becoming a required pipeline? |
 
-The path is recursive, not linear. An answer can expose a better question. A
-missing observation can send you to another vantage. Evidence that cannot
-support the intended decision narrows the claim instead of becoming a guess.
-
-### Why — name the outcome
-
-The outcome is the decision or action the work must support: which tests to
-run, whether a change is authorized, where two executions parted, what an
-interface communicates, or whether an agent knows enough to edit a file.
-
-This is the first boundary. The system does not ask *what can I run?* until it
-knows *why should I run it?*
-
-### How — sense what remains; instrument what disappears
-
-Some evidence already exists in source, artifacts, or a running system. Sense
-it where it is. Other evidence disappears with the process that produced it.
-Instrument that moment and retain the answer.
-
-Neither mode is inherently better. The question decides whether a source
-index, a browser observer, an execution trace, a comparison, or an existing
-external system should answer it.
-
-### What — choose an eye and a vantage
-
-An **eye** is the capability that can make the relevant distinction: source
-reach, accessibility, component provenance, pixels, runtime work, presentation
-relationships, or another observation. A **vantage** is where and under which
-conditions that eye reads: committed source, a live page, one execution, two
-runs, or retained history.
-
-[Eyes](eyes.md) shows how a test's attention reaches the React tree.
-[Vantage](vantage.md) shows what a live or unfinished run can reveal. Neither is
-a mandatory stage; each is one concrete expression of the grammar.
-
-### Result — earn bounded authority
-
-Evidence earns authority only for the question it answered. It may authorize a
-change, select work, attribute a cause, guide an investigation, or support no
-conclusion yet. The result always carries its subject, conditions, provenance,
-and boundary.
-
-Authority is therefore not certainty about the whole codebase. It is the
-standing to make one defensible move without pretending to know more than the
-evidence says.
+Read only as far as the decision in front of you requires. The aspect pages
+below are the next layer; the mechanism pages beneath them are reference.
 
 ## Enter from the work in front of you
 
@@ -118,56 +79,6 @@ question through retained evidence, a live run, a workspace API, or source
 search according to what is already known. The [question map](agent-questions.md)
 names the available answers. The [lexicon](lexicon.md) keeps their subjects and
 boundaries stable across tools.
-
-## Follow the question, not a pipeline
-
-A software question can cross several boundaries. Each boundary has native
-ways to answer it, and no use must cross them all.
-
-| Where the question lands | The answer can come from |
-| --- | --- |
-| [Run relevant work](run-relevant-work.md) | Reachability, change closure, distance, names, and source structure |
-| [Understand an execution](understand-execution.md) | Attention, updates, requests, logs, journeys, and unfinished work |
-| [Understand an interface](understand-interface.md) | Accessibility, pixels, geometry, component provenance, and presentation relationships |
-| [Explain variance](explain-variance.md) | Baselines, paired runs, variations, divergence, and parting |
-| [Compose an observation](compose-observation.md) | State ownership, acquisition material, renderer placement, retention, and consumption |
-| Decision and memory | Rules, approvals, attribution, history, and retained evidence |
-| Consumption | A report, a test failure, the CLI, MCP, or a workspace API |
-
-The repository supplies an answer at every boundary because gaps otherwise
-become guesses, redundant work, or accidental authority. You may fill a role
-with another system when it preserves the observation contract: the question
-answered, the subject and conditions, the observer's capability, the evidence
-and its provenance, and any absence or boundary.
-
-[Choosing a composition](cases.md) starts from the process that already owns
-the state. [Surface](surface.md) separates what is captured from where pixels
-are made. [Baseline placement](placement.md) separates comparison from storage.
-[Operating flows](flows.md) separates the evidence from the place its answer is
-consumed.
-
-## Step back before the evidence runs out
-
-The method is always ready to step back. That is how it remains trustworthy in
-an ever-changing codebase.
-
-An unavailable reading is absent, never an empty result. A first observation is
-`new`, not unchanged. Evidence produced under incompatible conditions is
-`incomparable`, not different. A capability that did not observe a band reports
-it as unobserved rather than silently clearing it.
-
-When the evidence cannot carry the intended decision, the next move is one of:
-
-- narrow the claim to what was observed;
-- widen the observation;
-- choose another eye or vantage;
-- defer to the person or system that owns the missing authority; or
-- refuse the conclusion.
-
-[Instruments](instruments.md) names the reading behind each product claim and
-where it stops. [Information model](information.md) defines how those boundaries
-survive in retained evidence. [Metrics](metrics.md) defines the population and
-denominator behind every measured claim.
 
 ## Choose the first answer you need
 

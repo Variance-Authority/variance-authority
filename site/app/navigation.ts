@@ -15,7 +15,11 @@ export interface NavigationSection {
 export const NAVIGATION = [
   {
     label: "Overview",
-    items: [{ href: "/docs", label: "Method and entry points" }],
+    items: [
+      { href: "/docs", label: "Why Variance Authority" },
+      { href: "/docs/reasoning", label: "Follow the reasoning loop" },
+      { href: "/docs/evidence-field", label: "See the evidence field" },
+    ],
   },
   {
     label: "Rendered comparison",
