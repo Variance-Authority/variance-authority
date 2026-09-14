@@ -4,7 +4,6 @@
 
 ### Patch Changes
 
-- @variance-authority/core@0.1.1
   - @variance-authority/raster@0.1.1
   - @variance-authority/report@0.1.1
 
@@ -17,9 +16,3 @@
   which defaults to that same root — so `readChangelog({ root: '.variance/baselines' })`
   filtered on `.variance/baselines/.variance/baselines` and returned no commits.
   An empty list is this reader's word for *no baseline has ever been explained*.
-- Updated dependencies [1d402d1]
-- Updated dependencies [e8fee66]
-- Updated dependencies [5c34e6d]
-  - @variance-authority/report@0.1.0
-  - @variance-authority/core@0.1.0
-  - @variance-authority/raster@0.1.0

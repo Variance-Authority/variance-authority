@@ -14,7 +14,10 @@ Two things about this repository make the defaults in
 - **Lockstep.** The packages are one product and internal dependencies are
   `workspace:^`, so `fixed` holds every `@variance-authority/*` package at a
   single version. Marking one package in a changeset releases all of them; pick
-  the bump the *product* deserves, not the one the file you touched does.
+  the bump the *product* deserves, not the one the file you touched does. It also
+  makes the dependency bookkeeping changesets writes into every changelog say
+  only what the lockstep already guarantees, so `release:version` removes it and
+  gives a version with nothing left under it one line saying what it was.
 - **Public.** npm defaults a scoped package to restricted, and a restricted
   publish from a workspace without a paid org fails at the registry rather than
   in review. `access: "public"` is what makes `@variance-authority/*` installable
