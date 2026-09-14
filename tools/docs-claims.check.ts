@@ -363,9 +363,14 @@ describe('the comparison tables quote the compared document', () => {
     expect(page).toContain('<Comparison />');
   });
 
-  it('is rendered on the landing page', () => {
+  it('is routed from the landing page without duplicating the reference', () => {
     const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
-    expect(page).toContain('<LandingComparison />');
+    const bargain = readFileSync(
+      join(ROOT, 'site/app/components/OperatingBargain.tsx'),
+      'utf8',
+    );
+    expect(page).toContain('<OperatingBargain />');
+    expect(bargain).toContain('href="/reference/comparison"');
   });
 });
 

@@ -1,6 +1,6 @@
 {
   "name": "variance-authority",
-  "description": "Visual Regression. Verifiable Results.",
+  "description": "Composable evidence tools for software that changes.",
   "license": "MIT",
   "private": true,
   "packageManager": "yarn@4.18.0",

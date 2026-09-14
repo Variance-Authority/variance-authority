@@ -12,21 +12,19 @@ const FOOTER = [
   {
     title: "on this page",
     links: [
-      { href: "/#evidence", label: "Evidence slices" },
-      { href: "/#react", label: "React trail" },
-      { href: "/#review", label: "Grouped review" },
-      { href: "/#intent", label: "Agent intent" },
+      { href: "/#questions", label: "Start with a question" },
+      { href: "/#visual-review", label: "Causal visual review" },
       { href: "/#selection", label: "Selection + reuse" },
-      { href: "/#fit", label: "Operating fit" },
       { href: "/#integrate", label: "Integrate" },
+      { href: "/#fit", label: "Operating fit" },
     ],
   },
   {
     title: "project",
     links: [
       { href: "/docs", label: "Documentation" },
-      { href: "/docs/architecture", label: "Architecture" },
-      { href: "/docs/attribution", label: "Attribution" },
+      { href: "/agents/questions", label: "Agent questions" },
+      { href: "/reference/packages", label: "Package reference" },
       { href: "/reference/comparison", label: "Comparison" },
       { href: EXAMPLE_BUILD, label: "Example build" },
       { href: GITHUB, label: "GitHub" },
@@ -47,8 +45,8 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Visual review that names the cause, across pixel, document,
-            accessibility, React, and source evidence. Runs in your own
+            Composable evidence tools that connect source, execution, rendered
+            interfaces, public APIs, and decisions. Runs in your own
             infrastructure.
           </p>
         </div>

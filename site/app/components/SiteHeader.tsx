@@ -7,13 +7,11 @@ import Mark from "./Mark";
  * header; the rest arrive when there is room for them.
  */
 const SECTIONS = [
-  { href: "/#evidence", label: "Evidence", wide: false },
-  { href: "/#review", label: "Review", wide: false },
-  { href: "/#flakes", label: "Flakes", wide: false },
-  { href: "/#without-a-baseline", label: "Observability", wide: true },
+  { href: "/#questions", label: "Questions", wide: false },
+  { href: "/#visual-review", label: "Visual review", wide: false },
   { href: "/#selection", label: "Selection", wide: true },
-  { href: "/#fit", label: "Fit", wide: true },
   { href: "/#integrate", label: "Integrate", wide: true },
+  { href: "/#fit", label: "Fit", wide: true },
   { href: "/docs", label: "Docs", wide: false },
 ] as const;
 

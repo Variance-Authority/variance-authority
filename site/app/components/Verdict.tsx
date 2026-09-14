@@ -1,4 +1,4 @@
-/** The evidence beside the claim: one run, one needs-review, one acceptance. */
+/** One concrete composition beside the broader evidence-tool claim. */
 export default function Verdict() {
   return (
     <div className="relative">
@@ -12,7 +12,7 @@ export default function Verdict() {
           <span className="h-2.5 w-2.5 rounded-full bg-warm/50" />
           <span className="h-2.5 w-2.5 rounded-full bg-green/60" />
           <span className="ml-2 font-mono text-xs text-quiet">
-            variance report · 11 affected states
+            one composition · causal visual review
           </span>
         </div>
         {/* Wraps on a phone, where the longest line is half again the width of

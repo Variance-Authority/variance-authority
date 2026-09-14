@@ -66,7 +66,7 @@ export default function OperatingBargain() {
               nothing to configure. Both answers go in the report and neither
               can be accepted.{" "}
               <a
-                href="/#flakes"
+                href="/docs/flakiness"
                 className="text-orange transition-colors hover:text-ivory"
               >
                 Separating a flake from a change &rarr;

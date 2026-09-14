@@ -1,7 +1,7 @@
 import Timelines from "./Timelines";
 import Verdict from "./Verdict";
 
-/** The claim, and the run that stands behind it. */
+/** The product boundary, with one concrete composition beside it. */
 export default function Hero() {
   return (
     <section className="relative pb-20 pt-16 sm:pt-20">
@@ -15,12 +15,12 @@ export default function Hero() {
       </div>
       <div className="rise relative">
         <p className="mb-6 font-mono text-xs uppercase tracking-[0.18em] text-orange">
-          composable evidence tools
+          evidence tools for software that changes
         </p>
         <h1 className="max-w-4xl text-4xl font-bold leading-[1.06] tracking-tight text-ivory sm:text-6xl lg:text-[4.25rem]">
-          <span className="block">Many screenshots.</span>
+          <span className="block">Find what varied.</span>
           <span className="block bg-gradient-to-br from-orange to-fold bg-clip-text text-transparent">
-            One review decision.
+            What caused it. What it reached.
           </span>
         </h1>
       </div>
@@ -29,26 +29,24 @@ export default function Hero() {
       <div className="mt-10 grid items-start gap-10 lg:mt-12 lg:grid-cols-[1fr_1.06fr] lg:gap-12 [&>*]:min-w-0">
         <div className="rise" style={{ animationDelay: "0.1s" }}>
           <p className="leading-7 text-quiet sm:text-lg sm:leading-8">
-            Variance Authority is a set of composable evidence tools for
-            software that changes. Visual review is one composition: it connects
-            a changed pixel to the document and accessibility evidence behind
-            it, to the React component that owns it and the inputs that changed,
-            and to the source that rendered it. States that changed the same way
-            are reviewed as one decision. A state with extra or missing evidence
-            stays open.
+            Variance Authority records evidence from source, execution,
+            rendered interfaces, and public API surfaces. Each instrument
+            answers one question and names the boundary of its answer. Compose
+            them when a decision needs the chain. Visual review is one such
+            composition, not the product boundary.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href="#review"
+              href="#questions"
               className="rounded-lg bg-gradient-to-t from-fold to-orange px-5 py-2.5 text-sm font-semibold text-deep shadow-lg shadow-orange/25 ring-1 ring-inset ring-white/20 transition-transform hover:-translate-y-0.5"
             >
-              See the review
+              Start with a question
             </a>
             <a
-              href="#integrate"
+              href="#visual-review"
               className="rounded-lg border border-hairline px-5 py-2.5 text-sm font-medium text-ivory transition-colors hover:border-orange/60"
             >
-              Choose an integration
+              See one composition
             </a>
           </div>
 

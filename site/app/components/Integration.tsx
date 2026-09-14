@@ -54,7 +54,7 @@ export default function Integration() {
         className="absolute -top-24"
       />
       <SectionHead
-        n="09"
+        n="03"
         label="start here"
         title="Start where the UI already runs."
       >

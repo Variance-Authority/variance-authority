@@ -4,9 +4,9 @@ import { markdownPath, routedDocument } from "./content/routed-docs";
 export const SITE =
   process.env.SITE_URL ?? "https://variance-authority.dev";
 export const SITE_NAME = "Variance Authority";
-export const ROOT_TITLE = "Variance Authority — Many screenshots. One review decision.";
+export const ROOT_TITLE = "Variance Authority — Find what varied, what caused it, and what it reached.";
 export const ROOT_DESCRIPTION =
-  "Visual review that names the cause: pixel, document, accessibility, React and source evidence connected for one change, repeated effects settled in a single decision, in infrastructure you control.";
+  "Composable evidence tools for software that changes: connect source, execution, rendered interfaces, public APIs, and review decisions in infrastructure you control.";
 
 /** Metadata for a page in the public reading order. */
 export function pageMetadata(
