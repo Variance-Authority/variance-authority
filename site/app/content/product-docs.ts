@@ -9,9 +9,11 @@ import attribution from "../../../docs/attribution.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
+import composeObservation from "../../../docs/compose-observation.md?raw";
 import composition from "../../../docs/composition.md?raw";
 import distance from "../../../docs/distance.md?raw";
 import distill from "../../../docs/distill.md?raw";
+import explainVariance from "../../../docs/explain-variance.md?raw";
 import eyes from "../../../docs/eyes.md?raw";
 import flakiness from "../../../docs/flakiness.md?raw";
 import flows from "../../../docs/flows.md?raw";
@@ -32,6 +34,7 @@ import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
 import performance from "../../../docs/performance.md?raw";
 import replacing from "../../../docs/replacing.md?raw";
+import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
@@ -49,6 +52,8 @@ import startRoutes from "../../../docs/start-routes.md?raw";
 import startStorybook from "../../../docs/start-storybook.md?raw";
 import startUnit from "../../../docs/start-unit.md?raw";
 import surface from "../../../docs/surface.md?raw";
+import understandExecution from "../../../docs/understand-execution.md?raw";
+import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
 
@@ -60,6 +65,11 @@ export interface ProductDocument {
 
 const documents = [
   ["overview", index, "docs/README.md"],
+  ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
+  ["understand-execution", understandExecution, "docs/understand-execution.md"],
+  ["understand-interface", understandInterface, "docs/understand-interface.md"],
+  ["explain-variance", explainVariance, "docs/explain-variance.md"],
+  ["compose-observation", composeObservation, "docs/compose-observation.md"],
   ["start", start, "docs/start.md"],
   ["start-playwright", startPlaywright, "docs/start-playwright.md"],
   ["start-storybook", startStorybook, "docs/start-storybook.md"],

@@ -36,24 +36,40 @@ function NavigationLinks({ current }: { readonly current: string }) {
                   <Fragment key={item.href}>
                     {startsCluster ? (
                       <li className="pb-1 pt-4 first:pt-1">
-                        <span className="px-3 font-mono text-[9px] uppercase tracking-[0.13em] text-quiet">
-                          {item.cluster}
-                        </span>
+                        {"clusterOverview" in item && item.clusterOverview ? (
+                          <Link
+                            href={item.href}
+                            aria-current={active ? "page" : undefined}
+                            className={`block rounded-md border-l-2 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.13em] transition-colors ${
+                              active
+                                ? "border-orange bg-orange/[0.07] text-ivory"
+                                : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
+                            }`}
+                          >
+                            {item.cluster}
+                          </Link>
+                        ) : (
+                          <span className="px-3 font-mono text-[9px] uppercase tracking-[0.13em] text-quiet">
+                            {item.cluster}
+                          </span>
+                        )}
                       </li>
                     ) : null}
-                    <li>
-                      <Link
-                        href={item.href}
-                        aria-current={active ? "page" : undefined}
-                        className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
-                          active
-                            ? "border-orange bg-orange/[0.07] font-medium text-ivory"
-                            : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    </li>
+                    {"clusterOverview" in item && item.clusterOverview ? null : (
+                      <li>
+                        <Link
+                          href={item.href}
+                          aria-current={active ? "page" : undefined}
+                          className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
+                            active
+                              ? "border-orange bg-orange/[0.07] font-medium text-ivory"
+                              : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    )}
                   </Fragment>
                 );
               })}

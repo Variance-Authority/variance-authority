@@ -2,6 +2,7 @@ export interface NavigationItem {
   readonly href: string;
   readonly label: string;
   readonly cluster?: string;
+  readonly clusterOverview?: boolean;
   readonly alternative?: boolean;
 }
 
@@ -56,6 +57,12 @@ export const NAVIGATION = [
     label: "Enter by question",
     items: [
       {
+        href: "/docs/run-relevant-work",
+        label: "Run relevant work",
+        cluster: "Run relevant work",
+        clusterOverview: true,
+      },
+      {
         href: "/docs/selecting",
         label: "Select the tests that matter",
         cluster: "Run relevant work",
@@ -69,6 +76,12 @@ export const NAVIGATION = [
         href: "/docs/source",
         label: "Map what a source change can reach",
         cluster: "Run relevant work",
+      },
+      {
+        href: "/docs/understand-execution",
+        label: "Understand an execution",
+        cluster: "Understand an execution",
+        clusterOverview: true,
       },
       {
         href: "/docs/vantage",
@@ -101,6 +114,12 @@ export const NAVIGATION = [
         cluster: "Understand an execution",
       },
       {
+        href: "/docs/understand-interface",
+        label: "Understand an interface",
+        cluster: "Understand an interface",
+        clusterOverview: true,
+      },
+      {
         href: "/docs/presentation",
         label: "Inspect presentation relationships",
         cluster: "Understand an interface",
@@ -109,6 +128,12 @@ export const NAVIGATION = [
         href: "/docs/framework",
         label: "Keep framework evidence",
         cluster: "Understand an interface",
+      },
+      {
+        href: "/docs/explain-variance",
+        label: "Explain variance",
+        cluster: "Explain variance",
+        clusterOverview: true,
       },
       {
         href: "/docs/attribution",
@@ -149,6 +174,12 @@ export const NAVIGATION = [
         href: "/docs/ignores",
         label: "Exclude noise without hiding it",
         cluster: "Explain variance",
+      },
+      {
+        href: "/docs/compose-observation",
+        label: "Compose an observation",
+        cluster: "Compose an observation",
+        clusterOverview: true,
       },
       {
         href: "/docs/cases",

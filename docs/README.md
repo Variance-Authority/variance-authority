@@ -126,10 +126,11 @@ ways to answer it, and no use must cross them all.
 
 | Where the question lands | The answer can come from |
 | --- | --- |
-| Source | Reachability, change closure, distance, names, and source structure |
-| Execution | Attention, updates, requests, logs, journeys, and unfinished work |
-| Interface | Accessibility, pixels, geometry, component provenance, and presentation relationships |
-| Comparison | Baselines, paired runs, variations, divergence, and parting |
+| [Run relevant work](run-relevant-work.md) | Reachability, change closure, distance, names, and source structure |
+| [Understand an execution](understand-execution.md) | Attention, updates, requests, logs, journeys, and unfinished work |
+| [Understand an interface](understand-interface.md) | Accessibility, pixels, geometry, component provenance, and presentation relationships |
+| [Explain variance](explain-variance.md) | Baselines, paired runs, variations, divergence, and parting |
+| [Compose an observation](compose-observation.md) | State ownership, acquisition material, renderer placement, retention, and consumption |
 | Decision and memory | Rules, approvals, attribution, history, and retained evidence |
 | Consumption | A report, a test failure, the CLI, MCP, or a workspace API |
 
