@@ -2,6 +2,8 @@ import { isValidElement, type ReactNode } from "react";
 import rehypeRaw from "rehype-raw";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { siteHref, splitTarget } from "../content/markdown-links";
+import { headingId, withoutDocumentTitle } from "../content/markdown-text";
 import { GITHUB } from "../links";
 import MermaidDiagram from "./MermaidDiagram";
 
@@ -14,52 +16,6 @@ function textOf(value: ReactNode): string {
     return textOf((value as { props: { children?: ReactNode } }).props.children);
   }
   return "";
-}
-
-export function headingId(heading: string): string {
-  return heading
-    .toLowerCase()
-    .trim()
-    .replace(/[`*_]/g, "")
-    .replace(/[\u2000-\u206f\u2e00-\u2e7f!"#$%&'()+,./:;<=>?@[\]\\^{}|~]/g, "")
-    .replace(/\s/g, "-");
-}
-
-export function documentTitle(source: string): string {
-  return /^# (.+)$/m.exec(source)?.[1]?.replace(/`/g, "") ?? "Documentation";
-}
-
-function withoutDocumentTitle(source: string): string {
-  return source
-    .replace(/^<p align="center"><img[^>]*><\/p>\r?\n+/, "")
-    .replace(/^# .+\r?\n(?:\r?\n)*/m, "");
-}
-
-export function documentDescription(source: string): string {
-  const withoutTitle = withoutDocumentTitle(source);
-  const paragraph = withoutTitle
-    .split(/\n\s*\n/)
-    .find((block) => !/^(?:#|\||```|<|---)/.test(block.trim()));
-  return (paragraph ?? "Technical documentation for Variance Authority")
-    .replace(/^>\s?/gm, "")
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[`*_]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function documentToc(source: string) {
-  return [...source.matchAll(/^## (.+)$/gm)].map((match) => ({
-    id: headingId(match[1]!),
-    label: match[1]!.replace(/[`*_]/g, ""),
-  }));
-}
-
-function splitTarget(href: string): { path: string; suffix: string } {
-  const index = href.search(/[?#]/);
-  return index === -1
-    ? { path: href, suffix: "" }
-    : { path: href.slice(0, index), suffix: href.slice(index) };
 }
 
 function wordsFromSlug(slug: string): string {
@@ -107,53 +63,6 @@ function CodeBlock({ children }: { children: ReactNode }) {
   }
 
   return <pre tabIndex={0}>{children}</pre>;
-}
-
-const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
-  README: "/docs",
-  agents: "/agents",
-  "agent-live-run": "/agents/live-run",
-  "agent-cli": "/agents/cli",
-  "agent-mcp": "/agents/mcp",
-  "agent-questions": "/agents/questions",
-  "agent-workspace-api": "/agents/workspace-api",
-  comparison: "/reference/comparison",
-  start: "/start",
-  "start-cli": "/start/cli",
-  "start-custom": "/start/custom",
-  "start-playwright": "/start/playwright",
-  "start-routes": "/start/routes",
-  "start-storybook": "/start/storybook",
-  "start-unit": "/start/unit",
-};
-
-function siteHref(href: string, sourcePath: string): string {
-  if (/^(?:https?:|mailto:|tel:|#)/.test(href)) return href;
-
-  const { path, suffix } = splitTarget(href);
-  const base = sourcePath.split("/").slice(0, -1);
-  const parts = [...base, ...path.split("/")];
-  const normalized: string[] = [];
-  for (const part of parts) {
-    if (!part || part === ".") continue;
-    if (part === "..") normalized.pop();
-    else normalized.push(part);
-  }
-  const resolved = normalized.join("/");
-
-  if (/^docs\/(?:README|[a-z0-9-]+)\.md$/.test(resolved)) {
-    const name = resolved.slice(5, -3);
-    const route = DOCUMENT_ROUTES[name] ?? `/docs/${name}`;
-    return `${route}${suffix}`;
-  }
-  if (resolved === "packages") return `/reference/packages${suffix}`;
-  const packageMatch = /^packages\/([^/]+)(?:\/README\.md)?$/.exec(resolved);
-  if (packageMatch) {
-    return `/reference/packages/${packageMatch[1]}${suffix}`;
-  }
-
-  const view = /(?:^|\/)[^/]+\.[^/]+$/.test(resolved) ? "blob" : "tree";
-  return `${GITHUB}/${view}/main/${resolved}${suffix}`;
 }
 
 export default function MarkdownDocument({

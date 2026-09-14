@@ -1,11 +1,12 @@
 import { notFound } from "next/navigation";
 import DocsPage from "../../../components/DocsPage";
 import DocumentFigure from "../../../components/DocumentFigure";
-import MarkdownDocument, {
+import MarkdownDocument from "../../../components/MarkdownDocument";
+import {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../../components/MarkdownDocument";
+} from "../../../content/markdown-text";
 import {
   PRODUCT_DOCUMENTS,
   productDocument,

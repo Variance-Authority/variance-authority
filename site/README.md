@@ -10,6 +10,12 @@ route. Technical truth stays in `../docs` and the package READMEs; `/docs`,
 `/start`, `/agents`, and `/reference` import that Markdown at build time and add
 navigation and figures without creating another contract.
 
+Every documented page also serves that Markdown beside it, at `<path>/index.md`,
+with repository links repointed at the Markdown of the page they name.
+`/llms.txt` indexes those in the reading order the sidebar uses, so a reader that
+takes Markdown reaches the same material in the same order as a reader that takes
+pages.
+
 ```bash
 yarn install
 yarn dev         # vinext dev server

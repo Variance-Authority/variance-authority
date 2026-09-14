@@ -1,9 +1,10 @@
 import DocsPage from "../../components/DocsPage";
-import MarkdownDocument, {
+import MarkdownDocument from "../../components/MarkdownDocument";
+import {
   documentDescription,
   documentTitle,
   documentToc,
-} from "../../components/MarkdownDocument";
+} from "../../content/markdown-text";
 import { productDocument } from "../../content/product-docs";
 import { pageMetadata } from "../../metadata";
 
