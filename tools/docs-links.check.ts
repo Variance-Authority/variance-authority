@@ -35,6 +35,7 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
  */
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
+  'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
   'packages/core/dist/hash.js': 'a build artifact named in a quoted bundler error',
 };
 

@@ -28,9 +28,13 @@ const test = base.extend(varianceFixtures);
 test('the cart settles after a second item', async ({ page, variance }) => {
   await page.goto('/cart');
   await page.getByRole('button', { name: 'Add' }).click();
+
+  // send the cart as it stands, and carry straight on
   variance.snapshot('one item in');
 
   await page.getByRole('button', { name: 'Add' }).click();
+
+  // send it, and stand here until an agent says continue
   await variance.observe('two items, before the total redraws');
 
   await expect(page.getByTestId('total')).toHaveText('$24.00');
@@ -109,7 +113,10 @@ import type { VarianceDesk } from '@variance-authority/playwright-test';
 
 async function checkout(page: Page, variance: VarianceDesk) {
   await page.getByRole('button', { name: 'Checkout' }).click();
+
+  // the test stops here, one frame down from the body that awaits it
   await variance.observe('the card form, before it is filled');
+
   await page.getByLabel('Card number').fill('4242424242424242');
 }
 
@@ -124,7 +131,9 @@ open and look at what the UI does with a reply that has not come:
 ```ts
 test('the totals spinner outlives a slow price call', async ({ page, variance }) => {
   await page.route('**/api/price', async (route) => {
+    // the reply is held back for as long as you stand here
     await variance.observe('price request in flight, nothing answered yet');
+
     await route.continue();
   });
 
@@ -147,12 +156,16 @@ when it arrived:
 ```ts
 test('the filter narrows the list', async ({ page, variance }) => {
   await page.goto('/orders');
+
+  // three sends and no stops — the sequence is what you are after
   variance.snapshot('unfiltered');
 
   await page.getByRole('combobox', { name: 'Status' }).selectOption('refunded');
+
   variance.snapshot('refunded only');
 
   await page.getByRole('button', { name: 'Clear' }).click();
+
   variance.snapshot('cleared');
 });
 ```
