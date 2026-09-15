@@ -1,8 +1,12 @@
-# Distil a test to the behavior it witnesses
+# Find dependencies a test may not need
 
-`variance distill` reads one test from two independent observations: what the
-test addressed, and what source the test entered. It reports the overlap and
-names the residue as opportunities for a smaller test boundary.
+`variance distill` compares the source a test executed with the elements it
+queried or interacted with. It lists files to investigate when you want a test
+to load less code.
+
+Supply a recorded execution index and, for the interaction comparison, an Eyes
+record from the same test. [Eyes](eyes.md) records the interactions;
+[execution journeys](journeys.md) describes the source record.
 
 ```bash
 variance distill \
@@ -16,23 +20,24 @@ the same answer; it does not open a browser, run a test, or edit source.
 
 ## The three readings
 
-Eyes records the selectors, locators and events a test consumed while their DOM
-targets were live. Each target carries its React owner path and source location
-when that attribution exists. The test supplies `arrange`, `act` and `assert`
-markers; Eyes records those authored boundaries and never guesses a phase from
-an API name.
+The report combines three kinds of information:
 
-React commits in the same journal keep update initiators separate from all
-components whose render bodies ran. Distill places an initiator inside an
-addressed component path only when their structural path frames overlap. An
-initiator outside the addressed paths is an entanglement to investigate: code
-the test did not address initiated work during the same authored phase. It is
-not proof of the source statement that scheduled the update.
+- **Interactions:** Eyes records the elements the test queried or interacted
+  with, including their React component paths and source locations when
+  available. Explicit `arrange`, `act`, and `assert` markers group the activity
+  by test phase; the recorder does not infer phases from query names.
+- **React updates:** the record distinguishes components that initiated an
+  update from components that rendered because of it. An update initiated
+  outside the component paths the test interacted with is a dependency to
+  investigate. It does not identify the source statement that scheduled it.
+- **Executed source:** Sense records files executed by the same test ID. This
+  record covers the whole test, so the analyzer cannot assign files to an
+  arrange, act, or assert phase. It displays depth when the input supplies it;
+  the native source recorder does not record call depth.
 
-Sense supplies the files entered by the exact same test id and their nearest
-observed depth. Its execution index is whole-test evidence, not AAA evidence,
-so distill does not assign those files to a phase. An entered file with no Eyes
-target attributed to that file is a **distillation opportunity**.
+A file that executed without being associated with an interaction appears as a
+**distillation opportunity**: a candidate for simplifying the test's dependencies.
+For an input that supplies depth, the report can look like this:
 
 ```text
 act:
@@ -50,16 +55,14 @@ Entered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 5 — src/top-nav.tsx
 ```
 
-An opportunity is not permission to mock, replace, or delete the file. Static
-reachability describes what the test could load; execution says what it entered;
-attention says what it addressed. None says what the test would still witness
-after a substitution.
+Inspect an opportunity before changing it. Executing a file without interacting
+with its elements does not establish that the file is unnecessary: it may
+provide data, setup, or side effects the test relies on.
 
 ## Imports nothing ever calls
 
-Read a file-level answer twice before you act on it. A named import runs its
-module's top level and nothing else, so a test can reach a file without
-exercising a line of it:
+An import can run a module's initialization without calling its exports. For
+example, a test may load `HeavyChart` but render only the empty state:
 
 ```tsx
 import { HeavyChart } from './heavy-chart';
@@ -68,13 +71,9 @@ import { HeavyChart } from './heavy-chart';
 return points.length === 0 ? <EmptyState /> : <HeavyChart points={points} />;
 ```
 
-A spy reaches the same place from the other side. `vi.spyOn(totals,
-'formatTotal')` leaves the module loaded and its function unreached, and the
-import statement above it still reads as a use.
-
-Distill separates the two. Every entered module is read region by region:
-`loadedOnly` marks a module whose only crossings are the consequence of loading
-it, and `unentered` names the declarations the test never reached.
+Distill examines the recorded functions and branches within each module.
+`loadedOnly` means the test executed only initialization work. `unentered`
+lists declarations it did not execute.
 
 ```text
 Loaded but not entered: 1 module(s).
@@ -83,46 +82,45 @@ Loaded but not entered: 1 module(s).
     substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
 ```
 
-This is a stronger reading than an opportunity and still not a verdict. Mocking
-takes the module's top level with the rest, and a top level that registers a
-handler, installs a polyfill, or builds a singleton is one the test may be
-standing on. Write the mock, rerun the exact test, and compare the witness
-before you keep it.
+This is a more specific candidate than a file with no recorded interaction.
+Check its initialization before mocking it: that may register a handler, install
+a polyfill, or create a singleton the test needs.
+[Reduce a test's cost](optimize-a-test.md) explains how to verify the change and
+how an explicit mock affects future selection.
 
 ## One capability, three entrances
 
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
-| CLI | the evidence is in portable files | `variance distill --test <id> --eyes <path> --execution <path>` |
-| MCP | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
-| `variance-authority` skill | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
+| CLI | you have saved record files | `variance distill --test <id> --eyes <path> --execution <path>` |
+| MCP | your connection supplies Eyes and Sense records | `variance_distill {"test":"<id>"}` |
+| `variance-authority` skill | you want an agent to try and verify dependency changes | install the skill shipped by `@variance-authority/cli` |
 
-The CLI and MCP tool call the same analyzer and text formatter. `--format json`
-exposes the analyzer result for another deterministic consumer. The skill adds
-judgment; it does not replace the reading.
+The CLI and MCP tool use the same analyzer and text output. Use `--format json`
+for structured results. Neither runs tests or edits source. The skill guides an
+agent through making and checking a change.
 
 ## The agent loop
 
-For each opportunity, the agent identifies the narrowest reversible
-substitution, changes one boundary, and reruns the exact test. It compares the
-new attention and execution witness with the original before keeping the edit.
-If an assertion loses its causal path, an addressed target disappears, or an
-outside update initiator reaches the retained surface, the substitution is
-reverted or the test is adjusted to state the behavior it actually owns.
+For each candidate, the agent tries one reversible substitution and reruns the
+exact test. It compares the recorded interactions and executed source before
+keeping the edit.
 
-This is where mocking becomes justified: by a counterfactual run, not by an
-unused percentage. Distill supplies the ordered work list and the evidence to
-compare; the agent verifies each proposed boundary.
+The change needs further work or reversal if an assertion loses the behavior it
+depended on, a target disappears, or an update initiated outside the tested
+component paths affects the part of the UI the test retains. A passing assertion
+alone does not establish that the smaller test still checks the intended behavior.
 
 ## Tests without Fiber
 
-Distill does not require React. A plain unit test or a test over a fake component
-can supply only an execution index and still receive an entered-source reading.
-Without Eyes, the entered-versus-addressed opportunity comparison is unavailable.
-With a complete empty Eyes journal, the addressed surface is measured empty and
-the comparison can proceed. Neither case is printed as zero Fiber usage.
+React is optional. A plain unit test can supply only an execution index and get
+a report of executed source. Without Eyes, the comparison between executed files
+and recorded interactions is unavailable.
 
-The current reading counts addressed target paths and entered files. It does
-not claim a percentage of the Fiber tree: unmounted, hidden, lazy and
-never-observed branches have different denominators, and a DOM target does not
-establish that every ancestor or descendant participates in the assertion.
+An empty, complete Eyes record is different: it establishes that no interactions
+were recorded, so the comparison can proceed. Missing or incomplete recording
+cannot establish that something was unused.
+
+The report counts recorded target paths and executed files. It does not report
+what percentage of a React component tree the test covers, or whether every
+ancestor and descendant of a target contributes to an assertion.

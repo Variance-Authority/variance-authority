@@ -1,45 +1,49 @@
-# Run relevant work
+# Run relevant tests after a change
 
-A change should pay for every test needed to understand it, not every test the
-repository can run. This aspect turns evidence about source and prior execution
-into a bounded decision about what to run now.
+Variance Authority uses your source diff and recorded test execution to choose
+which tests to run. It can then order those tests by how directly they depend
+on the changed code, so you get focused feedback early.
 
-## One decision, three readings
+Use this when a small edit triggers a large suite and you want to understand
+why each selected test needs to run.
 
-Running less is not one graph query. Three readings answer different parts of
-the decision:
+## Choose tests, then choose their order
 
-| Question | Reading | Route |
+Suppose you edit a shared formatter. Three pieces of information help:
+
+| Information | What it tells you | Guide |
 | --- | --- | --- |
-| What could this source change reach? | Imports, declarations, unresolved edges, and project-level seeds | [Read source reach](source.md) |
-| Which tests have actually crossed that code? | The execution index retained from previous runs | [Select the tests that matter](selecting.md) |
-| Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Run the nearest tests first](distance.md) |
+| Imports and declarations | Which parts of the project could depend on the formatter | [Source dependencies](source.md) |
+| Recorded execution | Which tests executed the changed code in a previous run | [Test selection](selecting.md) |
+| Import distance | Which selected tests have the fewest modules between them and the edit | [Run nearby tests first](distance.md) |
 
-Source reach supplies possibility. Recorded execution supplies experience.
-Distance supplies order. None is substituted for another, and a use may need
-only one of them.
+Selection chooses the test files. Distance orders that selection; it does not
+remove tests from it. A direct test of the formatter may give you a useful
+failure before a page test that reaches it through several components.
 
-## Start with the saving you need
+## Set up recorded selection
 
-Use [test selection](selecting.md) when the outcome is a smaller set of tests.
-It owns `--since`, the conservative rules that widen the set, and the report of
-what was excluded.
+The Vitest 2 and Jest 30 integrations wrap your existing configuration with
+`withTestSelection`. Run the suite to record what each test file executes, then
+use that record to select tests for a later change.
 
-Use [distance](distance.md) when the set is already known but feedback order
-matters. Near tests run first because they usually fail for the simplest reason;
-distance does not remove a selected test.
+Follow the [Vitest setup](../packages/sense#select-vitest-files-from-a-change)
+or [Jest setup](../packages/sense#select-jest-files-from-a-change) for the
+configuration and selection API. [Test selection](selecting.md) also covers
+`--since` for rendered subjects and the inputs supplied by `nx` or `turbo`.
 
-Use [source reach](source.md) when the source reader itself is the question:
-which requests were found, how they resolved, what could not be determined, or
-why a change widened the answer. The [source index](source-index.md) is the
-retained format and invalidation reference beneath those readings.
+Once selection works, use [distance ranges](distance.md) to run nearby tests
+during editing and the remaining tests before verification.
 
-## The boundary is conservative
+## When more tests must run
 
-This aspect narrows work, not truth. A skipped test contributes no observation
-and no verdict. Missing coverage, an unreadable edge, an unknown changed file,
-or incompatible recorded evidence widens the run or refuses the selection; it
-never becomes proof that nothing is affected.
+Selection depends on having enough information to exclude a test. A changed
+file missing from the record, an unresolved dependency, or incompatible recorded
+data can widen the run or prevent selection. The result reports the reason.
 
-The result is authority to choose a workload under named conditions. It is not
-authority to declare the unrun surface unchanged.
+A skipped test has no new observation or verdict. Passing the selected tests
+supports a narrower claim than passing the full suite; keep the project's full
+verification gate.
+
+For the exact fallback rules, see [Test selection](selecting.md). For problems
+resolving an import or mapping a source change, see [Source dependencies](source.md).

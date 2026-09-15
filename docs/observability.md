@@ -1,125 +1,71 @@
-# Ask a question the test did not ask
+# Inspect a test after it finishes
 
-An assertion is a question written before the run, and the answer is one bit.
-That bit is the whole of what a suite conventionally reports about an execution
-that knew a great deal more: which elements it addressed, which components
-rendered, which instance scheduled each render, and which branch a service took
-while the page was waiting on it. All of it exists for a few milliseconds, and
-teardown is the end of it.
+Variance Authority retains details that help explain a test after the process
+has exited: the elements it queried or interacted with, the components involved,
+and the source code that executed.
 
-The cost is not paid when a test fails. It is paid afterwards, when the only
-question anyone can ask is the one somebody already wrote down. `Unable to find
-element` names the question. It does not name the button, the component that
-owned it, the code that put it there, or the update that removed it — and the
-process that knew all four has exited by the time the line is printed.
+For example, a checkout test may click a button that immediately disappears.
+The retained record can still identify that button's owning component and source
+location when React exposes them. You can investigate the completed run without
+reproducing that moment in a debugger.
 
-## The record, rather than the breakpoint
+## What you can inspect
 
-None of this is secret. Open dev tools on a live page and every one of those
-facts is reachable: the component that produced a node, the update that scheduled
-a render, the branch a module took. Three conditions have to hold for that to
-work — the page is running, execution is stopped, and a person is watching. In
-CI none of the three holds, and for anything reading a result an hour later none
-of them ever will.
+| Question | Recorded information | Guide |
+| --- | --- | --- |
+| Which element did the test query or interact with? | Selectors, events, and target details | [Eyes](eyes.md) |
+| Which component owned that element? | Component paths and source locations, when available | [Eyes](eyes.md) |
+| Which React component initiated an update? | Update initiators, separately from components that rendered | [React update records](eyes.md) |
+| Which functions and branches executed? | Instrumented source regions associated with the execution | [Execution journeys](journeys.md) |
+| What happened while a run was still active? | Live observations | [Watch a run](vantage.md) |
 
-So the record is taken while the page is alive and kept once it is gone. The test
-does not change. Same queries, same expectations, same pass and same fail; what
-the run leaves behind is what changes.
+These records supplement the test's assertions. They do not change its pass or
+fail result.
 
-## Attribution is copied before it can be destroyed
+## Set up recording before the run
 
-React removes its Fiber pointer from a DOM node when the node unmounts. A click
-handler that removes the element it fired on has destroyed that element's
-attribution before the test's next statement runs. The information is not hidden
-and not expensive — it is gone, between two adjacent lines of the test file,
-which is why a retry, a screenshot, or a trace replayed afterwards all arrive
-too late for it.
+Eyes records DOM interactions. Its React Testing Library integration attaches
+through `watch(screen)` in a setup file. Source execution is recorded separately
+by the Vitest, Jest, or browser instrumentation. Follow [Eyes](eyes.md) and
+[execution journeys](journeys.md) for the appropriate integration.
 
-Eyes listens on `document` in the capture phase, ahead of React's delegated
-handler on the root container, and copies the owner chain, the props digest at
-each boundary, the authoring component and the JSX coordinate into a plain value
-in that same synchronous turn. The copy holds no DOM node and no Fiber, so
-delaying it and retaining the element is not the same operation.
+React update recording requires a commit hook installed before `react-dom`
+loads. `watch` attaches to that hook; it does not install one. If the hook is
+unavailable, the recorder reports that it cannot provide that information. It does not
+report an empty update list.
 
-The element is then detached and unreachable from the document, and the record
-still names the component that owned it, the component whose JSX put it there,
-and the file and line where that was written.
+Component attribution is copied while the element is still available, before
+a handler can remove it. The saved record contains values rather than live DOM
+or React objects, so it remains readable after unmounting and teardown.
 
-## The identity crosses; the name does not
+## Follow execution into a service
 
-A page under test talks to services, and a service is the wrong shape to ask
-about a suite. It outlives every subject in the run, it answers several of them
-at once, and nothing inside it can evaluate a test — a time window is not an
-execution.
+When a test calls an instrumented service, its execution record can include the
+service's source too. The driver assigns an execution ID, carries it on browser
+requests, and collects the service's reports under that ID.
 
-What crosses instead is one opaque id per execution, minted by the driver and set
-on the browser context before the first navigation. The browser sends it on
-requests it was already going to send. A service instrumented by its own build
-reads the id off the request and reports what it entered, to a loopback address
-it also read off a cookie. Only the driver holds `journey → subject`, so only the
-driver can join, and a report cannot claim an execution by writing one down: the
-execution is in the address the report arrived on, never in the body.
+This lets the report distinguish two tests using the same service concurrently.
+Joining by a test title or timestamp would leave that distinction ambiguous.
+The service must be instrumented and configured to report; ordinary network
+traffic alone does not reveal which branches it executed.
 
-This is distributed tracing with the runner as the collector, and what it buys is
-not correlation but separation. Two specs running at once, against one service
-process, inside one module, come back apart. Counters are keyed by async scope
-rather than by the process, and the global the probes read is an accessor rather
-than a value, so a cached factory invalidates exactly where two executions
-interleave. A process-global counter array cannot do that, and neither can a
-module-global one.
+See [execution journeys](journeys.md) for setup and the cross-process contract.
 
-The sentence that falls out is one no single instrument can produce: _this spec
-entered that branch of that service and the other spec never did_ — with the
-service never told what a spec is.
+## Understand what the record establishes
 
-## An absence is never reported as a measurement
+**Recorded execution identifies code that ran.** It does not establish that an
+assertion checked that code, or that the code is safe to mock. Use
+[Distill](distill.md) to find candidates, then verify any substitution by
+rerunning the test.
 
-Every reading here separates _nothing was there_ from _nobody looked_, and does
-it in the shape rather than in prose. Update initiators the renderer did not
-expose are unavailable; an empty list is a completed reading. A node with no
-reachable Fiber says which of the two reasons applies. The tally of work a run
-opened and never closed is exact no matter what was dropped from the bounded log
-beside it.
+**An update initiator identifies a component instance.** It does not identify
+the exact callback, timer, or source statement that scheduled the update.
 
-The case that costs something is the one worth reading. A declared head that
-reports nothing retires the whole run's right to narrow anything:
+**Missing information stays missing.** An empty list means recording completed
+and found no entries. Unavailable or incomplete information is reported
+separately. If an expected service reports nothing, the run cannot use that
+silence to exclude tests: the service might have executed code the recorder
+missed.
 
-```text
-heads api reported nothing: a service that was not watched cannot be told from
-one that executed nothing, so no subject in this run may justify an exclusion
-```
-
-An instrument that reads silence as zero is confidently wrong in the direction
-that skips a test. This one gives up the narrowing and prints why.
-
-## A carried value joins; a derived one agrees until it stops
-
-An answer spanning two instruments is worth what its key is worth, and two kinds
-of key run through this system.
-
-A **carried** value is produced once and propagated. The props digest is computed
-by one function and read back by the diff and by the commit record; the JSX
-coordinate is written by the transform; the journey id is minted by the driver
-and handed back by the browser. Comparing one of these across a process boundary
-compares a value to itself.
-
-A **derived** value is computed independently at each end from something both
-ends can see — a display name, a title, a wall clock. Those agree until they do
-not, and nothing announces the day they stop.
-
-So a cross-instrument answer joins on exact identities both producers emitted, or
-it refuses and names the half that was missing. A name match is good enough when a
-person looks something up by hand, and never between two instruments. It is also
-why a joined view concludes _less_ than either half alone: a file that executed
-with nothing addressing it is a replay candidate, and neither instrument
-establishes that it is safe to mock.
-
-## What the suite is for afterwards
-
-None of this changes a verdict. The suite passes and fails on the assertions
-somebody wrote, and nothing here reaches a baseline or an exit code. What changes
-is that the run stops being the only thing that knew, and a question nobody
-thought to write down in advance has somewhere to be asked.
-
-Then: [see what a test addressed](eyes.md), [watch a run that has not
-finished](vantage.md), [trace a flake to its cause](flakiness.md).
+Start with [Eyes](eyes.md) for a DOM interaction, or
+[execution journeys](journeys.md) for a source-level question.
