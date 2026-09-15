@@ -36,8 +36,16 @@ import { describe, expect, it } from 'vitest';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The command that makes the skipped suites run, spelled exactly as they must spell it. */
-const REMEDY = 'npx playwright install chromium';
+/**
+ * The command that makes the skipped suites run, spelled exactly as they must
+ * spell it — or `installCommand(...)`, which prints it from the declared engine
+ * list in `packages/playwright/src/engines.ts`.
+ *
+ * The second spelling exists because one suite's remedy is not a constant: it
+ * installs whichever engines were declared, so writing `chromium` there would be
+ * a literal that goes stale the moment the declaration changes.
+ */
+const REMEDIES: readonly string[] = ['npx playwright install chromium', 'installCommand('];
 
 /**
  * The gate, and therefore the files.
@@ -46,19 +54,28 @@ const REMEDY = 'npx playwright install chromium';
  * — so the gate is what discovers them. A filename convention would not: `harness.test.ts`
  * is gated and carries no `chromium` in its name.
  */
-const GATED: readonly string[] = execFileSync(
-  'git',
+const GATES: readonly string[] = [
   // `executablePath()`, not `chromium.executablePath()`. The narrower spelling
   // was the hole this file's own comment predicted: a suite that gates on
   // whichever engines are installed asks `engine.executablePath()` through a
   // variable, gates correctly, announces correctly — and was discovered by
   // nothing, so the rule that exists to prevent silent skips would have silently
   // stopped covering it.
-  ['grep', '-l', 'executablePath()'],
-  { cwd: ROOT, encoding: 'utf8' },
-)
-  .trim()
-  .split('\n')
+  'executablePath()',
+  // The same hole, reopened when the gate moved behind a function. A suite that
+  // asks `requireEngines()` whether this machine has the declared engines does
+  // not name `executablePath` anywhere, and the grep above stopped seeing it.
+  'requireEngines(',
+];
+
+const GATED: readonly string[] = [
+  ...new Set(
+    GATES.flatMap((gate) =>
+      execFileSync('git', ['grep', '-l', gate], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n'),
+    ),
+  ),
+]
+  .filter((file) => file.length > 0)
   // This file names the gate in order to find it, and is not gated by it. Left
   // in, it discovers itself, finds no announcement, and fails — a checker whose
   // first finding is itself teaches everyone to distrust its second.
@@ -108,7 +125,7 @@ describe('a suite that does not run says why', () => {
     // Not a search of the whole file: three of these carried the exact command
     // inside an `it.skip` title and printed nothing. It has to be in something a
     // skipped run actually executes.
-    expect(spoken).toContain(REMEDY);
+    expect(REMEDIES.some((remedy) => spoken.includes(remedy))).toBe(true);
   });
 
   it.each(GATED)('%s keeps no placeholder that announces nothing', (file) => {

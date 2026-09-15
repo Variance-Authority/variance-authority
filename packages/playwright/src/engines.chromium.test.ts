@@ -1,5 +1,3 @@
-import { existsSync } from 'node:fs';
-import { chromium, firefox, webkit } from 'playwright';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
   documentDigest,
@@ -10,6 +8,7 @@ import {
 } from '@variance-authority/core/format';
 import { compareRasters } from '@variance-authority/png';
 import { DEFAULT_POLICY, type Renderer } from '@variance-authority/raster';
+import { declaredEngines, installCommand, requireEngines } from './engines.js';
 import { createPlaywrightRenderer } from './renderer.js';
 
 /**
@@ -39,27 +38,30 @@ import { createPlaywrightRenderer } from './renderer.js';
  * WebKit run that is stable here is one document on one machine, once.
  */
 
-function installed(engine: { executablePath(): string }): boolean {
-  try {
-    return existsSync(engine.executablePath());
-  } catch {
-    return false;
-  }
-}
-
 /**
- * The engines this machine can actually launch, discovered rather than assumed.
+ * The engines this run measures — **declared, and then required to exist.**
  *
- * Discovered so the file scales with what is installed instead of pinning a pair:
- * a machine with all three measures all three, and a machine with one skips
- * loudly. Pinning `[chromium, webkit]` would have quietly kept Firefox
- * unmeasured on the machine that had it.
+ * This used to be `filter(existsSync)` over all three, so the result depended on
+ * the machine: a laptop missing WebKit measured one engine and reported green,
+ * which is the one outcome a visual-regression tool cannot produce. The list now
+ * comes from `DECLARED_ENGINES` (or `VARIANCE_ENGINES`), and a declared engine
+ * whose binary is absent throws during collection with its name and the install
+ * command.
+ *
+ * Empty means this machine has *no* browser at all, which is CI on purpose, and
+ * is the only condition under which this file may decline to run.
  */
-const ENGINES = ([
-  ['chromium', chromium],
-  ['firefox', firefox],
-  ['webkit', webkit],
-] as const).filter(([, engine]) => installed(engine)).map(([name]) => name);
+const ENGINES = requireEngines(declaredEngines());
+
+// Announced at module scope, because that is the only place a reader of a
+// skipped run sees anything: vitest's default reporter never prints a skipped
+// test's name, and CI runs the default reporter.
+if (ENGINES.length === 0) {
+  console.warn(
+    `\npackages/playwright (engines): skipped, this machine has no browser.` +
+      `\n  ${installCommand(declaredEngines())}\n`,
+  );
+}
 
 const VIEWPORT: Viewport = {
   width: 400,
@@ -97,19 +99,9 @@ afterAll(async () => {
   renderers = [];
 });
 
-const both = ENGINES.length > 1 ? describe : describe.skip;
+const gated = ENGINES.length > 0 ? describe : describe.skip;
 
-// Announced at module scope, because that is the only place a reader of a
-// skipped run sees anything: vitest's default reporter never prints a skipped
-// test's name, and CI runs the default reporter.
-if (ENGINES.length < 2) {
-  console.warn(
-    '\npackages/playwright (engines): skipped.' +
-      '\n  needs two engines — npx playwright install chromium webkit firefox\n',
-  );
-}
-
-both('one document, every engine on this machine', () => {
+gated('one document, every declared engine', () => {
   it('stamps each engine into the identity, so their baselines cannot collide', async () => {
     const opened = await Promise.all(
       ENGINES.map((browser) => createPlaywrightRenderer({ browser })),
@@ -169,6 +161,11 @@ both('one document, every engine on this machine', () => {
     // builds, and a *lower* bound on divergence, because the subject is
     // deliberately small.
     const document = documentFor();
+
+    // A one-engine declaration has no pair, so the loop below would assert
+    // nothing and this would pass by not applying — the shape `tools/skips.check.ts`
+    // exists to forbid. Stated here so narrowing the list fails instead.
+    expect(ENGINES.length).toBeGreaterThan(1);
 
     const opened = await Promise.all(
       ENGINES.map((browser) => createPlaywrightRenderer({ browser })),

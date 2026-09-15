@@ -1,12 +1,4 @@
-import {
-  chromium,
-  firefox,
-  webkit,
-  type Browser,
-  type BrowserContext,
-  type BrowserType,
-  type Page,
-} from 'playwright';
+import { type Browser, type BrowserContext, type Page } from 'playwright';
 import {
   RASTER_RECIPE,
   conflicts,
@@ -23,6 +15,7 @@ import {
   type Viewport,
 } from '@variance-authority/core/format';
 import { captureSubject } from './capture.js';
+import { ENGINE_TYPES, type BrowserEngine } from './engines.js';
 import {
   assertClosedResources,
   refuseMissingResources,
@@ -77,12 +70,10 @@ import {
  * **What is not claimed.** The tricks in the stabilization recipe are written
  * against Chromium's behaviour and have never been asked to hold another engine
  * still, and text rasterization is pinnable on Chromium alone — see
- * {@link CHROMIUM_RASTER_ARGS}. `engines.chromium.test.ts` exercises whichever
- * engines are installed, so the identity claim is verified rather than assumed.
+ * {@link CHROMIUM_RASTER_ARGS}. `engines.chromium.test.ts` exercises the engines
+ * `DECLARED_ENGINES` names, so the identity claim is verified rather than assumed.
  */
-export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
-
-const ENGINES: Readonly<Record<BrowserEngine, BrowserType>> = { chromium, firefox, webkit };
+export type { BrowserEngine };
 
 /**
  * Chromium settings that make text rasterization independent of host defaults.
@@ -169,7 +160,7 @@ export async function createPlaywrightRenderer(
   const engine = options.browser ?? 'chromium';
   const headless = options.headless ?? true;
   const launchArgs = options.launchArgs ?? (engine === 'chromium' ? CHROMIUM_RASTER_ARGS : []);
-  const browser = await ENGINES[engine].launch({ headless, args: [...launchArgs] });
+  const browser = await ENGINE_TYPES[engine].launch({ headless, args: [...launchArgs] });
   const recipe = options.stabilization ?? RASTER_RECIPE;
   const holdStill = recipeCss(recipe);
   const shot = recipeScreenshot(recipe);

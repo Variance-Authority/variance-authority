@@ -27,28 +27,20 @@
  * steady state by ±1 LSB on a handful of pixels, which is a warm-up rather than a
  * change; keeping it would put that into every median on one engine only.
  *
- * Engines are discovered, not assumed: a machine with one installed measures one
- * and says so, the same discipline as `src/engines.chromium.test.ts`.
+ * Engines are declared, not discovered: the list is `DECLARED_ENGINES` in
+ * `src/engines.ts` (override with `VARIANCE_ENGINES`), and a declared engine
+ * that is not installed stops the run and names itself. A benchmark that
+ * quietly measured whatever the machine happened to have would report numbers
+ * whose meaning changed per laptop — the same discipline as
+ * `src/engines.chromium.test.ts`.
  *
  * Run:  yarn workspace @variance-authority/playwright paint
  *       yarn workspace @variance-authority/playwright paint 60
  *       yarn workspace @variance-authority/playwright paint 60 --json
  */
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { chromium, firefox, webkit } from 'playwright';
+import { declaredEngines, requireEngines } from '../dist/engines.js';
 import { createPlaywrightRenderer } from '../dist/renderer.js';
-
-const ENGINES = { chromium, firefox, webkit };
-
-/** Installed, by asking Playwright where the binary is rather than launching it. */
-function installed(engine) {
-  try {
-    return existsSync(engine.executablePath());
-  } catch {
-    return false;
-  }
-}
 
 const VIEWPORT = { width: 400, height: 200, deviceScaleFactor: 1, colorScheme: 'light' };
 
@@ -126,16 +118,18 @@ const count = Number(args.find((argument) => /^\d+$/.test(argument)) ?? 20);
 // the samples prices it without quadrupling the run.
 const isolated = Math.max(3, Math.round(count / 4));
 
-const available = Object.entries(ENGINES).filter(([, engine]) => installed(engine));
-if (available.length === 0) {
-  console.error('no engines installed — npx playwright install chromium firefox webkit');
+let engines;
+try {
+  engines = requireEngines(declaredEngines());
+} catch (error) {
+  console.error(String(error instanceof Error ? error.message : error));
   process.exit(1);
 }
 
 const document = documentFor();
 const results = {};
 
-for (const [name] of available) {
+for (const name of engines) {
   const under = await reuse(name, document, count);
   const without = await isolate(name, document, isolated);
   results[name] = {
@@ -149,7 +143,6 @@ for (const [name] of available) {
 if (json) {
   console.log(JSON.stringify({ count, isolated, viewport: VIEWPORT, results }, null, 2));
 } else {
-  const missing = Object.keys(ENGINES).filter((name) => results[name] === undefined);
   console.log(`\n${count} renders per engine, one document, ${VIEWPORT.width}x${VIEWPORT.height} @1x\n`);
   console.log('engine      reuse (ms)   isolate (ms)   tax    images');
   for (const [name, result] of Object.entries(results)) {
@@ -160,7 +153,6 @@ if (json) {
         `   ${result.distinct === 1 ? '1 (stable)' : `${result.distinct} — DRIFT`}`,
     );
   }
-  if (missing.length > 0) console.log(`\nnot installed: ${missing.join(', ')}`);
   console.log(
     '\nreuse is the median with the browser open and the page leased; isolate opens\n' +
       'and closes a renderer around every paint. `images` is how many distinct\n' +

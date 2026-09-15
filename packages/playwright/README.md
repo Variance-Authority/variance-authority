@@ -43,6 +43,7 @@ across calls. Beside them sit the wire's observers: `observeNetwork` and its
 | `.` | the harness and the network observation | needs `playwright` |
 | `playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
 | `playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
+| `playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is asked to use, and whether this machine has them |
 
 `playwright/agent` is published separately because it runs inside the browser:
 it is injected as a classic script, and importing Playwright behind it would
@@ -202,6 +203,27 @@ const safari = await createPlaywrightRenderer({ browser: 'webkit' });
 
 `chromium` by default; `firefox` and `webkit` are the other two. The browser
 binary is still the caller's to install — `npx playwright install webkit`.
+
+### A run measures what it declares
+
+Anything that paints in more than one engine — this package's own cross-engine
+suite and benchmarks — takes its list from `playwright/engines` rather than from
+whatever is installed:
+
+```ts
+import { declaredEngines, requireEngines } from '@variance-authority/playwright/engines';
+
+const engines = requireEngines(declaredEngines()); // ['chromium', 'webkit']
+```
+
+`requireEngines` **throws and names the engine** when a declared one is not
+installed, because the alternative is a result that changes with the machine: a
+laptop missing WebKit measures one engine, reports green, and says nothing about
+the claim it did not check. A machine with no browsers at all returns empty,
+which is the one case a caller may skip on.
+
+`VARIANCE_ENGINES=chromium,webkit` overrides the list for a single run. It
+changes what is asked for, not the rule — whatever it names still has to exist.
 
 **A second engine costs a second paint and nothing else.** A `RenderDocument` is
 engine-independent, so it is collected once and rasterized once per engine,

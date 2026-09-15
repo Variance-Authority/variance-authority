@@ -42,24 +42,14 @@
  *
  * Needs the page bundle: `yarn workspace @variance-authority/case-incumbent bundle`.
  */
-import { existsSync } from 'node:fs';
-import { chromium, firefox, webkit } from 'playwright';
+import { ENGINE_TYPES, declaredEngines, requireEngines } from '@variance-authority/playwright/engines';
 import { pngjsDecoder } from '@variance-authority/png';
 import { PAGE_URL, stale } from './bundle.mjs';
 import { SCENARIOS } from '../dist/scenarios.js';
 
-const ENGINES = { chromium, firefox, webkit };
 const VIEWPORT = { width: 800, height: 600 };
 const USE = { viewport: VIEWPORT, deviceScaleFactor: 1, colorScheme: 'light' };
 const IDS = SCENARIOS.map((scenario) => scenario.id);
-
-function installed(engine) {
-  try {
-    return existsSync(engine.executablePath());
-  } catch {
-    return false;
-  }
-}
 
 const now = () => Number(process.hrtime.bigint()) / 1e6;
 
@@ -295,9 +285,17 @@ if (unbuilt !== null) {
   process.exit(1);
 }
 
-const available = Object.keys(ENGINES).filter((name) => installed(ENGINES[name]));
-if (available.length === 0) {
-  console.error('no engines installed — npx playwright install chromium firefox webkit');
+// Declared, not discovered. A separation between engine noise and a real
+// regression is a ratio between two families of numbers, so a run that quietly
+// measured whichever engines a laptop happened to have would print a different
+// claim on every machine. The declared list is `DECLARED_ENGINES` in
+// `@variance-authority/playwright/engines`; `VARIANCE_ENGINES` overrides it, and
+// either way a named engine that is not installed stops the run.
+let available;
+try {
+  available = requireEngines(declaredEngines());
+} catch (error) {
+  console.error(String(error instanceof Error ? error.message : error));
   process.exit(1);
 }
 
@@ -305,7 +303,7 @@ const cost = {};
 const captures = {};
 
 for (const name of available) {
-  const browser = await ENGINES[name].launch();
+  const browser = await ENGINE_TYPES[name].launch();
   cost[name] = {};
   for (const kind of ['remount', 'reset', 'navigate', 'isolate']) {
     cost[name][kind] = await model(browser, kind, count);

@@ -27,6 +27,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./engines": {
+      "types": "./dist/engines.d.ts",
+      "default": "./dist/engines.js"
+    },
     "./agent": {
       "types": "./dist/agent.d.ts",
       "default": "./dist/agent.js"
