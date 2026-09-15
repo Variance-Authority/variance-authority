@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { GITHUB } from "../links";
 import Mark from "./Mark";
+import SiteSearch from "./SiteSearch";
 
 /**
  * The landing sections, in page order. Four of them survive to a phone-width
@@ -19,14 +20,16 @@ const SECTIONS = [
 export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-hairline/70 bg-deep/80 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-6">
+        <Link href="/" className="flex items-center gap-2 sm:gap-3">
           <Mark />
-          <span className="text-sm font-medium tracking-[0.22em] text-ivory">
+          {/* The wordmark tightens rather than disappears: a phone-width header
+              carries the name, the search control and the repository at once. */}
+          <span className="text-xs font-medium tracking-[0.1em] text-ivory sm:text-sm sm:tracking-[0.22em]">
             VARIANCE&nbsp;AUTHORITY
           </span>
         </Link>
-        <nav className="flex items-center gap-6 text-sm text-quiet">
+        <nav className="flex items-center gap-2.5 text-sm text-quiet sm:gap-6">
           {SECTIONS.map((section) => (
             <Link
               key={section.href}
@@ -38,9 +41,10 @@ export default function SiteHeader() {
               {section.label}
             </Link>
           ))}
+          <SiteSearch />
           <a
             href={GITHUB}
-            className="rounded-lg border border-hairline px-3 py-1.5 text-ivory transition-colors hover:border-orange/60"
+            className="rounded-lg border border-hairline px-2.5 py-1.5 text-ivory transition-colors hover:border-orange/60 sm:px-3"
           >
             GitHub
           </a>

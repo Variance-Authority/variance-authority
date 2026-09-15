@@ -8,8 +8,10 @@
   },
   "dependencies": {
     "mermaid": "^11.17.2",
+    "minisearch": "^7.2.0",
     "react": "latest",
     "react-dom": "latest",
+    "react-focus-on": "^3.10.2",
     "react-markdown": "^10.1.0",
     "react-server-dom-webpack": "^19.2.8",
     "rehype-raw": "^7.0.0",

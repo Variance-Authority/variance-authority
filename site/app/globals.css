@@ -211,6 +211,33 @@ html {
   animation: tl-scan 7s linear infinite;
 }
 
+/* Search opens over the page, held near the top: results grow downwards from
+   where the reader is already looking rather than pushing the field around. */
+.site-search-scrim {
+  display: flex;
+  justify-content: center;
+  padding: 12vh 0.75rem 0;
+  background: color-mix(in srgb, #181b1d 72%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.site-search-frame {
+  width: 100%;
+  max-width: 42rem;
+}
+
+@media (max-width: 639px) {
+  .site-search-scrim {
+    padding-top: 4vh;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-search {
+    animation: rise 160ms ease-out;
+  }
+}
+
 /* The documentation is a reading surface: navigation stays put while the
    article owns the scroll. Columns collapse before the prose gets narrow. */
 .docs-grid {
