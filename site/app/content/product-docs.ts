@@ -31,6 +31,7 @@ import lexicon from "../../../docs/lexicon.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
 import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
+import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
@@ -111,6 +112,7 @@ const documents = [
   ["selecting", selecting, "docs/selecting.md"],
   ["distance", distance, "docs/distance.md"],
   ["distill", distill, "docs/distill.md"],
+  ["optimize-a-test", optimizeATest, "docs/optimize-a-test.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
   ["source-structures", sourceStructures, "docs/source-structures.md"],
   ["execution-record", executionRecord, "docs/execution-record.md"],

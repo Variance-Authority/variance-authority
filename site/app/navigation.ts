@@ -22,6 +22,43 @@ export const NAVIGATION = [
     ],
   },
   {
+    label: "Test selection and optimization",
+    items: [
+      {
+        href: "/docs/run-relevant-work",
+        label: "Run relevant work",
+        cluster: "Run less of the suite",
+        clusterOverview: true,
+      },
+      {
+        href: "/docs/selecting",
+        label: "Select the tests that matter",
+        cluster: "Run less of the suite",
+      },
+      {
+        href: "/docs/distance",
+        label: "Run the nearest tests first",
+        cluster: "Run less of the suite",
+      },
+      {
+        href: "/docs/source",
+        label: "Map what a source change can reach",
+        cluster: "Run less of the suite",
+      },
+      {
+        href: "/docs/optimize-a-test",
+        label: "Make one test cost less",
+        cluster: "Make one test cost less",
+        clusterOverview: true,
+      },
+      {
+        href: "/docs/distill",
+        label: "Distil a test to what it witnesses",
+        cluster: "Make one test cost less",
+      },
+    ],
+  },
+  {
     label: "Rendered comparison",
     items: [
       { href: "/start", label: "Observe one state" },
@@ -61,27 +98,6 @@ export const NAVIGATION = [
     label: "Enter by question",
     items: [
       {
-        href: "/docs/run-relevant-work",
-        label: "Run relevant work",
-        cluster: "Run relevant work",
-        clusterOverview: true,
-      },
-      {
-        href: "/docs/selecting",
-        label: "Select the tests that matter",
-        cluster: "Run relevant work",
-      },
-      {
-        href: "/docs/distance",
-        label: "Run the nearest tests first",
-        cluster: "Run relevant work",
-      },
-      {
-        href: "/docs/source",
-        label: "Map what a source change can reach",
-        cluster: "Run relevant work",
-      },
-      {
         href: "/docs/understand-execution",
         label: "Understand an execution",
         cluster: "Understand an execution",
@@ -110,11 +126,6 @@ export const NAVIGATION = [
       {
         href: "/docs/scenarios",
         label: "Compare state transitions",
-        cluster: "Understand an execution",
-      },
-      {
-        href: "/docs/distill",
-        label: "Distill structural attention",
         cluster: "Understand an execution",
       },
       {
