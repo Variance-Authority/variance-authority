@@ -1,11 +1,13 @@
 # Architecture
 
-There is no pipeline. There are tools, and a pipeline is something a user
-assembles from them.
+Variance Authority is a set of tools with explicit contracts. A team can use
+one inside an existing workflow or compose several into a pipeline that fits
+its environment.
 
-Any fixed sequence encodes one team's workflow and fails the next. The unit of
-design here is therefore the tool: a named thing with a declared contract that
-can be reasoned about, replaced, and composed without reading the others.
+The tool is the unit of design: a named capability that can be understood,
+replaced, and composed without learning the implementation of every other
+part. This keeps lifecycle, rendering, storage, and review choices with the
+systems and people that already own them.
 
 ## Kinds of tool
 

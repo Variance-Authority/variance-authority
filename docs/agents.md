@@ -1,8 +1,8 @@
 # Choose an agent workflow
 
-Start from the question your evidence can already answer. A completed run, a suite
-that is still executing, and a workspace's current TypeScript source have
-different owners and lifetimes, so they use different agent paths.
+Start with the question, then use the evidence already available. A completed
+run, a suite that is still executing, and a workspace's current TypeScript
+source have different owners and lifetimes, so they use different agent paths.
 
 ## Which question are you asking?
 

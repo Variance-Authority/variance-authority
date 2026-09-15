@@ -1,8 +1,8 @@
 # Run relevant work
 
 A change should pay for every test needed to understand it, not every test the
-repository can run. This aspect turns evidence about source and prior execution
-into a bounded decision about what to run now.
+repository can run. Source and prior execution can show what the change might
+reach, what has exercised that code before, and which useful answer is nearest.
 
 ## One decision, three readings
 
@@ -36,10 +36,10 @@ retained format and invalidation reference beneath those readings.
 
 ## The boundary is conservative
 
-This aspect narrows work, not truth. A skipped test contributes no observation
+Selection narrows work, not truth. A skipped test contributes no observation
 and no verdict. Missing coverage, an unreadable edge, an unknown changed file,
 or incompatible recorded evidence widens the run or refuses the selection; it
 never becomes proof that nothing is affected.
 
-The result is authority to choose a workload under named conditions. It is not
-authority to declare the unrun surface unchanged.
+The result supports choosing a workload under named conditions. It does not
+describe the unrun surface as unchanged.

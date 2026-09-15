@@ -1,19 +1,21 @@
 # Running less of the suite
 
-A 300-subject suite where one component changed pays for 300 collections and 300
-comparisons to report the two subjects that changed. That is the largest single
-saving available in this category, and every product in it has an answer:
+A large suite often spends most of its time confirming subjects a change could
+not have affected. Selection reduces that work while keeping uncertainty
+visible: when the evidence cannot safely exclude a subject, the subject still
+runs and the report explains why.
 
-- **Chromatic's TurboSnap** traces a change through the *bundler's* dependency
-  graph and tests the stories it reaches.
-- **Percy** and **Argos** do not select for you; you shard.
-
-This selects too, and from a different place. A stored baseline records the
-components the document that painted it **actually rendered**
+Variance Authority combines two readings. A source graph shows which components
+the changed files can reach. A stored baseline records the components its
+document **actually rendered**
 ([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)), so *what
-this subject is made of* is a fact the last run established, not one a
-build tool predicts. There is no bundler plugin, no stats file, and nothing that
-goes stale when a bundler is upgraded.
+this subject is made of* is a fact the last run established. A subject can be
+skipped only when those two readings show that the change did not reach it.
+
+Other products make different, useful choices. Chromatic's TurboSnap traces a
+change through the bundler's dependency graph and tests the stories it reaches.
+Percy and Argos leave selection and sharding with the team. The
+[product comparison](comparison.md) explains those operating models in context.
 
 A change still has to travel from a file to a component, and for that there is
 [an optional file graph](#the-expensive-row-and-what-retires-it) read from the
@@ -32,16 +34,16 @@ variance run --since origin/main
 The file list is taken from the **merge base** of `origin/main` and `HEAD` to
 the working tree, uncommitted edits included. Against the tip of `origin/main`,
 a branch that is behind it would report every file anybody else merged as
-changed here, and the selection would widen to the whole suite for a reason
-nobody can see. The hunks the execution index reads are taken from the commit
+changed here, and the selection would widen to the whole suite without a useful
+explanation. The hunks the execution index reads are taken from the commit
 the index was recorded at, when it names one: its line ranges are in that
 commit's coordinates, and a diff from anywhere else lands on lines it never
 numbered.
 
-## What it will not do
+## Where selection widens
 
-Everything here is arranged to **over-include**, because the two mistakes
-available are not the same size.
+Selection is deliberately conservative because the two possible mistakes have
+very different costs.
 
 A subject observed when it need not have been costs a collection. A subject
 *skipped* when it should have been observed produces a green run over an
@@ -58,9 +60,9 @@ report to be missing from. So every uncertainty resolves toward observing:
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
-The last three are **refusals or warnings, never silence**. A run that quietly
-declined to narrow looks exactly like a selector that decided nothing was
-affected, and those are opposite facts about the next run.
+The last three produce an explicit warning or stop. A run that quietly declines
+to narrow looks exactly like a selector that found nothing affected, although
+those facts require different next steps.
 
 ## What a skipped subject looks like
 
@@ -75,8 +77,8 @@ and this diff touched none of them (Button, Badge, Toggle)
 That is the same `excluded` state a shard filter produces, and it behaves the
 same way: it does not gate, and `variance report` over several shards
 [promotes a subject every shard excluded to `failed`](../packages/cli#sharding-report-takes-more-than-one-file)
-— because a subject nobody looked at is the failure sharding introduces and
-nothing else can see.
+— because the combined report needs to distinguish a deliberately excluded
+subject from one no shard observed.
 
 ## Where `source.dirs` matters twice
 

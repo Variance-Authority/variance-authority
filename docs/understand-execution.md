@@ -2,8 +2,9 @@
 
 An assertion records the answer to a question chosen before the run. An
 execution contains more: what it addressed, where it travelled, what updated,
-what spoke, and what opened without closing. This aspect makes that evidence
-available for the question that arrives during or after the run.
+what spoke, and what opened without closing. Keeping those signals gives you
+something concrete to inspect when the interesting question arrives during or
+after the run.
 
 ## Choose by evidence lifetime
 
@@ -30,7 +31,7 @@ Those joins use identities the producers carried across the boundary. Similar
 titles, timestamps, and display names are orientation for a person, not proof
 that two records describe the same execution.
 
-## Where this aspect stops
+## Where execution evidence stops
 
 Execution evidence explains what the run did and what it observed. It does not
 change the suite's assertions, approve a baseline, or infer that silence means

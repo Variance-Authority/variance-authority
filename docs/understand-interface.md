@@ -1,9 +1,9 @@
 # Understand an interface
 
 An interface can be understood before anyone approves a baseline or changes a
-pixel. This aspect reads the semantic and presentation relationships in one
-live state, then keeps product meaning with the person or agent making the
-decision.
+pixel. Read its semantic and presentation relationships in one live state, then
+leave the product decision with the person or agent who understands its
+purpose.
 
 ## Read the relationship you need
 
@@ -28,7 +28,7 @@ Framework evidence explains structural ownership without making the framework
 the product model. Eyes explains authored attention without claiming that every
 unaddressed element is unnecessary.
 
-## Where this aspect stops
+## Where interface evidence stops
 
 The engine reports relationships and consequences. It does not decide how much
 information a product should contain, which visual strategy is correct, or

@@ -1,9 +1,13 @@
-# Comparison
+# Choose the operating model that fits
 
 Visual-regression systems differ first in what they capture, where pixels are
 made, and who operates review. Those decisions determine privacy, browser
 coverage, reproducibility, latency, and price more directly than the name of the
 test runner adapter.
+
+Most teams are not choosing from an empty workspace. They already have a runner,
+a way to reach important states, and some form of review. Start by keeping the
+parts that work, then compare the responsibilities that remain.
 
 They also decide what the practice costs. Visual review is paid for twice: once
 in the meter, and once in the hours somebody spends deciding whether a diff
@@ -15,7 +19,7 @@ hosted-service features there before buying; both change independently.
 Variance Authority entries state the capture and operational contracts available
 to an adopter.
 
-## 1. The dimensions a buyer actually decides on
+## 1. Compare the responsibilities that matter
 
 | Dimension | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- |
@@ -56,7 +60,7 @@ The Variance integration matrix and exact material/placement choices are in
 [`surface.md`](surface.md). The underlying decision is recorded in
 [ADR-0044](context/adr/0044-capture-material-and-rendering-placement-are-independent.md).
 
-### The cost of a comparison
+### Account for both compute and review
 
 Hosted products meter different units. Percy and Argos count screenshots;
 Chromatic counts snapshots with product-specific multipliers; Applitools defines
@@ -98,7 +102,7 @@ Sources: [Percy pricing](https://www.browserstack.com/pricing?product=percy),
 [Argos pricing](https://argos-ci.com/pricing), and
 [Applitools terms](https://applitools.com/terms-of-use/).
 
-## 2. Where the managed products lead
+## 2. What the managed products provide
 
 ### Percy
 
@@ -175,7 +179,7 @@ Sources: [Ultrafast Grid](https://applitools.com/docs/eyes/concepts/test-executi
 [match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels),
 and [deployment modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes).
 
-## 3. Where composition differs
+## 3. What Variance Authority makes independently configurable
 
 Variance Authority treats host acquisition, capture material, rendering
 placement, observation, retention, and reporting as independent responsibilities.
@@ -289,13 +293,12 @@ unit capture, and custom collectors. The additive Playwright package operates
 inside the suite and leaves `test` and `expect` with Playwright. Raster input is a
 library seam; the CLI has no arbitrary-PNG ingest workflow.
 
-## 5. When not to choose this
+## 5. Choose the ownership model you want
 
 Percy, Chromatic, Argos, and Applitools supply managed browser coverage, hosted
-review links, and vendor support. **Buy one of them when visual review should be a
-product rather than infrastructure you run** — when nobody on the team wants to
-own a renderer image, a storage bucket, an upload path, and the pager that comes
-with them.
+review links, and vendor support. Choose one when the team wants visual review
+as a managed product and does not want to own renderer images, storage, upload
+paths, and their operational support.
 
 Choose Variance Authority when a changed screenshot should arrive as one cause
 with its evidence, and be settled in one decision — and when

@@ -1,11 +1,12 @@
-# Can this replace what you are paying for?
+# Where Variance Authority fits
 
-Replacement depends on the job being bought. These gates cover capture,
-comparison, attribution, and CI operation. Managed review, browser fleets, and
-vendor commitments remain separate buying decisions; see
-[`comparison.md`](comparison.md).
+The right visual-testing setup depends on which responsibilities you want the
+team to own and which you want a vendor to operate. This page maps common Percy,
+Argos, Chromatic, and unit-runner workflows to the parts Variance Authority can
+cover. Managed review, browser fleets, and vendor commitments remain separate
+choices; see [`comparison.md`](comparison.md) for the wider tradeoffs.
 
-## Gate 1 — Percy
+## Fit with a Percy route workflow
 
 **Job:** a known set of URLs or static pages, captured at several widths and
 gated in CI.
@@ -20,11 +21,11 @@ gated in CI.
 | Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
 | Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`variance push`](../packages/cli/README.md#push-put-a-build-in-front-of-a-reviewer) uploads runs using an operator-supplied review endpoint and ingest token |
 
-**Verdict:** suitable for an explicit route/static suite when operator-owned
-rendering and review are acceptable. Choose Percy when managed breadth or hosted
-review is part of the job.
+**Good fit when:** the suite has explicit routes or static pages and the team is
+comfortable operating rendering and review. Percy remains the better fit when
+managed browser breadth or hosted review is part of the job.
 
-## Gate 2 — Argos
+## Fit with an Argos-style test workflow
 
 **Job:** capture screenshots from existing test environments, compare them, and
 track review or flake history.
@@ -39,11 +40,11 @@ track review or flake history.
 | Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
 | Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |
 
-**Verdict:** suitable when the adopter owns the test browser and the reporting
-workflow. Choose Argos when its hosted review/history surface is the required
-outcome.
+**Good fit when:** the team already owns the test browser and wants to operate
+the reporting workflow. Argos remains the better fit when hosted review and
+history are part of the desired outcome.
 
-## Gate 3 — Chromatic
+## Fit with a Chromatic Storybook workflow
 
 **Job:** treat Storybook as the UI catalog and turn stories into reviewable
 visual checks.
@@ -56,14 +57,14 @@ visual checks.
 | Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
 | Changed element resolved to `file:line` | **conditional** — a development Storybook needs nothing; a built one can resolve component declarations without extra instrumentation, while exact per-element call sites require optional `jsx-source` instrumentation and automatic development JSX emission; `keepNames` separately preserves component names |
-| Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and nobody is running the deployment for you |
+| Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and deployment remains with the team |
 | Non-engineer review surface | **partial** — the tribunal serves the review page and its identity provider decides who opens it; standing it up is an engineer's job, once |
 
-**Verdict:** suitable for operator-owned Storybook capture, gating and review.
-Choose Chromatic when the product being bought is somebody else running it —
-branch baselines, managed stability, and a surface nobody on the team maintains.
+**Good fit when:** the team wants to operate Storybook capture, gating, and
+review. Chromatic remains the better fit when branch baselines, managed
+stability, and a maintained review surface are part of the service you want.
 
-## Unit-runner gate
+## Fit with a Jest or Vitest workflow
 
 **Job:** capture a mounted DOM in vanilla Jest or Vitest without running a browser
 inside the unit process, then render pixels later.
@@ -78,10 +79,11 @@ inside the unit process, then render pixels later.
 | Later remote browser | **yes** — the ordinary remote `Renderer` contract is interchangeable |
 | Visual verdict inside jsdom | **no** — jsdom supplies no rasterizer |
 
-**Verdict:** suitable for the two-step document-then-browser model. Vitest Browser
-Mode with a Playwright provider belongs to the Playwright gate, not this one.
+**Good fit when:** a browserless unit process can hand a document to a later
+browser. Vitest Browser Mode with a Playwright provider follows the Playwright
+route instead.
 
-## Product boundaries
+## Responsibilities to plan for
 
 - Capture material is a document or an already-painted raster. A document is
   portable only when its resources are closed.

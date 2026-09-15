@@ -1,8 +1,9 @@
 # Compose an observation
 
-An observation is shaped by the question, the process that already owns the
-state, and the evidence that can cross its boundaries. This aspect combines
-those independent choices without requiring one universal integration.
+Start with the process that already knows how to reach the state. Then choose
+the evidence your question needs, where pixels should be made, and where the
+answer should live. These choices can be combined without rebuilding the
+working parts of your test or review setup.
 
 ## Four choices remain independent
 
@@ -34,5 +35,5 @@ announcements, and in-place paint are available only when the selected surface
 and vantage supply them. Their absence reduces what the observation can support;
 it does not become an empty reading.
 
-The result is one fit-for-purpose composition, not a requirement to adopt every
-host, instrument, renderer, store, or consumer Variance Authority provides.
+The result is one composition suited to the question. Add another host,
+instrument, renderer, store, or consumer only when another decision needs it.

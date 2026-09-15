@@ -103,7 +103,7 @@ for.
 ## 3. A price that does not undo the architecture
 
 The category bills per screenshot: **$0.036** on Percy, **$0.008** on Chromatic,
-**$0.004** on Argos ([comparison §1](../comparison.md#1-the-dimensions-a-buyer-actually-decides-on)).
+**$0.004** on Argos ([comparison §1](../comparison.md#1-compare-the-responsibilities-that-matter)).
 That is honest about their costs — a browser produces the whole observation
 there, so every subject is a paint, an upload and a decode.
 

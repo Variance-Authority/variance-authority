@@ -1,29 +1,29 @@
-# See the evidence field
+# Use the evidence you already have
 
-A software question can move through source, execution, interface, comparison,
-decision, and memory. Variance Authority covers that field so a missing link
-does not have to become a guess. A particular use remains local: it adopts only
-the aspects its question crosses and may keep another system everywhere else.
+A useful answer may need evidence from source, a running test, the rendered
+interface, a previous comparison, or retained history. Variance Authority keeps
+those sources compatible so you can follow a question across them without
+replacing the tools that already serve you well.
 
-## Five aspects, no pipeline
+## Five ways in, no required pipeline
 
-The aspects are stable entrances into the field. They can meet through carried
-evidence, but none is a prerequisite for another.
+Each entrance answers a different kind of question. They can share evidence,
+but none is a prerequisite for another.
 
-| Aspect | The decision it supports |
+| Entrance | The decision it supports |
 | --- | --- |
 | [Run relevant work](run-relevant-work.md) | What can this change reach, what has exercised it, and what should run first? |
 | [Understand an execution](understand-execution.md) | What did a run address, traverse, update, announce, or leave unfinished? |
 | [Understand an interface](understand-interface.md) | What does one live state communicate through semantics, structure, and presentation? |
-| [Explain variance](explain-variance.md) | Where did readings differ, what caused it, and which party can act? |
+| [Explain variance](explain-variance.md) | Where did readings differ, what caused it, and who is best placed to respond? |
 | [Compose an observation](compose-observation.md) | Which host, surface, renderer, store, and consumer fit this question? |
 
-One edit may need only source reach. One stalled run may need only a live
-vantage. One interface may need structural reading without ever acquiring a
-baseline. Rendered comparison is a rich composition across the field, not the
-definition of the field.
+One edit may need only source reach. One stalled run may need only a live view.
+One interface may need structural reading without ever acquiring a baseline.
+Rendered comparison combines several capabilities, but it is only one way to
+use them.
 
-## Coverage without obligation
+## Bring the tools you already trust
 
 The system supplies an answer for each boundary because a boundary without an
 observation cannot support a conclusion. It does not require every answer to
@@ -38,8 +38,8 @@ fill a role when it preserves the observation contract:
 - the evidence and its provenance; and
 - any absence, incompatibility, or authority boundary.
 
-This makes the method holistic without making an installation monolithic. The
-parts compose through evidence rather than through ownership by one tool.
+This lets the parts work together without requiring one product to own the
+whole workflow.
 
 ## Decisions, memory, and consumers
 
@@ -54,9 +54,9 @@ run, a workspace API, or source search according to what is available. The
 [question map](agent-questions.md) names the answers without implying that an
 agent, or a person, must use all of them.
 
-## Descend only when the mechanism matters
+## Read the mechanism when you need it
 
-[Choosing a composition](cases.md) starts from the process that already owns
+[Choose from the state you already have](cases.md) starts from the process that already owns
 the state. [Surface](surface.md) separates what is captured from where pixels
 are made. [Baseline placement](placement.md) separates comparison from storage.
 [Operating flows](flows.md) separates the evidence from the place its answer is

@@ -1,25 +1,25 @@
 # Flakiness
 
-Yes, visual regression is flaky. Anyone who says otherwise has either not run it
-at scale or has quietly set a threshold large enough to hide it.
+Visual regression becomes hard to trust when several different causes are all
+reported as “flake.” A moving animation, a changed environment, an unstable
+component, and leaked state need different responses. Treating them alike leads
+to retries and tolerances that may quiet the report without explaining what
+happened.
 
-But "is it flaky" is the wrong question, and it is why the usual answers are
-retries and tolerances — both of which trade a false alarm for a missed
-regression at a rate nobody measures. The question worth asking about each cause
-of variance is:
+The useful question for each cause of variance is:
 
-> **Who deals with this one, and what does it cost you?**
+> **Who can address this one, and what will it cost?**
 
-Four things can. The way the tool is built, so the cause never reaches anything
-it reads. The environment key, which puts the two runs in different baselines
-that are never compared to each other. A person, once, in a rule everybody then
-lives with. Or nothing, and it lands on you — where some of it turns out to be a
-real change wearing a flake costume.
+Four answers are available. The tool can handle the cause by construction. The
+environment key can keep unlike runs in separate baselines. A person can make a
+rule for an understood exception. Or the cause can remain unresolved and arrive
+as a finding for investigation; some of those findings are real changes whose
+source has not yet been located.
 
-The first three are worth a shorter word, and the rest of this page uses it: a
-cause is **absorbed** when it happened and did not become your problem. Only the
-last two answers are anybody's judgement call, and lumping all four under
-"flaky" is what makes the whole category feel unmanageable.
+The rest of this page uses **absorbed** for a cause handled by the tool,
+environment, or an explicit rule before it becomes review work. Keeping those
+paths separate shows which causes need judgment and which need an engineering
+fix.
 
 ## Four answers, and only two of them cost you anything
 
@@ -50,7 +50,7 @@ reading. What differs here is the last column.
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, holding everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md), [ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
-| **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. The state of the art screenshots until two consecutive images agree — a raster per poll, and a timeout that names nothing. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
+| **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. Repeated screenshots can establish agreement but cannot name what is still working. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
 | **A Suspense boundary that has not resolved** | **construction**, and **refused** | A subject read mid-arrival records a skeleton on a slow machine and its content on a fast one, with every band agreeing and both passes consistent — invisible to every other mechanism here, and to `storyRendered` and `readySelector` besides, because a component that suspends renders no markup to hang a marker on. Every collector waits on the boundary's own `memoizedState` before it reads, two clean readings deep so a waterfall cannot slip through the gap. A boundary still open at the timeout is **refused by name** rather than captured — the one escape hatch is declaring the subject a loading-state capture, which is then checked in the other direction too ([ADR-0037](context/adr/0037-a-subject-still-arriving-is-refused.md)). |
 | **An asset whose bytes changed behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carries the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-settle-reads)). |
 | **Animated GIFs** | **construction** | No CSS reaches a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. |
@@ -370,13 +370,14 @@ retry deletes the report of a cause; a location deletes the cause.
 
 ## Test order and shared state
 
-The other half of flakiness is not the camera, it is the suite: subject B fails
-only when subject A ran first. The usual fix is to rebuild the world between
-subjects, which prevents the problem by paying for it on every subject forever.
+The other half of flakiness is in shared suite state: subject B fails only when
+subject A ran first. Rebuilding the environment between subjects can prevent the
+symptom, but it also removes the evidence that identifies the leak and adds the
+same setup cost to every subject.
 
-We do not rinse. `@variance-authority/session` photographs shared state around
-each subject and derives what each subject *read* from its own capture, so
-pollution becomes a read-write conflict with a named writer:
+`@variance-authority/session` keeps the shared session and records its state
+around each subject. It derives what each subject *read* from its own capture,
+so pollution becomes a read-write conflict with a named writer:
 
 ```
 [confirmed] story:card

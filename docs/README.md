@@ -1,13 +1,19 @@
-# Change creates variance. Evidence earns authority.
+# Start with the question you need answered
 
-Software changes faster than any fixed description of it. The same edit can be
-safe for one outcome, relevant to another, and unknowable from a third vantage.
-Running everything does not resolve that uncertainty. It only produces more
-activity.
+A change lands and the useful question is rarely just _did the suite pass?_ You
+may need to know which tests matter, why a page changed, what a stalled run is
+waiting for, or whether several differences share one cause. Running more work
+can produce more output without making any of those decisions easier.
+
+Variance Authority helps you use evidence already present in source, tests,
+pages, and previous runs. It reads that evidence where it lives or retains it
+when it would otherwise disappear, then makes the limits of the answer visible.
+You can use one capability beside the tools you already have or connect several
+when the question crosses their boundaries.
 
 ## What Variance Authority lets you do
 
-Start anywhere. Use only what your question needs.
+Choose the situation that looks familiar. Each route stands on its own.
 
 <div class="doc-link-grid doc-link-grid--capabilities">
 <a class="doc-link-card doc-link-card--compact" href="run-relevant-work.md">
@@ -54,40 +60,37 @@ Start anywhere. Use only what your question needs.
 </a>
 <a class="doc-link-card doc-link-card--compact" href="agents.md">
 <span>Guide</span>
-<strong>Give the next actor evidence</strong>
+<strong>Help the next person act</strong>
 <p>Let a person or agent ask source, live-run, comparison, and code-search questions.</p>
 <em>Choose an agent workflow →</em>
 </a>
 </div>
 
-Variance Authority is a flexible method, backed by composable evidence tools,
-for deciding what a changing codebase gives you reason to do. It starts with
-the outcome you need, follows the question across source, execution, interface,
-and history, and stops at the boundary of what the evidence can support.
+These capabilities share a way of working: begin with the decision in front of
+you, gather only the evidence that can inform it, and say clearly where that
+evidence stops. Visual review, test selection, live-run diagnosis, presentation
+analysis, and code search can be used independently. Keep the systems that
+already answer part of the question and add only what is missing.
 
-There is no required first instrument and no final destination. Visual review,
-test selection, live-run diagnosis, presentation analysis, and agent-facing
-code search are different uses of the same method. Adopt the parts your
-question crosses. Keep the systems that already answer the rest.
-
-## Read the overview at the depth you need
+## Get oriented at the depth you need
 
 The overview has three pages because orientation, method, and coverage answer
 different questions.
 
 | Page | The question it answers |
 | --- | --- |
-| **Why Variance Authority** — this page | What problem the method exists to solve, and where can I enter? |
+| **Find your starting point** — this page | Which problem can I solve, and where should I enter? |
 | [Follow the reasoning loop](reasoning.md) | How does a question become an observation and a bounded result? |
-| [See the evidence field](evidence-field.md) | How do the aspects fit together without becoming a required pipeline? |
+| [Use the evidence you already have](evidence-field.md) | How do the capabilities fit together without becoming a required pipeline? |
 
-Read only as far as the decision in front of you requires. The aspect pages
-below are the next layer; the mechanism pages beneath them are reference.
+Read only as far as the decision in front of you requires. The pages below
+organize the available capabilities; the mechanism pages beneath them are
+reference.
 
-## Enter from the work in front of you
+## Begin with the work in front of you
 
-Variance Authority is the whole field, but every use is local. These entrances
-do not form a maturity model or a pipeline.
+You do not need to adopt a complete platform before solving one problem. These
+are independent entrances, not stages of a rollout.
 
 ### One edit should not run the whole suite
 
@@ -120,18 +123,18 @@ page closes.
 Begin with the difference that matters to the decision.
 [Attribution](attribution.md) traces a changed region to a stable cause.
 [Parting](parting.md) locates where two readings diverged.
-[Flakiness](flakiness.md) assigns unstable variance to the party able to deal
-with it, while [stabilization](stabilization.md) defines what must be held still
+[Flakiness](flakiness.md) connects unstable variance to the team or system best
+placed to fix it, while [stabilization](stabilization.md) defines what must be held still
 before a subject is read. [Composition](composition.md),
 [variations](variations.md), [sensitivity](sensitivity.md), and
 [ignores](ignores.md) control how repeated, related, meaningful, and excluded
 differences enter the decision.
 
-### A person or agent must act in unfamiliar code
+### Someone needs to act in unfamiliar code
 
-Begin with the authority the actor needs. [Agent workflows](agents.md) route a
-question through retained evidence, a live run, a workspace API, or source
-search according to what is already known. The [question map](agent-questions.md)
+Begin with the question they need answered. [Agent workflows](agents.md) route
+it through retained evidence, a live run, a workspace API, or source search
+according to what is already known. The [question map](agent-questions.md)
 names the available answers. The [lexicon](lexicon.md) keeps their subjects and
 boundaries stable across tools.
 
