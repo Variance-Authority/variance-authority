@@ -7,6 +7,7 @@ import agentQuestions from "../../../docs/agent-questions.md?raw";
 import agents from "../../../docs/agents.md?raw";
 import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
+import betterTests from "../../../docs/better-tests.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
@@ -71,6 +72,7 @@ const documents = [
   ["overview", index, "docs/README.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
+  ["better-tests", betterTests, "docs/better-tests.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],

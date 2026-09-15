@@ -22,8 +22,12 @@ export const NAVIGATION = [
     ],
   },
   {
-    label: "Test selection and optimization",
+    label: "Your test suite",
     items: [
+      {
+        href: "/docs/better-tests",
+        label: "Faster, stabler, smarter, cheaper",
+      },
       {
         href: "/docs/run-relevant-work",
         label: "Run relevant work",
