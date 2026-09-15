@@ -5,7 +5,7 @@ test addressed, and what source the test entered. It reports the overlap and
 names the residue as opportunities for a smaller test boundary.
 
 ```bash
-npx variance distill \
+variance distill \
   --test 'checkout submits' \
   --eyes .variance/eyes.json \
   --execution .variance/execution.json

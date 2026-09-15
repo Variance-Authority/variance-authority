@@ -74,9 +74,9 @@ Name the initial state in the CLI config:
 ## Run the first review loop
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance doctor --config variance.config.json
+variance run --config variance.config.json
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 The first successful durable run exits `1` and reports `checkout/empty` as
@@ -84,8 +84,8 @@ The first successful durable run exits `1` and reports `checkout/empty` as
 you inspected and rerun:
 
 ```bash
-npx variance accept --config variance.config.json checkout/empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json checkout/empty
+variance run --config variance.config.json
 ```
 
 The rerun exits `0` with `unchanged`. The CLI promotes the candidate produced by

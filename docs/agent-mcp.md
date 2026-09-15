@@ -37,8 +37,8 @@ For the default CLI report location, configure the client with:
 {
   "mcpServers": {
     "variance": {
-      "command": "npx",
-      "args": ["variance-authority-mcp", ".variance/report.json"]
+      "command": "variance-authority-mcp",
+      "args": [".variance/report.json"]
     }
   }
 }

@@ -60,7 +60,7 @@ different config than the one the operator is reading.
 ### 3. Diagnose the environment
 
 ```bash
-npx variance doctor --config variance.config.json
+variance doctor --config variance.config.json
 ```
 
 Run this in the same machine or CI image that will execute `variance run`.
@@ -70,10 +70,10 @@ not performed, instead of pretending a network endpoint is healthy.
 ### 4. Run, review, accept, rerun
 
 ```bash
-npx variance run --config variance.config.json
-npx variance report --config variance.config.json --format html > out/report.html
-npx variance accept --config variance.config.json story:checkout--empty
-npx variance run --config variance.config.json
+variance run --config variance.config.json
+variance report --config variance.config.json --format html > out/report.html
+variance accept --config variance.config.json story:checkout--empty
+variance run --config variance.config.json
 ```
 
 The first successful durable run exits `1` because its subjects are `new`.
@@ -132,10 +132,10 @@ re-running anything.
 ### Ask: the agent answers, without an agent protocol
 
 ```bash
-npx variance ask                          # the questions, and what each answers
-npx variance ask summary
-npx variance ask changes --component Toggle
-npx variance ask describe --subject story:card
+variance ask                          # the questions, and what each answers
+variance ask summary
+variance ask changes --component Toggle
+variance ask describe --subject story:card
 ```
 
 `ask` calls the tools `serve` serves and prints what they return. The same
@@ -160,7 +160,7 @@ comparison and nothing else.
 ### Distill: find a smaller test boundary
 
 ```bash
-npx variance distill \
+variance distill \
   --test 'checkout submits' \
   --eyes .variance/eyes.json \
   --execution .variance/execution.json
@@ -189,7 +189,7 @@ in the memory of whatever was listening at the time. So somebody has to be
 listening *before* the suite starts:
 
 ```bash
-npx variance watch
+variance watch
 ```
 
 It prints the one line the suite has to be started with, and stays up:
@@ -203,9 +203,9 @@ is about visual regression** — a test that takes no screenshot reports exactly
 what one that does reports. Start the suite in one shell and ask from another:
 
 ```bash
-npx variance ask self --at http://127.0.0.1:54321
-npx variance ask run-signals --at http://127.0.0.1:54321
-npx variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
+variance ask self --at http://127.0.0.1:54321
+variance ask run-signals --at http://127.0.0.1:54321
+variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
@@ -253,8 +253,8 @@ the token to present:
 ```
 
 ```bash
-npx variance run
-npx variance push --branch "$GITHUB_REF_NAME"
+variance run
+variance push --branch "$GITHUB_REF_NAME"
 ```
 
 The token is the deployment's **ingest** token, never its review one: review
@@ -297,7 +297,7 @@ was. `accept` can write that explanation into the thing that survives — a
 commit:
 
 ```bash
-npx variance accept --all --message-file .variance/commit-message.txt
+variance accept --all --message-file .variance/commit-message.txt
 git add -- .variance/baselines
 git commit -F .variance/commit-message.txt
 ```
@@ -311,7 +311,7 @@ calling workflow; `accept` only ever promotes images the run itself produced.
 Reading it back:
 
 ```bash
-npx variance changelog --component Card --limit 50
+variance changelog --component Card --limit 50
 ```
 
 ```
@@ -357,7 +357,7 @@ modules each subject crossed while it was painted, and two subjects that render
 one module and enter different regions of it have parted:
 
 ```bash
-npx variance journeys --file CartCard
+variance journeys --file CartCard
 ```
 
 ```
@@ -406,7 +406,7 @@ names the file it looked for and what writes one.
 ### HTML report
 
 ```bash
-npx variance report --format html > out/report.html
+variance report --format html > out/report.html
 ```
 
 Write the HTML beside `report.json` and include both files and the accompanying
@@ -439,7 +439,7 @@ different question: not *is this change real* but *which of these subjects would
 flake tomorrow*.
 
 ```bash
-npx variance run --flakes
+variance run --flakes
 ```
 
 A subject that agrees with its baseline and disagrees with itself is a flake one
@@ -516,7 +516,7 @@ anybody asks is about the suite. Name them all and `journeys` folds them into
 one snapshot, lands it, and reads it:
 
 ```bash
-npx variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
+variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
 ```
 
 ```
@@ -546,7 +546,7 @@ laptop:
 ```bash
 base=$(git merge-base origin/main HEAD)
 # fetch the snapshot your CI folded and uploaded for $base, however it stores artifacts
-npx variance journeys ./coverage-$base.bin
+variance journeys ./coverage-$base.bin
 ```
 
 The full suite on the default branch records the floor; each local run layers
@@ -562,14 +562,14 @@ about the suite, not about a slice — one exit code, one body for
 `comment`:
 
 ```bash
-npx variance report shard-1.json shard-2.json shard-3.json
+variance report shard-1.json shard-2.json shard-3.json
 ```
 
 `comment` takes them the same way, so the pull request gets one body rather than
 one per job:
 
 ```bash
-npx variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
+variance comment --body-file body.md shard-1.json shard-2.json shard-3.json
 ```
 
 Naming report files replaces the configured one; it does not merge into it.
@@ -608,7 +608,7 @@ rather than a flag because a claim is a root, a reason and a bound, and
 `--intent "tighten the card"` is a sentence:
 
 ```bash
-npx variance adjudicate --claims claims.json
+variance adjudicate --claims claims.json
 ```
 
 ```jsonc
@@ -932,7 +932,7 @@ pipelines:
 The poster is the platform-specific half, and it needs one thing from this CLI:
 
 ```bash
-npx variance comment --marker
+variance comment --marker
 ```
 
 That prints the invisible marker the rendered body carries, and nothing else.

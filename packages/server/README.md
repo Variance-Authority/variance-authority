@@ -55,7 +55,7 @@ An operator backing this with Postgres implements `HistoryBackend` and should
 VARIANCE_HISTORY_TOKEN=<at least 16 characters> \
 VARIANCE_HISTORY_DB=/srv/variance/history.db \
 VARIANCE_HISTORY_PORT=7788 \
-npx variance-authority-server
+variance-authority-server
 ```
 
 `VARIANCE_HISTORY_PORT` defaults to `7788` and `VARIANCE_HISTORY_HOST` to

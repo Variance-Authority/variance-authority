@@ -147,7 +147,7 @@ Every tool above answers about a run that is over. `--watch` answers about one
 that is not.
 
 ```bash
-npx variance-authority-mcp --watch
+variance-authority-mcp --watch
 ```
 
 It prints, on stderr, the one line the suite has to be started with:
@@ -250,16 +250,16 @@ npm install @variance-authority/mcp
 No install is needed to just run the published binary:
 
 ```bash
-npx variance serve            # via the CLI, reading .variance/report.json
-npx variance-authority-mcp .variance/report.json # directly
-npx variance-authority-mcp --watch               # a run that has not finished
+variance serve            # via the CLI, reading .variance/report.json
+variance-authority-mcp .variance/report.json # directly
+variance-authority-mcp --watch               # a run that has not finished
 ```
 
 ```jsonc
 // claude_desktop_config.json, or any MCP client
 {
   "mcpServers": {
-    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
+    "variance": { "command": "variance-authority-mcp", "args": [".variance/report.json"] }
   }
 }
 ```

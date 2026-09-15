@@ -56,22 +56,22 @@ silently absent route:
 With the application still running:
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The first successful durable run exits `1` with `checkout/empty` reported as
 `new`. Write and open the review report beside its JSON source:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 If the candidate is the intended route state, accept that id and rerun:
 
 ```bash
-npx variance accept --config variance.config.json checkout/empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json checkout/empty
+variance run --config variance.config.json
 ```
 
 The rerun exits `0` and reports `unchanged`. A missing root or a readiness

@@ -143,7 +143,7 @@ Point `variance push` at the deployment with the ingest token:
 ```
 
 ```bash
-npx variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
+variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
 ```
 
 `push` sends the report and the candidate images the run already produced. The
@@ -179,7 +179,7 @@ produced them. Supported CI environments provide that pair; elsewhere pass it
 explicitly:
 
 ```bash
-npx variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
+variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
 ```
 
 Quiet runs are recorded because churn and flake rates need a denominator.

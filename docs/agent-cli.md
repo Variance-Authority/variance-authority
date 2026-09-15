@@ -9,7 +9,7 @@ but needs no client configuration.
 ## Find out what may be asked
 
 ```bash
-npx variance ask
+variance ask
 ```
 
 The listing names each question, the arguments it takes, and what it answers.
@@ -18,7 +18,7 @@ It reads no configuration, so it is available before a run exists.
 ## Ask from the run outward
 
 ```bash
-npx variance ask summary
+variance ask summary
 ```
 
 Start here. The summary accounts for planned subjects that were not observed as
@@ -46,10 +46,10 @@ question answered about the whole suite when a subject was named reads as
 correct and is not.
 
 ```bash
-npx variance ask describe --subject story:card
-npx variance ask changes --component Toggle
-npx variance ask findings --rule contrast
-npx variance ask changelog --shape v1:8f2c
+variance ask describe --subject story:card
+variance ask changes --component Toggle
+variance ask findings --rule contrast
+variance ask changelog --shape v1:8f2c
 ```
 
 The report is the configured one unless report paths follow the question, in
@@ -72,7 +72,7 @@ review loop.
 ## Compare a run with the one before it
 
 ```bash
-npx variance ask diff
+variance ask diff
 ```
 
 `diff` compares the current report with the report the previous question was
@@ -89,7 +89,7 @@ flight leaves nothing, and the only copy of what it says is in the memory of
 whatever was listening at the time — so start the listener first:
 
 ```bash
-npx variance watch
+variance watch
 ```
 
 It prints the address the suite has to be started with, and stays up:
@@ -102,9 +102,9 @@ Start the suite with that exact assignment in its environment, then ask from
 another shell:
 
 ```bash
-npx variance ask self --at http://127.0.0.1:54321
-npx variance ask run-signals --at http://127.0.0.1:54321
-npx variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
+variance ask self --at http://127.0.0.1:54321
+variance ask run-signals --at http://127.0.0.1:54321
+variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
@@ -122,7 +122,7 @@ one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
 ## Distill one completed test
 
 ```bash
-npx variance distill \
+variance distill \
   --test 'checkout submits' \
   --eyes .variance/eyes.json \
   --execution .variance/execution.json

@@ -99,12 +99,12 @@ module you created:
 ### 4. Check the machine, then run
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 Each run writes `.variance/report.json`, the artifact everything else reads.
-Run `npx variance report --config variance.config.json --format html >
+Run `variance report --config variance.config.json --format html >
 .variance/report.html` and open the result in a browser to see the before, diff and
 after images per changed story, grouped by cause rather than by story. The page
 references its images relatively, so it belongs beside the `report` path this

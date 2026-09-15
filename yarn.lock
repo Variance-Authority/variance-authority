@@ -4035,12 +4035,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@variance-authority/help@workspace:packages/help":
+"@variance-authority/help@workspace:^, @variance-authority/help@workspace:packages/help":
   version: 0.0.0-use.local
   resolution: "@variance-authority/help@workspace:packages/help"
   dependencies:
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/package": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
   bin:
     variance-authority-help: ./dist/bin.js
   languageName: unknown
@@ -8915,6 +8916,7 @@ __metadata:
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
+    "@variance-authority/help": "workspace:^"
     backlog.md: "npm:1.50.1"
     esbuild: "npm:^0.25.0"
     jsdom: "npm:^30.0.1"

@@ -256,7 +256,7 @@ absent). `subjects.kind` says where the run gets its subject list:
 or `"remote"`.
 
 ```bash
-npx variance run
+variance run
 ```
 
 `variance run` is the command `@variance-authority/cli` installs as `variance`.

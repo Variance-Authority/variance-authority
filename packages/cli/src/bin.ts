@@ -77,7 +77,7 @@ function stackOf(error: unknown): string {
  * A package manager installs a bin as a symlink — `node_modules/.bin/variance`
  * pointing here — so `process.argv[1]` is the link and `import.meta.url` is its
  * target. Compared as written they never match, and the guard below then skips
- * `main` and lets the process exit 0 without running: `npx variance run` reports
+ * `main` and lets the process exit 0 without running: `variance run` reports
  * success having done nothing, which is the one result a gate must never invent.
  */
 function isProgram(entry: string): boolean {

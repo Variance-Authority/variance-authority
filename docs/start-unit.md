@@ -94,23 +94,23 @@ Run the unit suite once to produce the capture, then observe it:
 
 ```bash
 npx vitest run
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The unit test passes after writing the artifact. The first durable Variance
 Authority run exits `1` and reports `button/save` as `new`. Inspect its candidate:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 Accept only that subject, regenerate the capture, and run the comparison again:
 
 ```bash
-npx variance accept --config variance.config.json button/save
+variance accept --config variance.config.json button/save
 npx vitest run
-npx variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The final run exits `0` with `button/save` `unchanged`.

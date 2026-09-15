@@ -19,15 +19,15 @@ Start the watcher before the suite. Choose the entrance the agent already has:
 
 ```bash
 # Shell entrance
-npx variance watch
+variance watch
 ```
 
 ```json
 {
   "mcpServers": {
     "variance-live": {
-      "command": "npx",
-      "args": ["variance-authority-mcp", "--watch"]
+      "command": "variance-authority-mcp",
+      "args": ["--watch"]
     }
   }
 }

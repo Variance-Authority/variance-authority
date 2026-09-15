@@ -189,7 +189,7 @@ service over a SQLite file and a directory, and it is configured entirely by the
 environment so that nothing about a deployment lives in a shell history:
 
 ```bash
-VARIANCE_TRIBUNAL_PROJECT=todomvc VARIANCE_TRIBUNAL_INGEST_TOKEN=$INGEST VARIANCE_TRIBUNAL_REVIEW_TOKEN=$REVIEW npx variance-authority-tribunal
+VARIANCE_TRIBUNAL_PROJECT=todomvc VARIANCE_TRIBUNAL_INGEST_TOKEN=$INGEST VARIANCE_TRIBUNAL_REVIEW_TOKEN=$REVIEW variance-authority-tribunal
 ```
 
 | variable | default | what it decides |

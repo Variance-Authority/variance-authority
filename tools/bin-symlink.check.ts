@@ -14,7 +14,7 @@ import { PACKAGES } from './workspaces.js';
  * two as written answers **no** on every installed machine and **yes** in the
  * repository, where the file is run by its own path. The result is not a crash:
  * the module finishes evaluating, nothing is dispatched, and the process exits
- * `0` having done nothing — `npx variance run` reports success without opening a
+ * `0` having done nothing — `variance run` reports success without opening a
  * browser, which is the one result a gate must never invent.
  *
  * Nothing already here could catch it. The unit tests import `parseArgs` and

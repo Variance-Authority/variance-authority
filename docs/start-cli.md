@@ -40,8 +40,8 @@ service the collector requires before continuing.
 Run `doctor` in the same machine or CI image as the comparison:
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The first successful durable run exits `1` because each subject without an
@@ -52,14 +52,14 @@ Render the report beside `.variance/report.json`, then open it and copy the exac
 id of the intended candidate:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 For a report containing `checkout/empty`:
 
 ```bash
-npx variance accept --config variance.config.json checkout/empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json checkout/empty
+variance run --config variance.config.json
 ```
 
 `accept` promotes the image and sidecar from the reviewed run; it never renders

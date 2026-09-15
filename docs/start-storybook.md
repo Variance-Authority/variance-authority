@@ -54,15 +54,15 @@ Then add the durable run config:
 Check the same machine or CI image that performs the run, then collect:
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 The first successful durable run exits `1` and reports the stories as `new`.
 Render the HTML report beside the JSON report so its relative image links hold:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 Open that report and review the candidate. Copy the exact subject id it shows;
@@ -70,8 +70,8 @@ Storybook subjects use the `story:` prefix. For a story whose Storybook id is
 `checkout--empty`:
 
 ```bash
-npx variance accept --config variance.config.json story:checkout--empty
-npx variance run --config variance.config.json
+variance accept --config variance.config.json story:checkout--empty
+variance run --config variance.config.json
 ```
 
 Acceptance promotes the candidate the report already names. The rerun exits `0`

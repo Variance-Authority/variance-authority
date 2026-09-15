@@ -62,13 +62,13 @@ guess is worse than no evaluation, because the next machine believes it.
 To publish from a report that is already on disk, or to check the wiring:
 
 ```bash
-npx variance share --publish
+variance share --publish
 ```
 
 ## Looking up
 
 ```bash
-npx variance share
+variance share
 ```
 
 walks the commits this checkout descends from, newest first, from the merge base
@@ -147,7 +147,7 @@ the directory the index is kept in, before the run.
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-
-      - run: npx variance run --commit ${{ github.sha }} --run ${{ github.run_id }}
+      - run: variance run --commit ${{ github.sha }} --run ${{ github.run_id }}
 ```
 
 No `share` section is needed for this. The run writes its index into that
@@ -177,7 +177,7 @@ credentials: sync a directory before and after the run.
 
 ```yaml
       - run: aws s3 sync s3://example-variance/suite ~/.cache/variance-authority/suite
-      - run: npx variance run --commit ${{ github.sha }}
+      - run: variance run --commit ${{ github.sha }}
       - run: aws s3 sync ~/.cache/variance-authority/suite s3://example-variance/suite
 ```
 
