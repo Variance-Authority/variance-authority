@@ -1,28 +1,42 @@
-# Reduce the cost of one test
+# Make one test cost less
 
-A test can spend time loading modules it never calls. Variance Authority helps
-you find those modules, try a smaller dependency setup, and check that the test
-still exercises the behavior you care about.
+Selection decides which tests run after an edit. It does not change what one of
+them costs while it runs, and it does not change how often the next edit reaches
+it. Both of those are properties of the boundary the test loads.
 
-This complements [test selection](run-relevant-work.md): selection reduces how
-many tests run; changing a test's dependencies can reduce what it loads on each
-run.
+A test that imports a module runs that module's top level whether or not it ever
+calls into it. You pay for the load on every run, and the file graph moves the
+test whenever that module changes — so an import nothing exercises is a cost in
+both halves of this chapter at once.
 
-## Find a dependency to investigate
+## What to read before you change a boundary
 
-Use `variance distill` with the test's recorded source execution. Adding an Eyes
-record lets it compare that source with the elements the test queried or
-interacted with. See [the command and input requirements](distill.md).
+| Question | Reading | Route |
+| --- | --- | --- |
+| What did this test address, and what source did it enter? | One test's Eyes journal joined to its execution index | [Distil a test](distill.md) |
+| Which modules did it load without entering? | The same reading, region by region | [Imports nothing ever calls](distill.md#imports-nothing-ever-calls) |
+| Which regions has nothing in the pool ever entered? | The journal accumulated across runs | [What a record knows](selecting.md#what-a-record-knows-that-no-graph-can) |
+| Does a mock already written still take? | Taints held against the record | [Where they disagree](selecting.md#where-the-taints-and-the-record-disagree) |
 
-For example, a component imports `HeavyChart` but renders an empty state in this
-test:
+The first two are about one test. The last two are about the suite, and they are
+where a boundary worth changing usually shows up first.
+
+## An import is not a use
+
+`import { HeavyChart } from './heavy-chart'` reads as a use to the graph and to
+a reviewer, and the test may never render it:
 
 ```tsx
 return points.length === 0 ? <EmptyState /> : <HeavyChart points={points} />;
 ```
 
-The chart module's initialization still runs. The report distinguishes that
-initialization from calling the chart itself:
+A spy arrives at the same place from the other side. `vi.spyOn(totals,
+'formatTotal')` leaves the module loaded and answers in its function's place, so
+nothing below the top level runs.
+
+Both leave one trace, and `variance distill` reports it: the module root
+crossed, every declaration below it uncrossed. The reading names the module, the
+declarations nothing reached, and the substitution to try.
 
 ```text
 Loaded but not entered: 1 module(s).
@@ -31,49 +45,56 @@ Loaded but not entered: 1 module(s).
     substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
 ```
 
-A spy can produce the same result: it replaces a function while leaving the
-module loaded. The report gives you the module and declarations to inspect.
-It does not establish that a mock is safe.
+## A written mock narrows the next selection too
 
-## Try one change and rerun the test
+Replace the import and two things happen. The run stops evaluating the module,
+which is the saving you asked for. And the source scan stops drawing the edge:
+it reads `vi.mock`, `jest.mock` and `sb.mock` off test, story and setup files,
+and takes the mocked module out of the graph as seen from that file at every
+level. This test stops being selected by a change to the module it replaced, or
+to anything only that module reaches.
 
-1. Check what the candidate module does during initialization. A registered
-   handler, polyfill, or singleton may be necessary even when the test calls
-   none of its exported functions.
-2. Try one mock or dependency substitution that preserves the test's intended
-   behavior.
-3. Rerun the exact test and compare its assertions, recorded interactions, and
-   executed source with the original run.
-4. Keep the change only if the test still exercises the behavior it claims to
-   test. Revert it if a target disappears or the assertion loses the behavior
-   it depended on.
+That is why an explicit mock beats a spy that happens to intercept everything. A
+spy is a fact about one run; a `vi.mock` call is a fact the scan can read
+without running anything, so it reaches the decision made before the suite
+starts. The [expensive row](selecting.md#the-expensive-row-and-what-retires-it)
+is retired by the same reader.
 
-For React tests, also inspect updates initiated by components outside the paths
-the test interacted with. They may reveal a dependency that the proposed mock
-would hide. [Distill](distill.md#the-agent-loop) describes how an agent uses
-these comparisons.
+A mock that stops taking then becomes a selection hole rather than a slow test,
+which is what `auditTaints` watches: a module a test shadows and the record says
+it entered is a mock that did not take, or a taint that is wrong about it.
 
-## How a mock affects future test selection
+## Verify the substitution, do not assume it
 
-The source scanner recognizes `vi.mock`, `jest.mock`, and `sb.mock` in tests,
-stories, and setup files. It removes the mocked dependency from the importing
-file's dependency graph. Changes to that module, or dependencies reached only
-through it, can then stop selecting this test.
+Mocking removes the top level with the rest, and a top level that registers a
+handler, installs a polyfill or builds a singleton is one the test may be
+standing on. Nothing in the reading knows which.
 
-A spy alone does not provide that information to the scanner. Its effect is
-visible during execution. An explicit mock is visible before the run begins.
+So change one boundary, rerun the exact test, and compare the witness. If an
+assertion loses its causal path, an addressed target disappears, or an update
+initiator outside the addressed paths reaches the retained surface, revert the
+substitution or state the behavior the test actually owns.
+[The agent loop](distill.md#the-agent-loop) is that comparison written down for
+an actor that runs it for you.
 
-`auditTaints` checks for disagreement: if a test executes a module the scanner
-considers mocked, either the mock did not apply or the scanner's assumption is
-wrong. See [mock and execution disagreements](selecting.md#where-the-taints-and-the-record-disagree).
+## What this does not reach
 
-## Limits
+**A module with no probes.** An uninstrumented module was entered by nobody the
+record can see, and that is silence rather than absence. Only an instrumented
+module testifies here.
 
-Only instrumented code can support a claim that something did not execute.
-An incomplete recording is excluded from that analysis. Neither missing probes
-nor a recording that stopped early counts as evidence of unused code.
+**A recording that stopped early.** An observation the journal recorded as
+truncated proves no absence, so it is dropped from the pool rather than counted
+as having missed anything.
 
-`variance distill` analyzes one test at a time. Its suggestions are candidates
-to verify, and it does not rank the whole suite by potential savings.
+**A suite-wide ranking.** `variance distill` reads one test at a time. The
+ordered work list it produces is for that test; nothing here ranks which test in
+a suite is worth opening first.
 
-For command options and report details, continue to [Distill](distill.md).
+---
+
+**Further:** [`distill.md`](distill.md) for the three readings and the CLI, MCP
+and skill entrances · [`selecting.md`](selecting.md) for the scan, the taints
+and what a record knows · [`packages/distill`](../packages/distill) for the
+callable analyzer · [`packages/sense`](../packages/sense#say-what-a-file-really-imports)
+for the taint tables themselves.

@@ -26,11 +26,11 @@ export const NAVIGATION = [
     items: [
       {
         href: "/docs/better-tests",
-        label: "Improve your test suite",
+        label: "Faster, stabler, smarter, cheaper",
       },
       {
         href: "/docs/run-relevant-work",
-        label: "Run relevant tests after a change",
+        label: "Run relevant work",
         cluster: "Run less of the suite",
         clusterOverview: true,
       },
@@ -51,13 +51,13 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/optimize-a-test",
-        label: "Reduce the cost of one test",
+        label: "Make one test cost less",
         cluster: "Make one test cost less",
         clusterOverview: true,
       },
       {
         href: "/docs/distill",
-        label: "Find dependencies a test may not need",
+        label: "Distil a test to what it witnesses",
         cluster: "Make one test cost less",
       },
     ],
@@ -114,7 +114,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/observability",
-        label: "Inspect a test after it finishes",
+        label: "Ask a question the test did not",
         cluster: "Understand an execution",
       },
       {
