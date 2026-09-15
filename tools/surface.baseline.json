@@ -1225,17 +1225,25 @@
         "readSurface": "function"
       },
       "./help": {
+        "Bound": "interface",
         "Declaration": "interface",
         "DeclarationKind": "type",
         "Deep": "interface",
         "Documented": "interface",
         "Entry": "interface",
+        "Entrypoint": "interface",
+        "Exported": "interface",
         "Help": "interface",
         "HelpOptions": "interface",
         "Mention": "interface",
+        "Named": "interface",
+        "Offering": "interface",
+        "OfferingOptions": "interface",
         "Opening": "interface",
         "Page": "interface",
         "Readmes": "type",
+        "Recorded": "interface",
+        "Requested": "interface",
         "Usage": "interface",
         "UsageOptions": "interface",
         "Use": "interface",
@@ -1243,11 +1251,15 @@
         "everyEntry": "function",
         "kindOf": "function",
         "opening": "function",
+        "ownership": "function",
         "readHelp": "function",
         "readMention": "function",
+        "readOfferings": "function",
         "readUsage": "function",
         "readmes": "function",
+        "requested": "function",
         "undocumented": "function",
+        "usageFrom": "function",
         "writeGaps": "function",
         "writeIndex": "function",
         "writeLlms": "function"
@@ -1263,6 +1275,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./engines": {
+          "types": "./dist/engines.d.ts",
+          "default": "./dist/engines.js"
         },
         "./agent": {
           "types": "./dist/agent.d.ts",
@@ -1309,6 +1325,16 @@
         "imageSize": "function",
         "observeNetwork": "function",
         "unresizable": "function"
+      },
+      "./engines": {
+        "ALL_ENGINES": "const",
+        "BrowserEngine": "type",
+        "DECLARED_ENGINES": "const",
+        "ENGINE_TYPES": "const",
+        "declaredEngines": "function",
+        "engineStatus": "function",
+        "installCommand": "function",
+        "requireEngines": "function"
       },
       "./agent": {
         "AGENT_GLOBAL": "const",
@@ -2170,6 +2196,7 @@
         "openRecordCache": "function",
         "openSourceIndex": "function",
         "scanRelations": "function",
+        "sourceIndexPath": "function",
         "taintFile": "function",
         "taintRecords": "function",
         "taintTable": "function",

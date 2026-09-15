@@ -72,5 +72,9 @@ function specifiersOf(parsed: Parsed): readonly string[] {
 function entryOf(values: readonly string[] | undefined): Parsed {
   const kind: EdgeKind = 'imports';
 
-  return { requests: (values ?? []).map((value) => ({ value, kind, bindings: [] })) };
+  // Line 0, and it is not a position. What this carries is a *set of specifiers*
+  // a taint added or removed, stored in the shape the parse cache already knows
+  // how to encode; no statement in any file wrote them, so there is no line to
+  // report and 0 is outside the 1-based range a real one occupies.
+  return { requests: (values ?? []).map((value) => ({ value, kind, bindings: [], line: 0 })) };
 }

@@ -80,11 +80,52 @@ The tools in `@variance-authority/help/tools` are plain functions with no MCP
 dependency, so they can be called directly, tested in isolation, or embedded
 in another interface without speaking the protocol.
 
+## Ask one question
+
+In a repository that depends on this package, the binary is on the path:
+
+```bash
+yarn add -D @variance-authority/help
+yarn exec variance-authority-help search viewport
+```
+
+Six verbs, taking the same arguments as the six tools below and answering in the
+same words: `packages`, `entrypoint`, `symbol`, `uses`, `search`, `gaps`. Add
+`--root <dir>` when you are not standing in the workspace.
+
+### On a repository that has never heard of this
+
+```bash
+npx @variance-authority/help search session --root ../shadow
+```
+
+Install it where you will ask more than once, and reach for `npx` where you will
+not: a checkout you are passing through, a colleague's repository, a tree you are
+reading to decide whether to work in it. The index survives either way — it is
+kept per checkout under `~/.cache/variance-authority/`, not inside the tree being
+read — so a second `npx` run answers out of what the first one learned.
+
+Ask `npx` for the package, not for the binary. `@variance-authority/help` is the
+name on the registry; `variance-authority-help` is the name of the command it
+installs, and passing a command name where a package name goes is how `npx`
+ends up reporting that a package does not exist.
+
+Nothing has to be published, or be a workspace, or be an npm project at all.
+A repository with no manifest at its root publishes nothing, so the published
+half of every answer is empty and the exported half carries it — which is the
+half that matters in a tree whose TypeScript sits in a subdirectory beside
+something else entirely.
+
+They exist because a client that holds a connection open all session is one of
+three callers and not the common one. An agent with a shell, or a person with a
+question, wants one answer now and should not have to edit a config file to get
+it.
+
 ## Serve it
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help .
+variance-authority-help .
 ```
 
 ```json
@@ -106,7 +147,7 @@ Six tools, in the order they are meant to be asked in:
 | `docs_entrypoint` | a package, optionally a subpath | the names one specifier opens, most-imported first |
 | `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `docs_search` | a string | names whose name or doc contains it, ranked the same way |
+| `docs_search` | a string | published names whose name or doc contains it, ranked the same way, then the names the repository exports without publishing, with a file and a line |
 | `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `docs_packages` takes no argument and returns the import specifiers every
@@ -114,8 +155,11 @@ other tool takes as input, so it is the natural first call.
 
 Every request re-reads the workspace, so an answer always reflects the files on
 disk right now, not the ones read at boot. The read is manifests and module
-records, not a compilation, so it stays well under a second even across
-dozens of packages and well over a thousand names.
+records, not a compilation, and the module records come from the source index
+`@variance-authority/sense` keeps: git names each file's content without opening
+it, the digest names what parsing that content produced, and a file that did not
+change is never opened twice. A repository where nothing moved answers out of
+that index; one where ten files moved parses ten files.
 
 ## Write it
 
@@ -123,7 +167,7 @@ For the readers that cannot call a tool — a chat window with a URL box, a
 crawler, a person:
 
 ```bash
-npx variance-authority-help write . --out docs/api
+variance-authority-help write . --out docs/api
 ```
 
 | file | is |
@@ -195,3 +239,9 @@ rather than as it was when the reading was taken.
 It does not rank on prose. `docs_search` is a case-insensitive substring match
 over names and docs, so a match is a fact about the text rather than an opinion
 about the query.
+
+It does not stop at the surface. Most code in any checkout was never something
+to publish — a few hundred names are published here and five thousand are
+exported — so `docs_search` answers in two sections and says which is which. A
+published name is API and carries its specifier; an exported one carries a file
+and a line, because nothing else was read for it.

@@ -7,7 +7,9 @@
  * never existed together.
  */
 
+import { resolve } from 'node:path';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
+import { cacheLayers } from './test-selection/cache-layers.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
 
@@ -18,6 +20,19 @@ export interface PersistentSourceIndex {
   readonly reuse: RecordCache;
   /** Atomically publish the facts this scan used; I/O failure is absorbed. */
   save(): Promise<void>;
+}
+
+/**
+ * Where a checkout keeps its source index.
+ *
+ * Named here rather than chosen by each caller, because the saving is only real
+ * if two callers agree: a tool that picks its own path re-scans a repository
+ * another tool already scanned, and both of them report a cold start as normal.
+ * The directory is the checkout's own cache layer, so a worktree writes beside
+ * the primary checkout rather than into it ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
+ */
+export function sourceIndexPath(root: string, cacheRoot?: string): string {
+  return resolve(cacheLayers(root, cacheRoot).top, 'source-index.bin');
 }
 
 /**

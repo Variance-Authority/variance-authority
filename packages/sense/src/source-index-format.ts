@@ -30,7 +30,7 @@ import type { Export } from './read.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 3;
+const VERSION = 5;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -73,15 +73,18 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const parseUnknown = new Uint32Array(parses.length).fill(NONE);
   const requestValue: number[] = [];
   const requestKind: number[] = [];
+  const requestLine: number[] = [];
   const requestBindings: number[] = [0];
   const bindingImported: number[] = [];
   const bindingLocal: number[] = [];
   const bindingType: number[] = [];
+  const bindingLine: number[] = [];
   const exportExported: number[] = [];
   const exportLocal: number[] = [];
   const exportFrom: number[] = [];
   const exportImported: number[] = [];
   const exportType: number[] = [];
+  const exportLine: number[] = [];
   const declareName: number[] = [];
 
   for (const [index, [key, parsed]] of parses.entries()) {
@@ -92,10 +95,14 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     for (const request of parsed.requests) {
       requestValue.push(id(request.value));
       requestKind.push(id(request.kind));
+      // A line is a small integer, not a string: interning it would put every
+      // distinct line number a repository ever wrote into the dictionary.
+      requestLine.push(request.line);
       for (const binding of request.bindings) {
         bindingImported.push(id(binding.imported));
         bindingLocal.push(id(binding.local));
         bindingType.push(binding.type ? 1 : 0);
+        bindingLine.push(binding.line);
       }
       requestBindings.push(bindingImported.length);
     }
@@ -106,6 +113,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
       exportLocal.push(optionalId(published.local, id));
       exportFrom.push(optionalId(published.from, id));
       exportImported.push(optionalId(published.imported, id));
+      exportLine.push(published.line);
       exportType.push(published.type ? 1 : 0);
     }
     parseDeclares[index] = declareName.length;
@@ -180,15 +188,18 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'parses.unknown': parseUnknown,
     'requests.value': Uint32Array.from(requestValue),
     'requests.kind': Uint32Array.from(requestKind),
+    'requests.line': Uint32Array.from(requestLine),
     'requests.bindings': Uint32Array.from(requestBindings),
     'bindings.imported': Uint32Array.from(bindingImported),
     'bindings.local': Uint32Array.from(bindingLocal),
     'bindings.type': Uint8Array.from(bindingType),
+    'bindings.line': Uint32Array.from(bindingLine),
     'exports.exported': Uint32Array.from(exportExported),
     'exports.local': Uint32Array.from(exportLocal),
     'exports.from': Uint32Array.from(exportFrom),
     'exports.imported': Uint32Array.from(exportImported),
     'exports.type': Uint8Array.from(exportType),
+    'exports.line': Uint32Array.from(exportLine),
     'declares.name': Uint32Array.from(declareName),
     'records.file': recordFile,
     'records.deleted': Uint32Array.from(
@@ -232,15 +243,18 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const parseUnknown = opened.u32('parses.unknown');
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
+  const requestLine = opened.u32('requests.line');
   const requestBindings = opened.u32('requests.bindings');
   const bindingImported = opened.u32('bindings.imported');
   const bindingLocal = opened.u32('bindings.local');
   const bindingType = opened.u8('bindings.type');
+  const bindingLine = opened.u32('bindings.line');
   const exportExported = opened.u32('exports.exported');
   const exportLocal = opened.u32('exports.local');
   const exportFrom = opened.u32('exports.from');
   const exportImported = opened.u32('exports.imported');
   const exportType = opened.u8('exports.type');
+  const exportLine = opened.u32('exports.line');
   const declareName = opened.u32('declares.name');
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
@@ -248,20 +262,22 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown]);
   sameLength(parseKey.length, [parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
-  sameLength(requestValue.length, [requestKind]);
+  sameLength(requestValue.length, [requestKind, requestLine]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
-  sameLength(bindingImported.length, [bindingLocal, bindingType]);
-  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType]);
+  sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
+  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine]);
 
   const parses = new Map<ParseKey, Parsed>();
   for (let row = 0; row < parseKey.length; row += 1) {
     const requests = range(parseRequests, row).map((request) => ({
       value: text(requestValue[request]!),
       kind: text(requestKind[request]!) as Parsed['requests'][number]['kind'],
+      line: requestLine[request]!,
       bindings: range(requestBindings, request).map((binding) => ({
         imported: text(bindingImported[binding]!),
         local: text(bindingLocal[binding]!),
         type: flag(bindingType[binding]),
+        line: bindingLine[binding]!,
       })),
     }));
     const published = range(parseExports, row).map((entry): Export => {
@@ -275,6 +291,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         ...(from === undefined ? {} : { from }),
         ...(imported === undefined ? {} : { imported }),
         type: flag(exportType[entry]),
+        line: exportLine[entry]!,
       };
     });
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));

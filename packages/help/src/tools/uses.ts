@@ -114,7 +114,7 @@ export const uses: Tool<Help> = {
     const found = entriesNamed(help, name).filter(([published]) => wanted === undefined || published.name === wanted);
     if (found.length === 0) {
       const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
-      throw new Error(`\`${name}\` is not published by ${where}; try docs_search for a name like it`);
+      throw new Error(`\`${name}\` is not published by ${where}; ask \`search\` for a name like it`);
     }
 
     const sites = sitesOf(found);

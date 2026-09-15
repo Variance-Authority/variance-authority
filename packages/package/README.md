@@ -94,8 +94,8 @@ undocumented(help).length; // names another package imports that say nothing
 
 Entries arrive ordered by how many packages import them. `skip` adds directory
 names the walk never descends into, on top of the defaults `node_modules`,
-`coverage`, `build` and `out`; a package's own build output needs no entry,
-since where it lands is read from that package's `tsconfig.json`.
+`coverage`, `build`, `dist` and `out`; a package's own build output needs no
+entry, since where it lands is read from that package's `tsconfig.json`.
 
 Each entry carries `sites` alongside the count: every place that imports the
 name, with the file, the line, and whether that file is a story, a test or
@@ -115,6 +115,29 @@ and the passage, and it is never merged into `doc`: prose written about a packag
 is written for a different reader than a comment written above a function, and
 counting the first as the second would take the name out of `undocumented`
 without anybody having documented it.
+
+`help.exported` is every name the repository's own files export, published or
+not — a few hundred names are published here and three thousand are exported.
+Each one carries a name, a file, a line, the package the file belongs to and
+whether it was written in source, a test or a story, and nothing else, because
+nothing else was read for it. It answers *where is the thing that does X* for
+the code that was never something to publish, and it is kept apart from
+`packages` rather than merged into it so an answer can still say which of the
+two it found.
+
+```ts
+help.exported.filter((named) => named.name.includes('Viewport'));
+// [{ name: 'parseViewport', at: '…/viewport.ts', by: '@variance-authority/…', line: 31, … }]
+```
+
+`usage` is the way out of paying for the walk twice. The third reading — every
+module file in the repository, opened and parsed — is the expensive one, and a
+caller that already holds it passes it in, leaving this to read the manifests
+and the entrypoints only.
+
+```ts
+readHelp('.', { usage }); // the same value, without re-reading the tree
+```
 
 `help.deep` is the other half of the same reading: every specifier that reaches
 into a workspace package past what its `exports` map opens — an import that

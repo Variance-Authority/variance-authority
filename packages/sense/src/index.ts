@@ -40,7 +40,7 @@ export {
   type TreeShape,
 } from './reuse.js';
 
-export { openSourceIndex, type PersistentSourceIndex } from './source-index.js';
+export { openSourceIndex, sourceIndexPath, type PersistentSourceIndex } from './source-index.js';
 
 export { gitDigests } from './tree.js';
 

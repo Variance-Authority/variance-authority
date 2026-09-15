@@ -1,6 +1,7 @@
 import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
-import { type Help, type HelpOptions, readHelp } from '@variance-authority/package/help';
+import { readOfferings, type Help } from '@variance-authority/package/help';
+import { readWorkspace, type ReadingOptions } from './read.js';
 import { HELP } from './tools.js';
 
 /**
@@ -11,20 +12,20 @@ import { HELP } from './tools.js';
  * edit, which is the one sentence a documentation server must never produce
  * falsely — the agent asking is the agent that just changed the file.
  *
- * So every request re-reads, and the cost is the reason that is affordable: the
- * reading is manifests and module records, not a compilation. Reading this
- * workspace whole — every package it publishes, well over a thousand exported
- * names — costs less than the model spends deciding what to ask next.
+ * So every request re-reads, and what makes that affordable is that almost none
+ * of it is read twice. The expensive third — what the whole repository imports —
+ * comes out of the source index ([`read.ts`](./read.ts)), so a question about a
+ * checkout where one file changed costs that one file. A server that walked and
+ * parsed the repository per request would be answering in a time proportional to
+ * the repository, which is the one property a repository grows out of.
  *
- * The scale is a floor rather than a count, because a count is a sentence the
- * next package falsifies and nothing here would notice: this is a comment, not
- * the server's self-description — `initialize` sends a name and a version, and
- * no prose in this file reaches a client. `tools/surface.check.ts` holds the floor
- * to the recorded surface, which is what makes the sentence above a claim rather
- * than a decoration.
+ * `tools/surface.check.ts` holds the shape of what is served to the recorded
+ * surface. No prose in this file reaches a client — `initialize` sends a name
+ * and a version — so what is written here is a comment rather than the server's
+ * self-description.
  */
 
-export interface WorkspaceOptions extends HelpOptions {
+export interface WorkspaceOptions extends ReadingOptions {
   readonly input?: Readable;
   readonly output?: Writable;
 }
@@ -41,21 +42,28 @@ export interface WorkspaceOptions extends HelpOptions {
 export function serveWorkspace(root: string, options: WorkspaceOptions = {}): () => void {
   const { input, output, ...reading } = options;
 
-  // Read once before serving, so a path that is not a workspace fails at startup
-  // rather than on whichever request happens to arrive first.
-  let cached: Help = readHelp(root, reading);
+  // The manifests, before serving anything: a path that is not a workspace should
+  // fail at startup rather than on whichever request happens to arrive first.
+  // Only the manifests, because the rest of the reading wants the index and the
+  // index wants a turn of the event loop, and a startup check is not worth
+  // becoming a promise for.
+  readOfferings(root, reading);
+
+  let cached: Help | undefined;
 
   return serve({
     input: input ?? process.stdin,
     output: output ?? process.stdout,
     served: HELP,
-    subject: () => {
+    subject: async () => {
       try {
-        cached = readHelp(root, reading);
-      } catch {
+        cached = await readWorkspace(root, reading);
+      } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is
-        // stale, not wrong.
+        // stale, not wrong; the first one failing is a different thing and there
+        // is nothing to answer with.
+        if (cached === undefined) throw failure;
       }
       return cached;
     },

@@ -82,6 +82,15 @@ export interface Binding {
 
   /** `import type { x }` and `import { type x }` alike. */
   readonly type: boolean;
+
+  /**
+   * The 1-based line the statement binding it is written on.
+   *
+   * Per binding rather than only per request, because a barrel republishing
+   * fifty names across five statements is one request by design, and a reader
+   * sent to open the file needs the statement that names the one it asked about.
+   */
+  readonly line: number;
 }
 
 export interface Request {
@@ -105,6 +114,15 @@ export interface Request {
    * names, and a dynamic `import('./x')` binds nothing the module record sees.
    */
   readonly bindings: readonly Binding[];
+
+  /**
+   * The 1-based line this request is first written on.
+   *
+   * A summary of the bindings in the same way `kind` is, and for the same
+   * reason: one request can be written across several statements, and the
+   * per-binding truth stays in `bindings` for anything that needs to disagree.
+   */
+  readonly line: number;
 }
 
 export interface Export {
@@ -129,6 +147,17 @@ export interface Export {
 
   /** `export type { x }`, `export { type x }`, `export type * from './x'`. */
   readonly type: boolean;
+
+  /**
+   * The 1-based line the statement publishing it is written on.
+   *
+   * Carried for the same reason a binding's is: a reader that has been told a
+   * name exists needs somewhere to open, and this is the only line anything
+   * records for a name no manifest publishes. It is the export statement, which
+   * for `export { x }` at the foot of a file is not where `x` is declared —
+   * whoever needs the declaration has the file and can ask for it.
+   */
+  readonly line: number;
 }
 
 export interface Read {
@@ -155,6 +184,30 @@ export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
  * every consumer, including the ones asking what a file rests on rather than what
  * a change could repaint.
  */
+/**
+ * 1-based line numbers from offsets, over one file's text.
+ *
+ * Built once per file and searched, rather than counted per request: a barrel
+ * makes hundreds of requests and counting newlines for each one is quadratic on
+ * exactly the largest files. The same structure, for the same reason, is behind
+ * [`package/doc.ts`](../../package/src/doc.ts).
+ */
+function linesOf(contents: string): (offset: number) => number {
+  const starts: number[] = [0];
+  for (let at = contents.indexOf('\n'); at !== -1; at = contents.indexOf('\n', at + 1)) starts.push(at + 1);
+
+  return (offset) => {
+    let low = 0;
+    let high = starts.length - 1;
+    while (low < high) {
+      const mid = (low + high + 1) >> 1;
+      if ((starts[mid] ?? 0) <= offset) low = mid;
+      else high = mid - 1;
+    }
+    return low + 1;
+  };
+}
+
 export function readModule(file: string, contents: string): Read {
   let result;
   try {
@@ -170,20 +223,23 @@ export function readModule(file: string, contents: string): Read {
   const requests: Request[] = [];
   const published: Export[] = [];
   const record = result.module;
+  const lineAt = linesOf(contents);
 
   for (const entry of record.staticImports) {
+    const line = lineAt(entry.start);
     const bindings = entry.entries.map(
       (binding): Binding => ({
         imported: importedName(binding.importName),
         local: binding.localName.value,
         type: binding.isType,
+        line,
       }),
     );
 
     // No entries at all is `import './x'` — a side effect, which is the shape a
     // stylesheet arrives in and never a type import.
     const type = bindings.length > 0 && bindings.every((binding) => binding.type);
-    requests.push({ value: entry.moduleRequest.value, kind: type ? 'type' : 'imports', bindings });
+    requests.push({ value: entry.moduleRequest.value, kind: type ? 'type' : 'imports', bindings, line });
   }
 
   // `export { a, b } from './x'` arrives as two entries naming one specifier.
@@ -191,9 +247,10 @@ export function readModule(file: string, contents: string): Read {
   // edge rather than fifty, and the type-only rule is decided over the whole
   // request the way an import's is. The group carries its own `type` because
   // `export type * from './x'` is type-only while binding no names at all.
-  const republished = new Map<string, { bindings: Binding[]; type: boolean }>();
+  const republished = new Map<string, { bindings: Binding[]; type: boolean; line: number }>();
 
   for (const entry of record.staticExports) {
+    const line = lineAt(entry.start);
     for (const binding of entry.entries) {
       const from = binding.moduleRequest?.value;
       const exported = publishedName(binding.exportName);
@@ -206,23 +263,26 @@ export function readModule(file: string, contents: string): Read {
         ...(from === undefined ? {} : { from }),
         ...(imported === undefined ? {} : { imported }),
         type: binding.isType,
+        line,
       });
 
       if (from === undefined) continue;
 
-      const group = republished.get(from) ?? { bindings: [], type: true };
+      // The request's own line is the first statement that wrote it. Statements
+      // arrive in source order, so the first one seen is the earliest.
+      const group = republished.get(from) ?? { bindings: [], type: true, line };
       if (!binding.isType) group.type = false;
       // `export * from './x'` names nothing here, and a binding invented for it
       // would claim a name this file never wrote.
       if (exported !== undefined && imported !== undefined) {
-        group.bindings.push({ imported, local: exported, type: binding.isType });
+        group.bindings.push({ imported, local: exported, type: binding.isType, line });
       }
       republished.set(from, group);
     }
   }
 
   for (const [value, group] of republished) {
-    requests.push({ value, kind: group.type ? 'type' : 'reexports', bindings: group.bindings });
+    requests.push({ value, kind: group.type ? 'type' : 'reexports', bindings: group.bindings, line: group.line });
   }
 
   const reasons: string[] = [];
@@ -235,7 +295,7 @@ export function readModule(file: string, contents: string): Read {
     }
     // What a dynamic import binds is a property access on a promise, which is a
     // question for the tree rather than the module record.
-    requests.push({ value: literal, kind: 'dynamic', bindings: [] });
+    requests.push({ value: literal, kind: 'dynamic', bindings: [], line: lineAt(entry.start) });
   }
 
   const required = readRequires(contents);
@@ -275,12 +335,13 @@ export function readModule(file: string, contents: string): Read {
  */
 export function readStyle(_file: string, contents: string): Read {
   const requests: Request[] = [];
+  const lineAt = linesOf(contents);
 
   for (const pattern of [AT_RULE, URL, COMPOSES]) {
     for (const match of contents.matchAll(pattern)) {
       const value = (match[1] ?? match[2] ?? match[3] ?? '').trim();
       if (value === '' || isExternal(value)) continue;
-      requests.push({ value, kind: 'asset', bindings: [] });
+      requests.push({ value, kind: 'asset', bindings: [], line: lineAt(match.index) });
     }
   }
 
@@ -316,9 +377,15 @@ function readRequires(contents: string): Read {
   const calls = [...contents.matchAll(REQUIRE_CALL)].length;
   if (calls === 0) return { requests: [] };
 
+  const lineAt = linesOf(contents);
   const literals = [...contents.matchAll(REQUIRE_LITERAL)];
   const requests = literals.map(
-    (match): Request => ({ value: match[1] ?? match[2]!, kind: 'imports', bindings: [] }),
+    (match): Request => ({
+      value: match[1] ?? match[2]!,
+      kind: 'imports',
+      bindings: [],
+      line: lineAt(match.index),
+    }),
   );
 
   return {

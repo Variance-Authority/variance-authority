@@ -39,15 +39,15 @@ describe('reading a module', () => {
     // and `F` are not, and a request-level kind — which has to be `imports`
     // here, because two of the three survive — cannot say which is which.
     expect(read.requests[0]?.bindings).toEqual([
-      { imported: 'default', local: 'C', type: false },
-      { imported: 'D', local: 'D', type: true },
-      { imported: 'E', local: 'F', type: false },
+      { imported: 'default', local: 'C', type: false, line: 1 },
+      { imported: 'D', local: 'D', type: true, line: 1 },
+      { imported: 'E', local: 'F', type: false, line: 1 },
     ]);
   });
 
   it('names a namespace import with a name no identifier can be', () => {
     expect(readModule('a.ts', "import * as ns from './x';\n").requests[0]?.bindings).toEqual([
-      { imported: '*', local: 'ns', type: false },
+      { imported: '*', local: 'ns', type: false, line: 1 },
     ]);
   });
 
@@ -59,13 +59,13 @@ describe('reading a module', () => {
     // asking what a subtree pulls in from npm has to read it from here.
     expect(read.requests[0]?.value).toBe('@atlaskit/button');
     expect(read.requests[0]?.bindings).toEqual([
-      { imported: 'default', local: 'Button', type: false },
+      { imported: 'default', local: 'Button', type: false, line: 1 },
     ]);
   });
 
   it('reads a side-effect import, which is how a stylesheet arrives', () => {
     expect(readModule('a.tsx', "import './button.css';\n").requests).toEqual([
-      { value: './button.css', kind: 'imports', bindings: [] },
+      { value: './button.css', kind: 'imports', bindings: [], line: 1 },
     ]);
   });
 
@@ -78,10 +78,13 @@ describe('reading a module', () => {
       {
         value: './x',
         kind: 'reexports',
+        // The request's line is the first statement that wrote it; the third
+        // name was republished from the second, and its binding says so.
+        line: 1,
         bindings: [
-          { imported: 'a', local: 'a', type: false },
-          { imported: 'b', local: 'b', type: false },
-          { imported: 'c', local: 'c', type: true },
+          { imported: 'a', local: 'a', type: false, line: 1 },
+          { imported: 'b', local: 'b', type: false, line: 1 },
+          { imported: 'c', local: 'c', type: true, line: 2 },
         ],
       },
     ]);
@@ -107,16 +110,16 @@ describe('reading a module', () => {
     );
 
     expect(read.exports).toEqual([
-      { exported: 'x', local: 'x', type: false },
+      { exported: 'x', local: 'x', type: false, line: 1 },
       // An anonymous default is exported and not locally accessible, so there
       // is no declaration behind it to name.
-      { exported: 'default', type: false },
+      { exported: 'default', type: false, line: 2 },
       // The set behind `export * from` is whatever the other file publishes.
       // Absent is not empty: asking whether this file exports `Card` has to
       // follow `from`, and answering no from here would be a missed edge in
       // name space rather than in file space.
-      { from: './star', imported: '*', type: false },
-      { exported: 'ns', from: './n', imported: '*', type: false },
+      { from: './star', imported: '*', type: false, line: 3 },
+      { exported: 'ns', from: './n', imported: '*', type: false, line: 4 },
     ]);
   });
 
@@ -126,7 +129,7 @@ describe('reading a module', () => {
       'const x = import("./dyn");\nconst y = import(`./page/${name}`);\n',
     );
 
-    expect(read.requests).toEqual([{ value: './dyn', kind: 'dynamic', bindings: [] }]);
+    expect(read.requests).toEqual([{ value: './dyn', kind: 'dynamic', bindings: [], line: 1 }]);
     // The template is quoted and still not a constant, which is exactly the
     // shape that must widen rather than resolve to a directory.
     expect(read.unknown).toContain('not a literal');
@@ -139,7 +142,7 @@ describe('reading a module', () => {
       // take here: the specifier is undefined, so the edge points nowhere, and
       // the literal still counts against the call total, so the file is not
       // marked unknown either. A lost edge that does not widen is a green run.
-      expect(literal.requests).toEqual([{ value: './req', kind: 'imports', bindings: [] }]);
+      expect(literal.requests).toEqual([{ value: './req', kind: 'imports', bindings: [], line: 1 }]);
       expect(literal.unknown).toBeUndefined();
     }
 

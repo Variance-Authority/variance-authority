@@ -81,8 +81,18 @@ function read(path: string): Record<string, unknown> {
  * matches the wrong set is worse than one that says it cannot. A repository with
  * no `workspaces` at all is one package, and that is the interesting case for
  * anybody who is not a monorepo.
+ *
+ * A repository with no root manifest publishes nothing, and that is an answer
+ * rather than an error. Plenty of checkouts are not npm projects at all — a
+ * Swift application with a landing page under it, a service with a web client in
+ * a subdirectory — and the question *where is the thing that does X* is asked of
+ * those more often than of a monorepo. Nothing is published there, so nothing is
+ * on the published half of an answer, and everything the source exports is still
+ * read.
  */
 function members(root: string): readonly string[] {
+  if (!existsSync(join(root, 'package.json'))) return [];
+
   const { workspaces } = read(join(root, 'package.json'));
   const globs = Array.isArray(workspaces)
     ? (workspaces as string[])
@@ -110,6 +120,45 @@ function members(root: string): readonly string[] {
     }
   }
   return found;
+}
+
+/**
+ * Which package a repository-relative file belongs to.
+ *
+ * The nearest manifest above it, which is what makes a file in an example
+ * directory that example's rather than the repository's — and what makes a
+ * fixture workspace nested inside a package's tests belong to the fixture, which
+ * is the only reading under which a count of it means anything.
+ *
+ * Asked per directory and memoized, rather than built by traversing the tree:
+ * the caller that wants this already knows every file, and walking the
+ * repository again to attribute files it is holding is the one cost worth not
+ * paying. A package with two hundred files asks once.
+ *
+ * `''` when nothing above the file is named, including the root.
+ */
+export function ownership(root: string): (at: string) => string {
+  const where = resolve(root);
+  const known = new Map<string, string>();
+
+  const nameAt = (dir: string): string => {
+    const held = known.get(dir);
+    if (held !== undefined) return held;
+
+    const manifest = join(where, dir, 'package.json');
+    const name = existsSync(manifest) ? read(manifest)['name'] : undefined;
+    const found =
+      typeof name === 'string'
+        ? name
+        : dir === ''
+          ? ''
+          : nameAt(dir.slice(0, Math.max(0, dir.lastIndexOf('/'))));
+
+    known.set(dir, found);
+    return found;
+  };
+
+  return (at) => nameAt(at.slice(0, Math.max(0, at.lastIndexOf('/'))));
 }
 
 /**

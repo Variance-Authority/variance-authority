@@ -88,8 +88,41 @@ export interface Usage {
   readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly Use[]>>;
   /** Specifiers naming a workspace package at a subpath it does not open. */
   readonly deep: readonly Deep[];
+  /**
+   * Every place a name is exported, published or not.
+   *
+   * The published surface is the part of this a manifest opens a door to, and it
+   * is much the smaller part — this workspace publishes hundreds of names and
+   * exports three thousand. The rest is not private: it is what one file in a
+   * package takes from another, and it is the answer to *where is the thing that
+   * does X* whenever X was never something to publish.
+   */
+  readonly exported: readonly Named[];
   /** Files whose imports could not be enumerated. Empty is the expected answer. */
   readonly unreadable: readonly string[];
+}
+
+/**
+ * One place a name is exported.
+ *
+ * The mirror of {@link Use}, which is one place a name is imported, and it
+ * carries the same four coordinates for the same reason: a reader told a name
+ * exists needs a file and a line to open, and a ranking needs to know whether the
+ * file that wrote it is source, a test or a story.
+ */
+export interface Named {
+  /** The name as the file publishes it. `default` for a default export. */
+  readonly name: string;
+  /** The exporting file, relative to the workspace root. */
+  readonly at: string;
+  /** The package whose source it is — the nearest manifest above the file. */
+  readonly by: string;
+  /** The 1-based line the export statement is written on. */
+  readonly line: number;
+  /** `export type { x }` and `export { type x }` alike. */
+  readonly type: boolean;
+  /** Whether the exporting file is a story, a test, or ordinary source. */
+  readonly kind: UseKind;
 }
 
 export interface UsageOptions {
@@ -98,23 +131,151 @@ export interface UsageOptions {
 }
 
 /**
+ * One name a request binds.
+ *
+ * `imported` is the name under which the other module publishes it, which is
+ * what a published surface is keyed by. A default import is `default`; a
+ * namespace import binds no single name and so contributes no entry at all.
+ */
+export interface Bound {
+  readonly imported: string;
+  /** `import type { x }` and `import { type x }` alike. */
+  readonly type: boolean;
+  /** The 1-based line the statement binding it is written on. */
+  readonly line: number;
+}
+
+/** One specifier a file writes, and what it takes from it. */
+export interface Requested {
+  /** As written. */
+  readonly specifier: string;
+  /** The 1-based line it is first written on. */
+  readonly line: number;
+  /**
+   * The names it binds.
+   *
+   * Empty is a real answer with three causes — a side-effect import, a namespace
+   * import, and a dynamic one — and all three mean the same thing here: the
+   * package is used and no single name in it is.
+   */
+  readonly names: readonly Bound[];
+}
+
+/**
+ * What one file's bytes said, however they were read.
+ *
+ * The join below needs four things per file and nothing else: which package owns
+ * it, what it asked for, what it publishes, and whether the asking could be
+ * enumerated at all. Stated as data rather than taken from a parser, so a caller
+ * that already holds a cached reading of the repository can hand it over instead
+ * of paying for a second walk ([`readUsage`](#readUsage) is the caller that has
+ * no such cache).
+ */
+export interface Recorded {
+  /** The file, relative to the workspace root. */
+  readonly at: string;
+  /** The package whose source it is — the nearest manifest above it. */
+  readonly by: string;
+  readonly requests: readonly Requested[];
+  /**
+   * The names it exports, in the order it writes them.
+   *
+   * Absent means nothing was read, which is how a caller that cannot answer the
+   * question says so; a file that genuinely exports nothing is empty. Nothing
+   * downstream distinguishes the two today, and the shape leaves room to.
+   */
+  readonly publishes?: readonly Exported[];
+  /**
+   * Why the imports could not be fully enumerated, when they could not.
+   *
+   * Partial rather than absent: a file can parse and still hold one specifier
+   * nothing could read. Whatever `requests` does hold is still joined, and the
+   * file is still named in `unreadable` so the under-reporting is visible.
+   */
+  readonly unknown?: string;
+}
+
+/** One name a file exports, before it is attributed to a package. */
+export interface Exported {
+  /** The name as the file publishes it. `default` for a default export. */
+  readonly name: string;
+  /** The 1-based line the export statement is written on. */
+  readonly line: number;
+  /** `export type { x }` and `export { type x }` alike. */
+  readonly type: boolean;
+}
+
+/**
+ * Join files against what the workspace opens.
+ *
+ * The whole of what `readUsage` does once it has the imports, and separate from
+ * the reading for the reason `Recorded` exists: two callers arrive here holding
+ * the same facts read two different ways, and only one of them had to walk.
+ */
+export function usageFrom(opened: ReadonlySet<string>, files: Iterable<Recorded>): Usage {
+  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
+  const names = new Map<string, Map<string, Use[]>>();
+  const deep: Deep[] = [];
+  const exported: Named[] = [];
+  const unreadable: string[] = [];
+
+  for (const file of files) {
+    const { at, by } = file;
+    // Named and still read. `unknown` covers a file that would not parse at all
+    // and a file that parsed with one specifier this could not follow, and
+    // rounding the second down to the first would drop every import the file
+    // does write — which is the direction of error this whole reading avoids.
+    if (file.unknown !== undefined) unreadable.push(at);
+
+    const kind = kindOf(at);
+
+    for (const published of file.publishes ?? []) {
+      exported.push({ name: published.name, at, by, line: published.line, type: published.type, kind });
+    }
+
+    for (const asked of file.requests) {
+      const key = requested(asked.specifier);
+      if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
+
+      if (!opened.has(key)) {
+        deep.push({ specifier: asked.specifier, by, at, line: asked.line });
+        continue;
+      }
+
+      const held = names.get(key) ?? new Map<string, Use[]>();
+      names.set(key, held);
+      for (const bound of asked.names) {
+        const uses = held.get(bound.imported) ?? [];
+        held.set(bound.imported, uses);
+        uses.push({ by, at, line: bound.line, type: bound.type, kind });
+      }
+    }
+  }
+
+  return { names, deep, exported, unreadable };
+}
+
+/**
  * Directories that hold something other than source somebody wrote.
  *
  * A package's own build output is skipped by reading its `tsconfig.json`, which
  * is the authority on where that output lands; this list is for the ones no
- * manifest mentions.
+ * manifest mentions. `dist` is on it as well as in the manifests, because a
+ * directory that holds a bundler's output is not always a package with a
+ * `tsconfig.json` to ask — the site's is a Next build, and reading it reports a
+ * chunk's hundred minified re-exports as a hundred names somebody wrote.
  */
-const SKIP: readonly string[] = ['node_modules', 'coverage', 'build', 'out'];
+const SKIP: readonly string[] = ['node_modules', 'coverage', 'build', 'dist', 'out'];
 
 const MODULES = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
 
 /**
- * The imported name a module record entry names.
+ * The name a module record entry names, on either side of the record.
  *
  * Nothing, for `import * as ns` and `export * from`: both take whatever is
- * there, so the package is used and no single name in it is.
+ * there, so the other module is used and no single name in it is.
  */
-function importedAs(kind: string, name: string | null): string | undefined {
+function nameOf(kind: string, name: string | null): string | undefined {
   if (kind === 'Name') return name ?? undefined;
   if (kind === 'Default') return 'default';
   return undefined;
@@ -176,57 +337,69 @@ export function readUsage(
   options: UsageOptions = {},
   parses: Parses = new Map(),
 ): Usage {
-  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
-  const names = new Map<string, Map<string, Use[]>>();
-  const deep: Deep[] = [];
-  const unreadable: string[] = [];
+  const files: Recorded[] = [];
 
-  walk(root, '', new Set([...SKIP, ...(options.skip ?? [])]), (file, by) => {
+  walk(root, '', new Set([...SKIP, ...(options.skip ?? [])]), (file, owner) => {
     const at = relative(root, file);
 
     let source;
     try {
       source = parseFile(parses, file, at);
-    } catch {
-      unreadable.push(at);
+    } catch (error) {
+      files.push({ at, by: owner, requests: [], unknown: `${error instanceof Error ? error.message : String(error)}` });
       return;
     }
 
-    const record = (specifier: string, imported: string | undefined, type: boolean, offset: number): void => {
-      const key = requested(specifier);
-      if (!packages.has(key.slice(0, key.indexOf(' ')))) return;
+    // One entry per specifier per statement. `export { a, b } from './x'` carries
+    // its specifier per entry rather than per statement, so a statement's entries
+    // can name two modules and the grouping has to be by what was named.
+    const requests = new Map<string, { line: number; names: Bound[] }>();
 
+    const requestAt = (specifier: string, offset: number) => {
       const line = lineAt(source.writing, offset);
-      if (!opened.has(key)) {
-        deep.push({ specifier, by, at, line });
-        return;
-      }
-      if (imported === undefined) return;
-
-      const held = names.get(key) ?? new Map<string, Use[]>();
-      names.set(key, held);
-      const uses = held.get(imported) ?? [];
-      held.set(imported, uses);
-      uses.push({ by, at, line, type, kind: kindOf(at) });
+      const held = requests.get(`${specifier}\u0000${line}`) ?? { line, names: [] };
+      requests.set(`${specifier}\u0000${line}`, held);
+      return held;
     };
 
     for (const statement of source.parsed.module.staticImports) {
-      const specifier = statement.moduleRequest.value;
-      // `import '@scope/pkg'` binds nothing and is still a use of the package.
-      if (statement.entries.length === 0) record(specifier, undefined, false, statement.start);
+      const held = requestAt(statement.moduleRequest.value, statement.start);
       for (const entry of statement.entries) {
-        record(specifier, importedAs(entry.importName.kind, entry.importName.name), entry.isType, statement.start);
+        const imported = nameOf(entry.importName.kind, entry.importName.name);
+        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
       }
     }
+
+    const publishes: Exported[] = [];
 
     for (const statement of source.parsed.module.staticExports) {
+      const line = lineAt(source.writing, statement.start);
       for (const entry of statement.entries) {
+        // `export * from './x'` names nothing here: the set is whatever the
+        // other file publishes, and inventing a name for it would claim one
+        // this file never wrote.
+        const exported = nameOf(entry.exportName.kind, entry.exportName.name);
+        if (exported !== undefined) publishes.push({ name: exported, line, type: entry.isType });
+
         const specifier = entry.moduleRequest?.value;
         if (specifier === undefined) continue;
-        record(specifier, importedAs(entry.importName.kind, entry.importName.name), entry.isType, statement.start);
+        const held = requestAt(specifier, statement.start);
+        const imported = nameOf(entry.importName.kind, entry.importName.name);
+        if (imported !== undefined) held.names.push({ imported, type: entry.isType, line: held.line });
       }
     }
+
+    files.push({
+      at,
+      by: owner,
+      publishes,
+      requests: [...requests].map(([key, held]) => ({
+        specifier: key.slice(0, key.indexOf('\u0000')),
+        line: held.line,
+        names: held.names,
+      })),
+    });
   });
 
-  return { names, deep, unreadable };
+  return usageFrom(opened, files);
 }

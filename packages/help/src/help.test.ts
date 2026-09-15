@@ -102,8 +102,8 @@ describe('one name in full', () => {
     expect(call('docs_symbol', { name: 'Reading' })).toContain('Nothing is written above this declaration.');
   });
 
-  it('refuses an unknown name by pointing at the tool that finds one', () => {
-    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/docs_search/);
+  it('refuses an unknown name by pointing at the question that finds one', () => {
+    expect(() => call('docs_symbol', { name: 'nope' })).toThrow(/ask `search`/);
   });
 
   it('refuses an empty name rather than answering about the first thing it finds', () => {
@@ -166,8 +166,8 @@ describe('where the repository already writes a name', () => {
     expect(call('docs_uses', { name: 'Span' })).toContain('nothing in this workspace imports it');
   });
 
-  it('refuses an unknown name by pointing at the tool that finds one', () => {
-    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/docs_search/);
+  it('refuses an unknown name by pointing at the question that finds one', () => {
+    expect(() => call('docs_uses', { name: 'nope' })).toThrow(/ask `search`/);
   });
 });
 
@@ -185,7 +185,26 @@ describe('finding a name somebody can only describe', () => {
   });
 
   it('says nothing matched, and what to do instead', () => {
-    expect(call('docs_search', { query: 'zzz' })).toContain('docs_packages lists every entrypoint');
+    expect(call('docs_search', { query: 'zzz' })).toContain('`packages` lists every entrypoint');
+  });
+
+  it('finds a name the repository exports and no manifest publishes', () => {
+    // `deeper` is exported from a file inside beta that beta's entrypoint never
+    // re-exports, which is what most code in most repositories is. A search that
+    // only read the published surface would answer that this workspace has no
+    // such name, which is false about the checkout it just read.
+    const text = call('docs_search', { query: 'deeper' });
+    expect(text).toContain('Nothing published matches');
+    expect(text).toContain('deeper — beta · packages/beta/src/inner/deeper.ts:3');
+  });
+
+  it('reports a published name as published, and not twice', () => {
+    const text = call('docs_search', { query: 'behind' });
+    expect(text).toContain('alpha/deep · behind');
+    // `behind` is exported by the file that declares it as well as published by
+    // the manifest, so a second section naming it would report one name as two
+    // findings and send the reader to the weaker of them.
+    expect(text).not.toContain('exported somewhere in the repository');
   });
 });
 

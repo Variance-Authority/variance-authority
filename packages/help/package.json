@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@variance-authority/mcp": "workspace:^",
-    "@variance-authority/package": "workspace:^"
+    "@variance-authority/package": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
   }
 }

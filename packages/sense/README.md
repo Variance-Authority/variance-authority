@@ -237,6 +237,24 @@ await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: sour
 await source.save();
 ```
 
+`parsed` hands each file's parse to you as the scan settles it — the
+repository-relative path and what the bytes said, once per file, reused records
+included. A caller that wants a different reading of the same bytes (which names
+one file imports, where each specifier is written, what it exports) otherwise
+has to walk and parse the tree a second time; handed this, that second reading
+of an unchanged tree costs a map lookup per file. The value is the cached parse
+itself rather than a copy, so treat it as read-only.
+
+```ts
+await scanRelations({
+  root: '.',
+  dirs: ['src'],
+  cache: source.cache,
+  reuse: source.reuse,
+  parsed: (file, parse) => { exports.set(file, parse.exports); },
+});
+```
+
 The parse section is keyed by content digest. The record section is additionally
 keyed by the repository path layout and resolution settings, because resolution
 can change while file bytes stay the same. `gitDigests` supplies the content

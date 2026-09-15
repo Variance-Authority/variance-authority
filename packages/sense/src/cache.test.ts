@@ -19,7 +19,7 @@ import { encodeSourceIndex } from './source-index-format.js';
  */
 
 const BUTTON: Parsed = {
-  requests: [{ value: './button.css', kind: 'imports', bindings: [] }],
+  requests: [{ value: './button.css', kind: 'imports', bindings: [], line: 3 }],
   declares: ['Button'],
 };
 

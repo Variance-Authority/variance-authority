@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OFFERED, readOfferings } from './manifest.js';
+import { OFFERED, ownership, readOfferings } from './manifest.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 
@@ -144,5 +144,24 @@ describe('a repository that is not a monorepo', () => {
       'src/index.ts': 'export const one = 1;\n',
     });
     expect(readOfferings(root).map((offering) => offering.name)).toEqual(['only']);
+  });
+
+  it('publishes nothing when nothing at its root is a manifest, rather than refusing to be read', () => {
+    const root = workspace({
+      'Sources/App/main.swift': 'print("hello")\n',
+      'landing/src/index.ts': 'export const one = 1;\n',
+    });
+    expect(readOfferings(root)).toEqual([]);
+  });
+
+  it('reads a manifest below the root only as the owner of the files under it', () => {
+    const root = workspace({
+      'landing/package.json': { name: 'landing' },
+      'landing/src/index.ts': 'export const one = 1;\n',
+    });
+    // Not an offering: nothing at the root claims it, and inventing a workspace
+    // nobody declared would publish a name its own repository never published.
+    expect(readOfferings(root)).toEqual([]);
+    expect(ownership(root)('landing/src/index.ts')).toBe('landing');
   });
 });

@@ -24,17 +24,22 @@ const PARSED: Parsed = {
     {
       value: './button.js',
       kind: 'imports',
-      bindings: [{ imported: 'Button', local: 'Button', type: false }],
+      line: 1,
+      bindings: [{ imported: 'Button', local: 'Button', type: false, line: 1 }],
     },
     {
+      // Two different lines, so a round trip that collapsed them into one column
+      // — or dropped the per-binding half — fails here rather than downstream in
+      // a citation nobody can open.
       value: './types.js',
       kind: 'type',
-      bindings: [{ imported: 'Props', local: 'CardProps', type: true }],
+      line: 7,
+      bindings: [{ imported: 'Props', local: 'CardProps', type: true, line: 7 }],
     },
   ],
   exports: [
-    { exported: 'Card', local: 'Card', type: false },
-    { from: './button.js', imported: '*', type: false },
+    { exported: 'Card', local: 'Card', type: false, line: 3 },
+    { from: './button.js', imported: '*', type: false, line: 9 },
   ],
   declares: ['Card'],
   unknown: 'one dynamic request could not be read',

@@ -91,6 +91,23 @@ export interface ScanOptions extends ResolveOptions {
    */
   readonly reuse?: RecordCache;
 
+  /**
+   * Every file's parse, handed out as the scan settles it.
+   *
+   * The scan already holds, for each file, the repository-relative path and what
+   * its bytes said — cached against the digest, so an unchanged file was never
+   * opened. A caller that wants a *different* reading of the same bytes (which
+   * names one file imports, where a specifier is written) has two choices: walk
+   * and parse the repository again for itself, or be handed this. Handed this,
+   * a second reading of a tree that did not change costs a map lookup per file.
+   *
+   * Called once per file, reused records included. It is not called for a file
+   * that could not be read, because there is nothing to hand over.
+   *
+   * The `Parsed` is the cached value itself, not a copy: treat it as read-only,
+   * because every other caller of the scan holds the same object.
+   */
+  readonly parsed?: (file: string, parsed: Parsed) => void;
 }
 
 /** Files whose declarations are not components, matching the component index. */
@@ -190,6 +207,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const digest = digests?.get(file);
     const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
 
+    const way = parseWay(file);
+
     const fresh =
       remembered === undefined
         ? await recordFor({
@@ -211,7 +230,18 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     // repository — leaving the next run that has to rebuild records with nothing
     // to rebuild them from. The blob is live; say so.
     if (remembered === undefined) reuse?.set(record, fresh!.witnesses);
-    else if (digest !== undefined) cache.keep?.(keyFor(digest, parseWay(file)));
+    else if (digest !== undefined) cache.keep?.(keyFor(digest, way));
+
+    // A reused record never opened the file, so the parse it was built from is
+    // not in hand — but it is in the cache under the same digest, which is the
+    // whole reason the two are kept together. Missing is possible and not an
+    // error: a record can outlive the parse behind it when a cache was pruned
+    // more aggressively than the records were.
+    if (options.parsed !== undefined) {
+      const read =
+        fresh?.read ?? (digest === undefined ? undefined : cache.get(keyFor(digest, way)));
+      if (read !== undefined) options.parsed(file, read);
+    }
 
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
@@ -242,7 +272,12 @@ interface Subject {
 
 async function recordFor(
   subject: Subject,
-): Promise<{ readonly record: FileRecord; readonly witnesses: readonly string[] }> {
+): Promise<{
+  readonly record: FileRecord;
+  readonly witnesses: readonly string[];
+  /** What the bytes said, for a caller that asked to be handed it. Absent when the file could not be read. */
+  readonly read?: Parsed;
+}> {
   const { absolute, file, root, resolvers, cache } = subject;
   const way = parseWay(file);
   const style = isStyle(way);
@@ -313,6 +348,7 @@ async function recordFor(
       ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
       ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
     },
+    read,
     witnesses: witnessesOf({
       file,
       requests: read.requests.map((asked) => asked.value),
@@ -357,7 +393,20 @@ function seedFiles(root: string, dirs: readonly string[]): readonly string[] {
   return found;
 }
 
-function walk(dir: string, prefix: string, into: string[]): void {
+/**
+ * Every readable file under one directory, unless it is a repository of its own.
+ *
+ * A checkout inside a checkout — a worktree cut this morning, a vendored clone —
+ * is a different repository that happens to sit at this path. Git tracks not one
+ * file of it, so every file misses the digest lookup and is opened and parsed on
+ * every run; and its files are another repository's copies of these ones, which
+ * doubles every count taken over the walk. Neither is a judgement call, and the
+ * directory listing already in hand says which directories those are.
+ *
+ * A seed is never tested this way, only what is found beneath it: a caller that
+ * points the scan at a checkout means that checkout.
+ */
+function walk(dir: string, prefix: string, into: string[], seeded = true): void {
   let entries: readonly Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -368,10 +417,12 @@ function walk(dir: string, prefix: string, into: string[]): void {
     return;
   }
 
+  if (!seeded && entries.some((entry) => entry.name === '.git')) return;
+
   for (const entry of entries) {
     const at = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
     if (entry.isDirectory()) {
-      if (!EXCLUDE_DIRS.includes(entry.name)) walk(join(dir, entry.name), at, into);
+      if (!EXCLUDE_DIRS.includes(entry.name)) walk(join(dir, entry.name), at, into, false);
     } else if (READABLE.has(extname(entry.name))) into.push(at);
   }
 }

@@ -3,7 +3,7 @@ import type { Declaration } from './declare.js';
 import { type OfferingOptions, readOfferings } from './manifest.js';
 import { createReader, namesReachedBy } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
-import { type Deep, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
+import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
 
 /**
  * What a workspace publishes, what it says about it, and what uses it.
@@ -91,11 +91,37 @@ export interface Help {
   readonly packages: readonly Documented[];
   /** Specifiers reaching into a package past what its `exports` map opens. */
   readonly deep: readonly Deep[];
+  /**
+   * Every name the repository's own files export, published or not.
+   *
+   * `packages` is the surface: the names a manifest opens a door to, joined
+   * against their documentation and their consumers. This is the rest of the
+   * repository — three thousand names here against a few hundred published —
+   * and it carries a file and a line and nothing else, because nothing else was
+   * read for it.
+   *
+   * It is here because the question *where is the thing that does X* does not
+   * know in advance whether X was published, and a search that only looked at
+   * the surface would answer *nowhere* for most of the code. The two are kept
+   * apart rather than merged so that an answer can still say which it found: a
+   * published name is an API, and an exported one is somebody's internal.
+   */
+  readonly exported: readonly Named[];
   /** Files whose imports could not be enumerated. Empty is the expected answer. */
   readonly unreadable: readonly string[];
 }
 
-export interface HelpOptions extends OfferingOptions, UsageOptions {}
+export interface HelpOptions extends OfferingOptions, UsageOptions {
+  /**
+   * What the repository already imports, when something read it already.
+   *
+   * The third reading is the expensive one — every module file in the
+   * repository, opened and parsed — and it is the one most likely to have been
+   * done. A caller holding a cached, incremental reading of the same tree passes
+   * it here and this reads the manifests and the entrypoints only.
+   */
+  readonly usage?: Usage;
+}
 
 /**
  * Who imports a name, and how often.
@@ -161,7 +187,7 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
   }
 
   const reader = createReader(where, entrypoints);
-  const usage = readUsage(where, new Set(entrypoints.keys()), options, reader.parses);
+  const usage = options.usage ?? readUsage(where, new Set(entrypoints.keys()), options, reader.parses);
 
   // One cache for one reading, and one lookup per declaring file: a barrel and a
   // subpath publishing the same declaration ask the same question twice.
@@ -192,7 +218,7 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
     }),
   }));
 
-  return { packages, deep: usage.deep, unreadable: usage.unreadable };
+  return { packages, deep: usage.deep, exported: usage.exported, unreadable: usage.unreadable };
 }
 
 /** Every entry of a reading, flattened, with the package and subpath each came from. */
@@ -231,8 +257,21 @@ export function undocumented(help: Help): readonly Entry[] {
  */
 export { opening, writeGaps, writeIndex, writeLlms } from './write.js';
 export type { Page } from './write.js';
-export { readUsage, kindOf } from './use.js';
-export type { Deep, Usage, UsageOptions, Use, UseKind } from './use.js';
+export { readUsage, usageFrom, kindOf } from './use.js';
+export type {
+  Bound,
+  Named,
+  Deep,
+  Exported,
+  Recorded,
+  Requested,
+  Usage,
+  UsageOptions,
+  Use,
+  UseKind,
+} from './use.js';
+export { ownership, readOfferings, requested } from './manifest.js';
+export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';
