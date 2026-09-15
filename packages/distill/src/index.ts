@@ -40,6 +40,46 @@ export interface EnteredFile {
   readonly distance: number;
 }
 
+/** One instrumented region of an entered module, as this test met it. */
+export interface Region {
+  readonly kind: string;
+  /** Declaration name path. Empty on the module root. */
+  readonly name: string;
+  readonly path: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  /** Shortest observed depth. Absent when this test never crossed the region. */
+  readonly distance?: number;
+}
+
+/**
+ * One entered module, read region by region.
+ *
+ * {@link EnteredFile} answers whether a test was ever inside a file, which is
+ * the question test selection asks and the one it must over-answer. This
+ * answers which parts of the file the test was inside, which is the opposite
+ * direction, and the two are not the same reading of the same evidence.
+ */
+export interface EnteredModule {
+  readonly file: string;
+  /** Shortest observed depth to any crossed region. */
+  readonly distance: number;
+  /**
+   * True when every crossing this test has in the module is a consequence of
+   * loading it: the module root, or a region a producer marked `loaded`.
+   *
+   * The import ran the module's top level and nothing else in the file was
+   * entered. `import { A } from './B'` where `A` is never called reads exactly
+   * like this, whether the call site was replaced by a spy or a branch never
+   * chose it.
+   */
+  readonly loadedOnly: boolean;
+  /** Regions the test called into, nearest first. */
+  readonly entered: readonly Region[];
+  /** Regions the test never crossed, outermost declarations only, in source order. */
+  readonly unentered: readonly Region[];
+}
+
 /** The portable deterministic reading shared by the CLI and MCP adapters. */
 export interface Distillation {
   readonly test: { readonly id: string; readonly title: string; readonly file?: string };
@@ -56,6 +96,8 @@ export interface Distillation {
     readonly entered: readonly EnteredFile[];
     /** Absent when Eyes did not supply the addressed side of the comparison. */
     readonly opportunities?: readonly EnteredFile[];
+    /** The same crossings read region by region, in the order of `entered`. */
+    readonly modules: readonly EnteredModule[];
   };
 }
 
@@ -70,6 +112,9 @@ interface MutableUpdates {
   unavailable: number;
   readonly updaters: Updater[];
 }
+
+export { formatDistillation } from './format.js';
+export { parseExecutionIndex } from './execution-json.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 
@@ -229,164 +274,94 @@ function executionOf(
   addressed: ReadonlySet<string> | undefined,
 ): NonNullable<Distillation['execution']> {
   const test = index.tests.findIndex((candidate) => candidate.id === id);
-  if (test < 0) return { joined: false, entered: [], opportunities: [] };
-  const entered = index.modules.flatMap((module) => enteredFile(module, test))
+  if (test < 0) return { joined: false, entered: [], opportunities: [], modules: [] };
+  const modules = index.modules.flatMap((module) => enteredModule(module, test))
     .sort((left, right) => left.distance - right.distance || compare(left.file, right.file));
+  const entered = modules.map(({ file, distance }) => ({ file, distance }));
   return {
     joined: true,
     entered,
     ...(addressed === undefined
       ? {}
       : { opportunities: entered.filter(({ file }) => !addressed.has(file)) }),
+    modules,
   };
 }
 
-function enteredFile(
+type Block = ExecutionIndex['modules'][number]['blocks'][number];
+
+/**
+ * Whether a crossing says the module was loaded rather than exercised.
+ *
+ * A module root has no caller a test could be: reaching it means the import
+ * ran, and nothing more. `loaded` is the same fact from a producer that can
+ * also see it for a region below the root — a function the top level called.
+ * Both are derived here rather than asked of the producer, so an index that
+ * only reports regions and crossings still answers the question.
+ */
+function loadedCrossing(block: Block, crossing: Block['crossings'][number]): boolean {
+  return crossing.loaded === true || block.kind === 'module';
+}
+
+function enteredModule(
   module: ExecutionIndex['modules'][number],
   test: number,
-): readonly EnteredFile[] {
-  const distances = module.blocks.flatMap((block) => block.crossings
-    .filter((crossing) => crossing.test === test)
-    .map((crossing) => crossing.distance));
-  return distances.length === 0 ? [] : [{ file: module.file, distance: Math.min(...distances) }];
-}
-
-/** Render a distillation for a person or agent. */
-export function formatDistillation(result: Distillation): string {
-  const attention = result.attention;
-  const execution = result.execution;
-  return [
-    `${result.test.title} — ${result.test.file ?? 'file not supplied'} [${result.test.id}]`,
-    ...(attention === undefined ? ['Eyes attention: unavailable.'] : [
-      attention.complete ? 'Eyes journal: complete.' : `Eyes journal: partial — ${attention.because}`,
-      `${attention.targets} target snapshot(s); ${attention.withoutFiber} had no live React Fiber.`,
-      '',
-      ...(attention.phases.length === 0 ? ['Addressed surface: measured empty.'] : attention.phases.flatMap((phase) => [
-        `${phase.phase}:`,
-        `  components: ${values(phase.components, 'none attributed by Eyes')}`,
-        `  source: ${values(phase.files, 'none attributed by Eyes')}`,
-      ])),
-      '',
-      ...updateLines(attention.updates),
-    ]),
-    '',
-    ...executionLines(execution, result.test.id),
-    '',
-    'Opportunity rule: an entered file with no addressed target attribution is a distillation ' +
-      'opportunity only. The evidence does not establish that it is safe to mock, replace, or remove.',
-  ].join('\n');
-}
-
-function updateLines(updates: readonly UpdatePhase[]): readonly string[] {
-  if (updates.length === 0) return ['React update initiators: unavailable; no commit evidence was recorded.'];
-  return ['React update initiators:', ...updates.flatMap((phase) => [
-    `  ${phase.phase}: ${phase.commits} commit(s)`,
-    ...(phase.unavailable === 0 ? [] : [`    unavailable in ${phase.unavailable} commit(s)`]),
-    ...(phase.inside.length === 0 ? [] : [`    inside addressed component paths: ${phase.inside.join('; ')}`]),
-    ...(phase.outside.length === 0 ? [] : [`    outside addressed component paths: ${phase.outside.join('; ')}`]),
-    ...(phase.inside.length === 0 && phase.outside.length === 0 && phase.unavailable < phase.commits
-      ? ['    measured empty'] : []),
-  ])];
-}
-
-function executionLines(execution: Distillation['execution'], id: string): readonly string[] {
-  if (execution === undefined) {
-    return ['Runtime journey: unavailable; no entered-versus-addressed comparison was made.'];
+): readonly EnteredModule[] {
+  const crossed: { block: Block; distance: number; loaded: boolean }[] = [];
+  const missed: Block[] = [];
+  for (const block of module.blocks) {
+    const mine = block.crossings.filter((crossing) => crossing.test === test);
+    if (mine.length === 0) {
+      if (block.source) missed.push(block);
+      continue;
+    }
+    crossed.push({
+      block,
+      distance: Math.min(...mine.map((crossing) => crossing.distance)),
+      loaded: mine.every((crossing) => loadedCrossing(block, crossing)),
+    });
   }
-  if (!execution.joined) return [
-    `Runtime journey: supplied, but it contains no test with exact id ${id}.`,
-    'No title or file join was guessed.',
-  ];
-  return [
-    'Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.',
-    `Runtime journey: ${execution.entered.length} source file(s) entered by exact test id.`,
-    ...(execution.entered.length === 0 ? ['  measured empty'] : execution.entered.map(({ file, distance }) =>
-      `  depth ${distance} — ${file}`)),
-    ...(execution.opportunities === undefined
-      ? ['Distillation opportunities: unavailable; Eyes attention was not supplied.']
-      : [
-          `Entered with no addressed target attributed to the same file: ${execution.opportunities.length}.`,
-          ...execution.opportunities.map(({ file, distance }) =>
-            `  distillation opportunity at depth ${distance} — ${file}`),
-        ]),
-  ];
+  if (crossed.length === 0) return [];
+  return [{
+    file: module.file,
+    distance: Math.min(...crossed.map(({ distance }) => distance)),
+    loadedOnly: crossed.every(({ loaded }) => loaded),
+    entered: crossed
+      .filter(({ loaded }) => !loaded)
+      .sort((left, right) => left.distance - right.distance || left.block.startLine - right.block.startLine)
+      .map(({ block, distance }) => ({ ...regionOf(block), distance })),
+    unentered: outermost(missed).map(regionOf),
+  }];
 }
 
-/** Validate the runner-independent execution JSON accepted by the CLI. */
-export function parseExecutionIndex(value: unknown): ExecutionIndex {
-  const root = object(value, 'execution index');
-  if (!Array.isArray(root['tests']) || !Array.isArray(root['modules'])) {
-    throw new Error('execution index tests and modules must be arrays');
-  }
-  const tests = root['tests'].map((value, at) => {
-    const test = object(value, `execution test ${at}`);
-    return {
-      id: string(test['id'], `execution test ${at} id`),
-      file: string(test['file'], `execution test ${at} file`),
-      name: string(test['name'], `execution test ${at} name`),
-    };
-  });
-  const modules = root['modules'].map((value, at) => {
-    const module = object(value, `execution module ${at}`);
-    if (!Array.isArray(module['blocks'])) throw new Error(`execution module ${at} blocks must be an array`);
-    return {
-      file: string(module['file'], `execution module ${at} file`),
-      blocks: module['blocks'].map((value, blockAt) => parseBlock(value, at, blockAt, tests.length)),
-    };
-  });
-  return { tests, modules };
+/**
+ * The declarations of a module that this test never reached.
+ *
+ * Only whole declarations, and only the outermost ones: a branch nobody took
+ * inside a function nobody called is the same fact said twice, and a branch
+ * inside a function the test did enter is a path through behavior the test
+ * exercises rather than a boundary it could be given.
+ */
+function outermost(missed: readonly Block[]): readonly Block[] {
+  const declarations = missed.filter((block) => block.kind === 'function');
+  return declarations
+    .filter((block) => !declarations.some((other) => other !== block && encloses(other, block)))
+    .sort((left, right) => left.startLine - right.startLine || compare(left.name, right.name));
 }
 
-function parseBlock(
-  value: unknown,
-  moduleAt: number,
-  at: number,
-  tests: number,
-): ExecutionIndex['modules'][number]['blocks'][number] {
-  const where = `execution module ${moduleAt} block ${at}`;
-  const block = object(value, where);
-  if (!Array.isArray(block['crossings'])) throw new Error(`${where} crossings must be an array`);
-  const startLine = integer(block['startLine'], `${where} startLine`);
-  const endLine = integer(block['endLine'], `${where} endLine`);
-  if (typeof block['source'] !== 'boolean') throw new Error(`${where} source must be boolean`);
-  return {
-    kind: string(block['kind'], `${where} kind`),
-    name: string(block['name'], `${where} name`),
-    path: string(block['path'], `${where} path`),
-    startLine,
-    endLine,
-    source: block['source'],
-    crossings: block['crossings'].map((value, crossingAt) => {
-      const crossing = object(value, `${where} crossing ${crossingAt}`);
-      const test = integer(crossing['test'], `${where} crossing ${crossingAt} test`, true);
-      if (test >= tests) throw new Error(`${where} crossing ${crossingAt} names missing test ${test}`);
-      return { test, distance: integer(crossing['distance'], `${where} crossing ${crossingAt} distance`, true) };
-    }),
-  };
+function encloses(outer: Block, inner: Block): boolean {
+  return (
+    outer.startLine <= inner.startLine &&
+    outer.endLine >= inner.endLine &&
+    (outer.startLine !== inner.startLine || outer.endLine !== inner.endLine)
+  );
 }
 
-function object(value: unknown, where: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new Error(`${where} must be an object`);
-  }
-  return value as Record<string, unknown>;
+function regionOf(block: Block): Region {
+  const { kind, name, path, startLine, endLine } = block;
+  return { kind, name, path, startLine, endLine };
 }
 
-function string(value: unknown, where: string): string {
-  if (typeof value !== 'string' || value === '') throw new Error(`${where} must be a non-empty string`);
-  return value;
-}
-
-function integer(value: unknown, where: string, allowZero = false): number {
-  if (!Number.isInteger(value) || (value as number) < (allowZero ? 0 : 1)) {
-    throw new Error(`${where} must be ${allowZero ? 'a non-negative' : 'a positive'} integer`);
-  }
-  return value as number;
-}
-
-function values(found: readonly string[], empty: string): string {
-  return found.length === 0 ? empty : found.join(', ');
-}
 
 function sorted(values: Iterable<string>): readonly string[] {
   return [...values].sort(compare);

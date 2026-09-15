@@ -10,6 +10,20 @@ export interface ExecutionCrossing {
   readonly test: number;
   /** Observed call-stack depth from the test to this region. */
   readonly distance: number;
+  /**
+   * True when the region was entered while its module was evaluating, rather
+   * than because the test called into it.
+   *
+   * A module initializes once per realm and its initialization is attributed to
+   * every test that consumed the module, which is what
+   * [`selecting.md`](../../../../docs/selecting.md) asks for: over-include, so a
+   * change cannot skip a test. A reader asking what a test *exercised* needs the
+   * opposite direction, and cannot recover it from a crossing that does not say
+   * which of the two it was. `CoverageBlock.loadedBy` records the same fact for
+   * a whole test file; this is its per-case spelling. Absent means the producer
+   * does not distinguish them, which is read as an ordinary crossing.
+   */
+  readonly loaded?: boolean;
 }
 
 export interface ExecutionBlock {

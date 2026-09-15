@@ -641,6 +641,8 @@
         "DistillInput": "interface",
         "Distillation": "interface",
         "EnteredFile": "interface",
+        "EnteredModule": "interface",
+        "Region": "interface",
         "UpdatePhase": "interface",
         "distill": "function",
         "formatDistillation": "function",

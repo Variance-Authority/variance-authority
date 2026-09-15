@@ -55,6 +55,40 @@ reachability describes what the test could load; execution says what it entered;
 attention says what it addressed. None says what the test would still witness
 after a substitution.
 
+## Imports nothing ever calls
+
+Read a file-level answer twice before you act on it. A named import runs its
+module's top level and nothing else, so a test can reach a file without
+exercising a line of it:
+
+```tsx
+import { HeavyChart } from './heavy-chart';
+
+// The chart is imported, loaded, and never rendered.
+return points.length === 0 ? <EmptyState /> : <HeavyChart points={points} />;
+```
+
+A spy reaches the same place from the other side. `vi.spyOn(totals,
+'formatTotal')` leaves the module loaded and its function unreached, and the
+import statement above it still reads as a use.
+
+Distill separates the two. Every entered module is read region by region:
+`loadedOnly` marks a module whose only crossings are the consequence of loading
+it, and `unentered` names the declarations the test never reached.
+
+```text
+Loaded but not entered: 1 module(s).
+  src/heavy-chart.tsx — the import ran its top level and this test entered nothing below it
+    never entered: HeavyChart (lines 5-8)
+    substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
+```
+
+This is a stronger reading than an opportunity and still not a verdict. Mocking
+takes the module's top level with the rest, and a top level that registers a
+handler, installs a polyfill, or builds a singleton is one the test may be
+standing on. Write the mock, rerun the exact test, and compare the witness
+before you keep it.
+
 ## One capability, three entrances
 
 | Entrance | Use it when | Invocation |

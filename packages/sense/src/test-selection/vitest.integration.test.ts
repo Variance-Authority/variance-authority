@@ -16,6 +16,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-vitest');
 const entriesFixture = resolve(repository, 'packages/sense/test/fixtures/entries-vitest');
+const unenteredFixture = resolve(repository, 'packages/sense/test/fixtures/unentered-vitest');
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 const temporary: string[] = [];
 
@@ -117,6 +118,47 @@ describe('the Vitest integration', () => {
       ['module', '', ['test/eager.case.ts'], ['test/eager.case.ts']],
       ['function', 'warm', ['test/eager.case.ts'], ['test/eager.case.ts']],
       ['function', 'cold', ['test/eager.case.ts'], undefined],
+    ]);
+  }, 20_000);
+
+  it('separates a module the test loaded from a module the test entered', async () => {
+    // Two spellings of one shape, and the shape is what a reduction reader
+    // needs: a named import that no execution ever reaches. `branch.dom.tsx`
+    // imports `HeavyChart` through the module under test and never takes the
+    // branch that renders it; `spy.dom.tsx` imports `formatTotal` and puts a
+    // spy in front of it. Both files are loaded, both are reached on the import
+    // graph, and neither has anything below its top level entered.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--config', resolve(unenteredFixture, 'vitest.config.ts')],
+      { cwd: unenteredFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    const regions = (file: string) => coverage.modules.find((module) => module.file === file)
+      ?.blocks.map((block) => [block.kind, block.name, block.testFiles, block.loadedBy]);
+
+    // The branch never taken. The module root was crossed *because the module
+    // loaded* — `loadedBy` says so — and `HeavyChart` was crossed by nobody.
+    expect(regions('src/heavy-chart.tsx')).toEqual([
+      ['module', '', ['test/branch.dom.tsx'], ['test/branch.dom.tsx']],
+      ['function', 'HeavyChart', [], undefined],
+      ['function', 'HeavyChart/reduce.arg0', [], undefined],
+    ]);
+    // The spy standing in front of the import, recorded identically.
+    expect(regions('src/format-total.ts')).toEqual([
+      ['module', '', ['test/spy.dom.tsx'], ['test/spy.dom.tsx']],
+      ['function', 'formatTotal', [], undefined],
+    ]);
+    // And the control: a module the test did enter, so the reading above is
+    // about these two files and not about every file in the run.
+    expect(regions('src/panel.tsx')).toEqual([
+      ['module', '', ['test/branch.dom.tsx'], ['test/branch.dom.tsx']],
+      ['function', 'Panel', ['test/branch.dom.tsx'], undefined],
     ]);
   }, 20_000);
 
