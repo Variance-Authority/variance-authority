@@ -23,6 +23,7 @@ const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   README: "/docs",
   agents: "/agents",
   "agent-live-run": "/agents/live-run",
+  "agent-interrogate": "/agents/interrogate",
   "agent-cli": "/agents/cli",
   "agent-mcp": "/agents/mcp",
   "agent-questions": "/agents/questions",

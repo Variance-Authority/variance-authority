@@ -32,6 +32,8 @@ function test(over: Partial<WatchedTest> = {}): WatchedTest {
     forgotten: 0,
     pending: [],
     remarks: [],
+    notes: [],
+    forgottenNotes: 0,
     ...over,
   };
 }
@@ -64,6 +66,7 @@ describe('variance_run_signals', () => {
     expect((listed!.result as { tools: { name: string }[] }).tools).toEqual([
       expect.objectContaining({ name: 'variance_self' }),
       expect.objectContaining({ name: 'variance_run_signals' }),
+      expect.objectContaining({ name: 'variance_waiting' }),
       expect.objectContaining({ name: 'variance_test_signals' }),
       expect.objectContaining({ name: 'variance_diff' }),
     ]);

@@ -442,6 +442,51 @@ describe('the report file', () => {
       await rm(directory, { recursive: true, force: true });
     }
   });
+  it('stops a test, shows what it is holding, and lets it go', async () => {
+    // The pair through a real client rather than through the tool functions:
+    // `variance_continue` is the only tool here that changes anything, and what
+    // it changes lives in the server rather than in the snapshot it is handed.
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const lines = readLines(output);
+    const watching = await serveVantage({ input, output });
+
+    try {
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'initialize' })}\n`);
+      await lines();
+
+      const vantage = openVantage(watching.address);
+      vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
+      const waited = vantage?.waits('t-1', 'cart.spec.ts:24:7', { pollMs: 10 });
+
+      const call = (id: number, name: string, args: Record<string, unknown> = {}) =>
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          id,
+          method: 'tools/call',
+          params: { name, arguments: args },
+        })}\n`;
+
+      await expect
+        .poll(async () => {
+          input.write(call(1, 'variance_waiting'));
+          return await lines();
+        })
+        .toContain('cart.spec.ts:24:7');
+
+      input.write(call(2, 'variance_continue', { test: 't-1' }));
+      expect(await lines()).toContain('Released cart adds an item [t-1]');
+
+      // The run is what proves it: the tool did not merely say so.
+      await expect(waited).resolves.toBe('continued');
+
+      input.write(call(3, 'variance_waiting'));
+      expect(await lines()).toContain('Nothing is waiting');
+    } finally {
+      await watching.stop();
+    }
+  });
+
 });
 
 it.todo(

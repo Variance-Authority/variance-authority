@@ -43,10 +43,12 @@ const vantage = openVantage();
 vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
 ```
 
-`opened`, `heard`, `remarked` and `closed` are the four sentences a run says, and
-every one is fire-and-forget. A watcher is an observer and may not break its
-subject: a run that failed because the thing looking at it went away would be
-worse than no watcher at all.
+`opened`, `heard`, `remarked`, `noted`, `waiting` and `closed` are the six
+sentences a run says, and every one of them is fire-and-forget. A watcher is an
+observer and may not break its subject: a run that failed because the thing
+looking at it went away would be worse than no watcher at all. A test that
+stopped at `waiting` then *asks*, separately, whether it may go on — which is
+the same rule held rather than an exception to it.
 
 `attachVantage()`, from `@variance-authority/vantage/attach`, is the watcher's
 end and the only half that opens a socket. The port is ephemeral and the address
@@ -71,6 +73,8 @@ drops a report it cannot read rather than half-reading it.
 | `heard` | every announcement in this execution, in the order it was announced |
 | `pending` | work `vaStart` opened and `vaEnd` never closed |
 | `remarks` | what the listener knew and a wait could not see |
+| `notes` | what the spec's author sent from a call they placed, and where from |
+| `waitingAt` | where this test stopped, while it is stopped |
 | `forgotten` | announcements dropped from the front to stay bounded |
 | `file`, `worker`, `ordinal` | the path already open, the worker, the arrival order |
 
@@ -95,6 +99,26 @@ order and marks the one still running, `variance_test_signals` reads one test's
 announcements, the realm that sent each, and its unclosed work, and
 `variance_diff` answers what changed since the preceding call. The workflow is in
 [inspect a live run](agent-live-run.md).
+
+## Stopping a run, and letting it go
+
+`waiting` is the one sentence that does not return immediately, and it keeps the
+observer rule rather than breaking it. **The run asks and the watcher answers.**
+A stopped test polls the watcher for permission to go on, so the socket
+direction never reverses, and every way of losing the watcher — gone, restarted,
+never there — ends the wait instead of extending it. The failure mode of the
+thing that stops a test is *the test continues*.
+
+The answer is also the release. A reader calls `release`, and the next time the
+run asks, `asked` spends it and clears the stop in the same event — so two
+readers cannot let one test go twice, and a second release cannot land on
+whatever that test stops at next.
+
+A wait ends in one of four words: `continued`, `unwatched`, `released` or
+`expired`. None of them is a test failure, which is why the call answers rather
+than throws. The spec-side calls that put a test there, and the tools that find
+and release it, are in [interrogate a test where it
+stands](agent-interrogate.md).
 
 ## Nothing is written down
 

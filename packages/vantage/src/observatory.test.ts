@@ -55,6 +55,8 @@ describe('createObservatory', () => {
         forgotten: 0,
         pending: [],
         remarks: [],
+        notes: [],
+        forgottenNotes: 0,
       },
     ]);
   });

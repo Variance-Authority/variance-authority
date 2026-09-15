@@ -63,6 +63,7 @@ members. Native tools remain available on the same connection:
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_source_tests` | Sense execution index | which named tests entered source and their minimum observed distance |
 | `variance_run_signals`, `variance_test_signals` | Vantage state | what an in-flight suite and one test have announced |
+| `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
 | `variance_distill` | Eyes archive and/or Sense execution index | one test's addressed AAA surface, React update initiators, and source reduction opportunities |
@@ -171,9 +172,11 @@ told it one run too late.
 | `variance_self` | where this watcher is listening, what it is holding, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
 | `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
 | `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
+| `variance_waiting` | which tests have stopped at an `await variance.observe()` call, where each stopped, and what it sent from there | before looking at anything, and whenever you want to know whether a run is holding something open for you |
+| `variance_continue` | nothing; it lets a stopped test go on | you have finished looking at what one was holding still |
 
 `variance_run_signals` takes `state`, `file` and `limit`, and marks a running
-test with `▸`. `variance_test_signals` takes `test` — an id from the listing, a
+test with `▸` and a stopped one as `waiting`. `variance_test_signals` takes `test` — an id from the listing, a
 title, or enough of one to be unambiguous; where it is not unambiguous, the
 answer is the candidates and their ids. `variance_self` takes nothing.
 
@@ -182,6 +185,18 @@ nothing has run yet, or something ran and reported somewhere else. A connection
 is told the address at the handshake and can see itself connected, so it needs
 this least — a reader that runs one command and exits has no handshake to look
 at, and asks it most.
+
+`variance_waiting` and `variance_continue` are the pair that make a run
+something to *interrupt* rather than only something to read. Where a test author
+wrote `await variance.observe()`, the test stops there and holds everything it
+had — the page up, the network as it was — until you say go on; the runner's
+clock is stopped while it stands still. `variance_waiting` says which tests are
+stopped and where, and prints whatever they sent from those points;
+`variance_continue` takes one id, or nothing at all to release everything.
+
+Neither is offered by `variance ask`. A shell command holds no run, so there is
+nothing in it to release, and one that reported success while nothing moved
+would be worse than a missing one.
 
 `variance_test_signals` is the one a timeout cannot give. A runner reports what a test
 *wanted*; this reports what its execution actually **heard**, and from whom.

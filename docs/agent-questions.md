@@ -77,6 +77,12 @@ announcements go to `variance watch` or `variance-authority-mcp --watch`.
 entrances. The connection, address model and lifetime boundary are in
 [inspect a live run](agent-live-run.md).
 
+`variance_waiting` and `variance_continue` are MCP-only, and answer about a test
+that has stopped at a call its author wrote rather than about the run as a
+whole: where it stopped, what it sent from there, and when it may go on. The
+worked spec and tool sequence are in [interrogate a test where it
+stands](agent-interrogate.md).
+
 Live signals do not carry authored AAA attention. They answer where progress
 stopped, not what UI the test owns.
 

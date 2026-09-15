@@ -29,7 +29,7 @@
 
 import type { RecordedEvent } from '@variance-authority/event/collect';
 import type { VantageReport } from './report.js';
-import type { TestState, VantageState, WatchedTest } from './state.js';
+import type { Note, TestState, VantageState, WatchedTest } from './state.js';
 
 export interface ObservatoryOptions {
   /**
@@ -41,6 +41,8 @@ export interface ObservatoryOptions {
   readonly tests?: number;
   /** How many announcements to keep per test. Defaults to 500, newest kept. */
   readonly heard?: number;
+  /** How many notes to keep per test. Defaults to 100, newest kept. */
+  readonly notes?: number;
 }
 
 /** A watcher's memory of a run. */
@@ -49,6 +51,24 @@ export interface Observatory {
   readonly took: (test: string, report: VantageReport) => void;
   /** The run as it stands now, as plain values that will not change again. */
   readonly snapshot: () => VantageState;
+  /**
+   * Tell a stopped test to go on, and answer whether there was one to tell.
+   *
+   * `false` for a test that is not stopped, or is already going: a reader that
+   * asked twice must not leave a second release standing, because the run polls
+   * and the second one would land on whatever that test stopped at next.
+   */
+  readonly release: (test: string) => boolean;
+  /** Tell everything that is stopped to go on, and answer which tests those were. */
+  readonly releaseAll: () => readonly string[];
+  /**
+   * What a stopped run is answered when it asks whether it may go on.
+   *
+   * Spends the release rather than reporting it: this is the call that un-stops
+   * the test, so the answer and the state change are the same event and no
+   * second reader can spend the same release.
+   */
+  readonly asked: (test: string) => boolean;
 }
 
 interface Held {
@@ -64,12 +84,33 @@ interface Held {
   readonly open: Map<string, RecordedEvent>;
   /** Keyed and last-write-wins, the same as the log's own remarks. */
   readonly remarks: Map<string, string>;
+  /** Accumulated in arrival order, because two notes are two places. */
+  readonly notes: Note[];
+  noted: number;
+  forgottenNotes: number;
+  /**
+   * Where this test stopped, while it is stopped.
+   *
+   * Always present and often `undefined`, rather than optional, because this is
+   * the one field that is *cleared* — a release, a close — and an exact optional
+   * cannot be assigned the absence it needs to return to.
+   */
+  waitingAt: string | undefined;
+  /**
+   * Whether a reader has told it to go on, until the run comes to collect that.
+   *
+   * Separate from {@link waitingAt} because the two answer different questions —
+   * one is what a reader sees, the other is what the run is owed — and reading
+   * the second off the first would make every poll its own release.
+   */
+  releasing: boolean;
   error?: string;
 }
 
 export function createObservatory(options: ObservatoryOptions = {}): Observatory {
   const keptTests = options.tests ?? 200;
   const keptHeard = options.heard ?? 500;
+  const keptNotes = options.notes ?? 100;
   const held = new Map<string, Held>();
   let opened = 0;
   let forgotten = 0;
@@ -92,6 +133,11 @@ export function createObservatory(options: ObservatoryOptions = {}): Observatory
       forgotten: 0,
       open: new Map(),
       remarks: new Map(),
+      notes: [],
+      noted: 0,
+      forgottenNotes: 0,
+      waitingAt: undefined,
+      releasing: false,
     };
     opened += 1;
     held.set(test, made);
@@ -131,14 +177,57 @@ export function createObservatory(options: ObservatoryOptions = {}): Observatory
         one.remarks.set(report.about, report.sentence);
         return;
 
+      case 'noted':
+        one.notes.push({
+          at: report.at,
+          note: report.note,
+          ordinal: one.noted,
+          after: one.forgotten + one.heard.length,
+        });
+        one.noted += 1;
+        if (one.notes.length > keptNotes) {
+          one.notes.shift();
+          one.forgottenNotes += 1;
+        }
+        return;
+
+      case 'waiting':
+        one.waitingAt = report.at;
+        return;
+
       case 'closed':
+        // Whatever it was waiting at, it is not waiting now. A test that ended
+        // while a reader still had it listed as stopped would leave a release
+        // nobody can ever spend.
+        one.waitingAt = undefined;
+        one.releasing = false;
         one.state = report.state;
         if (report.error !== undefined) one.error = report.error;
     }
   };
 
+  const release = (test: string): boolean => {
+    const one = held.get(test);
+    if (one === undefined || one.waitingAt === undefined || one.releasing) return false;
+    one.releasing = true;
+    return true;
+  };
+
   return {
     took,
+    release,
+    releaseAll: () => {
+      const released: string[] = [];
+      for (const id of held.keys()) if (release(id)) released.push(id);
+      return released;
+    },
+    asked: (test) => {
+      const one = held.get(test);
+      if (one === undefined || !one.releasing) return false;
+      one.releasing = false;
+      one.waitingAt = undefined;
+      return true;
+    },
     snapshot: () => ({
       ...(options.address === undefined ? {} : { address: options.address }),
       tests: [...held].map(([id, one]) => watched(id, one)),
@@ -160,6 +249,9 @@ function watched(id: string, one: Held): WatchedTest {
     forgotten: one.forgotten,
     pending: [...one.open.values()],
     remarks: [...one.remarks.values()],
+    notes: [...one.notes],
+    forgottenNotes: one.forgottenNotes,
+    ...(one.waitingAt === undefined ? {} : { waitingAt: one.waitingAt }),
     ...(one.error === undefined ? {} : { error: one.error }),
   };
 }

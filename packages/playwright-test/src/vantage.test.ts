@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import type { TestInfo } from '@playwright/test';
 import type { TestState, Vantage, WatchedTestIdentity } from '@variance-authority/vantage';
 import { describe, expect, it } from 'vitest';
-import { varianceVantageFixtures } from './vantage.js';
+import { varianceDesk, varianceVantageFixtures } from './vantage.js';
 
 /**
  * The lifecycle half, without a browser.
@@ -25,6 +25,8 @@ function watcher(): { said: Said; vantage: Vantage } {
       opened: (test, identity) => said.opened.push({ test, identity }),
       heard: () => {},
       remarked: () => {},
+      noted: () => {},
+      waits: async () => 'continued',
       closed: (test, state, error) =>
         said.closed.push({ test, state, ...(error === undefined ? {} : { error }) }),
     },
@@ -131,5 +133,133 @@ describe('varianceVantageFixtures', () => {
     // The bargain the whole package rests on: unwatched, this is a no-op that
     // every test in every suite runs, so it has to cost nothing and throw never.
     await expect(watched(undefined, info())).resolves.toBeUndefined();
+  });
+});
+
+describe('the two calls a test author writes', () => {
+  /** A vantage that keeps what it was told and answers waits on command. */
+  function listening(): {
+    notes: { test: string; at: string; note: string }[];
+    waited: { test: string; at: string }[];
+    vantage: Vantage;
+  } {
+    const notes: { test: string; at: string; note: string }[] = [];
+    const waited: { test: string; at: string }[] = [];
+    return {
+      notes,
+      waited,
+      vantage: {
+        opened: () => {},
+        heard: () => {},
+        remarked: () => {},
+        noted: (test, at, note) => notes.push({ test, at, note }),
+        waits: async (test, at) => {
+          waited.push({ test, at });
+          return 'continued';
+        },
+        closed: () => {},
+      },
+    };
+  }
+
+  it('costs nothing at all when nobody is watching', async () => {
+    // The property the whole feature rests on: a call left in a committed spec
+    // is inert in CI, unlike the `debugger;` it stands in for.
+    const desk = varianceDesk(undefined, 't-1');
+
+    expect(() => desk.snapshot('halfway')).not.toThrow();
+    await expect(desk.observe()).resolves.toBe('unwatched');
+  });
+
+  it('says where in the spec the call was, without being told', async () => {
+    const { notes, waited, vantage } = listening();
+    const desk = varianceDesk(vantage, 't-1');
+
+    desk.snapshot('cart filled');
+    await desk.observe('look at this');
+
+    expect(notes.map((one) => one.note)).toEqual(['cart filled', 'look at this']);
+    // The caller's own file and line, not this module's.
+    for (const one of [...notes, ...waited]) {
+      expect(one.at).toMatch(/vantage\.test\.ts:\d+:\d+$/);
+    }
+    expect(waited).toEqual([{ test: 't-1', at: expect.any(String) }]);
+  });
+
+  it('blocks wherever the test is awaiting, not only in its body', async () => {
+    // Established by experiment rather than reasoning: the rule is not "test
+    // body only" but any frame the test is transitively awaiting.
+    const { waited, vantage } = listening();
+    const desk = varianceDesk(vantage, 't-1');
+
+    const helper = async (): Promise<void> => {
+      await desk.observe();
+    };
+    await helper();
+
+    expect(waited).toHaveLength(1);
+    expect(waited[0]?.at).toMatch(/vantage\.test\.ts:\d+:\d+$/);
+  });
+
+  it('sends a note with no words rather than refusing one', async () => {
+    const { notes, vantage } = listening();
+
+    varianceDesk(vantage, 't-1').snapshot();
+
+    expect(notes[0]?.note).toBe('');
+  });
+});
+
+describe('a test that stands still and the runner’s clock', () => {
+  it('stops the clock while it waits and hands back only the time it stood still', async () => {
+    // A test held open for somebody to look at is not a slow test. Without this
+    // the one feature whose purpose is to hold a page still would arrive as a
+    // timeout with no explanation in it.
+    const set: number[] = [];
+    let held = false;
+    const vantage: Vantage = {
+      opened: () => {},
+      heard: () => {},
+      remarked: () => {},
+      noted: () => {},
+      waits: async () => {
+        held = set.at(-1) === 0;
+        return 'continued';
+      },
+      closed: () => {},
+    };
+
+    await varianceDesk(vantage, 't-1', {
+      reprieve: () => {
+        set.push(0);
+        return () => set.push(30_000);
+      },
+    }).observe();
+
+    expect(held).toBe(true);
+    expect(set).toEqual([0, 30_000]);
+  });
+
+  it('gives the clock back even when the wait throws', async () => {
+    const set: string[] = [];
+    const vantage: Vantage = {
+      opened: () => {},
+      heard: () => {},
+      remarked: () => {},
+      noted: () => {},
+      waits: () => Promise.reject(new Error('the socket went')),
+      closed: () => {},
+    };
+
+    await expect(
+      varianceDesk(vantage, 't-1', {
+        reprieve: () => {
+          set.push('held');
+          return () => set.push('given back');
+        },
+      }).observe(),
+    ).rejects.toThrow('the socket went');
+
+    expect(set).toEqual(['held', 'given back']);
   });
 });

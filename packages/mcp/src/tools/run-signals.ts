@@ -71,8 +71,13 @@ function summary(state: VantageState, matching: readonly WatchedTest[]): string 
 }
 
 function row(test: WatchedTest): string {
+  // A stopped test is still running, so the arrow stays; what changes is the
+  // word, because a reader watching for movement needs to know none is coming
+  // until they ask for it.
   const mark = test.state === 'running' ? '▸' : ' ';
-  const lines = [`${mark} ${test.state.padEnd(11)} ${heading(test)} — ${tally(test)}`];
+  const state = test.waitingAt === undefined ? test.state : 'waiting';
+  const lines = [`${mark} ${state.padEnd(11)} ${heading(test)} — ${tally(test)}`];
+  if (test.waitingAt !== undefined) lines.push(`      stopped at ${test.waitingAt}`);
   if (test.error !== undefined) {
     lines.push(...test.error.split('\n').map((line) => `      ${line}`));
   }

@@ -64,10 +64,17 @@ Start with identity, then narrow to the test:
 | Which tests opened, and which is still running? | `variance ask run-signals` | `variance_run_signals` |
 | What did one test announce, in order? | `variance ask test-signals --test <id>` | `variance_test_signals` |
 | What arrived since the previous reading? | `variance ask diff` | `variance_diff` |
+| Which tests have stopped for me to look at them? | — | `variance_waiting` |
+| Let a stopped test go on. | — | `variance_continue` |
 
 `--at <address>` selects a watcher and defaults to
 `VARIANCE_AUTHORITY_VANTAGE`. Ask `self` first: a suite reporting to a different
 address and a suite that never started both look quiet to every other question.
+
+The last two answer only under MCP. A CLI process holds no run, so there is
+nothing in it to release, and they are the pair a spec reaches with
+`variance.snapshot()` and `await variance.observe()` — see [interrogate a test
+where it stands](agent-interrogate.md).
 
 A listed test with no announcements is a measured lifecycle with no application
 signal. It is not a reconstructed empty trace. `test-signals` preserves the

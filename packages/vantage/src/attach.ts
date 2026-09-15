@@ -22,6 +22,7 @@ import { listen, type Wire } from '@variance-authority/wire/listen';
 import { createObservatory, type Observatory, type ObservatoryOptions } from './observatory.js';
 import { isVantageReport } from './report.js';
 import type { VantageState } from './state.js';
+import { VANTAGE_WAITING } from './watch.js';
 
 /**
  * Where a reader asks, on the origin a run reports to.
@@ -72,7 +73,13 @@ export async function attachVantage(options: AttachOptions = {}): Promise<Attach
   // the one the reader will be told, and not a second one assembled later.
   let previous: VantageState | undefined;
 
-  const answer = (path: string): VantageReading | undefined => {
+  const answer = (path: string): VantageReading | boolean | undefined => {
+    if (path.startsWith(`${VANTAGE_WAITING}/`)) {
+      // The answer spends the release: being told `true` is the only thing that
+      // un-stops a run, and it is told that exactly once per release, however
+      // many readers asked for one.
+      return observatory.asked(decodeURIComponent(path.slice(VANTAGE_WAITING.length + 1)));
+    }
     if (path !== VANTAGE_ASK) return undefined;
     const state = observatory.snapshot();
     const reading: VantageReading = previous === undefined ? { state } : { state, previous };

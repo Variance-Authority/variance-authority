@@ -253,6 +253,11 @@ export const NAVIGATION = [
         alternative: true,
       },
       {
+        href: "/agents/interrogate",
+        label: "Interrogate a test where it stands",
+        alternative: true,
+      },
+      {
         href: "/agents/workspace-api",
         label: "Inspect a workspace API",
         alternative: true,

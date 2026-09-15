@@ -12,6 +12,7 @@ import {
   handle,
   type JsonRpcRequest,
 } from './protocol.js';
+import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
 
 /**
@@ -195,7 +196,10 @@ export async function serveVantage(streams: ReportFileOptions = {}): Promise<Ser
   const stop = serve({
     input: streams.input ?? process.stdin,
     output: streams.output ?? process.stdout,
-    served: VANTAGE,
+    // The one served set assembled here rather than declared, because the one
+    // tool that changes anything needs the thing it changes, and that exists
+    // only once a watcher is listening.
+    served: { ...VANTAGE, tools: [...VANTAGE.tools, continuing(attached.observatory)] },
     subject: () => attached.observatory.snapshot(),
   });
 

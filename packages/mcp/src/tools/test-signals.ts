@@ -1,6 +1,6 @@
 import type { VantageState, WatchedTest } from '@variance-authority/vantage';
 import { stringArg, type Tool } from './tool.js';
-import { announcement, heading, unattached } from './vantage-lines.js';
+import { announcement, heading, notesOf, unattached } from './vantage-lines.js';
 
 /**
  * Everything one test has announced, in order, whatever realm said it.
@@ -67,6 +67,7 @@ function described(test: WatchedTest): string {
     ...heard(test),
     ...pending(test),
     ...remarks(test),
+    ...notes(test),
     ...ended(test),
   ].join('\n');
 }
@@ -103,7 +104,22 @@ function remarks(test: WatchedTest): string[] {
   return ['', 'The listener also knows:', ...test.remarks.map((line) => `  ${line}`)];
 }
 
+function notes(test: WatchedTest): string[] {
+  const lines = notesOf(test);
+  if (lines.length === 0) return [];
+  return ['', `The test itself ${lines[0]}`, ...lines.slice(1).map((line) => `  ${line}`)];
+}
+
 function ended(test: WatchedTest): string[] {
+  if (test.waitingAt !== undefined) {
+    // Said before the state, because a reader who does not know a test is
+    // stopped reads "running" and waits for it to move.
+    return [
+      '',
+      `Stopped at ${test.waitingAt}, waiting to be told to continue. Release it ` +
+        'with `variance_continue`.',
+    ];
+  }
   if (test.state === 'running') return ['', 'Still running; this is where it had got to.'];
   if (test.error === undefined) return ['', `Ended: ${test.state}.`];
   return ['', `Ended: ${test.state}.`, ...test.error.split('\n').map((line) => `  ${line}`)];

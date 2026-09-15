@@ -40,6 +40,26 @@ export function tally(test: WatchedTest): string {
 }
 
 /**
+ * What this test sent from the points its author chose, newest last.
+ *
+ * Printed here as well as in `variance_test_signals`, because a reader who came
+ * to this tool came to decide whether to let a test go, and the note is what the
+ * author left for exactly that decision.
+ */
+export function notesOf(test: WatchedTest): string[] {
+  if (test.notes.length === 0) return [];
+  return [
+    test.forgottenNotes === 0
+      ? 'sent:'
+      : `sent (the first ${test.forgottenNotes} were dropped to stay bounded):`,
+    ...test.notes.map(
+      (note) =>
+        `  ${note.at}  after ${note.after} announcement(s)  ${note.note === '' ? '(no words)' : note.note}`,
+    ),
+  ];
+}
+
+/**
  * How a run is pointed at this vantage, in the form it goes in.
  *
  * One spelling, said in two places, because the two places are the two moments

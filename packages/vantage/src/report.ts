@@ -1,7 +1,7 @@
 /**
  * What a run says while it is running.
  *
- * Four sentences, and none of them names the test. The execution is in the
+ * Six sentences, and none of them names the test. The execution is in the
  * address a report arrives on, exactly as it is for every other participant on
  * this wire (`@variance-authority/wire`): a body that named its own test could
  * claim one, and a watcher that believed it would attribute an announcement to
@@ -45,6 +45,35 @@ export interface TestRemarked extends Said {
   readonly sentence: string;
 }
 
+/**
+ * The test sent what is here now, from a call its author placed.
+ *
+ * Distinct from {@link TestRemarked}, which is the *listener* saying something a
+ * wait could not see. This is the test's own voice, at a point in the spec
+ * somebody chose, and it accumulates rather than replacing: two calls at two
+ * points are two facts about where the execution went, and a keyed last-write
+ * would keep only the second.
+ */
+export interface TestNoted extends Said {
+  readonly kind: 'noted';
+  /** Where in the spec the call sits, for a reader who has the file open. */
+  readonly at: string;
+  readonly note: string;
+}
+
+/**
+ * The test stopped at one of those points and is waiting to be told to go on.
+ *
+ * Reported rather than inferred from the poll that follows it, so a watcher
+ * knows a test is waiting even in the window before its first ask arrives, and
+ * so the reason a test has stopped moving is a fact it stated rather than one
+ * read out of its silence.
+ */
+export interface TestWaiting extends Said {
+  readonly kind: 'waiting';
+  readonly at: string;
+}
+
 /** A test ended, however it ended. */
 export interface TestClosed extends Said {
   readonly kind: 'closed';
@@ -53,9 +82,15 @@ export interface TestClosed extends Said {
 }
 
 /** One thing a run said about one test. */
-export type VantageReport = TestOpened | TestHeard | TestRemarked | TestClosed;
+export type VantageReport =
+  | TestOpened
+  | TestHeard
+  | TestRemarked
+  | TestNoted
+  | TestWaiting
+  | TestClosed;
 
-const KINDS = new Set(['opened', 'heard', 'remarked', 'closed']);
+const KINDS = new Set(['opened', 'heard', 'remarked', 'noted', 'waiting', 'closed']);
 
 /**
  * Whether a body off the wire is one of these.

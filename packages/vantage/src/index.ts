@@ -35,10 +35,12 @@ export { VANTAGE_VERSION, isVantageReport } from './report.js';
 export type {
   TestClosed,
   TestHeard,
+  TestNoted,
   TestOpened,
   TestRemarked,
+  TestWaiting,
   VantageReport,
 } from './report.js';
-export type { RecordedEvent, TestState, VantageState, WatchedTest } from './state.js';
-export { VANTAGE_VARIABLE, openVantage } from './watch.js';
-export type { Vantage, WatchedTestIdentity } from './watch.js';
+export type { Note, RecordedEvent, TestState, VantageState, WatchedTest } from './state.js';
+export { VANTAGE_VARIABLE, VANTAGE_WAITING, openVantage, waitingPath } from './watch.js';
+export type { Vantage, Waited, WaitOptions, WatchedTestIdentity } from './watch.js';

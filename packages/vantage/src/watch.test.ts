@@ -128,3 +128,104 @@ describe('openVantage', () => {
     await after(50);
   });
 });
+
+describe('what a test sends from a point its author placed', () => {
+  it('keeps two notes as two facts, in order', async () => {
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    vantage?.noted('t1', 'a.spec.ts:12', 'cart filled');
+    vantage?.noted('t1', 'a.spec.ts:19', 'checkout opened');
+
+    await expect
+      .poll(() => one.observatory.snapshot().tests[0]?.notes.map((note) => note.note))
+      .toEqual(['cart filled', 'checkout opened']);
+    expect(one.observatory.snapshot().tests[0]?.notes.map((note) => note.at)).toEqual([
+      'a.spec.ts:12',
+      'a.spec.ts:19',
+    ]);
+  });
+});
+
+describe('a test that stops to be looked at', () => {
+  it('says it is waiting before anybody asks it anything', async () => {
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    const waited = vantage?.waits('t1', 'a.spec.ts:12');
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBe('a.spec.ts:12');
+
+    one.observatory.release('t1');
+    await expect(waited).resolves.toBe('continued');
+  });
+
+  it('goes on when a reader releases everything', async () => {
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    const waited = vantage?.waits('t1', 'a.spec.ts:12');
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBe('a.spec.ts:12');
+    expect(one.observatory.releaseAll()).toEqual(['t1']);
+
+    await expect(waited).resolves.toBe('continued');
+    expect(one.observatory.snapshot().tests[0]?.waitingAt).toBeUndefined();
+  });
+
+  it('releases one test once, however many readers ask', async () => {
+    // Two readers that each saw a stopped test and each cleared it would spend
+    // one release twice, and the second would land on wherever the test stopped
+    // next. The answer is the release, so only the first answer is `true`.
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    const waited = vantage?.waits('t1', 'a.spec.ts:12');
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBe('a.spec.ts:12');
+    expect(one.observatory.release('t1')).toBe(true);
+    expect(one.observatory.release('t1')).toBe(false);
+
+    await expect(waited).resolves.toBe('continued');
+  });
+
+  it('carries on when the watcher goes away mid-wait', async () => {
+    // The whole feature rests on this. A call left in a committed spec must not
+    // be a way to hang a suite, so every way of losing the watcher ends the
+    // wait — the failure mode of the thing that stops a test is that the test
+    // continues.
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    const waited = vantage?.waits('t1', 'a.spec.ts:12', { pollMs: 5 });
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBe('a.spec.ts:12');
+    await one.close();
+    attached.splice(0);
+
+    await expect(waited).resolves.toBe('released');
+  });
+
+  it('gives up rather than standing there forever', async () => {
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+
+    await expect(vantage?.waits('t1', 'a.spec.ts:12', { timeoutMs: 0, pollMs: 5 })).resolves.toBe(
+      'expired',
+    );
+  });
+
+  it('forgets a test was waiting when it ends', async () => {
+    // A release nobody can ever spend is a line in a listing that stays there.
+    const one = await watcher();
+    const vantage = openVantage(one.address);
+    vantage?.opened('t1', { title: 'a', file: 'a.spec.ts', worker: 0 });
+    vantage?.waits('t1', 'a.spec.ts:12', { pollMs: 5 });
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBe('a.spec.ts:12');
+    vantage?.closed('t1', 'timedOut');
+
+    await expect.poll(() => one.observatory.snapshot().tests[0]?.waitingAt).toBeUndefined();
+  });
+});

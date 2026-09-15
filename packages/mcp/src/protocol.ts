@@ -95,6 +95,12 @@ export const VANTAGE: Served<VantageState> = {
         'started and never ended. Both answer while the test is still running, ' +
         'which is what a runner cannot do from outside the worker.',
       '',
+      'A test can also stop and wait for you. Where its author wrote `await ' +
+        'variance.observe()`, the test holds where it is until you say go on: ' +
+        'ask `variance_waiting` for which tests are stopped and where, look at ' +
+        'whatever you need to while the page is still, then `variance_continue`. ' +
+        'Nothing is stopped unless `variance_waiting` says so.',
+      '',
       'Ask `variance_self` when an answer is emptier than expected. It says what ' +
         'this watcher is holding and what a suite has to be started with, which ' +
         'is what separates a run that reported somewhere else from one that has ' +

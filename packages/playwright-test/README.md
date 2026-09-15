@@ -523,6 +523,45 @@ started with `variance-authority-mcp --watch`. It prints the line above with its
 own address in it, then answers which tests are running, and what the one that
 is hanging has heard so far.
 
+### Stop a test where you want to look at it
+
+The `variance` fixture carries two more calls, for when you want a watcher to
+see a particular moment rather than the whole run:
+
+```ts
+test('the cart settles', async ({ page, variance }) => {
+  await page.getByRole('button', { name: 'Add' }).click();
+  variance.snapshot('one item in');
+
+  await page.getByRole('button', { name: 'Checkout' }).click();
+  await variance.observe('before the card form appears');
+
+  await variance(page.getByTestId('cart'));
+});
+```
+
+`snapshot` sends what is here now and keeps going. `observe` sends it and then
+holds the test where it is — the page still up, the network still whatever it
+was — until an agent that has looked around calls `variance_continue`. Neither
+takes a line number: both read their own.
+
+Leave them in. With `VARIANCE_AUTHORITY_VANTAGE` unset, `observe` returns
+immediately and `snapshot` sends nothing, so a spec that has them runs straight
+through in CI — which is what separates them from the `debugger;` and `.only`
+they stand in for. While a test is standing still, the runner's clock is
+stopped, and when it goes on it has exactly the time it had before.
+
+Outside this package's own fixture, `varianceDesk` takes the two calls anywhere
+a `Vantage` and a test id can be had. Its `reprieve` option is how the stopped
+clock above is installed — called when a wait begins, and what it answers is
+called when the wait ends — and `runnerReprieve(testInfo)` is the Playwright
+spelling of it. A host with no clock passes neither.
+
+They work anywhere the test is awaiting, not only in the test body: a helper the
+test awaits, or a `page.route` handler it awaits, stops just the same. A call in
+a frame nobody awaits — an effect, a render body — cannot stop anything, and
+does not.
+
 ## Loading and Suspense boundaries
 
 Before the subtree is acquired, the integration waits for every React Suspense

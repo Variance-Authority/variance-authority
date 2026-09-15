@@ -43,6 +43,7 @@ import {
   type VarianceEventFixtures,
   type VarianceEventWorkerFixtures,
 } from './events.js';
+import { runnerReprieve, varianceDesk, type VarianceDesk } from './vantage.js';
 import { varianceVantageFixtures } from './vantage.js';
 import type { VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
@@ -78,8 +79,19 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  */
 
 export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures {
-  /** Observe one subtree against its stored baseline. */
-  readonly variance: (locator: Locator, options?: VarianceOptions) => Promise<Observed>;
+  /**
+   * Observe one subtree against its stored baseline — and, on the same name, the
+   * two calls that let a test be looked at while it runs.
+   *
+   * One identifier rather than two, because a test author asking to be seen is
+   * not doing a second kind of thing: `variance(heading)` is what this suite
+   * checks, `variance.snapshot()` and `await variance.observe()` are what it
+   * says while checking it. A second fixture would mean a second thing to
+   * destructure before writing the one line somebody needs at two in the
+   * morning.
+   */
+  readonly variance: ((locator: Locator, options?: VarianceOptions) => Promise<Observed>) &
+    VarianceDesk;
 }
 
 export interface VarianceWorkerFixtures
@@ -236,7 +248,15 @@ export const varianceFixtures: Fixtures<
     // cookie on the context, and it has to be there before the subject
     // navigates — a head cannot be told which execution a request belongs to by
     // an id that arrived after the request did.
-    { page, varianceBundle, varianceRenderer, varianceStore, varianceRecorder, varianceJourney },
+    {
+      page,
+      varianceBundle,
+      varianceRenderer,
+      varianceStore,
+      varianceRecorder,
+      varianceJourney,
+      varianceVantage,
+    },
     use,
     testInfo,
   ) => {
@@ -244,7 +264,7 @@ export const varianceFixtures: Fixtures<
     await page.addInitScript(varianceBundle);
     const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
     const declared = createDeclarationReader(page, { global: AGENT });
-    await use(async (locator, options) => {
+    const observing = async (locator: Locator, options?: VarianceOptions) => {
       try {
         // The runner already owns a per-test output directory it cleans and
         // reports from, so on this path evidence is on by default and lands
@@ -272,7 +292,16 @@ export const varianceFixtures: Fixtures<
         // whichever spec drained next — an attribution that is simply false.
         if (owner !== undefined) await varianceRecorder!.note(page, owner);
       }
-    });
+    };
+
+    await use(
+      Object.assign(
+        observing,
+        varianceDesk(varianceVantage, testInfo.testId, {
+          reprieve: () => runnerReprieve(testInfo),
+        }),
+      ),
+    );
     await declared.close();
     // After `use`, which is where the runner has already decided this test.
     if (owner !== undefined) varianceRecorder!.mark(owner, testInfo.status === 'passed');

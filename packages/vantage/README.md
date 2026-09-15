@@ -53,8 +53,8 @@ const vantage = openVantage();
 vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
 ```
 
-`opened`, `heard`, `remarked` and `closed` are the four sentences a run says,
-and every one of them is fire-and-forget. A watcher is an observer and may not
+`opened`, `heard`, `remarked`, `noted` and `closed` are the five sentences a run
+says on its own account, and every one of them is fire-and-forget. A watcher is an observer and may not
 break its subject: a run that failed because the thing looking at it went away
 would be worse than no watcher at all.
 
@@ -112,14 +112,21 @@ answered from a value that moves while the answer is being written.
 Each `WatchedTest` carries its `id`, `title`, `file`, `project`, `worker` and
 `state`; everything the execution `heard`, in order, each announcement naming the
 realm that made it; what is `pending`, meaning work `vaStart` opened and `vaEnd`
-never closed; the listener's `remarks`; and the `error`, when there was one.
+never closed; the listener's `remarks`; what the test itself sent as `notes`; and
+the `error`, when there was one.
+
+A test that has stopped to be looked at also carries `waitingAt` — where in the
+spec it stopped. That is not a sixth `TestState`: the runner's five words are how
+a test *ended*, and a test waiting there has not ended. It is running, and
+standing still.
 
 `pending` is exact no matter what was dropped. What is bounded is the list of
 announcements, not the tally of work that opened and never closed, and the tally
 is the one an unfinished run is actually asked about.
 
 `ObservatoryOptions` takes `tests`, how many tests to keep, defaulting to 200,
-and `heard`, how many announcements to keep per test, defaulting to 500. Both
+`heard`, how many announcements to keep per test, defaulting to 500, and
+`notes`, how many of a test's own sends to keep, defaulting to 100. Both
 drop from the front and both are counted, because a reader who cannot tell
 *nothing was announced* from *the beginning was forgotten* draws the first
 conclusion — the one that sends somebody looking for a call that is right there.
@@ -153,10 +160,31 @@ from [`@variance-authority/cli`](../cli/README.md), prints that line and stays
 up; `variance ask --at <address>` reads it from any other shell.
 `variance-authority-mcp --watch`, from
 [`@variance-authority/mcp`](../mcp/README.md), does the same over stdio for a
-client that speaks it. Both answer `variance_self`, `variance_run_signals` and
+client that speaks it. Both answer `variance_self`, `variance_run_signals`, `variance_waiting` and
 `variance_test_signals` about a suite that is still going, from the same
 functions over the same snapshot.
 
+## Stopping a run, and letting it go
+
+`waits` is the sixth call, and the one that asks. It says where the test stopped
+and then polls this watcher — every `pollMs`, fifty by default, which is a
+loopback round trip — until it is told to go on. The run asks and the watcher
+answers, so the socket direction never reverses and the rule above survives
+intact.
+
+Every way of losing the watcher ends the wait rather than extending it, and each
+says which it was: `unwatched` before the first ask, `released` when one that was
+there has gone, `expired` when nobody came inside `timeoutMs` — ten minutes by
+default — and `continued` when a reader actually said go on. The
+failure mode of the thing that stops a test is that the test continues, which is
+what makes a call to it safe to commit.
+
+`release(test)` tells one stopped test to go on and `releaseAll()` tells all of
+them; each answers what it actually released. The run collects that release
+exactly once, however many readers asked for one — the answer to its poll *is*
+the release, so a second reader cannot spend the same one on whatever that test
+stops at next.
+
 Nothing here knows what a subject is, and none of it is about visual regression.
-A suite that never takes a screenshot reports exactly the same four sentences as
-one that does.
+A suite that never takes a screenshot reports exactly the same sentences as one
+that does.

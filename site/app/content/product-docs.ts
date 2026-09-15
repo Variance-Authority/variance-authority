@@ -1,5 +1,6 @@
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
+import agentInterrogate from "../../../docs/agent-interrogate.md?raw";
 import agentLiveRun from "../../../docs/agent-live-run.md?raw";
 import agentMcp from "../../../docs/agent-mcp.md?raw";
 import agentQuestions from "../../../docs/agent-questions.md?raw";
@@ -86,6 +87,7 @@ const documents = [
   ["agent-cli", agentCli, "docs/agent-cli.md"],
   ["agent-mcp", agentMcp, "docs/agent-mcp.md"],
   ["agent-live-run", agentLiveRun, "docs/agent-live-run.md"],
+  ["agent-interrogate", agentInterrogate, "docs/agent-interrogate.md"],
   ["agent-workspace-api", agentWorkspaceApi, "docs/agent-workspace-api.md"],
   ["surface", surface, "docs/surface.md"],
   ["flows", flows, "docs/flows.md"],

@@ -33,6 +33,24 @@ export type TestState =
   | 'skipped'
   | 'interrupted';
 
+/** One thing a test sent from a point its author placed a call at. */
+export interface Note {
+  /** Where in the spec the call sits. */
+  readonly at: string;
+  readonly note: string;
+  /** Arrival order within this test, from 0, so two notes keep their sequence. */
+  readonly ordinal: number;
+  /**
+   * How much this test had announced when the note arrived.
+   *
+   * Stamped here rather than sent, because the run does not know the count and
+   * the watcher does. It is what lets a reader place a note in the announcement
+   * stream — "this was sent after the payment call opened" — without the two
+   * lists needing a clock between them.
+   */
+  readonly after: number;
+}
+
 /** One test, and everything a run said about it. */
 export interface WatchedTest {
   /** The runner's id for this test, which is what reports arrived under. */
@@ -53,6 +71,18 @@ export interface WatchedTest {
   readonly pending: readonly RecordedEvent[];
   /** What the listener knew and a wait could not see. */
   readonly remarks: readonly string[];
+  /** What the test itself sent, oldest first. */
+  readonly notes: readonly Note[];
+  /** Notes dropped from the front of {@link notes} to stay bounded. */
+  readonly forgottenNotes: number;
+  /**
+   * Where this test stopped and is waiting to be told to continue, if it is.
+   *
+   * Absent is the ordinary case and means running normally. Present is not a
+   * sixth {@link TestState}: the runner's five words are how a test *ended*, and
+   * a test waiting here has not ended — it is running, and stopped.
+   */
+  readonly waitingAt?: string;
   /** How it failed, when it did. */
   readonly error?: string;
 }

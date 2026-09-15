@@ -21,6 +21,7 @@ import { sourceTests } from './tools/source-tests.js';
 import { runSignals } from './tools/run-signals.js';
 import { self } from './tools/self.js';
 import { testSignals } from './tools/test-signals.js';
+import { waiting } from './tools/waiting.js';
 import { NO_ARGS, stringArg, type Tool } from './tools/tool.js';
 import { trace } from './tools/trace-component.js';
 import { variations } from './tools/variations.js';
@@ -137,6 +138,7 @@ export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undef
 export const VANTAGE_TOOLS = [
   self,
   runSignals,
+  waiting,
   testSignals,
   diff as Tool<VantageState>,
 ] as const;
