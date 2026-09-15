@@ -15,8 +15,9 @@ with repository links repointed at the Markdown of the page they name.
 `/llms.txt` indexes those in the reading order the sidebar uses, so a reader that
 takes Markdown reaches the same material in the same order as a reader that takes
 pages. Each page names the index in its head as `rel="describedby"` and its own
-Markdown as `rel="alternate"`; `robots.txt` and every Markdown response name it
-again in a `Link:` header, for a reader that takes a file and never a page.
+Markdown as `rel="alternate"`, and every response — page, `robots.txt`, Markdown
+— names the index again in a `Link:` header, so a reader that fetches a URL
+without rendering it is told where the source starts.
 
 ```bash
 yarn install
