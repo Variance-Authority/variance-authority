@@ -1,4 +1,5 @@
 import { SITE } from "../metadata";
+import { LLMS_LINK, MARKDOWN_TYPE } from "./llms-index";
 import { siteHref, splitTarget } from "./markdown-links";
 import { markdownPath, routedDocument } from "./routed-docs";
 
@@ -17,8 +18,11 @@ export function markdownResponse(path: string): Response {
 
   return new Response(publishedSource(document.source, document.sourcePath), {
     headers: {
-      "content-type": "text/markdown; charset=utf-8",
+      "content-type": `${MARKDOWN_TYPE}; charset=utf-8`,
       "x-robots-tag": "noindex",
+      link: [`<${new URL(path, SITE).toString()}>; rel="canonical"`, LLMS_LINK].join(
+        ", ",
+      ),
     },
   });
 }

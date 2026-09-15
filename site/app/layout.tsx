@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SiteFooter from "./components/SiteFooter";
 import SiteHeader from "./components/SiteHeader";
+import { LLMS_INDEX, MARKDOWN_TYPE } from "./content/llms-index";
 import { ROOT_DESCRIPTION, ROOT_TITLE, SITE, SITE_NAME } from "./metadata";
 
 export const metadata: Metadata = {
@@ -55,6 +56,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Every page names the index a reader can start from when it wants the
+            source rather than the rendering. */}
+        <link rel="describedby" href={LLMS_INDEX} type={MARKDOWN_TYPE} />
         {/* Both faces are used above the fold, so they are fetched with the
             stylesheet rather than after it. */}
         <link
