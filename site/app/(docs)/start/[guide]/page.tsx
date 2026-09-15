@@ -7,6 +7,7 @@ import {
   documentToc,
 } from "../../../content/markdown-text";
 import { productDocument } from "../../../content/product-docs";
+import { guidesUnder } from "../../../content/routed-docs";
 import { pageMetadata } from "../../../metadata";
 
 interface PageProps {
@@ -15,14 +16,16 @@ interface PageProps {
 
 export const dynamicParams = false;
 
-const GUIDES = [
-  "playwright",
-  "storybook",
-  "routes",
-  "unit",
-  "custom",
-  "cli",
-] as const;
+/**
+ * The guides published under this section, read from the navigation.
+ *
+ * `dynamicParams = false` makes this list the whole of what the route serves,
+ * so a page missing from it is a 404 with a sidebar entry pointing at it — which
+ * is what a hand-kept copy of the navigation produced. The `index.md` route
+ * beside this one already derived its params, and served the document this page
+ * would not.
+ */
+const GUIDES = guidesUnder("/start");
 
 export function generateStaticParams() {
   return GUIDES.map((guide) => ({ guide }));
