@@ -31,7 +31,7 @@ Starting a fresh browser for each capture prevents one page's state from leaking
 into the next. It also means launching, navigating and tearing down for every
 picture. Do that a few hundred times and setup becomes much of the run.
 
-One Chromium and one page serve a whole run here instead. Measured over 48
+One Chromium and one page serve a whole run here instead. Measured over multiple
 renders, a capture into an already-open page costs about **7.5 ms** against about
 **205 ms** for one that launches a browser first
 ([measurement and reproduction](context/journal/0007-persistent-harness-and-p4.md)).
