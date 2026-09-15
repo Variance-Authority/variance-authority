@@ -1,15 +1,18 @@
 # Make a suite faster, stabler, smarter and cheaper
 
-Your suite gets slower, flakier and more expensive every month somebody works on
-it. You can shard it and buy the time back in machines, retry it and trade a
-false alarm for a missed regression, or rebuild the world between tests and pay
-on every test for a leak in a few.
+A growing test suite should give you more confidence to change the code. Too
+often it gives you longer waits, failures nobody trusts, and a larger CI bill.
+You add machines, add retries, rebuild the environment between tests, and spend
+more to get the same answer.
 
-Those are the moves you reach for when a run leaves nothing behind but an exit
-code. But a run also knows which code executed, which elements the tests queried
-or clicked, and what setup ran before the tests began. Teardown is normally
-where all of that disappears. Keep it, and you can make the suite faster,
-stabler, smarter and cheaper using evidence from the run itself.
+That does not have to be the cost of growth. Fast feedback and reliable tests
+belong together. Flakiness deserves a fix. A run should help you decide what to
+do next, and every dependency should earn the work it adds.
+
+A test run already knows much of what you need: which code executed, which
+elements the tests queried or clicked, and what setup ran before they began.
+Teardown is normally where all of that disappears. Variance Authority keeps it
+so the work you have already paid for can make the next run better.
 
 Visual comparison is one use of that evidence. The Vitest 2 and Jest 30
 integrations record execution through the transformer you already use. Eyes
@@ -17,7 +20,12 @@ records React Testing Library's `screen` queries from a setup file. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in
 a suite that never opens a browser.
 
-## Faster: keep the browser you already opened
+## Faster: don't trade speed for reliability
+
+Slow tests interrupt development. Unreliable tests teach people to ignore them.
+You need feedback that arrives while the edit is still in your head and that you
+can act on when it does. Paying for a fresh environment on every test should not
+be the price of trusting the result.
 
 Starting a fresh browser for each capture prevents one page's state from leaking
 into the next. It also means launching, navigating and tearing down for every
@@ -27,9 +35,10 @@ One Chromium and one page serve a whole run here instead. Measured over 48
 renders, a capture into an already-open page costs about **7.5 ms** against about
 **205 ms** for one that launches a browser first
 ([measurement and reproduction](context/journal/0007-persistent-harness-and-p4.md)).
-The Storybook collector holds a single preview open and switches stories over Storybook's own channel rather than
-navigating; the renderer keeps a pool of pages keyed by viewport, so 1x and 2x,
-or a phone width and a desktop one, come out of one browser in one run.
+The Storybook collector holds a single preview open and switches stories over
+Storybook's own channel rather than navigating. The renderer keeps a pool of
+pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
+out of one browser in one run.
 
 Rendering an image is expensive, so a run avoids it when comparing the captured
 document is enough. If that document is identical to the one used for the
@@ -38,10 +47,16 @@ baseline image, there is no need to take another screenshot.
 against taking a screenshot. The timings come from one machine and one Chromium;
 they are not a prediction for every suite.
 
-Holding the page open is exactly what lets one test's leftovers reach the next
-one. The next section is how that gets caught.
+Keeping the page open saves that work, but it also lets one test's leftovers
+reach the next. The saving depends on finding those leaks and helping you fix
+them. That is where speed and reliability meet.
 
-## Stabler: name what moved instead of rebuilding the world
+## Stabler: fix the flake
+
+A test that fails intermittently gives everyone a reason to dismiss its next
+failure. Retrying may get the build through; it leaves the reason to distrust
+the test in place. The useful result is a place to investigate and enough
+evidence to choose a fix.
 
 When a story or page region changes, Variance Authority captures it again to
 check why. Two checks separate timing problems from shared state. `again`
@@ -71,20 +86,25 @@ level, a registry a decorator fills, a clock read into a constant: the work
 happened before the first test of every file that imported the module, and
 whether it had happened when a given test looked depends on which file loaded it
 first. The Vitest and Jest integrations record what code has already executed
-before each file's first test. That initialization is recorded as **loaded**, separately
-from code executed during the tests.
+before each file's first test. That initialization is recorded as **loaded**,
+separately from code executed during the tests.
 
 [Test order and shared state](flakiness.md#test-order-and-shared-state) explains
 these cases and how far the recorded execution can trace them.
 
-## Smarter: decide from what the run recorded
+## Smarter: let evidence guide the work
+
+Running everything again is an expensive way to answer a small change. When a
+test fails, running it repeatedly without learning anything is expensive too.
+The previous run should help with both decisions: what needs to run now, and
+where to look when it fails.
 
 An import graph tells you which tests might depend on a changed module. A
 recorded run also tells you which tests executed the changed code.
-`withTestSelection` wraps the runner configuration once — installing the reporter it needs along the way — and every
-run from then on records which source code each test file executed. The next run
-uses that record to choose tests for the source diff. This repository uses the same
-published API through `yarn test:since`.
+`withTestSelection` wraps the runner configuration once, installing the reporter
+it needs along the way. Every run then records which source code each test file
+executed. The next run uses that record to choose tests for the source diff.
+This repository uses the same published API through `yarn test:since`.
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
@@ -97,13 +117,18 @@ how many imports separate them from the edit, so nearby tests give feedback firs
 
 The same record answers questions nobody wrote an assertion for. The process
 that produced a pass or a fail also knew which elements the test queried or
-clicked, which components rendered, which component instances initiated updates, and which
-branches executed, and your test does not change to keep any of it.
+clicked, which components rendered, which component instances initiated updates,
+and which branches executed. Your test does not change to keep any of it.
 [Ask a question the test did not](observability.md) explains what you can learn
 from that record. [Eyes](eyes.md) records interactions and component details;
 [journeys](journeys.md) connect executed source across processes.
 
-## Cheaper: stop paying for imports nothing exercises
+## Cheaper: make the work leaner
+
+More machines can shorten the queue while every test keeps doing the same
+unnecessary work. Before buying capacity, ask what the test needs to load at
+all. A smaller dependency setup costs less to run and gives unrelated changes
+fewer ways to drag the test back into the suite.
 
 A test that never calls into a module still pays for it. The import runs its
 initialization, and an import graph can select the test whenever that file
@@ -121,7 +146,13 @@ the source scanner recognizes `vi.mock`, `jest.mock` and `sb.mock` in test, stor
 and setup files. It removes the mocked dependency from the graph, so changes to
 that module can stop selecting the test too.
 
-[Make one test cost less](optimize-a-test.md) is that loop.
+[Make one test cost less](optimize-a-test.md) is that loop: find unnecessary
+work, try a smaller setup, and verify that the test still checks what matters.
+
+The gains reinforce each other. Reusing setup makes feedback faster. Diagnosing
+shared state makes that reuse trustworthy. Recording execution helps choose the
+next tests, and removing unnecessary dependencies leaves less to select. The
+suite gets better because you understand and improve the work it does.
 
 ## What each capability needs
 
