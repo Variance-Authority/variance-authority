@@ -642,9 +642,8 @@ On this repository's source, at 33.1 blocks per module, a record is 1,841 bytes
 where the same record as JSON is 6,603. At two hundred thousand modules that is
 351 MB in a handful of segments against 1,563 MB in two hundred thousand files,
 and the JSON store's largest single document would not have been readable at
-all: `readFile(…, 'utf8')` throws past 512 MB, which is the ceiling
-[ADR-0041](context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)
-records the source index being moved off text for.
+all: `readFile(…, 'utf8')` throws past 512 MB. That ceiling is why the source
+index uses shared binary sections instead of one text document.
 
 Nothing collects the records into a document and nothing has to: a transform
 writes the module it just cut and knows nothing about the rest of the build,

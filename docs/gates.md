@@ -6,7 +6,7 @@ Argos, Chromatic, and unit-runner workflows to the parts Variance Authority can
 cover. Managed review, browser fleets, and vendor commitments remain separate
 choices; see [`comparison.md`](comparison.md) for the wider tradeoffs.
 
-## Fit with a Percy route workflow
+## 1. Percy route workflow
 
 **Job:** a known set of URLs or static pages, captured at several widths and
 gated in CI.
@@ -21,11 +21,11 @@ gated in CI.
 | Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
 | Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`variance push`](../packages/cli/README.md#push-put-a-build-in-front-of-a-reviewer) uploads runs using an operator-supplied review endpoint and ingest token |
 
-**Good fit when:** the suite has explicit routes or static pages and the team is
-comfortable operating rendering and review. Percy remains the better fit when
-managed browser breadth or hosted review is part of the job.
+**Verdict:** Good fit when the suite has explicit routes or static pages and the
+team is comfortable operating rendering and review. Percy remains the better
+fit when managed browser breadth or hosted review is part of the job.
 
-## Fit with an Argos-style test workflow
+## 2. Argos-style test workflow
 
 **Job:** capture screenshots from existing test environments, compare them, and
 track review or flake history.
@@ -40,11 +40,11 @@ track review or flake history.
 | Renderer identity | **yes** — engine, platform, scale, fonts, stabilization, and launch recipe partition baselines |
 | Hosted comments, reviewers, and flake register | **no** — those are Argos product capabilities |
 
-**Good fit when:** the team already owns the test browser and wants to operate
-the reporting workflow. Argos remains the better fit when hosted review and
-history are part of the desired outcome.
+**Verdict:** Good fit when the team already owns the test browser and wants to
+operate the reporting workflow. Argos remains the better fit when hosted review
+and history are part of the desired outcome.
 
-## Fit with a Chromatic Storybook workflow
+## 3. Chromatic Storybook workflow
 
 **Job:** treat Storybook as the UI catalog and turn stories into reviewable
 visual checks.
@@ -60,11 +60,11 @@ visual checks.
 | Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and deployment remains with the team |
 | Non-engineer review surface | **partial** — the tribunal serves the review page and its identity provider decides who opens it; standing it up is an engineer's job, once |
 
-**Good fit when:** the team wants to operate Storybook capture, gating, and
+**Verdict:** Good fit when the team wants to operate Storybook capture, gating, and
 review. Chromatic remains the better fit when branch baselines, managed
 stability, and a maintained review surface are part of the service you want.
 
-## Fit with a Jest or Vitest workflow
+## 4. Jest or Vitest workflow
 
 **Job:** capture a mounted DOM in vanilla Jest or Vitest without running a browser
 inside the unit process, then render pixels later.
@@ -79,11 +79,11 @@ inside the unit process, then render pixels later.
 | Later remote browser | **yes** — the ordinary remote `Renderer` contract is interchangeable |
 | Visual verdict inside jsdom | **no** — jsdom supplies no rasterizer |
 
-**Good fit when:** a browserless unit process can hand a document to a later
-browser. Vitest Browser Mode with a Playwright provider follows the Playwright
-route instead.
+**Verdict:** Good fit when a browserless unit process can hand a document to a
+later browser. Vitest Browser Mode with a Playwright provider follows the
+Playwright route instead.
 
-## Responsibilities to plan for
+## 5. Responsibilities to plan for
 
 - Capture material is a document or an already-painted raster. A document is
   portable only when its resources are closed.

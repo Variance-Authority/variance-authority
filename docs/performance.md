@@ -78,8 +78,8 @@ The exception is a repository whose `tsconfig` cannot be read. A bare specifier
 is bounded by the `paths` a configuration declares, so a configuration that
 cannot be parsed is no bound at all, and there every added path invalidates
 every record. That is a real cost and it is charged on that repository only.
-[ADR-0059](context/adr/0059-a-record-is-invalidated-by-what-could-have-answered-it.md)
-carries the argument for why the bound is sound everywhere else.
+Everywhere else, the recorded dependency boundary defines which added paths
+could have changed the answer and therefore which records must be invalidated.
 
 ## Where the third of a second is
 

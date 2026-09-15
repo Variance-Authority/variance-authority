@@ -76,15 +76,11 @@ every one of them real. One fix was **backed out** for producing a false
 `unchanged` under the other profile, which is exactly the kind of thing a corpus
 catches and a unit test does not.
 
-See journals [0006](../../docs/context/journal/0006-m0-measurement.md) and
-[0007](../../docs/context/journal/0007-persistent-harness-and-p4.md).
-
 ## Honest limit
 
 **One corpus, built by us.** Both profiles agree on it, which proves the two
 collection paths implement one ruleset. It does not prove the ruleset holds on
 someone else's component library — and the fixtures were convenient in the same
-way the implementation was convenient, which
-[journal 0008](../../docs/context/journal/0008-sessions.md) caught: token overrides
+way the implementation was convenient. Token overrides
 applied inline on the subject root routed around a hole where `:root` tokens
 reached nothing at all.

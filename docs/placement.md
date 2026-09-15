@@ -2,8 +2,7 @@
 
 A durable run compares the image it just rendered against one an earlier run
 wrote. Which of the two wins, and whether they are even allowed to be compared,
-is decided by the identity digest and by nothing about the storage
-([ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)). What
+is decided by the identity digest and by nothing about the storage. What
 placement decides is **who is holding the bytes when the next run starts**, and
 what that costs.
 
@@ -235,5 +234,4 @@ files between layouts.
 
 **Further:** [`flows.md`](flows.md) for what each level of adoption buys ·
 [`@variance-authority/store`](../packages/store) for the two file-backed stores ·
-[ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) for why
-none of this reaches a verdict.
+[`reasoning.md`](reasoning.md) for how evidence reaches a verdict.

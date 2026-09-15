@@ -264,8 +264,7 @@ re-recording of every subject — which is what keeps teams where they are.
 
 **A PNG carries no identity.** Our durable baselines are partitioned by renderer
 identity so a run on a different machine is `incomparable` — one sentence —
-rather than every subject failing for reasons nobody can attribute
-([ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md)). An
+rather than every subject failing for reasons nobody can attribute. An
 imported baseline states no engine, no scale factor, no fonts and no platform, so
 it can only be compared *by assumption*, and the verdict that guards a wrong
 assumption is unavailable for as long as the import lasts.
@@ -326,6 +325,5 @@ contains the region. More precise than the declaration, so the declaration moved
   Percy's comparators are not this, and are not measured.
 - **Eight scenarios, chosen by us.** They are the ones we believe separate the
   tools, which is not the same as a representative sample of a real suite.
-- **Nothing about scale.** Eight subjects. The claims about attribution holding at
-  three hundred are in [`docs/context/checkpoint.md`](../../docs/context/checkpoint.md)
-  as open, and this case does not close them.
+- **Nothing about scale.** Eight subjects. This case does not establish that
+  attribution holds at three hundred.

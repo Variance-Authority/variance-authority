@@ -173,8 +173,8 @@ without one, later work is cold.
 
 The measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
 sections versus 598 MB as JSON. The ratio comes chiefly from interning names
-once across the generation; [journal 0026](context/journal/0026-what-a-graph-costs-to-keep.md)
-records the measurement and its limits.
+once across the generation. The measurement covers the serialized source index,
+not the memory used while building it.
 
 ---
 

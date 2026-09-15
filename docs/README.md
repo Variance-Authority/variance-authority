@@ -5,6 +5,9 @@ may need to know which tests matter, why a page changed, what a stalled run is
 waiting for, or whether several differences share one cause. Running more work
 can produce more output without making any of those decisions easier.
 
+**Change creates variance. Evidence earns authority.** A useful run shows which
+action its observations support.
+
 Variance Authority helps you use evidence already present in source, tests,
 pages, and previous runs. It reads that evidence where it lives or retains it
 when it would otherwise disappear, then makes the limits of the answer visible.

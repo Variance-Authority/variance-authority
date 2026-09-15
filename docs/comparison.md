@@ -57,8 +57,7 @@ entry per test file and stores no call-stack depth, so per-test answers require 
 collector that already records them.
 
 The Variance integration matrix and exact material/placement choices are in
-[`surface.md`](surface.md). The underlying decision is recorded in
-[ADR-0044](context/adr/0044-capture-material-and-rendering-placement-are-independent.md).
+[`surface.md`](surface.md).
 
 ### Account for both compute and review
 
@@ -102,7 +101,7 @@ Sources: [Percy pricing](https://www.browserstack.com/pricing?product=percy),
 [Argos pricing](https://argos-ci.com/pricing), and
 [Applitools terms](https://applitools.com/terms-of-use/).
 
-## 2. What the managed products provide
+## 2. Where the managed products lead
 
 ### Percy
 
@@ -258,7 +257,7 @@ digest where it was. That separates *everything moved and the flag still does
 what it did* from *the flag now does something else* — a distinction a reviewer
 otherwise draws by hand, on every diff. Nothing on this axis reaches the exit
 code, `accept`, or the baseline store. See [`variations.md`](variations.md) and
-[ADR-0045](context/adr/0045-a-subject-may-be-a-variation-of-another-subject.md).
+[`composition.md`](composition.md).
 
 A changed subject is also read a second time, and the two second passes vary one
 thing each: `again` holds the world and advances time, `alone` rebuilds the world
@@ -267,8 +266,7 @@ against a baseline, and because a document carries its component hashes the
 answer is a component and a band instead of a page to re-examine. The order is
 load-bearing — `again` runs first, because `alone`'s inference is only evidence
 once two readings of one world are known to agree. See
-[`flakiness.md`](flakiness.md) and
-[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
+[`flakiness.md`](flakiness.md).
 
 Both are the labour half of the cost of a comparison made structural. A
 difference a digest has already settled, and a movement already named as an

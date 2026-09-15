@@ -341,5 +341,5 @@ after that is O(degree).
 byte layout · [`source.md`](source.md) for what the scan reads and where it
 stops · [`execution-record.md`](execution-record.md) for the structures on the
 execution side · [`selecting.md`](selecting.md) for what a run does with the
-graph · [ADR-0040](context/adr/0040-git-already-named-every-files-content.md)
-for why the digest comes from git.
+graph · [`source.md`](source.md#what-a-second-scan-costs)
+for how Git supplies the committed file digests.

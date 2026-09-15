@@ -1,8 +1,8 @@
 # Architecture
 
-Variance Authority is a set of tools with explicit contracts. A team can use
-one inside an existing workflow or compose several into a pipeline that fits
-its environment.
+There is no required pipeline. Variance Authority is a set of tools with
+explicit contracts. A team can use one inside an existing workflow or compose
+several into a pipeline that fits its environment.
 
 The tool is the unit of design: a named capability that can be understood,
 replaced, and composed without learning the implementation of every other
@@ -112,7 +112,7 @@ code does.**
 
 A box is named for what it is for — a requirement the manifest cannot state, what
 the thing is, or a target, format or protocol it serves, never a library it
-imports ([ADR-0042](context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
+imports.
 Code that needs one requirement may not sit with code that needs another.
 Storybook support does not belong with Playwright helpers — not because they are
 different features, but because a Storybook user would then install a browser and
@@ -162,8 +162,7 @@ as a rule with none.
 It is a **service**, not a linked tool: the requirement it names is a deployment
 rather than something a consumer supplies to a function, and it composes five
 packages because a deployed thing has to. It is named for what it is rather than
-for the host it currently runs on
-([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
+for the host it currently runs on, which is why
 the row does not say `cloudflare`.
 
 Four boxes require nothing at all, and hash, compare and isolate — the three

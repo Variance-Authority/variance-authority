@@ -51,8 +51,7 @@ It happens because the computed-style allowlist admits `transform`, `opacity`,
 all of them. The allowlist *excludes* `animation-*` and `transition-*` on the
 stated grounds that a snapshot is taken with animations already disabled, which
 makes disabling them a precondition, not a nicety.
-[ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md) is where
-that precondition is met.
+The stabilization recipe meets that precondition before observation begins.
 
 ---
 
@@ -195,8 +194,8 @@ one. So:
 **Nobody else in the category does this.** Argos and Percy both stabilize by
 default and neither records which stabilizers ran in the identity of what they
 produced, so changing one is a silent mass diff attributed to your code. It is
-the same argument as ADR-0011's machine identity, applied to the tricks instead
-of the machine.
+the same reason renderer identity is recorded, applied to the stabilization
+recipe instead of the machine.
 
 ---
 
@@ -585,8 +584,7 @@ gap between them. A subtree with no boundary at all returns on the first reading
 and pays nothing, which is almost every subject.
 
 **A boundary still pending when the wait runs out is refused, not captured.**
-That is the whole point, and it is a position — see
-[ADR-0037](context/adr/0037-a-subject-still-arriving-is-refused.md). Capturing it
+Capturing it
 would put a skeleton in the baseline on a slow machine and the component on a
 fast one, with every band agreeing and both passes consistent. The refusal names
 the subject, the open boundaries, the component that wrote each one, and the two
@@ -730,13 +728,11 @@ intervention recipe.
 A subject reported `changed` is read again in the same world. Disagreement is
 reported as `unstable`, with the component and frequency band when those signals
 are available. [`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found)
-continues from that result; [ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md)
-defines why the second readings vary one input at a time.
+continues from that result. The second readings vary one input at a time so a
+timing change cannot be mistaken for an isolation change.
 
 ---
 
 **See also.** [`flakiness.md`](flakiness.md) — what kind of thing variance is ·
 [`ignores.md`](ignores.md) — absorbing what cannot be stabilized ·
-[`comparison.md`](comparison.md) — where each competitor wins ·
-[ADR-0029](context/adr/0029-a-page-is-held-still-before-it-is-read.md) — the
-decision and what it does not close
+[`comparison.md`](comparison.md) — where each operating model fits

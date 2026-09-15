@@ -87,6 +87,9 @@ to the project.
   reasoning, and technical detail that earn their place.
 - Let detail serve the purpose. Its placement and prominence depend on what the
   reader came for.
+- Keep internal rationale internal. Public documentation does not link to
+  `docs/context/`, name an ADR or journal entry, or depend on private project
+  history. State any reasoning the reader needs in the public page itself.
 
 Welcome the reader from the system and constraints they already have. Seek to
 understand those choices before presenting another one. Build shared ground,

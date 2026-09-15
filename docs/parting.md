@@ -67,7 +67,7 @@ named for.
 
 `unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
 run that read no boundaries has not found the inputs agreeing — it has not asked
-them ([ADR-0002](context/adr/0002-observation-profiles.md)). The two are separate
+them. The two are separate
 slices so silence can never be reported as agreement.
 
 ---

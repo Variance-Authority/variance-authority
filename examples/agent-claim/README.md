@@ -26,7 +26,7 @@ the `unclaimed` line walks into `overreached`, and an agent that under-claims to
 avoid `overreached` collects `unclaimed` changes. Both directions cost something,
 which is what makes the declaration worth trusting.
 
-The run is **ephemeral** ([ADR-0011](../../docs/context/adr/0011-durable-and-ephemeral-retention.md)): the
+The run is **ephemeral**: the
 collector renders both revisions in one process, hands the CLI a `before`
 document alongside the `after`, and keeps neither. Nothing was recorded on a
 previous machine, so nothing about the machine has to cancel out — which is what

@@ -547,7 +547,7 @@ two carry none:
 
 `reach-through` and `unexplained` are findings with an address, and neither
 needs a red test to be worth reading. `unmeasured` is the opposite of a finding,
-and the distinction is load-bearing (ADR-0002): a walk that was never possible
+and the distinction is load-bearing: a walk that was never possible
 must not print as a walk that failed, or every unscanned directory becomes an
 accusation. Pass `enumerated` — whether the graph read what a file imports,
 which only whoever built the graph knows — and a dead end there is reported as
@@ -558,7 +558,7 @@ That is a convention rather than a fact about the filesystem, so you supply it.
 `indexFaces` reads the one this repository and most others keep — a directory
 with an `index` module — and `eitherFace` stacks your own provider in front of
 it, which is where a manifest reader belongs: this package depends on what it
-needs (ADR-0013), and a manifest is not it.
+needs, and a manifest is not it.
 
 ## Run the near end of a selection first
 

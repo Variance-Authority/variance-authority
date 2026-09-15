@@ -33,8 +33,10 @@ picture. Do that a few hundred times and setup becomes much of the run.
 
 One Chromium and one page serve a whole run here instead. Measured over multiple
 renders, a capture into an already-open page costs about **7.5 ms** against about
-**205 ms** for one that launches a browser first
-([measurement and reproduction](context/journal/0007-persistent-harness-and-p4.md)).
+**205 ms** for one that launches a browser first. These are steady-state capture
+times from one machine and one Chromium, not a prediction for every suite.
+The [kitchen-sink example](../examples/kitchen-sink/README.md#running-it) carries
+the runnable warm-versus-cold benchmark.
 The Storybook collector holds a single preview open and switches stories over
 Storybook's own channel rather than navigating. The renderer keeps a pool of
 pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come

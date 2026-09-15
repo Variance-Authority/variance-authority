@@ -67,8 +67,7 @@ something you already said was not the subject.
 against a stored baseline, so the pixel half is the half that decides its
 verdicts. The semantic half — `applyIgnores` over a pair of snapshots — applies
 where two documents are compared, which means composing `core` yourself: a stored
-baseline carries the component hashes of the document that painted it
-([ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)), which
+baseline carries the component hashes of the document that painted it, which
 is enough to name the component that caused a change and not enough to re-run the
 differ. The declaration is the same either way, which is the point of resolving it
 once on the snapshot.
@@ -321,7 +320,7 @@ I earn and how much did I declare*. Folding the two together loses that question
 permanently.
 
 The same rule governs a band a profile cannot observe, which reports `unobserved`
-rather than passing ([ADR-0002](context/adr/0002-observation-profiles.md)). An
+rather than passing. An
 ignore is the second reason not to have looked, and it gets the same treatment.
 
 Reported per subject, in the report and in `variance report`:

@@ -14,10 +14,10 @@ for managed-product boundaries.
 Try the observation on one locator while the rest of the suite keeps its
 existing screenshot assertions.
 
-**What stays with Playwright.** Playwright owns `test`, `expect`, page lifecycle,
+**What you keep.** Playwright owns `test`, `expect`, page lifecycle,
 navigation, fixtures, retries, and configuration.
 
-**What Variance Authority adds.**
+**What you add.**
 
 ```ts
 import { test, expect } from '@playwright/test';
@@ -39,7 +39,7 @@ local or remote renderer. The explicit in-place path screenshots the locator in
 the caller's browser, repeats the capture, refuses disagreement, and hands the
 agreeing raster to the same baseline comparison.
 
-**What becomes available.**
+**What you gain.**
 
 - renderer incompatibility is `incomparable`, not a product diff;
 - semantic and source evidence can connect a changed region to a component and
@@ -47,7 +47,7 @@ agreeing raster to the same baseline comparison.
 - local, remote, and in-place materialization use one verdict shape;
 - acceptance promotes the candidate bytes the run already observed.
 
-**What the team takes on.**
+**What you pay.**
 
 - in-place capture needs an explicit browser launch recipe and at least two
   screenshots;
@@ -58,10 +58,10 @@ agreeing raster to the same baseline comparison.
 
 ## Alongside Jest or Vitest
 
-**What stays with the runner.** The runner, its `test` and `expect`, the jsdom
+**What you keep.** The runner, its `test` and `expect`, the jsdom
 lifecycle, mount helpers, and ordinary semantic assertions.
 
-**What Variance Authority adds.**
+**What you add.**
 
 ```ts
 import { test, expect } from 'vitest';
@@ -89,14 +89,14 @@ The unit process writes a versioned, resource-closed document archive and exits.
 A later `variance run` process loads those archives through `captureCollector`
 and paints them with its configured local or remote browser.
 
-**What becomes available.**
+**What you gain.**
 
 - browserless unit execution;
 - one pinned renderer rather than a browser in every unit worker;
 - a durable handoff that preserves semantic evidence;
 - the same observation, baseline, and report contracts as browser acquisition.
 
-**What the team takes on.**
+**What you pay.**
 
 - external resources must resolve to immutable archived bytes;
 - jsdom does not settle layout or pixels; the later browser does;
@@ -108,23 +108,23 @@ this browserless route.
 
 ## Alongside an application or static site
 
-**What stays with the application.** The application or static build, its
+**What you keep.** The application or static build, its
 startup command, and the explicit list of states worth treating as subjects.
 
-**What Variance Authority adds.** A route collector config mapping stable ids to
+**What you add.** A route collector config mapping stable ids to
 URLs and widths. The collector navigates, waits for the configured ready state,
 and emits a document for the CLI renderer. The renderer must have equivalent
 access to the route's resources because this collector records their hashes,
 not their bytes.
 
-**What becomes available.**
+**What you gain.**
 
 - operator-selected local or remote rendering;
 - document and semantic evidence alongside the pixels;
 - source attribution when the application carries provenance;
 - directory, LFS, or remote baseline storage behind one store contract.
 
-**What the team takes on.**
+**What you pay.**
 
 - routes are explicit; the collector is not a crawler or sitemap product;
 - authentication and state setup belong to the host collector;
@@ -133,21 +133,21 @@ not their bytes.
 
 ## Alongside Storybook
 
-**What stays with Storybook.** Storybook's build, story index, renderer,
+**What you keep.** Storybook's build, story index, renderer,
 decorators, play functions, and parameters.
 
-**What Variance Authority adds.** `@variance-authority/storybook-collector`
+**What you add.** `@variance-authority/storybook-collector`
 beside Storybook. It reads the story index, reuses one preview, applies the story
 viewport before mount, waits for Storybook's rendered state, and emits documents.
 
-**What becomes available.**
+**What you gain.**
 
 - no addon or `.storybook` rewrite;
 - local or remote rendering chosen by the CLI;
 - story ids as stable subject ids;
 - the shared attribution and report path.
 
-**What the team takes on.**
+**What you pay.**
 
 - rendering, storage and review infrastructure remain yours;
 - automatic hosted branch baselines, assigned reviewers, and discussion threads

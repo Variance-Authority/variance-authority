@@ -1,16 +1,16 @@
 # Running less of the suite
 
-A large suite often spends most of its time confirming subjects a change could
-not have affected. Selection reduces that work while keeping uncertainty
-visible: when the evidence cannot safely exclude a subject, the subject still
-runs and the report explains why.
+Suppose one changed component reaches two subjects in a 300-subject suite.
+Collecting all 300 spends most of the run confirming what the change could not
+have affected. Selection avoids the other 298 when the evidence supports that
+decision. When it cannot safely exclude a subject, the subject still runs and
+the report explains why.
 
 Variance Authority combines two readings. A source graph shows which components
 the changed files can reach. A stored baseline records the components its
-document **actually rendered**
-([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)), so *what
-this subject is made of* is a fact the last run established. A subject can be
-skipped only when those two readings show that the change did not reach it.
+document **actually rendered**. What this subject is made of is therefore a fact
+the last run established. A subject can be skipped only when those two readings
+show that the change did not reach it.
 
 Other products make different, useful choices. Chromatic's TurboSnap traces a
 change through the bundler's dependency graph and tests the stories it reaches.
