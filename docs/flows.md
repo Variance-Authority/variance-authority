@@ -1,12 +1,22 @@
 # Choose an operating flow
 
 Start with the least infrastructure that answers the question your team needs.
-Storage location does not make a verdict more correct: renderer identity and the
-observed evidence decide whether two readings are comparable. Deployment decides
-who retains the baseline, where review happens, and whether the record survives
+A run renders each subject, captures a **reading** — the markup, the CSS that
+applied, the boxes it produced, and where available the image — and compares
+that reading against the subject's stored baseline to produce a verdict such as
+`unchanged`, `changed`, `new`, or `incomparable`. Storage location does not make
+that verdict more correct: what decides whether two readings are comparable is
+**renderer identity** — the engine, platform, scale, font declarations, and
+rasterization inputs that painted them, detailed under [the renderer
+question](#the-other-machine-question-where-the-renderer-runs) below — and the
+evidence each reading actually captured. Deployment decides who retains the
+baseline, where review happens, and whether that comparison stays available
 long enough to answer questions across runs.
 
-The first four levels are alternative retention and placement choices. [Tribunal](../packages/tribunal)
+The first four levels below are alternative choices about **retention** — where
+approved baselines live and how long they last, set with the `retention` field
+in each example. **Placement** — where the renderer that paints each reading
+runs — is a separate axis, covered later on this page. [Tribunal](../packages/tribunal)
 and history are services that a durable run can add; one Tribunal deployment can
 also supply the remote-baseline and history protocols. Subject acquisition is a
 separate choice described in [surface](surface.md), and the renderer may remain
@@ -92,7 +102,9 @@ and commit; the tool does not turn a CI credential into permission to push.
 
 ## Level 3 — remote baselines: one shared corpus
 
-Remote retention keeps baseline bytes behind the shared `RasterStore` protocol:
+Remote retention keeps baseline bytes behind the shared `RasterStore` protocol —
+the interface every baseline backend implements to look up a baseline for a
+subject and identity, and to save an approved one:
 
 ```json
 {
@@ -159,13 +171,19 @@ contracts.
 
 ## Level 5 — history: recurrence, and drift across runs
 
-History retains semantic observation rows, approvals, token values, and
-instability events. It stores no pixels. A configured CLI records the run and
-consults that record for:
+History retains semantic observation rows, approvals, resolved **design token**
+values, and instability events. A design token here is a CSS custom property
+such as `--va-space-3` — not the bearer tokens this page uses elsewhere for
+authentication (`VARIANCE_BASELINES_TOKEN` and the rest); the two share a name
+and nothing else. History stores no pixels. A configured CLI records the run
+and consults what it has recorded for:
 
 - how often a changed subject has disagreed with itself;
-- how often a blamed component caused an approved change;
-- how far a token has travelled across approved changes.
+- how often a blamed component — a named region inside a subject's rendering,
+  such as `Button`, tracked separately from the subject as a whole — caused an
+  approved change;
+- how far a design token's resolved value has travelled across approved
+  changes.
 
 ```json
 {

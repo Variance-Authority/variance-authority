@@ -1,12 +1,27 @@
 # Where Variance Authority fits
 
-The right visual-testing setup depends on which responsibilities you want the
-team to own and which you want a vendor to operate. This page maps common Percy,
-Argos, Chromatic, and unit-runner workflows to the parts [Variance Authority](README.md) can
-cover. Managed review, browser fleets, and vendor commitments remain separate
-choices; see [`comparison.md`](comparison.md) for the wider tradeoffs.
+The right visual-testing setup depends on which responsibilities you want your
+own team to run and which you want a vendor to run for you. Percy, Argos and
+Chromatic each sell one subscription that bundles browser capture, comparison
+and a hosted review surface, with a managed browser fleet and a support
+contract behind it.
+
+[Variance Authority](README.md) is not a hosted product. It is a library and a
+CLI you run yourself: a **collector** per host finds the **subjects** your
+suite has — the named things a run captures and compares, a Storybook story or
+a route — and `variance run` captures each one, compares it against its
+baseline, and writes a **report** you review where you like.
+
+This page walks each vendor's job and says which parts of it that setup takes
+over, and which stay vendor-only whatever you adopt: a managed device fleet,
+reviewers the vendor staffs, and support commitments. For the wider tradeoffs,
+see [comparison](comparison.md).
 
 ## 1. Percy route workflow
+
+Percy is BrowserStack's hosted visual-testing product: an SDK or its Automate
+browsers capture pages, Percy's cloud renders and diffs them, and its hosted
+dashboard carries review.
 
 **Job:** a known set of URLs or static pages, captured at several widths and
 gated in CI.
@@ -21,11 +36,16 @@ gated in CI.
 | Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
 | Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`variance push`](../packages/cli/README.md#push-put-a-build-in-front-of-a-reviewer) uploads runs using an operator-supplied review endpoint and ingest token |
 
-**Verdict:** Good fit when the suite has explicit routes or static pages and the
-team is comfortable operating rendering and review. Percy remains the better
-fit when managed browser breadth or hosted review is part of the job.
+**Verdict:** Good fit when the suite has explicit routes or static pages and
+the team runs its own renderer and its own review instead of Percy's
+vendor-hosted device fleet and hosted review UI. Percy remains the better fit
+when managed browser breadth or hosted review is part of the job.
 
 ## 2. Argos-style test workflow
+
+Argos is a hosted visual-testing product built around test suites you already
+run: your own Playwright tests take the screenshots, and Argos compares them
+and hosts review, comments, and flake history.
 
 **Job:** capture screenshots from existing test environments, compare them, and
 track review or flake history.
@@ -33,7 +53,7 @@ track review or flake history.
 | Requirement | Fit |
 | --- | --- |
 | Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
-| In-place page screenshot | **yes** — two or more agreeing captures become the candidate raster |
+| In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, the pixels compared against the baseline. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
 | Deferred render instead | **yes** — the same adapter can emit a document |
 | Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |
@@ -46,12 +66,18 @@ and history are part of the desired outcome.
 
 ## 3. Chromatic Storybook workflow
 
-Choose the location precision you need. Component declarations require no extra
-instrumentation; only exact changed-element JSX call sites need optional
-`jsx-source` instrumentation.
+Chromatic is Storybook's own hosted visual-testing product: it builds and
+renders your stories in its cloud, uses a module dependency graph to skip
+snapshots a change cannot reach, and hosts review against branch baselines.
 
 **Job:** treat Storybook as the UI catalog and turn stories into reviewable
 visual checks.
+
+When Variance Authority traces a changed pixel region back to source, it can
+resolve it to the component's declaration, or further, to the exact JSX call
+site that rendered the changed element. Resolving to a declaration needs no
+extra instrumentation; resolving to the exact call site needs optional
+`jsx-source` instrumentation. Choose the location precision you need.
 
 | Requirement | Fit |
 | --- | --- |

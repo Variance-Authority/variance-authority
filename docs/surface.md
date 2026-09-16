@@ -8,10 +8,21 @@ A suite connects to [Variance Authority](README.md) by composing independent cho
    already painted;
 4. both reach the same observation, retention, and reporting contracts.
 
-The host adapter owns discovery, lifecycle, and naming. It does not replace the
-host's test runner, assertions, configuration, build, or teardown. The resulting
-combination is chosen for the suite's privacy, latency, repeatability, and
-coverage requirements; in-place and deferred rendering are both first-class.
+The code that carries out step 1 above — reaching the host's state — is the
+**host adapter**: it discovers which subjects exist, drives the host through
+render or navigation, and gives each subject its stable id. It does not
+replace the host's test runner, assertions, configuration, build, or teardown.
+The resulting combination is chosen for the suite's privacy, latency,
+repeatability, and coverage requirements. Steps 2 and 3 above are also named:
+**deferred** rendering keeps a document and paints it later, through a local
+or remote renderer; **in-place** rendering keeps a raster that is already
+painted, with no separate render step. Both are first-class.
+
+A **surface** is the adopter-facing package built for one host. It bundles a
+host adapter and, where the host runs in a browser, a page agent, behind a
+single import, so a suite installs one package instead of composing those
+pieces itself. "Surface" and "adopter-facing package" name the same thing;
+this page uses both.
 
 ## 1. The three things you write
 
@@ -35,8 +46,12 @@ and optional semantic and source evidence. `close` releases the host. The
 Storybook, route, and unit-capture surfaces implement this contract.
 
 Collectors do not choose the renderer or baseline store. `variance run` wires
-their documents to the configured local or remote renderer and then to the
-ordinary observation and report path.
+their documents to the configured local or remote renderer, then to the same
+path every subject follows afterward: the renderer paints a raster if the
+material was a document, the **observation engine** — the
+`@variance-authority/observe` package that compares two images and returns
+one verdict — compares that raster against the subject's baseline, and the
+run writes the result into its report.
 
 ### The page agent — one method
 
@@ -205,9 +220,10 @@ The observation engine accepts an existing `Raster`. A `CaptureArtifact` with
 renderer, and `observeRasters` compares two images already in hand.
 
 The CLI does not expose a foreign-PNG ingest command. Its run collectors produce
-documents, and its acceptance workflow expects the candidate cache, semantic
-evidence, and renderer identity created by a run. That CLI boundary is not a
-claim that raster evidence is forbidden from the engine.
+documents, and its acceptance workflow expects the render cache's stored
+candidate raster (the `RenderCache` seam in the table below), plus the
+semantic evidence and renderer identity a run creates alongside it. That CLI
+boundary is not a claim that raster evidence is forbidden from the engine.
 
 A foreign raster is useful only with an honest identity declaration. Without a
 snapshot it also has no component attribution, exclusions, or band-specific

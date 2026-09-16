@@ -1,10 +1,16 @@
 # Where baselines live
 
-A durable run compares the image it just rendered against one an earlier run
-wrote. Which of the two wins, and whether they are even allowed to be compared,
-is decided by the identity digest and by nothing about the storage. What
-placement decides is **who is holding the bytes when the next run starts**, and
-what that costs.
+A run compares the image it just rendered against a baseline under one of two
+retention modes, set as `"retention"` in the config: `ephemeral` renders both
+sides in the same run and keeps neither past it, so there is nothing to place;
+`durable` compares against an image a previous run wrote and stored, so
+somewhere has to hold it between runs. This page is about `durable` retention.
+Which of the two images wins, and whether they are even allowed to be compared,
+is decided by the **identity digest** — a hash of the renderer, browser engine,
+platform, device scale factor and fonts that produced the image, written into
+paths as the `v1:6c1f…` segment you will see throughout this page — and by
+nothing about the storage. What placement decides is **who is holding the
+bytes when the next run starts**, and what that costs.
 
 Three answers, one config key, and no default — because the three fail in
 different directions and none of them is safe to guess.
@@ -54,9 +60,8 @@ same as a store nobody has written to yet.
 ```
 
 Take this one when the baselines are a corpus rather than part of a codebase —
-something you back up, prune, point a bucket at, or keep in the separate test
-tree a Java layout puts them in. When the code is in the same repository, the
-placement below is the one that keeps it together.
+something you back up, prune, or point a bucket at. When the code is in the
+same repository, the placement below is the one that keeps it together.
 
 One directory, anywhere, holding every subject in the suite. Under the `flat`
 layout the whole store is one directory per machine identity, and a subject id is
@@ -100,8 +105,11 @@ runner-image upgrade and a day of unattributable red.
 
 ### How a subject finds its directory
 
-Two answers, and you do not choose between them — whichever one your collector
-can supply is the one that applies.
+The **collector** is the host-specific code named by the `collector` field in
+the config above — the part that discovers which subjects exist and captures
+each one from its host, whether that host is Storybook, a route set, or a
+fixture runner. Two answers, and you do not choose between them — whichever
+one your collector can supply is the one that applies.
 
 A collector that names its own subjects after paths has already said where they
 go. `beside` spends the slashes instead of percent-encoding them, so
@@ -141,9 +149,11 @@ and to everything under it.
 }
 ```
 
-Nothing is committed and nothing is cloned, which is the point: no bot commits on
-branches, no quota, and a corpus that can outgrow what anyone wants in a work
-tree. `variance accept` writes through, so approval stops being a commit.
+Nothing is committed and nothing is cloned, which is the point: unlike
+`directory` or `lfs`, there is no CI bot pushing updated baseline images back
+onto the pull-request branch, and no hosted-storage quota sized for a growing
+corpus — this store can outgrow what anyone wants in a work tree. `variance
+accept` writes through, so approval stops being a commit.
 
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
 characters, no image fetched — and across a network that saving is spent straight

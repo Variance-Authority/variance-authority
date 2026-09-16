@@ -1,8 +1,13 @@
 # Holding a page still
 
-**This is on by default and there is nothing to set up.** Animations are pinned,
-GIFs are frozen, fonts and images are waited for, scrollbars are hidden — before
-your subject is read, on every run, whether or not you knew it was a problem.
+**Stabilization is on by default and there is nothing to set up.** Variance
+Authority is visual and execution regression tooling: a run — one execution of
+`variance run` — plans a set of subjects, captures each one, and compares it
+against its own baseline. A subject is one named thing a run observes this way:
+a story, a route, a fixture, or a value such as a JSON body, each carrying a
+stable id like `story:components-button--primary`. Before that capture, on
+every run, whether or not you knew it was a problem: animations are pinned,
+GIFs are frozen, fonts and images are waited for, scrollbars are hidden.
 
 Three reliability questions meet here, and none of them is configuration:
 
@@ -138,8 +143,10 @@ it; that is what an open set is for.
 
 ### The one sheet, and why you cannot see it
 
-Collection injects exactly one `<style data-va-stabilize>` and the collector's
-stylesheet index **skips it**.
+Collection injects exactly one `<style data-va-stabilize>`, and the collector's
+stylesheet index — the flattened, matchable list of a page's stylesheets that
+attribution reads rule by rule to charge each one to a component — **skips
+it**.
 
 Not tidiness. The recipe's rules are `*, *::before, *::after` by construction, so
 collecting them like any other sheet would attach a matched rule to every node in
@@ -160,11 +167,12 @@ fonts, whose advances change every metric on the page; waited for images to
 decode, since their intrinsic size participates in layout
 ```
 
-Printed near the top of `variance report`, before the docket, because it changes
-how every image below it should be read. A fade-in captured at its first frame is
-a correct observation of a page that was **altered to be observable**, and a
-reviewer who does not know that is looking at a component in a state no user ever
-sees and has not been told.
+Printed near the top of `variance report`, before the docket — the report's
+list of root causes, one entry per cause even when it reached three hundred
+subjects — because it changes how every image below it should be read. A
+fade-in captured at its first frame is a correct observation of a page that was
+**altered to be observable**, and a reviewer who does not know that is looking
+at a component in a state no user ever sees and has not been told.
 
 Each clause comes from the trick's own `because`, so a project that writes its
 own gets a sentence here without editing anything, and a trick whose description
@@ -179,8 +187,14 @@ to hold still.
 snapshot.environment.inputs.stabilization  // 'v1:…', or undefined
 ```
 
-The recipe digest is a **render input**, in the semantic key as well as the full
-one. So:
+Every baseline is stored under an environment key: a hash of every render
+input — engine, viewport, fonts, and the rest — that produced it, so two
+captures are only compared when they agree on what made them. That key comes
+in two forms: a **full** one, which also pins the device's pixel ratio, for
+the raster baseline only a matching device can reproduce; and a **semantic**
+one, which omits it, because layout does not change between a retina laptop
+and a plain CI runner. The recipe digest is a **render input** itself, in the
+semantic key as well as the full one. So:
 
 - A baseline collected untouched and a run collected held still are **two
   baselines**. They are never compared, and the run says `incomparable` rather

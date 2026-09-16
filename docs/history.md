@@ -1,7 +1,10 @@
 # What accumulates
 
-Every comparison this tool makes is between two things. That is what a
-comparison *is*, and it is why a whole class of problem is invisible to one:
+[Variance Authority](README.md) is visual and execution regression tooling: a run renders a
+set of subjects — a story, a route, a fixture, or a value — and compares each
+one against its own baseline. Every comparison it makes is between two things.
+That is what a comparison *is*, and it is why a whole class of problem is
+invisible to one:
 
 > A button gains 2px. Eleven times. Each one approved by somebody who looked at
 > one diff and correctly decided it was fine. Nobody ever sees the 22px.
@@ -84,7 +87,7 @@ happened, so none is invented.
 | | when | roughly |
 |---|---|---|
 | The run itself | always, including runs where nothing changed | one row |
-| A component hash | when it changes | one row per `(subject, component, band, profile)` that moved |
+| A component hash | when it changes | one row per `(subject, component, band, profile)` that moved — a **band** is the kind of difference (`geometry`, `token`, `content`, `texture`), a **profile** is the named browser/engine setup the run captured it under |
 | A resolved token | when a token's value moved | one row per token |
 | An instability | every time a subject fails to read the same way twice | one row per named cause |
 
@@ -99,16 +102,18 @@ reads what is already recorded before it writes: it sends only movement.
 
 ## What you get back
 
-The run asks, and the answers travel **in the report** — so the summary, the
-pull-request comment and an agent over MCP all read one artifact, hours apart,
-without any of them holding a connection to your service.
+The run asks, and the answers travel **in the report** — the file a run writes
+when it finishes, at the address your config names — so the summary, the
+pull-request comment and an agent over MCP all read that one artifact, hours
+apart, without any of them holding a connection to your service.
 
 ### How far a token has drifted
 
-Printed in the run summary, and **above the docket** in the pull-request comment —
-ahead of the causes, because it is the one finding on that page a reviewer could
-not have reached by looking at the diff in front of them, and they are the person
-about to approve the next step:
+Printed in the run summary, and **above the docket** — the causes a run leaves
+for you to decide — in the pull-request comment: ahead of those causes, because
+it is the one finding on that page a reviewer could not have reached by looking
+at the diff in front of them, and they are the person about to approve the next
+step:
 
 ```
 DRIFT: 1 token(s) moved in this run, and the record says what they have
@@ -125,7 +130,9 @@ change was spread — which is exactly how it got through.
 
 ### How often a component changes
 
-Printed under the regions it qualifies, in `variance_describe`:
+Printed under the regions it qualifies — the changed areas within a subject —
+in `variance_describe`, the MCP tool that reports what changed inside one
+subject:
 
 ```
 HOW OFTEN THESE COMPONENTS CHANGE:

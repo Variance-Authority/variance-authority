@@ -1,11 +1,19 @@
 # Sensitivity
 
-A route-level test and a component-level test assert on different things. A
+A route-level test and a component-level test assert on different things, and
+both are asserting on a **subject** — one named thing a run observes and
+compares against its own baseline, whether that thing is a story, a route (a
+page rendered at a URL), a fixture, or a value such as a JSON body. A
 component test treats a colour-token change as the change under review. A route
 test asks whether the page still assembles: the navigation stays in place, the
 sidebar does not collapse, and the regions do not overlap.
 
-A **sensitivity** declares which frequency bands a subject asserts on. It is not
+A **sensitivity** declares which frequency bands a subject asserts on. A band is
+one of the fixed kinds of change a comparison tells apart — `a11y` (accessible
+name, role, ARIA state), `geometry` (position and size), `token` (design-token
+values), `content` (text), and `texture` (raster residue with no document
+counterpart) — and a sensitivity names the bands that matter for a given
+subject, not a size or a percentage. It is not
 an [ignore](ignores.md): an ignore excludes a named place or difference shape;
 a sensitivity states the kinds of change that matter for a named set of
 subjects.
@@ -84,9 +92,12 @@ duplicate is refused.
 
 ## How it decides, and what it costs
 
-The library folds `applySensitivity` over a pair of snapshots. `variance run`
-compares an image with a stored baseline and reaches the same decision because
-the baseline carries per-component hashes split by band:
+`core`, the package that carries this comparison logic, folds `applySensitivity`
+over a pair of snapshots when both revisions were captured in full. `variance
+run` — the run command in the `variance` CLI — usually has only an image and a
+stored baseline, not two snapshots to fold over, and it still has to reach the
+same absorb-or-report decision `applySensitivity` reaches; it can, because the
+baseline carries per-component hashes split by band:
 
 | digest | band |
 |---|---|
@@ -96,14 +107,20 @@ the baseline carries per-component hashes split by band:
 | `geometry` — rects and computed layout output | `geometry` |
 | `style` — declared values and custom properties | `token` |
 
-The run asks the baseline and candidate sidecars which bands disagree. It
+The run asks the baseline and candidate **sidecars** — the per-component-hash
+record stored beside each image, without its pixels — which bands disagree. It
 absorbs the subject only when every differing band falls outside the subject's
-declared sensitivity. The snapshot path and baseline path share the same
-`bandsOf` mapping.
+declared sensitivity. Both the snapshot path and the baseline path resolve a
+level to its bands through one function, `bandsOf`, so what a level absorbs
+cannot drift between them.
 
-A relaxed subject is also cheaper. The decision happens before isolation, so a
-route that a rebrand only repaints never pays to cluster its mask, attribute its
-regions, or fingerprint them. It pays one hash comparison instead.
+A relaxed subject is also cheaper. Isolation is the stage that turns a raw
+pixel diff into something a reviewer can read: it clusters the changed pixels
+into a mask, attributes each region of that mask to the component that
+produced it, and fingerprints the region's shape so it can be tracked across
+runs. The sensitivity decision happens before any of that, so a route that a
+rebrand only repaints never pays to cluster its mask, attribute its regions, or
+fingerprint them. It pays one hash comparison instead.
 
 A baseline carrying no component hashes absorbs nothing, and the subject is
 reported in full. A declaration that cannot be evaluated is not satisfied.
