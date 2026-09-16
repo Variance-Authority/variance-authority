@@ -84,7 +84,15 @@ const GATED: readonly string[] = [
   // different reason: nobody runs it as part of `yarn test`, so it cannot skip
   // silently inside a green run, and telling it to `console.warn` during
   // collection asks a file that has no collection to have one.
-  .filter((file) => /\.test\.[cm]?[jt]sx?$/.test(file));
+  .filter((file) => /\.test\.[cm]?[jt]sx?$/.test(file))
+  // Suites that can *decline*, and only those. Asking the gate is not the same
+  // as being gated by it: `engines.test.ts` calls `requireEngines` to assert
+  // what it returns on a machine with every engine, with one, and with none, so
+  // it runs everywhere and skips nothing. Demanding an announcement from it
+  // would be demanding a warning about a skip that cannot happen. This rule is
+  // about silent skips, so the skip is what discovers them, and a file that
+  // names none has none to be silent about.
+  .filter((file) => /\.skip\b|\b(?:run|skip)If\b/.test(readFileSync(join(ROOT, file), 'utf8')));
 
 /**
  * Every `console.warn` a reader reaches during collection: top level, or one
