@@ -56,7 +56,7 @@ which is a different claim and a false one.
 sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
 with every cross-shard edge missing and nothing marking where. The structure
-rows go with it. The lexicon does not: a subject's names are a fact about one
+rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
 subject, and one subject is in one shard, so the merged report carries every
 entry under the fields all the shards read. A slice run without a journal keeps
 `regions` out of the whole, and the tool says so.
@@ -173,7 +173,7 @@ default resolved value follows the centre of the border box.
 
 `composeSubjects` walks the per-subject instance lists once, in plan order, and
 buckets them: component → props class → rendering → sites. Every unattributed
-boundary is skipped, and a boundary with no provenance is filed under a sentinel
+boundary is skipped, and a boundary with no [provenance](attribution.md) is filed under a sentinel
 not under `undefined`, so nothing downstream can read "unknown props" as
 a props class like any other.
 
@@ -247,7 +247,7 @@ A **divergence** is one props digest producing more than one rendering *at one
 commit*. It is not a regression. It says the component's own inputs do not
 determine its output, which is either a fact about the design — a token, a theme,
 an ancestor's cascade — or a reading that is not repeatable. The bands say which
-kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
+kind, in the same vocabulary a [sensitivity](sensitivity.md) absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
 Every rendering after the first also says **why**. Each is lifted out of the page
@@ -361,7 +361,7 @@ that run.
 ### Why a component moved
 
 For each changed component — named as a *cause* in a diff region or found to
-differ between repeated readings — the run checks attribution rules in order
+differ between repeated readings — the run checks [attribution](attribution.md) rules in order
 and stops at the first matching rule:
 
 | rule | evidence | output |
@@ -449,7 +449,7 @@ what it did plan and points at `variance_locate`.
 The run also writes a **lexicon**: per subject, per field, the distinct values
 the subject carried — the components it holds, who mounted them, its accessible
 names and visible text, its roles, its design tokens, the files that declare its
-components, the regions its journey entered, and the component it is the narrow
+components, the regions its [journey](journeys.md) entered, and the component it is the narrow
 example of. `variance_locate {query}` turns a description into ids over those
 names, printing the field and the value behind every hit and saying which fields
 the run could not read at all.

@@ -13,7 +13,7 @@ Throughout, `T` is the number of tests the record holds, `M` the number of
 modules, `B` the number of blocks in one module, `P` the total number of
 preconditions, and `C` the number of crossings, one per test that executed a
 block.
-A head is a service process that reports what it ran, and a journey is one
+A head is a service process that reports what it ran, and a [journey](journeys.md) is one
 execution followed across processes; [`journeys.md`](journeys.md) is their
 page, and the last sections here give their shapes.
 

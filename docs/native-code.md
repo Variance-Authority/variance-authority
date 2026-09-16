@@ -3,7 +3,7 @@
 The short answer to *why isn't this written in Rust* is that a lot of it already
 is, and none of the parts that are got there by being rewritten.
 
-Variance Authority reads source, renders pages, compares images and writes an
+[Variance Authority](README.md) reads source, renders pages, compares images and writes an
 index of what every test touched. Those are the workloads people expect to be
 native, and each one already runs on compiled code that somebody else maintains:
 

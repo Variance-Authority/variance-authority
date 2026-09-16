@@ -1,6 +1,6 @@
 # Architecture
 
-There is no required pipeline. Variance Authority is a set of tools with
+There is no required pipeline. [Variance Authority](README.md) is a set of tools with
 explicit contracts. A team can use one inside an existing workflow or compose
 several into a pipeline that fits its environment.
 
@@ -122,7 +122,7 @@ entrypoints.
 
 | package | requires | holds |
 |---|---|---|
-| `core` | nothing | the format, the rules, comparison, attribution, verdicts, plans |
+| `core` | nothing | the format, the rules, comparison, [attribution](attribution.md), verdicts, plans |
 | `raster` | nothing | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
@@ -134,7 +134,7 @@ entrypoints.
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
 | `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
 | `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node moves |
-| `distill` | portable Eyes attention and/or a Sense execution index | deterministic reduction opportunities for one exact test identity |
+| `distill` | portable [Eyes](eyes.md) attention and/or a [Sense](../packages/sense) [execution index](execution-record.md) | deterministic reduction opportunities for one exact test identity |
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |

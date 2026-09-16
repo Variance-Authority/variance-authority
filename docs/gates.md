@@ -2,7 +2,7 @@
 
 The right visual-testing setup depends on which responsibilities you want the
 team to own and which you want a vendor to operate. This page maps common Percy,
-Argos, Chromatic, and unit-runner workflows to the parts Variance Authority can
+Argos, Chromatic, and unit-runner workflows to the parts [Variance Authority](README.md) can
 cover. Managed review, browser fleets, and vendor commitments remain separate
 choices; see [`comparison.md`](comparison.md) for the wider tradeoffs.
 
@@ -58,7 +58,7 @@ visual checks.
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
 | Changed element resolved to `file:line` | **conditional** — a development Storybook needs nothing; a built one can resolve component declarations without extra instrumentation, while exact per-element call sites require optional `jsx-source` instrumentation and automatic development JSX emission; `keepNames` separately preserves component names |
 | Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and deployment remains with the team |
-| Non-engineer review surface | **partial** — the tribunal serves the review page and its identity provider decides who opens it; standing it up is an engineer's job, once |
+| Non-engineer review surface | **partial** — the [tribunal](../packages/tribunal) serves the review page and its identity provider decides who opens it; standing it up is an engineer's job, once |
 
 **Verdict:** Good fit when the team wants to operate Storybook capture, gating, and
 review. Chromatic remains the better fit when branch baselines, managed
@@ -93,4 +93,4 @@ Playwright route instead.
 - Managed review, managed browser/device fleets, and vendor contracts are outside
   the offering.
 
-The composition and exact package choices are in [`surface.md`](surface.md).
+The [composition](composition.md) and exact package choices are in [`surface.md`](surface.md).

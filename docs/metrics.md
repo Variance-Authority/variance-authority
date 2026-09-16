@@ -1,6 +1,6 @@
 # How to judge the evidence
 
-Variance Authority reads structure, component ownership and source provenance
+[Variance Authority](README.md) reads structure, component ownership and source [provenance](attribution.md)
 alongside pixels. That evidence is meant to replace _an image moved_ with a
 smaller decision: whether the change is real, what caused it, where it is
 written, and which other changed regions share that cause.
@@ -10,7 +10,7 @@ better only when three things hold together:
 
 - verdicts remain correct, including when the environment changes or a chosen
   capture surface cannot observe part of the subject;
-- attribution reduces the review decision without merging unrelated changes or
+- [attribution](attribution.md) reduces the review decision without merging unrelated changes or
   promoting collateral movement as the cause; and
 - machine, adoption and operational costs are reported beside the reviewer
   benefit rather than inferred from one fast inner operation.
@@ -76,7 +76,7 @@ links the repository's executable readings and states where each one stops.
 No row substitutes for another. Accurate attribution does not excuse a false
 `unchanged`; fast comparison does not establish low adoption cost; review
 compression is not useful when it merges unrelated causes. M9 limits every
-other result by naming what its composition could not observe.
+other result by naming what its [composition](composition.md) could not observe.
 
 ## Rules for a valid reading
 

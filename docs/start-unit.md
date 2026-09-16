@@ -121,5 +121,5 @@ Read [baseline placement](placement.md) when the capture and baseline jobs live
 on different machines, or [composition](composition.md) when this result joins a
 browser-owned reading. The
 [`@variance-authority/unit-test` reference](../packages/unit-test/README.md)
-owns resource resolution, provenance hooks, Jest setup, capture-file rules, and
+owns resource resolution, [provenance](attribution.md) hooks, Jest setup, capture-file rules, and
 the separate value-snapshot boundary.

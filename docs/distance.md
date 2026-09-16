@@ -135,7 +135,7 @@ modules that test entered or loaded. If several changed files select the same
 test, the nearest determines its distance.
 
 An import graph alone can suggest a shorter path through a module the test
-never loaded. The execution record rules out that path.
+never loaded. The [execution record](execution-record.md) rules out that path.
 
 ```ts
 import {

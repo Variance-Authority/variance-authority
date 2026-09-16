@@ -13,7 +13,7 @@ after the run.
 | What is a running suite doing now? | Process-local lifecycle, announcements, and unfinished work | [Watch from a vantage](vantage.md) |
 | What did the page know before teardown? | Retained runtime observations gathered while it was alive | [Ask beyond the assertion](observability.md) |
 | Which elements did the test address? | Authored interactions joined to React ownership and source | [Follow its eyes](eyes.md) |
-| Which source regions did one execution enter? | A journey across every instrumented process it touched | [Read the journey](journeys.md) |
+| Which source regions did one execution enter? | A [journey](journeys.md) across every instrumented process it touched | [Read the journey](journeys.md) |
 | Where did two stateful executions part? | Witnessed Acts, state, and structural digests | [Compare scenarios](scenarios.md) |
 | What can the test lose without losing its behaviour? | Attention and execution evidence followed by one counterfactual rerun | [Distill the test](distill.md) |
 

@@ -6,7 +6,7 @@ observed evidence decide whether two readings are comparable. Deployment decides
 who retains the baseline, where review happens, and whether the record survives
 long enough to answer questions across runs.
 
-The first four levels are alternative retention and placement choices. Tribunal
+The first four levels are alternative retention and placement choices. [Tribunal](../packages/tribunal)
 and history are services that a durable run can add; one Tribunal deployment can
 also supply the remote-baseline and history protocols. Subject acquisition is a
 separate choice described in [surface](surface.md), and the renderer may remain

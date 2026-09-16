@@ -159,7 +159,7 @@ find `Button`, and a reviewer still has to guess whether it is the design-system
 one or the local one in checkout.
 
 There are two kinds of answer here and they are not interchangeable. Resolving a
-component name against a source index names where the component is **declared**.
+component name against a [source index](source-index.md) names where the component is **declared**.
 A call site names where the element that changed is **written**, which for
 anything rendered more than once is the only one of the two that distinguishes
 the instances.

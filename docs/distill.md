@@ -50,7 +50,7 @@ variance distill \
 
 With Eyes evidence, `--test` also accepts a unique test title, such as
 `'checkout submits'`, or a title fragment that matches only one test. Distill
-resolves it to the Eyes ID and looks up that exact ID in the execution record.
+resolves it to the Eyes ID and looks up that exact ID in the [execution record](execution-record.md).
 With execution evidence alone, supply the recorded ID.
 
 The command is deterministic. The same inputs produce the same ordering and

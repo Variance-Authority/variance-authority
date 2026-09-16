@@ -48,7 +48,7 @@ scope or spelling error rather than a policy that has outlived its cause.
 
 ## Declaring one
 
-Add rules to the top-level `sensitivity` list in the Variance Authority config:
+Add rules to the top-level `sensitivity` list in the [Variance Authority](README.md) config:
 
 ```jsonc
 {

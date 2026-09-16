@@ -1,6 +1,6 @@
 # Surface
 
-A suite connects to Variance Authority by composing independent choices:
+A suite connects to [Variance Authority](README.md) by composing independent choices:
 
 1. the host reaches the state to observe;
 2. acquisition keeps either a `RenderDocument` or a `Raster`;
@@ -54,14 +54,14 @@ identifies the root.
 
 ### Provenance — one function
 
-Acquisition may inject component provenance without making the DOM package
+Acquisition may inject component [provenance](attribution.md) without making the DOM package
 framework-specific:
 
 ```ts
 type ProvenanceOf = (element: Element) => Provenance | undefined;
 ```
 
-Absence reduces attribution; it does not prevent capture or pixel comparison.
+Absence reduces [attribution](attribution.md); it does not prevent capture or pixel comparison.
 React and emitted `data-*` metadata are supported provenance sources. The host
 surface decides which one is available before acquisition.
 

@@ -1,6 +1,6 @@
 # The source index format
 
-The Sense source index is one versioned binary generation assembled as a small
+The [Sense](../packages/sense) source index is one versioned binary generation assembled as a small
 log-structured merge tree: an ordered log of immutable segments with periodic
 compaction. It contains the two facts a repeated source scan can reuse: parses
 keyed by content digest and the way the file's name said to read it, and

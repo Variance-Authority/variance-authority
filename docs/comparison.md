@@ -16,7 +16,7 @@ person — and an architecture fixes that quantity long before a report does.
 
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
-Variance Authority entries state the capture and operational contracts available
+[Variance Authority](README.md) entries state the capture and operational contracts available
 to an adopter.
 
 ## 1. Compare the responsibilities that matter
@@ -28,7 +28,7 @@ to an adopter.
 | Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | Self-hosted `tribunal` — builds, docket, region overlays, recorded decisions, posted by `variance push`; or the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
 | Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam through `observeRasters` or raster `CaptureArtifact`; no CLI ingest command |
-| Source attribution | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
+| Source [attribution](attribution.md) | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching [provenance](attribution.md) |
 | Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
 | Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
@@ -52,7 +52,7 @@ file names shown where execution crosses files, with a time-travel debugger
 attached. Variance Authority exposes the underlying index through
 `coveringTests`, not a time-travel viewer. Given a source line or function, it
 returns the individual tests that executed it, nearest call stack first, from an
-execution index supplied by any collector. The shipped integration records one
+[execution index](execution-record.md) supplied by any collector. The shipped integration records one
 entry per test file and stores no call-stack depth, so per-test answers require a
 collector that already records them.
 
@@ -248,7 +248,7 @@ answers one question: did this change since the last time somebody said it was
 right. Two comparisons here answer different questions, and neither consults
 history.
 
-A subject declared as a variation of another — `variance-parent:<id>` — is
+A subject declared as a [variation](variations.md) of another — `variance-parent:<id>` — is
 compared against the subject it varies, in the same run. The reported difference
 carries a digest taken over the difference itself, so it holds still while both
 sides move together and moves when the variation gains or loses something its

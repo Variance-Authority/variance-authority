@@ -72,7 +72,7 @@ path means it landed badly.
 Variance Authority helps you learn more from the tests worth keeping. It observes
 beside the assertion, retaining what changed in the interface, execution,
 component state and source. Visual regression establishes the correlated effect.
-Divergence finds where two readings first parted. Provenance and composition
+[Divergence](composition.md) finds where two readings first parted. [Provenance](attribution.md) and [composition](composition.md)
 connect that fork to its cause and to every observed subject it reached.
 
 The test remains a readable, behavioural, structure-insensitive statement.

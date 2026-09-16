@@ -1,6 +1,6 @@
 # Add one observation to a Playwright test
 
-Use the test that already reaches the state. Variance Authority reads one
+Use the test that already reaches the state. [Variance Authority](README.md) reads one
 bounded `Locator`, compares it with an approved baseline, and returns an
 observation without taking over the runner, fixtures, authentication, readiness,
 or assertions.

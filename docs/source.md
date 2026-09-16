@@ -7,7 +7,7 @@ files, resolves what they point at, and hands back one record per file.
 
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
-mechanism is a parse, a resolver and one source index — which is why a cold scan
+mechanism is a parse, a resolver and one [source index](source-index.md) — which is why a cold scan
 of a thirty-thousand-file repository takes three seconds, every scan after it a
 fraction of that, and neither of them the minutes a build costs.
 

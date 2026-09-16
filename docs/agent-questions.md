@@ -1,6 +1,6 @@
 # Everything an agent can ask
 
-Variance Authority has three entrances, not three products:
+[Variance Authority](README.md) has three entrances, not three products:
 
 - the CLI reads files and live watchers from a shell;
 - MCP exposes the same readings when a producer already owns a connection;
@@ -18,7 +18,7 @@ unavailable, never an empty measurement.
 | --- | --- | --- | --- |
 | completed visual report | What changed? | `variance ask summary` | `variance_summary` |
 | live watcher | Is this the watcher the suite reached? | `variance ask self` | `variance_self` |
-| Eyes archive and/or execution index | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
+| [Eyes](eyes.md) archive and/or [execution index](execution-record.md) | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What does this package publish? | — | `docs_packages` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | — | `docs_uses` on the workspace API server |
 
@@ -95,11 +95,11 @@ AAA is authored structure, not an inference:
 - **Assert** reads the consequence that makes the test valuable.
 
 Eyes records explicit phase markers alongside queries, consumed Playwright
-locators, DOM events and React commits. Sense records source entered by the
+locators, DOM events and React commits. [Sense](../packages/sense) records source entered by the
 whole test. `variance distill` combines them by exact producer test id, reports
 addressed targets per authored phase, separates React update initiators inside
 and outside addressed paths, and lists entered files without addressed source
-attribution as opportunities.
+[attribution](attribution.md) as opportunities.
 
 The deterministic command and `variance_distill` MCP tool return the same
 reading. The skill then tries one reversible substitution, reruns the exact

@@ -8,7 +8,7 @@ evidence is enough.
 
 The shared loop is:
 
-**Name the outcome → frame the variance → choose an eye and a vantage → sense
+**Name the outcome → frame the variance → choose an eye and a [vantage](vantage.md) → sense
 or instrument → read the evidence → act or step back.**
 
 The path can be short. One reading may answer the question. It can also reveal
@@ -28,7 +28,7 @@ changes.” The more precise question usually needs less machinery.
 ## How — sense what remains; instrument what disappears
 
 Some evidence already exists in source, artifacts, retained history, or a
-running system. Sense it where it is. Other evidence disappears with the
+running system. Read it where it is. Other evidence disappears with the
 process that produced it. Instrument that moment and retain the answer.
 
 Neither mode is inherently better. The question decides whether a source
@@ -39,7 +39,7 @@ reading behind each product claim and where it stops.
 ## What — choose an eye and a vantage
 
 An **eye** is the capability that can make the relevant distinction: source
-reach, accessibility, component provenance, pixels, runtime work, presentation
+reach, accessibility, component [provenance](attribution.md), pixels, runtime work, presentation
 relationships, or another observation. A **vantage** is where and under which
 conditions that eye reads: committed source, a live page, one execution, two
 runs, or retained history.

@@ -13,7 +13,7 @@ and a Playwright host does not require in-place pixels.
 | What crosses the acquisition boundary? | RenderDocument — environment-dependent or resource-closed — or already-painted Raster | Selects portability, disclosure, and which semantic evidence can travel |
 | Where are pixels made? | Caller browser, local renderer, operator-owned remote renderer | Selects latency, reproducibility, infrastructure, and renderer identity |
 
-Observation, baseline lookup, comparison, attribution, acceptance, and reporting
+Observation, baseline lookup, comparison, [attribution](attribution.md), acceptance, and reporting
 remain the same downstream contracts.
 
 ## Built or served Storybook

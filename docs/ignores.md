@@ -9,7 +9,7 @@ declaration absorbs.
 
 ## An ignore is not a tolerance
 
-Variance Authority applies no global difference tolerance. A tolerance is an
+[Variance Authority](README.md) applies no global difference tolerance. A tolerance is an
 anonymous number, chosen by whoever wrote the default, that hides anything small
 enough to fit under it. Nothing records what a given run's tolerance absorbs.
 

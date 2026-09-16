@@ -325,7 +325,7 @@ stays right.
 
 Left alone, browser attribute materialization makes the same element serialize in
 a different order after it has been read once. The observer materializes those
-attributes before it stamps provenance, so two readings of one stable subject
+attributes before it stamps [provenance](attribution.md), so two readings of one stable subject
 produce one document digest. A disagreement is reported as instability even when
 the pixels and verdict still agree.
 
@@ -350,8 +350,8 @@ smaller place than the one above it:
 |---|---|---|
 | **a component and a band** — `Clock (content)` | the second reading, above | nothing: it runs on subjects the run already called `changed` |
 | **a boundary** — the component whose props, contexts and hook cells were all read, all agreed, and whose output changed anyway | [`partingOf`](parting.md) | a run that asked what the components were holding |
-| **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the divergence's parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
-| **an Act** — the step at which two executions of one journey stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
+| **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the [divergence](composition.md)'s parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
+| **an Act** — the step at which two executions of one [journey](journeys.md) stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
 | **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
 | **a region of source** — the lines some observers of a module entered and others did not | the [journey](journeys.md) each subject recorded | a build carrying the probes, and `variance journeys` over what they recorded |
 
@@ -438,11 +438,11 @@ probe sees stylesheets, custom properties, attributes and stray body nodes; the
 couplings that bite live in module scope — a singleton store, a cached client, a
 mocked clock — and touch no DOM at all. With no runtime stack connecting the
 mutation to its writer, the outcome resolves to a node, a component and source
-attribution. Locating the writer requires bisection over run order.
+[attribution](attribution.md). Locating the writer requires bisection over run order.
 
 ## Recurring diff fingerprints
 
-Variance Authority treats an unstable hash as a finding with a cause, not noise
+[Variance Authority](README.md) treats an unstable hash as a finding with a cause, not noise
 to suppress. Diff-shape grouping can correlate recurring observations, but it
 does not license automatic acceptance: the same suppression can hide a later
 regression in the same region. [The product comparison](comparison.md) covers

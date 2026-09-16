@@ -2,7 +2,7 @@
 
 Three tests can import the same file and take three different paths through it.
 An import graph connects all three to that file. With execution recording,
-Variance Authority also knows **which parts each test actually entered**. A
+[Variance Authority](README.md) also knows **which parts each test actually entered**. A
 change to one branch can then select the tests that exercised it, while the
 record exposes branches none of them entered. That is
 [what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
@@ -42,7 +42,7 @@ The file list is taken from the **merge base** of `origin/main` and `HEAD` to
 the working tree, uncommitted edits included. Against the tip of `origin/main`,
 a branch that is behind it would report every file anybody else merged as
 changed here, and the selection would widen to the whole suite without a useful
-explanation. The hunks the execution index reads are taken from the commit
+explanation. The hunks the [execution index](execution-record.md) reads are taken from the commit
 the index was recorded at, when it names one: its line ranges are in that
 commit's coordinates, and a diff from anywhere else lands on lines it never
 numbered.
@@ -343,7 +343,7 @@ whose recording stopped early: a run that ended mid-flight proves nothing about
 where it never got to.
 
 It wants both sides to exist, which is what makes it the last thing to set up
-rather than the first: a record comes from a journey, and taints come from a
+rather than the first: a record comes from a [journey](journeys.md), and taints come from a
 reader or a table. With one side alone there is nothing to disagree with.
 
 ## What this does not reach

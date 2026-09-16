@@ -157,7 +157,7 @@ together.
 
 ## Framework boundary
 
-- **Composition attribution requires a framework reader.** `collect()` accepts
+- **[Composition](composition.md) [attribution](attribution.md) requires a framework reader.** `collect()` accepts
   `wiringOf` alongside `provenanceOf`. Without a reader, framework wiring is
   absent from the digest rather than reported as empty. The provided reader
   targets React.

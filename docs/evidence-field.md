@@ -1,7 +1,7 @@
 # Use the evidence you already have
 
 A useful answer may need evidence from source, a running test, the rendered
-interface, a previous comparison, or retained history. Variance Authority keeps
+interface, a previous comparison, or retained history. [Variance Authority](README.md) keeps
 those sources compatible so you can follow a question across them without
 replacing the tools that already serve you well.
 
@@ -35,7 +35,7 @@ fill a role when it preserves the observation contract:
 - the question the observation answered;
 - the subject and conditions it read;
 - the capability of the observer;
-- the evidence and its provenance; and
+- the evidence and its [provenance](attribution.md); and
 - any absence, incompatibility, or authority boundary.
 
 This lets the parts work together without requiring one product to own the

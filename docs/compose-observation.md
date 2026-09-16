@@ -30,9 +30,9 @@ interfaces. They need not produce identical evidence.
 
 ## The composition sets the evidence boundary
 
-Browser accessibility, component provenance, resource closure, live
+Browser accessibility, component [provenance](attribution.md), resource closure, live
 announcements, and in-place paint are available only when the selected surface
-and vantage supply them. Their absence reduces what the observation can support;
+and [vantage](vantage.md) supply them. Their absence reduces what the observation can support;
 it does not become an empty reading.
 
 The result is one composition suited to the question. Add another host,

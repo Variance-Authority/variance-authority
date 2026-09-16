@@ -2,7 +2,7 @@
 
 The CLI gives an agent a shell entrance to three evidence lifetimes: `variance
 ask` reads a completed visual report, `variance ask --at` reads a suite still
-executing from its watcher, and `variance distill` reads portable Eyes and Sense
+executing from its watcher, and `variance distill` reads portable [Eyes](eyes.md) and [Sense](../packages/sense)
 evidence for one test. Each calls the same analyzer its MCP counterpart calls,
 but needs no client configuration.
 

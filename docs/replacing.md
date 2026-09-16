@@ -1,6 +1,6 @@
 # Add Variance Authority to what you already use
 
-You can introduce Variance Authority at one boundary without rebuilding the
+You can introduce [Variance Authority](README.md) at one boundary without rebuilding the
 workflow around it. Keep the runner or host that already reaches the state,
 then choose whether it should produce pixels in place or a document for a later
 renderer. A document is portable only when it contains the bytes behind every
@@ -121,7 +121,7 @@ not their bytes.
 
 - operator-selected local or remote rendering;
 - document and semantic evidence alongside the pixels;
-- source attribution when the application carries provenance;
+- source [attribution](attribution.md) when the application carries [provenance](attribution.md);
 - directory, LFS, or remote baseline storage behind one store contract.
 
 **What you pay.**

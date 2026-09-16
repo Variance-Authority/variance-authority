@@ -24,9 +24,9 @@ without authorizing it.
 
 ## Preserve the chain of evidence
 
-Attribution runs from source to semantics to raster; it does not infer source
+[Attribution](attribution.md) runs from source to semantics to raster; it does not infer source
 from a coincident pixel. Parting compares witnessed inputs and states at the
-point they diverge. Composition groups evidence on stable causes rather than
+point they diverge. [Composition](composition.md) groups evidence on stable causes rather than
 visual proximity. Flakiness connects each known source of variance to the tool,
 environment, or decision that can address it, and keeps the unresolved
 remainder visible.
@@ -41,5 +41,5 @@ without matching an existing rule. A stable result can still be wrong for the
 product.
 
 Rules, approvals, and the consuming workflow decide what may happen next. When
-provenance, comparability, or an observation band is missing, the explanation
+[provenance](attribution.md), comparability, or an observation band is missing, the explanation
 stops there rather than borrowing confidence from the evidence beside it.

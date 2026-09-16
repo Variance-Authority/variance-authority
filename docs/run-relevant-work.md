@@ -12,7 +12,7 @@ the decision:
 | Question | Reading | Route |
 | --- | --- | --- |
 | What could this source change reach? | Imports, declarations, unresolved edges, and project-level seeds | [Read source reach](source.md) |
-| Which tests have actually crossed that code? | The execution index retained from previous runs | [Select the tests that matter](selecting.md) |
+| Which tests have actually crossed that code? | The [execution index](execution-record.md) retained from previous runs | [Select the tests that matter](selecting.md) |
 | Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Run the nearest tests first](distance.md) |
 
 Source reach supplies possibility. Recorded execution supplies experience.

@@ -307,7 +307,7 @@ reaches no importer. `EDGE_KINDS` walks it for a question about source rather
 than a runtime, and the shipped selection passes `asset` alone when it asks
 which module imports a file no probe can sit in. `closureOf` walks
 `CLOSURE_EDGES`, a list of the same five kinds kept separately because the
-digest depends on it, so a type-only change moves no merkle digest. The execution record
+digest depends on it, so a type-only change moves no merkle digest. The [execution record](execution-record.md)
 agrees by construction: a type-only import runs nothing, so no crossing ever
 joins the two files.
 

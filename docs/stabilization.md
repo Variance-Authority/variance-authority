@@ -42,7 +42,7 @@ CHANGED  story:card
 
 That is a false alarm wearing a name badge. A plain pixel differ would have told
 you *1530 pixels moved* and you would have shrugged and hit re-run; this tells
-you a component and a file, and you go looking for the edit. **Attribution makes
+you a component and a file, and you go looking for the edit. **[Attribution](attribution.md) makes
 a false alarm credible**, which is why this project can afford flakiness less
 than a pixel differ can.
 
@@ -541,7 +541,7 @@ from `awaitQuiet`, always. **Silence is never reported as quiet.**
 Reading Suspense needs no hook and no advance warning. A Suspense fiber's
 `memoizedState` is `null` while it shows its children and an object while it
 shows its fallback, so the state of every boundary is reachable by traversal from
-the same `__reactFiber$…` expando provenance already reads — at any time, on a
+the same `__reactFiber$…` expando [provenance](attribution.md) already reads — at any time, on a
 page nobody instrumented, including in production.
 
 What comes back is not a count. Each boundary carries the owner chain above it,
@@ -722,7 +722,7 @@ Dates, clocks, randomized data, `requestAnimationFrame` mutations, hover state,
 sticky or fixed positioning during full-page capture, spellcheck decoration,
 and subpixel image sizing are not normalized by that path. Control them in the
 host's fixture, express deliberate volatile regions through
-[`ignores`](ignores.md), or provide a custom composition with its own
+[`ignores`](ignores.md), or provide a [custom composition](compose-observation.md) with its own
 intervention recipe.
 
 A subject reported `changed` is read again in the same world. Disagreement is

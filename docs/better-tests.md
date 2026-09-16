@@ -11,11 +11,11 @@ do next, and every dependency should earn the work it adds.
 
 A test run already knows much of what you need: which code executed, which
 elements the tests queried or clicked, and what setup ran before they began.
-Teardown is normally where all of that disappears. Variance Authority keeps it
+Teardown is normally where all of that disappears. [Variance Authority](README.md) keeps it
 so the work you have already paid for can make the next run better.
 
 Visual comparison is one use of that evidence. The Vitest 2 and Jest 30
-integrations record execution through the transformer you already use. Eyes
+integrations record execution through the transformer you already use. [Eyes](eyes.md)
 records React Testing Library's `screen` queries from a setup file. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in
 a suite that never opens a browser.
@@ -76,7 +76,7 @@ state: a clock could explain both. So an unstable subject is not checked with
 
 Both checks retain their findings; a second capture does not turn a failure into
 a pass. `accept` refuses to save either result as a baseline unless a declared
-sensitivity rule covers every kind of change found. `alone.limit` caps the extra
+[sensitivity](sensitivity.md) rule covers every kind of change found. `alone.limit` caps the extra
 captures on a failing run. Outside a full flake sweep, a passing run pays nothing
 for these checks.
 
@@ -136,7 +136,7 @@ fewer ways to drag the test back into the suite.
 
 A test that never calls into a module still pays for it. The import runs its
 initialization, and an import graph can select the test whenever that file
-changes. A file-level execution record tells you that the module ran, but not
+changes. A file-level [execution record](execution-record.md) tells you that the module ran, but not
 whether the test called its functions. A spy that replaced a function and a
 branch that never called it can look the same.
 

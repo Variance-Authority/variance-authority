@@ -1,7 +1,7 @@
 # Observe one state end to end
 
 Begin with one stable UI state in a test or harness you already trust. Keep its
-navigation, fixtures, authentication, and readiness there. Variance Authority
+navigation, fixtures, authentication, and readiness there. [Variance Authority](README.md)
 records one bounded subject, gives you the first candidate to review, and checks
 that the accepted reading returns `unchanged` on the next run.
 
@@ -43,7 +43,7 @@ collector documents can be rendered locally or by an operator-owned renderer.
 
 These paths share observation and reporting contracts, not identical signals.
 For example, browser accessibility evidence requires a browser reading,
-`file:line` attribution requires source provenance, and portable remote painting
+`file:line` [attribution](attribution.md) requires source [provenance](attribution.md), and portable remote painting
 requires resource-closed capture. When a path does not supply a signal, the
 result omits it.
 
