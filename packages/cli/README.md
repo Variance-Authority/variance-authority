@@ -159,12 +159,22 @@ comparison and nothing else.
 
 ### Distill: find a smaller test boundary
 
+Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
+`tests` array:
+
 ```bash
 variance distill \
-  --test 'checkout submits' \
+  --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
   --execution .variance/execution.json
 ```
+
+`--test` identifies an entry in the evidence file's `tests` array by its `id`.
+When both evidence files are supplied, their IDs must agree to join the readings.
+A file path works only when it is the recorded ID. With Eyes evidence, a unique
+exact title or unique case-insensitive title fragment also resolves to an ID;
+ambiguous title matches are refused. Execution evidence is always matched by
+exact ID, including after Eyes resolves a title.
 
 `distill` reads the paths named on the command line and does not read project
 configuration. It reports addressed targets by authored Arrange/Act/Assert

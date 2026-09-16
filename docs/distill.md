@@ -36,12 +36,22 @@ exercises the same behaviour. Initialization may supply something the test
 needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
+Replace `<recorded-test-id>` below with the `id` of an entry in the evidence
+file's `tests` array. With both files supplied, Eyes and execution evidence must
+use the same ID for Distill to connect them. A test file path works only when
+the recording uses that path as its ID.
+
 ```bash
 variance distill \
-  --test 'checkout submits' \
+  --test '<recorded-test-id>' \
   --eyes .variance/eyes.json \
   --execution .variance/execution.json
 ```
+
+With Eyes evidence, `--test` also accepts a unique test title, such as
+`'checkout submits'`, or a title fragment that matches only one test. Distill
+resolves it to the Eyes ID and looks up that exact ID in the execution record.
+With execution evidence alone, supply the recorded ID.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
