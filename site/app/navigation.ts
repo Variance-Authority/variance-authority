@@ -54,11 +54,6 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
-        href: "/docs/scale",
-        label: "Check it fits your repository",
-        cluster: "Run less of the suite",
-      },
-      {
         href: "/docs/optimize-a-test",
         label: "Make one test cost less",
         cluster: "Make one test cost less",
@@ -298,6 +293,7 @@ export const NAVIGATION = [
       { href: "/docs/metrics", label: "Metrics" },
       { href: "/docs/source-index", label: "Source index" },
       { href: "/docs/source-structures", label: "Source structures" },
+      { href: "/docs/scale", label: "Scale" },
       { href: "/docs/execution-record", label: "Execution record" },
       { href: "/docs/performance", label: "Performance" },
       { href: "/docs/native-code", label: "Native code" },
