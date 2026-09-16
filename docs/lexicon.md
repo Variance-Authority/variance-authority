@@ -300,11 +300,12 @@ same whether the run recorded it rooted or not, and whether you paste the
 absolute path your editor gives you or the tail you remember.
 
 A path answers from the files a subject was seen in and from nothing else, and
-a bare word is refused rather than reinterpreted. A file name is not unique and
-is not a place: `I18nProvider` says which *component*, and
-`src/core/Containers/I18nProvider.tsx` says which file. Nothing about
-`I18nProvider` says whether it is a folder, a component or a label, so you are
-asked for the coordinate instead of being guessed at.
+it is looked up rather than pattern-matched: what it does not resolve to is not
+found, and what it resolves to twice is handed back as two coordinates. A file
+name is not unique — `I18nProvider` is one place in one repository and two in a
+monorepo that vendors it — so say enough of the parent to be one place. The
+width you asked for is never the ambiguity: `app/dispatch/` resolves to
+`app/dispatch` however many files sit beneath it.
 
 Segments are compared whole and literally — `page` is not `pages`, and
 `Activity.ts` is not `Activity.tsx`. What you are looking for may be

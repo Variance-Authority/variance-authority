@@ -155,13 +155,18 @@ thing. It is a coordinate you already have, so it is read exactly:
   *Dispatch* on the account screen is the thing you are looking for wearing the
   clothes of the place to look, and a start point that read visible text would
   hand it to you first.
-- A bare word is refused rather than reinterpreted. Nothing about `dispatch`
-  says whether it is a folder, a component, a product area or a label, so you
-  are asked for the path instead of being guessed at.
-- **No answer is ever given from outside it.** A path no file sits at searches
-  nothing and returns nothing. Falling back to the rest of the suite would
-  answer a question you did not ask, out of the files you ruled out — and would
-  do it while printing a confident top hit.
+- **It is looked up, and what it does not resolve to is not found.** A start
+  point this run holds no file at is rejected the way a missing file is
+  rejected, rather than quietly searching nothing.
+- **Land in two places and you are asked which.** `Badge.tsx` under two
+  packages is two coordinates, and picking one would be guessing at the moment
+  you handed one over. Both are named back. A width you asked for is not this:
+  `app/dispatch/` is one place however many files are under it, because what is
+  looked up is where the run you named ends, and a `*` is you saying *any* out
+  loud.
+- **No answer is ever given from outside it.** Falling back to the rest of the
+  suite would answer a question you did not ask, out of the files you ruled
+  out — and would do it while printing a confident top hit.
 
 Every path counts. `--from "app/dispatch/ src/shared/"` keeps only subjects seen
 in a file at both, because two paths in a start point are you narrowing on

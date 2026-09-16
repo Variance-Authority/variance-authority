@@ -106,19 +106,60 @@ describe('a start point is a place on disk and nothing else', () => {
     ]);
   });
 
-  it('refuses a bare word rather than guessing which kind of place it is', () => {
-    // Nothing about `billing` says whether it is a folder, a component, a
-    // product area or a word on a button. Reinterpreting it is the one
-    // accommodation that cannot be made honestly.
-    const scope = scopeOf(REPORT, 'billing');
-    expect(scope.refused).toContain('not a path');
+  it('rejects a start point this run holds no file at', () => {
+    // Not an empty answer. The caller handed over a coordinate and the run does
+    // not have it, which is a different fact from the place existing and
+    // holding nothing.
+    const scope = scopeOf(REPORT, 'warehousing');
+    expect(scope.refused).toContain('not found');
     expect(scope.subjects.size).toBe(0);
   });
 
-  it('refuses a component name, however exactly it is spelled', () => {
-    // `InvoiceTable` is a real component of a real subject. It is still not a
-    // location, and a filename is not unique.
-    expect(scopeOf(REPORT, 'InvoiceTable').refused).toBeDefined();
+  it('rejects a component name that is nowhere on disk', () => {
+    // `InvoiceTable` is a real component of a real subject. A component is not
+    // a location, and nothing is looked up but locations.
+    expect(scopeOf(REPORT, 'invoicetable-legacy').refused).toContain('not found');
+  });
+
+  it('rejects a name that is two places, naming both', () => {
+    // `Badge` is a file of two subjects under two different parents. Picking
+    // one would be guessing at the moment the caller handed over a coordinate.
+    const two: readonly SubjectLexicon[] = [
+      { subject: 'story:a', boundaries: 1, terms: { files: ['packages/web/Badge.tsx'] } },
+      { subject: 'story:b', boundaries: 1, terms: { files: ['packages/admin/Badge.tsx'] } },
+    ];
+    const scope = scopeOf(reportOf(two), 'Badge.tsx');
+    expect(scope.refused).toContain('more than one place');
+    expect(scope.refused).toContain('packages/web/badge.tsx');
+    expect(scope.refused).toContain('packages/admin/badge.tsx');
+    expect(scope.subjects.size).toBe(0);
+  });
+
+  it('reads one file recorded two ways as one place', () => {
+    // A run may record a file absolutely, as the build host saw it, and
+    // relative to the repository. That is one file written twice.
+    const both: readonly SubjectLexicon[] = [
+      { subject: 'story:a', boundaries: 1, terms: { files: ['src/billing/Card.tsx'] } },
+      { subject: 'story:b', boundaries: 1, terms: { files: ['/build/42/src/billing/Card.tsx'] } },
+    ];
+    const scope = scopeOf(reportOf(both), 'src/billing/Card.tsx');
+    expect(scope.refused).toBeUndefined();
+    expect([...scope.subjects]).toEqual(['story:a', 'story:b']);
+  });
+
+  it('reads a width the caller asked for as one place, however much is under it', () => {
+    // The named run ends at `app/about-us`, and where it ends is what was
+    // looked up. How many files sit beneath is not ambiguity.
+    const pages = reportOf([
+      { subject: 'story:about', boundaries: 1, terms: { files: ['app/about-us/page.tsx'] } },
+      { subject: 'story:team', boundaries: 1, terms: { files: ['app/about-us/team/page.tsx'] } },
+      { subject: 'story:contact', boundaries: 1, terms: { files: ['app/contact/page.tsx'] } },
+    ]);
+    expect(scopeOf(pages, 'app/about-us/').refused).toBeUndefined();
+    expect([...scopeOf(pages, 'app/about-us/').subjects]).toEqual(['story:about', 'story:team']);
+    // A `*` is the caller saying *any* out loud: two pages is the answer, not a
+    // question to hand back.
+    expect(scopeOf(pages, 'app/*/page.tsx').refused).toBeUndefined();
   });
 
   it('never answers a path from anything but the files a subject was seen in', () => {
@@ -151,10 +192,10 @@ describe('a start point is a place on disk and nothing else', () => {
     ]);
   });
 
-  it('refuses a stray word beside a good path instead of ignoring it', () => {
+  it('rejects a stray word beside a good path instead of ignoring it', () => {
     // Skipping it would make a typo indistinguishable from a caller who meant
     // to narrow twice, and would answer a wider question than was asked.
-    expect(scopeOf(REPORT, 'src/billing/ --').refused).toBeDefined();
+    expect(scopeOf(REPORT, 'src/billing/ src/warehousing/').refused).toContain('not found');
   });
 });
 
@@ -193,16 +234,11 @@ describe('what a start point does to an answer', () => {
     expect(answer).toContain('Searched 2 of 3 subject(s)');
   });
 
-  it('prints why a start point that named nowhere searched nothing', () => {
+  it('prints why a start point this run holds no file at searched nothing', () => {
     const answer = locate.run(REPORT, { query: 'overdue', from: 'src/warehousing/' });
-    expect(answer).toContain('no file was seen at `src/warehousing/`');
-    expect(answer).toContain('hard boundary');
-  });
-
-  it('prints how to say a start point when the caller said a word', () => {
-    const answer = locate.run(REPORT, { query: 'overdue', from: 'warehousing' });
     expect(answer).toContain('No search was run');
-    expect(answer).toContain('`warehousing` is not a path');
+    expect(answer).toContain('`src/warehousing/` is not found');
+    expect(answer).toContain('leave the start point out');
   });
 
   it('is absent from the answer when none was given', () => {
@@ -294,7 +330,7 @@ describe('a path is matched literally, segment for whole segment', () => {
       terms: { files: ['/Users/somebody/checkout/src/Card.tsx'], names: ['Card'] },
     };
     const ran = reportOf([built]);
-    expect(scopeOf(ran, 'checkout').refused).toBeDefined();
+    expect(scopeOf(ran, 'nowhere/src/').refused).toContain('not found');
     expect([...scopeOf(ran, 'checkout/src/').subjects]).toEqual(['story:card']);
   });
 });
@@ -365,14 +401,16 @@ describe('a start point is grounded in a file, at whatever width the caller has'
 });
 
 describe('an empty scope says what was looked for and where', () => {
-  it('names the path no file was seen at', () => {
+  it('names the path this run holds no file at', () => {
     const line = scopeLine(scopeOf(REPORT, 'src/warehousing/'), 3);
-    expect(line).toContain('no file was seen at `src/warehousing/`');
+    expect(line).toContain('`src/warehousing/` is not found');
+    expect(line).toContain('leave the start point out');
   });
 
-  it('says how to say a place when the caller said a word', () => {
-    const line = scopeLine(scopeOf(REPORT, 'warehousing'), 3);
-    expect(line).toContain('`warehousing` is not a path');
-    expect(line).toContain('leave the start point out');
+  it('separates a place that holds nothing from a place that is not there', () => {
+    // Two paths that both resolve, with no subject recorded in both.
+    const line = scopeLine(scopeOf(REPORT, 'src/billing/ src/shipping/'), 3);
+    expect(line).toContain('no subject in common');
+    expect(line).toContain('hard boundary');
   });
 });

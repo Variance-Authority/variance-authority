@@ -101,9 +101,10 @@ export const locate: Tool = {
           'everything under it, and a `*` stands for one segment you do not want to name. ' +
           'Matched literally against the files each subject was seen in — no stemming, no ' +
           'partial segment, and never against a component, an id or anything a subject shows. ' +
-          'Say the parent too: a filename alone is not unique. A bare word is refused rather ' +
-          'than guessed at, and a path no file sits at searches nothing at all — this is a hard ' +
-          'boundary, so no answer is ever given from outside it. Narrows the suite before ' +
+          'Looked up, not pattern-matched: a start point this run holds no file at is rejected ' +
+          'as not found, and one that lands in two unrelated places is rejected with both named, ' +
+          'so say enough of the parent to be one place. A width you asked for is one place ' +
+          'however many files are under it. No answer is ever given from outside it. Narrows the suite before ' +
           'ranking and recounts rarity inside what remains, so the area\'s own vocabulary stops ' +
           'distinguishing anything.',
       },
