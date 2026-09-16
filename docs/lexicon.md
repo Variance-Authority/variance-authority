@@ -298,6 +298,41 @@ single effect measured here, and it is larger on the suite whose vocabulary is
 saturated — which is the case for scoping: a scope restores the distinctions a
 shared vocabulary has spent.
 
+### The rank is not what you came for
+
+Every count above asks whether the top hit is the reader's *subject*. That is
+the wrong target for the question this answers. You are not looking for a
+story; you are looking for the place the thing is written, and one file is
+usually shown by several stories. Picking a different story that opens the same
+file is not a miss.
+
+So the same questions were asked again mechanically — three hundred of them,
+seeded and re-runnable, each one a landmark's own words with a directory of its
+file as the starting point — and scored on the file the answer prints rather
+than the id:
+
+| | a 2019 application | a component library |
+|---|---|---|
+| subjects | 166 | 4,705 |
+| lines kept by the build | 91.7% of landmarks | none |
+| the top hit is the reader's subject | 25.7% | 13.0% |
+| **the top hit names the right place** | **72.7%** | **67.7%** |
+| the right place is within three | 88.7% | 70.7% |
+| the top hit names it without a starting point | 57.0% | 46.0% |
+
+Read the second and third rows together. On the library the top hit is the
+reader's own story one time in eight and the right place two times in three,
+and the gap between those two numbers is entirely stories that show the same
+component. A measure that counts only the id reports a tool five times worse
+than the one you are using.
+
+The library row is the harder case in every respect: twenty-eight times the
+subjects, and a production build that kept no line anywhere, so there is no
+file to print and the answer falls back to the component that owns the landmark
+and the files declaring it. It is a place to open rather than a coordinate,
+which is why it is said differently, and it still answers two questions in
+three.
+
 Whether the scope is applied before the rank or after it is very nearly not a
 question. Asked across every query the suites' own names produce against every
 domain they contain — 14,479 query-and-scope pairs on one, 3,479 on the other —
