@@ -226,7 +226,8 @@ export function tokensOf(value: string): readonly string[] {
   return [...out];
 }
 
-function stem(word: string): string {
+/** The tokeniser's one concession to English, shared so a place match stems alike. */
+export function stem(word: string): string {
   return word.length >= 4 && word.endsWith('s') && !word.endsWith('ss') ? word.slice(0, -1) : word;
 }
 

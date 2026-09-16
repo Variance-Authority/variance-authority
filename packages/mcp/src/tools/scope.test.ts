@@ -214,3 +214,73 @@ describe('a start point reaches the arrangement too', () => {
     expect(orient(LAID, 'the overdue under the amount', 'billing').considered).toBe(1);
   });
 });
+
+/**
+ * The way a real application defeated a start point: a filename lending a word
+ * it never meant.
+ *
+ * Measured on a 2019 application of 166 subjects, asking after the forty
+ * directories its files name. Whole-segment matching took precision from 87.5%
+ * to 97.3% with recall unmoved at 100%, and what precision remains against is
+ * components genuinely named after their place rather than files misread.
+ *
+ * Only `files` is read this way. A component name is not a path and a start
+ * point may well be one — `DispatchDrawer` is the dispatch drawer — so the
+ * name fields stay as generous as they were.
+ */
+describe('a start point names a directory, not a piece of a filename', () => {
+  /** Under `src/components/`, with a name ending in the word `Page`. */
+  const FOOTER: SubjectLexicon = {
+    subject: 'story:footer-for-payment',
+    boundaries: 2,
+    terms: {
+      files: ['src/components/FooterForPaymentPage/FooterForPaymentPage.tsx'],
+      names: ['Pay'],
+    },
+  };
+
+  /** Genuinely under `src/pages/`. */
+  const ACTIVITY: SubjectLexicon = {
+    subject: 'story:activity',
+    boundaries: 2,
+    terms: {
+      files: ['src/pages/Activity/Activity.tsx'],
+      names: ['Activity'],
+    },
+  };
+
+  /**
+   * Compiled somewhere the run had no root for, so the path kept the build
+   * host's own directories. Nothing about this subject concerns a user.
+   */
+  const CARD: SubjectLexicon = {
+    subject: 'story:card',
+    boundaries: 2,
+    terms: {
+      files: ['/tmp/scratch/-Users-somebody-dev-app/src/components/Card/Card.tsx'],
+      names: ['Card'],
+    },
+  };
+
+  const APP = reportOf([FOOTER, ACTIVITY, CARD]);
+
+  it('does not answer `pages` with a footer that merely ends in the word', () => {
+    expect([...scopeOf(APP, 'pages').subjects]).toEqual(['story:activity']);
+  });
+
+  it('lets a file name its own place, extension and all', () => {
+    expect([...scopeOf(APP, 'activity').subjects]).toEqual(['story:activity']);
+  });
+
+  it('does not let a build host`s own directories name what they touched', () => {
+    expect(scopeOf(APP, 'users').subjects.size).toBe(0);
+    expect(scopeOf(APP, 'scratch').subjects.size).toBe(1);
+  });
+
+  it('reads the directories of an unrooted path like any other', () => {
+    expect([...scopeOf(APP, 'components').subjects].sort()).toEqual([
+      'story:card',
+      'story:footer-for-payment',
+    ]);
+  });
+});

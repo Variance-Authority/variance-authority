@@ -1,5 +1,5 @@
 import type { RunReport } from '@variance-authority/report';
-import { entriesMatching, indexOf, lower, partsOf, type LocateField } from './locate-index.js';
+import { entriesMatching, indexOf, lower, partsOf, stem, type LocateField } from './locate-index.js';
 
 /**
  * Where to look, said as a place rather than as a thing.
@@ -57,6 +57,35 @@ export const PLACE_FIELDS: ReadonlySet<LocateField> = new Set<LocateField>([
   'regions',
 ]);
 
+
+/**
+ * A path names a place when one of its segments *is* the word, not when some
+ * part of a filename contains it.
+ *
+ * The tokeniser splits camel case, which is right for a description and wrong
+ * for a start point. `FooterForPaymentPage.tsx` yields `page`, so on a real
+ * application `from: "pages"` was answered largely by a footer — fifty-eight
+ * subjects of the seventy-eight it returned, against the sixteen actually
+ * written under `src/pages`. The same split is what let `user` name every
+ * subject in a run: a build machine's own directory is called `Users`, so an
+ * absolute path put the word on every file it touched.
+ *
+ * A directory is the unit a person means. `src/pages/Activity/Activity.tsx` is
+ * in `pages`; `FooterForPaymentPage.tsx` is not, and neither is anything whose
+ * only claim is a byte of somebody's home directory. The extension is dropped
+ * so a file may name its own place, and the same stem is applied to both sides
+ * so `pages` still meets `page`.
+ */
+function segmentNames(path: string, term: string): boolean {
+  const wanted = stem(lower(term));
+  for (const segment of path.split(/[/\\]/)) {
+    if (segment === '') continue;
+    const bare = lower(segment).replace(/\.[a-z0-9]+$/, '');
+    if (bare === wanted || stem(bare) === wanted) return true;
+  }
+  return false;
+}
+
 /** A start point, resolved. `subjects` empty means it named nowhere. */
 export interface Scope {
   /** As the caller typed it. */
@@ -105,6 +134,7 @@ export function scopeOf(report: RunReport, from: string): Scope {
     for (const id of entriesMatching(index, parts)) {
       const entry = index.entries[id]!;
       if (!PLACE_FIELDS.has(entry.field)) continue;
+      if (entry.field === 'files' && !segmentNames(entry.value, term)) continue;
       here.add(entry.subject);
     }
     if (here.size === 0) unmatched.push(term);
