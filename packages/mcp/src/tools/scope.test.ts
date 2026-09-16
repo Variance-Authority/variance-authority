@@ -4,7 +4,7 @@ import type { LexiconReport, RunReport, SubjectLexicon } from '@variance-authori
 import { locate } from './locate.js';
 import { locateSubjects } from './locate.js';
 import { orient } from './orient.js';
-import { PLACE_FIELDS, scopeOf } from './scope.js';
+import { PLACE_FIELDS, scopeLine, scopeOf } from './scope.js';
 
 /**
  * A start point, asserted where it is load-bearing rather than where it is easy.
@@ -169,7 +169,7 @@ describe('what a start point does to an answer', () => {
   it('prints why a start point that named nowhere scoped nothing', () => {
     const answer = locate.run(REPORT, { query: 'overdue', from: 'warehousing' });
     expect(answer).toContain('names no subject of 3');
-    expect(answer).toContain('`warehousing` names no id, component, creator, file or region');
+    expect(answer).toContain('no id, component, creator or region goes by that word');
   });
 
   it('is absent from the answer when none was given', () => {
@@ -333,5 +333,17 @@ describe('a start point is grounded in a file, at whatever width the caller has'
       'story:about-page',
       'story:contact',
     ]);
+  });
+})
+
+describe('an empty scope says which kind of place was looked for', () => {
+  it('says no file was seen there when the caller gave a path', () => {
+    const line = scopeLine(scopeOf(REPORT, 'src/warehousing/'), 3);
+    expect(line).toContain('no file was seen at that path');
+  });
+
+  it('says no such name when the caller gave a word', () => {
+    const line = scopeLine(scopeOf(REPORT, 'warehousing'), 3);
+    expect(line).toContain('goes by that word');
   });
 })

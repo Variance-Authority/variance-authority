@@ -231,8 +231,8 @@ export function scopeLine(scope: Scope, indexed: number): string {
     const why =
       scope.unmatched.length === 0
         ? 'no subject holds all of them at once'
-        : `${scope.unmatched.map((term) => `\`${term}\``).join(', ')} names no id, component, ` +
-          'creator, file or region in this run';
+        : `${scope.unmatched.map((term) => `\`${term}\``).join(', ')} names nothing in this ` +
+          `run: ${scope.unmatched.some((term) => /[/\\]/.test(term)) ? 'no file was seen at that path' : 'no id, component, creator or region goes by that word'}`;
     return (
       `Start point \`${scope.from}\` names no subject of ${indexed}: ${why}. ` +
       'Nothing below is scoped; a start point is matched against where code is, never against ' +

@@ -106,8 +106,32 @@ fields it looked in rather than guessing at a synonym. That record is the
 
 On a suite of a few hundred, a description is enough. On a few thousand it is
 not — and the missing word is usually not a better description of the thing but
-the place you are standing. You know the change is somewhere in dispatch. Say
-so:
+the place you are standing.
+
+### If you have the file, say the file
+
+Most of the time you do: it is open in front of you, or the ticket names it, or
+a stack trace just handed it to you. Paste it.
+
+```bash
+variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
+```
+
+Say it as wide as you actually know:
+
+| you say | you get |
+|---|---|
+| `app/dispatch/page.tsx` | that file, and only what it shows |
+| `app/dispatch/*` | the files of that folder — the layout beside the page |
+| `app/dispatch/` | everything underneath, however deep |
+| `app/*/page.tsx` | one segment you would rather not name |
+
+Say nothing about depth and you mean any depth, so the folder on its own is the
+wider of the two. Paste the absolute path your editor gives you or type the tail
+you remember — both find the same file, and so does either against a run that
+recorded its paths from somewhere else on disk.
+
+### If you do not, say the word
 
 ```bash
 variance ask locate --query "the contract warning" --from "dispatch"
@@ -120,13 +144,16 @@ Read: id, example, names, text, components, createdBy, files, roles, tokens. Not
 …
 ```
 
-**`from` is matched against where code is, never against what a subject shows.**
-Ids, the component a subject is the example of, the components it holds, who
-mounted them, the files that declare them, the regions its journey entered — and
-not names, text, roles or tokens. The division is the point: a button labelled
-*Dispatch* on the account screen is the thing you are looking for wearing the
-clothes of the place to look, and a start point that read visible text would
-hand it to you first.
+A word names what the code declares: an id, the component a subject is the
+example of, the components it holds, who mounted them, the regions its journey
+entered. Not a file name, and not what a subject shows on screen.
+
+Both halves of that matter. A button labelled *Dispatch* on the account screen is
+the thing you are looking for wearing the clothes of the place to look, and a
+start point that read visible text would hand it to you first. And a file name
+is not unique — somewhere there is a `Provider.tsx` loaded by every screen you
+have, so a word that read file names would quietly hand you the whole
+application. `Dispatch` says which component; `app/dispatch/` says which folder.
 
 Every word counts. `--from "dispatch drawer"` keeps only subjects whose place
 fields hold both, because two words in a start point are you narrowing on
@@ -139,14 +166,14 @@ screen in the application says is worth nothing, and a word every screen *in
 this area* says is worth nothing here. Those are different statements, and
 inside an area the second is the useful one.
 
-**A start point that names nowhere fails emptily.** It scopes nothing, says
-which of its words matched no id, component, creator, file or region, and leaves
-the answer exactly as it would have been. So a wrong area costs you the header
-you were going to read anyway — never a confident wrong hit you have no way to
-spot.
+**A start point that names nowhere fails emptily.** It scopes nothing, tells you
+which part of it found nothing and whether it was looking for a file or a name,
+and leaves the answer exactly as it would have been. So a wrong area costs you
+the header you were going to read anyway — never a confident wrong hit you have
+no way to spot.
 
-The same word narrows a relation question, where it is removing surfaces before
-any of them is read:
+A start point narrows a relation question the same way, where it is removing
+surfaces before any of them is read:
 
 ```bash
 variance ask locate --query "the warning under the Carrier field" --from "dispatch"

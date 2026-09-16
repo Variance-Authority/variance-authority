@@ -96,11 +96,13 @@ export const locate: Tool = {
       from: {
         type: 'string',
         description:
-          'Optional. Where to look: a route, an area, a directory, a component, a region — ' +
-          'matched against ids, components, creators, files and regions, never against what a ' +
-          'subject shows. Narrows the suite before ranking and recounts rarity inside what ' +
-          'remains, so the area\'s own vocabulary stops distinguishing anything. A start point ' +
-          'that names nowhere says so and scopes nothing.',
+          'Optional. Where to look. A path when you have one — `app/dispatch/page.tsx` is that ' +
+          'file, `app/dispatch/*` its folder, `app/dispatch/` everything under it — matched ' +
+          'against the files a subject was seen in. Otherwise a word, matched against what the ' +
+          'code declares: ids, components, creators and regions, never a file name and never ' +
+          'what a subject shows. Narrows the suite before ranking and recounts rarity inside ' +
+          'what remains, so the area\'s own vocabulary stops distinguishing anything. A start ' +
+          'point that names nowhere says so and scopes nothing.',
       },
       limit: {
         type: 'integer',
