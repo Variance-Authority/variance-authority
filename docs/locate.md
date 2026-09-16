@@ -131,12 +131,16 @@ Say it as wide as you actually know:
 | `app/dispatch/page.tsx` | that file, and only what it shows |
 | `app/dispatch/*` | the files of that folder — the layout beside the page |
 | `app/dispatch/` | everything underneath, however deep |
-| `app/*/page.tsx` | one segment you would rather not name |
 
 Say nothing about depth and you mean any depth, so the folder on its own is the
-wider of the two. Paste the absolute path your editor gives you or type the tail
-you remember — both find the same file, and so does either against a run that
-recorded its paths from somewhere else on disk.
+wider of the two, and the trailing `*` is the one that stops. Those three are
+the whole vocabulary: a `*` anywhere but the last segment is a pattern, and a
+pattern is not a path.
+
+A path is read from the root down and compared segment for whole segment, so
+say it the way the run recorded it. If the run recorded its files relative to
+the repository, the absolute path your editor gives you is a different path and
+this run holds nothing at it.
 
 Say the parent along with the name, because a file name is not unique. Somewhere
 there is a `Provider.tsx` loaded by every screen you have, and `Provider.tsx` on
@@ -155,15 +159,15 @@ thing. It is a coordinate you already have, so it is read exactly:
   *Dispatch* on the account screen is the thing you are looking for wearing the
   clothes of the place to look, and a start point that read visible text would
   hand it to you first.
-- **It is looked up, and what it does not resolve to is not found.** A start
-  point this run holds no file at is rejected the way a missing file is
-  rejected, rather than quietly searching nothing.
-- **Land in two places and you are asked which.** `Badge.tsx` under two
-  packages is two coordinates, and picking one would be guessing at the moment
-  you handed one over. Both are named back. A width you asked for is not this:
-  `app/dispatch/` is one place however many files are under it, because what is
-  looked up is where the run you named ends, and a `*` is you saying *any* out
-  loud.
+- **A path exists or it does not, and that is the whole test.** `Badge.tsx`
+  does not name the file under `apps/web` — it names a file at the root, and
+  where no file is at the root, nothing is there and the answer is not found.
+  Not *found under apps/web*, and not *two candidates, pick one*: handing back
+  candidates is the same fragment rule wearing a politer face. Say
+  `apps/web/Badge.tsx` or say `apps/web/`.
+- **Nothing is looked for inside a path.** No matching tail, no run of segments
+  found somewhere in the middle, no case folding, and no reading one recorded
+  path as another because one ends with the other.
 - **No answer is ever given from outside it.** Falling back to the rest of the
   suite would answer a question you did not ask, out of the files you ruled
   out — and would do it while printing a confident top hit.

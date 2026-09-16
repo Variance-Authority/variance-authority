@@ -289,23 +289,23 @@ file already open in front of you. Give it as a path and it is read as one:
 from: app/about-us/page.tsx    the file itself, and only what it shows
 from: app/about-us/*           the files of that folder — the layout beside it
 from: app/about-us/            everything underneath, however deep
-from: app/*/page.tsx           one segment you do not want to name
 ```
 
 Say nothing about depth and you mean any depth, so the folder on its own is the
-wider of the two. A trailing `*` is the file, which is why it stops there.
+wider of the two, and the trailing `*` is the one that stops. Those three forms
+are the whole vocabulary.
 
-The run of segments has to appear entire and in order, so a path answers the
-same whether the run recorded it rooted or not, and whether you paste the
-absolute path your editor gives you or the tail you remember.
+A path is read from the root down and compared segment for whole segment. Say
+it the way the run recorded it: where a run recorded its files relative to the
+repository, the absolute path your editor gives you is a different path, and
+this run holds nothing at it.
 
 A path answers from the files a subject was seen in and from nothing else, and
-it is looked up rather than pattern-matched: what it does not resolve to is not
-found, and what it resolves to twice is handed back as two coordinates. A file
-name is not unique — `I18nProvider` is one place in one repository and two in a
-monorepo that vendors it — so say enough of the parent to be one place. The
-width you asked for is never the ambiguity: `app/dispatch/` resolves to
-`app/dispatch` however many files sit beneath it.
+the only question asked of it is whether it exists. `I18nProvider.tsx` does not
+name the file under `src/core/Containers` — it names a file at the root, and
+where no file is there, the answer is not found. Nothing is looked for inside a
+path: no matching tail, no run of segments found in the middle, no case
+folding.
 
 Segments are compared whole and literally — `page` is not `pages`, and
 `Activity.ts` is not `Activity.tsx`. What you are looking for may be

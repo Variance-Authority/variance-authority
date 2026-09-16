@@ -96,15 +96,16 @@ export const locate: Tool = {
       from: {
         type: 'string',
         description:
-          'Optional. Which files to answer from, as a path and only a path: ' +
-          '`app/dispatch/page.tsx` is that file, `app/dispatch/*` its folder, `app/dispatch/` ' +
-          'everything under it, and a `*` stands for one segment you do not want to name. ' +
-          'Matched literally against the files each subject was seen in — no stemming, no ' +
-          'partial segment, and never against a component, an id or anything a subject shows. ' +
-          'Looked up, not pattern-matched: a start point this run holds no file at is rejected ' +
-          'as not found, and one that lands in two unrelated places is rejected with both named, ' +
-          'so say enough of the parent to be one place. A width you asked for is one place ' +
-          'however many files are under it. No answer is ever given from outside it. Narrows the suite before ' +
+          'Optional. Which files to answer from, as a real path and only a real path: ' +
+          '`app/dispatch/page.tsx` is that file, `app/dispatch/*` that folder\'s own files, ' +
+          '`app/dispatch/` everything under it. Those three forms and no others — a `*` ' +
+          'anywhere but the last segment is a pattern, not a path. A path exists or it does ' +
+          'not: read from the root down, segment for whole segment, case included, against the ' +
+          'files each subject was seen in. Nothing is looked for inside a path, so `Badge.tsx` ' +
+          'is not the file under `apps/web` — it is a file at the root, and where none is ' +
+          'there the start point is rejected as not found. Say `apps/web/Badge.tsx`. Several ' +
+          'paths are several entry points and are taken together. No answer is ever given from ' +
+          'outside it. Narrows the suite before ' +
           'ranking and recounts rarity inside what remains, so the area\'s own vocabulary stops ' +
           'distinguishing anything.',
       },

@@ -1,5 +1,5 @@
 import type { RunReport } from '@variance-authority/report';
-import { indexOf, lower } from './locate-index.js';
+import { indexOf } from './locate-index.js';
 
 /**
  * Where to look, said as a place on disk and nothing else.
@@ -29,175 +29,89 @@ import { indexOf, lower } from './locate-index.js';
  * of them, the folder they are working in — and every softening of it silently
  * widens the pond they said to fish in.
  *
- * So nothing here is fuzzy. Segments are compared literally, lowercased and no
- * more: no stemming, no dropped extension, no partial segment, no matching a
- * path against a component or an id.
+ * ## A path exists or it does not
  *
- * ## A start point is resolved or it is not found
+ * That is the entire rule, and there is deliberately nothing under it. A start
+ * point is read from its root down and compared segment for whole segment:
+ * `apps/web/Badge.tsx` is that file, `apps/web/` is that directory. Nothing is
+ * looked for *inside* a path. `Badge.tsx` names a file at the root, and where
+ * no file is at the root there is nothing there and the answer is not found —
+ * not *found under apps/web*, and not *ambiguous between two packages*. Two
+ * candidates being handed back was the same defect wearing a politer face: it
+ * is still the tool reading a fragment as though it were a path.
  *
- * There is one test and it is not a test of shape. A start point is looked up,
- * and what it resolves to is a location this run actually knows. Resolving to
- * nothing is *not found* — the same answer a missing file gets, for the same
- * reason — and it scopes the search to nothing, which returns nothing, because
- * the alternative is answering a question the caller did not ask out of files
- * they ruled out.
- *
- * Resolving to more than one unrelated location is not found either, stated
- * differently: `I18nProvider` is the component's name and two packages may both
- * declare a file by it, so a run that picked one of them would be guessing on
- * the caller's behalf at exactly the moment the caller handed over a
- * coordinate. The two places are named back instead. This is why the width a
- * caller asks for is not ambiguity: `app/billing/` resolves to `app/billing`
- * however many files sit beneath it, because what is looked up is where the
- * named run ends, not how much lies under it. A `*` is the caller saying *any*
- * out loud, and is never read back to them as a question.
+ * So: no stemming, no dropped extension, no partial segment, no matching tail,
+ * no run of segments found somewhere in the middle, no case folding, no
+ * matching a path against a component or an id, and no reading one recorded
+ * path as another because one ends with the other. A `*` is the one thing that
+ * stands for something, and only because the caller wrote it, and only as the
+ * last segment.
  */
-
-/** How many of a start point's places are named back before the rest are counted. */
-const PLACES_NAMED = 2;
 
 /**
  * A path as the segments a person means: separators of either slash, empty
- * pieces dropped, lowercased, and otherwise exactly as written. The extension
- * stays on — `page.tsx` is a different file from `page.ts`.
+ * pieces dropped, and otherwise exactly as written. The extension stays on —
+ * `page.tsx` is a different file from `page.ts` — and so does the case, because
+ * a path that differs in case is a path that does not exist.
  */
 function segmentsOf(path: string): readonly string[] {
-  return path
-    .split(/[/\\]/)
-    .filter((segment) => segment !== '')
-    .map((segment) => lower(segment));
+  return path.split(/[/\\]/).filter((segment) => segment !== '');
+}
+
+/** The widths a start point can be said at. */
+type Width = 'file' | 'under' | 'own';
+
+/**
+ * Which width the caller asked for, or nothing when what they wrote is not a
+ * path at all.
+ *
+ * Three forms and no others. `apps/web/Badge.tsx` is that file;
+ * `apps/web/` is everything under it at any depth; `apps/web/*` is that
+ * directory's own files and nothing deeper. Say nothing about depth and you
+ * mean any depth, which is why the folder is the wider of the two and the
+ * trailing `*` is the one that stops.
+ *
+ * A `*` anywhere but the last segment is not one of the three. It would be a
+ * pattern, and a pattern is not a path.
+ */
+function widthOf(term: string): Width | undefined {
+  const segments = segmentsOf(term);
+  if (segments.length === 0) return undefined;
+  if (segments.slice(0, -1).some((segment) => segment.includes('*'))) return undefined;
+  const last = segments[segments.length - 1]!;
+  if (last === '*') return segments.length === 1 ? undefined : 'own';
+  if (last.includes('*')) return undefined;
+  return /[/\\]$/.test(term) ? 'under' : 'file';
 }
 
 /**
- * Where one recorded path answers a start point, or nothing.
+ * Whether one recorded path is at the place a start point names.
  *
- * Read as a run of segments that has to appear entire, in order and unbroken,
- * in the recorded path — which is the same statement for a file and for a
- * directory, and the reason it is put that way. `Activity/Activity.tsx` names
- * the file a run recorded as `src/pages/Activity/Activity.tsx`;
- * `src/pages/Activity` names every file under it; the absolute path an editor
- * hands over names the file too, because the shorter run may be either side.
- * A `*` stands for one segment the caller chose not to name, and a trailing one
- * is the file: `app/about-us/*` is the files of that folder and nothing deeper,
- * while `app/about-us/` is everything underneath it. The narrower of the two is
- * the one that has to be said, because a caller who says nothing about depth
- * means any depth.
- *
- * What comes back is *where* it matched, down to the last segment the caller
- * named, rather than merely that it did. That is what makes the answer
- * checkable: a start point matching in two unrelated places has not been
- * resolved, it has been guessed, and the caller is told so instead.
- *
- * What it will not do is join two absolute paths of the same depth under
- * different roots — a build host's checkout and the caller's — which share a
- * tail and disagree above it. Nothing in a run says which of its leading
- * segments are the root, and a rule loose enough to join those would join
- * `apps/web/…/Button.tsx` to `apps/admin/…/Button.tsx`. On the corpora measured
- * it costs nothing: every recorded path answers itself, and the files a rooted
- * run records absolutely it also records unrooted.
+ * Anchored at the root and compared whole: the caller's segments have to *be*
+ * the beginning of the recorded path, in order, character for character. The
+ * width then says how much of the rest is allowed — none for a file, one
+ * segment for a directory's own files, any depth for a directory.
  */
-function resolves(value: string, term: string): string | undefined {
+function at(value: string, term: string, width: Width): boolean {
   const value_ = segmentsOf(value);
   const term_ = segmentsOf(term);
-  if (value_.length === 0 || term_.length === 0) return undefined;
+  const named = width === 'own' ? term_.slice(0, -1) : term_;
+  if (named.length === 0) return false;
 
-  // `app/about-us/*` is the files of that folder and no deeper: the wildcard is
-  // the file, so what precedes it has to be where the file actually sits,
-  // rather than somewhere above it. `app/about-us/` keeps the wildcard's job
-  // for itself and means everything underneath.
-  if (term_[term_.length - 1] === '*') {
-    const dirs = value_.slice(0, -1);
-    return tails(dirs, term_.slice(0, -1)) ? dirs.join('/') : undefined;
-  }
-  return runAt(value_, term_);
-}
-
-/** The shorter list, read from the end, has to be the other's ending. */
-function tails(left: readonly string[], right: readonly string[]): boolean {
-  if (left.length === 0 || right.length === 0) return false;
-  const depth = Math.min(left.length, right.length);
-  for (let back = 1; back <= depth; back += 1) {
-    if (!alike(left[left.length - back]!, right[right.length - back]!)) return false;
+  const depth =
+    width === 'file' ? named.length : width === 'own' ? named.length + 1 : undefined;
+  if (depth !== undefined ? value_.length !== depth : value_.length <= named.length) return false;
+  for (let segment = 0; segment < named.length; segment += 1) {
+    if (named[segment] !== value_[segment]) return false;
   }
   return true;
-}
-
-/**
- * The recorded path down to the last segment the term named, when the term
- * appears in it entire, in order and unbroken.
- *
- * Either list may be the longer one. A caller pasting an absolute path holds
- * more segments than a run that recorded its files relative to the repository,
- * and the recorded path is then the whole of what was named.
- */
-function runAt(value_: readonly string[], term_: readonly string[]): string | undefined {
-  if (term_.length <= value_.length) {
-    for (let from = 0; from + term_.length <= value_.length; from += 1) {
-      let all = true;
-      for (let at = 0; at < term_.length && all; at += 1) all = alike(term_[at]!, value_[from + at]!);
-      if (all) return value_.slice(0, from + term_.length).join('/');
-    }
-    return undefined;
-  }
-  for (let from = 0; from + value_.length <= term_.length; from += 1) {
-    let all = true;
-    for (let at = 0; at < value_.length && all; at += 1) all = alike(value_[at]!, term_[from + at]!);
-    if (all) return value_.join('/');
-  }
-  return undefined;
-}
-
-/**
- * One segment against one: the same text, or a `*` the caller wrote in place of
- * a segment they did not want to name.
- *
- * Literal on purpose. A stem here would let `page` answer `pages` and `card`
- * answer `cards`, and a caller handing over a coordinate did not ask to be
- * guessed at.
- */
-function alike(mine: string, theirs: string): boolean {
-  return mine === '*' || theirs === '*' || mine === theirs;
-}
-
-/**
- * The places, with the same place named twice folded into one.
- *
- * A run may record a file both absolutely, as the build host saw it, and
- * relative to the repository, and those are one file written two ways rather
- * than two coordinates. One place being the tail of another is what that looks
- * like from here, and it is also the only safe reading of it: `src/x/y.tsx` and
- * `/build/42/src/x/y.tsx` can only be the same file, while
- * `apps/web/Badge.tsx` and `apps/admin/Badge.tsx` are tails of nothing
- * and stay two.
- */
-function distinct(places: Iterable<string>): readonly string[] {
-  const kept: string[][] = [];
-  for (const place of places) {
-    const segments = place.split('/');
-    let merged = false;
-    for (let at = 0; at < kept.length && !merged; at += 1) {
-      const held = kept[at]!;
-      const short = held.length <= segments.length ? held : segments;
-      const long = held.length <= segments.length ? segments : held;
-      let tail = true;
-      for (let back = 1; back <= short.length && tail; back += 1) {
-        if (short[short.length - back] !== long[long.length - back]) tail = false;
-      }
-      if (tail) {
-        kept[at] = long;
-        merged = true;
-      }
-    }
-    if (!merged) kept.push(segments);
-  }
-  return kept.map((segments) => segments.join('/'));
 }
 
 /** A start point, resolved. `subjects` empty means it named nowhere. */
 export interface Scope {
   /** As the caller typed it. */
   readonly from: string;
-  /** Its paths, lowercased, deduplicated. Empty when the start point was refused. */
+  /** Its paths as written, deduplicated. Empty when the start point was refused. */
   readonly terms: readonly string[];
   /** The subjects it names. */
   readonly subjects: ReadonlySet<string>;
@@ -210,14 +124,15 @@ export interface Scope {
 }
 
 /**
- * The subjects a start point names: those recorded in a file at **every** one
- * of its paths.
+ * The subjects a start point names: those recorded in a file at **any** one of
+ * its paths.
  *
- * Conjunctive, unlike the ranking beside it, and for the opposite reason. A
- * rank may be generous because being wrong costs one more call; a scope that
- * was generous would put back the subjects it exists to remove, and two paths
- * in a start point are a caller narrowing deliberately rather than describing
- * more fully.
+ * Several paths are several start points, and a caller with two entry points
+ * into the same investigation — the settings page and the invite modal — is
+ * naming two places to be answered from, not asking for the files common to
+ * both. Common to both is very nearly always nothing: two different entry
+ * points of one application share almost no file, so an intersection would
+ * quietly answer nothing at exactly the moment the caller was most specific.
  */
 export function scopeOf(report: RunReport, from: string): Scope {
   const index = indexOf(report);
@@ -228,7 +143,7 @@ export function scopeOf(report: RunReport, from: string): Scope {
         // Quotes, brackets and a trailing comma are how a path arrives when it
         // was copied out of something. A trailing `*` or separator is not
         // punctuation — it is the width the caller asked for — and stays.
-        .map((word) => lower(word).replace(/^["'`([]+|["'`)\],]+$/g, ''))
+        .map((word) => word.replace(/^["'`([]+|["'`)\],]+$/g, ''))
         .filter((word) => word !== ''),
     ),
   ];
@@ -243,60 +158,42 @@ export function scopeOf(report: RunReport, from: string): Scope {
   // is not a location.
   const files = index.entries.filter((entry) => entry.field === 'files');
 
-  const at: string[] = [];
+  const found: string[] = [];
   const unmatched: string[] = [];
-  const ambiguous: string[] = [];
-  let held: Set<string> | undefined;
+  const held = new Set<string>();
 
   for (const term of terms) {
-    const here = new Set<string>();
-    const places = new Set<string>();
-    for (const entry of files) {
-      const place = resolves(entry.value, term);
-      if (place === undefined) continue;
-      here.add(entry.subject);
-      places.add(place);
+    const width = widthOf(term);
+    let here = false;
+    if (width !== undefined) {
+      for (const entry of files) {
+        if (!at(entry.value, term, width)) continue;
+        held.add(entry.subject);
+        here = true;
+      }
     }
-    const where = distinct(places);
-    if (where.length === 0) unmatched.push(term);
-    // A width the caller asked for resolves to one place however much sits
-    // under it. Two places means the name landed twice, in file trees that have
-    // nothing to do with each other, and only the caller knows which was meant.
-    else if (where.length > 1 && !term.includes('*')) {
-      const named = where.slice(0, PLACES_NAMED).map((place) => `\`${place}\``).join(' and ');
-      const rest = where.length > PLACES_NAMED ? ` and ${where.length - PLACES_NAMED} more` : '';
-      ambiguous.push(`\`${term}\` is ${named}${rest}`);
-    } else at.push(where[0]!);
-    held = held === undefined ? here : new Set([...held].filter((subject) => here.has(subject)));
+    if (here) found.push(term);
+    else unmatched.push(term);
   }
 
-  // Not found is a rejection, not an empty result. The caller handed over a
-  // coordinate and this run does not have it: telling them so is a different
-  // fact from telling them the place exists and holds nothing.
+  // Not found is a rejection, not an empty result, and it is the only failure
+  // there is. The caller handed over a coordinate; this run does not have it.
+  // Saying so is a different fact from saying the place exists and holds
+  // nothing, and it is the difference between fixing a typo and looking
+  // somewhere else.
   if (unmatched.length > 0) {
     const named = unmatched.map((term) => `\`${term}\``).join(', ');
     return {
       from,
       terms,
       subjects: new Set<string>(),
-      at,
+      at: found,
       unmatched,
-      refused: `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — no file of this run is there`,
+      refused: `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — no file of this run is at that path`,
     };
   }
 
-  if (ambiguous.length > 0) {
-    return {
-      from,
-      terms,
-      subjects: new Set<string>(),
-      at,
-      unmatched,
-      refused: `the start point is more than one place — ${ambiguous.join('; ')}`,
-    };
-  }
-
-  return { from, terms, subjects: held ?? new Set<string>(), at, unmatched };
+  return { from, terms, subjects: held, at: found, unmatched };
 }
 
 /**
@@ -311,16 +208,9 @@ export function scopeLine(scope: Scope, indexed: number): string {
   if (scope.refused !== undefined) {
     return (
       `No search was run: ${scope.refused}. ` +
-      'Say a file or a folder — `app/dispatch/page.tsx` is that file, `app/dispatch/*` its ' +
-      "folder, `app/dispatch/` everything under it — and say it with enough of its parent to " +
-      'be one place. To search everywhere, leave the start point out.'
-    );
-  }
-  if (scope.subjects.size === 0) {
-    return (
-      `Nothing was searched of ${indexed} subject(s): its places hold no subject in common. ` +
-      'A start point is a hard boundary, so no answer is given from outside it; widen it or ' +
-      'leave it out.'
+      'Say a real path from the root — `app/dispatch/page.tsx` is that file, `app/dispatch/*` ' +
+      "its folder's own files, `app/dispatch/` everything under it. A name on its own is not a " +
+      'path. To search everywhere, leave the start point out.'
     );
   }
   return (
