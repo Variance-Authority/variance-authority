@@ -1,8 +1,15 @@
 # Distil a test to the behavior it witnesses
 
-`variance distill` reads one test from two independent observations: what the
-test addressed, and what source the test entered. It reports the overlap and
-names the residue as opportunities for a smaller test boundary.
+A checkout test may render a navigation bar, a clock and an order form. But
+which elements does it actually use to set up the order, submit it and check the
+result? Rendering the whole page does not make every part of it part of the
+promise the test protects.
+
+[Eyes](eyes.md) records the elements the test queries, operates or reads during
+**Arrange, Act and Assert (AAA)**, with their React owners when available.
+`variance distill` compares that evidence with the source the same test entered.
+It shows where execution extends beyond the UI the test used, giving you places
+to investigate for a smaller test boundary.
 
 ```bash
 variance distill \
@@ -21,6 +28,18 @@ targets were live. Each target carries its React owner path and source location
 when that attribution exists. The test supplies `arrange`, `act` and `assert`
 markers; Eyes records those authored boundaries and never guesses a phase from
 an API name.
+
+For that checkout test, the distinction might look like this:
+
+| Phase marked by the test | Element used | Purpose |
+| --- | --- | --- |
+| Arrange | Quantity field | Set up an order for two items |
+| Act | Submit order button | Place the order |
+| Assert | Confirmation message | Check the result |
+
+The navigation bar and clock can render throughout without the test addressing
+either. That makes them worth investigating, not automatically safe to remove:
+an unaddressed component may still influence the form or its result.
 
 React commits in the same journal keep update initiators separate from all
 components whose render bodies ran. Distill places an initiator inside an
