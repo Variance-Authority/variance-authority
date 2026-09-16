@@ -16,7 +16,7 @@ import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
   overview:
-    "A test earns its cost when the evidence it produces supports a decision and carries its limit.",
+    "Visual regression finds the effect. Divergence locates the fork. Recorded evidence carries it to cause and impact, as far as the observation reaches.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
   reasoning:

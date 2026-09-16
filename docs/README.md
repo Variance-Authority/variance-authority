@@ -2,7 +2,9 @@
 
 A test is a repeatable question asked of software. Its result is evidence for a
 decision about the product or a change — useful only to the extent that the
-question, observation and limit survive the run.
+question, observation and limit survive the run. Variance Authority follows
+that evidence from a visible regression to the point two readings diverged,
+then outward to cause and impact.
 
 ## A test makes a promise
 
@@ -40,12 +42,21 @@ Coverage remains useful for finding untouched code, selecting relevant work and
 locating missing observations. It becomes misleading when its percentage is
 treated as confidence in the product.
 
-## Make the evidence outlive the assertion
+## See the effect, find the fork, follow the impact
 
-Variance Authority keeps more of what a run already knew: which source the work
-reached, what the execution did, what the interface communicated, what changed,
-and where the observation stops. That evidence can make the suite faster,
-explain a failure to an engineer, and give an agent a bounded basis for action.
+Visual regression catches a correlated effect: two readings differ. A changed
+pixel can prove the effect, but it cannot prove its cause.
+
+Divergence compares what each component was handed, what it retained, and what
+it produced. It finds where the readings first parted. From that fork,
+provenance follows the effect through semantic structure, component, state and
+source; composition shows every observed subject that shares it; execution
+evidence shows the path it travelled.
+
+Causation runs forward through evidence the run recorded. Where a hop was not
+observed, the explanation stops. Where the chain is present, the result names a
+cause and its impact at every available depth — enough for a product decision,
+an engineer to fix it, or an agent to act within the evidence.
 
 Start where the current cost or uncertainty is visible.
 
@@ -70,8 +81,8 @@ Start where the current cost or uncertainty is visible.
 </a>
 <a class="doc-link-card doc-link-card--compact" href="explain-variance.md">
 <span>Explain</span>
-<strong>Turn a difference into a cause</strong>
-<p>Find where readings parted and who is best placed to respond.</p>
+<strong>Connect effect, cause and impact</strong>
+<p>Find where readings parted, what caused the fork, and how far it reached.</p>
 <em>Explain variance →</em>
 </a>
 </div>
