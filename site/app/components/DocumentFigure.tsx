@@ -16,7 +16,7 @@ import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
   overview:
-    "Visual regression finds the effect. Divergence locates the fork. Recorded evidence carries it to cause and impact, as far as the observation reaches.",
+    "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
   reasoning:

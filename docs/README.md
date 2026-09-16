@@ -1,62 +1,70 @@
-# Tests are evidence for a decision
+# Tests preserve the paths we care about
 
-A test is a repeatable question asked of software. Its result is evidence for a
-decision about the product or a change — useful only to the extent that the
-question, observation and limit survive the run. Variance Authority follows
-that evidence from a visible regression to the point two readings diverged,
-then outward to cause and impact.
+A test turns one path through a product into a repeatable proof. When the same
+starting conditions and action still produce the expected outcome, the test
+earns confidence that this promise has been preserved.
 
-## A test makes a promise
+## Confidence is specific
 
-A passing test does not say that the software is correct. It says that one
-question received the expected answer under the conditions the test observed.
-The strength of that answer depends on what the test can notice, what it holds
-still, and whether a failure explains enough to act.
+Each test protects one codified path under the conditions it observed.
+Confidence grows from important paths being preserved, not from the number of
+tests or the size of a green bar. That proof lets an engineer refactor beneath
+stable behaviour, a team state what must remain true, and an agent reproduce the
+promise instead of relying on an instruction to “be careful.”
 
-That is the purpose of a test: reduce uncertainty for a decision somebody will
-have to make. The decision may be whether a product behaviour is fit to ship,
-where an engineer should look after a failure, or whether an agent has enough
-evidence and authority to change code. The same execution can serve all three,
-but a bare pass or fail rarely carries enough context to do so.
+## High level is a strength — and a blind spot
 
-## The bill is larger than runtime
+Good tests describe behaviour at a level that survives implementation changes.
+They do not fail because a function moved, a component was wrapped, or the same
+outcome took another internal route. [Test Desiderata](https://testdesiderata.com/)
+names this balance through properties such as behavioural,
+structure-insensitive, readable, specific and predictive.
+
+The same restraint creates a blind spot. A high-level assertion can pass while
+presentation, execution, component state, dependencies, or an unasserted part
+of the interface changed. That can be harmless, intentional, or damage. The
+pass alone cannot distinguish them.
+
+## Confidence has a boundary and a bill
 
 A test costs what it takes to write, execute, understand and maintain. A fast
 test with an obscure failure can be expensive. A slower test can earn its place
-when it catches a consequential change no cheaper observation can see.
-
-[Test Desiderata](https://testdesiderata.com/) gives useful names to the
-qualities involved: fast, readable, behavioural, specific, predictive and
-more. They are trade-offs, not a universal scorecard. Some reinforce each
-other; some compete. The right balance comes from the decision the test exists
-to support.
-
-## Coverage can tell the truth and still mislead
+when it protects a consequential path no cheaper observation can prove.
 
 Coverage answers whether an execution reached code. It does not establish that
 the test noticed the behaviour that matters, would fail when that behaviour
-breaks, or explains the cause when it does.
+breaks, or explains the cause when it does. A suite can execute every line and
+leave its important promises untested.
 
-A suite can execute every line and leave its important promises untested.
-Coverage remains useful for finding untouched code, selecting relevant work and
-locating missing observations. It becomes misleading when its percentage is
-treated as confidence in the product.
+Adding assertions for every nuance increases the work, couples the test to
+details, and turns unrelated changes into failures. The useful question is which
+decision the test supports and how much evidence that decision needs.
 
-## See the effect, find the fork, follow the impact
+## An agent needs both answers
 
-Visual regression catches a correlated effect: two readings differ. A changed
-pixel can prove the effect, but it cannot prove its cause.
+After changing code, an agent needs proof that it **did not break the codified
+path**. That is the test's answer. It also needs proof that it **did change the
+thing it intended to change**. A passing test cannot provide that second answer
+when the intended effect sits outside its assertion.
 
-Divergence compares what each component was handed, what it retained, and what
-it produced. It finds where the readings first parted. From that fork,
-provenance follows the effect through semantic structure, component, state and
-source; composition shows every observed subject that shares it; execution
-evidence shows the path it travelled.
+Neither answer substitutes for the other. Preserving the path while producing
+no effect means the work did not land. Producing the effect while breaking the
+path means it landed badly.
 
-Causation runs forward through evidence the run recorded. Where a hop was not
-observed, the explanation stops. Where the chain is present, the result names a
-cause and its impact at every available depth — enough for a product decision,
-an engineer to fix it, or an agent to act within the evidence.
+## Variance gives the test a second answer
+
+Variance Authority observes beside the assertion. It keeps the test high level
+while retaining what changed in the interface, execution, component state and
+source. Visual regression establishes the correlated effect. Divergence finds
+where two readings first parted. Provenance and composition connect that fork
+to its cause and to every observed subject it reached.
+
+The test remains a readable, behavioural, structure-insensitive statement.
+Variance does not turn every nuance into a failure; it makes the nuance
+available when a person or agent needs to understand the result. Where the run
+recorded the whole chain, the same test can say both: **the promised path still
+holds, and this is the change the edit produced.** Where evidence ends, the
+explanation says so.
 
 Start where the current cost or uncertainty is visible.
 
