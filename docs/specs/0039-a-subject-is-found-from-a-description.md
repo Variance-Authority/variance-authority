@@ -354,9 +354,18 @@ component directory on the other. Both seeded, both re-runnable.
 
 ```
                 subjects  scope  narrower   first hit        within three
-2019 app        165       76     2.2x       52 → 75          100 → 157
+2019 app        166       74     2.2x       52 → 76          100 → 157
 component lib   4,705     130    36.1x      30 → 48          50 → 74
 ```
+
+Both start points there are already clean — a story group and a component
+directory, each naming exactly what it appears to name. That is what the table
+measures: what ranking does with a scope, not what the scope is worth. Asked
+the other question — of the forty directories the 2019 application's files
+name, which subjects does `from` return — the answer was 87.5% precise at 100%
+recall, because the tokeniser splits camel case and `FooterForPaymentPage.tsx`
+says `page`. Matching a whole path segment instead took that to 97.3% with
+recall unmoved, and moved neither row above by more than a single question.
 
 The gain is not from removing rows. Rarity is a count over subjects, so counting
 it inside the scope changes what a word is worth: `amount` on a payments
