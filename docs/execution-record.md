@@ -1,13 +1,14 @@
 # The execution record
 
 This page is the reference for the structures on the execution side of test
-selection: the blocks the instrument carves a module into, the coverage file
-that remembers which test crossed which block, and the journals a run folds
-into it. For each structure it states the primary key, how a row is found, how
-a fact is traced back to the line or the test that produced it, and what a
-lookup, a merge and an append cost. [`selecting.md`](selecting.md) says what a
-run does with the answer; [`source-structures.md`](source-structures.md) covers
-the static side that this page joins with.
+selection. The record says **which parts each test actually entered**, so a
+changed line can select from witnessed execution instead of every test a static
+import graph can reach. Blocks, the coverage file, and journals make that
+distinction queryable. For each structure this page states the primary key, how
+a row is found, how a fact is traced back to the line or test that produced it,
+and what a lookup, merge and append cost. [`selecting.md`](selecting.md) says
+what a run does with the answer; [`source-structures.md`](source-structures.md)
+covers the static side that this page joins with.
 
 Throughout, `T` is the number of tests the record holds, `M` the number of
 modules, `B` the number of blocks in one module, `P` the total number of

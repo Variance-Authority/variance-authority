@@ -1,10 +1,13 @@
 # What a run costs
 
-The numbers on this page were taken on a repository this project did not write:
-[Material UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165 tracked
-paths, of which 24,519 are modules and 24.9 MB is source. Scanning it produces
-24,909 records and a 7.8 MB index. It was chosen because it is large enough to
-break things, public enough to check, and nobody here can tune for it.
+These numbers measure an incremental, content-addressed index: **unchanged runs
+reuse it**, edits rebuild changed records, and path additions invalidate only
+records whose specifiers could have named the affected directory. They were
+taken on a repository this project did not write: [Material
+UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165 tracked paths, of
+which 24,519 are modules and 24.9 MB is source. Scanning it produces 24,909
+records and a 7.8 MB index. It was chosen because it is large enough to break
+things, public enough to check, and nobody here can tune for it.
 
 Every figure below comes from one script, which is in the repository and takes a
 clone of that repository as its argument:

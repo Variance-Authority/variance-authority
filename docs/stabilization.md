@@ -266,6 +266,9 @@ one does not.
 
 ## The wire, which knows what the page cannot
 
+The wire sees **response bytes the page cannot**: it can freeze cross-origin
+animated GIFs and fingerprint assets whose URL stays the same.
+
 Everything above happens *inside* the page, and inside the page is the wrong
 place for a whole class of question. `document.images` is a list of nodes that
 existed at one moment: it misses an image appended while you were waiting, it

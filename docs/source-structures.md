@@ -1,12 +1,18 @@
 # Source index structures
 
-This page is the reference for the data structures behind a source scan: what
-each one holds, what its primary key is, how a value is found, how a fact is
-traced back to the file that produced it, and what a lookup, an insert and a
-save cost. [`source.md`](source.md) says what the scan reads and why;
+Adding a path does not invalidate the whole index. The scan remembers which
+directories each resolution could see, so a new path invalidates **only records
+that could have named its directory**. A resolver configuration change
+invalidates the full index; an unreadable configuration forces the conservative
+path set.
+
+This page is the reference for the data structures behind that source scan:
+what each one holds, what its primary key is, how a value is found, how a fact
+is traced back to the file that produced it, and what a lookup, insert and save
+cost. [`source.md`](source.md) says what the scan reads and why;
 [`source-index.md`](source-index.md) gives the byte layout of the persisted
-generation. This page sits between the two: the logical structures, their
-keys, and their complexity.
+generation. This page sits between the two: the logical structures, their keys,
+and their complexity.
 
 Throughout, `n` is the number of files a scan visits, `m` is the number of
 resolved edges between them, `d` is the number of files whose bytes differ from

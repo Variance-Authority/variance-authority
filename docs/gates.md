@@ -46,6 +46,10 @@ and history are part of the desired outcome.
 
 ## 3. Chromatic Storybook workflow
 
+Choose the location precision you need. Component declarations require no extra
+instrumentation; only exact changed-element JSX call sites need optional
+`jsx-source` instrumentation.
+
 **Job:** treat Storybook as the UI catalog and turn stories into reviewable
 visual checks.
 

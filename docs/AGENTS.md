@@ -8,6 +8,20 @@ they have read earlier pages or know the project's vocabulary. Use specific
 section links when they answer the immediate question. Public pages must not
 link to internal ADRs, journals or other context documents.
 
+## Foreground the difference
+
+A reader recognizes familiar machinery quickly and may stop before reaching the
+capability that changes the decision. When a page depends on a distinction the
+usual tool does not make, state that distinction in the lead or in the first
+sentence of the section that owns it, before explaining the mechanism.
+
+Name the difference in the reader's terms first: changed lines, the reviewed
+candidate, response bytes, the test that reached the code. Introduce blocks,
+graphs, journals and other internal representations after the consequence is
+clear. Use bold sparingly to mark the decisive phrase. Do not manufacture
+novelty; a reference remains a reference, and a page whose opening already
+carries its uncommon claim needs no slogan added to it.
+
 ## Visual support
 
 Use visual form deliberately. Lists and tables help only when their structure

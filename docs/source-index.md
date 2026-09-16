@@ -1,14 +1,13 @@
 # The source index format
 
-The [Sense](../packages/sense) source index is one versioned binary generation assembled as a small
+The [Sense](../packages/sense) source index is **optional cache state**. A missing or
+corrupt generation is treated as absent, so it can save scan work but cannot
+change scan evidence. It is one versioned binary generation assembled as a small
 log-structured merge tree: an ordered log of immutable segments with periodic
 compaction. It contains the two facts a repeated source scan can reuse: parses
 keyed by content digest and the way the file's name said to read it, and
 resolved file records keyed by file path, content digest, and the configuration
 and directories they resolved under. Both maps share one publication boundary.
-
-The index is operational cache state. A reader accepts the complete generation
-or treats it as absent; no result or evidence depends on the file surviving.
 
 ## Manifest and segments
 

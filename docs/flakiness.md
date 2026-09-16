@@ -1,10 +1,13 @@
 # Flakiness
 
 Visual regression becomes hard to trust when several different causes are all
-reported as “flake.” A moving animation, a changed environment, an unstable
-component, and leaked state need different responses. Treating them alike leads
-to retries and tolerances that may quiet the report without explaining what
-happened.
+reported as “flake.” When a subject changes, the run varies one condition at a
+time: `again` holds the world and advances time to test whether the subject
+drifts in place; when `again` agrees, `alone` rebuilds the world at the same time
+to test whether the shared session changed it. These are evidence-producing
+checks, **never retries**. A moving animation, a changed environment, an unstable
+component, and leaked state need different responses; treating them alike leads
+to tolerances that may quiet the report without explaining what happened.
 
 The useful question for each cause of variance is:
 

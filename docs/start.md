@@ -1,9 +1,11 @@
 # Observe one state end to end
 
 Begin with one stable UI state in a test or harness you already trust. Keep its
-navigation, fixtures, authentication, and readiness there. [Variance Authority](README.md)
-records one bounded subject, gives you the first candidate to review, and checks
-that the accepted reading returns `unchanged` on the next run.
+navigation, fixtures, authentication, and readiness there. **Choosing that host
+does not choose where pixels are made**: [Variance Authority](README.md) can
+retain a document for later rendering or keep the caller's already-painted
+image. It gives you the first candidate to review and checks that the accepted
+reading returns `unchanged` on the next run.
 
 This is enough to learn the complete review loop before deciding whether more
 of the suite belongs in it.
