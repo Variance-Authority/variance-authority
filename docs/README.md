@@ -31,14 +31,30 @@ A test costs what it takes to write, execute, understand and maintain. A fast
 test with an obscure failure can be expensive. A slower test can earn its place
 when it protects a consequential path no cheaper observation can prove.
 
+Spend that effort where it buys confidence:
+
+- **Protect promises that matter.** Consider how easily a behaviour could break,
+  what its failure would cost, and how late someone would otherwise notice.
+- **Add cases that address another risk.** A boundary, permission or recovery
+  path can expose a failure the happy path misses. Another example earns its
+  place when it tells you something the existing cases do not.
+- **Choose the level that can answer the question.** Exercise calculation cases
+  close to the logic; use integration tests to check the contracts between
+  parts, and product journeys to check that those parts deliver the promise.
+- **Keep the protection while the risk remains.** A migration rehearsal may
+  serve one change. A regression test can protect against the same mistake for
+  years. Its lifetime follows the promise, even as implementations come and go.
+
 Coverage answers whether an execution reached code. It does not establish that
 the test noticed the behaviour that matters, would fail when that behaviour
 breaks, or explains the cause when it does. A suite can execute every line and
 leave its important promises untested.
 
 Adding assertions for every nuance increases the work, couples the test to
-details, and turns unrelated changes into failures. The useful question is which
-decision the test supports and how much evidence that decision needs.
+details, and turns unrelated changes into failures. Add tests while they
+materially improve confidence in the changes ahead. When the next test mostly
+repeats what the suite already tells you, look for a risk it still leaves open
+before adding to the count.
 
 ## An agent needs both answers
 
@@ -53,11 +69,11 @@ path means it landed badly.
 
 ## Variance gives the test a second answer
 
-Variance Authority observes beside the assertion. It keeps the test high level
-while retaining what changed in the interface, execution, component state and
-source. Visual regression establishes the correlated effect. Divergence finds
-where two readings first parted. Provenance and composition connect that fork
-to its cause and to every observed subject it reached.
+Variance Authority helps you learn more from the tests worth keeping. It observes
+beside the assertion, retaining what changed in the interface, execution,
+component state and source. Visual regression establishes the correlated effect.
+Divergence finds where two readings first parted. Provenance and composition
+connect that fork to its cause and to every observed subject it reached.
 
 The test remains a readable, behavioural, structure-insensitive statement.
 Variance does not turn every nuance into a failure; it makes the nuance
