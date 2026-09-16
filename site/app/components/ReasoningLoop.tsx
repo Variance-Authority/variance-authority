@@ -8,7 +8,11 @@ const STEPS = [
 function StepMark({ index }: { index: number }) {
   if (index === 0) {
     return (
-      <path d="M18 16a12 12 0 1 1 9 11l-7 5 2-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <>
+        <circle cx="20" cy="20" r="14" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M14.5 15.5a5.8 5.8 0 0 1 11 2.5c0 4-5.5 4.1-5.5 8" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+        <circle cx="20" cy="30" r="1.5" fill="#ff4a19" />
+      </>
     );
   }
   if (index === 1) {

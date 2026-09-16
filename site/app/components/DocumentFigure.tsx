@@ -5,6 +5,7 @@ import DiffReport from "./DiffReport";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
+import OverviewQuestions from "./OverviewQuestions";
 import PresentationPaint from "./PresentationPaint";
 import ReasoningLoop from "./ReasoningLoop";
 import ReviewLoop from "./ReviewLoop";
@@ -14,12 +15,14 @@ import Subjects from "./Subjects";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
+  overview:
+    "The question chooses the entrance. Add only the evidence that decision needs.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
   reasoning:
     "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
   "evidence-field":
-    "Source, execution, interface, and history remain independent readings. A question composes only the routes its decision needs.",
+    "One question chooses the evidence it needs. The result carries only the move and limit that evidence supports.",
   start:
     "The existing host reaches the state. Observation, review, and acceptance add a durable comparison without taking that responsibility away.",
   surface:
@@ -51,6 +54,12 @@ function Figure({ children, caption }: { children: ReactNode; caption: string })
 
 export default function DocumentFigure({ slug }: { slug: string }) {
   switch (slug) {
+    case "overview":
+      return (
+        <Figure caption={CAPTIONS.overview!}>
+          <OverviewQuestions />
+        </Figure>
+      );
     case "better-tests":
       return (
         <Figure caption={CAPTIONS["better-tests"]!}>
