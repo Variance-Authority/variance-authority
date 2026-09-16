@@ -1,5 +1,13 @@
 # Working on documentation
 
+## Every page is an entry point
+
+Link every concept at its first introduction on a page to the public explanation
+or reference that owns it. Readers may land directly on any page; never assume
+they have read earlier pages or know the project's vocabulary. Use specific
+section links when they answer the immediate question. Public pages must not
+link to internal ADRs, journals or other context documents.
+
 ## Visual support
 
 Use visual form deliberately. Lists and tables help only when their structure

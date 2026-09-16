@@ -5,19 +5,24 @@ which elements does it actually use to set up the order, submit it and check the
 result? Rendering the whole page does not make every part of it part of the
 promise the test protects.
 
-`variance distill` brings together three kinds of evidence about the same test:
+[`variance distill`](../packages/cli#distill-find-a-smaller-test-boundary) brings
+together three kinds of evidence about the same test:
 
-- **Which files loaded.** Sense records the modules whose initialization ran.
+- **Which files loaded.** [Sense](../packages/sense) records the modules whose
+  initialization ran.
 - **Which functions and branches executed.** Sense distinguishes work done while
   loading a module from functionality the test exercised afterwards.
 - **Which components the test interacted with.** [Eyes](eyes.md) records the
-  elements the test queries, operates or reads during **Arrange, Act and Assert
-  (AAA)**, and connects them to their React components when attribution exists.
+  elements the test queries, operates or reads during
+  **[Arrange, Act and Assert (AAA)](eyes.md#read-the-test-at-the-level-it-was-written)**,
+  and connects them to their React components when
+  [attribution](attribution.md) exists.
 
 Together, these readings suggest two ways to make the test smaller:
 
 - **A file loaded, but the test never used its functionality.** Try replacing it
-  with an explicit mock. Avoiding the real module's initialization can shorten
+  with an [explicit mock](optimize-a-test.md#a-written-mock-narrows-the-next-selection-too).
+  Avoiding the real module's initialization can shorten
   startup, and the mock removes a dependency that would otherwise make unrelated
   edits select this test again.
 - **A component rendered, but the test never interacted with its UI.** Try a
@@ -61,7 +66,8 @@ The navigation bar and clock can render throughout without the test addressing
 either. That makes them worth investigating, not automatically safe to remove:
 an unaddressed component may still influence the form or its result.
 
-React commits in the same journal keep update initiators separate from all
+React commits in the same journal keep
+[update initiators](eyes.md#one-chronology-four-different-facts) separate from all
 components whose render bodies ran. Distill places an initiator inside an
 addressed component path only when their structural path frames overlap. An
 initiator outside the addressed paths is an entanglement to investigate: code
@@ -69,7 +75,8 @@ the test did not address initiated work during the same authored phase. It is
 not proof of the source statement that scheduled the update.
 
 Sense supplies the files entered by the exact same test id and their nearest
-observed depth. Its execution index is whole-test evidence, not AAA evidence,
+observed [depth](distance.md). Its [execution index](execution-record.md) is
+whole-test evidence, not AAA evidence,
 so distill does not assign those files to a phase. An entered file with no Eyes
 target attributed to that file is a **distillation opportunity**.
 
@@ -89,10 +96,10 @@ Entered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 5 — src/top-nav.tsx
 ```
 
-An opportunity is not permission to mock, replace, or delete the file. Static
-reachability describes what the test could load; execution says what it entered;
-attention says what it addressed. None says what the test would still witness
-after a substitution.
+An opportunity is not permission to mock, replace, or delete the file.
+[Static reachability](source.md) describes what the test could load; execution
+says what it entered; attention says what it addressed. None says what the test
+would still witness after a substitution.
 
 ## Imports nothing ever calls
 
@@ -111,8 +118,10 @@ A spy reaches the same place from the other side. `vi.spyOn(totals,
 'formatTotal')` leaves the module loaded and its function unreached, and the
 import statement above it still reads as a use.
 
-Distill separates the two. Every entered module is read region by region:
-`loadedOnly` marks a module whose only crossings are the consequence of loading
+Distill separates the two. Every entered module is read
+[region by region](execution-record.md#blocks):
+[`loadedOnly`](../packages/distill#a-module-the-test-loaded-but-never-entered)
+marks a module whose only crossings are the consequence of loading
 it, and `unentered` names the declarations the test never reached.
 
 ```text
@@ -133,8 +142,8 @@ before you keep it.
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
 | CLI | the evidence is in portable files | `variance distill --test <id> --eyes <path> --execution <path>` |
-| MCP | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
-| `variance-authority` skill | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
+| [MCP](agent-questions.md#distil-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
+| [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 
 The CLI and MCP tool call the same analyzer and text formatter. `--format json`
 exposes the analyzer result for another deterministic consumer. The skill adds
@@ -155,8 +164,9 @@ compare; the agent verifies each proposed boundary.
 
 ## Tests without Fiber
 
-Distill does not require React. A plain unit test or a test over a fake component
-can supply only an execution index and still receive an entered-source reading.
+Distill does not require [React's Fiber tree](framework.md). A plain unit test or
+a test over a fake component can supply only an execution index and still receive
+an entered-source reading.
 Without Eyes, the entered-versus-addressed opportunity comparison is unavailable.
 With a complete empty Eyes journal, the addressed surface is measured empty and
 the comparison can proceed. Neither case is printed as zero Fiber usage.
