@@ -1,23 +1,23 @@
 # Running less of the suite
 
-Three tests can import the same file and take three different paths through it.
-An import graph connects all three to that file. With execution recording,
-[Variance Authority](README.md) also knows **which parts each test actually entered**. A
-change to one branch can then select the tests that exercised it, while the
-record exposes branches none of them entered. That is
+A change to a few lines should not summon every test that imports the file. With
+[**execution recording**](execution-record.md), [Variance Authority](README.md)
+knows **which parts each test actually entered**. It selects the tests that
+reached those lines and shows when no test did —
 [what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
 
-Suppose one changed component reaches two subjects in a 300-subject suite.
-Collecting all 300 spends most of the run confirming what the change could not
-have affected. Selection avoids the other 298 when the evidence supports that
-decision. When it cannot safely exclude a subject, the subject still runs and
-the report explains why.
+Suppose one changed component reaches **two subjects in a 300-subject suite**.
+Selection observes those two when the evidence supports that decision. Any
+uncertainty widens the run, and the report explains why.
 
-For rendered subjects, selection combines two readings. A source graph shows
-which components the changed files can reach. A stored baseline records the
-components its document **actually rendered**. What this subject is made of is a fact
-the last run established. A subject can be skipped only when those two readings
-show that the change did not reach it.
+Selection reads the record across tests. [Distill](distill.md) reads the same
+evidence inside one test, looking for work its promise does not need.
+
+For rendered subjects, selection joins possibility to observation. A
+[source graph](#the-expensive-row-and-what-retires-it) shows which components
+the changed files can reach. A stored baseline records what the subject
+**actually rendered**. A subject can be skipped only when both agree that the
+change did not reach it.
 
 Other products make different, useful choices. Chromatic's TurboSnap traces a
 change through the bundler's dependency graph and tests the stories it reaches.
@@ -384,6 +384,7 @@ how far the change travelled to each one, and running the nearest first ·
 remembers both ·
 [`execution-record.md`](execution-record.md) for the keys, lookups, traces
 and costs of the coverage file ·
+[`distill.md`](distill.md) for using that record to make one test smaller ·
 [`packages/sense`](../packages/sense#say-what-a-file-really-imports) for the taint
 tables themselves ·
 [`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
