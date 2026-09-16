@@ -41,6 +41,7 @@ import performance from "../../../docs/performance.md?raw";
 import replacing from "../../../docs/replacing.md?raw";
 import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
+import scale from "../../../docs/scale.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
@@ -114,6 +115,7 @@ const documents = [
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
+  ["scale", scale, "docs/scale.md"],
   ["distance", distance, "docs/distance.md"],
   ["distill", distill, "docs/distill.md"],
   ["optimize-a-test", optimizeATest, "docs/optimize-a-test.md"],

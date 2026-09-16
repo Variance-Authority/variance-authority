@@ -54,6 +54,11 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
+        href: "/docs/scale",
+        label: "Check it fits your repository",
+        cluster: "Run less of the suite",
+      },
+      {
         href: "/docs/optimize-a-test",
         label: "Make one test cost less",
         cluster: "Make one test cost less",
