@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import DocsPage from "../../../components/DocsPage";
 import DocumentFigure from "../../../components/DocumentFigure";
 import MarkdownDocument from "../../../components/MarkdownDocument";
+import MarkdownLead from "../../../components/MarkdownLead";
 import {
   documentDescription,
   documentTitle,
@@ -49,14 +50,17 @@ export default async function Page({ params }: PageProps) {
   if (!document || !item) notFound();
 
   const title = documentTitle(document.source);
-  const description = documentDescription(document.source);
-
   return (
     <DocsPage
       current={current}
       eyebrow={item.section}
       title={title}
-      description={description}
+      description={
+        <MarkdownLead
+          source={document.source}
+          sourcePath={document.sourcePath}
+        />
+      }
       toc={documentToc(document.source)}
     >
       <DocumentFigure slug={slug} />

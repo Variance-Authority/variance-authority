@@ -14,7 +14,7 @@ export interface TableOfContentsItem {
 export interface DocsPageProps {
   readonly current: string;
   readonly title: string;
-  readonly description: string;
+  readonly description: ReactNode;
   readonly eyebrow: string;
   readonly toc: readonly TableOfContentsItem[];
   readonly children: ReactNode;
@@ -75,9 +75,9 @@ export default function DocsPage({
             <h1 className="max-w-3xl text-4xl font-bold leading-[1.08] tracking-tight text-ivory sm:text-5xl">
               {title}
             </h1>
-            <p className="mt-5 max-w-3xl text-lg leading-8 text-quiet">
+            <div className="mt-5 max-w-3xl text-lg leading-8 text-quiet">
               {description}
-            </p>
+            </div>
           </header>
 
           <div className="docs-content">{children}</div>

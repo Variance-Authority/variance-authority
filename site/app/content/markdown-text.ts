@@ -25,12 +25,16 @@ export function withoutDocumentTitle(source: string): string {
     .replace(/^# .+\r?\n(?:\r?\n)*/m, "");
 }
 
-export function documentDescription(source: string): string {
+export function documentLeadMarkdown(source: string): string {
   const withoutTitle = withoutDocumentTitle(source);
-  const paragraph = withoutTitle
+  return withoutTitle
     .split(/\n\s*\n/)
-    .find((block) => !/^(?:#|\||```|<|---)/.test(block.trim()));
-  return (paragraph ?? "Technical documentation for Variance Authority")
+    .find((block) => !/^(?:#|\||```|<|---)/.test(block.trim())) ??
+    "Technical documentation for Variance Authority";
+}
+
+export function documentDescription(source: string): string {
+  return documentLeadMarkdown(source)
     .replace(/^>\s?/gm, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[`*_]/g, "")
