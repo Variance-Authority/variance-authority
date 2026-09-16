@@ -1,11 +1,18 @@
 # Where the native code is
 
-The short answer to *why isn't this written in Rust* is that a lot of it already
-is, and none of the parts that are got there by being rewritten.
+Your toolchain is already compiled. esbuild went to Go, and then swc, Rolldown,
+Turbopack, Biome and oxlint went to Rust, so the things that read every file in
+your repository are native and the benchmark on their front page says by how
+much. A tool that reads every file in your repository and is written in
+TypeScript is, in that company, one that has not got round to it yet.
 
-[Variance Authority](README.md) reads source, renders pages, compares images and writes an
-index of what every test touched. Those are the workloads people expect to be
-native, and each one already runs on compiled code that somebody else maintains:
+So the question is fair, and the short answer to *why isn't this written in
+Rust* is that a lot of it already is, and none of the parts that are got there
+by being rewritten.
+
+[Variance Authority](README.md) reads source, renders pages, compares images and
+writes an index of what every test touched. Each of those already runs on
+compiled code that somebody else maintains:
 
 - **Parsing.** [oxc](https://oxc.rs) reads every module. It is Rust, and the
   syntax tree crosses into JavaScript out of the parser's own buffer rather than
