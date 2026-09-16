@@ -1,9 +1,15 @@
 # Reading the source
 
-To skip work, a run has to know what a change could have reached, and it has to
-know it before anything renders. That answer is a graph of the
-repository, and this is the part of the system that builds one: a walk that reads
-files, resolves what they point at, and hands back one record per file.
+Source analysis is the broadest reading: **what could a change reach?**
+[**Execution recording**](execution-record.md) narrows that to what each test
+actually entered; [**Eyes**](eyes.md) adds what the test queried, operated or
+read. Together they drive [test selection](selecting.md), [distance](distance.md)
+and [distillation](distill.md). This page explains the static foundation beneath
+those answers.
+
+The source answer has to exist before anything renders. It is a graph of the
+repository, built by a walk that reads files, resolves what they point at, and
+hands back one record per file.
 
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
@@ -15,12 +21,13 @@ The package is [`packages/sense`](../packages/sense), and it is named for what i
 is for: sensing what is there. The graph it feeds lives in
 [`packages/core`](../packages/core), which never touches a disk.
 
-Two questions come out of it:
+Three readings meet around it:
 
 | question | what answers it |
 |---|---|
 | what could this change have reached? | the file graph, walked backwards from a diff |
-| what did this run actually cross? | the transform, which marks every region a run entered |
+| what did this test actually enter? | [execution recording](execution-record.md), which marks the regions a run entered |
+| what did this test deliberately address? | [Eyes](eyes.md), which records queried, operated and read elements |
 
 The first question belongs to [`selecting.md`](selecting.md), which covers
 `--since`, what it over-includes, and what a scan costs on a real monorepo. This
