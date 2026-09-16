@@ -120,7 +120,7 @@ export type Parsed =
       readonly file?: string;
       /** `--query <words>`: a description, for the questions that search names. */
       readonly query?: string;
-      /** `--from <words>`: where to look, for the questions that search names. */
+      /** `--from <path>`: which file or folder to look in, for the questions that search names. */
       readonly from?: string;
       readonly limit?: number;
       /**
