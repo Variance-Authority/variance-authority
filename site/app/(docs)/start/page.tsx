@@ -1,4 +1,5 @@
 import DocsPage from "../../components/DocsPage";
+import DocumentFigure from "../../components/DocumentFigure";
 import MarkdownDocument from "../../components/MarkdownDocument";
 import {
   documentDescription,
@@ -23,6 +24,7 @@ export default function Page() {
       description={description}
       toc={documentToc(document.source)}
     >
+      <DocumentFigure slug="start" />
       <MarkdownDocument
         source={document.source}
         sourcePath={document.sourcePath}

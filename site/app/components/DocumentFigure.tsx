@@ -1,15 +1,27 @@
 import type { ReactNode } from "react";
 import Attribution from "./Attribution";
+import BetterTests from "./BetterTests";
 import DiffReport from "./DiffReport";
+import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
 import PresentationPaint from "./PresentationPaint";
+import ReasoningLoop from "./ReasoningLoop";
+import ReviewLoop from "./ReviewLoop";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
 import Subjects from "./Subjects";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
+  "better-tests":
+    "One retained execution record supports four improvements that reinforce one another: reuse, diagnosis, selection, and removal.",
+  reasoning:
+    "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
+  "evidence-field":
+    "Source, execution, interface, and history remain independent readings. A question composes only the routes its decision needs.",
+  start:
+    "The existing host reaches the state. Observation, review, and acceptance add a durable comparison without taking that responsibility away.",
   surface:
     "The same observation model can address several kinds of subject without pretending they need the same retained evidence.",
   attribution:
@@ -39,6 +51,30 @@ function Figure({ children, caption }: { children: ReactNode; caption: string })
 
 export default function DocumentFigure({ slug }: { slug: string }) {
   switch (slug) {
+    case "better-tests":
+      return (
+        <Figure caption={CAPTIONS["better-tests"]!}>
+          <BetterTests />
+        </Figure>
+      );
+    case "reasoning":
+      return (
+        <Figure caption={CAPTIONS.reasoning!}>
+          <ReasoningLoop />
+        </Figure>
+      );
+    case "evidence-field":
+      return (
+        <Figure caption={CAPTIONS["evidence-field"]!}>
+          <EvidenceMap />
+        </Figure>
+      );
+    case "start":
+      return (
+        <Figure caption={CAPTIONS.start!}>
+          <ReviewLoop />
+        </Figure>
+      );
     case "surface":
       return (
         <Figure caption={CAPTIONS.surface!}>

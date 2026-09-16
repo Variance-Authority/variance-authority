@@ -87,6 +87,10 @@ to the project.
   reasoning, and technical detail that earn their place.
 - Let detail serve the purpose. Its placement and prominence depend on what the
   reader came for.
+- Use visual form deliberately. Lists and tables help only when their structure
+  makes a relationship easier to scan. Reserve diagrams and illustrations for
+  a few conceptual hinges where spatial form replaces repeated prose; every
+  figure must explain something rather than decorate the page.
 - Keep internal rationale internal. Public documentation does not link to
   `docs/context/`, name an ADR or journal entry, or depend on private project
   history. State any reasoning the reader needs in the public page itself.
