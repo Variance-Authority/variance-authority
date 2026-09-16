@@ -5,18 +5,18 @@ import DiffReport from "./DiffReport";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
-import OverviewQuestions from "./OverviewQuestions";
 import PresentationPaint from "./PresentationPaint";
 import ReasoningLoop from "./ReasoningLoop";
 import ReviewLoop from "./ReviewLoop";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
 import Subjects from "./Subjects";
+import TestPurpose from "./TestPurpose";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
   overview:
-    "The question chooses the entrance. Add only the evidence that decision needs.",
+    "A test earns its cost when the evidence it produces supports a decision and carries its limit.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
   reasoning:
@@ -57,7 +57,7 @@ export default function DocumentFigure({ slug }: { slug: string }) {
     case "overview":
       return (
         <Figure caption={CAPTIONS.overview!}>
-          <OverviewQuestions />
+          <TestPurpose />
         </Figure>
       );
     case "better-tests":

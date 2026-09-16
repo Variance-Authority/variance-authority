@@ -16,7 +16,7 @@ export const NAVIGATION = [
   {
     label: "Overview",
     items: [
-      { href: "/docs", label: "Find your starting point" },
+      { href: "/docs", label: "What tests are for" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
     ],

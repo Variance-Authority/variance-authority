@@ -9,8 +9,8 @@ A build carrying `testSelectionProbes()` from `@variance-authority/sense/journal
 records that. A probe sits at every region of the instrumented source where
 control can arrive — a function body, a branch, a `case`, a loop body, a `catch`
 or `finally`, the code after a decision, the resumption after an `await` — and
-each [subject](README.md#read-a-report-from-subject-to-verdict)'s record is the
-set of regions it entered while it was painted. That record is the subject's
+each observed UI state's record is the set of regions it entered while it was
+painted. That record is the subject's
 **journey**: the path one execution took through the source, in every process
 the execution touched.
 

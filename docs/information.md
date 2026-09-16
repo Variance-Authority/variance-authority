@@ -322,6 +322,21 @@ must not infer one from the other: a passing test does not prove its visual
 subject was observed, and an observed visual subject does not make the whole
 test execution complete.
 
+### Read one observed result
+
+These terms carry a rendered observation from the state that was read to the
+decision it supports.
+
+| Term | Meaning |
+| --- | --- |
+| **subject** | One UI state the run addresses — a story, route, fixture, or value — under an id that survives a rename. |
+| **band** | The kind of visible difference: `geometry`, `token`, `content`, `texture`, loudest first. |
+| **digest** | One hashed dimension of a component instance. Equal digests are a match, never a resemblance. |
+| **root** | The stable cause attributed to a change, such as a component or token. |
+| **cluster** | Regions with one semantic fingerprint, so one decision can cover all of them and nothing else. |
+| **docket** | The causes a run leaves for a person or system to decide. |
+| **verdict** | The decision for one subject: `unchanged`, `inherited`, `authorized`, `needs-review`, `violation`, or `unexplained`. `unobserved` is reported beside the verdicts when the profile did not make the required observation. |
+
 ## Full, partial, and lifecycle rules
 
 Completeness belongs to each retained record. A full capture can sit inside a
