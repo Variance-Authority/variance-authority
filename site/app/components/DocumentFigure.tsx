@@ -15,7 +15,7 @@ import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
   "better-tests":
-    "One retained execution record supports four improvements that reinforce one another: reuse, diagnosis, selection, and removal.",
+    "Keep reusable work and recorded evidence long enough to improve the next run.",
   reasoning:
     "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
   "evidence-field":
