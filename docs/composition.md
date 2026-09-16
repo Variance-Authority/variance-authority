@@ -476,9 +476,10 @@ It is the same pass over the same instances, which is why it lives here: the
 census keys an example under a component, and the lexicon reads that key rather
 than deriving its own, so the two cannot disagree about which story shows what.
 
-[Naming a subject you can only describe](lexicon.md) is the reference — the
-fields and their sources, the matching rule, the ranking, what the measurements
-say, and how the record travels to a machine that ran nothing.
+[Find the subject you mean](locate.md) is that question from the reader's end.
+[Every name a run saw](lexicon.md) is the record behind it — the fields and
+their sources, the matching rule, the ranking, what the measurements say, and
+how the record travels to a machine that ran nothing.
 
 ## What it costs
 

@@ -105,6 +105,7 @@ export const NAVIGATION = [
   {
     label: "Enter by question",
     items: [
+      { href: "/docs/locate", label: "Find the subject you mean" },
       {
         href: "/docs/understand-execution",
         label: "Understand an execution",

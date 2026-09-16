@@ -29,6 +29,7 @@ import information from "../../../docs/information.md?raw";
 import instruments from "../../../docs/instruments.md?raw";
 import journeys from "../../../docs/journeys.md?raw";
 import lexicon from "../../../docs/lexicon.md?raw";
+import locate from "../../../docs/locate.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
 import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
@@ -124,6 +125,7 @@ const documents = [
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
+  ["locate", locate, "docs/locate.md"],
   ["lexicon", lexicon, "docs/lexicon.md"],
   ["presentation", presentation, "docs/presentation.md"],
   ["scenarios", scenarios, "docs/scenarios.md"],

@@ -57,9 +57,11 @@ screenshot or rerun a test. Follow the dependency between answers:
    the diff was read. Skip it when reviewing somebody else's run.
 4. `composition` explains movement and separates a subject read twice that
    differed from one never read twice. `variations` compares intentional peers.
-5. `locate --query <words>` finds the subject when the agent has a description
-   rather than an id. It searches the names the run retained and prints the
-   matching field.
+5. [`locate --query <words>`](locate.md) finds the subject when the agent has a
+   description rather than an id. It searches every name the run wrote down —
+   component, role, accessible name, visible text, file, region, token — and
+   prints the field each hit matched on, so a wrong first hit is visible rather
+   than inferred.
 6. `describe`, `explain-verdict`, `trace-component` and `findings` narrow to one
    subject or component.
 7. `changelog` previews what acceptance would record. It is the last reading
