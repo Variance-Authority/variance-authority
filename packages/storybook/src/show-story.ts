@@ -39,7 +39,18 @@ import type { Readiness, ShowRequest, ShowResult, ShowStatus } from './preview-p
 
 interface StoryChannel {
   on(event: string, handler: (payload: unknown) => void): void;
-  off(event: string, handler: (payload: unknown) => void): void;
+  /**
+   * Detachment, under whichever of its two names this preview carries.
+   *
+   * `off` is the modern spelling; Storybook 5's `Channel` shipped
+   * `removeListener` and no alias for it. Both are optional here because the
+   * cost of guessing is not a degraded reading but a run that never ends: the
+   * detach happens inside `release`, which is reached from a `setTimeout`
+   * callback, and a `TypeError` there leaves the promise `showStory` handed
+   * back pending forever with nothing left to settle it.
+   */
+  off?(event: string, handler: (payload: unknown) => void): void;
+  removeListener?(event: string, handler: (payload: unknown) => void): void;
   emit(event: string, payload: unknown): void;
 }
 
@@ -313,10 +324,29 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     let signalled = false;
 
     const release = (value: ShowResult, notes: readonly string[] = []): void => {
+      const detachNotes: string[] = [];
       // Listeners outlive the story: the page is not reloaded between subjects,
       // so a handler left attached would answer for the *next* story as well.
-      for (const entry of listeners) channel.off(entry.event, entry.handler);
-      resolve(notes.length === 0 ? value : { ...value, warnings: [...value.warnings, ...notes] });
+      // Detaching is best-effort on purpose. A preview that spells it neither way
+      // leaves handlers attached, which costs a stale listener; a throw here
+      // costs the entire run, because nothing else can settle this promise.
+      const detach = typeof channel.off === 'function' ? channel.off : channel.removeListener;
+      if (typeof detach === 'function') {
+        for (const entry of listeners) {
+          try {
+            detach.call(channel, entry.event, entry.handler);
+          } catch {
+            detachNotes.push(`a Storybook channel listener for \`${entry.event}\` could not be detached`);
+          }
+        }
+      } else {
+        detachNotes.push(
+          'the Storybook channel exposes neither `off` nor `removeListener`, so this session\'s ' +
+            'listeners stay attached for the life of the preview document',
+        );
+      }
+      const added = [...notes, ...detachNotes];
+      resolve(added.length === 0 ? value : { ...value, warnings: [...value.warnings, ...added] });
     };
 
     /**

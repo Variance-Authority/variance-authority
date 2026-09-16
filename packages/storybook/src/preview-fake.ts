@@ -62,9 +62,29 @@ export interface FakePreview {
   dispose(): void;
 }
 
+/**
+ * How a preview spells its channel, and where it hangs it.
+ *
+ * `modern` is Storybook 7/8: `window.__STORYBOOK_PREVIEW__` carrying both the
+ * channel and `currentSelection`, and a channel with `off`.
+ *
+ * `legacy` is Storybook 5, which is not a hypothetical: its `Channel` class
+ * exposes `on`, `addListener` and `removeListener` and no `off` at all, it
+ * hangs the channel on `window.__STORYBOOK_ADDONS_CHANNEL__`, and it publishes
+ * no selection. A driver that assumes `off` does not degrade against it — the
+ * detach runs inside the promise that hands the result back, so the
+ * `TypeError` strands that promise and the whole session stops on its first
+ * story.
+ *
+ * `undetachable` is neither spelling, which is the only case where listeners
+ * must be allowed to leak rather than the run to stall.
+ */
+export type ChannelShape = 'modern' | 'legacy' | 'undetachable';
+
 export function fakePreview(
   script: Readonly<Record<string, Behaviour>>,
   withChannel = true,
+  shape: ChannelShape = 'modern',
 ): FakePreview {
   const handlers = new Map<string, Set<(payload: unknown) => void>>();
   const emitted: { event: string; payload: unknown }[] = [];
@@ -173,15 +193,17 @@ export function fakePreview(
   };
 
   if (withChannel) {
+    const detach = (event: string, handler: (payload: unknown) => void): void => {
+      handlers.get(event)?.delete(handler);
+    };
     const channel = {
       on: (event: string, handler: (payload: unknown) => void): void => {
         const set = handlers.get(event) ?? new Set<(payload: unknown) => void>();
         set.add(handler);
         handlers.set(event, set);
       },
-      off: (event: string, handler: (payload: unknown) => void): void => {
-        handlers.get(event)?.delete(handler);
-      },
+      ...(shape === 'modern' ? { off: detach } : {}),
+      ...(shape === 'legacy' ? { removeListener: detach } : {}),
       emit: (event: string, payload: unknown): void => {
         emitted.push({ event, payload });
         if (event !== 'setCurrentStory') {
@@ -192,7 +214,14 @@ export function fakePreview(
       },
     };
 
-    Reflect.set(window, '__STORYBOOK_PREVIEW__', { channel, currentSelection: selection });
+    if (shape === 'legacy') {
+      // Storybook 5 publishes the channel and nothing else: no wrapper object,
+      // and so no selection for the driver to recognise a story it need not
+      // switch to.
+      Reflect.set(window, '__STORYBOOK_ADDONS_CHANNEL__', channel);
+    } else {
+      Reflect.set(window, '__STORYBOOK_PREVIEW__', { channel, currentSelection: selection });
+    }
   }
 
   return {
@@ -204,6 +233,7 @@ export function fakePreview(
       for (const timer of pending) clearTimeout(timer);
       for (const timer of repeating) clearInterval(timer);
       Reflect.deleteProperty(window, '__STORYBOOK_PREVIEW__');
+      Reflect.deleteProperty(window, '__STORYBOOK_ADDONS_CHANNEL__');
       // What the page function learned about *this* preview, and no other. The
       // window outlives a fake, so leaving it set would let one test's Storybook
       // decide how the next test's driver waits.
