@@ -4,16 +4,16 @@ import type { LexiconReport, RunReport, SubjectLexicon } from '@variance-authori
 import { locate } from './locate.js';
 import { locateSubjects } from './locate.js';
 import { orient } from './orient.js';
-import { PLACE_FIELDS, scopeLine, scopeOf } from './scope.js';
+import { scopeLine, scopeOf } from './scope.js';
 
 /**
  * A start point, asserted where it is load-bearing rather than where it is easy.
  *
- * The three facts worth pinning are the ones a reader has to be able to trust
- * without measuring: that a start point is matched against where code is and
- * never against what a subject shows, that it narrows rather than re-ranks, and
- * that one naming nowhere fails visibly and changes nothing. Each test below
- * names the wrong answer it rules out.
+ * The facts worth pinning are the ones a reader has to be able to trust without
+ * measuring: that a start point is a place on disk and only that, that it is
+ * matched literally, that it narrows rather than re-ranks, and that one naming
+ * nowhere returns nothing rather than quietly returning the suite. Each test
+ * below names the wrong answer it rules out.
  */
 
 const IDENTITY: RenderIdentity = {
@@ -24,14 +24,14 @@ const IDENTITY: RenderIdentity = {
   fonts: [],
 };
 
-/** In `billing/`, and its own words never say the word `billing`. */
+/** In `src/billing/`, and its own words never say the word `billing`. */
 const INVOICE: SubjectLexicon = {
   subject: 'billing/invoice-table--overdue',
   boundaries: 4,
   terms: {
     example: ['InvoiceTable'],
     components: ['InvoiceTable', 'Badge'],
-    files: ['src/billing/InvoiceTable.tsx'],
+    files: ['src/billing/InvoiceTable.tsx', 'src/shared/Badge.tsx'],
     names: ['Invoices', 'Overdue'],
     text: ['Overdue'],
     roles: ['table', 'status'],
@@ -39,9 +39,9 @@ const INVOICE: SubjectLexicon = {
 };
 
 /**
- * In `shipping/`, and it says `billing` out loud — a button labelled *Billing*
- * on a screen that is not the billing area. The decoy for the whole idea: a
- * start point that read `text` would return this one.
+ * In `src/shipping/`, and it says `billing` out loud — a button labelled
+ * *Billing* on a screen that is not the billing area. The decoy for the whole
+ * idea: a start point read as a word would return this one.
  */
 const DISPATCH: SubjectLexicon = {
   subject: 'shipping/dispatch-drawer--overdue',
@@ -49,14 +49,14 @@ const DISPATCH: SubjectLexicon = {
   terms: {
     example: ['DispatchDrawer'],
     components: ['DispatchDrawer', 'Badge'],
-    files: ['src/shipping/DispatchDrawer.tsx'],
+    files: ['src/shipping/DispatchDrawer.tsx', 'src/shared/Badge.tsx'],
     names: ['Billing', 'Overdue'],
     text: ['Billing', 'Overdue'],
     roles: ['dialog', 'button', 'status'],
   },
 };
 
-/** Also in `billing/`, so the area is two subjects and not one. */
+/** Also in `src/billing/`, so the area is two subjects and not one. */
 const STATEMENT: SubjectLexicon = {
   subject: 'billing/statement--paid',
   boundaries: 3,
@@ -94,53 +94,74 @@ const reportOf = (subjects: readonly SubjectLexicon[]): RunReport => {
 
 const REPORT = reportOf([INVOICE, DISPATCH, STATEMENT]);
 
-describe('a start point is a place and not a thing', () => {
+describe('a start point is a place on disk and nothing else', () => {
   it('names the area, not the screen with the area written on a button', () => {
     // `billing` is in DISPATCH's `names` and `text` and in the other two's ids
     // and files. A scope that searched what a subject shows would hold all
     // three, and the one it would be most confident about is the wrong one.
-    const scope = scopeOf(REPORT, 'billing');
+    const scope = scopeOf(REPORT, 'src/billing/');
     expect([...scope.subjects].sort()).toEqual([
       'billing/invoice-table--overdue',
       'billing/statement--paid',
     ]);
   });
 
-  it('reads only the fields that say where code is', () => {
-    expect([...PLACE_FIELDS].sort()).toEqual([
-      'components',
-      'createdBy',
-      'example',
-      'files',
-      'id',
-      'regions',
+  it('refuses a bare word rather than guessing which kind of place it is', () => {
+    // Nothing about `billing` says whether it is a folder, a component, a
+    // product area or a word on a button. Reinterpreting it is the one
+    // accommodation that cannot be made honestly.
+    const scope = scopeOf(REPORT, 'billing');
+    expect(scope.refused).toContain('not a path');
+    expect(scope.subjects.size).toBe(0);
+  });
+
+  it('refuses a component name, however exactly it is spelled', () => {
+    // `InvoiceTable` is a real component of a real subject. It is still not a
+    // location, and a filename is not unique.
+    expect(scopeOf(REPORT, 'InvoiceTable').refused).toBeDefined();
+  });
+
+  it('never answers a path from anything but the files a subject was seen in', () => {
+    // `Badge` is a component of two subjects and a file of both. `InvoiceTable`
+    // is a component of one and a file of one. Said as a path, only the file
+    // answers — which is why a component shared by two cannot widen a scope.
+    expect([...scopeOf(REPORT, 'src/billing/InvoiceTable.tsx').subjects]).toEqual([
+      'billing/invoice-table--overdue',
     ]);
   });
 
-  it('takes every word, because two words are a caller narrowing on purpose', () => {
-    // `Badge` is in billing and in shipping; `billing` is in billing alone.
-    // Either word alone holds two subjects; together they hold the one.
-    expect([...scopeOf(REPORT, 'billing badge').subjects]).toEqual(['billing/invoice-table--overdue']);
+  it('takes every path, because two are a caller narrowing on purpose', () => {
+    // `src/shared/` is in billing and in shipping; `src/billing/` is in billing
+    // alone. Either alone holds two subjects; together they hold the one.
+    expect([...scopeOf(REPORT, 'src/billing/ src/shared/').subjects]).toEqual([
+      'billing/invoice-table--overdue',
+    ]);
   });
 
-  it('says which word named nowhere, rather than only that nothing did', () => {
-    const scope = scopeOf(REPORT, 'billing warehousing');
+  it('says which path named nowhere, rather than only that nothing did', () => {
+    const scope = scopeOf(REPORT, 'src/billing/ src/warehousing/');
     expect(scope.subjects.size).toBe(0);
-    expect(scope.unmatched).toEqual(['warehousing']);
+    expect(scope.unmatched).toEqual(['src/warehousing/']);
   });
 
-  it('is not emptied by punctuation the caller left in', () => {
-    // `--` carries no letter or digit, so it narrows nothing on purpose and is
-    // skipped. Treated as a word that named nowhere it would empty the scope,
-    // which would make a stray dash indistinguishable from a wrong area.
-    expect(scopeOf(REPORT, 'billing --').subjects.size).toBe(2);
+  it('reads a path through the quotes it was copied inside', () => {
+    expect([...scopeOf(REPORT, '"src/billing/",').subjects].sort()).toEqual([
+      'billing/invoice-table--overdue',
+      'billing/statement--paid',
+    ]);
+  });
+
+  it('refuses a stray word beside a good path instead of ignoring it', () => {
+    // Skipping it would make a typo indistinguishable from a caller who meant
+    // to narrow twice, and would answer a wider question than was asked.
+    expect(scopeOf(REPORT, 'src/billing/ --').refused).toBeDefined();
   });
 });
 
 describe('what a start point does to an answer', () => {
   it('removes the subjects outside it', () => {
     const wide = locateSubjects(REPORT, 'overdue');
-    const narrow = locateSubjects(REPORT, 'overdue', 'billing');
+    const narrow = locateSubjects(REPORT, 'overdue', 'src/billing/');
     expect(wide.hits.map((hit) => hit.subject)).toContain('shipping/dispatch-drawer--overdue');
     expect(narrow.hits.map((hit) => hit.subject)).toEqual(['billing/invoice-table--overdue']);
   });
@@ -149,27 +170,39 @@ describe('what a start point does to an answer', () => {
     // `overdue` is held by two of three subjects suite-wide and by one of two
     // inside billing. Both are counted against their own population, which is
     // the whole point: the number means *rare here*.
-    const narrow = locateSubjects(REPORT, 'overdue', 'billing');
+    const narrow = locateSubjects(REPORT, 'overdue', 'src/billing/');
     expect(narrow.scope?.subjects.size).toBe(2);
     expect(narrow.indexed).toBe(3);
   });
 
-  it('changes nothing when it names nowhere, and says so', () => {
-    const missed = locateSubjects(REPORT, 'overdue', 'warehousing');
-    const wide = locateSubjects(REPORT, 'overdue');
-    expect(missed.hits.map((hit) => hit.subject)).toEqual(wide.hits.map((hit) => hit.subject));
+  it('answers nothing when it names nowhere, rather than answering the suite', () => {
+    // The pond the caller named is empty, so the answer is empty. Falling back
+    // to every other pond answers a question nobody asked, out of files they
+    // ruled out — and does it while printing a confident top hit.
+    const missed = locateSubjects(REPORT, 'overdue', 'src/warehousing/');
+    expect(missed.hits).toEqual([]);
     expect(missed.scope?.subjects.size).toBe(0);
   });
 
-  it('prints the scope it searched, with its size', () => {
-    const answer = locate.run(REPORT, { query: 'overdue', from: 'billing' });
-    expect(answer).toContain('Searched 2 of 3 subject(s), those `billing` names.');
+  it('answers nothing when the start point was not a place at all', () => {
+    expect(locateSubjects(REPORT, 'overdue', 'warehousing').hits).toEqual([]);
   });
 
-  it('prints why a start point that named nowhere scoped nothing', () => {
+  it('prints the scope it searched, with its size', () => {
+    const answer = locate.run(REPORT, { query: 'overdue', from: 'src/billing/' });
+    expect(answer).toContain('Searched 2 of 3 subject(s)');
+  });
+
+  it('prints why a start point that named nowhere searched nothing', () => {
+    const answer = locate.run(REPORT, { query: 'overdue', from: 'src/warehousing/' });
+    expect(answer).toContain('no file was seen at `src/warehousing/`');
+    expect(answer).toContain('hard boundary');
+  });
+
+  it('prints how to say a start point when the caller said a word', () => {
     const answer = locate.run(REPORT, { query: 'overdue', from: 'warehousing' });
-    expect(answer).toContain('names no subject of 3');
-    expect(answer).toContain('no id, component, creator or region goes by that word');
+    expect(answer).toContain('No search was run');
+    expect(answer).toContain('`warehousing` is not a path');
   });
 
   it('is absent from the answer when none was given', () => {
@@ -204,14 +237,14 @@ describe('a start point reaches the arrangement too', () => {
     const both = orient(LAID, 'the overdue under the amount');
     expect(both.hits.length).toBe(2);
 
-    const one = orient(LAID, 'the overdue under the amount', 'billing');
+    const one = orient(LAID, 'the overdue under the amount', 'src/billing/');
     expect(one.hits.map((hit) => hit.subject)).toEqual(['billing/invoice-table--overdue']);
   });
 
   it('never reads a surface the start point removed', () => {
     // `considered` counts surfaces walked in full. Dropping them before the
     // filters is the difference between narrowing and filtering afterwards.
-    expect(orient(LAID, 'the overdue under the amount', 'billing').considered).toBe(1);
+    expect(orient(LAID, 'the overdue under the amount', 'src/billing/').considered).toBe(1);
   });
 });
 
@@ -221,14 +254,10 @@ describe('a start point reaches the arrangement too', () => {
  *
  * Measured on a 2019 application of 166 subjects, asking after the forty
  * directories its files name. Whole-segment matching took precision from 87.5%
- * to 97.3% with recall unmoved at 100%, and what precision remains against is
- * components genuinely named after their place rather than files misread.
- *
- * Only `files` is read this way. A component name is not a path and a start
- * point may well be one — `DispatchDrawer` is the dispatch drawer — so the
- * name fields stay as generous as they were.
+ * to 97.3% with recall unmoved at 100%, and grounding the start point in a file
+ * rather than a name was worth a further 5.7 points on the top hit.
  */
-describe('a word names what the code declares, never a path', () => {
+describe('a path is matched literally, segment for whole segment', () => {
   /** Under `src/components/`, with a name ending in the word `Page`. */
   const FOOTER: SubjectLexicon = {
     subject: 'story:footer-for-payment',
@@ -243,33 +272,32 @@ describe('a word names what the code declares, never a path', () => {
   };
   const APP = reportOf([FOOTER, ACTIVITY]);
 
-  it('does not answer a word with a file whose name merely holds it', () => {
-    expect(scopeOf(APP, 'pages').subjects.size).toBe(0);
-    expect(scopeOf(APP, 'page').subjects.size).toBe(0);
+  it('does not answer a folder with a file whose name merely holds it', () => {
+    expect([...scopeOf(APP, 'src/pages/').subjects]).toEqual(['story:activity']);
   });
 
-  it('does not let a build host`s own directories name what they touched', () => {
+  it('does not stem a segment, because a coordinate was not a guess', () => {
+    // `page` is not `pages`. A caller who typed the folder they are standing in
+    // did not ask to be taken to its neighbour.
+    expect(scopeOf(APP, 'src/page/').subjects.size).toBe(0);
+  });
+
+  it('does not drop an extension, because two files may differ only there', () => {
+    expect(scopeOf(APP, 'src/pages/Activity/Activity.ts').subjects.size).toBe(0);
+    expect([...scopeOf(APP, 'src/pages/Activity/Activity.tsx').subjects]).toEqual(['story:activity']);
+  });
+
+  it('reads a build host`s own directories only when they are said as a path', () => {
     const built: SubjectLexicon = {
       subject: 'story:card',
       boundaries: 2,
       terms: { files: ['/Users/somebody/checkout/src/Card.tsx'], names: ['Card'] },
     };
     const ran = reportOf([built]);
-    expect(scopeOf(ran, 'users').subjects.size).toBe(0);
-    expect(scopeOf(ran, 'checkout').subjects.size).toBe(0);
+    expect(scopeOf(ran, 'checkout').refused).toBeDefined();
+    expect([...scopeOf(ran, 'checkout/src/').subjects]).toEqual(['story:card']);
   });
-
-  // The complaint this answers: file names are not unique, so a bare one is not
-  // a place. `Activity` is a place because the code declares a component of
-  // that name, not because a file happens to be called it.
-  it('answers a word from what the code declares', () => {
-    expect([...scopeOf(APP, 'Activity').subjects]).toEqual(['story:activity']);
-  });
-
-  it('answers the same folder said as a path', () => {
-    expect([...scopeOf(APP, 'src/pages/').subjects]).toEqual(['story:activity']);
-  });
-})
+});
 
 describe('a start point is grounded in a file, at whatever width the caller has', () => {
   const PAGE: SubjectLexicon = {
@@ -334,16 +362,17 @@ describe('a start point is grounded in a file, at whatever width the caller has'
       'story:contact',
     ]);
   });
-})
+});
 
-describe('an empty scope says which kind of place was looked for', () => {
-  it('says no file was seen there when the caller gave a path', () => {
+describe('an empty scope says what was looked for and where', () => {
+  it('names the path no file was seen at', () => {
     const line = scopeLine(scopeOf(REPORT, 'src/warehousing/'), 3);
-    expect(line).toContain('no file was seen at that path');
+    expect(line).toContain('no file was seen at `src/warehousing/`');
   });
 
-  it('says no such name when the caller gave a word', () => {
+  it('says how to say a place when the caller said a word', () => {
     const line = scopeLine(scopeOf(REPORT, 'warehousing'), 3);
-    expect(line).toContain('goes by that word');
+    expect(line).toContain('`warehousing` is not a path');
+    expect(line).toContain('leave the start point out');
   });
-})
+});

@@ -94,7 +94,9 @@ export interface Orientation {
 export function orient(report: RunReport, question: string, from?: string): Orientation {
   const index = orientIndexOf(report);
   const scope = from === undefined ? undefined : scopeOf(report, from);
-  const within = scope === undefined || scope.subjects.size === 0 ? undefined : scope.subjects;
+  // A boundary, not a preference: an empty scope is read empty rather than
+  // widened back to the suite the caller narrowed away from.
+  const within = scope === undefined ? undefined : scope.subjects;
   const asked = readQuestion(question);
 
   const anchorParts = asked.anchor.flatMap((word) => partsOf(word));

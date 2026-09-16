@@ -1,16 +1,16 @@
 import type { RunReport } from '@variance-authority/report';
-import { entriesMatching, indexOf, lower, partsOf, stem, type LocateField } from './locate-index.js';
+import { indexOf, lower } from './locate-index.js';
 
 /**
- * Where to look, said as a place rather than as a thing.
+ * Where to look, said as a place on disk and nothing else.
  *
  * A description and a start point are two different kinds of word and a reader
  * that mixes them answers neither well. *The overdue badge* says what a person
- * is looking at; *billing* says which part of the application they are standing
- * in. Folded into one query the second is just three more words to match, and
- * the suite's billing screens compete with every other screen that happens to
- * say `billing` on it — which on a real application is most of them, because a
- * product says its own name everywhere.
+ * is looking at; `app/billing/` says which files they are willing to be
+ * answered from. Folded into one query the second is just three more words to
+ * match, and the suite's billing screens compete with every other screen that
+ * happens to say `billing` on it — which on a real application is most of them,
+ * because a product says its own name everywhere.
  *
  * Kept apart, the start point does the one thing a description cannot: it
  * removes subjects. That matters twice over. Fewer rows is the small half. The
@@ -20,74 +20,52 @@ import { entriesMatching, indexOf, lower, partsOf, stem, type LocateField } from
  * area* says is worth nothing here, which is a different and more useful
  * statement.
  *
- * Measured on two corpora that persist, three hundred questions each, the
- * questions taken from the record and the start word typed by the caller:
+ * ## The description may be loose. The place may not.
  *
- * ```
- *                 subjects  scope  narrower  first hit      within three
- * 2019 app        166       76     2.2x      52 → 75        100 → 157
- * component lib   4,705     130    36.1x     30 → 48        50 → 74
- * ```
+ * What is being looked for is allowed to be approximate: a caller who types
+ * *the overdue badge* is describing something they half remember, and the
+ * ranking is built to reward a near miss. Where to look is the opposite kind of
+ * argument. It is a coordinate the caller already has — the file open in front
+ * of them, the folder they are working in — and every softening of it silently
+ * widens the pond they said to fish in.
  *
- * A start point naming somewhere the subject is not returned it at no rank on
- * every one of those six hundred questions. That is the property worth having
- * and the reason the scope is printed in the header with its size: a wrong
- * start point fails visibly and emptily, rather than moving a confident wrong
- * answer to the top.
+ * So nothing here is fuzzy. Segments are compared literally, lowercased and no
+ * more: no stemming, no dropped extension, no partial segment, no matching a
+ * path against a component or an id. A term that is not a path is refused
+ * rather than reinterpreted as a word, because a filename is not unique and a
+ * bare name is not a place — `I18nProvider` says which component and
+ * `src/core/Containers/I18nProvider.tsx` says which file. And a start point
+ * that names no file at all scopes the search to nothing, which returns
+ * nothing: the alternative is answering a question the caller did not ask, out
+ * of files they ruled out.
  */
-
-/**
- * The fields that say where the code is. A start point is matched against these
- * and never against `names`, `text`, `roles` or `tokens`.
- *
- * The division is the whole idea. `text` would let *billing* be answered by a
- * button labelled *Billing* on the account screen, which is the thing being
- * looked for wearing the clothes of the place to look — exactly the confusion
- * separating the two arguments exists to prevent. What remains are the names a
- * codebase organises itself under: the id, the component a subject is the
- * example of, the components it holds, who mounted them, the files that declare
- * them, and the regions its journey entered.
- */
-export const PLACE_FIELDS: ReadonlySet<LocateField> = new Set<LocateField>([
-  'id',
-  'example',
-  'components',
-  'createdBy',
-  'files',
-  'regions',
-]);
-
 
 /**
  * A path as the segments a person means: separators of either slash, empty
- * pieces dropped, extension off, lowercased.
+ * pieces dropped, lowercased, and otherwise exactly as written. The extension
+ * stays on — `page.tsx` is a different file from `page.ts`.
  */
 function segmentsOf(path: string): readonly string[] {
   return path
     .split(/[/\\]/)
     .filter((segment) => segment !== '')
-    .map((segment) => lower(segment).replace(/\.[a-z0-9]+$/, ''));
+    .map((segment) => lower(segment));
 }
 
 /**
- * A start point that is itself a path, matched as a path rather than as a word.
+ * Whether one recorded path lies at the place a start point names.
  *
- * The most exact thing a caller can hand over is the file already open in front
- * of them, and it was the one start point that failed: a path carries no
- * whitespace, so it arrived here whole, named no single segment, and the answer
- * called the caller's own coordinate an unknown word.
- *
- * It is read as a run of segments that has to appear entire, in order and
- * unbroken, in the recorded path — which is the same statement for a file and
- * for a directory, and the reason it is put that way. `Activity/Activity.tsx`
- * names the file a run recorded as `src/pages/Activity/Activity.tsx`;
+ * Read as a run of segments that has to appear entire, in order and unbroken,
+ * in the recorded path — which is the same statement for a file and for a
+ * directory, and the reason it is put that way. `Activity/Activity.tsx` names
+ * the file a run recorded as `src/pages/Activity/Activity.tsx`;
  * `src/pages/Activity` names every file under it; the absolute path an editor
  * hands over names the file too, because the shorter run may be either side.
- * A `*` stands for one segment a caller does not want to name, and a trailing
- * one is the file: `app/about-us/*` is the files of that folder and nothing
- * deeper, while `app/about-us/` is everything underneath it. The narrower of
- * the two is the one that has to be said, because a caller who says nothing
- * about depth means any.
+ * A `*` stands for one segment the caller chose not to name, and a trailing one
+ * is the file: `app/about-us/*` is the files of that folder and nothing deeper,
+ * while `app/about-us/` is everything underneath it. The narrower of the two is
+ * the one that has to be said, because a caller who says nothing about depth
+ * means any depth.
  *
  * What it will not do is join two absolute paths of the same depth under
  * different roots — a build host's checkout and the caller's — which share a
@@ -97,7 +75,7 @@ function segmentsOf(path: string): readonly string[] {
  * it costs nothing: every recorded path answers itself, and the files a rooted
  * run records absolutely it also records unrooted.
  */
-function pathRuns(value: string, term: string): boolean {
+function pathHolds(value: string, term: string): boolean {
   const value_ = segmentsOf(value);
   const term_ = segmentsOf(term);
   if (value_.length === 0 || term_.length === 0) return false;
@@ -135,37 +113,41 @@ function run(left: readonly string[], right: readonly string[]): boolean {
   return false;
 }
 
-/** One segment against one, with the wildcard and the stem both sides use. */
+/**
+ * One segment against one: the same text, or a `*` the caller wrote in place of
+ * a segment they did not want to name.
+ *
+ * Literal on purpose. A stem here would let `page` answer `pages` and `card`
+ * answer `cards`, and a caller handing over a coordinate did not ask to be
+ * guessed at.
+ */
 function alike(mine: string, theirs: string): boolean {
-  return mine === '*' || theirs === '*' || mine === theirs || stem(mine) === stem(theirs);
+  return mine === '*' || theirs === '*' || mine === theirs;
 }
 
 /** A start point, resolved. `subjects` empty means it named nowhere. */
 export interface Scope {
   /** As the caller typed it. */
   readonly from: string;
-  /** Its words after punctuation, lowercased, deduplicated. */
+  /** Its paths, lowercased, deduplicated. Empty when the start point was refused. */
   readonly terms: readonly string[];
   /** The subjects it names. */
   readonly subjects: ReadonlySet<string>;
-  /** Words of it no subject holds in a place field. */
+  /** Paths of it no subject was recorded under. */
   readonly unmatched: readonly string[];
+  /** Why the start point was not a place at all. Absent when it was one. */
+  readonly refused?: string;
 }
 
 /**
- * The subjects a start point names: those whose place fields hold **every** one
- * of its words.
+ * The subjects a start point names: those recorded in a file at **every** one
+ * of its paths.
  *
  * Conjunctive, unlike the ranking beside it, and for the opposite reason. A
  * rank may be generous because being wrong costs one more call; a scope that
- * was generous would put back the subjects it exists to remove, and two words
+ * was generous would put back the subjects it exists to remove, and two paths
  * in a start point are a caller narrowing deliberately rather than describing
  * more fully.
- *
- * A word carrying no letters or digits — punctuation a caller left in — is
- * skipped rather than emptying the scope, because it narrows nothing on
- * purpose. A word that is a real word and names nothing does empty it, and the
- * answer says which word did.
  */
 export function scopeOf(report: RunReport, from: string): Scope {
   const index = indexOf(report);
@@ -173,42 +155,48 @@ export function scopeOf(report: RunReport, from: string): Scope {
     ...new Set(
       from
         .split(/\s+/)
-        // A trailing `*` or separator is a width the caller asked for, not
-        // punctuation they left behind: `app/` is a folder and `app` is a word.
-        // Everything else at either end goes.
-        .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9*/\\]+$/g, ''))
+        // Quotes, brackets and a trailing comma are how a path arrives when it
+        // was copied out of something. A trailing `*` or separator is not
+        // punctuation — it is the width the caller asked for — and stays.
+        .map((word) => lower(word).replace(/^["'`([]+|["'`)\],]+$/g, ''))
         .filter((word) => word !== ''),
     ),
   ];
 
+  // A start point is a coordinate or it is refused. Reinterpreting a bare word
+  // as a place is the one accommodation that cannot be made honestly: nothing
+  // about `dispatch` says whether it is a folder, a component, a product area
+  // or a word on a button, and a scope built on that guess quietly answers out
+  // of files the caller ruled out.
+  const loose = terms.filter((term) => !/[/\\]/.test(term));
+  if (terms.length === 0 || loose.length > 0) {
+    const named = loose.map((term) => `\`${term}\``).join(', ');
+    return {
+      from,
+      terms: [],
+      subjects: new Set<string>(),
+      unmatched: [],
+      refused:
+        terms.length === 0
+          ? 'no start point was said'
+          : `the start point ${named} ${loose.length === 1 ? 'is' : 'are'} not a path`,
+    };
+  }
+
+  // Only the files a subject was seen in can answer a path. The other place
+  // fields — the id, the component a subject is an example of, the components
+  // it holds, who mounted them, the regions it entered — are names, and a name
+  // is not a location.
+  const files = index.entries.filter((entry) => entry.field === 'files');
+
   const unmatched: string[] = [];
   let held: Set<string> | undefined;
   for (const term of terms) {
-    // A term carrying a separator is a coordinate, not a word, and only a file
-    // can answer it. The candidates are drawn on the last segment alone — the
-    // one piece both sides hold whichever of them is rooted deeper — and the
-    // tail comparison decides.
-    const path = /[/\\]/.test(term);
-    // The deepest segment the caller actually named — a wildcard names none, so
-    // the prefilter steps back to the last one that does.
-    const named = path ? [...segmentsOf(term)].reverse().find((piece) => piece !== '*') : term;
-    const parts = partsOf(named ?? '');
-    if (parts.length === 0) continue;
-
     const here = new Set<string>();
-    for (const id of entriesMatching(index, parts)) {
-      const entry = index.entries[id]!;
-      if (!PLACE_FIELDS.has(entry.field)) continue;
-        // A path answers only files, and a word answers anything but. A file
-      // name is not unique and is not a place: `I18nProvider` says which
-      // component, `src/core/Containers/I18nProvider.tsx` says which file.
-      if (path ? entry.field !== 'files' || !pathRuns(entry.value, term) : entry.field === 'files') {
-        continue;
-      }
-      here.add(entry.subject);
+    for (const entry of files) {
+      if (pathHolds(entry.value, term)) here.add(entry.subject);
     }
     if (here.size === 0) unmatched.push(term);
-
     held = held === undefined ? here : new Set([...held].filter((subject) => here.has(subject)));
   }
 
@@ -224,24 +212,28 @@ export function scopeOf(report: RunReport, from: string): Scope {
  * somewhere else, and only the tool knows which happened.
  */
 export function scopeLine(scope: Scope, indexed: number): string {
-  if (scope.terms.length === 0) {
-    return `Nothing left of the start point \`${scope.from}\` after its punctuation.`;
+  if (scope.refused !== undefined) {
+    return (
+      `No search was run: ${scope.refused}. ` +
+      'Say a file or a folder — `app/dispatch/page.tsx` is that file, `app/dispatch/*` its ' +
+      "folder, `app/dispatch/` everything under it — and say it with its parent, because a " +
+      'filename on its own is not unique. To search everywhere, leave the start point out.'
+    );
   }
   if (scope.subjects.size === 0) {
     const why =
       scope.unmatched.length === 0
-        ? 'no subject holds all of them at once'
-        : `${scope.unmatched.map((term) => `\`${term}\``).join(', ')} names nothing in this ` +
-          `run: ${scope.unmatched.some((term) => /[/\\]/.test(term)) ? 'no file was seen at that path' : 'no id, component, creator or region goes by that word'}`;
+        ? 'no subject was recorded in a file at all of them at once'
+        : `no file was seen at ${scope.unmatched.map((term) => `\`${term}\``).join(', ')}`;
     return (
-      `Start point \`${scope.from}\` names no subject of ${indexed}: ${why}. ` +
-      'Nothing below is scoped; a start point is matched against where code is, never against ' +
-      'what a subject shows.'
+      `Nothing was searched of ${indexed} subject(s): ${why}. ` +
+      'A start point is a hard boundary, so no answer is given from outside it; widen it or ' +
+      'leave it out.'
     );
   }
   return (
-    `Searched ${scope.subjects.size} of ${indexed} subject(s), those \`${scope.from}\` names. ` +
-    'Rarity is counted inside that scope, so a word common to this area is worth nothing here ' +
-    'even when the suite at large barely says it.'
+    `Searched ${scope.subjects.size} of ${indexed} subject(s), those recorded in a file at ` +
+    `\`${scope.from}\`. Rarity is counted inside that scope, so a word common to this area is ` +
+    'worth nothing here even when the suite at large barely says it.'
   );
 }

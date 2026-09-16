@@ -108,13 +108,20 @@ On a suite of a few hundred, a description is enough. On a few thousand it is
 not — and the missing word is usually not a better description of the thing but
 the place you are standing.
 
-### If you have the file, say the file
+### Say the file, and say its parent
 
-Most of the time you do: it is open in front of you, or the ticket names it, or
-a stack trace just handed it to you. Paste it.
+Most of the time you have one: it is open in front of you, or the ticket names
+it, or a stack trace just handed it to you. Paste it.
 
 ```bash
 variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
+```
+
+```text
+3 of 4,705 subject(s) match `the contract warning`.
+Searched 128 of 4,705 subject(s), those recorded in a file at `app/dispatch/`. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
+Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
+…
 ```
 
 Say it as wide as you actually know:
@@ -131,32 +138,33 @@ wider of the two. Paste the absolute path your editor gives you or type the tail
 you remember — both find the same file, and so does either against a run that
 recorded its paths from somewhere else on disk.
 
-### If you do not, say the word
+Say the parent along with the name, because a file name is not unique. Somewhere
+there is a `Provider.tsx` loaded by every screen you have, and `Provider.tsx` on
+its own cannot tell you which one you meant.
 
-```bash
-variance ask locate --query "the contract warning" --from "dispatch"
-```
+### It is a boundary, not a preference
 
-```text
-3 of 4,705 subject(s) match `the contract warning`.
-Searched 128 of 4,705 subject(s), those `dispatch` names. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
-Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
-…
-```
+What you are looking for may be approximate — you half remember the badge, and
+the ranking is built to reward a near miss. Where to look is the opposite kind of
+thing. It is a coordinate you already have, so it is read exactly:
 
-A word names what the code declares: an id, the component a subject is the
-example of, the components it holds, who mounted them, the regions its journey
-entered. Not a file name, and not what a subject shows on screen.
+- Segments are compared whole and literally. `page` is not `pages`, and
+  `Activity.ts` is not `Activity.tsx`.
+- Only the files each subject was seen in can answer it — never a component,
+  never an id, and never what a subject shows on screen. A button labelled
+  *Dispatch* on the account screen is the thing you are looking for wearing the
+  clothes of the place to look, and a start point that read visible text would
+  hand it to you first.
+- A bare word is refused rather than reinterpreted. Nothing about `dispatch`
+  says whether it is a folder, a component, a product area or a label, so you
+  are asked for the path instead of being guessed at.
+- **No answer is ever given from outside it.** A path no file sits at searches
+  nothing and returns nothing. Falling back to the rest of the suite would
+  answer a question you did not ask, out of the files you ruled out — and would
+  do it while printing a confident top hit.
 
-Both halves of that matter. A button labelled *Dispatch* on the account screen is
-the thing you are looking for wearing the clothes of the place to look, and a
-start point that read visible text would hand it to you first. And a file name
-is not unique — somewhere there is a `Provider.tsx` loaded by every screen you
-have, so a word that read file names would quietly hand you the whole
-application. `Dispatch` says which component; `app/dispatch/` says which folder.
-
-Every word counts. `--from "dispatch drawer"` keeps only subjects whose place
-fields hold both, because two words in a start point are you narrowing on
+Every path counts. `--from "app/dispatch/ src/shared/"` keeps only subjects seen
+in a file at both, because two paths in a start point are you narrowing on
 purpose rather than describing more fully.
 
 **It does two things, and the second is the one worth having.** Removing
@@ -166,17 +174,11 @@ screen in the application says is worth nothing, and a word every screen *in
 this area* says is worth nothing here. Those are different statements, and
 inside an area the second is the useful one.
 
-**A start point that names nowhere fails emptily.** It scopes nothing, tells you
-which part of it found nothing and whether it was looking for a file or a name,
-and leaves the answer exactly as it would have been. So a wrong area costs you
-the header you were going to read anyway — never a confident wrong hit you have
-no way to spot.
-
 A start point narrows a relation question the same way, where it is removing
 surfaces before any of them is read:
 
 ```bash
-variance ask locate --query "the warning under the Carrier field" --from "dispatch"
+variance ask locate --query "the warning under the Carrier field" --from "app/dispatch/"
 ```
 
 Over MCP both are `variance_locate {query, from}`.

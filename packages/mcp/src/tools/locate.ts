@@ -96,13 +96,16 @@ export const locate: Tool = {
       from: {
         type: 'string',
         description:
-          'Optional. Where to look. A path when you have one — `app/dispatch/page.tsx` is that ' +
-          'file, `app/dispatch/*` its folder, `app/dispatch/` everything under it — matched ' +
-          'against the files a subject was seen in. Otherwise a word, matched against what the ' +
-          'code declares: ids, components, creators and regions, never a file name and never ' +
-          'what a subject shows. Narrows the suite before ranking and recounts rarity inside ' +
-          'what remains, so the area\'s own vocabulary stops distinguishing anything. A start ' +
-          'point that names nowhere says so and scopes nothing.',
+          'Optional. Which files to answer from, as a path and only a path: ' +
+          '`app/dispatch/page.tsx` is that file, `app/dispatch/*` its folder, `app/dispatch/` ' +
+          'everything under it, and a `*` stands for one segment you do not want to name. ' +
+          'Matched literally against the files each subject was seen in — no stemming, no ' +
+          'partial segment, and never against a component, an id or anything a subject shows. ' +
+          'Say the parent too: a filename alone is not unique. A bare word is refused rather ' +
+          'than guessed at, and a path no file sits at searches nothing at all — this is a hard ' +
+          'boundary, so no answer is ever given from outside it. Narrows the suite before ' +
+          'ranking and recounts rarity inside what remains, so the area\'s own vocabulary stops ' +
+          'distinguishing anything.',
       },
       limit: {
         type: 'integer',
@@ -230,7 +233,10 @@ const STOPLIST: ReadonlySet<string> = new Set(['the', 'a', 'an', 'in', 'on', 'of
 export function locateSubjects(report: RunReport, query: string, from?: string): Located {
   const index = indexOf(report);
   const scope = from === undefined ? undefined : scopeOf(report, from);
-  const within = scope === undefined || scope.subjects.size === 0 ? undefined : scope.subjects;
+  // A boundary, not a preference. A start point that named nowhere leaves an
+  // empty scope and an empty scope is searched empty: answering out of the
+  // files the caller ruled out would be answering a question nobody asked.
+  const within = scope === undefined ? undefined : scope.subjects;
 
   // A word is what sits between spaces with the punctuation around it gone:
   // `withTracking),` is `withtracking`, and prints as what it matched.
