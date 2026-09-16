@@ -275,7 +275,7 @@ a different graph. Deleting them costs one cold scan and nothing else.
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,
 how much of it one answer opens, and which repositories this stops paying for —
-and it is in [whether test selection fits your repository](scale.md).
+and it is in [addressing scale](scale.md).
 
 ## What a record knows that no graph can
 

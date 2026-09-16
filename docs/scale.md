@@ -1,4 +1,4 @@
-# Whether test selection fits your repository
+# Addressing scale
 
 Most tools that reason about a whole codebase were never built for a large one,
 and the way you find that out is that they die on yours.
@@ -72,10 +72,25 @@ never stores it, because for a large suite it is gigabytes.
 Selection needs the unfolded relation. Skipping a test on a changed line is
 only safe if the record says that test never entered it, and a count per line
 cannot say that about any test. So the execution record holds what coverage
-throws away, and its size is the fair question. Two fears attach to it once a
-repository is large: that recording it produces gigabytes of data, and that
-reading it needs gigabytes of memory. The figures below come from two
-recordings:
+throws away, and its size is the fair question.
+
+You can price the folded version yourself in one command, with nothing to
+install: Node writes raw V8 coverage to a directory when you set
+`NODE_V8_COVERAGE`.
+
+```bash
+NODE_V8_COVERAGE=./coverage-raw yarn test
+du -sh ./coverage-raw
+```
+
+Run against this repository's own unit suite — 21 test files over 756 modules —
+that directory is **37 MB of JSON**, and it is already folded: one file per
+worker process, not one per test. Ask for the unfolded relation, one row per
+test per region, and the multiplier is the number of test files.
+
+Two fears attach to that once a repository is large: that recording it produces
+gigabytes of data, and that reading it needs gigabytes of memory. The figures
+below come from two recordings:
 
 - **Material UI.** [Material UI](https://github.com/mui/material-ui)'s own
   Vitest suite, recorded with the instrument installed: 791 modules and 184
@@ -99,6 +114,14 @@ region, that is gigabytes before a byte reaches disk.
 The record never holds pairs. A region does not own the list of tests that
 entered it. It holds an identifier into a pool of the **distinct** sets of
 tests, and the pool keeps one copy of each set, however many regions name it.
+That is [hash consing](https://en.wikipedia.org/wiki/Hash_consing) over sets,
+and the identifier in the region column is
+[dictionary encoding](https://en.wikipedia.org/wiki/Dictionary_coder) — the
+same pair of tricks behind ClickHouse's `LowCardinality` columns and the
+dictionary pages in [Apache Parquet](https://parquet.apache.org). Module paths
+and test names are held the same way, as one interned
+[string dictionary](https://en.wikipedia.org/wiki/String_interning) per
+generation, which is why a name costs bytes once however many rows repeat it.
 
 Sharing on that scale is what imports produce, not a compression trick. A test
 file reaches tens of thousands of modules by importing barrels, and every leaf
@@ -123,8 +146,12 @@ on your repository being shaped nicely.
 ### Why reading it does not cost a gigabyte
 
 Nothing loads it. The file is
-[columnar](execution-record.md#the-coverage-file), and a question touches the
-columns it needs:
+[columnar](execution-record.md#the-coverage-file) —
+[column-oriented storage](https://en.wikipedia.org/wiki/Column-oriented_DBMS),
+the layout Parquet, [Apache Arrow](https://arrow.apache.org) and ClickHouse all
+use, where each field is a contiguous compressed run and a reader decompresses
+only the fields the question names. So a question touches the columns it
+needs:
 
 | | 200,000 modules, a 77 MB file | Material UI, a 0.5 MB file |
 |---|---|---|
@@ -180,6 +207,31 @@ nothing at all. A missing or stale record costs a slower answer, never a
 different one. The same holds for the scan caches, which are content-addressed
 for the same reason: nothing in the path is allowed to turn an absent cache into
 a wrong answer.
+
+## What both halves cost, at four sizes
+
+Both files grow with modules and stay linear, so you can price your own
+repository before recording anything. The two middle rows are measured; the
+outer two are those constants applied to a size nobody here has recorded.
+
+| your repository | modules | source index | execution record |
+|---|---|---|---|
+| a medium app, ~200k lines | ~2,000 | ~0.7 MB | ~1 MB |
+| a large library — Material UI | 24,519 | 7.8 MB | 0.5 MB, over the 791 its Vitest suite enters |
+| a large monorepo | 200,000 | 67 MB | 77 MB |
+| a very large monorepo | 2,000,000 | ~670 MB | ~770 MB |
+
+The constants behind the outer rows are **0.33 KB per module** of index and
+roughly **0.4 KB per module** of record. Material UI's record is the small one
+because a record is priced by the modules its suite actually enters, not by the
+modules the scan found.
+
+**Those are disk figures, and disk is the axis that grows.** Neither file is
+loaded. At two million modules a run still reads the index segment by segment
+and the record column by column, so the resident figure stays the one measured
+above: about 120 MB for a cold answer to a 100-file diff. What a repository
+that size changes is how long a first scan takes and how much storage you keep,
+not how much memory a run needs.
 
 ## What decides the value is what changed, not how much
 
