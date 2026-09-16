@@ -1,14 +1,21 @@
 # Running less of the suite
 
+Three tests can import the same file and take three different paths through it.
+An import graph connects all three to that file. With execution recording,
+Variance Authority also knows **which parts each test actually entered**. A
+change to one branch can then select the tests that exercised it, while the
+record exposes branches none of them entered. That is
+[what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
+
 Suppose one changed component reaches two subjects in a 300-subject suite.
 Collecting all 300 spends most of the run confirming what the change could not
 have affected. Selection avoids the other 298 when the evidence supports that
 decision. When it cannot safely exclude a subject, the subject still runs and
 the report explains why.
 
-Variance Authority combines two readings. A source graph shows which components
-the changed files can reach. A stored baseline records the components its
-document **actually rendered**. What this subject is made of is therefore a fact
+For rendered subjects, selection combines two readings. A source graph shows
+which components the changed files can reach. A stored baseline records the
+components its document **actually rendered**. What this subject is made of is a fact
 the last run established. A subject can be skipped only when those two readings
 show that the change did not reach it.
 
