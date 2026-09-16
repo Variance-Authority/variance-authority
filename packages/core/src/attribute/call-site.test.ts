@@ -164,8 +164,9 @@ describe('what it fetches, and what it will not', () => {
       frame({ url: 'http://host/src/App.tsx', line: 12, column: 3 }),
     ]);
 
-    // The second frame's module carries no map, so it stands as served.
-    expect(located).toEqual({ file: 'http://host/src/App.tsx', line: 12, column: 3 });
+    // The second frame's module carries no map, so it stands as served — minus
+    // the origin, which is a fact about the server rather than about the code.
+    expect(located).toEqual({ file: 'src/App.tsx', line: 12, column: 3 });
   });
 
   it('keeps an unmapped module as served, which is what a Node runner reports', async () => {

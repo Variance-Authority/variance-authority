@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { capture, node } from '../rules/normalize/fixture.js';
 import { normalize } from '../rules/normalize/index.js';
-import { composeSubjects } from './composition.js';
+import { composeSubjects, type SubjectComposition } from './composition.js';
 import { SUITE, chip, instance } from './composition-fixture.js';
 import { componentInstances } from './instances.js';
 import { attributeMovement } from './movement.js';
@@ -15,6 +15,78 @@ import { attributeMovement } from './movement.js';
  * unknown is not a finding either — it is missing data wearing a finding's
  * clothes.
  */
+
+describe('the narrow example, under an application\'s worth of wrappers', () => {
+  /**
+   * Four subjects, each mounted inside the same two wrappers. That is the shape
+   * a real suite has and the fixture suite is too small to have: a harness root
+   * and a theme provider around everything, and one component per subject that
+   * is what the subject is actually about.
+   */
+  const wrapped = (subject: string, component: string): SubjectComposition => ({
+    subject,
+    instances: [
+      instance({ component: 'Wrapper', path: '0', depth: 0, renders: ['ThemeProvider'] }),
+      instance({ component: 'ThemeProvider', path: '0/0', depth: 1, renders: [component] }),
+      instance({ component, path: '0/0/0', depth: 2, within: 'ThemeProvider' }),
+    ],
+  });
+
+  const suite = [
+    wrapped('story:badge--default', 'Badge'),
+    wrapped('story:badge--dot', 'Badge'),
+    wrapped('story:avatar--default', 'Avatar'),
+    wrapped('story:toolbar--default', 'Toolbar'),
+  ];
+  const composition = composeSubjects(suite);
+  const exampleOf = (component: string) =>
+    composition.components.find((entry) => entry.component === component)?.examples ?? [];
+
+  it('descends past the components most of the suite mounts', () => {
+    // The shallowest boundary is `Wrapper` in all four, and answering with it
+    // would give every subject in the suite the same example — a field with one
+    // value, which is a field that says nothing.
+    expect(exampleOf('Wrapper')).toEqual([]);
+    expect(exampleOf('ThemeProvider')).toEqual([]);
+    expect(exampleOf('Badge')).toEqual(['story:badge--default', 'story:badge--dot']);
+    expect(exampleOf('Avatar')).toEqual(['story:avatar--default']);
+  });
+
+  it('counts, rather than recognising, what is structure', () => {
+    // Nothing here knows that `ThemeProvider` is a provider. Rename it to
+    // something with no meaning at all — a minified root, an HOC's generated
+    // name — and the same four subjects get the same four examples.
+    const minified = suite.map((subject) => ({
+      ...subject,
+      instances: subject.instances.map((held) =>
+        held.component === 'ThemeProvider' ? { ...held, component: 'aL' } : held,
+      ),
+    }));
+    const renamed = composeSubjects(minified);
+
+    expect(renamed.components.find((entry) => entry.component === 'aL')?.examples).toEqual([]);
+    expect(renamed.components.find((entry) => entry.component === 'Badge')?.examples).toEqual([
+      'story:badge--default',
+      'story:badge--dot',
+    ]);
+  });
+
+  it('answers as the shallowest rule would when every depth is structure', () => {
+    // Two subjects made of the same two components: everything is mounted by
+    // the whole suite, so nothing is distinguishing and the descent finds
+    // nothing. It must not therefore name nothing — a suite too small to have
+    // structure is a suite whose shallowest boundary is still its example.
+    const small = composeSubjects([
+      wrapped('story:badge--default', 'Badge'),
+      wrapped('story:badge--dot', 'Badge'),
+    ]);
+
+    expect(small.components.find((entry) => entry.component === 'Wrapper')?.examples).toEqual([
+      'story:badge--default',
+      'story:badge--dot',
+    ]);
+  });
+});
 
 describe('the census', () => {
   const composition = composeSubjects(SUITE);

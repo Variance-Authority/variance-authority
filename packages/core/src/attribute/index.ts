@@ -83,6 +83,8 @@ export type {
 export type { Divergence, DivergenceParting } from './divergence.js';
 
 export { lexiconOf, structureOf, LEXICON_CAP } from './lexicon.js';
+export { LANDMARK_CAP } from './landmark.js';
+export type { Landmark } from './landmark.js';
 export type { BoundaryRow, LexiconField, LexiconOptions, SubjectLexicon } from './lexicon.js';
 
 export { attributeMovement } from './movement.js';

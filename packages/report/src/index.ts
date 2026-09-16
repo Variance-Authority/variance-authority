@@ -59,7 +59,7 @@ export type {
   BoundaryRow,
 } from './composition.js';
 
-export type { LexiconReport, LexiconField, SubjectLexicon } from './lexicon.js';
+export type { LexiconReport, LexiconField, SubjectLexicon, Landmark } from './lexicon.js';
 
 export type {
   ReachReport,

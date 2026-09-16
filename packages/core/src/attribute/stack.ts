@@ -108,6 +108,35 @@ export function isVendorPath(path: string): boolean {
 }
 
 /**
+ * A served URL as a path: the origin dropped, the rest kept.
+ *
+ * An origin is a fact about the machine that ran the capture rather than about
+ * the code. A dev server binds an ephemeral port and a preview server binds
+ * another, so two runs of one suite would name every location differently, and
+ * a cache-busting query would move under the same hand. What is left is what
+ * the source index and `relativizeSource` already speak.
+ *
+ * Anything that does not parse as a URL is left exactly as it is — a bundler
+ * that wrote an absolute filesystem path, or a `webpack://` specifier — because
+ * inventing a shape for those would be a guess.
+ */
+export function servedPath(url: string): string {
+  if (URL_OF === undefined) return url;
+  try {
+    return new URL_OF(url).pathname.replace(/^\/+/, '');
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * The one host global this file needs, asked for rather than assumed. `core`
+ * types no host library (ADR-0001), and taking a URL apart by hand is a bug
+ * farm.
+ */
+const URL_OF = (globalThis as { URL?: new (url: string) => { readonly pathname: string } }).URL;
+
+/**
  * The location that wrote this element, chosen from its stack.
  *
  * The rule is one sentence: **the first frame that resolves to a file the
@@ -138,9 +167,10 @@ export function writerLocationOf(
 
     // No map is not the same as a vendor frame. An unmapped application module
     // is one a build served as written — which a dev server does for plain `.js`
-    // — and its own coordinates are already the answer.
+    // — and its own coordinates are already the answer, once the origin it was
+    // served from is off them.
     if (original === null) {
-      return { file: frame.url, line: frame.line, column: frame.column };
+      return { file: servedPath(frame.url), line: frame.line, column: frame.column };
     }
 
     if (isVendorPath(original.source)) continue;

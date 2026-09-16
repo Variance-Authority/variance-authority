@@ -164,15 +164,7 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
   const present = input.subjects.filter((subject) => subject !== null);
   if (present.length === 0) return undefined;
 
-  const composition = composeSubjects(present);
-  const examples = new Map<string, string[]>();
-  for (const entry of composition.components) {
-    for (const subject of entry.examples) {
-      let held = examples.get(subject);
-      if (held === undefined) examples.set(subject, (held = []));
-      held.push(entry.component);
-    }
-  }
+  const examples = examplesOf(present);
 
   const declaredIn = new Map<string, readonly string[]>();
   for (const [component, refs] of Object.entries(input.source ?? {})) {
@@ -188,12 +180,26 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
   return {
     version: 1,
     fields: FIELD_ORDER.filter((field) => fields.includes(field)),
+    ...(input.source === undefined ? {} : { declaredIn: Object.fromEntries(declaredIn) }),
     subjects: lexiconOf(present, {
       examples,
       ...(input.source === undefined ? {} : { declaredIn }),
       ...(input.regions === undefined ? {} : { regions: input.regions }),
     }),
   };
+}
+
+/** Subject → the components it is the narrow example of, from the census. */
+function examplesOf(present: readonly SubjectComposition[]): ReadonlyMap<string, readonly string[]> {
+  const examples = new Map<string, string[]>();
+  for (const entry of composeSubjects(present).components) {
+    for (const subject of entry.examples) {
+      let held = examples.get(subject);
+      if (held === undefined) examples.set(subject, (held = []));
+      held.push(entry.component);
+    }
+  }
+  return examples;
 }
 
 /** The order fields are named in, wherever a report or a tool lists them. */

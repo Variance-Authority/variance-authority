@@ -142,14 +142,30 @@ describe('choosing the frame that wrote the element', () => {
     expect(writerLocationOf(frames, intoVendor)).toBeNull();
   });
 
-  it('keeps a frame with no map, because an unmapped module was served as written', () => {
+  it('keeps a frame with no map, without the origin it was served from', () => {
     const frames = parseStackFrames('    at Badge (http://host/src/probe.js:4:26)');
 
+    // An unmapped module was served as written, so its own coordinates are the
+    // answer. The origin is not part of them: a dev server binds an ephemeral
+    // port, and a location carrying one would differ between two runs of the
+    // same suite.
     expect(writerLocationOf(frames, () => null)).toEqual({
-      file: 'http://host/src/probe.js',
+      file: 'src/probe.js',
       line: 4,
       column: 26,
     });
+  });
+
+  it('drops a cache-busting query, which moves under the same hand as the port', () => {
+    const frames = parseStackFrames('    at Badge (http://127.0.0.1:59975/src/probe.js?t=17312:4:1)');
+
+    expect(writerLocationOf(frames, () => null)?.file).toBe('src/probe.js');
+  });
+
+  it('leaves a filesystem path alone, because it is not a served URL', () => {
+    const frames = parseStackFrames('    at Badge (/app/src/probe.js:4:1)');
+
+    expect(writerLocationOf(frames, () => null)?.file).toBe('/app/src/probe.js');
   });
 
   it('says nothing when every frame is a dependency', () => {

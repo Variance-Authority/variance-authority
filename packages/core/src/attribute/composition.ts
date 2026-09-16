@@ -203,9 +203,10 @@ export interface Composition {
 export function composeSubjects(subjects: readonly SubjectComposition[]): Composition {
   const entries = new Map<string, Accumulator>();
   const order = subjects.map((subject) => subject.subject);
+  const structural = structuralComponents(subjects);
 
   for (const subject of subjects) {
-    const example = exampleOf(subject.instances);
+    const example = exampleOf(subject.instances, structural);
 
     for (const instance of subject.instances) {
       if (!attributed(instance)) continue;
@@ -312,21 +313,79 @@ function echoesOf(components: readonly ComponentEntry[]): readonly Echo[] {
 
 
 /**
+ * Components more than half the suite mounts.
+ *
+ * Structure, not subject matter. A harness wrapper, a theme or store provider,
+ * a portal root and an HOC that every screen is wrapped in are all mounted by
+ * nearly every subject, and none of them is what any subject is about. The test
+ * is a count over the suite rather than a list of names, which is the only form
+ * that survives contact with a real application: nothing here knows that
+ * `withStyles(x)` is an HOC, that a minified `aL` is a decorator, or that a
+ * class component is a context consumer, and nothing here needs to.
+ *
+ * More than half, because that is where the claim becomes checkable. A
+ * component two thirds of a suite mounts cannot be what distinguishes a subject
+ * from its neighbours, whatever it is called.
+ */
+function structuralComponents(subjects: readonly SubjectComposition[]): ReadonlySet<string> {
+  const mounts = new Map<string, number>();
+  for (const subject of subjects) {
+    for (const instance of subject.instances) {
+      if (!attributed(instance)) continue;
+      mounts.set(instance.component, (mounts.get(instance.component) ?? 0) + 1);
+    }
+  }
+
+  const structural = new Set<string>();
+  for (const [component, held] of mounts) {
+    if (held * 2 > subjects.length) structural.add(component);
+  }
+  return structural;
+}
+
+/**
  * The component a subject exists to show, when one component does.
  *
- * The shallowest attributed boundary, and only when it is alone at that depth.
- * A story usually mounts one thing; a page mounts a layout that mounts several,
- * and calling the first of them the subject's component would be picking a
- * winner out of document order.
+ * The shallowest attributed boundary that is not structure, and only when it is
+ * alone at its depth. A story usually mounts one thing; a page mounts a layout
+ * that mounts several, and calling the first of them the subject's component
+ * would be picking a winner out of document order.
+ *
+ * The descent is the whole of the difference between this and the obvious rule.
+ * Taking the shallowest boundary outright answers with whatever the harness
+ * mounted first, which on a real suite is one value for every subject in it —
+ * `Wrapper` across a component library, a minified decorator root across a
+ * built Storybook — and a field with one value is a field that says nothing. A
+ * depth every one of whose names is structure is passed through however many
+ * names it has, because a harness that mounts a provider beside a portal root
+ * has still not said what the subject is about.
+ *
+ * Where the descent finds nothing it answers as the shallowest rule would, so
+ * this can name more subjects than that rule and never fewer.
  */
-function exampleOf(instances: readonly ComponentInstance[]): string | undefined {
-  const shallowest = instances.filter(attributed).reduce<number>((depth, instance) => {
-    return Math.min(depth, instance.depth);
-  }, Number.POSITIVE_INFINITY);
+function exampleOf(
+  instances: readonly ComponentInstance[],
+  structural: ReadonlySet<string>,
+): string | undefined {
+  const held = instances.filter(attributed);
+  const depths = [...new Set(held.map((instance) => instance.depth))].sort((a, b) => a - b);
 
-  const leads = instances.filter((instance) => attributed(instance) && instance.depth === shallowest);
+  for (const depth of depths) {
+    const names = new Set(held.filter((instance) => instance.depth === depth).map((i) => i.component));
+    const matter = [...names].filter((name) => !structural.has(name));
+    if (matter.length === 0) continue;
+    return matter.length === 1 ? matter[0] : shallowestOf(held, depths[0]);
+  }
+
+  return shallowestOf(held, depths[0]);
+}
+
+/** The shallowest boundary when it is alone at its depth: the rule before the descent. */
+function shallowestOf(held: readonly ComponentInstance[], shallowest: number | undefined): string | undefined {
+  if (shallowest === undefined) return undefined;
+  const leads = held.filter((instance) => instance.depth === shallowest);
   const names = new Set(leads.map((instance) => instance.component));
-  return leads.length === 1 || names.size === 1 ? leads[0]?.component : undefined;
+  return names.size === 1 ? leads[0]?.component : undefined;
 }
 
 /**

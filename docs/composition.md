@@ -234,11 +234,28 @@ than a paragraph.
 
 ### Which layer a subject is an example of
 
-A subject's **example** is its shallowest attributed boundary — the component the
-subject exists to show — and only when it is alone at that depth. A story usually
-mounts one thing; a page mounts a layout that mounts several, and calling the
-first of them the subject's component would be picking a winner out of document
-order.
+A subject's **example** is the shallowest attributed boundary that is not
+structure — the component the subject exists to show — and only when it is alone
+at that depth. A story usually mounts one thing; a page mounts a layout that
+mounts several, and calling the first of them the subject's component would be
+picking a winner out of document order.
+
+**Structure** is counted, never listed: a component more than half the suite
+mounts. A harness wrapper, a theme or store provider, a portal root, a
+higher-order component every screen is wrapped in — each is mounted by nearly
+every subject, and none of them is what any subject is about. Counting rather
+than recognising is what survives a real application: nothing here knows that
+`withStyles(Account)` is a higher-order component, that a class component is a
+context consumer, or that a minified `aL` is a decorator a build renamed, and
+nothing here needs to.
+
+Without that descent, a suite mounted under one wrapper answers `Wrapper` for
+every subject it has, which is a field with one value in it. A depth all of
+whose names are structure is passed through however many names it has, because a
+harness that mounts a provider beside a portal root has still not said what the
+subject is about. Where the descent finds nothing — a suite too small for
+anything to be distinguishing — the shallowest boundary answers as before, so
+this names more subjects than the plain rule and never fewer.
 
 | subject | example of | what that means |
 |---|---|---|

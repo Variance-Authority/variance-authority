@@ -96,7 +96,10 @@ describe.skipIf(!BROWSER_AVAILABLE)('the declaration reader', () => {
 
     expect(index['Button']).toEqual([{ file: 'src/Button.tsx', line: 5, via: 'engine' }]);
     expect(index['Vendor']).toBeUndefined();
-    expect(index['Plain']).toEqual([{ file: `${origin}/plain.js`, line: 3, via: 'engine' }]);
+    // Served from the dev server's own origin and kept as a repository-relative
+    // path. The port a harness happened to bind is a coordinate, not a file: it
+    // differs on every run, so a name carrying it joins to nothing later.
+    expect(index['Plain']).toEqual([{ file: 'plain.js', line: 3, via: 'engine' }]);
     expect(reader.stats).toEqual({ asked: 3, located: 2 });
 
     // Nothing new in the page: the engine is not asked again.
@@ -111,7 +114,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('the declaration reader', () => {
       declared.functions.push((window as unknown as Record<string, Function>)['Later']!);
     }, AGENT_GLOBAL);
     const grown = await reader.read();
-    expect(grown['Later']).toEqual([{ file: `${origin}/plain.js`, line: 5, via: 'engine' }]);
+    expect(grown['Later']).toEqual([{ file: 'plain.js', line: 5, via: 'engine' }]);
     expect(grown['Button']).toEqual(index['Button']);
     expect(reader.stats).toEqual({ asked: 4, located: 3 });
 

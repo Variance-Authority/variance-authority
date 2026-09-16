@@ -93,6 +93,80 @@ export interface SubjectLexicon {
    * holds more names than were kept*.
    */
   readonly elided?: Partial<Record<LexiconField, number>>;
+
+  /**
+   * The same reading in the arrangement it was read in, document order.
+   *
+   * The fields above are what the subject *says*; this is where it said it. A
+   * bag of words can answer that a subject holds `carrier` and holds
+   * `contract`, and can never answer that the second sits beneath the first —
+   * which is the question somebody arriving at a screen actually has. Both come
+   * out of one walk over one tree, because two walks eventually disagree about
+   * what was there.
+   *
+   * Absent on a subject with no snapshot. A dialog with nothing on it and a run
+   * that never looked are different sentences here too.
+   */
+  readonly landmarks?: readonly Landmark[];
+
+  /** How many landmarks the cap left out. */
+  readonly elidedLandmarks?: number;
+}
+
+/**
+ * One thing on a subject a person could point at, where the run saw it.
+ *
+ * A node earns a place here by bearing a role, an accessible name, or words of
+ * its own. Everything else is scaffolding, and scaffolding is what makes a real
+ * application's tree six hundred deep: the wrapper a layout needed, the div a
+ * styling library emitted, the provider a context consumer sits under. Nothing
+ * here recognises any of them, and nothing here needs to — the test is what the
+ * node *says*, so a screen written with an era's worth of higher-order
+ * components reduces to the same landmarks as the same screen written flat.
+ */
+export interface Landmark {
+  readonly role?: string;
+  readonly name?: string;
+
+  /** The words directly inside it, and only those. */
+  readonly text?: string;
+
+  /** Index of the nearest enclosing landmark. Absent on a top-level one. */
+  readonly within?: number;
+
+  /**
+   * `[x, y, width, height]` in layout pixels.
+   *
+   * Absent, never zeroed, exactly as `rect` is — and the field a reader must
+   * consult before it uses the word *beneath*. With layout, beneath is read off
+   * two rectangles and is an observation. Without it, the best a reader can do
+   * is document order, which agrees with the screen often enough to be
+   * dangerous and not often enough to be relied on.
+   */
+  readonly box?: readonly [number, number, number, number];
+
+  /** Where the element was written, when the project installed the plugin. */
+  readonly file?: string;
+  readonly line?: number;
+
+  /**
+   * The innermost component that owns it, off the fiber's owner chain.
+   *
+   * The line an element was written on needs the JSX-source plugin, which a
+   * production build strips — and a built Storybook is a production build, so
+   * `file` and `line` are absent on exactly the runs that matter most. The
+   * owner chain survives that build. This is the name that carries a place
+   * through it: not the line the element sits on, but the component whose
+   * source you would open to find it, joined to a path through
+   * {@link LexiconReport.declaredIn}.
+   */
+  readonly component?: string;
+
+  /** The component whose JSX created it. The unit somebody owns. */
+  readonly createdBy?: string;
+
+  /** A test handle, when one was set. The one name a suite chose deliberately. */
+  readonly handle?: string;
 }
 
 /**
@@ -121,4 +195,16 @@ export interface LexiconReport {
 
   /** One entry per subject that supplied a snapshot, in plan order. */
   readonly subjects: readonly SubjectLexicon[];
+
+  /**
+   * Component → the files declaring it, written once for the whole run.
+   *
+   * A landmark carries the component that owns it and not a path, because the
+   * same component owns thousands of them and the path is the longer half. The
+   * join is here, one row per component in the suite, so a reader asked *where
+   * does this live* can answer with a file on a run whose build stripped the
+   * JSX source — which is every built Storybook. Absent when no source index
+   * was read.
+   */
+  readonly declaredIn?: Readonly<Record<string, readonly string[]>>;
 }

@@ -7,7 +7,7 @@ import {
   sourceMappingUrlOf,
   type SourceMap,
 } from './source-map.js';
-import { isVendorPath, writerLocationOf } from './stack.js';
+import { isVendorPath, servedPath, writerLocationOf } from './stack.js';
 
 /**
  * Spending the frames a page read, to get the file a reviewer opens.
@@ -256,20 +256,12 @@ function index(root: SemanticNode): ReadonlyMap<NodePath, SemanticNode> {
  * A map's `sources` entry as a path, resolved against the module it describes.
  *
  * Maps state sources relatively — Vite writes `probe.jsx` for `/src/probe.jsx` —
- * so the entry alone is ambiguous between two directories. Resolved and then
- * stripped to a path, because the origin is a fact about the machine that ran
- * the capture: a baseline holding `http://localhost:5199/src/probe.jsx` would
- * disagree with the next run on a different port. What is left is what the
- * source index and `relativizeSource` already speak.
+ * so the entry alone is ambiguous between two directories. Resolved first, then
+ * stripped by the same rule the unmapped frame is stripped by, so a location
+ * reads the same whether or not a map was there to read it.
  */
 function sourcePath(source: string, moduleUrl: string): string {
-  const resolved = absolute(source, moduleUrl) ?? source;
-  const parsed = parseUrl(resolved);
-
-  // Not a URL: a bundler that wrote an absolute filesystem path, or a
-  // `webpack://` specifier. Left as it is — `relativizeSource` handles the
-  // first, and inventing a shape for the second would be a guess.
-  return parsed === null ? resolved : parsed.pathname.replace(/^\/+/, '');
+  return servedPath(absolute(source, moduleUrl) ?? source);
 }
 
 function absolute(url: string, base: string): string | null {

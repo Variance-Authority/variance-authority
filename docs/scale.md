@@ -27,7 +27,10 @@ ran. One test entering one region is a **crossing**, and the record is the
 whole set of crossings your suite produced, written to one binary file.
 
 So two things have to fit your repository, in that order: the index, and the
-record. The rest of this page is the arithmetic on both.
+record. Most of this page is the arithmetic on both. A third artifact — the
+[lexicon](lexicon.md), which is what lets you *find* a subject rather than
+decide whether to run one — is priced on a different axis entirely, and
+[has its own arithmetic](#the-lexicon-is-priced-in-subjects) at the end.
 
 ## The source index
 
@@ -232,6 +235,140 @@ and the record column by column, so the resident figure stays the one measured
 above: about 120 MB for a cold answer to a 100-file diff. What a repository
 that size changes is how long a first scan takes and how much storage you keep,
 not how much memory a run needs.
+
+## The lexicon is priced in subjects
+
+Selection is priced in modules. Finding a subject is not. The
+[lexicon](lexicon.md) is written per subject, so what it costs is decided by
+how many subjects your suite has, and not by how large the repository around
+them is. Twenty million lines behind two hundred stories is a small lexicon.
+Two hundred thousand lines behind twenty thousand stories is a large one, and
+that is the case worth pricing.
+
+Two suites, measured:
+
+| | material-ui | a product web app |
+|---|---|---|
+| subjects | 4,705 | 572 |
+| read from | unbundled sources | a production Storybook build |
+| values kept | 96,510 | 43,043 |
+| values per subject | 20.5 | 75.3 |
+| bytes per subject | 243 B | 1,627 B |
+| the whole lexicon | 1.09 MB | 0.89 MB |
+
+The per-subject figure is the constant to apply to your own suite, and the two
+are further apart than they look. Material UI's run wrote no `files` at all —
+the field was read and is genuinely empty — while the product app's `files`
+is 58% of its lexicon on its own, because a production build names its modules
+`assets/HeatmapTooltip-7CU4gII7.js` and every subject holds a couple of dozen
+of them. Set that field aside and the figures are 243 B and 689 B per subject:
+a product suite costs about three times a library suite, because product
+language is longer than component names.
+
+Applied to twenty thousand subjects, which is the size that prompts the
+question:
+
+| | the lexicon on disk | the index in memory |
+|---|---|---|
+| library-shaped, 243 B per subject | ~5 MB | ~42 MB |
+| product-shaped, 1,627 B per subject | ~33 MB | ~229 MB |
+
+Those two rows are the measured constants applied to a size nobody here has
+recorded, the way the rows above are. They are also an upper bound rather than
+a forecast: the memory figure was taken before file provenance stopped
+carrying the dev server's origin, and the disk figure is spending 58% of itself
+on content hashes.
+
+### Where things were costs more than what they are called
+
+The [landmarks](lexicon.md) — the arrangement the same walk writes down — are
+priced per subject too, and they are the larger half:
+
+| | material-ui | a product web app |
+|---|---|---|
+| subjects carrying landmarks | 3,827 of 4,705 | 543 of 572 |
+| landmarks | 11,599 | 15,057 |
+| per subject, median | 1 | 9 |
+| per subject, 99th | 12 | 231 |
+| per subject, largest | 52 | 1,179 |
+| bytes per subject carrying them | 284 B | 2,598 B |
+
+A component library's capture is one control on a blank page, so a subject
+holds one landmark and the median says so. A product screen is a screen: a
+median of nine, a tail of a few hundred, and one page of eleven hundred. That
+is the ratio to carry to your own suite — the number of landmarks is the number
+of things a person could point at, and a library has few per subject because it
+puts few on a page.
+
+The tail is capped at twelve hundred per subject, which is what the largest
+real screen holds. A cap on landmarks costs differently from a cap on values: a
+field that loses a value loses a word the subject says elsewhere, and a subject
+that loses a landmark loses a place, which has no second spelling. Twenty
+thousand product-shaped subjects is about 52 MB of landmarks, against 33 MB for
+the rest of the lexicon.
+
+### Why a deep tree does not make it unbounded
+
+A subject in a real application can be six hundred boundaries deep, and the
+honest question about a number like 243 B is what stops it becoming 24 KB when
+every screen sits under an application's worth of higher-order components,
+providers and context consumers.
+
+The cap does. Each field keeps at most two hundred distinct values, so a
+subject's entry has a ceiling no tree depth can pass: eight fields at two
+hundred values of the median length each is **17 KB** on Material UI's
+vocabulary and **27 KB** on the product app's. Twenty thousand subjects all
+pinned at that ceiling is a third of a gigabyte — worth knowing, and roughly
+forty times what either suite actually spends, because no real subject fills
+every field.
+
+What makes the bounded version still worth keeping is [which two hundred it
+keeps](lexicon.md#what-a-deep-tree-does-to-it): the values the fewest other
+subjects hold, rather than the ones that sort first. A depth-600 tree under
+three hundred wrappers would otherwise keep `Anonymous` and `Connect(Account)`
+and drop the one component the subject is about.
+
+### The vocabulary saturates; the postings do not
+
+The index a question runs against is a token list and a postings list, and the
+two grow differently. Counted over the same suite at increasing numbers of
+subjects:
+
+| subjects | distinct tokens | values |
+|---|---|---|
+| 50 | 149 | 604 |
+| 250 | 219 | 5,109 |
+| 1,000 | 535 | 27,387 |
+| 4,705 | 1,300 | 96,510 |
+
+Ninety-four times the subjects is a hundred and sixty times the values and
+under nine times the vocabulary. Words repeat; that is what a vocabulary is.
+The product app is more varied and saturates more slowly — eleven times the
+subjects for five times the vocabulary — but both bend the same way.
+
+So the list that gets binary-searched for a prefix grows far slower than the
+suite, and the lists that get intersected grow with it. Memory is linear in
+values. A question costs what its own words touch.
+
+### What a question touches
+
+A term's cost is the length of its postings, which is a share of the corpus
+rather than a scan of it:
+
+| a question against | entries it visits | of the corpus |
+|---|---|---|
+| `checkbox`, on 4,705 subjects | 521 | 0.5% |
+| `autocomplete`, on 4,705 subjects | 3,045 | 3.0% |
+| `checkbox`, on 572 subjects | 35 | 0.08% |
+| a two-word product question, on 572 | 2,759 | 6.3% |
+
+A rare word stays cheap at any size. A word a fifth of your suite holds costs
+a fifth of your suite at any size, which is the honest scaling pressure here:
+at twenty thousand subjects a saturated word means ranking tens of thousands of
+entries, and no amount of index structure makes a word that fails to
+distinguish distinguish. That is a ranking problem rather than a storage one,
+and [what a starting point is worth](lexicon.md#what-a-starting-point-is-worth)
+is the measurement of the lever that moves it.
 
 ## What decides the value is what changed, not how much
 
