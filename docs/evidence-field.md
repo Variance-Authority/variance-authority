@@ -49,7 +49,7 @@ changed; [history](history.md) finds causes that recur; and [sharing](sharing.md
 moves evidence between systems without moving the authority to interpret it.
 
 The answer can arrive as a report, a test failure, the CLI, MCP, or a workspace
-API. [Agent workflows](agents.md) route a question to retained evidence, a live
+API. [Agent workflows](agent-workflows.md) route a question to retained evidence, a live
 run, a workspace API, or source search according to what is available. The
 [question map](agent-questions.md) names the answers without implying that an
 agent, or a person, must use all of them.

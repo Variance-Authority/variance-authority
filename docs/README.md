@@ -61,7 +61,7 @@ Choose the situation that looks familiar. Each route stands on its own.
 <p>Choose the host, surface, renderer, store, and consumer independently.</p>
 <em>Compose an observation →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact" href="agents.md">
+<a class="doc-link-card doc-link-card--compact" href="agent-workflows.md">
 <span>Guide</span>
 <strong>Help the next person act</strong>
 <p>Let a person or agent ask source, live-run, comparison, and code-search questions.</p>
@@ -135,7 +135,7 @@ differences enter the decision.
 
 ### Someone needs to act in unfamiliar code
 
-Begin with the question they need answered. [Agent workflows](agents.md) route
+Begin with the question they need answered. [Agent workflows](agent-workflows.md) route
 it through retained evidence, a live run, a workspace API, or source search
 according to what is already known. The [question map](agent-questions.md)
 names the available answers. The [lexicon](lexicon.md) keeps their subjects and
@@ -154,7 +154,7 @@ boundaries stable across tools.
 | Separate a change from instability | [Find where readings part](parting.md) |
 | Add durable rendered comparison | [Observe one state](start.md) |
 | Replace an existing screenshot suite | [Map the existing workflow](replacing.md) |
-| Give an agent evidence to act | [Choose an agent workflow](agents.md) |
+| Give an agent evidence to act | [Choose an agent workflow](agent-workflows.md) |
 
 If durable rendered comparison is your question, the first complete loop is one
 subject through observation, explicit acceptance, and a second reading. The

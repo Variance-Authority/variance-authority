@@ -4,7 +4,7 @@ import agentInterrogate from "../../../docs/agent-interrogate.md?raw";
 import agentLiveRun from "../../../docs/agent-live-run.md?raw";
 import agentMcp from "../../../docs/agent-mcp.md?raw";
 import agentQuestions from "../../../docs/agent-questions.md?raw";
-import agents from "../../../docs/agents.md?raw";
+import agents from "../../../docs/agent-workflows.md?raw";
 import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
 import betterTests from "../../../docs/better-tests.md?raw";
@@ -85,7 +85,7 @@ const documents = [
   ["start-unit", startUnit, "docs/start-unit.md"],
   ["start-custom", startCustom, "docs/start-custom.md"],
   ["start-cli", startCli, "docs/start-cli.md"],
-  ["agents", agents, "docs/agents.md"],
+  ["agents", agents, "docs/agent-workflows.md"],
   ["agent-questions", agentQuestions, "docs/agent-questions.md"],
   ["agent-cli", agentCli, "docs/agent-cli.md"],
   ["agent-mcp", agentMcp, "docs/agent-mcp.md"],

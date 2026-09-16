@@ -21,7 +21,7 @@ export function splitTarget(href: string): { path: string; suffix: string } {
 /** Documents whose route does not follow from their file name. */
 const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   README: "/docs",
-  agents: "/agents",
+  "agent-workflows": "/agents",
   "agent-live-run": "/agents/live-run",
   "agent-interrogate": "/agents/interrogate",
   "agent-cli": "/agents/cli",
