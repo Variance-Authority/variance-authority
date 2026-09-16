@@ -228,118 +228,46 @@ describe('a start point reaches the arrangement too', () => {
  * point may well be one — `DispatchDrawer` is the dispatch drawer — so the
  * name fields stay as generous as they were.
  */
-describe('a start point names a directory, not a piece of a filename', () => {
+describe('a word names what the code declares, never a path', () => {
   /** Under `src/components/`, with a name ending in the word `Page`. */
   const FOOTER: SubjectLexicon = {
     subject: 'story:footer-for-payment',
     boundaries: 2,
-    terms: {
-      files: ['src/components/FooterForPaymentPage/FooterForPaymentPage.tsx'],
-      names: ['Pay'],
-    },
+    terms: { files: ['src/components/FooterForPaymentPage/FooterForPaymentPage.tsx'], names: ['Pay'] },
   };
-
-  /** Genuinely under `src/pages/`. */
+  /** Genuinely under `src/pages/`, and declared as a component of that name. */
   const ACTIVITY: SubjectLexicon = {
     subject: 'story:activity',
     boundaries: 2,
-    terms: {
-      files: ['src/pages/Activity/Activity.tsx'],
-      names: ['Activity'],
-    },
+    terms: { files: ['src/pages/Activity/Activity.tsx'], components: ['Activity'], names: ['Activity'] },
   };
+  const APP = reportOf([FOOTER, ACTIVITY]);
 
-  /**
-   * Compiled somewhere the run had no root for, so the path kept the build
-   * host's own directories. Nothing about this subject concerns a user.
-   */
-  const CARD: SubjectLexicon = {
-    subject: 'story:card',
-    boundaries: 2,
-    terms: {
-      files: ['/tmp/scratch/-Users-somebody-dev-app/src/components/Card/Card.tsx'],
-      names: ['Card'],
-    },
-  };
-
-  const APP = reportOf([FOOTER, ACTIVITY, CARD]);
-
-  it('does not answer `pages` with a footer that merely ends in the word', () => {
-    expect([...scopeOf(APP, 'pages').subjects]).toEqual(['story:activity']);
-  });
-
-  it('lets a file name its own place, extension and all', () => {
-    expect([...scopeOf(APP, 'activity').subjects]).toEqual(['story:activity']);
+  it('does not answer a word with a file whose name merely holds it', () => {
+    expect(scopeOf(APP, 'pages').subjects.size).toBe(0);
+    expect(scopeOf(APP, 'page').subjects.size).toBe(0);
   });
 
   it('does not let a build host`s own directories name what they touched', () => {
-    expect(scopeOf(APP, 'users').subjects.size).toBe(0);
-    expect(scopeOf(APP, 'scratch').subjects.size).toBe(1);
+    const built: SubjectLexicon = {
+      subject: 'story:card',
+      boundaries: 2,
+      terms: { files: ['/Users/somebody/checkout/src/Card.tsx'], names: ['Card'] },
+    };
+    const ran = reportOf([built]);
+    expect(scopeOf(ran, 'users').subjects.size).toBe(0);
+    expect(scopeOf(ran, 'checkout').subjects.size).toBe(0);
   });
 
-  it('reads the directories of an unrooted path like any other', () => {
-    expect([...scopeOf(APP, 'components').subjects].sort()).toEqual([
-      'story:card',
-      'story:footer-for-payment',
-    ]);
-  });
-});
-
-describe('a start point may be the file the caller already has open', () => {
-  /** As a run that resolved a root recorded it. */
-  const ROOTED: SubjectLexicon = {
-    subject: 'story:activity',
-    boundaries: 2,
-    terms: { files: ['/build/host/scratch/src/pages/Activity/Activity.tsx'], names: ['Activity'] },
-  };
-  /** The same file, as a run that resolved none recorded it. */
-  const UNROOTED: SubjectLexicon = {
-    subject: 'story:activity-empty',
-    boundaries: 2,
-    terms: { files: ['src/pages/Activity/Activity.tsx'], names: ['Activity'] },
-  };
-  const ELSEWHERE: SubjectLexicon = {
-    subject: 'story:card',
-    boundaries: 2,
-    terms: { files: ['src/components/Card/Activity.tsx'], names: ['Card'] },
-  };
-  const APP = reportOf([ROOTED, UNROOTED, ELSEWHERE]);
-
-  it('answers a path with the subjects showing that file, under either root', () => {
-    expect([...scopeOf(APP, 'src/pages/Activity/Activity.tsx').subjects].sort()).toEqual([
-      'story:activity',
-      'story:activity-empty',
-    ]);
+  // The complaint this answers: file names are not unique, so a bare one is not
+  // a place. `Activity` is a place because the code declares a component of
+  // that name, not because a file happens to be called it.
+  it('answers a word from what the code declares', () => {
+    expect([...scopeOf(APP, 'Activity').subjects]).toEqual(['story:activity']);
   });
 
-  it('answers the absolute path an editor hands over, rooted deeper than the run', () => {
-    const typed = '/Users/somebody/checkout/src/pages/Activity/Activity.tsx';
-    expect([...scopeOf(APP, typed).subjects]).toEqual(['story:activity-empty']);
-  });
-
-  // Both sides carry a root, neither says so, and a rule loose enough to
-  // unify these would unify `apps/web/…/Button.tsx` with `apps/admin/…/Button.tsx`.
-  it('does not unify two roots of the same depth, and does not pretend to', () => {
-    const typed = '/Users/somebody/checkout/pages/Activity/Activity.tsx';
-    expect([...scopeOf(APP, typed).subjects]).not.toContain('story:activity');
-  });
-
-  it('reads a tail as a tail, not as a filename shared by two directories', () => {
-    expect([...scopeOf(APP, 'Activity/Activity.tsx').subjects].sort()).toEqual([
-      'story:activity',
-      'story:activity-empty',
-    ]);
-    expect([...scopeOf(APP, 'Card/Activity.tsx').subjects]).toEqual(['story:card']);
-  });
-
-  it('does not call the caller`s own coordinate an unknown word', () => {
-    expect(scopeOf(APP, 'src/pages/Activity/Activity.tsx').unmatched).toEqual([]);
-  });
-
-  it('empties the scope for a path the run never recorded, and says which', () => {
-    const scope = scopeOf(APP, 'src/pages/Ledger/Ledger.tsx');
-    expect(scope.subjects.size).toBe(0);
-    expect(scope.unmatched).toEqual(['src/pages/ledger/ledger.tsx']);
+  it('answers the same folder said as a path', () => {
+    expect([...scopeOf(APP, 'src/pages/').subjects]).toEqual(['story:activity']);
   });
 })
 

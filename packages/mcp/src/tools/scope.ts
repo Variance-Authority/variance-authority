@@ -59,32 +59,6 @@ export const PLACE_FIELDS: ReadonlySet<LocateField> = new Set<LocateField>([
 
 
 /**
- * A path names a place when one of its segments *is* the word, not when some
- * part of a filename contains it.
- *
- * The tokeniser splits camel case, which is right for a description and wrong
- * for a start point. `FooterForPaymentPage.tsx` yields `page`, so on a real
- * application `from: "pages"` was answered largely by a footer — fifty-eight
- * subjects of the seventy-eight it returned, against the sixteen actually
- * written under `src/pages`. The same split is what let `user` name every
- * subject in a run: a build machine's own directory is called `Users`, so an
- * absolute path put the word on every file it touched.
- *
- * A directory is the unit a person means. `src/pages/Activity/Activity.tsx` is
- * in `pages`; `FooterForPaymentPage.tsx` is not, and neither is anything whose
- * only claim is a byte of somebody's home directory. The extension is dropped
- * so a file may name its own place, and the same stem is applied to both sides
- * so `pages` still meets `page`.
- */
-function segmentNames(path: string, term: string): boolean {
-  const wanted = stem(lower(term));
-  for (const bare of segmentsOf(path)) {
-    if (bare === wanted || stem(bare) === wanted) return true;
-  }
-  return false;
-}
-
-/**
  * A path as the segments a person means: separators of either slash, empty
  * pieces dropped, extension off, lowercased.
  */
@@ -199,9 +173,10 @@ export function scopeOf(report: RunReport, from: string): Scope {
     ...new Set(
       from
         .split(/\s+/)
-        // A trailing `*` is a width the caller asked for, not punctuation they
-        // left behind, so it survives the trim that removes everything else.
-        .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9*]+$/g, ''))
+        // A trailing `*` or separator is a width the caller asked for, not
+        // punctuation they left behind: `app/` is a folder and `app` is a word.
+        // Everything else at either end goes.
+        .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9*/\\]+$/g, ''))
         .filter((word) => word !== ''),
     ),
   ];
@@ -224,8 +199,12 @@ export function scopeOf(report: RunReport, from: string): Scope {
     for (const id of entriesMatching(index, parts)) {
       const entry = index.entries[id]!;
       if (!PLACE_FIELDS.has(entry.field)) continue;
-      if (path && (entry.field !== 'files' || !pathRuns(entry.value, term))) continue;
-      if (!path && entry.field === 'files' && !segmentNames(entry.value, term)) continue;
+        // A path answers only files, and a word answers anything but. A file
+      // name is not unique and is not a place: `I18nProvider` says which
+      // component, `src/core/Containers/I18nProvider.tsx` says which file.
+      if (path ? entry.field !== 'files' || !pathRuns(entry.value, term) : entry.field === 'files') {
+        continue;
+      }
       here.add(entry.subject);
     }
     if (here.size === 0) unmatched.push(term);
