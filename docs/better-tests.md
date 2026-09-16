@@ -1,4 +1,4 @@
-# Make a suite faster, stabler, smarter and cheaper
+# Make a suite faster, more stable, smarter and cheaper
 
 A growing test suite should give you more confidence to change the code. Too
 often it gives you longer waits, failures nobody trusts, and a larger CI bill.
@@ -20,12 +20,13 @@ records React Testing Library's `screen` queries from a setup file. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in
 a suite that never opens a browser.
 
-## Faster: don't trade speed for reliability
+## Faster: don't surrender to workarounds
 
 Slow tests interrupt development. Unreliable tests teach people to ignore them.
 You need feedback that arrives while the edit is still in your head and that you
-can act on when it does. Paying for a fresh environment on every test should not
-be the price of trusting the result.
+can act on when it does. Rebuilding the environment can hide a state leak, but
+every test then pays for that workaround. Finding and fixing the leak lets you
+keep both speed and trust in the result.
 
 Starting a fresh browser for each capture prevents one page's state from leaking
 into the next. It also means launching, navigating and tearing down for every
@@ -53,12 +54,13 @@ Keeping the page open saves that work, but it also lets one test's leftovers
 reach the next. The saving depends on finding those leaks and helping you fix
 them. That is where speed and reliability meet.
 
-## Stabler: fix the flake
+## More stable: see the root cause
 
 A test that fails intermittently gives everyone a reason to dismiss its next
 failure. Retrying may get the build through; it leaves the reason to distrust
-the test in place. The useful result is a place to investigate and enough
-evidence to choose a fix.
+the test in place. To fix it, you need to see what changed, under which
+conditions, and where the explanation leads. Each check should narrow the cause
+and give you evidence for the next step.
 
 When a story or page region changes, Variance Authority captures it again to
 check why. Two checks separate timing problems from shared state. `again`

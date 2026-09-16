@@ -26,7 +26,7 @@ export const NAVIGATION = [
     items: [
       {
         href: "/docs/better-tests",
-        label: "Faster, stabler, smarter, cheaper",
+        label: "Faster, more stable, smarter, cheaper",
       },
       {
         href: "/docs/run-relevant-work",

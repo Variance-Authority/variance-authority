@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 const MOVES = [
-  { key: "faster", title: "Faster", claim: "Keep the page open" },
-  { key: "stabler", title: "Stabler", claim: "Trace the state change" },
+  { key: "faster", title: "Faster", claim: "Don't surrender to workarounds" },
+  { key: "stabler", title: "More stable", claim: "See the root cause" },
   { key: "smarter", title: "Smarter", claim: "Choose from the run" },
   { key: "cheaper", title: "Cheaper", claim: "Remove unused work" },
 ] as const;
