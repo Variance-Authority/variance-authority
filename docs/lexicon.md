@@ -280,6 +280,32 @@ component has a vocabulary that is already almost unique. A product named in
 product language does not, and neither does a repository where many teams name
 similar things similarly.
 
+### Say the starting point as a path
+
+A starting point is a place, and the most exact place you have is usually the
+file already open in front of you. Give it as a path and it is read as one:
+
+```
+from: app/about-us/page.tsx    the file itself, and only what it shows
+from: app/about-us/*           the layouts and anything else beside it
+from: app/about-us/            the same, for when you remember a direction
+from: app/*/page.tsx           one segment you do not want to name
+```
+
+The run of segments has to appear entire and in order, so a path answers the
+same whether the run recorded it rooted or not, and whether you paste the
+absolute path your editor gives you or the tail you remember. A path is matched
+only against the files a subject was seen in — nothing a screen *says* can
+answer it.
+
+Two absolute paths of the same depth under different roots are left alone: they
+share a tail and disagree above it, nothing in a run says which of its leading
+segments are its root, and a rule loose enough to join them would join
+`apps/web/…/Button.tsx` to `apps/admin/…/Button.tsx`.
+
+A word still works and means what it did — `billing` names the area — but where
+you have a coordinate, give the coordinate.
+
 ### What a starting point is worth
 
 The same questions, answered inside the directory the answer lives in rather
@@ -315,10 +341,10 @@ than the id:
 |---|---|---|
 | subjects | 166 | 4,705 |
 | lines kept by the build | 91.7% of landmarks | none |
-| the top hit is the reader's subject | 25.7% | 13.0% |
-| **the top hit names the right place** | **72.7%** | **67.7%** |
-| the right place is within three | 88.7% | 70.7% |
-| the top hit names it without a starting point | 57.0% | 46.0% |
+| the top hit is the reader's subject | 22.7% | 13.0% |
+| **the top hit names the right place** | **68.3%** | **67.7%** |
+| the right place is within three | 83.0% | 70.7% |
+| the top hit names it without a starting point | 55.7% | 46.0% |
 
 Read the second and third rows together. On the library the top hit is the
 reader's own story one time in eight and the right place two times in three,

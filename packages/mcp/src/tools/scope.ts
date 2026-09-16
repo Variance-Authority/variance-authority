@@ -78,10 +78,62 @@ export const PLACE_FIELDS: ReadonlySet<LocateField> = new Set<LocateField>([
  */
 function segmentNames(path: string, term: string): boolean {
   const wanted = stem(lower(term));
-  for (const segment of path.split(/[/\\]/)) {
-    if (segment === '') continue;
-    const bare = lower(segment).replace(/\.[a-z0-9]+$/, '');
+  for (const bare of segmentsOf(path)) {
     if (bare === wanted || stem(bare) === wanted) return true;
+  }
+  return false;
+}
+
+/**
+ * A path as the segments a person means: separators of either slash, empty
+ * pieces dropped, extension off, lowercased.
+ */
+function segmentsOf(path: string): readonly string[] {
+  return path
+    .split(/[/\\]/)
+    .filter((segment) => segment !== '')
+    .map((segment) => lower(segment).replace(/\.[a-z0-9]+$/, ''));
+}
+
+/**
+ * A start point that is itself a path, matched as a path rather than as a word.
+ *
+ * The most exact thing a caller can hand over is the file already open in front
+ * of them, and it was the one start point that failed: a path carries no
+ * whitespace, so it arrived here whole, named no single segment, and the answer
+ * called the caller's own coordinate an unknown word.
+ *
+ * It is read as a run of segments that has to appear entire, in order and
+ * unbroken, in the recorded path — which is the same statement for a file and
+ * for a directory, and the reason it is put that way. `Activity/Activity.tsx`
+ * names the file a run recorded as `src/pages/Activity/Activity.tsx`;
+ * `src/pages/Activity` names every file under it; the absolute path an editor
+ * hands over names the file too, because the shorter run may be either side.
+ * A `*` stands for one segment a caller does not want to name, so
+ * `app/about-us/*` reaches the layouts beside the page — though a trailing one
+ * changes nothing, since a run of segments already names everything under it.
+ *
+ * What it will not do is join two absolute paths of the same depth under
+ * different roots — a build host's checkout and the caller's — which share a
+ * tail and disagree above it. Nothing in a run says which of its leading
+ * segments are the root, and a rule loose enough to join those would join
+ * `apps/web/…/Button.tsx` to `apps/admin/…/Button.tsx`. On the corpora measured
+ * it costs nothing: every recorded path answers itself, and the files a rooted
+ * run records absolutely it also records unrooted.
+ */
+function pathRuns(value: string, term: string): boolean {
+  const left = segmentsOf(value);
+  const right = segmentsOf(term);
+  if (left.length === 0 || right.length === 0) return false;
+  const [longer, shorter] = left.length >= right.length ? [left, right] : [right, left];
+  for (let from = 0; from + shorter.length <= longer.length; from += 1) {
+    let all = true;
+    for (let at = 0; at < shorter.length && all; at += 1) {
+      const mine = shorter[at]!;
+      const theirs = longer[from + at]!;
+      all = mine === '*' || mine === theirs || stem(mine) === stem(theirs);
+    }
+    if (all) return true;
   }
   return false;
 }
@@ -127,14 +179,23 @@ export function scopeOf(report: RunReport, from: string): Scope {
   const unmatched: string[] = [];
   let held: Set<string> | undefined;
   for (const term of terms) {
-    const parts = partsOf(term);
+    // A term carrying a separator is a coordinate, not a word, and only a file
+    // can answer it. The candidates are drawn on the last segment alone — the
+    // one piece both sides hold whichever of them is rooted deeper — and the
+    // tail comparison decides.
+    const path = /[/\\]/.test(term);
+    // The deepest segment the caller actually named — a wildcard names none, so
+    // the prefilter steps back to the last one that does.
+    const named = path ? [...segmentsOf(term)].reverse().find((piece) => piece !== '*') : term;
+    const parts = partsOf(named ?? '');
     if (parts.length === 0) continue;
 
     const here = new Set<string>();
     for (const id of entriesMatching(index, parts)) {
       const entry = index.entries[id]!;
       if (!PLACE_FIELDS.has(entry.field)) continue;
-      if (entry.field === 'files' && !segmentNames(entry.value, term)) continue;
+      if (path && (entry.field !== 'files' || !pathRuns(entry.value, term))) continue;
+      if (!path && entry.field === 'files' && !segmentNames(entry.value, term)) continue;
       here.add(entry.subject);
     }
     if (here.size === 0) unmatched.push(term);

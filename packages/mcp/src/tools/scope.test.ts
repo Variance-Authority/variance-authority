@@ -284,3 +284,105 @@ describe('a start point names a directory, not a piece of a filename', () => {
     ]);
   });
 });
+
+describe('a start point may be the file the caller already has open', () => {
+  /** As a run that resolved a root recorded it. */
+  const ROOTED: SubjectLexicon = {
+    subject: 'story:activity',
+    boundaries: 2,
+    terms: { files: ['/build/host/scratch/src/pages/Activity/Activity.tsx'], names: ['Activity'] },
+  };
+  /** The same file, as a run that resolved none recorded it. */
+  const UNROOTED: SubjectLexicon = {
+    subject: 'story:activity-empty',
+    boundaries: 2,
+    terms: { files: ['src/pages/Activity/Activity.tsx'], names: ['Activity'] },
+  };
+  const ELSEWHERE: SubjectLexicon = {
+    subject: 'story:card',
+    boundaries: 2,
+    terms: { files: ['src/components/Card/Activity.tsx'], names: ['Card'] },
+  };
+  const APP = reportOf([ROOTED, UNROOTED, ELSEWHERE]);
+
+  it('answers a path with the subjects showing that file, under either root', () => {
+    expect([...scopeOf(APP, 'src/pages/Activity/Activity.tsx').subjects].sort()).toEqual([
+      'story:activity',
+      'story:activity-empty',
+    ]);
+  });
+
+  it('answers the absolute path an editor hands over, rooted deeper than the run', () => {
+    const typed = '/Users/somebody/checkout/src/pages/Activity/Activity.tsx';
+    expect([...scopeOf(APP, typed).subjects]).toEqual(['story:activity-empty']);
+  });
+
+  // Both sides carry a root, neither says so, and a rule loose enough to
+  // unify these would unify `apps/web/…/Button.tsx` with `apps/admin/…/Button.tsx`.
+  it('does not unify two roots of the same depth, and does not pretend to', () => {
+    const typed = '/Users/somebody/checkout/pages/Activity/Activity.tsx';
+    expect([...scopeOf(APP, typed).subjects]).not.toContain('story:activity');
+  });
+
+  it('reads a tail as a tail, not as a filename shared by two directories', () => {
+    expect([...scopeOf(APP, 'Activity/Activity.tsx').subjects].sort()).toEqual([
+      'story:activity',
+      'story:activity-empty',
+    ]);
+    expect([...scopeOf(APP, 'Card/Activity.tsx').subjects]).toEqual(['story:card']);
+  });
+
+  it('does not call the caller`s own coordinate an unknown word', () => {
+    expect(scopeOf(APP, 'src/pages/Activity/Activity.tsx').unmatched).toEqual([]);
+  });
+
+  it('empties the scope for a path the run never recorded, and says which', () => {
+    const scope = scopeOf(APP, 'src/pages/Ledger/Ledger.tsx');
+    expect(scope.subjects.size).toBe(0);
+    expect(scope.unmatched).toEqual(['src/pages/ledger/ledger.tsx']);
+  });
+})
+
+describe('a start point is grounded in a file, at whatever width the caller has', () => {
+  const PAGE: SubjectLexicon = {
+    subject: 'story:about-page',
+    boundaries: 2,
+    terms: { files: ['app/about-us/page.tsx'], names: ['About us'] },
+  };
+  const LAYOUT: SubjectLexicon = {
+    subject: 'story:about-layout',
+    boundaries: 2,
+    terms: { files: ['app/about-us/layout.tsx'], names: ['Shell'] },
+  };
+  const OTHER: SubjectLexicon = {
+    subject: 'story:contact',
+    boundaries: 2,
+    terms: { files: ['app/contact/page.tsx'], names: ['Contact'] },
+  };
+  const APP = reportOf([PAGE, LAYOUT, OTHER]);
+
+  it('the file itself names only what that file shows', () => {
+    expect([...scopeOf(APP, 'app/about-us/page.tsx').subjects]).toEqual(['story:about-page']);
+  });
+
+  it('a wildcard segment reaches what sits beside it', () => {
+    expect([...scopeOf(APP, 'app/about-us/*').subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+    ]);
+  });
+
+  it('the directory alone says the same, for a caller who remembers a direction', () => {
+    expect([...scopeOf(APP, 'app/about-us/').subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+    ]);
+  });
+
+  it('a wildcard in the middle names one segment and not two', () => {
+    expect([...scopeOf(APP, 'app/*/page.tsx').subjects].sort()).toEqual([
+      'story:about-page',
+      'story:contact',
+    ]);
+  });
+})
