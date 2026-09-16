@@ -69,6 +69,29 @@ larger set of solitary tests earns its count only where the local variation is
 itself the risk. Tests at two levels are not duplicates when they can fail for
 different reasons and send the repair to different owners.
 
+### A next move: let the test expose the seam
+
+[Eyes](eyes.md) records the elements a test addresses during
+[Arrange, Act and Assert (AAA)](eyes.md#read-the-test-at-the-level-it-was-written),
+with their React owners when available. [Distill](distill.md) compares that
+authored attention with the source the same test entered. When a broad social
+test addresses one product path while neighbouring collaborators only load or
+render, the difference exposes a boundary worth trying.
+
+Apply that reading one test at a time to turn a broad suite into an intentional
+mix. Keep a social test around the real joins. Move the local decision table
+and edge cases into solitary tests that replace those collaborators. The social
+path becomes cheaper, while the solitary cases can cover more variation
+without repeating the whole composition. That can improve runtime and cover
+more meaningful cases without increasing test code; removing duplicated setup
+can reduce it.
+
+The reading nominates a seam; the rerun proves it. Change one boundary and
+check that the social test still proves the parts agree and the solitary tests
+still witness the local decisions they own. A runner may establish mocks for a
+whole test file. In that case, split the original file so its social tests keep
+the real collaborators and its solitary tests can substitute them differently.
+
 ## Let a test have a lifetime
 
 Not every useful test deserves permanent residence.
