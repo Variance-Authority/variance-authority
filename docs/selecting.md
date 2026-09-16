@@ -47,6 +47,14 @@ the index was recorded at, when it names one: its line ranges are in that
 commit's coordinates, and a diff from anywhere else lands on lines it never
 numbered.
 
+A recording is made by *running* the suite, so the text its line numbers were
+cut from is whatever was on disk at that moment, while the position written on
+it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else. Each
+changed module is therefore hashed against the text it stands at in the commit
+the index names, and one whose two do not agree is charged **whole** — every
+subject that ever entered it — and named in the run's notes. Recording once over
+a clean tree is what narrows by region again.
+
 ## Where selection widens
 
 Selection is deliberately conservative because the two possible mistakes have
@@ -64,6 +72,7 @@ report to be missing from. So every uncertainty resolves toward observing:
 | A changed file under `source.dirs` declares no component | **The whole suite runs.** A stylesheet, a token file or a shared helper repaints subjects without naming itself in any of them. This is the row [a file graph retires](#the-expensive-row-and-what-retires-it) |
 | The diff reaches components and **no baseline records any of them** | Narrowed, and **named**: the run prints what it reached and could not match. The one row that does not resolve toward observing, and the one [`source.unrendered` controls](#a-change-nothing-has-been-seen-rendering) |
 | The diff touched nothing under `source.dirs` | The whole suite runs, and says so |
+| The index was recorded over a dirty tree | Each module whose recorded text is not the text at the index's own commit is charged whole, and named. Its line numbers are coordinates in a text that is not this one |
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
@@ -262,6 +271,11 @@ not take it. Both halves are content-addressed, which is what makes their
 location a cost decision, not a correctness one: a stale entry, a cache
 from another branch, or no cache at all costs a slower scan and can never produce
 a different graph. Deleting them costs one cold scan and nothing else.
+
+That is the scan, which reasons about the source. What the *record* costs is a
+separate arithmetic — how large the snapshot is at two hundred thousand modules,
+how much of it one answer opens, and which repositories this stops paying for —
+and it is in [whether test selection fits your repository](scale.md).
 
 ## What a record knows that no graph can
 
