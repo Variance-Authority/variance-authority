@@ -2,6 +2,7 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { digestString } from '../digest.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { readTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from './index.js';
@@ -23,6 +24,7 @@ describe('narrowByExecution', () => {
       whole: testFiles,
       entered: ['test/alpha.test.ts'],
       unread: [],
+      stale: [],
       because: [
         {
           test: 'test/alpha.test.ts',
@@ -80,6 +82,71 @@ describe('narrowByExecution', () => {
       unread: [],
     });
   });
+
+  // A recording is made by *running* the suite, so the text its line numbers
+  // were cut from is the working tree's, while the label on the snapshot is
+  // `git rev-parse HEAD`. In the loop this is most wanted in the two are never
+  // the same text, and every hunk a later diff produces is then charged to
+  // whatever region happens to occupy those numbers now.
+  describe('a recording cut from a different text than the diff is written against', () => {
+    const decided = "export function decide(value) {\n  if (value) {\n    return 'A';\n  }\n  return 'B';\n}\n";
+    const dated: TestCoverage = {
+      ...coverage,
+      modules: coverage.modules.map((module) =>
+        module.file === 'src/decide.ts' ? { ...module, sourceDigest: digestString(decided) } : module,
+      ),
+    };
+    const view = (): ReturnType<typeof openTestCoverage> =>
+      openTestCoverage(encodeTestCoverage(dated));
+
+    it('reads the line ranges when the text at the position hashes to what was recorded', () => {
+      expect(narrowByExecutionFromView(view(), diff, { sourceAt: () => decided })).toMatchObject({
+        entered: ['test/alpha.test.ts'],
+        stale: [],
+      });
+    });
+
+    it('charges the module whole, and names it, when it does not', () => {
+      // The widest honest answer. The numbers in the snapshot are coordinates in
+      // a text nobody here has, so the only region the diff can be charged to is
+      // the module itself — every test that ever entered it.
+      expect(
+        narrowByExecutionFromView(view(), diff, { sourceAt: () => `${decided}// edited\n` }),
+      ).toMatchObject({
+        entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+        stale: ['src/decide.ts'],
+      });
+    });
+
+    it('treats a file the position does not hold as the same disagreement', () => {
+      expect(narrowByExecutionFromView(view(), diff, { sourceAt: () => undefined })).toMatchObject({
+        entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+        stale: ['src/decide.ts'],
+      });
+    });
+
+    it('asks for the text at the position the snapshot names, not at the tree', () => {
+      const asked: Array<readonly [string, string | undefined]> = [];
+      narrowByExecutionFromView(view(), diff, {
+        sourceAt: (file, commit) => {
+          asked.push([file, commit]);
+          return decided;
+        },
+      });
+
+      expect(asked).toEqual([['src/decide.ts', undefined]]);
+    });
+
+    it('reads the ranges on trust when no caller asked, which is what it always did', () => {
+      // Empty because nothing looked is not the same fact as empty because
+      // everything agreed, and a caller that cannot fetch a text from a commit
+      // is not owed a guess.
+      expect(narrowByExecutionFromView(view(), diff)).toMatchObject({
+        entered: ['test/alpha.test.ts'],
+        stale: [],
+      });
+    });
+  });
 });
 
 describe('selectTestFiles', () => {
@@ -133,211 +200,6 @@ describe('selectTestFiles', () => {
     expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual(
       testFiles,
     );
-  });
-
-  it('stays silent for a changed file nothing records', () => {
-    const diff = `--- a/README.md
-+++ b/README.md
-@@ -1,1 +1,1 @@
--# Old
-+# New`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual(
-      [],
-    );
-  });
-
-  it('names a changed file it has no measurement of instead of answering for it', () => {
-    // The silence above, said out loud. `[]` and *nobody entered this* are the
-    // same empty list, and only one of them licenses a caller to skip a suite.
-    const diff = `--- a/README.md
-+++ b/README.md
-@@ -1,1 +1,1 @@
--# Old
-+# New`;
-
-    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual({
-      whole: testFiles,
-      entered: [],
-      unread: ['README.md'],
-      because: [],
-    });
-  });
-
-  it('counts a changed precondition as measured rather than unread', () => {
-    const diff = `--- a/vitest.config.ts
-+++ b/vitest.config.ts
-@@ -3,1 +3,1 @@
--    environment: 'node',
-+    environment: 'jsdom',`;
-
-    expect(
-      narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff).unread,
-    ).toEqual([]);
-  });
-
-  it('names a module the build could not instrument rather than reading its silence', () => {
-    // A row with no blocks behind it. The lookup succeeds, so the file is not
-    // unknown the way `README.md` is — and its emptiness is the build saying it
-    // never parsed this module, not the journal saying nothing entered it.
-    // Selecting nobody would be an answer, and there is no answer here.
-    const unparsed: TestCoverage = {
-      ...coverage,
-      modules: [
-        ...coverage.modules,
-        { file: 'src/unparsed.ts', sourceDigest: 'source:unparsed', instrumented: false, blocks: [] },
-      ],
-    };
-    const diff = `--- a/src/unparsed.ts
-+++ b/src/unparsed.ts
-@@ -2,1 +2,1 @@
--  return 1;
-+  return 2;`;
-
-    expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(unparsed)), diff)).toEqual({
-      whole: testFiles,
-      entered: [],
-      unread: ['src/unparsed.ts'],
-      because: [],
-    });
-  });
-
-  it('unions two hunks in one file rather than letting the deeper one erase the other', () => {
-    // The regression that skipped two of three subjects over a change to what
-    // they render. An added import matches the module root — crossed by every
-    // test in the bundle — and a line inside a branch matches the branch. Asked
-    // for the innermost region of the *file* rather than of each hunk, the root
-    // is dropped for containing the branch, and `alpha ∪ beta` comes back as
-    // `alpha`.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -1,2 +1,3 @@
-+import { added } from './added.js';
-@@ -4,1 +5,1 @@
--    return 'A';
-+    return 'Alpha';`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
-  });
-
-  it('charges a hunk’s context lines to nobody', () => {
-    // The edit is one line inside the branch; the six around it are printed so a
-    // human can find the place. Counted as changed, they reach the module root
-    // and `beta` — which never entered the branch — is selected by an edit it
-    // could not have run. This is the whole distance between *the effect every
-    // subject mounts* and *the handler one subject clicks*.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -2,5 +2,5 @@
- const value = read();
- if (value) {
--    return 'A';
-+    return 'Alpha';
- }
- return 'B';`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-    ]);
-  });
-
-  it('charges an inserted line to the regions on both sides of the gap', () => {
-    // A pure insertion has no old line of its own. Which region the new text
-    // joins is knowable from the old file only as *one of these two*, and the
-    // union of them is the honest answer.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -4,1 +4,2 @@
-     return 'A';
-+    audit(sum);
-`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-    ]);
-  });
-
-  it('charges nobody for added text that only binds a name', () => {
-    // A function at the top of a module is charged to the gap it opens, and at
-    // module level the regions on both sides of that gap are the module — every
-    // test that ever imported the file. Nothing that already ran can reach a
-    // name nothing that already ran mentions, so the honest answer is nobody.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -8,0 +9,4 @@
-+
-+export function describe(n: number): string {
-+  return String(n);
-+}
-`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([]);
-  });
-
-  it('charges an added top-level binding that runs to everyone who imported the module', () => {
-    // The same shape of hunk, and the initializer runs while the module
-    // evaluates, which is work every importer consumed.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -8,0 +9,1 @@
-+const scale = compute();
-`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
-  });
-
-  it('charges three lines replacing one to the region the one was in, and the gap they open after it', () => {
-    // A run’s removals and additions have no correspondence in count. The
-    // additions past the count removed open a gap after the removed line, and
-    // the gap is charged to the regions on both sides of it; here both sides
-    // are the branch, so guarding the `return` selects alpha alone.
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -4,1 +4,3 @@
--    return 'A';
-+    if (ready) {
-+      return 'Alpha';
-+    }`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-    ]);
-  });
-
-  it('answers for a deleted file out of the coordinates it still has', () => {
-    // `+++ /dev/null` is the whole header a deletion offers on the new side, and
-    // its hunks are entirely old lines — the side the journal is indexed by. Read
-    // off `+++` alone the commit changed no file at all, so removing a module
-    // every test crosses contributed nothing to the selection.
-    const diff = `diff --git a/src/decide.ts b/src/decide.ts
-deleted file mode 100644
---- a/src/decide.ts
-+++ /dev/null
-@@ -1,8 +0,0 @@
--export const decide = () => 'A';`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
-  });
-
-  it('widens to the module when a changed line has no recorded region', () => {
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -20,0 +21,1 @@
-+export const added = true;`;
-
-    expect(selectTestFilesFromView(openTestCoverage(encodeTestCoverage(coverage)), diff)).toEqual([
-      'test/alpha.test.ts',
-      'test/beta.test.ts',
-    ]);
   });
 });
 

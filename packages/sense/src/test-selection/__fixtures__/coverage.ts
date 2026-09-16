@@ -3,11 +3,12 @@
  *
  * `test/aaa.test.ts` entered `src/aaa.ts` and nothing else. `test/alpha.test.ts`
  * and `test/beta.test.ts` both evaluated `src/decide.ts`, and alpha alone took
- * the `then` branch on lines 3 to 5. Every test is governed by its own file,
- * `vitest.config.ts`, and the module it loaded, the way a seam records every
- * module a test entered. Shared by the files that test the selector rather than
- * copied into each, because what the questions differ in is the diff and the
- * graph, never the recording.
+ * the `then` branch on lines 3 to 5. Every test is governed by its own file and
+ * by `vitest.config.ts`, and by nothing else: a seam writes a precondition only
+ * for what it could not instrument, because an instrumented module's text is
+ * already a digest on its own row. Shared by the files that test the selector
+ * rather than copied into each, because what the questions differ in is the
+ * diff and the graph, never the recording.
  */
 
 import type { TestCoverage } from '../index.js';
@@ -16,18 +17,14 @@ export const testFiles = ['test/aaa.test.ts', 'test/alpha.test.ts', 'test/beta.t
 export const coverage: TestCoverage = {
   version: 3,
   instrumentation: 'fixture-instrumentation',
-  tests: testFiles.map((file) => {
-    const loaded = file === 'test/aaa.test.ts' ? 'src/aaa.ts' : 'src/decide.ts';
-    return {
-      file,
-      complete: true,
-      preconditions: [
-        { name: loaded, digest: `source:${loaded}` },
-        { name: file, digest: `source:${file}` },
-        { name: 'vitest.config.ts', digest: 'source:config' },
-      ],
-    };
-  }),
+  tests: testFiles.map((file) => ({
+    file,
+    complete: true,
+    preconditions: [
+      { name: file, digest: `source:${file}` },
+      { name: 'vitest.config.ts', digest: 'source:config' },
+    ],
+  })),
   modules: [
     {
       file: 'src/aaa.ts',

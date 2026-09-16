@@ -8,6 +8,6 @@ it('ran after the project\'s own setup file', () => {
   expect((globalThis as { __FIXTURE_SETUP__?: string }).__FIXTURE_SETUP__).toBe('composed');
 });
 
-it.skip('makes the file observation visibly partial', () => {
+it.skip('is skipped, and so never reaches the B branch this file is not selected for', () => {
   expect(decide('beta')).toBe('B');
 });

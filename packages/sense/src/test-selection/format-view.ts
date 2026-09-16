@@ -2,8 +2,10 @@ import {
   openBlob,
   openBytes,
   openWords,
+  resident,
   type Blob,
   type ByteColumn,
+  type Bytes,
   type RunCheck,
   type WordColumn,
 } from './columns.js';
@@ -18,6 +20,11 @@ import {
   presence,
   validateCoverageShape,
 } from './format-validation.js';
+import {
+  openCrossingSets,
+  type CrossingSetsPool,
+  type CrossingSetsView,
+} from './crossing-sets.js';
 import {
   FORMAT,
   KINDS,
@@ -68,11 +75,31 @@ export interface TestCoverageView {
   readonly blockStart: WordColumn;
   readonly blockEnd: WordColumn;
   readonly blockSource: ByteColumn;
-  readonly blockTests: WordColumn;
-  readonly crossingTest: WordColumn;
-  readonly blockLoaded: WordColumn;
-  readonly loadedTest: WordColumn;
+  /** Which set of tests crossed each region: one row per region, naming a pool entry. */
+  readonly blockSet: WordColumn;
+  /**
+   * The pool those ids name, answering both directions of the relation.
+   *
+   * Opened, not decoded. A selection asks about the sets of the regions a diff
+   * named and nothing else, and each of those decompresses one run of the pool.
+   */
+  readonly crossings: CrossingSetsView;
+  /**
+   * Which set of tests had already loaded each region when its test began: one
+   * row per region, naming an entry of that same pool. A region nothing loaded
+   * names the empty set, which costs an id and no pool.
+   */
+  readonly blockLoadedSet: WordColumn;
   string(id: number): string;
+  /**
+   * How many strings the dictionary holds.
+   *
+   * The dictionary is written in order, so the count is what makes it
+   * searchable: a caller holding a path can find the id it was interned under
+   * in a handful of decodes ([`lookup.ts`](./lookup.ts)), instead of decoding a
+   * column of ids to compare the strings behind them.
+   */
+  readonly strings: number;
   /**
    * The dictionary as it is stored: every string's bytes end to end, and the
    * offsets that cut them.
@@ -89,27 +116,48 @@ export interface TestCoverageView {
    * own memory, so a caller copies out of it rather than keeping it.
    */
   dictionary(): { readonly blob: Uint8Array; readonly offsets: Uint32Array };
+  /**
+   * The set pool as it is stored, for the caller that carries all of it.
+   *
+   * A layer keeps the sets of every region it did not re-record, and what it
+   * needs of a carried set is its members — which the stored bytes answer
+   * without a decode per region. Aliases the snapshot's memory, like
+   * {@link TestCoverageView.dictionary}.
+   */
+  crossingPool(): CrossingSetsPool;
 }
 
-/** Open typed-array views over a snapshot; only the small section index is parsed. */
-export function openTestCoverage(input: Uint8Array): TestCoverageView {
-  const raw = Buffer.from(input.buffer, input.byteOffset, input.byteLength);
-  if (raw.length < 4) throw invalid();
-  const headerLength = raw.readUInt32LE(0);
-  if (headerLength > raw.length - 4) throw invalid();
-  const header = JSON.parse(raw.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
+/**
+ * Open typed-array views over a snapshot; only the small section index is parsed.
+ *
+ * Takes the file's bytes, or the file. Which one matters at a repository's
+ * scale: a selection reads about one twentieth of a snapshot and a query that
+ * touches nothing reads half a percent of it, so handing this a buffer is
+ * handing it seventy-odd megabytes it will not look at. A caller that already
+ * holds the bytes — a run that just encoded them, a merge about to fold them —
+ * passes them as it always did. See `openCoverageFile` for the other one.
+ */
+export function openTestCoverage(input: Uint8Array | Bytes): TestCoverageView {
+  const file = input instanceof Uint8Array ? resident(input) : input;
+  if (file.length < 4) throw invalid();
+  const headerLength = buffered(file.read(0, 4)).readUInt32LE(0);
+  if (headerLength > file.length - 4) throw invalid();
+  const head = buffered(file.read(0, 4 + headerLength));
+  const header = JSON.parse(head.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as Header;
   if (header.version !== FORMAT) throw new Error(`unsupported test coverage version: ${header.version}`);
   const base = 4 + headerLength;
-  if (!validSections(header.sections, raw.length - base)) throw invalid();
+  if (!validSections(header.sections, file.length - base)) throw invalid();
   const found = new Map(header.sections.map((section) => [section.name, section]));
   const at = (name: string): Section => {
     const value = found.get(name);
     if (value === undefined) throw invalid();
     return value;
   };
-  const stored = (name: string): Uint8Array => {
+  /** One section as its own range of the file, so a column addresses runs inside it. */
+  const stored = (name: string): Bytes => {
     const section = at(name);
-    return new Uint8Array(raw.buffer, raw.byteOffset + base + section.offset, section.length);
+    const from = base + section.offset;
+    return { length: section.length, read: (first, last) => file.read(from + first, from + last) };
   };
 
   const rows: Record<string, number> = {};
@@ -123,6 +171,7 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
   }
   validateCoverageShape(rows);
   const strings = rows['strings.off']! - 1;
+  const setCount = rows['sets.off']! - 1;
   const testCount = rows['tests.path']!;
   const blockCount = rows['blocks.ordinal']!;
 
@@ -130,24 +179,33 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
    * A column stored as it is, wrapped in the same door a run-coded one answers
    * through. Its values are checked the first time any of them is read, which
    * for a column small enough not to be worth run coding is the whole of it.
+   *
+   * The bytes are taken on that first read rather than at the door, because a
+   * snapshot that is not resident would otherwise read every plain section to
+   * answer a question about one of them. How many rows it holds is known
+   * without reading any of it, which is what `snapshot.commit` asks.
    */
-  const plain = <T extends Uint32Array | Uint8Array>(values: T, check?: RunCheck<T>): {
+  const plain = <T extends Uint32Array | Uint8Array>(
+    length: number,
+    make: () => T,
+    check?: RunCheck<T>,
+  ): {
     length: number;
     at(index: number): number;
     all(): T;
   } => {
-    let checked = false;
+    let values: T | undefined;
     const all = (): T => {
-      if (!checked) {
+      if (values === undefined) {
+        values = make();
         check?.(values, 0);
-        checked = true;
       }
       return values;
     };
     return {
-      length: values.length,
+      length,
       at: (index) => {
-        if (index < 0 || index >= values.length) throw invalid();
+        if (index < 0 || index >= length) throw invalid();
         return all()[index]!;
       },
       all,
@@ -181,34 +239,54 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
     };
   };
 
+  /** A whole section's bytes, which for a file on disk is a read of it. */
+  const whole = (name: string): Uint8Array => {
+    const section = at(name);
+    return file.read(base + section.offset, base + section.offset + section.length);
+  };
   const words = (name: string, check?: RunCheck<Uint32Array>): WordColumn => {
     const section = at(name);
     if (section.rows !== undefined) return openWords(stored(name), section.rows, check);
+    if (section.length % 4 !== 0) throw invalid();
     return plain(
-      new Uint32Array(raw.buffer, raw.byteOffset + base + section.offset, section.length / 4),
+      section.length / 4,
+      () => {
+        const bytes = whole(name);
+        return new Uint32Array(bytes.buffer, bytes.byteOffset, section.length / 4);
+      },
       check,
     );
   };
   const flags = (name: string, check: RunCheck<Uint8Array>): ByteColumn => {
     const section = at(name);
     if (section.rows !== undefined) return openBytes(stored(name), section.rows, check);
-    return plain(
-      new Uint8Array(raw.buffer, raw.byteOffset + base + section.offset, section.length),
-      check,
-    );
+    return plain(section.length, () => whole(name), check);
   };
 
   const stringOffsets = settled(words('strings.off'), (values) =>
     csr(values, rows['strings.blob']!),
   );
+  // The offsets go in as a column and not as an array: a name is three offsets,
+  // and asking this one for all of them decompressed 7.6 MB of `strings.off` to
+  // answer the first `string(id)` of every query the format has.
   const blobBytes = at('strings.blob').rows === undefined
-    ? wholeBlob(stored('strings.blob'), () => stringOffsets.all())
-    : openBlob(stored('strings.blob'), () => stringOffsets.all());
+    ? wholeBlob(() => whole('strings.blob'), stringOffsets)
+    : openBlob(stored('strings.blob'), stringOffsets);
   const decoder = new TextDecoder();
   const stringAt = (id: number): string => {
     if (id < 0 || id >= strings) throw invalid();
     return decoder.decode(blobBytes(id));
   };
+
+  const setOffsets = settled(words('sets.off'), (values) => csr(values, rows['sets.blob']!));
+  const setBytes = at('sets.blob').rows === undefined
+    ? wholeBlob(() => whole('sets.blob'), setOffsets)
+    : openBlob(stored('sets.blob'), setOffsets);
+  const crossings = openCrossingSets({
+    size: setCount,
+    testCount,
+    bytes: (set) => setBytes(set),
+  });
 
   const instrumentation = words('snapshot.instrumentation', (values) => ids(values, strings));
   const commit = words('snapshot.commit', (values) => ids(values, strings));
@@ -261,27 +339,33 @@ export function openTestCoverage(input: Uint8Array): TestCoverageView {
       extents(values, from, (block) => blockStart.at(block)),
     ),
     blockSource: flags('blocks.source', bits),
-    // No CSR check: selection reads two of these rows per region it was asked
-    // about, and what a bound could corrupt is refused by the column it indexes.
-    blockTests: words('blocks.tests'),
-    crossingTest: words('crossings.test', (values) => ids(values, testCount)),
-    blockLoaded: words('blocks.loaded'),
-    loadedTest: words('loaded.test', (values) => ids(values, testCount)),
+    blockSet: words('blocks.set', (values) => ids(values, setCount)),
+    crossings,
+    blockLoadedSet: words('blocks.loadedSet', (values) => ids(values, setCount)),
     string: stringAt,
+    strings,
     dictionary: () => ({ blob: blobBytes.all(), offsets: stringOffsets.all() }),
+    crossingPool: () => ({ bytes: setBytes.all(), offsets: setOffsets.all(), testCount }),
   };
 }
 
 /** The same door onto a blob small enough to have been stored as it is. */
-function wholeBlob(whole: Uint8Array, offsets: () => Uint32Array): Blob {
+function wholeBlob(bytes: () => Uint8Array, offsets: Pick<WordColumn, 'at'>): Blob {
+  let held: Uint8Array | undefined;
+  const body = (): Uint8Array => (held ??= bytes());
   const read = (id: number): Uint8Array => {
-    const at = offsets();
-    const start = at[id];
-    const end = at[id + 1];
-    if (start === undefined || end === undefined || end > whole.length) throw invalid();
+    const start = offsets.at(id);
+    const end = offsets.at(id + 1);
+    const whole = body();
+    if (end < start || end > whole.length) throw invalid();
     return whole.subarray(start, end);
   };
-  return Object.assign(read, { all: () => whole });
+  return Object.assign(read, { all: body });
+}
+
+/** A `Buffer` over bytes that may be a slice of the file or a read of it. */
+function buffered(bytes: Uint8Array): Buffer {
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 /**
@@ -323,9 +407,8 @@ export function allColumns(view: TestCoverageView) {
     blockStart: view.blockStart.all(),
     blockEnd: view.blockEnd.all(),
     blockSource: view.blockSource.all(),
-    blockTests: view.blockTests.all(),
-    crossingTest: view.crossingTest.all(),
-    blockLoaded: view.blockLoaded.all(),
-    loadedTest: view.loadedTest.all(),
+    blockSet: view.blockSet.all(),
+    crossings: view.crossingPool(),
+    blockLoadedSet: view.blockLoadedSet.all(),
   };
 }

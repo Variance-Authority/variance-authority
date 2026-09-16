@@ -45,7 +45,7 @@ import { openSourceIndexFile } from './source-index-file.js';
  * reads the parts back out, so the only thing a hash would buy is a fixed width,
  * and the string dictionary in the index is what would pay for it.
  *
- * Built by [`scan.ts`](./scan.ts), which is where the two properties are read.
+ * Built by [`files.ts`](./files.ts), which is where the two properties are read.
  */
 export type ParseKey = string;
 
@@ -93,13 +93,62 @@ export interface PersistentParseCache extends ParseCache {
   save(): Promise<void>;
 }
 
-/** A cache that keeps everything and remembers nothing between processes. */
-export function memoryParseCache(): ParseCache {
+/**
+ * How many parses the in-memory cache holds at once.
+ *
+ * The number exists because this cache has one job inside a single scan and it
+ * is a small one. Its key is the content digest, so the only thing it can answer
+ * is *another file in this repository holds these exact bytes, read the same
+ * way* — and that is rare. Measured over this repository, honouring the scan's
+ * own refusal to descend into a nested checkout: 1,420 readable files, 1,402
+ * distinct keys, **18 repeat reads — 1.27%**. Measured over a 200,000-file tree
+ * where every file carries its own index in its bytes, it is **zero**: 202,226
+ * writes, not one read.
+ *
+ * Unbounded it is the largest structure in a large scan, and it is live: nothing
+ * can collect it. On that tree a finished scan holds **829.6 MiB** of live heap
+ * with it and **163.3 MiB** without — the graph itself, 202,226 records and
+ * 1,210,225 edges, is the smaller half — and peak resident memory is 2,629 MiB
+ * against 1,199 MiB. Bounded here it costs a few tens of megabytes and still
+ * catches what duplicates in a repository actually look like — a vendored copy,
+ * a generated pair, a file and its backup — which arrive next to each other in
+ * the walk.
+ *
+ * The bound does not apply to the cache on disk below, which is a different
+ * cache doing a different job: that one is answering across *runs*, where the
+ * hit rate is the unchanged repository and pruning it would throw away the
+ * saving it exists for.
+ */
+export const MEMORY_PARSE_ENTRIES = 4096;
+
+/**
+ * A cache that remembers nothing between processes, and only the recent within
+ * one.
+ *
+ * `get` returning nothing is always a correct answer — the caller reads the file
+ * — so a bound here cannot make a scan wrong, only slower by the parses it drops.
+ * The one caller that notices is a scan reusing whole records
+ * ([`scan.ts`](./scan.ts)) and handing every file's parse to `parsed`: a record
+ * reused without opening the file has no parse in hand, and looks for it here.
+ * That pairing wants the cache on disk, because a record cache spanning runs and
+ * a parse cache that forgets at exit already disagree about what they are for.
+ */
+export function memoryParseCache(limit: number = MEMORY_PARSE_ENTRIES): ParseCache {
   const entries = new Map<ParseKey, Parsed>();
 
   return {
     get: (key) => entries.get(key),
-    set: (key, parsed) => void entries.set(key, parsed),
+    set: (key, parsed) => {
+      entries.set(key, parsed);
+      // `Map` iterates in insertion order, so the first key is the oldest. Age
+      // rather than use, because a hit here is a file's twin and twins are
+      // neighbours in a walk: re-ordering on every hit would cost every scan
+      // something to serve the one percent that is not adjacent.
+      if (entries.size > limit) {
+        const oldest = entries.keys().next();
+        if (oldest.done !== true) entries.delete(oldest.value);
+      }
+    },
   };
 }
 

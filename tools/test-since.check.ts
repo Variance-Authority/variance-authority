@@ -1,7 +1,9 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { INERT, explain, inSnapshotCoordinates } from './test-since.mjs';
+import { digestString } from '@variance-authority/core/format';
+import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
+import { INERT, explain } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -111,6 +113,61 @@ describe('a changed source file is asked about under every name it was loaded by
       byStem,
     );
     expect(rewritten).toContain('--- a/packages/dom/src/nothing-knows-this.ts');
+  });
+});
+
+describe('the frame check reads only the paths it has a digest to compare against', () => {
+  const coverage = {
+    commit: 'a'.repeat(40),
+    modules: [
+      { file: 'packages/dom/src/collect.ts', instrumented: true, sourceDigest: digestString('kept') },
+      { file: 'packages/dom/dist/collect.js', instrumented: true, sourceDigest: digestString('built') },
+      { file: 'packages/event/dist/log.js', instrumented: true, sourceDigest: digestString('built') },
+      { file: 'packages/dom/src/unread.ts', instrumented: false, sourceDigest: digestString('kept') },
+    ],
+  };
+  // Every changed path, in the shape a wide diff arrives in: two with a source
+  // row, and the rest of it fixtures, manifests and a stem the snapshot holds
+  // only a built twin for.
+  const changed = [
+    'packages/dom/src/collect.ts',
+    'packages/dom/src/unread.ts',
+    'packages/event/src/log.ts',
+    'fixtures/one.json',
+    'package.json',
+  ];
+
+  const asking = (): { asked: string[]; sourceAtFor: (paths: readonly string[]) => (file: string) => string } => {
+    const asked: string[] = [];
+    return {
+      asked,
+      sourceAtFor: (paths) => {
+        asked.push(...paths);
+        return (file) => (file === 'packages/dom/src/collect.ts' ? 'moved on' : 'kept');
+      },
+    };
+  };
+
+  it('never asks about a path with no source row, whatever else the diff names', () => {
+    const { asked, sourceAtFor } = asking();
+    outOfFrame(coverage, changed, sourceAtFor);
+
+    // `unread.ts` has a row the build could not read, `log.ts` only a built
+    // twin whose digest is of other text, and the last two no row at all.
+    expect(asked).toEqual(['packages/dom/src/collect.ts']);
+  });
+
+  it('reports the module whose text moved and leaves the unasked ones alone', () => {
+    const { sourceAtFor } = asking();
+    expect([...outOfFrame(coverage, changed, sourceAtFor)]).toEqual([
+      'packages/dom/src/collect.ts',
+    ]);
+  });
+
+  it('asks nothing at all when the diff meets no source row', () => {
+    const { asked, sourceAtFor } = asking();
+    expect([...outOfFrame(coverage, ['fixtures/one.json'], sourceAtFor)]).toEqual([]);
+    expect(asked).toEqual([]);
   });
 });
 

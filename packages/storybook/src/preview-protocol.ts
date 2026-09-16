@@ -45,7 +45,29 @@ export const STORY_ROOT_SELECTORS: readonly string[] = ['#storybook-root', '#roo
  */
 export interface ShowEvents {
   readonly setCurrentStory: string;
+  /**
+   * How the manager changes a global, and how this adapter turns off work an
+   * addon does on every story. See {@link PreviewGlobals}.
+   */
+  readonly updateGlobals: string;
   readonly storyRendered: string;
+  /**
+   * Emitted when a render reaches its `finished` phase — Storybook 8.3 and
+   * later, absent before it.
+   *
+   * `storyRendered` is not the end of a render: `afterEach`, the reporting
+   * phase, and anything an addon hangs off them all run after it. Storybook
+   * treats a render it is being asked to replace while still in those phases as
+   * stuck, and its last resort is to reload the entire preview
+   * (`StoryRender.teardown`). A session that switches stories on
+   * `storyRendered` therefore races a page reload on every subject, and a
+   * reload takes everything injected into the page with it — which is not a
+   * slow run but a run that stops observing after the first story whose
+   * `afterEach` was slow. `@storybook/addon-a11y` with `test` set runs an axe
+   * scan in exactly that phase, so this is the ordinary case rather than an
+   * edge one.
+   */
+  readonly storyFinished: string;
   readonly storyThrewException: string;
   readonly storyErrored: string;
   readonly storyMissing: string;
@@ -54,7 +76,9 @@ export interface ShowEvents {
 
 export const STORYBOOK_EVENTS: ShowEvents = {
   setCurrentStory: 'setCurrentStory',
+  updateGlobals: 'updateGlobals',
   storyRendered: 'storyRendered',
+  storyFinished: 'storyFinished',
   storyThrewException: 'storyThrewException',
   storyErrored: 'storyErrored',
   storyMissing: 'storyMissing',
@@ -154,4 +178,113 @@ export interface ShowResult {
   readonly message?: string;
   readonly stack?: string;
   readonly warnings: readonly string[];
+}
+
+/**
+ * Where the page keeps what it has seen Storybook finish.
+ *
+ * A window property rather than a closure, because the question outlives the
+ * call that asks it: a story's result is handed back at `storyRendered`, and
+ * whether Storybook then reached `finished` is asked afterwards, by a different
+ * `evaluate` into the same document. A listener owned by the call that asked
+ * would be installed too late to hear the answer.
+ *
+ * Read by the driver and shipped in the request, like every other constant here.
+ */
+export const FINISHED_RECORD_KEY = '__variance_authority_story_finished__';
+
+/** What {@link beginFinishWatch} needs, since it can close over nothing. */
+export interface FinishRequest {
+  readonly key: string;
+  readonly event: string;
+  /** The story whose finish the driver is about to wait for. */
+  readonly storyId: string;
+}
+
+/**
+ * What the page has heard about `storyFinished`.
+ *
+ * `seen` is about the *preview* and not about any one story: a Storybook older
+ * than 8.3 never emits the event at all, and telling that apart from a render
+ * that is genuinely stuck is the difference between a warning worth reading and
+ * a warning on every subject of every run. It is therefore never reset.
+ *
+ * `watching` and `hit` are one story's question. The driver names the story
+ * before showing it and polls `hit` afterwards, so an event that arrives while
+ * the result is still in flight — which is the usual case for a fast story — is
+ * already written down by the time it is asked for.
+ *
+ * `absent` is written by the driver once it has waited out the grace on a page
+ * that has never emitted the event, so no later story of that session pays the
+ * same wait again.
+ */
+export interface FinishRecord {
+  seen: boolean;
+  watching: string | null;
+  hit: boolean;
+  absent: boolean;
+  /**
+   * What the finish said about the render, verbatim and unmapped.
+   *
+   * Storybook's own vocabulary — `'success'`, `'error'` — and `null` for a
+   * preview that carries no status at all. Kept as the string it arrived as
+   * because the adapter does not own this enumeration and a build that adds a
+   * value to it should reach a reader, not be flattened on the way.
+   */
+  status: string | null;
+}
+
+/**
+ * A reading of the watch, taken now, with Storybook's own answer beside it.
+ *
+ * {@link FinishRecord} is what the listener wrote down. `pending` is what the
+ * preview says about *this instant*: whether the render it currently holds is in
+ * one of the phases `StoryRender.isPending` names, which is the exact predicate
+ * `teardown` consults before it reloads the document. The two are separate
+ * questions and only one of them can be answered by remembering — a story that
+ * was never re-selected has no render in flight and no finish coming, and
+ * nothing the listener heard could tell those apart from a render that is stuck.
+ *
+ * `true` when the preview cannot be asked. An older Storybook, or one that moved
+ * the property, leaves the driver where it was before this existed: waiting on
+ * the event and saying so if it never comes.
+ */
+export interface FinishReading extends FinishRecord {
+  pending: boolean;
+}
+
+/**
+ * Globals set once per document, before any story is asked for.
+ *
+ * Storybook globals are how the manager toolbar changes a preview without
+ * reloading it, and they are the supported way to tell an addon to stand down.
+ * That is the whole use here: an addon that does work in `afterEach` does it on
+ * every story of every run, and a run that is not asking its question is paying
+ * for an answer it discards.
+ *
+ * **The default turns off `@storybook/addon-a11y`'s automatic scan, and only
+ * that.** `a11y.manual` is the addon's own documented switch — the same one the
+ * manager's "Accessibility" panel flips — so what it suppresses is the scan
+ * this pass did not ask for, not the addon and not the project's configuration.
+ * The reason it is the default rather than an opt-in: with `test` set the addon
+ * runs axe in exactly the phase a session has to wait out, on every subject, and
+ * a visual pass that pays that is slower for a result nobody reads.
+ *
+ * **This does not replace axe, and nothing here claims to.** A project's own
+ * accessibility pass — `test-storybook`, the a11y addon in its own run, or axe
+ * anywhere else — is untouched: globals set over the channel live in the preview
+ * document this session opened and die with it. Suppressing the scan *inside*
+ * VA's pass is the opposite of deleting the project's a11y config, which is the
+ * thing an adopter must never be quietly asked to do.
+ *
+ * Pass `{}` to send nothing at all.
+ */
+export type PreviewGlobals = Readonly<Record<string, unknown>>;
+
+export const DEFAULT_PREVIEW_GLOBALS: PreviewGlobals = { a11y: { manual: true } };
+
+/** What {@link applyGlobals} needs, since it can close over nothing. */
+export interface GlobalsRequest {
+  readonly event: string;
+  readonly globals: PreviewGlobals;
 }

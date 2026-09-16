@@ -176,6 +176,25 @@ async function newContext(browser: Browser, viewport: Viewport): Promise<Browser
 async function installAgent(page: Page, bundle: string, errors: readonly string[]): Promise<void> {
   await page.addScriptTag({ content: bundle });
 
+  /**
+   * And again for every document after this one.
+   *
+   * `addScriptTag` installs into the document that is open; `addInitScript`
+   * installs into the ones that follow. Both, because neither alone is enough:
+   * the init script does not touch the current document, and the script tag does
+   * not survive a navigation.
+   *
+   * There should not be a navigation — a session is one load and N subjects, and
+   * that is the whole economic argument. But the page is not this harness's to
+   * control: a Storybook preview reloads itself when a render it is replacing is
+   * still pending, a subject can set `location`, and a driver that assumed
+   * otherwise reported the truthful but useless `missing page agent
+   * __variance_authority_page_agent__` for every subject after the first one
+   * that reloaded. Losing the session's accumulated state to a reload is a
+   * weaker reading; losing the agent is no reading at all.
+   */
+  await page.addInitScript({ content: bundle });
+
   const installed = await page.evaluate(
     (global) => typeof (window as unknown as Record<string, unknown>)[global] === 'object',
     AGENT_GLOBAL,

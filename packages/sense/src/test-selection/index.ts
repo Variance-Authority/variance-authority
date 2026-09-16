@@ -13,6 +13,7 @@ import {
 } from './divergence.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
+import { askCoverageFile } from './coverage-file.js';
 import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
@@ -48,6 +49,15 @@ export {
   type DistanceGroup,
 } from './at-distance.js';
 export { distanceFromView, nearestFirst } from './distance.js';
+// The file list a selection will ask about, so a caller wiring `sourceAt` names
+// exactly the paths the selector will name and not a second parse of the same
+// diff that disagrees with this one at the edges — a rename, a mode change, a
+// binary file.
+export { changedLines, type LineRange } from './diff-lines.js';
+// The other half of that wiring, for the ordinary case of a git checkout. It
+// ships because the check is opt-in: a caller that does not know to pass
+// `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
+export { textAtRecording } from './recorded-text.js';
 export type {
   Bearing,
   DistanceOptions,
@@ -64,6 +74,10 @@ export { cacheLayers, defaultCacheRoot, layeredFiles, type CacheLayers } from '.
 // columns of the file it is about to write over rather than over a model
 // somebody decoded first.
 export { layerTestCoverage, layeredCoverage } from './format-layer.js';
+// A snapshot read where it lies, for a caller asking several questions of one
+// file and not wanting the seventy megabytes the answers do not touch. The
+// file-taking queries below are this plus a `finally`.
+export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 export type { CoverageShard };
 
 export interface CoverageBlock {
@@ -344,7 +358,7 @@ export async function selectTestFiles(
   diff: string,
   options: ExecutionNarrowingOptions = {},
 ): Promise<readonly string[]> {
-  return selectTestFilesFromView(openTestCoverage(await readFile(file)), diff, options);
+  return askCoverageFile(file, (coverage) => selectTestFilesFromView(coverage, diff, options));
 }
 
 /**
@@ -359,7 +373,7 @@ export async function narrowByExecution(
   diff: string,
   options: ExecutionNarrowingOptions = {},
 ): Promise<ExecutionNarrowing> {
-  return narrowByExecutionFromView(openTestCoverage(await readFile(file)), diff, options);
+  return askCoverageFile(file, (coverage) => narrowByExecutionFromView(coverage, diff, options));
 }
 
 /**
@@ -375,9 +389,10 @@ export async function distanceByExecution(
   diff: string,
   options: ExecutionNarrowingOptions & DistanceOptions = {},
 ): Promise<{ readonly narrowing: ExecutionNarrowing; readonly distances: readonly TestDistance[] }> {
-  const coverage = openTestCoverage(await readFile(file));
-  const narrowing = narrowByExecutionFromView(coverage, diff, options);
-  return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
+  return askCoverageFile(file, (coverage) => {
+    const narrowing = narrowByExecutionFromView(coverage, diff, options);
+    return { narrowing, distances: distanceFromView(coverage, narrowing, options) };
+  });
 }
 
 /**
@@ -410,7 +425,7 @@ export async function journeysApart(
  */
 export async function recordedCommit(file: string): Promise<string | undefined> {
   try {
-    return openTestCoverage(await readFile(file)).commit;
+    return askCoverageFile(file, (coverage) => coverage.commit);
   } catch {
     return undefined;
   }
@@ -421,5 +436,5 @@ export async function deviationOfTests(
   file: string,
   options: DeviationOptions,
 ): Promise<VariationDeviation> {
-  return deviationFromView(openTestCoverage(await readFile(file)), options);
+  return askCoverageFile(file, (coverage) => deviationFromView(coverage, options));
 }

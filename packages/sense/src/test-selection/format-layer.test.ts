@@ -96,6 +96,100 @@ function loadedEarly(coverage: TestCoverage): TestCoverage {
   };
 }
 
+/**
+ * Two tests crossing every region, one of which was already in the process when
+ * the other began: the loaded set is a proper subset of the crossing set rather
+ * than the whole of it.
+ *
+ * Every other loaded fixture here has one test, so its loaders and its crossers
+ * are the same set and name the same pool entry. This is the case where they do
+ * not: the second reference is a second entry, interned in the order the regions
+ * are written, and a merge that retires either test has to re-cut both.
+ */
+function loadedByOne(commit: string | undefined, files: readonly string[]): TestCoverage {
+  const both = ['test/alpha.test.ts', 'test/beta.test.ts'];
+  return {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    ...(commit === undefined ? {} : { commit }),
+    tests: both.map((file) => ({
+      file,
+      complete: true,
+      preconditions: [{ name: file, digest: 'source:test' }],
+    })),
+    modules: files.map((file) => ({
+      file,
+      sourceDigest: `source:${file}`,
+      instrumented: true,
+      blocks: [
+        { ...root(`block:${file}`, both), loadedBy: ['test/alpha.test.ts'] },
+        entry(`block:${file}-entry`, both),
+      ],
+    })),
+  };
+}
+
+/**
+ * One path read by two builds: two rows under `src/decide.ts`, each built from
+ * its own text and crossed by its own suite.
+ *
+ * The case the merge has to distinguish is a run that re-records one of them.
+ * The other build was not observed, so its row is carried — and a layer that
+ * placed the previous rows of a path by the first of them would drop it.
+ */
+function twoBuilds(commit: string | undefined, first: string, second: string): TestCoverage {
+  const left = at(commit, first);
+  const right = at(commit, second);
+  return {
+    ...left,
+    tests: [...left.tests, ...right.tests],
+    modules: [
+      left.modules[0]!,
+      { ...right.modules[0]!, sourceDigest: 'source:src/decide.ts-webkit' },
+    ],
+  };
+}
+
+/**
+ * A module whose two regions answer to one address, entered by one test each.
+ *
+ * A call-argument closure is named after the callee it is an argument to, so
+ * two of them in a scope are both `decide/map.arg0` at `entry`. The carry is by
+ * address, and this is the shape where the address does not tell the two rows
+ * apart: region `n` is entered by `entered[n]`.
+ */
+function twins(
+  commit: string | undefined,
+  entered: readonly (readonly string[])[],
+): TestCoverage {
+  return {
+    version: 3,
+    instrumentation: 'fixture-instrumentation',
+    ...(commit === undefined ? {} : { commit }),
+    tests: [...new Set(entered.flat())].sort().map((file) => ({
+      file,
+      complete: true,
+      preconditions: [{ name: file, digest: 'source:test' }],
+    })),
+    modules: [{
+      file: 'src/decide.ts',
+      sourceDigest: 'source:src/decide.ts',
+      instrumented: true,
+      blocks: [
+        root('block:src/decide.ts', entered[0] ?? []),
+        { ...entry('block:src/decide.ts-arg0', entered[1] ?? []), name: 'decide/map.arg0' },
+        {
+          ...entry('block:src/decide.ts-arg0-twin', entered[2] ?? []),
+          ordinal: 2,
+          name: 'decide/map.arg0',
+          startLine: 5,
+          endLine: 7,
+        },
+      ],
+    }],
+  };
+}
+
 const WIDE = ['src/alpha.ts', 'src/decide.ts', 'src/zeta.ts'];
 
 interface Case {
@@ -133,6 +227,14 @@ const CASES: Readonly<Record<string, Case>> = {
     previous: loadedEarly(at(BASELINE, 'test/alpha.test.ts', WIDE)),
     current: at(LOCAL, 'test/beta.test.ts', ['src/decide.ts']),
   },
+  'a region loaded by some of the tests that crossed it, carried': {
+    previous: loadedByOne(BASELINE, WIDE),
+    current: at(LOCAL, 'test/gamma.test.ts', ['src/decide.ts']),
+  },
+  'a region loaded by some of the tests that crossed it, one of them retired': {
+    previous: loadedByOne(BASELINE, WIDE),
+    current: at(LOCAL, 'test/alpha.test.ts', ['src/decide.ts']),
+  },
   'a test retired while something it loaded early is carried': {
     previous: loadedEarly(at(BASELINE, 'test/alpha.test.ts', WIDE)),
     current: at(LOCAL, 'test/alpha.test.ts', ['src/decide.ts']),
@@ -155,6 +257,14 @@ const CASES: Readonly<Record<string, Case>> = {
         preconditions: [{ name: 'test/alpha.test.ts', digest: 'source:test-moved' }],
       }],
     },
+  },
+  'a module whose two regions are one address, re-recorded': {
+    previous: twins(BASELINE, [
+      ['test/alpha.test.ts', 'test/beta.test.ts'],
+      ['test/alpha.test.ts'],
+      ['test/beta.test.ts'],
+    ]),
+    current: twins(LOCAL, [['test/gamma.test.ts'], [], []]),
   },
   'a carried test whose regions are gone': {
     previous: at(BASELINE, 'test/alpha.test.ts'),
@@ -195,6 +305,14 @@ const CASES: Readonly<Record<string, Case>> = {
   'a run recorded outside a checkout': {
     previous: at(BASELINE, 'test/alpha.test.ts', WIDE),
     current: at(undefined, 'test/beta.test.ts'),
+  },
+  'a path read by two builds, one of them re-recorded': {
+    previous: twoBuilds(BASELINE, 'test/chromium.test.ts', 'test/webkit.test.ts'),
+    current: at(LOCAL, 'test/chromium.test.ts'),
+  },
+  'a path read by two builds, both of them re-recorded': {
+    previous: twoBuilds(BASELINE, 'test/chromium.test.ts', 'test/webkit.test.ts'),
+    current: twoBuilds(LOCAL, 'test/chromium.test.ts', 'test/webkit.test.ts'),
   },
   'a module recorded as one this build never measured': {
     previous: {

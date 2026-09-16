@@ -16,6 +16,7 @@
 
 export const COMMANDS = [
   'run',
+  'select',
   'report',
   'ask',
   'distill',
@@ -48,6 +49,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
+  select: ['--since', '--format'],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
   ask: [
     '--subject',
@@ -78,6 +80,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
+  'variance select  [--since <ref>] [--format plain|json|vitest|jest]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--limit <n>] [--at <address>] [<report>...]',
   'variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]',
@@ -100,11 +103,15 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch` and `distill` do not read project configuration. One holds a live
- * listener; the other reads evidence paths named on the command line.
+ * `watch`, `distill` and `select` do not read project configuration. One holds a
+ * live listener; the second reads evidence paths named on the command line; the
+ * third is asked by a repository whose tests another runner runs, and which may
+ * have configured this tool for nothing else.
  */
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'select'];
+
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
-  return command === 'watch' || command === 'distill'
+  return CONFIGLESS.includes(command)
     ? PER_COMMAND[command]
     : [...GLOBAL, ...PER_COMMAND[command]];
 }

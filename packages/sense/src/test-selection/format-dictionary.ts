@@ -76,8 +76,15 @@ export function layeredDictionary(input: {
       marked[blockDigest[block]!] = 1;
     }
   }
-  const survivors: number[] = [];
-  for (let id = 0; id < strings; id += 1) if (marked[id] === 1) survivors.push(id);
+  // Counted before it is filled, so the ids go straight into an array of the
+  // size they need. A snapshot this size keeps a couple of million of them, and
+  // a JavaScript array of a couple of million numbers is an order of magnitude
+  // more memory than the integers in it — the doubling it grows by is paid in
+  // full, at the moment the old copy and the new one are both alive.
+  let survivorCount = 0;
+  for (let id = 0; id < strings; id += 1) survivorCount += marked[id]!;
+  const survivors = new Uint32Array(survivorCount);
+  for (let id = 0, at = 0; id < strings; id += 1) if (marked[id] === 1) survivors[at++] = id;
 
   // Everything the object-backed side names. Small, because the object-backed
   // side is what this run actually looked at.
@@ -129,7 +136,12 @@ export function layeredDictionary(input: {
    * so the run that dominates the result is compared and copied as bytes, and
    * never becomes a string at all.
    */
-  const dictionary: (number | Buffer)[] = [];
+  // One entry per output string: a previous id as itself, an entrant as the
+  // ones' complement of its position in `fresh`. Two runs merge into a third no
+  // longer than both, so the room it takes is known before the merge starts and
+  // nothing here grows.
+  const dictionary = new Int32Array(survivors.length + fresh.length);
+  let held = 0;
   const remap = new Uint32Array(strings);
   const freshIds = new Map<string, number>();
   let survivor = 0;
@@ -141,18 +153,18 @@ export function layeredDictionary(input: {
       : order(survivors[survivor]!, freshBytes[entrant]!);
     if (side <= 0) {
       const id = survivors[survivor]!;
-      remap[id] = dictionary.length;
+      remap[id] = held;
       if (side === 0) {
-        freshIds.set(fresh[entrant]!, dictionary.length);
+        freshIds.set(fresh[entrant]!, held);
         entrant += 1;
       }
       blobLength += previousOffsets[id + 1]! - previousOffsets[id]!;
-      dictionary.push(id);
+      dictionary[held++] = id;
       survivor += 1;
     } else {
-      freshIds.set(fresh[entrant]!, dictionary.length);
+      freshIds.set(fresh[entrant]!, held);
       blobLength += freshBytes[entrant]!.length;
-      dictionary.push(freshBytes[entrant]!);
+      dictionary[held++] = ~entrant;
       entrant += 1;
     }
   }
@@ -162,18 +174,20 @@ export function layeredDictionary(input: {
   const id = (value: string): number => freshIds.get(value)!;
 
   const stringBlob = Buffer.allocUnsafe(blobLength);
-  const stringOffsets = new Uint32Array(dictionary.length + 1);
+  const stringOffsets = new Uint32Array(held + 1);
   let offset = 0;
-  for (const [at, value] of dictionary.entries()) {
+  for (let at = 0; at < held; at += 1) {
     stringOffsets[at] = offset;
-    if (typeof value === 'number') {
+    const value = dictionary[at]!;
+    if (value >= 0) {
       offset += previousBlob.copy(stringBlob, offset, previousOffsets[value]!, previousOffsets[value + 1]!);
       continue;
     }
-    stringBlob.set(value, offset);
-    offset += value.length;
+    const bytes = freshBytes[~value]!;
+    stringBlob.set(bytes, offset);
+    offset += bytes.length;
   }
-  stringOffsets[dictionary.length] = offset;
+  stringOffsets[held] = offset;
 
   return { remap, id, blob: stringBlob, offsets: stringOffsets };
 }

@@ -117,6 +117,75 @@ function decodeJournal(raw: Uint8Array): ReadJournal {
   return { testFile, modules };
 }
 
+/**
+ * What a reader of a frame is told, in the order the frame holds it.
+ *
+ * The three arrays a row hands over are windows onto one buffer the scan reuses
+ * and mean nothing after the call returns: a reader that keeps what it was
+ * given copies it. That is the point of reading this way — a run of eight
+ * thousand files over a two hundred thousand module repository is sixteen
+ * million rows, and a row that becomes an object is an object the fold has to
+ * hold until the fold is over.
+ */
+interface JournalVisitor {
+  /** The file this frame belongs to, before any row of it. */
+  test(file: string): void;
+  /**
+   * Whether the rows of this module are wanted. A fold that works a slice of
+   * the modules at a time says no to the rest, and their ordinals are stepped
+   * over rather than decoded.
+   */
+  wants?(id: ModuleId): boolean;
+  module(id: ModuleId, hits: Uint32Array, shared: Uint32Array, loaded: Uint32Array): void;
+}
+
+/**
+ * A frame read without becoming rows: {@link decodeJournal} without the objects.
+ *
+ * Same bytes, same order, same refusal of a tail that never arrived. What it
+ * does not do is allocate — one buffer for the ordinals, reused down the frame,
+ * so what a scan costs is the frame and not the run.
+ */
+function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
+  const read = new Reader(raw);
+  for (const byte of MAGIC) if (read.byte() !== byte) throw damaged();
+  visit.test(read.text());
+  const count = read.number();
+  const wants = visit.wants;
+  let scratch = new Uint32Array(64);
+  for (let index = 0; index < count; index += 1) {
+    const tag = read.byte();
+    if (tag !== NUMBERED && tag !== NAMED) throw damaged();
+    const id = tag === NUMBERED ? read.number() : read.text();
+    if (wants !== undefined && !wants.call(visit, id)) {
+      read.skip();
+      read.skip();
+      read.skip();
+      continue;
+    }
+    let held = 0;
+    const runs: number[] = [];
+    for (let run = 0; run < 3; run += 1) {
+      const length = read.number();
+      if (held + length > scratch.length) {
+        const grown = new Uint32Array(1 << (32 - Math.clz32(held + length - 1)));
+        grown.set(scratch.subarray(0, held));
+        scratch = grown;
+      }
+      read.into(scratch, held, length);
+      runs.push(held);
+      held += length;
+    }
+    visit.module(
+      id,
+      scratch.subarray(runs[0]!, runs[1]!),
+      scratch.subarray(runs[1]!, runs[2]!),
+      scratch.subarray(runs[2]!, held),
+    );
+  }
+  if (!read.spent()) throw damaged();
+}
+
 const damaged = (): Error => new Error('not a variance-authority journal');
 
 /** Bytes out, growing by doubling; a varint is seven bits a byte, low first. */
@@ -195,6 +264,24 @@ class Reader {
     return value;
   }
 
+  /** A run of gaps, accumulated into the ordinals they name. */
+  into(values: Uint32Array, at: number, count: number): void {
+    if (this.#at + count > this.#bytes.length) throw damaged();
+    let last = 0;
+    for (let index = 0; index < count; index += 1) {
+      last += this.number();
+      values[at + index] = last;
+    }
+  }
+
+  /** A run stepped over: its varints are found by their last byte, not read. */
+  skip(): void {
+    let count = this.number();
+    while (count > 0) {
+      if ((this.byte() & 0x80) === 0) count -= 1;
+    }
+  }
+
   ordinals(): number[] {
     const count = this.number();
     if (this.#at + count > this.#bytes.length) throw damaged();
@@ -212,4 +299,4 @@ class Reader {
   }
 }
 
-export = { encodeJournal, decodeJournal };
+export = { encodeJournal, decodeJournal, scanJournal };

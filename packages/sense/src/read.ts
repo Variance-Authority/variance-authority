@@ -23,12 +23,19 @@
  *
  * ## Why the module record and not the tree
  *
- * `oxc-parser` returns a lazily-deserialized result. The full AST is available
- * behind `.program` and is the expensive half; `.module` is the ES module record
- * the parser has already computed — every static import, every re-export, every
- * `import()`, with the imported, local and exported name of each binding — and
- * touching it never materializes a node. A change-management scan wants exactly
- * that record and nothing else, so it pays for a parse and not for a tree.
+ * `.module` is the ES module record the parser computed while it parsed — every
+ * static import, every re-export, every `import()`, with the imported, local and
+ * exported name of each binding. A change-management scan wants exactly that and
+ * nothing from `.program`, which is the whole syntax tree and much the larger
+ * half.
+ *
+ * Reading only the record does not make the tree cheaper to *produce*: under the
+ * transfer this uses ([`transfer.ts`](./transfer.ts)) the parser hands over
+ * everything it built in one go, record and tree together. What it makes cheaper is how long
+ * any of it is held. Everything this file returns is a plain string or a small
+ * object copied out of the record, so the parse result becomes garbage at the end
+ * of the file that produced it and a scan's live set is its own findings rather
+ * than 200,000 syntax trees.
  *
  * ## The dangerous direction
  *
@@ -58,6 +65,7 @@
 
 import { parseSync } from 'oxc-parser';
 import type { EdgeKind } from '@variance-authority/core/relate';
+import { optionsFor } from './transfer.js';
 
 /**
  * The imported name of a default import, and the exported name of a default
@@ -211,7 +219,7 @@ function linesOf(contents: string): (offset: number) => number {
 export function readModule(file: string, contents: string): Read {
   let result;
   try {
-    result = parseSync(file, contents);
+    result = parseSync(file, contents, optionsFor(file, contents));
   } catch (error) {
     // Unnamed on purpose. What comes back from here is cached against the bytes
     // and their dialect, so a message carrying a path would be handed to every

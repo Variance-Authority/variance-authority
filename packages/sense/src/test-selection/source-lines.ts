@@ -21,6 +21,7 @@
  * generated line, which is the pre-existing behaviour rather than a guess.
  */
 
+import { digestString } from '../digest.js';
 import { lineAt } from './instrumented-modules.js';
 
 /** The two fields of a bundler's map this reads. */
@@ -66,6 +67,60 @@ export function sourceLines(
     const found = nearest(lines, line, column, only);
     return found === undefined ? line + 1 : found + 1;
   };
+}
+
+/**
+ * A module's block extents and the digest of the text they are extents in.
+ *
+ * One value because they are one claim. A record carries a digest beside block
+ * lines, and the only thing a reader can do with the lines is compare them
+ * against a text it fetched by that digest — `recorded()` in `select.ts` does
+ * exactly that, and a run's whole skip list rests on the answer. A digest is
+ * evidence about a *text*, never about which text a line was counted in, so a
+ * seam that takes the digest from the file on disk and the lines from
+ * {@link sourceLines} has written two claims about two different number lines
+ * and nothing downstream can tell. The fallback above is where they part: it
+ * answers in the transformed text's own lines whenever there is no map to read
+ * back through, which is what Rollup leaves behind the moment any upstream
+ * plugin returns `{ code, map: null }`.
+ *
+ * So the digest follows the lines rather than the file: the original's when the
+ * extents were translated into it, and the transformed text's own when they
+ * were not. A build that moved nothing hashes the same either way and narrows
+ * as it always did. A build that moved something no longer matches the text at
+ * its own commit, which is the snapshot reporting itself stale — every region
+ * charged, the tests kept, and the module named in `ExecutionNarrowing.stale`
+ * where a reader can see which build has no map to give.
+ *
+ * `original` is a thunk: the text is wanted only when there is a map worth
+ * reading it back through, and a seam whose id is not a file on disk may throw
+ * rather than answer. That is the untranslatable case again and it is recorded
+ * the same way.
+ */
+export interface RecordedFrame {
+  /** An offset into the transformed text, as a line of the digested text. */
+  readonly lineOf: LineOf;
+  /** Of the text {@link lineOf} answers in, which is what a record must carry. */
+  readonly sourceDigest: string;
+}
+
+export function recordedFrame(
+  code: string,
+  map: TransformSourceMap | undefined,
+  file: string,
+  original: () => string,
+): RecordedFrame {
+  const translated = map !== undefined && map.mappings !== '';
+  let text: string | undefined;
+  if (translated) {
+    try {
+      text = original();
+    } catch {
+      text = undefined;
+    }
+  }
+
+  return { lineOf: sourceLines(code, map, file), sourceDigest: digestString(text ?? code) };
 }
 
 /**

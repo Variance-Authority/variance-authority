@@ -58,6 +58,7 @@ export const CROSSES = [
   'packages/playwright-test/src/in-place',
   'packages/presentation/src/playwright',
   'packages/route-collector/src/world',
+  'packages/storybook/src/finish-wait',
   'packages/storybook/src/preview',
 ];
 
@@ -69,7 +70,11 @@ export const CROSSES = [
  * is no call here to find — that is the whole shape of the pattern — so the only
  * thing that can put a module in this group is somebody deciding it belongs.
  */
-export const SERIALIZED = ['packages/storybook/src/show-story'];
+export const SERIALIZED = [
+  'packages/storybook/src/preview-globals',
+  'packages/storybook/src/show-story',
+  'packages/storybook/src/story-finished',
+];
 
 /**
  * The probe runtime, which cannot be its own subject.

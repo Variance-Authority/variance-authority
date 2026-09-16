@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Observation } from '@variance-authority/observe';
 import type { Described } from '@variance-authority/raster';
 import type { FindingRecord } from '@variance-authority/report';
-import { dated, inherited, marksOf, qualification } from './record.js';
+import { dated, diagnosticsOf, inherited, marksOf, qualification } from './record.js';
 import { recordOf } from './run.js';
 import { UNREADABLE } from './run-fixture.js';
 
@@ -142,6 +142,38 @@ describe('recordOf', () => {
   });
 });
 
+
+describe('diagnosticsOf', () => {
+  const document = { diagnostics: [{ severity: 'warn', code: 'host-chosen-font', message: 'a' }] };
+
+  it('carries what the collector said about the reading, not only what the page said', () => {
+    // A Storybook story that finished by reporting it failed, a preview that had
+    // to be reloaded to show it: real images a run can compare, produced in a way
+    // that changes what a green verdict means. They arrive on the collected
+    // subject rather than in the document, and this is the only place they can
+    // join the document's own.
+    const merged = diagnosticsOf({
+      ok: true,
+      document,
+      diagnostics: [{ severity: 'warn', code: 'story-preview', message: 'finished with status error' }],
+    } as never);
+
+    expect(merged.map((diagnostic) => diagnostic.code)).toEqual(['host-chosen-font', 'story-preview']);
+  });
+
+  it('says a thing once however many of the three raised it', () => {
+    const twice = { severity: 'warn', code: 'story-preview', message: 'same sentence' } as const;
+
+    const merged = diagnosticsOf({
+      ok: true,
+      document: { diagnostics: [twice] },
+      snapshot: { diagnostics: [twice] },
+      diagnostics: [twice],
+    } as never);
+
+    expect(merged).toHaveLength(1);
+  });
+});
 
 describe('qualification', () => {
   it('says nothing when the collection had nothing to complain about', () => {

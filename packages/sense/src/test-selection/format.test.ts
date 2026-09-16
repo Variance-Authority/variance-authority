@@ -161,16 +161,109 @@ describe('the persisted coverage format', () => {
   });
 
   it('rejects a run of a column that is not the run it was written as', () => {
-    const corrupt = patched('crossings.test', (section) => {
+    // A column large enough to be stored as runs in the first place, which the
+    // representative snapshot's thousand regions are not: the relation is one
+    // id per region now, so a fixture has to have the regions to have the rows.
+    const corrupt = patched('blocks.set', (section) => {
       section[section.length - 1] ^= 0xff;
-    });
+    }, wideCoverage());
     const view = openTestCoverage(corrupt);
 
     // The run is the unit: the rows before the damaged one answer, and the rows
-    // inside it are refused rather than read as a test that never entered.
-    expect(view.crossingTest.length).toBe(20_000);
-    expect(view.crossingTest.at(0)).toBeLessThan(200);
-    expect(() => view.crossingTest.at(view.crossingTest.length - 1)).toThrow(
+    // inside it are refused rather than read as a region crossed by a set that
+    // never entered it.
+    expect(view.blockSet.length).toBe(20_000);
+    expect(view.blockSet.at(0)).toBeLessThan(view.crossings.size);
+    expect(() => view.blockSet.at(view.blockSet.length - 1)).toThrow(
+      /not a variance-authority test coverage artifact/,
+    );
+  });
+
+  it('holds one copy of a set however many regions are crossed by it', () => {
+    // The whole reason the relation is stored this way: twenty thousand regions
+    // drawn from a couple of hundred distinct crossing sets cost the sets, not
+    // the pairs, and the round trip still names every test that entered.
+    const wide = wideCoverage();
+    const encoded = encodeTestCoverage(wide);
+    const view = openTestCoverage(encoded);
+    const crossings = wide.modules.reduce(
+      (total, module) => total + module.blocks.reduce((sum, block) => sum + block.testFiles.length, 0),
+      0,
+    );
+
+    expect(crossings).toBe(400_000);
+    expect(view.crossings.size).toBeLessThan(view.blockSet.length / 10);
+    expect(decodeTestCoverage(encoded)).toEqual(wide);
+  });
+
+  it('names what loaded a region out of the pool its crossers already came from', () => {
+    // Why the second reference is a set id and not a second adjacency list. A
+    // region whose loaders are exactly its crossers names the id that is
+    // already in the pool, so the relation that used to be one row per pair
+    // costs one id per region and no pool at all.
+    const held = representativeCoverage();
+    const marked: TestCoverage = {
+      ...held,
+      modules: held.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => ({ ...block, loadedBy: block.testFiles })),
+      })),
+    };
+    const distinct = new Set(
+      marked.modules.flatMap((module) => module.blocks.map((block) => block.testFiles.join('\u0000'))),
+    );
+
+    const encoded = encodeTestCoverage(marked);
+    const view = openTestCoverage(encoded);
+
+    expect(view.crossings.size).toBe(distinct.size);
+    for (let block = 0; block < view.blockSet.length; block += 1) {
+      expect(view.blockLoadedSet.at(block)).toBe(view.blockSet.at(block));
+    }
+    expect(decodeTestCoverage(encoded)).toEqual(marked);
+  });
+
+  it('holds one copy of a loaded set however many regions were loaded by it', () => {
+    // And why a partial one is still a set: the tests that ran before a file's
+    // own began are the same few across every region of every module that file
+    // reached, so a thousand regions name one entry between them.
+    const held = representativeCoverage();
+    const early = held.tests.slice(0, 2).map((test) => test.file).sort();
+    const marked: TestCoverage = {
+      ...held,
+      modules: held.modules.map((module) => ({
+        ...module,
+        blocks: module.blocks.map((block) => {
+          const loaded = block.testFiles.filter((file) => early.includes(file));
+          // An empty second list is an absent one, which is what the round trip
+          // gives back and what the model means by it.
+          return loaded.length === 0 ? block : { ...block, loadedBy: loaded };
+        }),
+      })),
+    };
+    const plain = openTestCoverage(encodeTestCoverage(held));
+
+    const encoded = encodeTestCoverage(marked);
+    const view = openTestCoverage(encoded);
+
+    // At most one entry per distinct loaded set, against a region count two
+    // orders of magnitude larger — and the unmarked snapshot's own pool holds
+    // the empty set these regions no longer all name.
+    expect(view.crossings.size - plain.crossings.size).toBeLessThan(8);
+    expect(view.blockSet.length).toBeGreaterThan(900);
+    expect(decodeTestCoverage(encoded)).toEqual(marked);
+  });
+
+  it('refuses a loaded set that names no entry of the pool', () => {
+    // The id is checked where every other id into a table is: when the column
+    // materializes. A region loaded by a set the file does not hold would
+    // otherwise answer a distance query with whatever the pool has at that
+    // offset, which is a different region's tests.
+    const corrupt = patched('blocks.loadedSet', (section) => {
+      section.writeUInt32LE(0xff_ff, 0);
+    });
+
+    expect(() => openTestCoverage(corrupt).blockLoadedSet.all()).toThrow(
       /not a variance-authority test coverage artifact/,
     );
   });
@@ -183,8 +276,12 @@ describe('the persisted coverage format', () => {
 });
 
 /** One section of an encoded snapshot, rewritten where it sits. */
-function patched(name: string, change: (section: Buffer) => void): Buffer {
-  const encoded = encodeTestCoverage(representativeCoverage());
+function patched(
+  name: string,
+  change: (section: Buffer) => void,
+  coverage: TestCoverage = representativeCoverage(),
+): Buffer {
+  const encoded = encodeTestCoverage(coverage);
   const headerLength = encoded.readUInt32LE(0);
   const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
     sections: Array<{ name: string; offset: number; length: number }>;
@@ -231,6 +328,39 @@ function representativeCoverage(): TestCoverage {
         ).sort(),
       })),
     })).sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
+  };
+}
+
+/**
+ * The same snapshot, with enough regions for its columns to be stored as runs.
+ *
+ * Twenty thousand regions over two hundred tests, and the crossing sets drawn
+ * from a small rotation so that the pool is far smaller than the regions — which
+ * is the shape a repository actually has, where a module's regions and the
+ * modules only it imports are all crossed by whoever reached the module.
+ */
+function wideCoverage(): TestCoverage {
+  const held = representativeCoverage();
+  const sets = held.modules.flatMap((module) => module.blocks.map((block) => block.testFiles));
+  return {
+    ...held,
+    modules: Array.from({ length: 1_000 }, (_, module) => ({
+      file: `packages/application/src/wide-${String(module).padStart(4, '0')}/implementation.ts`,
+      sourceDigest: `source:module:${module}`,
+      instrumented: true,
+      blocks: Array.from({ length: 20 }, (_, ordinal) => ({
+        ordinal,
+        kind: ordinal === 0 ? 'module' as const : 'branch' as const,
+        ...(ordinal === 0 ? {} : { owner: 0 }),
+        digest: `block:${module}:${ordinal}`,
+        name: `wide${module}/decide`,
+        path: ordinal === 0 ? 'module' : `if#${ordinal}/then`,
+        startLine: ordinal * 3 + 1,
+        endLine: ordinal * 3 + 3,
+        source: true,
+        testFiles: sets[(module * 3 + ordinal) % 50]!,
+      })),
+    })),
   };
 }
 

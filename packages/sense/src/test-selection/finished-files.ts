@@ -1,0 +1,241 @@
+/**
+ * What a finished test file is worth as evidence.
+ *
+ * The reporter is handed a list of files the run is done with and has to decide,
+ * per file, whether the record it left can be used to *exclude* that file from a
+ * later run. That decision is the whole of the seam's risk: a file wrongly called
+ * complete is a file a change can silently skip. So it is made here, away from
+ * the plumbing that produced the record, with the argument for each outcome
+ * written beside the outcome.
+ *
+ * Two runner shapes reach it. Vitest 2 announces a tree of tasks; Vitest 3 and 4
+ * announce reported modules. Both are read structurally rather than by importing
+ * the runner's own types, because the seam is built against one version and run
+ * against whichever the project installed.
+ */
+
+import { readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { digestString } from '../digest.js';
+import type { ModuleId } from '../instrument/index.js';
+import journalFormat from './journal-format.cjs';
+import {
+  isMissing,
+  projectPath,
+  type CapturedModule,
+  type ReadJournal,
+} from './instrumented-modules.js';
+import type { CoveragePrecondition, CoverageTest } from './index.js';
+
+export interface RunnerTask {
+  readonly filepath?: string;
+  readonly result?: { readonly state: string };
+  readonly tasks?: readonly RunnerTask[];
+}
+
+/**
+ * Vitest 3 and 4's reported test module, structurally.
+ *
+ * Named here rather than imported: the seam is built against one Vitest and run
+ * against whichever the project installed, so a type from the runner's own
+ * package would pin the build to a version the project need not have.
+ */
+export interface ReportedModule {
+  readonly moduleId: string;
+  readonly children: {
+    allTests: () => Iterable<{ result: () => { readonly state: string } }>;
+    /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */
+    allSuites?: () => Iterable<{ errors?: () => { readonly length: number } }>;
+  };
+  /** False when the module, or anything in it, did not finish. */
+  readonly ok?: () => boolean;
+  /** What the module itself failed on, a thrown file-level hook included. */
+  readonly errors?: () => { readonly length: number };
+}
+
+/**
+ * The one outcome that is indistinguishable from a clean run and is not one.
+ *
+ * A run that transformed no product module writes a snapshot saying every test
+ * reaches nothing, and `narrowByExecution` reads that as an answer: every later
+ * selection narrows to the empty set, the CI job runs no tests, and it passes.
+ * Nothing else in this seam fails — the suite ran, the reporter ran, the file
+ * was written — so the first sign of it is a green pipeline that stopped
+ * testing.
+ *
+ * Said rather than thrown, because zero is legitimate: a run filtered down to
+ * one test file that imports no source has nothing to instrument and no reason
+ * to fail. The two misconfigurations it usually is are named in the message,
+ * because a reader looking at "0 modules" has no way to guess which.
+ *
+ * Zero test files is a different state and is left alone — a run that collected
+ * nothing has already said so in the runner's own output.
+ */
+export function noteAnEmptyRecord(testFiles: number, instrumented: number): void {
+  if (instrumented > 0 || testFiles === 0) return;
+  console.warn(
+    `variance-authority instrumented 0 modules across ${testFiles} test file(s). The snapshot ` +
+      'about to be written therefore says no test reaches any source, and every selection made ' +
+      'from it will narrow to nothing rather than to the tests a change needs. The plugin did ' +
+      'not reach the modules under test: check `include`, and — if this configuration uses ' +
+      '`projects` — that the plugin and the setup file are inside each project rather than ' +
+      'beside them, since a project does not inherit either.',
+  );
+}
+
+/** A test file the run finished with, whichever runner announced it. */
+export interface FinishedFile {
+  readonly filepath: string;
+  /** Every test in it ran and passed, so its record is the whole file's reach. */
+  readonly complete: boolean;
+}
+
+/**
+ * Whether a test's outcome leaves the file's record usable as evidence.
+ *
+ * A pass is the plain case: the test ran to the end, so everything it reaches is
+ * in the record and absence from the record is absence from its reach.
+ *
+ * A *skip* is the case worth arguing, because the conservative reading — anything
+ * that is not a pass spoils the file — is what a suite like Material UI's runs
+ * into: it skips several hundred tests by design, which leaves five sixths of its
+ * files unable to justify excluding anything, and a selector that cannot exclude
+ * is a selector nobody runs. The argument for counting it: a skipped test does
+ * not execute, so it cannot fail, so leaving it out of a run costs nothing. The
+ * only way it starts costing something is if a later run stops skipping it, and
+ * every way that happens is already covered — `it.skip` in the test file is the
+ * test file's own text, which is a digest-checked precondition of the record, and
+ * a condition computed from something the file imports was evaluated during
+ * collection, so those modules are in the record and a change to them selects the
+ * file. What is not covered is a skip decided outside the source entirely, by an
+ * environment variable or a platform check; that is the same boundary every
+ * diff-based selector has, and it is the configuration's job, not the diff's.
+ *
+ * A failure is not counted, and neither is an error: a test that stopped early
+ * recorded only as far as it got, so its file undercounts its own reach and the
+ * undercount is invisible.
+ *
+ * A file where *every* test is skipped is the one case this cannot decide on its
+ * own: the runner skips the file's hooks too, so nothing writes its journal.
+ * `coverageTest` refuses the file for that reason instead.
+ *
+ * And a skip the *runner* wrote is not a skip at all, which is why the outcome
+ * of one test is never the whole answer — see {@link stopped}.
+ */
+const usableOutcome = (state: string): boolean =>
+  state === 'pass' || state === 'passed' || state === 'skip' || state === 'skipped' || state === 'todo';
+
+/**
+ * Whether a suite stopped part-way, which is how a thrown fixture reads.
+ *
+ * A `beforeAll` that throws does not fail the tests it guards — the runner
+ * rewrites every one of them to *skipped*, mode and all, and fails the suite
+ * that held the hook. Read leaf by leaf, that file is a file of passes and
+ * skips, which is the shape of a file that ran everything it meant to. It is
+ * the opposite: those tests never executed a line, and the regions only they
+ * enter are now recorded as reached by nobody.
+ *
+ * That matters more than an ordinary incomplete record because nothing takes it
+ * back. The file is still marked whole, so a change to one of the regions it
+ * lost leaves it in the skip list; being skipped, it never runs again to record
+ * what it reaches; and the fixture that failed is usually not in the file's own
+ * text, so no digest moves and no precondition retires the claim. A snapshot
+ * that already held the crossing loses it too, since a whole record replaces
+ * what it supersedes. One flaky database is enough to amputate a file's reach
+ * for good.
+ *
+ * So the suite's own outcome is read alongside its tests'. A skip the file's
+ * text asked for leaves every suite passing and is counted exactly as before; a
+ * skip the runner injected leaves a suite failed, and that file's record is
+ * worth what a failed run's record is worth — evidence of what ran, and no
+ * licence to exclude anything.
+ */
+const stopped = (task: RunnerTask): boolean =>
+  task.tasks !== undefined
+  && task.tasks.length > 0
+  && (task.result?.state === 'fail' || task.tasks.some(stopped));
+
+export function taskComplete(file: RunnerTask): boolean {
+  const leaves = (task: RunnerTask): readonly RunnerTask[] =>
+    task.tasks === undefined || task.tasks.length === 0 ? [task] : task.tasks.flatMap(leaves);
+  const tests = leaves(file);
+  return !stopped(file)
+    && tests.length > 0
+    && tests.every((task) => usableOutcome(task.result?.state ?? 'missing'));
+}
+
+export function reportedComplete(module: ReportedModule): boolean {
+  // The same reading, through the accessors Vitest 3 and 4 put on a reported
+  // module: `ok()` is false when anything in it did not finish, and `errors()`
+  // — on the module for a file-level hook, on a suite for a nested one — holds
+  // what the hook threw. All three are asked for, because a runner that grew
+  // the API later than this seam was written may answer only some of them, and
+  // each of them alone is enough to refuse.
+  if (module.ok?.() === false) return false;
+  if ((module.errors?.().length ?? 0) > 0) return false;
+  for (const suite of module.children.allSuites?.() ?? []) {
+    if ((suite.errors?.().length ?? 0) > 0) return false;
+  }
+  const tests = [...module.children.allTests()];
+  return tests.length > 0 && tests.every((test) => usableOutcome(test.result().state));
+}
+
+export async function coverageTest(
+  task: FinishedFile,
+  root: string,
+  preconditionFiles: readonly string[],
+  journals: readonly ReadJournal[],
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+): Promise<CoverageTest> {
+  const file = projectPath(root, task.filepath);
+  const preconditions: CoveragePrecondition[] = [];
+  for (const input of [task.filepath, ...preconditionFiles]) {
+    preconditions.push({
+      name: projectPath(root, input),
+      digest: digestString(await readFile(input, 'utf8')),
+    });
+  }
+  // Whether this file left a journal at all. A file with every test skipped is
+  // still collected — its imports run, its top level runs — but a runner skips
+  // the file's hooks when it has no test to run, so the `afterAll` that writes
+  // the journal never fires. The file is announced as finished all the same, and
+  // skipping is a usable outcome, so without this the file is recorded whole
+  // with an empty reach: a record that says it entered nothing, which excludes
+  // it from every diff there will ever be. Material UI has four such files, and
+  // three of them break when a module they import throws at load.
+  let recorded = false;
+  for (const journal of journals) {
+    if (projectPath(root, journal.testFile) !== file) continue;
+    recorded = true;
+    for (const entered of journal.modules) {
+      const module = modules.get(entered.id);
+      if (module === undefined) {
+        throw new Error(`variance-authority lost the source identity for module ${entered.id}`);
+      }
+      // Only what the instrument could not see inside. An instrumented module's
+      // text is already a digest on its own row, and a change to it is caught by
+      // re-cutting its regions — recording it a second time under every test
+      // that reached it is the same fact written once per module-test pair. At a
+      // repository's scale that is the largest thing in the file: a measured two
+      // hundred thousand modules against two thousand test files put a hundred
+      // and three million precondition rows and seven hundred and eighty-eight
+      // megabytes of columns in front of a snapshot whose regions cost three.
+      if (module.instrumented) continue;
+      preconditions.push({ name: module.file, digest: module.sourceDigest });
+    }
+  }
+  return { file, complete: task.complete && recorded, preconditions };
+}
+
+export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
+  let names: readonly string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+  return Promise.all(
+    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
+  );
+}

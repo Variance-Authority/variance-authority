@@ -11,8 +11,10 @@ import {
   readTestCoverage,
   remaining,
   testCoverageFile,
+  textAtRecording,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
+import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
 import { importGraph } from './since-graph.mjs';
 import { describeRange, distanceLines, findingLines, helpLines } from './since-report.mjs';
 
@@ -165,77 +167,6 @@ const stemOf = (path) => sourceStem(ROOT, path);
 const graphNames = (names, inGraph) =>
   inGraph === undefined || names.includes(inGraph) ? names : [...names, inGraph];
 
-/**
- * Rewrite each file's hunks under every name the snapshot knows it by.
- *
- * `findModule` matches the recorded path exactly, so a diff naming
- * `packages/core/src/index.ts` finds the row the package's own tests entered and
- * misses the `dist` row every other package's tests went through. Only the two
- * header lines are rewritten; the hunk numbers are already in `src` coordinates.
- */
-export function inSnapshotCoordinates(diff, byStem) {
-  const out = [];
-  let path;
-  let body;
-
-  const flush = () => {
-    if (path === undefined) return;
-    const names = byStem.get(stemOf(path)) ?? [path];
-    for (const name of names) out.push(`--- a/${name}`, `+++ b/${name}`, ...body);
-  };
-
-  let removed;
-  let oldLeft = 0;
-  let newLeft = 0;
-  for (const line of diff.split('\n')) {
-    // A hunk header says how many lines of each side follow, and every one of
-    // them is body: a removed line that begins with two dashes and a space is
-    // not the next file's header. A context line counts against both sides.
-    if (oldLeft > 0 || newLeft > 0) {
-      if (body !== undefined) body.push(line);
-      if (line.startsWith('-')) oldLeft -= 1;
-      else if (line.startsWith('+')) newLeft -= 1;
-      else if (!line.startsWith('\\')) {
-        oldLeft -= 1;
-        newLeft -= 1;
-      }
-      continue;
-    }
-    const hunk = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/.exec(line);
-    if (hunk !== null) {
-      oldLeft = Number(hunk[1] ?? '1');
-      newLeft = Number(hunk[2] ?? '1');
-      if (body !== undefined) body.push(line);
-      continue;
-    }
-    // A file the diff names without lines — a binary, a rename, a mode — has
-    // this line and no header, and the selector charges it whole by this name.
-    if (line.startsWith('diff --git ')) {
-      flush();
-      path = undefined;
-      body = undefined;
-      out.push(line);
-      continue;
-    }
-    if (line.startsWith('--- ')) {
-      removed = line.slice(4).replace(/^a\//, '');
-      continue;
-    }
-    if (line.startsWith('+++ ') && removed !== undefined) {
-      flush();
-      const named = line.slice(4).replace(/^b\//, '');
-      // A deletion writes `+++ /dev/null` and names the file on the line above.
-      path = named === '/dev/null' ? removed : named;
-      removed = undefined;
-      body = [];
-      continue;
-    }
-    if (body !== undefined) body.push(line);
-  }
-  flush();
-  return out.join('\n');
-}
-
 /** Every test file the runner would collect, asked of the runner. */
 function suiteFiles() {
   const listed = execFileSync('yarn', ['vitest', 'list', '--filesOnly'], {
@@ -282,7 +213,50 @@ async function main() {
     return 1;
   }
 
-  const coverage = await readTestCoverage(snapshotFile);
+  /**
+   * A snapshot this build cannot decode, which is neither of the other two absences.
+   *
+   * The reader throws on purpose: a caller about to *exclude* tests must not be
+   * handed an empty answer where an unreadable file would read as nothing
+   * recorded. So the three cases are answered apart. No file is the one above —
+   * ordinary, and the operator's next move is to run the suite once. Nothing
+   * whole is the widen at the bottom — the snapshot read, and had nothing to say
+   * about any file this suite collects. This one is neither: the bytes are there
+   * and this build does not know the format, which happens across a format
+   * version and is fixed by recording again rather than by reading further.
+   *
+   * The path is worth printing in full. The snapshot lives outside the
+   * repository, under a directory keyed by this checkout's absolute path:
+   * `git clean` does not reach it, and two checkouts of the same repository do
+   * not share one.
+   */
+  let coverage;
+  try {
+    coverage = await readTestCoverage(snapshotFile);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      say(
+        'test:since: the execution snapshot went away while this was reading it.',
+        `  looked in ${snapshotFile}`,
+        '  Run `yarn test` once and ask again.',
+      );
+      return 1;
+    }
+    say(
+      `test:since: the execution snapshot is not one this build can read: ${error?.message ?? error}.`,
+      `  at ${snapshotFile}`,
+      '  Run `yarn test` once. A recording run layers onto whatever it finds here and',
+      '  treats bytes it cannot decode as nothing to layer onto, so it replaces this file',
+      '  rather than failing on it; there is nothing to delete first.',
+      '  The file is outside the repository, under a directory keyed by this checkout\'s',
+      '  absolute path, so `git clean` does not reach it and another checkout has its own.',
+      '  Nothing is narrowed on a file this cannot read — a run that ignored it would look',
+      '  exactly like a run that had nothing recorded, and that is the answer this tool is',
+      '  built not to give.',
+    );
+    return 1;
+  }
+
   if (ref === undefined && coverage.commit === undefined) {
     say(
       'test:since: the snapshot names no commit, so there is no coordinate to measure from.',
@@ -302,10 +276,25 @@ async function main() {
    * changed here — the same reason `packages/cli/src/commands/since.ts` does.
    *
    * The comparison is against the working tree either way, because uncommitted
-   * edits are what the loop before `yarn test` is about. The corollary is that a
-   * snapshot recorded over a dirty tree answers wider than it needs to: it is
-   * labelled with the commit, and everything already uncommitted at that moment
-   * reads as changed since. Record on a clean tree for a sharp answer.
+   * edits are what the loop before `yarn test` is about. A snapshot recorded
+   * over a dirty tree is therefore diffed from a position it was never at, and
+   * the error is not in the safe direction: a file already edited when the
+   * recording was made has regions cut from *that* text and line numbers read
+   * against *this* one, and two edits to the same file can cancel to a region
+   * nothing entered and a selection of nothing at all.
+   *
+   * So the check is performed, by {@link outOfFrame}, on every changed path the
+   * snapshot holds an instrumented source row for — `git cat-file --batch` over
+   * that intersection, at the commit the snapshot names. A file that disagrees has
+   * its hunks dropped and is charged every region it has, under every name. The
+   * shipped path is `narrowByExecution`'s `sourceAt`, and the two differ in the
+   * unit they ask at and in nothing else: `sourceAt` is asked per name, and the
+   * `dist` name of a workspace package has no answer git can give. That is
+   * argued where the check is.
+   *
+   * A snapshot that names no commit is not checked, because a position is what
+   * the text is read from. That is the `yarn test:since main` case, where the
+   * base is a merge base and the snapshot never had coordinates of its own.
    */
   const base = coverage.commit ?? git('merge-base', ref, 'HEAD').trim();
 
@@ -347,10 +336,15 @@ async function main() {
     git('diff', '--no-renames', base),
     ...product.filter((path) => untracked.has(path)).map(diffOfNew),
   ].join('\n');
+  const reframed =
+    coverage.commit === undefined
+      ? new Set()
+      : outOfFrame(coverage, consequential, (checkable) => textAtRecording(ROOT, checkable));
+
   const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, snapshotFile, stemOf });
   const { narrowing, distances } = await distanceByExecution(
     snapshotFile,
-    inSnapshotCoordinates(diff, byStem),
+    inSnapshotCoordinates(diff, byStem, (path) => reframed.has(path)),
     {
       relations,
       enumerated,
@@ -438,6 +432,11 @@ async function main() {
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${product.length} measured, ${touched.length} test file(s), ${changed.length - consequential.length} the suite cannot open`,
     `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
+    ...(reframed.size === 0
+      ? []
+      : [
+          `  reframed ${reframed.size} changed file(s) recorded from other text, charged every region rather than read by line`,
+        ]),
     '',
     ...distanceLines(groups),
     '',

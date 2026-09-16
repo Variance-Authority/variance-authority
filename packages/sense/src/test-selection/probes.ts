@@ -10,7 +10,6 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { digestString } from '../digest.js';
 import { EVALUATING, INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
@@ -24,7 +23,7 @@ import {
   writeRecord,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { sourceLines, type TransformSourceMap } from './source-lines.js';
+import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 /**
  * Where a page hands its journal over.
@@ -111,8 +110,10 @@ export interface InstrumentingPlugin {
  * The map from the file on disk to the text this hook received, when there is one.
  *
  * A bundler that keeps no chain throws rather than answering, and a build with
- * no prior transform has nothing to answer with. Both mean *the text is the
- * file*, which is what the fallback in `sourceLines` already does.
+ * no prior transform has nothing to answer with. Neither says the text *is* the
+ * file — only that nothing here can show where it came from — so `recordedFrame`
+ * leaves the extents where the transform left them and digests that same text,
+ * rather than vouching for a number line nobody read.
  */
 export function priorMap(context: TransformingContext): TransformSourceMap | undefined {
   try {
@@ -176,14 +177,13 @@ export function testSelectionProbes(
     transform(code, specifier) {
       const source = cleanId(specifier);
       if (source === RESOLVED_COLLECTOR || !include(source)) return null;
-      const lineOf = sourceLines(code, priorMap(this), source);
-      // Of the text on disk, which is what the block lines are coordinates in.
-      let sourceDigest: string;
-      try {
-        sourceDigest = digestString(readFileSync(source, 'utf8'));
-      } catch {
-        sourceDigest = digestString(code);
-      }
+      // The digest and the lines from one decision, so they cannot describe two
+      // texts: the file on disk when the prior chain reads the extents back into
+      // it, and `code` when there is no chain and the extents stay where the
+      // transform left them.
+      const { lineOf, sourceDigest } = recordedFrame(code, priorMap(this), source, () =>
+        readFileSync(source, 'utf8'),
+      );
 
       // Instrumented under its id, which is all the page then reports. The path
       // is repository-relative: a journal that named absolute paths would be a

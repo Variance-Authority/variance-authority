@@ -150,6 +150,28 @@ describe('reading a module', () => {
     expect(computed.unknown).toContain('require()');
   });
 
+  it('reads JSX in a file whose extension does not announce it', () => {
+    // `.jsx` is the rarer spelling. Most React components written in JavaScript
+    // sit in a `.js`, and the parser's own inference leaves JSX off for that
+    // extension — so the element below is a syntax error, the file is opaque,
+    // and it widens every answer it appears in for the rest of its life. The
+    // cost is not theoretical: it is 307 of material-ui's 1,582 source files.
+    const read = readModule('Alert.js', "import { cx } from './cx';\nexport const A = () => <div className={cx()} />;\n");
+
+    expect(read.requests).toEqual([{ value: './cx', kind: 'imports', bindings: [{ imported: 'cx', local: 'cx', type: false, line: 1 }], line: 1 }]);
+    expect(read.unknown).toBeUndefined();
+  });
+
+  it('keeps reading an angle-bracket cast as a cast in TypeScript', () => {
+    // The other half of the same decision. Turning JSX on for `.ts` would fix
+    // the case above and break this one, which is why the dialect is chosen per
+    // extension rather than turned on everywhere.
+    const read = readModule('cast.ts', "import { raw } from './raw';\nconst name = <string>raw;\n");
+
+    expect(read.requests[0]?.value).toBe('./raw');
+    expect(read.unknown).toBeUndefined();
+  });
+
   it('says so when the parse did not finish', () => {
     // `oxc` recovers, so a broken file still yields a module record. Treating
     // that partial record as the whole truth is the failure being refused.
@@ -364,7 +386,6 @@ describe('two files with one content', () => {
     expect(module?.unresolved).toBeUndefined();
   });
 });
-
 async function write(root: string, path: string, contents: string): Promise<void> {
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });

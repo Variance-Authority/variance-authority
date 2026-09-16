@@ -1,13 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { digestString } from '../digest.js';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
-import journalFormat from './journal-format.cjs';
 import { priorMap, type TransformingContext } from './probes.js';
 import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
@@ -18,22 +16,30 @@ import {
   coverageModule,
   crossingsOf,
   defaultInclude,
-  isMissing,
   loadedOf,
   moduleNamesFile,
   openModuleNames,
   projectPath,
   type CapturedModule,
-  type ReadJournal,
 } from './instrumented-modules.js';
-import { sourceLines } from './source-lines.js';
+import { recordedFrame } from './source-lines.js';
+import { executionIndexFrom, readCaseJournals } from './cases.js';
+import {
+  coverageTest,
+  noteAnEmptyRecord,
+  readJournals,
+  reportedComplete,
+  taskComplete,
+  type FinishedFile,
+  type ReportedModule,
+  type RunnerTask,
+} from './finished-files.js';
+import { caseRunnerSource, setupSource } from './worker-source.js';
 import {
   seedTestCoverage,
   testCoverageFile,
   writeCoverageBytes,
   type CoverageModule,
-  type CoveragePrecondition,
-  type CoverageTest,
   type TestCoverage,
 } from './index.js';
 
@@ -52,6 +58,23 @@ export interface TestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Also record which individual test *cases* entered each region, beside the
+   * per-file snapshot.
+   *
+   * Off by default, and that is a measurement rather than caution: the per-case
+   * index holds one crossing per case-and-region where the file-level snapshot
+   * holds one per file-and-region, so it grows by roughly the number of cases
+   * that share a file. CI selects files to run and has no use for the
+   * difference; a local loop and a coding agent asking *which five of these two
+   * hundred cases walked the branch I changed* have nothing else to ask.
+   *
+   * The snapshot CI reads is unchanged either way — this adds a second artifact
+   * beside it, and never alters the first.
+   */
+  readonly cases?: boolean;
+  /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
+  readonly executionFile?: string;
 }
 
 interface VitePlugin {
@@ -66,15 +89,67 @@ interface VitePlugin {
   ) => { code: string; map: null } | null;
 }
 
-interface RunnerTask {
-  readonly filepath?: string;
-  readonly result?: { readonly state: string };
-  readonly tasks?: readonly RunnerTask[];
+/**
+ * One recording, shared by every configuration that takes part in it.
+ *
+ * A Vitest run with `projects` is several configuration files, each evaluated
+ * as its own module, and the two halves of this seam do not land in the same
+ * one: transforms belong to a project, while reporters are a root-only option
+ * that a project config may declare and the runner will ignore. So the halves
+ * have to find each other, and a module-level variable cannot do it.
+ *
+ * Keyed by the snapshot being written, on the process, because that is exactly
+ * the scope the run has: one Vitest process, one coverage file, however many
+ * configuration modules were evaluated to describe it.
+ */
+interface SelectionRun {
+  readonly root: string;
+  readonly runDirectory: string;
+  /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
+  readonly caseDirectory: string;
+  readonly modules: Map<ModuleId, CapturedModule>;
+  /** Union over the projects: every file whose text every observation depended on. */
+  readonly preconditions: Set<string>;
+  readonly names: ModuleNames;
+  readonly mode: InstrumentMode;
+  /** Whether any configuration in this run asked for per-case crossings. */
+  cases: boolean;
+  /** The snapshot is written once, by whichever hook the runner calls. */
+  settled: boolean;
+}
+
+const RUNS = Symbol.for('variance-authority.test-selection.runs');
+
+function runFor(coverageFile: string, root: string, mode: InstrumentMode): SelectionRun {
+  const carrier = globalThis as { [RUNS]?: Map<string, SelectionRun> };
+  const runs = (carrier[RUNS] ??= new Map<string, SelectionRun>());
+  const found = runs.get(coverageFile);
+  if (found !== undefined) return found;
+  const runDirectory = resolve(dirname(coverageFile), `.run-${process.pid}-${randomUUID()}`);
+  const run: SelectionRun = {
+    root,
+    runDirectory,
+    caseDirectory: `${runDirectory}-cases`,
+    modules: new Map<ModuleId, CapturedModule>(),
+    preconditions: new Set<string>(),
+    // Once per process, before any module is transformed: the table this run
+    // reads is the one the last fold published, and this run's own fold grows it.
+    names: readModuleNames(openModuleNames(root)),
+    mode,
+    cases: false,
+    settled: false,
+  };
+  runs.set(coverageFile, run);
+  return run;
 }
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
  * an ordinary Vitest configuration.
+ *
+ * Applies to a single configuration, and to both halves of a `projects` layout:
+ * wrap the root config and each project config that should be recorded, and the
+ * run they describe is one run.
  */
 export function withTestSelection(
   config: UserConfig = {},
@@ -84,26 +159,51 @@ export function withTestSelection(
   const coverageFile = options.coverageFile === undefined
     ? testCoverageFile(root)
     : resolve(root, options.coverageFile);
-  const runDirectory = resolve(dirname(coverageFile), `.run-${process.pid}-${randomUUID()}`);
-  const setupId = resolve(root, '.variance-authority/test-selection-setup.js');
-  const modules = new Map<ModuleId, CapturedModule>();
-  const include = options.include ?? defaultInclude;
-  // Once per process, before any module is transformed: the table this run
-  // reads is the one the last fold published, and this run's own fold grows it.
-  const names = readModuleNames(openModuleNames(root));
   const mode = options.mode ?? 'presence';
-  const plugin = selectionPlugin(root, runDirectory, setupId, modules, include, names, mode);
+  const run = runFor(coverageFile, root, mode);
+  if (options.cases === true) run.cases = true;
+  const setupId = resolve(root, '.variance-authority/test-selection-setup.js');
+  const runnerId = resolve(root, '.variance-authority/test-selection-case-runner.js');
+  const include = options.include ?? defaultInclude;
   const setupFiles = array(config.test?.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of
   // the project's; a package is no precondition a diff can carry, and read as a
   // path it is a missing file that fails the reporter and loses the snapshot.
-  const preconditions = [
+  for (const file of [
     ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(root, file))),
     ...(options.preconditions ?? []),
-  ].map((file) => resolve(root, file));
-  const reporter = selectionReporter(coverageFile, runDirectory, modules, root, preconditions, mode);
+  ]) run.preconditions.add(resolve(root, file));
+
+  const executionFile = options.executionFile === undefined
+    ? `${coverageFile}.cases.json`
+    : resolve(root, options.executionFile);
+  const reporter = selectionReporter(coverageFile, executionFile, run);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
+  // A configuration that names projects describes the run rather than a suite:
+  // nothing is transformed under it, and it is the only place a reporter is
+  // read from. Adding the plugin and the setup file here would put them on a
+  // config that loads no test file.
+  // `projects` is Vitest 3 and 4's name for it; Vitest 2 called the same idea
+  // `workspace`. Read structurally, because the seam is built against one of
+  // them and run against whichever the project installed.
+  const describesProjects = (config.test as { projects?: unknown } | undefined)?.projects !== undefined;
+  if (describesProjects) {
+    return { ...config, test: { ...config.test, reporters: [...reporters, reporter] } };
+  }
+
+  const plugin = selectionPlugin(
+    root,
+    run.runDirectory,
+    run.caseDirectory,
+    setupId,
+    runnerId,
+    run.modules,
+    include,
+    run.names,
+    mode,
+    options.cases === true,
+  );
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
@@ -112,7 +212,16 @@ export function withTestSelection(
       // First, so a setup file of the project's that loads an instrumented
       // module finds the counter factory its header resolves.
       setupFiles: [setupId, ...setupFiles],
+      // Kept for a single-configuration project, where this config is the root
+      // one as well and its reporters are the ones that run.
       reporters: [...reporters, reporter],
+      // A runner of the project's own is left alone rather than replaced: a case
+      // scope is worth less than a suite that runs. Per-case recording then has
+      // no bracket and records the file as one ambient bucket, which is the
+      // file-level answer it already had.
+      ...(options.cases === true && config.test?.runner === undefined
+        ? { runner: runnerId }
+        : {}),
     },
   };
 }
@@ -120,11 +229,14 @@ export function withTestSelection(
 function selectionPlugin(
   root: string,
   runDirectory: string,
+  caseDirectory: string,
   setupId: string,
+  runnerId: string,
   modules: Map<ModuleId, CapturedModule>,
   include: (file: string) => boolean,
   names: ModuleNames,
   mode: InstrumentMode,
+  cases: boolean,
 ): VitePlugin {
   return {
     name: 'variance-authority:test-selection',
@@ -133,19 +245,28 @@ function selectionPlugin(
     // one. Vitest drops every setup file from the module cache by path before
     // each test file so setup runs again without isolation; a module cached
     // under another id would survive that and run once for the whole worker.
-    resolveId: (id) => (id === setupId ? setupId : null),
-    load: (id) => (id === setupId ? setupSource(runDirectory) : null),
+    resolveId: (id) => (id === setupId || id === runnerId ? id : null),
+    load: (id) =>
+      id === setupId
+        ? setupSource(runDirectory, cases ? caseDirectory : undefined)
+        : id === runnerId
+          ? caseRunnerSource()
+          : null,
     transform(code, id) {
       // The setup module installs the counter factory; instrumented, its own
       // header would ask for the factory before the module has installed it.
-      if (id === setupId) return null;
+      // The runner module is this seam's too, and both sit under the root the
+      // default include reaches.
+      if (id === setupId || id === runnerId) return null;
       const file = cleanId(id);
       if (!include(file)) return null;
-      const lineOf = sourceLines(code, priorMap(this), file);
       // The digest is of the text on disk, which is what the block lines are
-      // coordinates in once the prior transforms' maps are read back through;
-      // `code` here is what those transforms made of it.
-      const sourceDigest = digestOfFile(file, code);
+      // coordinates in once the prior transforms' maps are read back through —
+      // and of `code`, which is what those transforms made of it, when there is
+      // no map to read back through and the lines stay where they were left.
+      const { lineOf, sourceDigest } = recordedFrame(code, priorMap(this), file, () =>
+        readFileSync(file, 'utf8'),
+      );
 
       // Under its id, the same one every other seam instruments under, so a
       // journal reads the same whoever produced it. Vitest re-transforms every
@@ -174,201 +295,80 @@ function selectionPlugin(
 
 function selectionReporter(
   coverageFile: string,
-  runDirectory: string,
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
-  root: string,
-  preconditionFiles: readonly string[],
-  mode: InstrumentMode,
+  executionFile: string,
+  run: SelectionRun,
 ): Reporter {
-  return {
-    async onFinished(files) {
-      noteAnEmptyRecord(files.length, modules.size);
-      const journals = await readJournals(runDirectory);
-      // A journal names modules by id, so nothing here re-keys paths; the id is
-      // what the map is keyed by too.
-      const rows = journals.map((journal) => ({
-        testFile: projectPath(root, journal.testFile),
-        modules: journal.modules,
-      }));
-      const observed = crossingsOf(rows);
-      const early = loadedOf(rows);
+  const { root, runDirectory, caseDirectory, modules, mode } = run;
+  // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
+  // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
+  // a reported-task API, and Vitest 4 stopped calling `onFinished` on reporters
+  // altogether — silently, because a reporter with no hook a runner recognises
+  // is a reporter that never objects. A suite would go green and write no
+  // snapshot. Both hooks are declared, both narrow to the same two facts, and
+  // whichever the runner calls first is the one that counts.
+  const settle = async (files: readonly FinishedFile[]): Promise<void> => {
+    if (run.settled) return;
+    run.settled = true;
+    noteAnEmptyRecord(files.length, modules.size);
+    const journals = await readJournals(runDirectory);
+    // A journal names modules by id, so nothing here re-keys paths; the id is
+    // what the map is keyed by too.
+    const rows = journals.map((journal) => ({
+      testFile: projectPath(root, journal.testFile),
+      modules: journal.modules,
+    }));
+    const observed = crossingsOf(rows);
+    const early = loadedOf(rows);
 
-      const tests = await Promise.all(
-        files.flatMap((file) => file.filepath === undefined
-          ? []
-          : [coverageTest(file, root, preconditionFiles, journals, modules)]),
+    const tests = await Promise.all(
+      files.map((file) => coverageTest(file, root, [...run.preconditions], journals, modules)),
+    );
+    const commit = await commitOf(root);
+    const current: TestCoverage = {
+      version: 3,
+      instrumentation: instrumentationId(mode),
+      ...(commit === undefined ? {} : { commit }),
+      tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
+      modules: [...modules]
+        .map(([id, module]): CoverageModule => coverageModule(
+          module,
+          (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
+          (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
+        ))
+        .sort((left, right) => codeUnitOrder(left.file, right.file)),
+    };
+    // The repository's snapshot becomes this checkout's before the first run
+    // lands on it, so a worktree layers onto months of recording rather than
+    // onto nothing. A no-op in the primary checkout and after the first run.
+    await seedTestCoverage(coverageFile, root);
+    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+    // Everything this run saw, numbered for the next one. A file first met
+    // today was instrumented under its path; from here on it has a number.
+    await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));
+    // Beside the snapshot, never inside it. The snapshot answers *which files
+    // must run*, its readers are unchanged, and a run that records cases writes
+    // the same bytes there as one that does not.
+    if (run.cases) {
+      const journals = await readCaseJournals(caseDirectory, root);
+      await writeFile(
+        executionFile,
+        JSON.stringify(executionIndexFrom(journals, modules)),
       );
-      const commit = await commitOf(root);
-      const current: TestCoverage = {
-        version: 3,
-        instrumentation: instrumentationId(mode),
-        ...(commit === undefined ? {} : { commit }),
-        tests: tests.sort((left, right) => codeUnitOrder(left.file, right.file)),
-        modules: [...modules]
-          .map(([id, module]): CoverageModule => coverageModule(
-            module,
-            (block) => [...(observed.get(id)?.get(block.ordinal) ?? [])],
-            (block) => [...(early.get(id)?.get(block.ordinal) ?? [])],
-          ))
-          .sort((left, right) => codeUnitOrder(left.file, right.file)),
-      };
-      // The repository's snapshot becomes this checkout's before the first run
-      // lands on it, so a worktree layers onto months of recording rather than
-      // onto nothing. A no-op in the primary checkout and after the first run.
-      await seedTestCoverage(coverageFile, root);
-      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
-      // Everything this run saw, numbered for the next one. A file first met
-      // today was instrumented under its path; from here on it has a number.
-      await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));
-      await rm(runDirectory, { recursive: true, force: true });
-    },
-  };
-}
-
-/**
- * The one outcome that is indistinguishable from a clean run and is not one.
- *
- * A run that transformed no product module writes a snapshot saying every test
- * reaches nothing, and `narrowByExecution` reads that as an answer: every later
- * selection narrows to the empty set, the CI job runs no tests, and it passes.
- * Nothing else in this seam fails — the suite ran, the reporter ran, the file
- * was written — so the first sign of it is a green pipeline that stopped
- * testing.
- *
- * Said rather than thrown, because zero is legitimate: a run filtered down to
- * one test file that imports no source has nothing to instrument and no reason
- * to fail. The two misconfigurations it usually is are named in the message,
- * because a reader looking at "0 modules" has no way to guess which.
- *
- * Zero test files is a different state and is left alone — a run that collected
- * nothing has already said so in the runner's own output.
- */
-function noteAnEmptyRecord(testFiles: number, instrumented: number): void {
-  if (instrumented > 0 || testFiles === 0) return;
-  console.warn(
-    `variance-authority instrumented 0 modules across ${testFiles} test file(s). The snapshot ` +
-      'about to be written therefore says no test reaches any source, and every selection made ' +
-      'from it will narrow to nothing rather than to the tests a change needs. The plugin did ' +
-      'not reach the modules under test: check `include`, and — if this configuration uses ' +
-      '`projects` — that the plugin and the setup file are inside each project rather than ' +
-      'beside them, since a project does not inherit either.',
-  );
-}
-
-/**
- * This file, so the setup module can reach the codec beside it.
- *
- * The setup module is loaded by id through this plugin and has no directory of
- * its own to resolve a package name from, which leaves an absolute reference —
- * and it is taken with `createRequire` rather than an `import` because Vite
- * resolves every specifier a module it transforms names. A file under jsdom is
- * transformed in web mode, where an absolute `file:` URL is not a specifier
- * anything resolves, and the codec is CommonJS that has no business going
- * through a transform in either mode. `node:module` is a builtin, so the one
- * import the setup module keeps is one every runner already externalizes.
- */
-const HERE = import.meta.url;
-
-/**
- * The module every test file evaluates before itself: the counter factory, and
- * the handoff at the end.
- *
- * The counters go out as a frame through the same codec the Jest half uses, so
- * neither runner's journals are a shape the other does not read, and neither
- * worker builds a row per module to hand one over.
- */
-function setupSource(runDirectory: string): string {
-  return `
-import { afterAll, beforeAll, expect } from 'vitest';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
-import { createRequire } from 'node:module';
-const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const modules = new Map();
-// A module \`vi.resetModules\` evaluates again resolves this again, and keeps
-// what it counted before the reset: same name and block count, same counters.
-globalThis.__VA__ = (id, count) => {
-  let counters = modules.get(id);
-  if (counters === undefined || counters.length !== count) {
-    counters = new Uint32Array(count);
-    modules.set(id, counters);
-  }
-  return counters;
-};
-// What had run before the file's first test. The file is collected — its
-// imports evaluated, its top level run — before any hook runs, so a function
-// counted here ran as a consequence of loading, not of a test.
-const loaded = new Map();
-beforeAll(() => {
-  for (const [id, counters] of modules) loaded.set(id, counters.slice());
-});
-afterAll(async () => {
-  const testFile = expect.getState().testPath;
-  if (!testFile) throw new Error('variance-authority could not identify the current Vitest file');
-  await mkdir(${JSON.stringify(runDirectory)}, { recursive: true });
-  await writeFile(
-    ${JSON.stringify(`${runDirectory}/`)} + process.pid + '-' + randomUUID() + '.va',
-    journalFormat.encodeJournal(testFile, modules, loaded),
-  );
-});`;
-}
-
-function fileComplete(file: RunnerTask): boolean {
-  const leaves = (task: RunnerTask): readonly RunnerTask[] =>
-    task.tasks === undefined || task.tasks.length === 0 ? [task] : task.tasks.flatMap(leaves);
-  const tests = leaves(file);
-  return tests.length > 0 && tests.every((task) => task.result?.state === 'pass');
-}
-
-async function coverageTest(
-  task: RunnerTask & { readonly filepath: string },
-  root: string,
-  preconditionFiles: readonly string[],
-  journals: readonly ReadJournal[],
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
-): Promise<CoverageTest> {
-  const file = projectPath(root, task.filepath);
-  const preconditions: CoveragePrecondition[] = [];
-  for (const input of [task.filepath, ...preconditionFiles]) {
-    preconditions.push({
-      name: projectPath(root, input),
-      digest: digestString(await readFile(input, 'utf8')),
-    });
-  }
-  for (const journal of journals) {
-    if (projectPath(root, journal.testFile) !== file) continue;
-    for (const entered of journal.modules) {
-      const module = modules.get(entered.id);
-      if (module === undefined) {
-        throw new Error(`variance-authority lost the source identity for module ${entered.id}`);
-      }
-      preconditions.push({ name: module.file, digest: module.sourceDigest });
     }
-  }
-  return { file, complete: fileComplete(task), preconditions };
-}
+    await rm(runDirectory, { recursive: true, force: true });
+    await rm(caseDirectory, { recursive: true, force: true });
+  };
 
-async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) return [];
-    throw error;
-  }
-  return Promise.all(
-    names.map(async (name) => journalFormat.decodeJournal(await readFile(resolve(directory, name)))),
-  );
-}
-
-
-/** The digest of the file's text, or of `code` when the id is not a file on disk. */
-function digestOfFile(file: string, code: string): string {
-  try {
-    return digestString(readFileSync(file, 'utf8'));
-  } catch {
-    return digestString(code);
-  }
+  return {
+    onFinished: (files: readonly RunnerTask[]) => settle(
+      files.flatMap((file) => file.filepath === undefined
+        ? []
+        : [{ filepath: file.filepath, complete: taskComplete(file) }]),
+    ),
+    onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
+      reported.map((module) => ({ filepath: module.moduleId, complete: reportedComplete(module) })),
+    ),
+  } as Reporter;
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {

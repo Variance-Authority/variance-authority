@@ -123,8 +123,15 @@ describe('what a diff touched, named the way the run names files', () => {
     expect(await diffSince('main', ['src'])).not.toContain('-export const b = 1;');
   });
 
+  // The index *does* carry a digest of every module it recorded, and the
+  // selector now checks it: a module recorded over a dirty tree is charged whole
+  // and named in `stale` rather than read at line numbers that mean something
+  // else here (`select.ts`, `recorded()`; `resources.ts`, `journeyAgainst`).
+  // What is still missing is the other half — reading the hunks *against* those
+  // texts — and a digest cannot give it, because a hash does not reconstruct a
+  // file. That needs the recording to keep the text, or a blob to keep it for it.
   it.todo(
-    'measures from the tree the index was recorded over, not its commit, when that tree was dirty — needs the index to carry a digest of every module it recorded, so the diff can be taken against those texts rather than the commit',
+    'measures from the tree the index was recorded over, not its commit, when that tree was dirty — needs the recorded text itself, which a digest of it cannot supply',
   );
 
   it('names a path with a character outside ASCII or a space as the file it is, in both answers', async () => {

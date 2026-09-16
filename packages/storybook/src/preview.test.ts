@@ -64,7 +64,9 @@ describe('showing stories on one page', () => {
 
     await collectStories(page, ['a--one', 'a--two'], { baseUrl: BASE, ...TIMING });
 
-    expect(preview.emitted).toEqual([
+    // Selections only. A session also tells the preview what it is for, once
+    // per document — `preview-globals.test.ts` is where that is pinned.
+    expect(preview.emitted.filter((entry) => entry.event === 'setCurrentStory')).toEqual([
       { event: 'setCurrentStory', payload: { storyId: 'a--two', viewMode: 'story' } },
     ]);
   });
@@ -78,7 +80,7 @@ describe('showing stories on one page', () => {
 
     const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
 
-    expect(preview.emitted).toEqual([]);
+    expect(preview.emitted.filter((entry) => entry.event === 'setCurrentStory')).toEqual([]);
     expect(outcome.status).toBe('rendered');
     expect(outcome.readiness).toBe('already-rendered');
   });
@@ -115,7 +117,13 @@ describe('showing stories on one page', () => {
 
     await collectStories(page, ['a--one', 'a--two', 'a--three'], { baseUrl: BASE, ...TIMING });
 
-    expect(preview.listeners()).toBe(0);
+    // One, and the same one for all three: the end-of-render watch is installed
+    // once per document on purpose, because the event it listens for arrives
+    // after the story it belongs to has already been handed back — a listener
+    // owned by the call that asked would be gone before the answer came. It is
+    // re-aimed rather than re-attached, which is what keeps it from growing into
+    // the leak this test is about (`story-finished.ts`).
+    expect(preview.listeners()).toBe(1);
   });
 });
 
@@ -187,6 +195,27 @@ describe('a story that fails is a subject, not a crashed run', () => {
 
     expect(outcome.status).toBe('no-root');
     expect(outcome.root).toBeUndefined();
+  });
+
+  it('still gives up on a page whose wall clock has been pinned', async () => {
+    // Freezing `Date.now()` is the ordinary way to stabilise a story built from the
+    // current time, and a story built from the current time is the ordinary reason a
+    // visual run reports changes nobody made. A deadline measured on that clock never
+    // arrives, so this poll would spin until the driver's own timeout — for every
+    // subject. The budget has to be measured on a clock a page has no reason to pin.
+    const realNow = Date.now;
+    const pinned = Date.now();
+    Date.now = () => pinned;
+    try {
+      preview = fakePreview({ 'a--one': 'empty' });
+      const page = fakePage(preview);
+
+      const outcome = await collectStory(page, 'a--one', { baseUrl: BASE, ...TIMING });
+
+      expect(outcome.status).toBe('no-root');
+    } finally {
+      Date.now = realNow;
+    }
   });
 
   it('reports a story that never settles as a timeout, not as a render', async () => {
@@ -302,6 +331,7 @@ describe('the page function', () => {
       events: {
         setCurrentStory: 'setCurrentStory',
         storyRendered: 'storyRendered',
+        storyFinished: 'storyFinished',
         storyThrewException: 'storyThrewException',
         storyErrored: 'storyErrored',
         storyMissing: 'storyMissing',
@@ -374,7 +404,15 @@ describe('the protocol defaults, and the page they are shipped to', () => {
     let sent: ShowRequest | undefined;
 
     await collectStory(
-      { ...page, evaluate: (fn, request) => { sent = request; return page.evaluate(fn, request); } },
+      {
+        ...page,
+        // Only the story request. More than one function is shipped into the
+        // page now, and the finish watch carries its own argument.
+        evaluate: (fn, argument) => {
+          if (fn === showStory) sent = argument as ShowRequest;
+          return page.evaluate(fn, argument);
+        },
+      },
       'a--one',
       { baseUrl: BASE, ...TIMING },
     );

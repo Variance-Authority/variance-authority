@@ -31,8 +31,7 @@ import {
   type CliRunReport,
   type Plan,
 } from './commands/run.js';
-import { ask, questions } from './commands/ask.js';
-import { watch, watching as watchingLines } from './commands/watch.js';
+import { ask } from './commands/ask.js';
 import { formatReport } from './commands/report.js';
 import {
   adjudicateReport,
@@ -48,10 +47,10 @@ import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
-import { COMMENT_MARKER, renderComment } from './commands/comment.js';
+import { renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
 import { publishedLine, shareLines } from './commands/share.js';
-import { distillFiles, formatDistill } from './commands/distill.js';
+import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import type { ChangelogSelection } from '@variance-authority/report';
@@ -71,35 +70,14 @@ export async function dispatch(
   parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' }>,
   streams: { out(text: string): void; err(text: string): void },
 ): Promise<ExitCode> {
-  // Before the config, because both are constants this build carries rather than
-  // readings of anything. The poster needs the marker in exactly the case where
-  // there is no body to find it in — a clean run, where the previous docket has
-  // to be located and cleared; and an agent finding out what it may ask has not
-  // reached a run to ask about, so answering it with the config would be a
-  // refusal to hold a conversation on the grounds that there is nothing to say yet.
-  if (parsed.command === 'comment' && parsed.marker) {
-    streams.out(`${COMMENT_MARKER}\n`);
-    return EXIT_CLEAN;
-  }
-  if (parsed.command === 'ask' && parsed.question === undefined) {
-    streams.out(questions());
-    return EXIT_CLEAN;
-  }
-  // A watcher is about a suite, not about a project: it listens, holds what a
-  // run says, and answers. Loading a config first would make it unstartable in
-  // the directories somebody most wants to start one from — somebody else's
-  // repository, a container, a checkout with no visual suite configured at all.
-  if (parsed.command === 'watch') {
-    const watching = await watch();
-    streams.out(watchingLines(watching.address));
-    await watching.until;
-    await watching.close();
-    return EXIT_CLEAN;
-  }
-  if (parsed.command === 'distill') {
-    streams.out(formatDistill(await distillFiles(parsed), parsed.format));
-    return EXIT_CLEAN;
-  }
+  // What answers before a config is read, and why each of them may: see
+  // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
+  // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
+  // every command left in the union has a `--config` to load.
+  const constant = constantAnswer(parsed, streams);
+  if (constant !== undefined) return constant;
+  if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
+
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {
     case 'run': {

@@ -242,7 +242,7 @@ export async function selectionFor(
       ...answer.skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
-    notes: notesFor(ref, answer, journey),
+    notes: notesFor(ref, answer, journey, journal?.stale ?? []),
   };
 }
 
@@ -270,6 +270,7 @@ function notesFor(
     readonly unwatched?: readonly string[];
   },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
+  stale: readonly string[],
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
   const unwatched = answer.unwatched ?? [];
@@ -290,6 +291,17 @@ function notesFor(
     ...(journey?.whole === undefined
       ? []
       : [`\`--since ${ref}\` was not narrowed by execution: ${journey.whole}`]),
+    ...(stale.length === 0
+      ? []
+      : [
+          `the recording was not cut from the text ${many(stale.length, 'changed file')} ` +
+            `${stale.length === 1 ? 'has' : 'have'} at the commit it names ` +
+            `(${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ', …' : ''}), so ` +
+            `${stale.length === 1 ? 'its line numbers mean' : 'their line numbers mean'} ` +
+            'something else here and every subject that entered ' +
+            `${stale.length === 1 ? 'it' : 'them'} is kept. Record once over a clean tree to narrow ` +
+            'by region again.',
+        ]),
     ...(ruled === 0
       ? []
       : [

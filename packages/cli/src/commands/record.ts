@@ -337,7 +337,11 @@ export function qualification(diagnostics: readonly Diagnostic[]): string {
 export function diagnosticsOf(
   collected: Extract<Collected, { ok: true }>,
 ): readonly Diagnostic[] {
-  return mergeDiagnostics(collected.document.diagnostics, collected.snapshot?.diagnostics);
+  return mergeDiagnostics(
+    collected.document.diagnostics,
+    collected.snapshot?.diagnostics,
+    collected.diagnostics,
+  );
 }
 
 function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecord {

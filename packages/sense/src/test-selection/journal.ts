@@ -41,7 +41,7 @@
  * join only reads the mark.
  */
 
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { digestString } from '../digest.js';
@@ -49,6 +49,7 @@ import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
+import { takeIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -165,7 +166,8 @@ export interface RecordExecutionOptions {
    * stores hold one module and disagree about the text it was cut from, that
    * module is recorded as **not instrumented** — the builds transformed it
    * differently, so no ordinal in it means one thing, and unknown widens where
-   * a guess would skip.
+   * a guess would skip. Every subject that entered it declares it instead, so
+   * the widening is those subjects' and not the whole run's.
    */
   readonly heads?: readonly string[];
   /**
@@ -260,13 +262,33 @@ export async function recordExecution(
   // subject's window it was first needed — is every subject's.
   const everyOwner = new Set<string>(owners);
   const crossings = new Map<ModuleId, Map<number, Set<string>>>();
-  const entered = new Map<string, Set<ModuleId>>();
+  // What the instrument could not see inside, by the subject that depends on it.
+  const opaque = new Map<string, Map<string, string>>();
 
   for (const subject of subjects) {
     for (const module of subject.journal.modules) {
       const known = byId.get(module.id);
-      if (known === undefined || !known.instrumented) continue;
+      if (known === undefined) continue;
       const evaluating = new Set(module.shared);
+      if (!known.instrumented) {
+        // Two peer stores cut this path from different texts, so `readRecords`
+        // handed it back with no blocks and no ordinal in it means one thing.
+        // One thing can still be said about it honestly, and it is the thing
+        // `jest-reporter.ts` already says for a module its transformer never
+        // instrumented: this subject depends on that file's text, whole.
+        // Unsaid, the file is a changed path nothing recorded holds — `unread`
+        // — which retires the skip list of the entire run rather than of the
+        // subjects that entered it.
+        const dependents = module.hits.some((ordinal) => evaluating.has(ordinal))
+          ? everyOwner
+          : [subject.owner];
+        for (const owner of dependents) {
+          const held = opaque.get(owner) ?? new Map<string, string>();
+          held.set(known.file, known.sourceDigest);
+          opaque.set(owner, held);
+        }
+        continue;
+      }
       const byOrdinal = crossings.get(module.id) ?? new Map<number, Set<string>>();
       for (const ordinal of module.hits) {
         const holders = byOrdinal.get(ordinal) ?? new Set<string>();
@@ -275,9 +297,6 @@ export async function recordExecution(
         byOrdinal.set(ordinal, holders);
       }
       crossings.set(module.id, byOrdinal);
-      const modulesOfSubject = entered.get(subject.owner) ?? new Set<ModuleId>();
-      modulesOfSubject.add(module.id);
-      entered.set(subject.owner, modulesOfSubject);
     }
   }
 
@@ -292,14 +311,30 @@ export async function recordExecution(
       const whole =
         (subject.complete ?? true) &&
         subject.journal.modules.every((module) => byId.has(module.id));
-      const digests = [...(entered.get(subject.owner) ?? [])]
-        .map((id) => byId.get(id)!)
-        .map((record) => ({ name: record.file, digest: record.sourceDigest }))
-        .sort((left, right) => codeUnitOrder(left.name, right.name));
+      // What the driver handed over, and the files above that no row of this
+      // recording can speak for. A module this subject *entered* is not among
+      // them: it is instrumented, so its text is already a digest on its own
+      // row and a change to it is caught by re-cutting that row's regions.
+      // Written here as well it would be the same fact once per
+      // subject-and-module — the largest thing in a snapshot at scale
+      // (`finished-files.ts` counts it), and a second, coarser answer to a
+      // question the row answers precisely: read beside the row it would hand
+      // a one-branch edit to every subject that ever loaded the module.
+      const held = new Map<string, string>(
+        (subject.preconditions ?? []).map((precondition) => [
+          precondition.name,
+          precondition.digest,
+        ]),
+      );
+      // The driver's own declaration wins: it names the text the driver
+      // resolved, where this one names the text a store was cut from.
+      for (const [name, digest] of opaque.get(subject.owner) ?? []) {
+        if (!held.has(name)) held.set(name, digest);
+      }
       return {
         file: subject.owner,
         complete: whole,
-        preconditions: [...(subject.preconditions ?? []), ...digests],
+        preconditions: [...held].map(([name, digest]) => ({ name, digest })),
       };
     })
     .sort((left, right) => codeUnitOrder(left.file, right.file));
@@ -356,53 +391,6 @@ export async function recordExecution(
   }
 
   return { recorded: true, coverageFile, subjects: subjects.length };
-}
-
-/**
- * Hold the index for one merge, or give up.
- *
- * `wx` is the exclusion — one creator wins on every filesystem this runs on —
- * and the waiting is bounded because a crashed holder must not make every later
- * run hang. A lock older than {@link LOCK_STALE_MS} is treated as abandoned and
- * broken: the cost of breaking one that was merely slow is a lost contribution,
- * which is a wider next run, and the cost of never breaking it is a suite that
- * stops recording until somebody deletes a file by hand.
- */
-async function takeIndexLock(coverageFile: string): Promise<string | undefined> {
-  const lock = `${coverageFile}.lock`;
-  const deadline = LOCK_WAIT_MS / LOCK_POLL_MS;
-  for (let attempt = 0; attempt <= deadline; attempt += 1) {
-    try {
-      await writeFile(lock, `${process.pid}\n`, { flag: 'wx' });
-      return lock;
-    } catch (error) {
-      if (!isTaken(error)) throw error;
-      const age = await lockAge(lock);
-      if (age !== undefined && age > LOCK_STALE_MS) {
-        await rm(lock, { force: true });
-        continue;
-      }
-      await new Promise((wake) => setTimeout(wake, LOCK_POLL_MS));
-    }
-  }
-  return undefined;
-}
-
-const LOCK_WAIT_MS = 10_000;
-const LOCK_POLL_MS = 25;
-const LOCK_STALE_MS = 60_000;
-
-async function lockAge(lock: string): Promise<number | undefined> {
-  try {
-    return Date.now() - (await stat(lock)).mtimeMs;
-  } catch (error) {
-    if (isMissing(error)) return undefined;
-    throw error;
-  }
-}
-
-function isTaken(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && error.code === 'EEXIST';
 }
 
 /**

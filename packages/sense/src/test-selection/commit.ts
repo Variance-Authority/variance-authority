@@ -12,6 +12,18 @@
  * is scored — the diff between that commit and the working tree is the distance,
  * and git already computes it.
  *
+ * ## Why the position is not checked for cleanliness here
+ *
+ * A recording is made by *running* the suite, and the tree a suite runs over is
+ * dirty far more often than clean, so this writes the commit of a tree that
+ * mostly does not match it. That is deliberate, and the check lives elsewhere
+ * for a reason: a `--porcelain` here would answer *this tree was dirty* and cost
+ * the whole recording its position, where the per-module digest the recorder
+ * already writes answers *this module was dirty* and costs only that module. A
+ * hundred clean modules still narrow by region beside one that cannot, which a
+ * tree-wide flag cannot express. `select.ts` asks that question, per module, of
+ * whatever text the caller can fetch from the position written here.
+ *
  * Failure here is not an error. A directory that is not a checkout, a repository
  * with no commit yet, a `git` that is not installed — each leaves the index with
  * no position, which is the honest record of one. A caller holding an index that

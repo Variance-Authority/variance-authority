@@ -89,6 +89,7 @@ ids are the safe default after initial setup.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
+variance select  [--since <ref>] [--format plain|json|vitest|jest]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]
@@ -107,6 +108,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | command | what it does |
 |---|---|
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `needs-review`, and so on) that decides the exit code |
+| `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
@@ -563,6 +565,53 @@ The full suite on the default branch records the floor; each local run layers
 its own evidence on top; and a selection made against the result is measured
 from the commit the fold named, which is what `variance run --since` and the
 journal both read.
+
+### `select`: what your own runner may skip
+
+`variance run --since` narrows the subjects this tool renders. `variance select`
+answers the same journal for a suite this tool does not run — plain `vitest`,
+`jest`, `mocha`, a shell script in CI — by naming the test files that diff
+cannot reach:
+
+```bash
+vitest run $(variance select --format vitest)
+jest $(variance select --format jest)
+```
+
+It prints a **skip** list, never a run list, and that is the whole of its safety.
+A run list has to be complete to be correct, and this journal is never complete:
+it holds the tests that finished whole, at one commit, in one recipe. A skip list
+that comes back empty runs your suite. A run list that came back empty would run
+nothing, and the suite would go green in seconds.
+
+So stdout carries paths and nothing else, and every sentence about the reading
+goes to stderr, where a `$(...)` cannot pick it up and hand it to a runner as a
+path. `--format plain` writes one path per line; `vitest` writes `--exclude=`
+arguments, which vitest adds to its own defaults; `jest` writes
+`--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
+default, which that flag would otherwise replace. `--format json` carries the
+counts and the widening reason together for something that wants to decide for
+itself.
+
+It declines to narrow, out loud on stderr and with an empty stdout, whenever the
+journal cannot speak: nothing recorded on this machine, a diff git would not
+produce, a journal holding no whole observation, or a diff touching a file no
+probe was ever in. That last one is the common case on a first read — an asset,
+a config, a module your probes do not cover — and it is why the command reads
+`0` even when it skips nothing:
+
+```
+$ variance select
+skipping nothing: the diff changes 3 files the journal holds no measurement of
+(docs/selecting.md), so it cannot say which tests enter them.
+the execution journal was not asked, having no record of every changed file.
+```
+
+The journal's own commit is what the diff is measured from, because its line
+numbers are coordinates in that commit's text. `--since <ref>` names a base only
+for a journal recorded outside a checkout, which carries no commit of its own.
+No `variance.config.json` is read, so a repository that uses this tool for
+nothing else can still ask.
 
 ### Sharding: `report` takes more than one file
 

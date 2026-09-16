@@ -5,6 +5,7 @@ import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
+import { parseSelectArgs, type ParsedSelect } from './select-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 
@@ -131,7 +132,7 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | ParsedDistill | ParsedShare
+  | ParsedDistill | ParsedSelect | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -322,6 +323,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     }
 
     case 'distill': return parseDistill(flags);
+    case 'select': return parseSelectArgs(flags);
     case 'share': return parseShareArgs(flags, config);
 
     case 'adjudicate': {

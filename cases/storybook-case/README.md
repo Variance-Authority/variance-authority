@@ -126,6 +126,35 @@ by a component rather than by an assertion. A story that never attaches its
 marker times out and says which selector it waited for — there is no fallback,
 because falling back is how you photograph a spinner and call it a component.
 
+## An addon stood down for the pass
+
+`@storybook/addon-a11y` with `test` set runs axe in `afterEach`, on every story.
+A visual pass pays for that twice — once for the scan, once for the phase it has
+to wait out before it can switch stories — and reads the answer never, so the
+adapter says `a11y.manual` on the preview's channel before it asks for anything.
+
+Whether *the addon* stops scanning when it hears that is a claim about somebody
+else's package, so it is checked against the package:
+
+```bash
+yarn workspace @variance-authority/case-storybook build-storybook:a11y
+```
+
+```bash
+yarn vitest run cases/storybook-case/src/globals.chromium.test.js
+```
+
+A story that scanned files an `a11y` report, and those reports ride out on
+`storyFinished`, so counting them counts scans. Three stories, unsuppressed:
+three scans. The same three with the default globals: at most the one the URL had
+already started before anything could speak to the preview.
+
+It is a separate build because the addon changes the subject. Installed in
+`storybook-static`, it moves the props digest the collector reads off a card —
+and not consistently between two renders, which fails
+`alone.chromium.test.js`. The Storybook every other suite here reads stays the
+one with no addons and no global decorators.
+
 ## Driving the CLI end to end
 
 The adapter reads a Storybook. This runs the whole tool over one.

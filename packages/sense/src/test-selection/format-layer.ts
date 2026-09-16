@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { encodeTestCoverage, settledModule, settledTest } from './format.js';
-import { openTestCoverage, wholeCoverage } from './format-view.js';
+import { carriedSources } from './carried-sources.js';
+import { wholeCoverage } from './format-view.js';
 import { layeredDictionary, type LayeredRow } from './format-dictionary.js';
+import { CrossingSets, openCrossingSets } from './crossing-sets.js';
 import {
   KINDS,
   NO_OWNER,
@@ -12,14 +14,16 @@ import {
   sections,
 } from './format-layout.js';
 import {
-  addressOf,
+  addressKey,
+  addressed,
   crossedBlock,
+  crossingsAround,
   lostCrossings,
   recutRows,
   reusableBlock,
   withoutRetired,
 } from './merge-carry.js';
-import { readSources, samePreconditions, type CarriedModule } from './merge.js';
+import { samePreconditions } from './merge.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 
 /**
@@ -64,9 +68,9 @@ export function layerTestCoverage(
     testPath, testComplete, testPreconditions, preconditionName, preconditionDigest,
     modulePath, moduleSource, moduleInstrumented, moduleBlocks,
     blockOrdinal, blockKind, blockOwner, blockDigest, blockName, blockPath,
-    blockStart, blockEnd, blockSource, blockTests, crossingTest,
-    blockLoaded, loadedTest,
+    blockStart, blockEnd, blockSource, blockSet, blockLoadedSet, crossings,
   } = columns;
+  const previousSets = openCrossingSets(crossings);
 
   // The tests, as objects. A snapshot holds thousands of them against millions
   // of regions, and every rule the merge applies is about a test.
@@ -103,11 +107,30 @@ export function layerTestCoverage(
   for (let module = 0; module < moduleCount; module += 1) {
     previousFile.push(view.string(modulePath[module]!));
   }
-  const firstPrevious = new Map<string, number>();
+  // Every row a path has, in row order, and not merely the first of them: two
+  // builds reading one path are two rows, each built from its own text and
+  // crossed by its own suite. A re-recorded row claims the previous row of its
+  // own build — matched by the text it was built from, and otherwise the next
+  // unclaimed row of the path, which is that path's one row wherever only one
+  // build read it. Rows nobody claims are carried below, because a run that
+  // re-recorded one build observed nothing about the other, and dropping its
+  // row would leave its crossers whole with nothing recorded against the
+  // module they entered. The merge decides it this way; this is that decision
+  // spelled in columns.
+  const previousRows = new Map<string, number[]>();
   for (let module = 0; module < moduleCount; module += 1) {
-    if (!firstPrevious.has(previousFile[module]!)) firstPrevious.set(previousFile[module]!, module);
+    const rows = previousRows.get(previousFile[module]!);
+    if (rows === undefined) previousRows.set(previousFile[module]!, [module]);
+    else rows.push(module);
   }
-  const currentFiles = new Set(current.modules.map((module) => module.file));
+  const claimed = new Uint8Array(moduleCount);
+  const claim = (module: CoverageModule): number | undefined => {
+    const free = (previousRows.get(module.file) ?? []).filter((row) => claimed[row] === 0);
+    const row = free.find((candidate) =>
+      view.string(moduleSource[candidate]!) === module.sourceDigest) ?? free[0];
+    if (row !== undefined) claimed[row] = 1;
+    return row;
+  };
 
   /** What a previous region's two crossing lists hold, as the fold reads them. */
   interface Carried {
@@ -118,8 +141,8 @@ export function layerTestCoverage(
   /** The tests that entered a previous region before their own file began. */
   const loadedOf = (at: number): readonly string[] => {
     const files: string[] = [];
-    for (let early = blockLoaded[at]!; early < blockLoaded[at + 1]!; early += 1) {
-      files.push(previousTestRows[loadedTest[early]!]!.file);
+    for (const test of previousSets.members(blockLoadedSet[at]!)) {
+      files.push(previousTestRows[test]!.file);
     }
     return files;
   };
@@ -127,8 +150,8 @@ export function layerTestCoverage(
   /** One previous region as the object model holds it, crossings and all. */
   const blockAt = (at: number): CoverageBlock => {
     const testFiles: string[] = [];
-    for (let crossing = blockTests[at]!; crossing < blockTests[at + 1]!; crossing += 1) {
-      testFiles.push(previousTestRows[crossingTest[crossing]!]!.file);
+    for (const test of previousSets.members(blockSet[at]!)) {
+      testFiles.push(previousTestRows[test]!.file);
     }
     const loadedBy = loadedOf(at);
     return {
@@ -162,46 +185,51 @@ export function layerTestCoverage(
   // carry, folded onto the rows that came in.
   const stale = new Set<string>();
   const rerecorded = current.modules.map((module): CoverageModule => {
-    const at = firstPrevious.get(module.file);
-    const byAddress = new Map<string, CoverageBlock>();
-    for (const block of module.blocks) {
-      const key = addressOf(block);
-      if (!byAddress.has(key)) byAddress.set(key, block);
-    }
+    const at = claim(module);
+    const byAddress = new Map(addressed(module.blocks));
     const surviving = new Map<CoverageBlock, Carried>();
     if (at !== undefined) {
       const instrumented = moduleInstrumented[at] === 1;
+      const seen = new Map<string, number>();
       for (let before = moduleBlocks[at]!; before < moduleBlocks[at + 1]!; before += 1) {
-        const key = `${view.string(blockName[before]!)}\0${view.string(blockPath[before]!)}`;
+        const address = `${view.string(blockName[before]!)}\0${view.string(blockPath[before]!)}`;
+        const key = addressKey(address, seen);
         const block = byAddress.get(key);
         if (
           block !== undefined && module.instrumented && instrumented &&
           reusableBlock(block, { kind: KINDS[blockKind[before]!]! })
         ) {
           const files: string[] = [];
-          for (let crossing = blockTests[before]!; crossing < blockTests[before + 1]!; crossing += 1) {
-            files.push(previousTestRows[crossingTest[crossing]!]!.file);
+          for (const test of previousSets.members(blockSet[before]!)) {
+            files.push(previousTestRows[test]!.file);
           }
           surviving.set(block, { files, loaded: loadedOf(before) });
           continue;
         }
-        for (let crossing = blockTests[before]!; crossing < blockTests[before + 1]!; crossing += 1) {
-          const file = previousTestRows[crossingTest[crossing]!]!.file;
+        for (const test of previousSets.members(blockSet[before]!)) {
+          const file = previousTestRows[test]!.file;
           if (!currentTests.has(file)) stale.add(file);
         }
       }
     }
+    const kept = (test: string): boolean => !retired.has(test);
+    // A region this run cut that the columns never held reads its carried
+    // crossings off the region around it, as it does in `mergeCoverage`.
+    const around = crossingsAround(module.blocks, (block) => {
+      const held = surviving.get(block);
+      if (held === undefined) return undefined;
+      return { testFiles: held.files.filter(kept), loadedBy: held.loaded.filter(kept) };
+    });
     return {
       file: module.file,
       sourceDigest: module.sourceDigest,
       instrumented: module.instrumented,
       blocks: module.blocks.map((block) => {
-        const held = surviving.get(block);
-        const kept = (test: string): boolean => !retired.has(test);
+        const held = around(block);
         return crossedBlock(
           block,
-          [...(held?.files ?? []).filter(kept), ...block.testFiles],
-          [...(held?.loaded ?? []).filter(kept), ...(block.loadedBy ?? [])],
+          [...held.testFiles, ...block.testFiles],
+          [...held.loadedBy, ...(block.loadedBy ?? [])],
         );
       }),
     };
@@ -210,7 +238,10 @@ export function layerTestCoverage(
   const rows: LayeredRow[] = rerecorded.map((module) => ({ file: module.file, module }));
   for (let module = 0; module < moduleCount; module += 1) {
     const file = previousFile[module]!;
-    if (currentFiles.has(file)) continue;
+    // A row a re-recorded row claimed has been folded into it. Every other row
+    // is one this run did not re-record, whether or not another build of the
+    // same path was, and is carried with the crossings it holds.
+    if (claimed[module] === 1) continue;
     // Text that moved is the one reason a carried module becomes an object: its
     // rows are lines of text nobody has any more, and they are cut again.
     const now = onDisk.get(file);
@@ -253,28 +284,13 @@ export function layerTestCoverage(
   });
 
   let blockCount = 0;
-  let crossingCount = 0;
-  let loadedCount = 0;
   for (const row of rows) {
     if (row.module !== undefined) {
       blockCount += row.module.blocks.length;
-      for (const block of row.module.blocks) {
-        crossingCount += block.testFiles.length;
-        loadedCount += block.loadedBy?.length ?? 0;
-      }
       continue;
     }
-    const from = moduleBlocks[row.at!]!;
-    const to = moduleBlocks[row.at! + 1]!;
-    blockCount += to - from;
-    for (let crossing = blockTests[from]!; crossing < blockTests[to]!; crossing += 1) {
-      if (retiredTest[crossingTest[crossing]!] === 0) crossingCount += 1;
-    }
-    for (let early = blockLoaded[from]!; early < blockLoaded[to]!; early += 1) {
-      if (retiredTest[loadedTest[early]!] === 0) loadedCount += 1;
-    }
+    blockCount += moduleBlocks[row.at! + 1]! - moduleBlocks[row.at!]!;
   }
-
 
   const preconditionCount = tests.reduce((sum, test) => sum + test.preconditions.length, 0);
   const testPaths = Uint32Array.from(tests, (test) => id(test.file));
@@ -306,14 +322,34 @@ export function layerTestCoverage(
   const outStart = new Uint32Array(blockCount);
   const outEnd = new Uint32Array(blockCount);
   const outBlockSource = new Uint8Array(blockCount);
-  const outTests = new Uint32Array(blockCount + 1);
-  const outCrossing = new Uint32Array(crossingCount);
-  const outLoaded = new Uint32Array(blockCount + 1);
-  const outEarly = new Uint32Array(loadedCount);
+  const outSet = new Uint32Array(blockCount);
+  const outLoadedSet = new Uint32Array(blockCount);
+
+  // The new pool, filled in the order the regions are written — which is the
+  // order an encode of the merged model would have filled it in, and is what
+  // makes the two agree byte for byte rather than merely set for set.
+  const outSets = new CrossingSets(tests.length);
+  // A carried set is remapped once however many regions name it. The pool holds
+  // thousands where the snapshot holds millions of regions, so this is the whole
+  // of what the crossings cost a layer.
+  const setRemap = new Int32Array(previousSets.size).fill(-1);
+  let members = new Uint32Array(64);
+  const widen = (need: number): void => {
+    if (need > members.length) members = new Uint32Array(1 << (32 - Math.clz32(need - 1)));
+  };
+  const carriedSet = (from: number): number => {
+    const already = setRemap[from]!;
+    if (already >= 0) return already;
+    const held = previousSets.members(from);
+    widen(held.length);
+    let count = 0;
+    for (const test of held) if (retiredTest[test] === 0) members[count++] = testRemap[test]!;
+    const id = outSets.intern(members.subarray(0, count));
+    setRemap[from] = id;
+    return id;
+  };
 
   let block = 0;
-  let crossing = 0;
-  let early = 0;
   for (const [at, row] of rows.entries()) {
     outBlocks[at] = block;
     if (row.module !== undefined) {
@@ -331,20 +367,21 @@ export function layerTestCoverage(
         outStart[block] = held.startLine;
         outEnd[block] = held.endLine;
         outBlockSource[block] = held.source ? 1 : 0;
-        outTests[block] = crossing;
-        for (const file of held.testFiles) {
+        widen(held.testFiles.length);
+        for (const [order, file] of held.testFiles.entries()) {
           const to = testIndex.get(file);
           if (to === undefined) throw new Error(`coverage crossing names an unobserved test: ${file}`);
-          outCrossing[crossing] = to;
-          crossing += 1;
+          members[order] = to;
         }
-        outLoaded[block] = early;
-        for (const file of held.loadedBy ?? []) {
+        outSet[block] = outSets.intern(members.subarray(0, held.testFiles.length));
+        const loadedBy = held.loadedBy ?? [];
+        widen(loadedBy.length);
+        for (const [order, file] of loadedBy.entries()) {
           const to = testIndex.get(file);
           if (to === undefined) throw new Error(`coverage crossing names an unobserved test: ${file}`);
-          outEarly[early] = to;
-          early += 1;
+          members[order] = to;
         }
+        outLoadedSet[block] = outSets.intern(members.subarray(0, loadedBy.length));
         block += 1;
       }
       continue;
@@ -363,26 +400,16 @@ export function layerTestCoverage(
       outStart[block] = blockStart[held]!;
       outEnd[block] = blockEnd[held]!;
       outBlockSource[block] = blockSource[held]!;
-      outTests[block] = crossing;
-      for (let each = blockTests[held]!; each < blockTests[held + 1]!; each += 1) {
-        const test = crossingTest[each]!;
-        if (retiredTest[test] === 1) continue;
-        outCrossing[crossing] = testRemap[test]!;
-        crossing += 1;
-      }
-      outLoaded[block] = early;
-      for (let each = blockLoaded[held]!; each < blockLoaded[held + 1]!; each += 1) {
-        const test = loadedTest[each]!;
-        if (retiredTest[test] === 1) continue;
-        outEarly[early] = testRemap[test]!;
-        early += 1;
-      }
+      outSet[block] = carriedSet(blockSet[held]!);
+      // The same remap the crossings go through, and the same cache: a region
+      // whose loaders are its crossers names one id, and that id is remapped
+      // once for both of them.
+      outLoadedSet[block] = carriedSet(blockLoadedSet[held]!);
       block += 1;
     }
   }
   outBlocks[rows.length] = block;
-  outTests[blockCount] = crossing;
-  outLoaded[blockCount] = early;
+  const pool = outSets.pool();
 
   return sections({
     'strings.blob': blob(stringBlob, stringOffsets),
@@ -409,10 +436,10 @@ export function layerTestCoverage(
     'blocks.start': column(outStart),
     'blocks.end': column(outEnd),
     'blocks.source': column(outBlockSource),
-    'blocks.tests': column(outTests),
-    'crossings.test': column(outCrossing),
-    'blocks.loaded': column(outLoaded),
-    'loaded.test': column(outEarly),
+    'blocks.set': column(outSet),
+    'blocks.loadedSet': column(outLoadedSet),
+    'sets.blob': blob(pool.bytes, pool.offsets),
+    'sets.off': column(pool.offsets),
   });
 }
 
@@ -446,42 +473,4 @@ export async function layeredCoverage(
     return encodeTestCoverage(current);
   }
   return layerTestCoverage(previous, current, await carriedSources(root, previous, current));
-}
-
-/**
- * The text the carried rows will be re-cut from, named off the columns.
- *
- * Three columns of one row per module, against the twenty-odd a merge would
- * have had to decode to answer the same question. The snapshot is opened twice
- * over a whole write — here and in the layer — and the second open decompresses
- * these three again, which is a few milliseconds of an index whose block
- * columns are thirty times larger and are read exactly once.
- */
-async function carriedSources(
-  root: string,
-  previous: Uint8Array,
-  current: TestCoverage,
-): Promise<ReadonlyMap<string, string>> {
-  let carried: CarriedModule[];
-  try {
-    const view = openTestCoverage(previous);
-    if (view.instrumentation !== current.instrumentation) return new Map();
-    const path = view.modulePath.all();
-    const source = view.moduleSource.all();
-    const instrumented = view.moduleInstrumented.all();
-    const recorded = new Set(current.modules.map((module) => module.file));
-    carried = [];
-    for (let module = 0; module < path.length; module += 1) {
-      // A module recorded as unread is not re-cut at all: that row says this
-      // build never measured the module, and cutting regions out of its text
-      // would answer an unknown with a table of regions no run ever entered.
-      if (instrumented[module] !== 1) continue;
-      const held = view.string(path[module]!);
-      if (recorded.has(held)) continue;
-      carried.push({ file: held, sourceDigest: view.string(source[module]!) });
-    }
-  } catch {
-    return new Map();
-  }
-  return readSources(root, carried);
 }

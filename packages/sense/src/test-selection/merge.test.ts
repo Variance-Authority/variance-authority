@@ -224,6 +224,40 @@ describe('mergeCoverage', () => {
     expect(merged.tests.every((test) => test.complete)).toBe(true);
     expect(merged.modules[0]?.blocks[0]?.testFiles).toEqual(['test/alpha.test.ts']);
   });
+
+  it('carries the row of a build this run did not re-record', () => {
+    // What the record holds is one path read by two builds: `src/decide.ts` as
+    // the chromium bundle built it, crossed by the chromium suite, and the same
+    // path as the webkit bundle built it, crossed by the webkit suite. Two rows,
+    // each with its own text and its own crossings. This run re-recorded the
+    // chromium build and observed nothing whatever about the webkit one, so
+    // keeping the first previous row of the path and dropping the rest takes
+    // webkit's only record of entering this module with it — and takes it
+    // silently, because the demotion that would answer for a lost crossing only
+    // ever reads the row that was kept. Webkit stays whole with nothing recorded
+    // against the file it entered, so a diff of `src/decide.ts` is answered
+    // without it and a caller skips the one test known to have run there.
+    const chromium = 'test/chromium.test.ts';
+    const webkit = 'test/webkit.test.ts';
+    const previous: TestCoverage = {
+      ...at(BASELINE, chromium),
+      tests: [...at(BASELINE, chromium).tests, ...at(BASELINE, webkit).tests],
+      modules: [
+        at(BASELINE, chromium).modules[0]!,
+        { ...at(BASELINE, webkit).modules[0]!, sourceDigest: 'source:decide-webkit' },
+      ],
+    };
+
+    const merged = mergeCoverage(previous, at(LOCAL, chromium));
+
+    expect(merged.modules.map((module) => module.sourceDigest)).toEqual([
+      'source:decide',
+      'source:decide-webkit',
+    ]);
+    expect(merged.modules.map((module) => module.blocks.flatMap((block) => block.testFiles)))
+      .toEqual([[chromium], [webkit]]);
+    expect(merged.tests.find((test) => test.file === webkit)?.complete).toBe(true);
+  });
 });
 
 /** The same snapshot after the module's one region was edited. */

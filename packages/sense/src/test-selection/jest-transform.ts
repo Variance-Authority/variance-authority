@@ -26,7 +26,6 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { digestString } from '../digest.js';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
@@ -40,7 +39,7 @@ import {
   type RecordWriter,
 } from './instrumented-modules.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
-import { sourceLines, type TransformSourceMap } from './source-lines.js';
+import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 /** The fields of Jest's project configuration this reads. */
 export interface JestProjectConfig {
@@ -201,10 +200,15 @@ function place(
     return transformed;
   }
   // The digest is of the project's text, which is what the block lines are
-  // coordinates in once the wrapped transformer's map is read back through.
-  const sourceDigest = digestString(source);
-
-  const lineOf = sourceLines(transformed.code, parsedMap(transformed), path);
+  // coordinates in once the wrapped transformer's map is read back through —
+  // and of the transformed text when there is no map to read back through, so
+  // the digest never vouches for a number line it did not see.
+  const { lineOf, sourceDigest } = recordedFrame(
+    transformed.code,
+    parsedMap(transformed),
+    path,
+    () => source,
+  );
   const file = projectPath(root, path);
   const done = instrument(transformed.code, file, id, { mode });
   const captured: CapturedModule = done === undefined

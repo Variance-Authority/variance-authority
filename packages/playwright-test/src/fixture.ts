@@ -35,17 +35,18 @@ import { withEvidence, type Observed } from './evidence.js';
 import {
   createExecutionRecorder,
   ownerOf,
+  varianceCompletedFixtures,
   type ExecutionRecorder,
   type ExecutionRecording,
+  type VarianceCompletedFixtures,
 } from './execution.js';
 import {
   varianceEventFixtures,
   type VarianceEventFixtures,
   type VarianceEventWorkerFixtures,
 } from './events.js';
-import { runnerReprieve, varianceDesk, type VarianceDesk } from './vantage.js';
-import { varianceVantageFixtures } from './vantage.js';
-import type { VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
+import { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
+import type { VarianceDesk, VarianceVantageFixtures, VarianceVantageWorkerFixtures } from './vantage.js';
 import { varianceWireFixtures, type VarianceWireFixtures } from './wire.js';
 import { AGENT, type AcquireRequest } from './page-agent.js';
 
@@ -78,7 +79,7 @@ import { AGENT, type AcquireRequest } from './page-agent.js';
  * two networks away.
  */
 
-export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures {
+export interface VarianceFixtures extends VarianceEventFixtures, VarianceVantageFixtures, VarianceCompletedFixtures {
   /**
    * Observe one subtree against its stored baseline — and, on the same name, the
    * two calls that let a test be looked at while it runs.
@@ -187,6 +188,7 @@ export const varianceFixtures: Fixtures<
   ...varianceWireFixtures,
   ...varianceVantageFixtures,
   ...varianceEventFixtures,
+  ...varianceCompletedFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
@@ -303,8 +305,6 @@ export const varianceFixtures: Fixtures<
       ),
     );
     await declared.close();
-    // After `use`, which is where the runner has already decided this test.
-    if (owner !== undefined) varianceRecorder!.mark(owner, testInfo.status === 'passed');
   },
 };
 

@@ -1,16 +1,22 @@
 import {
+  DEFAULT_PREVIEW_GLOBALS,
+  FINISHED_RECORD_KEY,
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
   type ErrorOverlay,
+  type FinishRequest,
+  type PreviewGlobals,
   type Readiness,
   type ShowEvents,
   type ShowRequest,
-  type ShowResult,
   type ShowStatus,
 } from './preview-protocol.js';
+import { awaitFinish } from './finish-wait.js';
+import { applyGlobals } from './preview-globals.js';
 import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
+import { beginFinishWatch } from './story-finished.js';
 
 /**
  * Driving a Storybook preview: one navigation, N stories.
@@ -29,11 +35,12 @@ import { showStory } from './show-story.js';
  * (ADR-0009), rather than preventing it.
  *
  * What stays in this file is that navigation policy and the outcome it hands
- * back. The three parts that answer to different constraints have their own
- * modules and are re-exported below, so this is still the one import: the page
- * function in `show-story.ts`, which may close over nothing; the request and
- * result declarations both halves speak in `preview-protocol.ts`; the URL rules
- * in `preview-url.ts`.
+ * back. The parts that answer to different constraints have their own modules
+ * and are re-exported below, so this is still the one import: the page function
+ * in `show-story.ts`, which may close over nothing; the end-of-render watch in
+ * `story-finished.ts`, whose waiting half is here because a page's clock belongs
+ * to whoever is testing it; the request and result declarations both halves
+ * speak in `preview-protocol.ts`; the URL rules in `preview-url.ts`.
  *
  * **A story that throws is a subject, not a crash.** Every failure mode the
  * preview can report — a throwing render, a throwing play function, an errored
@@ -50,13 +57,21 @@ import { showStory } from './show-story.js';
  */
 export { PREVIEW_PATH, previewUrl } from './preview-url.js';
 export { showStory } from './show-story.js';
+export { beginFinishWatch, markFinishAbsent, readFinishRecord } from './story-finished.js';
+export { applyGlobals } from './preview-globals.js';
 export {
+  DEFAULT_PREVIEW_GLOBALS,
+  FINISHED_RECORD_KEY,
   STORYBOOK_ERROR_OVERLAY,
   STORYBOOK_EVENTS,
   STORY_ROOT_SELECTORS,
 } from './preview-protocol.js';
 export type {
   ErrorOverlay,
+  FinishRecord,
+  FinishRequest,
+  GlobalsRequest,
+  PreviewGlobals,
   Readiness,
   ShowEvents,
   ShowRequest,
@@ -67,16 +82,22 @@ export type {
 /**
  * The slice of a browser page this adapter drives.
  *
- * Concrete rather than generic on purpose: exactly one function is ever shipped
- * into the page, so the interface can name it, and a caller can implement this
- * with a dozen lines. That is what makes the navigation policy — the thing this
- * file exists to get right — testable without a browser or a Storybook.
+ * Three methods, so a caller can implement this with a dozen lines and the
+ * navigation policy — the thing this file exists to get right — stays testable
+ * without a browser or a Storybook.
+ *
+ * `evaluate` is generic because more than one function is shipped into the page:
+ * the story is shown by one, and the watch that says when Storybook has finished
+ * with it is opened and read by three more. An implementation must serialize the
+ * function it is given rather than call it, which is what the browser does and
+ * what a fake has to imitate for a page function that closed over a module
+ * constant to fail here rather than in a headless browser nobody is watching.
  */
 export interface StoryPage {
   /** The page's current URL, which is how "already navigated" is decided. */
   url(): string;
   goto(url: string): Promise<void>;
-  evaluate(fn: (request: ShowRequest) => Promise<ShowResult>, request: ShowRequest): Promise<ShowResult>;
+  evaluate<A, R>(fn: (argument: A) => R | Promise<R>, argument: A): Promise<R>;
 }
 
 /**
@@ -112,7 +133,7 @@ export function harnessPage(harness: BrowserHarness): StoryPage {
     goto: async (url: string): Promise<void> => {
       await page.goto(url, { waitUntil: 'load' });
     },
-    evaluate: (fn, request) => page.evaluate(fn, request),
+    evaluate: (fn, argument) => page.evaluate(fn, argument),
   };
 }
 
@@ -140,6 +161,15 @@ export interface CollectOptions {
    * the one signal that can end the flake instead of re-running it.
    */
   readonly readySelector?: string;
+  /**
+   * Globals set on the preview once per document, before the first story.
+   *
+   * Defaults to `DEFAULT_PREVIEW_GLOBALS`, which turns off
+   * `@storybook/addon-a11y`'s automatic scan for this pass and nothing else —
+   * see {@link PreviewGlobals} for what that does and does not touch. Pass `{}`
+   * to leave the preview exactly as the project configured it.
+   */
+  readonly globals?: PreviewGlobals;
 }
 
 export interface StoryOutcome {
@@ -211,6 +241,12 @@ export async function collectStory(
     ...(options.readySelector !== undefined ? { readySelector: options.readySelector } : {}),
   };
 
+  const watch: FinishRequest = {
+    key: FINISHED_RECORD_KEY,
+    event: request.events.storyFinished,
+    storyId,
+  };
+
   const extra: string[] = [];
   let navigated = false;
 
@@ -219,6 +255,18 @@ export async function collectStory(
       await page.goto(url);
       navigated = true;
     }
+
+    // Once per document, and therefore here rather than in a session hook: a
+    // preview that reloads — which is what this whole file is arranged to
+    // prevent, and still happens on the channel-less path — comes back with the
+    // project's own globals, and an addon this pass turned off would be back on
+    // for every story after it.
+    if (navigated) await setGlobals(page, options, request.events.updateGlobals);
+
+    // Before the story is shown, not after: a story that finishes inside the
+    // round trip back to Node would otherwise finish with nobody listening, and
+    // every fast subject would pay the full grace below to learn nothing.
+    await page.evaluate(beginFinishWatch, watch);
 
     let result = await page.evaluate(showStory, request);
 
@@ -234,7 +282,14 @@ export async function collectStory(
         'no Storybook channel on the preview, so this story was shown by reloading the iframe: ' +
           'one navigation per subject, which is the cost a session exists to avoid (ADR-0009)',
       );
+      await setGlobals(page, options, request.events.updateGlobals);
+      await page.evaluate(beginFinishWatch, watch);
       result = await page.evaluate(showStory, request);
+    }
+
+    if (result.status === 'rendered' && result.channel) {
+      const note = await awaitFinish(page, request);
+      if (note !== undefined) extra.push(note);
     }
 
     return {
@@ -334,6 +389,20 @@ export async function collectStories(
   }
 
   return outcomes;
+}
+
+/**
+ * Tell the preview's addons what this pass is for, before it asks for anything.
+ *
+ * Best-effort by construction: a preview with no channel cannot be told, and
+ * that is already reported as the reload cost it is. Nothing is asserted about
+ * the result because an addon that is not installed is the ordinary case — a
+ * global nobody reads is a global nobody reads.
+ */
+async function setGlobals(page: StoryPage, options: CollectOptions, event: string): Promise<void> {
+  const globals = options.globals ?? DEFAULT_PREVIEW_GLOBALS;
+  if (Object.keys(globals).length === 0) return;
+  await page.evaluate(applyGlobals, { event, globals });
 }
 
 /**

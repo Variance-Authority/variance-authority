@@ -1,10 +1,11 @@
 /**
  * A repository, walked once, as file records the graph can be built from.
  *
- * This is the half that needs a disk. [`read.ts`](./read.ts) turns a file's text
+ * This is the half that needs a disk. [`files.ts`](./files.ts) says which paths
+ * exist and what their names mean, [`read.ts`](./read.ts) turns a file's text
  * into specifiers and [`resolve.ts`](./resolve.ts) turns a specifier into a file;
- * this walks, follows what it finds, and decides how little of that work a second
- * run has to repeat.
+ * this follows what those find, and decides how little of that work a second run
+ * has to repeat.
  *
  * ## What it follows, and what it stops at
  *
@@ -38,26 +39,24 @@
  * costs two map lookups, and a scan costs the diff rather than the repository.
  */
 
-import { readdirSync, type Dirent } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { basename, extname, isAbsolute, join, resolve } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { extname, join, resolve } from 'node:path';
 import { indexSource } from '@variance-authority/core/attribute';
 import { digestString, type Digest } from './digest.js';
 import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
-import { MODULE_EXTENSIONS, STYLE_EXTENSIONS, readModule, readStyle } from './read.js';
-import { memoryParseCache, type Parsed, type ParseCache, type ParseKey } from './cache.js';
+import { readModule, readStyle } from './read.js';
+import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitDigests } from './tree.js';
 import { treeShapeOf, type RecordCache } from './reuse.js';
 import { witnessesOf, type Aliases } from './witness.js';
+import { READABLE, isStyle, keyFor, parseWay, seedFiles, type ParseWay } from './files.js';
 import {
-  EXCLUDE_DIRS,
   isRelative,
   kindFor,
   realPath,
   requestOf,
   resolveTo,
   resolversFor,
-  toRepoPath,
   type ResolveOptions,
   type Resolvers,
 } from './resolve.js';
@@ -81,6 +80,25 @@ export interface ScanOptions extends ResolveOptions {
 
   /** Where parses are remembered between runs. In memory when absent. */
   readonly cache?: ParseCache;
+
+  /**
+   * The largest file this scan will open, in bytes. `LARGEST_FILE` when absent.
+   *
+   * A parse costs about fifty times the file's bytes in a native arena, and a
+   * file with many export bindings costs another twenty-five to forty on top of
+   * that for the module record. Measured: a 40 MB barrel peaks at 2.9 GB, a
+   * 40 MB minified bundle at 2.6 GB — and the second one does it with a JS heap
+   * of 127 MB, because the arena is native. `--max-old-space-size` cannot bound
+   * it and `process.memoryUsage()` cannot see it, so in a container it is an
+   * OOM kill with no error and no stack.
+   *
+   * The files that reach that size are built output — a bundle, a generated
+   * client, a vendored dist — and a repository large enough to matter has some.
+   * One of them is the whole memory budget, and nothing in its edges was worth
+   * it. Past the cap the file is recorded `unknown`, which widens selection for
+   * whatever imports it rather than narrowing on a blank.
+   */
+  readonly largestFile?: number;
 
   /**
    * Where whole records are remembered between runs. Nothing when absent.
@@ -110,59 +128,46 @@ export interface ScanOptions extends ResolveOptions {
   readonly parsed?: (file: string, parsed: Parsed) => void;
 }
 
-/** Files whose declarations are not components, matching the component index. */
-const NOT_DECLARING = ['.test.', '.spec.', '.stories.', '.d.ts'];
+/**
+ * One megabyte, which is larger than source people write and smaller than
+ * output machines generate.
+ *
+ * The largest hand-written file in this repository is under a hundred kilobytes
+ * and Material UI's is under two hundred; the files that pass a megabyte are
+ * bundles, and three copies of one built runtime were the whole of a 548 MB
+ * scan that looked like a scale problem. At the cap a single file costs about a
+ * hundred megabytes of arena, which is a budget a scan can hold; at ten times it
+ * the same file costs eight hundred.
+ */
+export const LARGEST_FILE = 1024 * 1024;
 
 /**
- * Everything about a path that changes what its bytes mean, and nothing else.
+ * How many files a scan walks before it drops the resolver's filesystem cache.
  *
- * There are two things. The name picks the dialect handed to the parser and
- * decides whether the file is read as a stylesheet at all, and it decides
- * separately whether the file is indexed for component declarations — a
- * `.test.ts` is not. Read once, here, and carried to both the cache key and the
- * parse: a key and a parse that each work the path out for themselves is the
- * shape that lets them disagree, and the disagreement is silent.
- */
-interface ParseWay {
-  /** Every extension the basename carries: `.ts`, `.test.ts`, `.d.mts`. */
-  readonly suffix: string;
-  readonly declaring: boolean;
-}
-
-function parseWay(file: string): ParseWay {
-  const name = basename(file);
-  // From the *first* dot, not the last. `.d.mts` and `.mts` are different
-  // dialects and `extname` cannot tell them apart.
-  const dot = name.indexOf('.', 1);
-
-  return {
-    suffix: dot === -1 ? '' : name.slice(dot),
-    declaring: !NOT_DECLARING.some((skip) => file.includes(skip)),
-  };
-}
-
-/**
- * Whether this is read as a stylesheet, which the suffix already decided.
+ * `oxc-resolver` remembers what it learned about the tree — which directories
+ * exist, which `package.json` and `tsconfig` govern them, what each directory
+ * holds. That cache is bounded by the tree rather than by the number of
+ * resolutions (1.2 million requests from one file stay flat at 68 MB; the same
+ * 1.2 million spread over 200,000 files plateau at ~318 MB and stop), so it does
+ * not leak — it simply ends up holding the whole repository, natively, where no
+ * heap limit can reach it. Measured on a 200,000-file tree under a 512 MB heap,
+ * three runs each way: **732-738 MiB of peak resident memory with this, 796-816
+ * MiB without**. It is the only lever left that reaches native memory, and it is
+ * what puts the scan under 600 MiB rather than just over it.
  *
- * Derived rather than carried, because the answer is wanted only where a file is
- * actually opened and the way is built for every file in the repository.
- */
-function isStyle(way: ParseWay): boolean {
-  return STYLE_EXTENSIONS.includes(way.suffix.slice(way.suffix.lastIndexOf('.')));
-}
-
-/**
- * The parse cache's key: these bytes, read this way.
+ * It is paid for in time, not saved: dropping the cache costs the `stat` calls
+ * to learn the same directories again, and those runs take 41-51 seconds against
+ * 31. Two thousand files is where that trade sits — five hundred costs another
+ * hundred seconds and saves nothing further, five thousand is four seconds
+ * quicker and gives back thirty-eight mebibytes.
  *
- * Joined with a separator no path can hold rather than hashed, because this runs
- * once per file in the repository on every run — including the runs that open
- * nothing at all ([`cache.ts`](./cache.ts) carries the measurement).
+ * It cannot cost an answer. The loop below is strictly sequential and
+ * `resolveFileSync` returns before the next file is read, so there is never a
+ * resolution in flight when the cache goes — the case the library's own warning
+ * is about. The scan draws the same 1,210,225 edges with the clearing on and
+ * off.
  */
-function keyFor(digest: Digest, way: ParseWay): ParseKey {
-  return `${digest}\u0000${way.suffix}\u0000${way.declaring ? '+' : '-'}`;
-}
-
-const READABLE = new Set([...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS]);
+const FILES_BETWEEN_CLEARS = 2_000;
 
 /**
  * Every file reachable from `dirs`, with its outgoing edges and declarations.
@@ -219,6 +224,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
           cache,
           aliases: tree?.aliases,
           directories: tree?.shape.directories ?? new Map(),
+          largestFile: options.largestFile ?? LARGEST_FILE,
+          remembering: reuse !== undefined,
           ...(digest === undefined ? {} : { digest }),
         })
         : undefined;
@@ -246,6 +253,10 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
     }
+
+    // The three resolvers are clones sharing one cache, so clearing the first
+    // clears the set.
+    if (head % FILES_BETWEEN_CLEARS === FILES_BETWEEN_CLEARS - 1) resolvers.modules.clearCache();
   }
 
   const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
@@ -266,8 +277,37 @@ interface Subject {
   /** Every directory the tree holds, which bounds where a lookup can land. */
   readonly directories: ReadonlyMap<string, Digest>;
 
+  /** The largest file to open, in bytes. */
+  readonly largestFile: number;
+
+  /**
+   * Whether a record cache is going to remember these records.
+   *
+   * The only reader of a record's witnesses is `reuse.set`, and with nothing
+   * reusing, computing them is a directory lookup and two arrays per file that
+   * are allocated and dropped. Measured on a 200,000-file tree: **4.4 seconds of
+   * a 36-second scan**, spent to build something nothing receives.
+   */
+  readonly remembering: boolean;
+
   /** This file's content digest, when it was known without opening the file. */
   readonly digest?: Digest;
+}
+
+/**
+ * A file's size, or nothing when it cannot be asked for.
+ *
+ * Nothing rather than a throw: a file that is gone or unreadable is the read
+ * path's own answer to give, one `catch` below, where it already says so with
+ * the error it got. Failing here would replace that with a worse message for
+ * the same file.
+ */
+async function sized(absolute: string): Promise<number | undefined> {
+  try {
+    return (await stat(absolute)).size;
+  } catch {
+    return undefined;
+  }
 }
 
 async function recordFor(
@@ -278,7 +318,7 @@ async function recordFor(
   /** What the bytes said, for a caller that asked to be handed it. Absent when the file could not be read. */
   readonly read?: Parsed;
 }> {
-  const { absolute, file, root, resolvers, cache } = subject;
+  const { absolute, file, root, resolvers, cache, largestFile } = subject;
   const way = parseWay(file);
   const style = isStyle(way);
 
@@ -289,6 +329,25 @@ async function recordFor(
   let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
 
   if (read === undefined) {
+    // Asked before the file is opened, and only on a miss — a file the digest
+    // already answered for was never a candidate to read. One `stat` against a
+    // parse that cannot be given back: the arena `parseSync` allocates is native
+    // and freed when it decides to free it, so a file read and then regretted
+    // has already cost its fifty times.
+    const size = await sized(absolute);
+    if (size !== undefined && size > largestFile) {
+      return {
+        record: {
+          file,
+          unknown:
+            `${file} is ${size} bytes, over the ${largestFile} this scan opens: ` +
+            'parsing it costs about fifty times that in memory, and it is almost ' +
+            'certainly built output. Raise `largestFile` to read it anyway.',
+        },
+        witnesses: [],
+      };
+    }
+
     let contents: string;
     try {
       contents = await readFile(absolute, 'utf8');
@@ -349,13 +408,15 @@ async function recordFor(
       ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
     },
     read,
-    witnesses: witnessesOf({
-      file,
-      requests: read.requests.map((asked) => asked.value),
-      edges: edges.map((edge) => edge.to),
-      directories: subject.directories,
-      aliases: subject.aliases,
-    }),
+    witnesses: subject.remembering
+      ? witnessesOf({
+        file,
+        requests: read.requests.map((asked) => asked.value),
+        edges: edges.map((edge) => edge.to),
+        directories: subject.directories,
+        aliases: subject.aliases,
+      })
+      : [],
   };
 }
 
@@ -377,54 +438,6 @@ function parsedFrom(file: string, contents: string, way: ParseWay, style: boolea
     ...(declares.length > 0 ? { declares: declares.sort(byCodeUnit) } : {}),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
   };
-}
-
-/** Every readable file under the configured roots, named the way the scan keys them. */
-function seedFiles(root: string, dirs: readonly string[]): readonly string[] {
-  const found: string[] = [];
-  for (const dir of dirs) {
-    const absolute = isAbsolute(dir) ? dir : join(root, dir);
-    // The walk descends into known directories, so it can spell the relative
-    // path as it goes instead of deriving it again from every file it finds.
-    const prefix = absolute === root ? '' : toRepoPath(root, absolute);
-    if (prefix !== undefined) walk(absolute, prefix, found);
-  }
-
-  return found;
-}
-
-/**
- * Every readable file under one directory, unless it is a repository of its own.
- *
- * A checkout inside a checkout — a worktree cut this morning, a vendored clone —
- * is a different repository that happens to sit at this path. Git tracks not one
- * file of it, so every file misses the digest lookup and is opened and parsed on
- * every run; and its files are another repository's copies of these ones, which
- * doubles every count taken over the walk. Neither is a judgement call, and the
- * directory listing already in hand says which directories those are.
- *
- * A seed is never tested this way, only what is found beneath it: a caller that
- * points the scan at a checkout means that checkout.
- */
-function walk(dir: string, prefix: string, into: string[], seeded = true): void {
-  let entries: readonly Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    // A configured directory that is not there contributes nothing. The refusal
-    // that matters is an empty result, and the caller is the one that can say
-    // whether an empty result is wrong.
-    return;
-  }
-
-  if (!seeded && entries.some((entry) => entry.name === '.git')) return;
-
-  for (const entry of entries) {
-    const at = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-    if (entry.isDirectory()) {
-      if (!EXCLUDE_DIRS.includes(entry.name)) walk(join(dir, entry.name), at, into, false);
-    } else if (READABLE.has(extname(entry.name))) into.push(at);
-  }
 }
 
 function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {

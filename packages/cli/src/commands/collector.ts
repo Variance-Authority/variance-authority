@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
+  Diagnostic,
   RenderDocument,
   SemanticSnapshot,
   SubjectRef,
@@ -122,6 +123,18 @@ export type Collected =
        * not.
        */
       readonly stabilization?: readonly string[];
+
+      /**
+       * What the collector noticed about the *way* it read this subject.
+       *
+       * Not about the picture — the document and the snapshot carry that — but
+       * about the reading: a Storybook story that finished by reporting it
+       * failed, a preview that had to be reloaded to show it. Each leaves a real
+       * image a run can compare, and each changes what a person should conclude
+       * from a green verdict, so a run carries them into the subject's record
+       * beside the diagnostics the document raised itself.
+       */
+      readonly diagnostics?: readonly Diagnostic[];
       /**
        * Components the semantic tier named as *roots* of the change.
        *

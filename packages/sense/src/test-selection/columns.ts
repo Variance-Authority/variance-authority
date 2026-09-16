@@ -1,4 +1,13 @@
-import { constants, zstdCompressSync, zstdDecompressSync } from 'node:zlib';
+import {
+  HEAD,
+  NUMBERS,
+  TEXT,
+  compress,
+  decompress,
+  laid,
+  unvarints,
+  varints,
+} from './column-codec.js';
 import { fail } from './format-validation.js';
 
 /**
@@ -44,27 +53,33 @@ export const RUN = 4096;
  */
 export const BLOB_RUN = 512;
 
-const RAW = 0;
-
 /**
- * Tag 1 was brotli, and no file this build opens carries it: `FORMAT` moved
- * with the codec, so a snapshot written before it is refused at the header
- * rather than at a run. The number is not reused.
+ * Runs kept decompressed however large they are.
+ *
+ * A floor rather than the bound: a column of a few enormous runs still answers
+ * a search that walks between a handful of them, and {@link HELD} is what stops
+ * a column of small ones from keeping the file.
  */
-const ZSTD = 2;
-
-const HEAD = 4;
-
-/**
- * The levels, one per kind of run. Above these each stops paying: the varints
- * gain 9 KB across a whole snapshot between 6 and 9 for twice the time, and the
- * blob gets *larger* above 1.
- */
-const NUMBERS = 6;
-const TEXT = 1;
-
-/** Runs kept decompressed. A binary search probes fewer places than this. */
 const CACHED = 8;
+
+/**
+ * Decompressed bytes one column keeps hold of, past the floor above.
+ *
+ * A binary search does not return to the last few places it probed. It returns
+ * to the *first* few: every search starts at the middle of the column, and the
+ * top of that tree is the same handful of rows whoever is being looked up. Over
+ * a 1,910,132 string dictionary in 3,731 runs, every `variance select` measured
+ * here touched 409 to 418 distinct runs and no more — 11% of the column, the
+ * same 11% at 300 changed files and at 6,000. Eight runs cannot hold that, so
+ * each of the 418 was decompressed and dropped and decompressed again: 83,040
+ * decodes at 6,000 changed files for 418 runs of work.
+ *
+ * Sixteen megabytes holds the whole of that hot set — 418 runs of the blob is
+ * 8.2 MB — and bounds what a column that is being read some other way can keep.
+ * A sequential scan of the largest table a snapshot holds never revisits a run
+ * at all, so what it holds is dead weight, and this is the cap on that weight.
+ */
+const HELD = 16 * 1024 * 1024;
 
 /** A column of numbers, read by the row or read whole. */
 export interface WordColumn {
@@ -79,6 +94,40 @@ export interface ByteColumn {
   at(index: number): number;
   all(): Uint8Array;
 }
+
+/**
+ * The bytes one section is stored in, wherever they are.
+ *
+ * A column addresses its runs by offset and never wants the section whole, so
+ * what it needs of the file is a range at a time — which a resident buffer
+ * answers with a subarray and a file on disk answers with a read. The columns
+ * below are written against this and not against a buffer, so the same reader
+ * serves a snapshot somebody already holds and one that stays where it is.
+ */
+export interface Bytes {
+  readonly length: number;
+  /** The bytes in `[from, to)`. Its own array when the section is not resident. */
+  read(from: number, to: number): Uint8Array;
+}
+
+/** Bytes already in memory, answering the same door. */
+export function resident(bytes: Uint8Array): Bytes {
+  return { length: bytes.length, read: (from, to) => bytes.subarray(from, to) };
+}
+
+/**
+ * Where a blob's cuts come from, asked one at a time.
+ *
+ * A read wants three offsets — the string's two ends, and the start of the run
+ * it sits in — and all three are within one run of the offset column of each
+ * other, so asking that column by the row costs one run of it. Asking it for
+ * the array materialized it instead: a single `string(id)` against a two
+ * million string dictionary decompressed all 467 runs of `strings.off`, 7.6 MB,
+ * to answer one name. A thunk is still taken, because a caller that already
+ * holds the offsets has nothing to gain by handing over a column that would
+ * index them.
+ */
+export type Offsets = Pick<WordColumn, 'at'> | (() => Uint32Array);
 
 /**
  * What a column's values have to be true of, asked of one run at a time.
@@ -119,12 +168,12 @@ export function packBlob(blob: Uint8Array, offsets: Uint32Array): Buffer {
 
 /** Read a numeric column, one run at a time. `check` sees each run as it decodes. */
 export function openWords(
-  section: Uint8Array,
+  section: Bytes | Uint8Array,
   rows: number,
   check?: RunCheck<Uint32Array>,
 ): WordColumn {
   const runs = openRuns(section, rows, RUN);
-  const held = cache<Uint32Array>();
+  const held = cache<Uint32Array>(runs.count);
   const read = (index: number): Uint32Array => {
     const values = unvarints(decompress(runs.at(index)), Math.min(RUN, rows - index * RUN));
     check?.(values, index * RUN);
@@ -144,7 +193,7 @@ export function openWords(
       if (index < 0 || index >= rows) fail();
       if (whole !== undefined) return whole[index]!;
       const value = held(Math.floor(index / RUN), read)[index % RUN]!;
-      if (held.missed() > runs.count) all();
+      if (held.overpaid()) all();
       return value;
     },
     all,
@@ -153,12 +202,12 @@ export function openWords(
 
 /** Read a byte column, one run at a time. One byte per row is already a delta of nothing. */
 export function openBytes(
-  section: Uint8Array,
+  section: Bytes | Uint8Array,
   rows: number,
   check?: RunCheck<Uint8Array>,
 ): ByteColumn {
   const runs = openRuns(section, rows, RUN);
-  const held = cache<Uint8Array>();
+  const held = cache<Uint8Array>(runs.count);
   const read = (index: number): Uint8Array => {
     const values = decompress(runs.at(index));
     if (values.length !== Math.min(RUN, rows - index * RUN)) fail();
@@ -179,7 +228,7 @@ export function openBytes(
       if (index < 0 || index >= rows) fail();
       if (whole !== undefined) return whole[index]!;
       const value = held(Math.floor(index / RUN), read)[index % RUN]!;
-      if (held.missed() > runs.count) all();
+      if (held.overpaid()) all();
       return value;
     },
     all,
@@ -198,9 +247,10 @@ export interface Blob {
   all(): Uint8Array;
 }
 
-export function openBlob(section: Uint8Array, offsets: () => Uint32Array): Blob {
+export function openBlob(section: Bytes | Uint8Array, offsets: Offsets): Blob {
   const runs = openRuns(section, undefined, BLOB_RUN);
-  const held = cache<Uint8Array>();
+  const held = cache<Uint8Array>(runs.count);
+  const cut = cuts(offsets);
   let whole: Uint8Array | undefined;
   const all = (): Uint8Array => {
     const parts: Uint8Array[] = [];
@@ -209,25 +259,37 @@ export function openBlob(section: Uint8Array, offsets: () => Uint32Array): Blob 
     return whole;
   };
   const read = (id: number): Uint8Array => {
-    const at = offsets();
-    const start = at[id];
-    const end = at[id + 1];
-    if (start === undefined || end === undefined) fail();
+    const start = cut(id);
+    const end = cut(id + 1);
+    // The bounds were a fact about the whole offset column, proved when
+    // something materialized it. Read one at a time they are three numbers, and
+    // what a reader needs of them is what it is about to index with.
+    if (end < start) fail();
     if (whole !== undefined) {
       if (end > whole.length) fail();
       return whole.subarray(start, end);
     }
     const index = Math.floor(id / BLOB_RUN);
-    const base = at[index * BLOB_RUN]!;
+    const base = cut(index * BLOB_RUN);
     const bytes = held(index, (run) => decompress(runs.at(run)));
-    if (end - base > bytes.length) fail();
+    if (start < base || end - base > bytes.length) fail();
     const found = bytes.subarray(start - base, end - base);
     // The run this points into is its own array, so it stays an answer after
     // the blob behind it materializes.
-    if (held.missed() > runs.count) all();
+    if (held.overpaid()) all();
     return found;
   };
   return Object.assign(read, { all: (): Uint8Array => whole ?? all() });
+}
+
+/** One offset, however the caller spelled where they come from. */
+function cuts(offsets: Offsets): (index: number) => number {
+  if (typeof offsets !== 'function') return (index) => offsets.at(index);
+  return (index) => {
+    const value = offsets()[index];
+    if (value === undefined) fail();
+    return value;
+  };
 }
 
 interface Runs {
@@ -235,140 +297,115 @@ interface Runs {
   at(index: number): Uint8Array;
 }
 
-function openRuns(section: Uint8Array, rows: number | undefined, per: number): Runs {
-  if (section.length < HEAD) fail();
-  const read = new DataView(section.buffer, section.byteOffset, section.byteLength);
-  const count = read.getUint32(0, true);
+function openRuns(section: Bytes | Uint8Array, rows: number | undefined, per: number): Runs {
+  const held = section instanceof Uint8Array ? resident(section) : section;
+  if (held.length < HEAD) fail();
+  const head = held.read(0, HEAD);
+  const count = new DataView(head.buffer, head.byteOffset, head.byteLength).getUint32(0, true);
   const payload = HEAD + (count + 1) * 4;
-  if (payload > section.length) fail();
+  if (payload > held.length) fail();
   if (rows !== undefined && count !== Math.ceil(rows / per)) fail();
+  const index = held.read(HEAD, payload);
+  const read = new DataView(index.buffer, index.byteOffset, index.byteLength);
   const bound = new Uint32Array(count + 1);
-  for (let index = 0; index <= count; index += 1) bound[index] = read.getUint32(HEAD + index * 4, true);
-  if (bound[0] !== 0 || bound[count] !== section.length - payload) fail();
-  for (let index = 1; index <= count; index += 1) if (bound[index]! < bound[index - 1]!) fail();
+  for (let run = 0; run <= count; run += 1) bound[run] = read.getUint32(run * 4, true);
+  if (bound[0] !== 0 || bound[count] !== held.length - payload) fail();
+  for (let run = 1; run <= count; run += 1) if (bound[run]! < bound[run - 1]!) fail();
   return {
     count,
-    at: (index) => {
-      const from = bound[index];
-      const to = bound[index + 1];
+    at: (run) => {
+      const from = bound[run];
+      const to = bound[run + 1];
       if (from === undefined || to === undefined) fail();
-      return section.subarray(payload + from, payload + to);
+      return held.read(payload + from, payload + to);
     },
   };
 }
 
 /**
- * The last few runs read, and a count of the reads that were not among them.
+ * The runs a column has decompressed lately, and whether it has now decompressed
+ * all of them and started over.
  *
- * The count is what tells a column how it is being read. A caller walking rows
- * in order misses once per run and no more; a caller reaching all over the
- * column — a decode resolving every name a snapshot holds — misses on nearly
- * every read, and once it has missed more often than the column has runs it has
- * paid for the whole column already. Materializing then bounds the waste at
- * twice what reading it whole would have cost, and every read after it is free.
+ * What the count is for is telling a column how it is being read, and what it
+ * counts has to be waste rather than work. A caller walking rows in order
+ * decodes each run once and never comes back to it: nothing it does is wasted,
+ * however many runs it reads. A caller reaching all over the column — a decode
+ * resolving every name a snapshot holds — comes back to runs it decoded and
+ * dropped, and once it has decoded the whole column and then paid for it over
+ * again, materializing bounds the waste and every read after it is free.
+ *
+ * Counting *misses* instead — a read that was not among the few held — put the
+ * cliff in two wrong places. A sequential scan misses exactly once per run and
+ * wastes nothing, so the largest table a snapshot holds, one row per test per
+ * precondition and a hundred million rows at a repository's scale, sat a single
+ * read below materializing 413 MB of it. And a binary search probes about
+ * `log2(rows)` places, which on a column of a few thousand rows is more places
+ * than the column has runs, so the cheapest question in the format tripped it on
+ * the way to reading twenty rows.
+ *
+ * ## Why repeats alone are not enough either
+ *
+ * Counting only repeats put the cliff in a third wrong place, and this one shows
+ * up on an ordinary working day. A binary search over a sorted dictionary lands
+ * in a different run on nearly every probe, and the runs it comes back to across
+ * one lookup and the next are the top of the search tree — a few hundred of
+ * them, held by nothing, decoded and dropped and decoded again. Repeats climb
+ * with the number of lookups while the part of the column anyone wants does not
+ * move at all: measured over the 1,910,132 string dictionary of a 200,000 module
+ * snapshot, `variance select` touched 409 distinct runs of 3,731 at 300 changed
+ * files and 418 at 6,000 — 11% either way — and repeated 5,015 and 82,622 times.
+ * Repeats passed the column's own run count somewhere around 300 changed files,
+ * and the reader materialized 70.9 MB of dictionary to serve 11% of it: peak
+ * resident went from 384 MB at 200 changed files to 552 MB at 300, a step rather
+ * than a slope, and 840 MB at 6,000 against a 600 MB ceiling.
+ *
+ * So both halves are asked for. `repeated` says the waste is real, and the count
+ * of *distinct* runs says the column is genuinely wanted whole rather than
+ * hammered in one corner — which is the thing repeats were being read as
+ * evidence of and are not. A reader that never decodes the last run never
+ * materializes, and pays for the corner it is in and nothing else.
  */
-function cache<T>(): {
+function cache<T extends { readonly byteLength: number }>(
+  runs: number,
+): {
   (index: number, make: (index: number) => T): T;
-  readonly missed: () => number;
+  /** The whole column decoded once, and then paid for over again. */
+  readonly overpaid: () => boolean;
 } {
   const held = new Map<number, T>();
-  let missed = 0;
+  let bytes = 0;
+  // One bit per run, against the megabytes the column itself would cost: the
+  // only thing that tells a run being decoded again from one being decoded.
+  // Allocated on the first read, so opening a column stays free.
+  let seen: Uint8Array | undefined;
+  let decoded = 0;
+  let repeated = 0;
   return Object.assign(
     (index: number, make: (index: number) => T): T => {
       const found = held.get(index);
-      if (found !== undefined) return found;
-      missed += 1;
+      if (found !== undefined) {
+        // Insertion order is eviction order, so a read puts its run at the back
+        // and the front is the least recently read of them.
+        held.delete(index);
+        held.set(index, found);
+        return found;
+      }
+      seen ??= new Uint8Array(Math.ceil(runs / 8));
+      const word = index >> 3;
+      const bit = 1 << (index & 7);
+      if (((seen[word] ?? 0) & bit) !== 0) repeated += 1;
+      else decoded += 1;
+      seen[word] = (seen[word] ?? 0) | bit;
       const made = make(index);
       held.set(index, made);
-      // Insertion order, so the first key is the least recently read in.
-      if (held.size > CACHED) held.delete(held.keys().next().value!);
+      bytes += made.byteLength;
+      while (held.size > CACHED && bytes > HELD) {
+        const oldest = held.keys().next().value!;
+        bytes -= held.get(oldest)!.byteLength;
+        held.delete(oldest);
+      }
       return made;
     },
-    { missed: () => missed },
+    { overpaid: () => decoded >= runs && repeated > runs },
   );
-}
-
-function laid(runs: readonly Buffer[]): Buffer {
-  const bound = new Uint32Array(runs.length + 1);
-  let at = 0;
-  for (const [index, run] of runs.entries()) {
-    bound[index] = at;
-    at += run.length;
-  }
-  bound[runs.length] = at;
-  const head = Buffer.alloc(HEAD);
-  head.writeUInt32LE(runs.length);
-  return Buffer.concat([head, Buffer.from(bound.buffer), ...runs]);
-}
-
-function compress(bytes: Uint8Array, level: number): Buffer {
-  const packed = zstdCompressSync(bytes, {
-    params: {
-      [constants.ZSTD_c_compressionLevel]: level,
-      [constants.ZSTD_c_contentSizeFlag]: 1,
-    },
-  });
-  // Incompressible runs exist — a column of digest ids is close to random — and
-  // storing one costs a byte rather than the expansion a frame would add.
-  return packed.length < bytes.length
-    ? Buffer.concat([Buffer.of(ZSTD), packed])
-    : Buffer.concat([Buffer.of(RAW), bytes]);
-}
-
-function decompress(run: Uint8Array): Uint8Array {
-  const tag = run[0];
-  const body = run.subarray(1);
-  if (tag === RAW) return body;
-  if (tag !== ZSTD) fail();
-  try {
-    return zstdDecompressSync(body);
-  } catch {
-    // A stream this build did not write. The caller asked for a column of a
-    // coverage artifact and what it has is not one, which is the same answer
-    // every other malformed byte in the file gets.
-    return fail();
-  }
-}
-
-function varints(values: Uint32Array, from: number, to: number): Buffer {
-  const out = Buffer.allocUnsafe((to - from) * 5);
-  let at = 0;
-  let previous = 0;
-  for (let index = from; index < to; index += 1) {
-    const value = values[index]!;
-    const delta = value - previous;
-    previous = value;
-    let zigzag = ((delta << 1) ^ (delta >> 31)) >>> 0;
-    while (zigzag > 0x7f) {
-      out[at++] = (zigzag & 0x7f) | 0x80;
-      zigzag >>>= 7;
-    }
-    out[at++] = zigzag;
-  }
-  return out.subarray(0, at);
-}
-
-function unvarints(bytes: Uint8Array, rows: number): Uint32Array {
-  const out = new Uint32Array(rows);
-  let at = 0;
-  let previous = 0;
-  for (let row = 0; row < rows; row += 1) {
-    let raw = 0;
-    let shift = 0;
-    for (;;) {
-      const byte = bytes[at];
-      if (byte === undefined) fail();
-      at += 1;
-      raw |= (byte & 0x7f) << shift;
-      if (byte < 0x80) break;
-      shift += 7;
-      if (shift > 28) fail();
-    }
-    // Modulo 2^32 throughout, which is what makes a delta over the whole
-    // unsigned range decode back to the value it was taken from.
-    previous = (previous + ((raw >>> 1) ^ -(raw & 1))) >>> 0;
-    out[row] = previous;
-  }
-  if (at !== bytes.length) fail();
-  return out;
 }

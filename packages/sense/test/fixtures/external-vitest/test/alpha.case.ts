@@ -5,6 +5,6 @@ it('takes the alpha path', () => {
   expect(decide('alpha')).toBe('A');
 });
 
-it.skip('makes the file observation visibly partial', () => {
+it.skip('is skipped, and so never reaches the B branch this file is not selected for', () => {
   expect(decide('beta')).toBe('B');
 });

@@ -332,11 +332,15 @@ describe('the Jest reporter', () => {
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
       ['test/alpha.case.js', true],
-      ['test/beta.case.js', false],
+      // A `pending` assertion is a skipped one, and it leaves the file's record
+      // usable: see `usableOutcome` in `vitest.ts`.
+      ['test/beta.case.js', true],
       ['test/gamma.case.js', true],
     ]);
+    // The test file, and nothing the instrument could see inside: `src/pick.js`
+    // is instrumented, so its text is a digest on its own row rather than a
+    // precondition repeated under every test that reached it.
     expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
-      'src/pick.js',
       'test/alpha.case.js',
     ]);
     const [module] = coverage.modules;

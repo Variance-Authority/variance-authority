@@ -1,4 +1,4 @@
-import type { ShowRequest, ShowResult, StoryPage } from './preview.js';
+import type { StoryPage } from './preview.js';
 
 /**
  * Driving a preview, against a Storybook that is not one.
@@ -44,6 +44,8 @@ export type Behaviour =
   | 'silent'
   | 'empty'
   | 'never-settles'
+  | 'never-finishes'
+  | 'finishes-badly'
   | 'throws-on-select'
   | 'exception'
   | 'missing'
@@ -54,6 +56,8 @@ export interface FakePreview {
   readonly emitted: readonly { readonly event: string; readonly payload: unknown }[];
   /** Handlers still attached. A session that leaks these answers for the wrong story. */
   listeners(): number;
+  /** Whether the preview ever fired this event — what the driver heard, not what it asked for. */
+  heard(event: string): boolean;
   select(storyId: string): void;
   dispose(): void;
 }
@@ -72,8 +76,15 @@ export function fakePreview(
   root.id = 'storybook-root';
   document.body.replaceChildren(root);
 
+  const fired = new Set<string>();
+
   const fire = (event: string, payload: unknown): void => {
+    fired.add(event);
     for (const handler of handlers.get(event) ?? []) handler(payload);
+  };
+
+  const finishes = (storyId: string, status: string, delayMs: number): void => {
+    pending.push(setTimeout(() => fire('storyFinished', { storyId, status }), delayMs));
   };
 
   const paragraph = (text: string): HTMLElement => {
@@ -90,6 +101,10 @@ export function fakePreview(
       case 'renders':
         root.replaceChildren(paragraph(storyId));
         pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        // Storybook 8.3 and later emit this a phase later, once `afterEach` and
+        // reporting are done. The gap is the whole reason a driver must wait for
+        // it — see `ShowEvents.storyFinished`.
+        finishes(storyId, 'success', 3);
         break;
       case 'declares':
         // A component that keeps working after Storybook is done with it: the
@@ -97,6 +112,7 @@ export function fakePreview(
         // that treats `storyRendered` as the finish line captures the gap.
         root.replaceChildren(paragraph(storyId));
         pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        finishes(storyId, 'success', 3);
         pending.push(
           setTimeout(() => {
             const marker = document.createElement('div');
@@ -112,6 +128,21 @@ export function fakePreview(
         break;
       case 'empty':
         root.replaceChildren();
+        break;
+      case 'finishes-badly':
+        // Rendered, finished, and failed: a `play` that threw after the last
+        // paint, or an `afterEach` that raised. Storybook's own way of saying so
+        // is the status on the finish, and the picture is on screen either way.
+        root.replaceChildren(paragraph(storyId));
+        pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
+        finishes(storyId, 'error', 3);
+        break;
+      case 'never-finishes':
+        // Rendered and then stuck in a later phase — the shape of a story whose
+        // `afterEach` never returns. Storybook would eventually reload the
+        // preview over this one; the driver must not wait forever for it.
+        root.replaceChildren(paragraph(storyId));
+        pending.push(setTimeout(() => fire('storyRendered', storyId), 1));
         break;
       case 'never-settles':
         root.replaceChildren(paragraph(storyId));
@@ -167,11 +198,16 @@ export function fakePreview(
   return {
     emitted,
     listeners: () => [...handlers.values()].reduce((total, set) => total + set.size, 0),
+    heard: (event: string) => fired.has(event),
     select,
     dispose: () => {
       for (const timer of pending) clearTimeout(timer);
       for (const timer of repeating) clearInterval(timer);
       Reflect.deleteProperty(window, '__STORYBOOK_PREVIEW__');
+      // What the page function learned about *this* preview, and no other. The
+      // window outlives a fake, so leaving it set would let one test's Storybook
+      // decide how the next test's driver waits.
+      Reflect.deleteProperty(window, '__variance_authority_story_finished__');
       document.body.classList.remove('sb-show-errordisplay');
       document.body.replaceChildren();
     },
@@ -199,14 +235,12 @@ export function fakePage(preview: FakePreview | null): FakePage {
       const id = new URL(url).searchParams.get('id');
       if (preview !== null && id !== null) preview.select(id);
     },
-    evaluate: async (fn, request) => ship(fn)(request),
+    evaluate: async (fn, argument) => ship(fn)(argument),
   };
 }
 
 /** Rebuild a page function from its own source, exactly as Playwright ships it. */
-export function ship(
-  fn: (request: ShowRequest) => Promise<ShowResult>,
-): (request: ShowRequest) => Promise<ShowResult> {
+export function ship<A, R>(fn: (argument: A) => R | Promise<R>): (argument: A) => R | Promise<R> {
   const rebuilt: unknown = new Function(`return (${fn.toString()});`)();
-  return rebuilt as (request: ShowRequest) => Promise<ShowResult>;
+  return rebuilt as (argument: A) => R | Promise<R>;
 }

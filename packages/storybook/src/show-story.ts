@@ -24,25 +24,17 @@ import type { Readiness, ShowRequest, ShowResult, ShowStatus } from './preview-p
  * weaker claim and a false one.
  *
  * **The subject outranks the framework.** `storyRendered` means Storybook
- * believes the story function returned. It does not mean the *application*
- * finished: a component that fetches on mount, defers work to an effect, or
- * animates in is still moving when that event fires, and a capture taken then is
- * a capture of a component mid-flight. Only the subject knows when it has
- * settled. So a project may name a readiness marker — a `data-testid` its own
- * code attaches once it considers itself done — and a marker the application
- * attached is strictly stronger evidence than any event the framework can emit,
- * and stronger still than sampling markup and hoping it stopped changing.
+ * believes the story function returned, not that the *application* settled — a
+ * component that fetches on mount or animates in is still moving when it fires.
+ * So a project may name a readiness marker its own code attaches, and a marker
+ * the application attached is stronger evidence than any event the framework can
+ * emit. The marker is a contract, and a contract that can be quietly substituted
+ * is not one: a configured marker that never arrives is reported as a timeout
+ * naming it, never as quiescent markup. A project that asked to be asked,
+ * answered with a guess, is worse off than one that never asked.
  *
- * That is worth more than one correct capture. A project that can *declare*
- * readiness can fix an instability at its source, once, instead of paying for
- * repeated captures and retries forever.
- *
- * The marker is therefore a contract, and a contract that can be quietly
- * substituted is not one: when a marker is configured and does not arrive, this
- * reports a timeout naming it. It never falls back to markup quiescence. A
- * project that asked to be asked, answered with a guess, is worse off than one
- * that never configured a marker at all — it would believe it had the strong
- * signal while receiving the weak one.
+ * Handing a story back is not the same as making the switch to the next one
+ * safe; `story-finished.ts` holds that half, and says why it is not here.
  */
 
 interface StoryChannel {
@@ -77,26 +69,38 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
   /**
    * Stop reading the page the moment an answer has been handed back.
    *
-   * Both polls below run on their own `setTimeout` chain, and either can still
-   * be mid-flight when the channel answers first. That is not an edge case, it
-   * is the ordinary first story of a session: it arrives already selected, so
-   * the `already-rendered` markup poll starts, and `storyRendered` lands between
-   * its two samples. Nothing used to stop the chain — it kept calling
-   * `querySelector` on its own timer until its own deadline, long after the
-   * result was out.
-   *
-   * In a browser that costs a few wasted polls on a page about to be driven
-   * elsewhere, which is why it survived. Off a browser it is a timer that
-   * outlives the DOM it reads: the straggler wakes up in a torn-down
-   * environment, `document` is not a binding any more, and the `ReferenceError`
+   * Both polls below run on their own `setTimeout` chain, and either can still be
+   * mid-flight when the channel answers first. That is the ordinary first story of
+   * a session: it arrives already selected, so the `already-rendered` markup poll
+   * starts, and `storyRendered` lands between its two samples. In a browser an
+   * unstopped chain costs a few wasted `querySelector` calls; off a browser it is
+   * a timer that outlives the DOM it reads, and the straggler's `ReferenceError`
    * is attributed to whichever subject happened to be running.
    *
-   * `abandonPolls` is called by `finish`, so the polls stop exactly where the
-   * answer stopped. A chain that reaches this guard leaves its promise pending
-   * forever and that is correct: its result was going to be discarded, and the
-   * only caller is a `.then(finish)` that would no-op.
+   * `abandonPolls` is called by `finish`, so the polls stop where the answer did.
+   * A chain that reaches this guard leaves its promise pending forever, which is
+   * correct: its only caller is a `.then(finish)` that would no-op.
    */
   let handedBack = false;
+  /**
+   * The page's monotonic clock, for measuring how long something has taken.
+   *
+   * Deliberately not `Date.now()`. This runs inside the subject's own page, and the
+   * wall clock there belongs to whoever is testing: pinning it is the ordinary fix
+   * for a story built from `Date.now()`, and none of this project's business. Not
+   * breaking when they do is. A deadline written as `Date.now() + budget` never
+   * arrives on a page whose `Date` has stopped, so every poll here would spin until
+   * the driver's own timeout. Which pins this survives is *A pinned clock* in the
+   * package README, where an adopter will look for it.
+   *
+   * `performance.now()` is monotonic, measured from the document's own origin, and
+   * where it is somehow absent the wall clock still beats no deadline at all.
+   */
+  const since = (): number =>
+    typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+
   const polls: ReturnType<typeof setTimeout>[] = [];
 
   const pollAgain = (tick: () => void): void => {
@@ -160,7 +164,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     notes: readonly string[],
   ): Promise<ShowResult> =>
     new Promise<ShowResult>((resolve) => {
-      const deadline = Date.now() + budgetMs;
+      const deadline = since() + budgetMs;
       let previous: string | null = null;
 
       const tick = (): void => {
@@ -182,7 +186,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
           previous = markup;
         }
 
-        if (Date.now() >= deadline) {
+        if (since() >= deadline) {
           resolve(
             root === null
               ? result('no-root', 'none', {
@@ -227,7 +231,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     notes: readonly string[],
   ): Promise<ShowResult> =>
     new Promise<ShowResult>((resolve) => {
-      const deadline = Date.now() + budgetMs;
+      const deadline = since() + budgetMs;
 
       const tick = (): void => {
         if (handedBack) return;
@@ -258,7 +262,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
           return;
         }
 
-        if (Date.now() >= deadline) {
+        if (since() >= deadline) {
           const missingRoot =
             rootSelector() === null ? `, and nothing mounted into ${request.roots.join(' or ')}` : '';
           resolve(
@@ -308,15 +312,29 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     /** Whether Storybook has said the story function returned. */
     let signalled = false;
 
+    const release = (value: ShowResult, notes: readonly string[] = []): void => {
+      // Listeners outlive the story: the page is not reloaded between subjects,
+      // so a handler left attached would answer for the *next* story as well.
+      for (const entry of listeners) channel.off(entry.event, entry.handler);
+      resolve(notes.length === 0 ? value : { ...value, warnings: [...value.warnings, ...notes] });
+    };
+
+    /**
+     * Hand the result back.
+     *
+     * A read is over when the driver has the result — but the *switch* to the
+     * next story is not safe yet, because `storyRendered` is not the end of a
+     * render. That wait is the driver's, in Node, over the record
+     * `story-finished.ts` keeps; nothing here holds a result back for it. A
+     * grace timer scheduled in page scope would be a timer on a page whose
+     * clock the test may own, which is the one place a deadline must not live.
+     */
     const finish = (value: ShowResult): void => {
       if (settled) return;
       settled = true;
       if (timer !== undefined) clearTimeout(timer);
       abandonPolls();
-      // Listeners outlive the story: the page is not reloaded between subjects,
-      // so a handler left attached would answer for the *next* story as well.
-      for (const entry of listeners) channel.off(entry.event, entry.handler);
-      resolve(value);
+      release(value);
     };
 
     const listen = (event: string, handler: (payload: unknown) => void): void => {
@@ -386,6 +404,7 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       // was configured to prevent. The marker poll closes this out.
       signalled = true;
     });
+
 
     // No id filter on the exception events: Storybook sends a serialized error,
     // not a story id, and only one story is rendering at a time.

@@ -1,14 +1,18 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import type { Page } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 import {
   testSelectionProbes,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import { createExecutionRecorder } from './execution.js';
+import {
+  createExecutionRecorder,
+  varianceCompletedFixtures,
+  type ExecutionRecorder,
+} from './execution.js';
 
 const INSTRUMENTATION = 'sense:instrument/presence-v4';
 
@@ -41,6 +45,33 @@ async function instrumented(
   const plugin = testSelectionProbes({ root, cacheRoot });
   plugin.transform(SOURCE, module);
   return { cacheRoot, id: 'price.js', ordinals: [0, 1] };
+}
+
+/**
+ * End one test the way the runner ends it, through the fixture that is supposed
+ * to be there for every spec.
+ *
+ * The bundle is asked for the fixture rather than the module, because what is
+ * under test is the wiring: a suite gets whatever `varianceFixtures` carries,
+ * and a marking function no fixture reaches marks nothing.
+ */
+async function ended(
+  recorder: ExecutionRecorder,
+  owner: string,
+  status: TestInfo['status'],
+): Promise<void> {
+  const declared = varianceCompletedFixtures.varianceCompleted as unknown as readonly [
+    (
+      args: { varianceRecorder: ExecutionRecorder | undefined },
+      use: () => Promise<void>,
+      testInfo: TestInfo,
+    ) => Promise<void>,
+    { auto?: boolean },
+  ];
+  await declared[0]({ varianceRecorder: recorder }, async () => {}, {
+    file: resolve(process.cwd(), owner),
+    status,
+  } as TestInfo);
 }
 
 describe('a Playwright worker records what its specs executed', () => {
@@ -84,6 +115,49 @@ describe('a Playwright worker records what its specs executed', () => {
       await recorder.close();
 
       expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(false);
+    });
+  });
+
+  it('asks the runner about every test, not only the ones that destructured a fixture', () => {
+    // The whole of the bug this covers: the verdict used to be read in the
+    // teardown of `variance`, which a spec on the journey path never asks for.
+    // A fixture that is not `auto` is a fixture some specs simply do not have.
+    expect(varianceCompletedFixtures.varianceCompleted[1]).toEqual({ auto: true });
+  });
+
+  it('retires a failed spec that never destructured `variance`', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
+        owner,
+      );
+      await ended(recorder, owner, 'failed');
+      await recorder.close();
+
+      expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(false);
+    });
+  });
+
+  it('leaves a spec whose tests all passed whole', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
+        owner,
+      );
+      await ended(recorder, owner, 'passed');
+      await recorder.close();
+
+      expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(true);
     });
   });
 

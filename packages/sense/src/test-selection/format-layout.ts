@@ -29,8 +29,18 @@ export const MODEL = 3;
  * release older reads as corrupt rather than as old. Adding a section is
  * therefore a move of this number, even though every section that was there
  * still means what it did.
+ *
+ * And again when the block-to-test relation stopped being stored as the pairs
+ * themselves. A region names one interned set out of a pool the whole file
+ * shares, so `blocks.tests` and `crossings.test` are gone rather than changed,
+ * and the sections that replace them hold a different thing entirely.
+ *
+ * And once more for what loaded a region, which was the last relation still
+ * stored as its pairs. It is a set of the same tests the crossings are, so it
+ * names one out of the same pool: `blocks.loaded` and `loaded.test` are gone
+ * and `blocks.loadedSet` holds one id a region in their place.
  */
-export const FORMAT = 6;
+export const FORMAT = 8;
 
 const ALIGNMENT = 8;
 export const NO_OWNER = 0xffff_ffff;
@@ -68,10 +78,10 @@ export const NAMES = [
   'blocks.start',
   'blocks.end',
   'blocks.source',
-  'blocks.tests',
-  'crossings.test',
-  'blocks.loaded',
-  'loaded.test',
+  'blocks.set',
+  'blocks.loadedSet',
+  'sets.blob',
+  'sets.off',
 ] as const;
 
 export interface Section {

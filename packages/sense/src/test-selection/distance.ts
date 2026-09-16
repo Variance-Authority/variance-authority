@@ -454,11 +454,11 @@ function enteredByTest(coverage: TestCoverageView): ReadonlyMap<number, Readonly
     const first = coverage.moduleBlocks.at(module);
     const end = coverage.moduleBlocks.at(module + 1);
     for (let block = first; block < end; block += 1) {
-      for (let at = coverage.blockTests.at(block); at < coverage.blockTests.at(block + 1); at += 1) {
-        add(coverage.crossingTest.at(at), file);
+      for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
+        add(test, file);
       }
-      for (let at = coverage.blockLoaded.at(block); at < coverage.blockLoaded.at(block + 1); at += 1) {
-        add(coverage.loadedTest.at(at), file);
+      for (const test of coverage.crossings.members(coverage.blockLoadedSet.at(block))) {
+        add(test, file);
       }
     }
   }

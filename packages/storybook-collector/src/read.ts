@@ -202,6 +202,19 @@ export async function readStory(
     ...(acquired.stabilization !== undefined && acquired.stabilization.length > 0
       ? { stabilization: acquired.stabilization }
       : {}),
+    // What the preview said about the reading, carried rather than dropped. One
+    // code, because the adapter's warnings are sentences for a person and
+    // inventing a taxonomy here would mean parsing them; identity includes the
+    // message, so two different things said are two diagnostics.
+    ...(outcome.warnings.length > 0
+      ? {
+          diagnostics: outcome.warnings.map((message) => ({
+            severity: 'warn' as const,
+            code: 'story-preview',
+            message,
+          })),
+        }
+      : {}),
     ...(source !== undefined ? { source } : {}),
     // No `causes`. Naming the roots of a change needs the *previous* snapshot,
     // and a durable run has a baseline image without one — so ranking falls back

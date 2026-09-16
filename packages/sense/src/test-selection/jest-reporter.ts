@@ -171,20 +171,39 @@ async function coverageTest(
     });
   }
   let placed = true;
+  // Whether the file left a journal at all. Its `afterAll` is what writes one,
+  // and a runner that has no test to run in a file runs none of the file's
+  // hooks — so a file whose every test is skipped is announced as finished,
+  // counts as a usable outcome below, and carries no record of the modules its
+  // collection did enter. Recorded whole, that empty reach excludes the file
+  // from every diff there will ever be.
+  let recorded = false;
   for (const journal of journals) {
     if (projectPath(config.root, journal.testFile) !== file) continue;
+    recorded = true;
     for (const entered of journal.modules) {
       const module = modules.get(entered.id);
       if (module === undefined) placed = false;
-      else preconditions.push({ name: module.file, digest: module.sourceDigest });
+      // Only what the instrument could not see inside, as `vitest.ts` says at
+      // more length: an instrumented module already carries its own digest.
+      else if (!module.instrumented) {
+        preconditions.push({ name: module.file, digest: module.sourceDigest });
+      }
     }
   }
+  // `passed` or skipped, for the reason `vitest.ts` gives beside `usableOutcome`:
+  // a test that did not run cannot fail, and every way one stops being skipped
+  // edits either the test file or a module its collection entered, both of which
+  // already select it. A failure or an error is a different thing and still
+  // spoils the file — it recorded only as far as it got.
   const complete =
     placed &&
-    !result.skipped &&
+    recorded &&
     result.testExecError === undefined &&
     result.testResults.length > 0 &&
-    result.testResults.every((assertion) => assertion.status === 'passed');
+    result.testResults.every(
+      (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
+    );
   return { file, complete, preconditions };
 }
 

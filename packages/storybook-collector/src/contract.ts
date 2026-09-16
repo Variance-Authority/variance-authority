@@ -1,5 +1,6 @@
 import type { CallSiteResolver, SourceIndex } from '@variance-authority/core/attribute';
 import type {
+  Diagnostic,
   RenderDocument,
   SemanticSnapshot,
   SubjectRef,
@@ -118,6 +119,18 @@ export type Collected =
        * person reads.
        */
       readonly stabilization?: readonly string[];
+
+      /**
+       * What the adapter noticed about the *way* this subject was produced.
+       *
+       * Not about the picture — the document and the snapshot carry that — but
+       * about the reading: a story Storybook finished by reporting it failed, a
+       * preview that had to be reloaded to show it, a render that never
+       * finished. Each of those leaves a real image that a run can compare, and
+       * each of them changes what a person should conclude from a green verdict,
+       * so they travel with the subject rather than being dropped at the seam.
+       */
+      readonly diagnostics?: readonly Diagnostic[];
     }
   | { readonly ok: false; readonly because: string };
 

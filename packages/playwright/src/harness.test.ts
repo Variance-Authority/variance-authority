@@ -147,6 +147,44 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness', () => {
   });
 });
 
+describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a document the harness did not open', () => {
+  /**
+   * The agent has to be in the *next* document too.
+   *
+   * A session is one load and N subjects, and that is the whole economic
+   * argument — but the page is not this harness's to control. A Storybook
+   * preview reloads itself when a render it is replacing is still pending
+   * (`StoryRender.teardown`), a subject can set `location`, a meta refresh can
+   * fire. Installed with `addScriptTag` alone the agent goes with the document,
+   * and every subject after that point is refused with `missing page agent
+   * __variance_authority_page_agent__` — truthful, and useless, because the
+   * capture path is gone rather than the capture.
+   *
+   * `page.reload()` here stands for all of those: it is the cheapest way to
+   * produce the one condition they share, a document this harness did not open.
+   */
+  it('captures from a document that replaced the one it injected into', async () => {
+    const harness = await createHarness(OPTIONS);
+
+    try {
+      const before = await harness.capture('alpha', 'base');
+      expect(before.environment.conditions['renders']).toBe(1);
+
+      await harness.page.reload({ waitUntil: 'load' });
+
+      const after = await harness.capture('beta', 'base');
+
+      // The counter lives in the agent's closure, so a 1 here is the assertion
+      // twice over: the agent is present, and it is a *new* agent — the page
+      // really did change documents rather than the reload being a no-op.
+      expect(after.environment.conditions['renders']).toBe(1);
+      expect(after.subject.id).toBe('fixture:beta');
+    } finally {
+      await harness.close();
+    }
+  }, 60_000);
+});
+
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — failures', () => {
   it('says which global was missing rather than timing out', async () => {
     await expect(

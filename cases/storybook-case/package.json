@@ -6,6 +6,7 @@
   "scripts": {
     "storybook": "storybook dev -p 6199 --no-open --quiet",
     "build-storybook": "storybook build -o storybook-static --quiet",
+    "build-storybook:a11y": "storybook build -c .storybook-a11y -o storybook-a11y --quiet",
     "variance": "node ../../packages/cli/dist/bin.js",
     "build-storybook:changed": "VITE_CASE_MUTATION=wide-button storybook build -o storybook-changed --quiet"
   },
@@ -15,6 +16,7 @@
     "react-dom": "^19"
   },
   "devDependencies": {
+    "@storybook/addon-a11y": "^9.1.13",
     "@storybook/react-vite": "^9.1.13",
     "@variance-authority/cli": "workspace:^",
     "@variance-authority/core": "workspace:^",

@@ -48,10 +48,10 @@ export function validateCoverageShape(rows: CoverageRows): void {
     rows['modules.source'] !== modules ||
     rows['modules.instrumented'] !== modules ||
     rows['modules.blocks'] !== modules + 1 ||
-    rows['blocks.tests'] !== blocks + 1 ||
-    rows['crossings.test'] === undefined ||
-    rows['blocks.loaded'] !== blocks + 1 ||
-    rows['loaded.test'] === undefined
+    rows['blocks.set'] !== blocks ||
+    rows['blocks.loadedSet'] !== blocks ||
+    (rows['sets.off'] ?? 0) - 1 < 0 ||
+    rows['sets.blob'] === undefined
   ) fail();
   for (const name of BLOCK_COLUMNS) if (rows[name] !== blocks) fail();
 }

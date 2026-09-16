@@ -123,7 +123,8 @@ collector package when the CLI should own that composition.
 | `readySelector` | none | CSS selector for a marker the story attaches once it has settled (see Readiness, below). When set, it is the only signal that can mark a story `rendered` |
 | `timeoutMs` | `15000` | budget for one story to become ready |
 | `pollMs` | `50` | markup sampling interval, on the fallback path only |
-| `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, storyRendered, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
+| `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, updateGlobals, storyRendered, storyFinished, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
+| `globals` | `{ a11y: { manual: true } }` | Storybook globals to set on the preview, once per document, before any story is shown. The default stands `@storybook/addon-a11y`'s automatic scan down for this pass. Pass `{}` to change nothing |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
 | `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | the CSS selectors that identify Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to carry the error |
 | `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
@@ -144,6 +145,76 @@ below that to markup quiescence — the mounted root's markup being unchanged
 across two polls, `pollMs` apart. Either fallback is recorded as such in the
 outcome's `readiness` field, so a report can tell a declared-ready capture from
 a guessed one.
+
+## The end of a render
+
+`storyRendered` is not it. Storybook emits that event at `completed`, and a
+render then goes on through `afterEach` to `finished`, where it emits
+`storyFinished`. Ask Storybook to show a different story while a render is still
+in one of the phases between the two and it treats that render as stuck: three
+macrotask ticks of grace, then it reloads the whole preview.
+
+A reload empties the page. Whatever your harness injected is gone, and the run
+does not slow down — it stops observing. So `collectStory` hands a story back at
+`storyRendered`, and waits for `storyFinished` before showing the next one. You
+do not configure any of this; it is why a story with a slow `afterEach` costs
+that story's own time and nothing after it.
+
+Two things put work in that phase, and both are ordinary:
+
+- `@storybook/addon-a11y` with `test` set runs an axe scan there, on every story.
+- A story-level or global `afterEach` annotation.
+
+Storybook has emitted `storyFinished` since 8.3. On anything older, the first
+story of a session waits out `timeoutMs` to establish that the event is never
+coming, and the rest of the run pays nothing.
+
+Nor is there a wait for a story the preview is already showing. Storybook
+re-renders only a story it is not already displaying, so asking for the same
+subject twice in one page — which is how an order-dependent reading is told
+apart from a regression — is answered by the render that already finished, and
+that finish is remembered rather than waited for again.
+
+That event also carries how the render ended. A story whose `play` threw after
+the last paint, or whose `afterEach` raised, finishes with status `error`, and
+the outcome carries a warning saying so. The status is not the outcome's status:
+the picture is on screen and a capture of it is a capture of what the component
+did, so the story is still `rendered`. What the warning is for is the baseline —
+a subject that failed its own checks is not one to record as the way it should
+look.
+
+## What a pass tells the preview
+
+Before the first story is shown, the session emits `updateGlobals` on the
+preview's channel with `{ a11y: { manual: true } }`. That is the addon's own
+switch — the one the manager's Accessibility panel flips — and it turns off the
+axe scan `@storybook/addon-a11y` otherwise runs in `afterEach` on every story.
+The pass pays for that scan twice, once to run it and once to wait out the phase
+it runs in, and reads its answer never.
+
+This does not replace axe, and nothing here claims to. What it suppresses is a
+scan inside a document this session opened and will close; channel globals die
+with that document, and nothing in your project's configuration is touched. If
+you want your accessibility run to stay in the visual pass, pass `globals: {}`.
+
+The setting is applied over the channel after navigation, so the first story of a
+session — already selected by the URL that loaded the preview — may still run one
+scan. Set `globals` to whatever else your preview needs configured for the pass,
+such as a theme: it replaces the default rather than merging with it.
+
+## A pinned clock
+
+A story built from `Date.now()` renders a different picture every run, so
+pinning the clock is an ordinary fix. Which pin this survives, in Playwright's
+vocabulary:
+
+- `page.clock.setFixedTime` and `page.clock.setSystemTime` replace `Date` and
+  leave timers and `performance` running. **Supported.** Nothing here measures
+  anything with `Date`.
+- `page.clock.install` also replaces `setTimeout` and `performance`, and advances
+  only when you tick it. **Not supported while it is stopped**: a page whose
+  timers never fire cannot render a story, and no deadline the driver holds can
+  change that. Tick the clock, or install it after the capture.
 
 ## No Storybook-specific denylist
 

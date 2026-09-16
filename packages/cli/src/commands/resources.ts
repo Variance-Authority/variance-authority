@@ -156,6 +156,13 @@ function cacheRoot(kind: string): string {
  * With `relations`, a changed file the journal holds no row for is asked of
  * the graph: its importers, and theirs, until one has a row. Without, that
  * file stays `unread` and the run keeps every subject.
+ *
+ * Every changed module is checked against the text it was recorded from before
+ * its line ranges are read, because a snapshot is recorded by being *run* and a
+ * suite is run over a dirty tree far more often than a clean one. Without that
+ * check the hunks of this diff are charged to whatever region happens to sit at
+ * those numbers now — a different region, belonging to different subjects, or to
+ * none at all, which is an exclusion nobody checked.
  */
 export async function journeyAgainst(
   root: string,
@@ -164,9 +171,13 @@ export async function journeyAgainst(
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const file = selection.testCoverageFile(root);
+  const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
 
   try {
-    return await selection.narrowByExecution(file, diff, relations === undefined ? {} : { relations });
+    return await selection.narrowByExecution(file, diff, {
+      sourceAt,
+      ...(relations === undefined ? {} : { relations }),
+    });
   } catch (error) {
     if (isMissing(error)) return undefined;
     throw new OperatorError(

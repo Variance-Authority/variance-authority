@@ -60,19 +60,37 @@ describe('the Jest integration', () => {
 -    return 'G';
 +    return 'Gamma';`)).resolves.toEqual(['test/gamma.case.ts']);
 
+    // `alpha.case.ts` holds an `it.skip` whose body would reach the `B` branch,
+    // and it is still not selected when that branch changes: a skipped test does
+    // not run, so it cannot fail, and excluding the file it sits in costs
+    // nothing. Removing the `.skip` is an edit to `test/alpha.case.ts`, which is
+    // a precondition of alpha's own record, so the record stops applying the
+    // moment that test could run.
+    const betaLine = source.slice(0, source.indexOf("return 'B'")).split('\n').length;
+    const onB = await selectTestFiles(coverageFile, `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -${betaLine},1 +${betaLine},1 @@
+-  return 'B';
++  return 'Beta';`);
+    expect(onB).toContain('test/beta.case.ts');
+    expect(onB).not.toContain('test/alpha.case.ts');
+
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.modules.map((module) => module.file)).toEqual(['src/decide.ts']);
+    // Whole, skipped test and all — see `usableOutcome` in `vitest.ts` for why a
+    // skip leaves the record usable as evidence where a failure does not.
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
-      ['test/alpha.case.ts', false],
+      ['test/alpha.case.ts', true],
       ['test/beta.case.ts', true],
       ['test/gamma.case.ts', true],
     ]);
     // The project's setup files stayed configured and are preconditions of
-    // every observation; the one under `setupFiles` loaded the instrumented
-    // module before the framework was installed, and found the factory there.
+    // every observation. `src/decide.ts` is not one: a precondition is a file
+    // the answer depended on that the instrument could not see inside, and an
+    // instrumented module is one it could — its digest is on its own row and a
+    // change to its text is caught by re-cutting its regions.
     expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
       'jest.config.mjs',
-      'src/decide.ts',
       'test/alpha.case.ts',
       'test/polyfill.cjs',
       'test/setup.cjs',

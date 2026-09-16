@@ -1,10 +1,15 @@
-import { rm } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { digestString } from '../digest.js';
 import { sourceLines } from './source-lines.js';
 import { testSelectionProbes, type TransformingContext } from './probes.js';
-import { readRecord, recordStore } from './instrumented-modules.js';
+import { coverageModule, readRecord, recordStore } from './instrumented-modules.js';
+import { encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
+import { narrowByExecutionFromView } from './select.js';
+import type { CoverageBlock, TestCoverage } from './index.js';
 
 /**
  * Extents in the coordinates of the file the author edited.
@@ -114,5 +119,122 @@ describe('what the build seam writes down', () => {
     const written = await recorded();
 
     expect(written?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(2);
+  });
+});
+
+/**
+ * The digest and the line numbers have to describe the same text.
+ *
+ * A record pairs one digest of the module's source with block extents, and the
+ * only reader of those extents is a diff. When the bundler keeps no map the
+ * extents fall back to the transformed text's own lines — that is the honest
+ * answer for them — but the digest goes on being taken from the file on disk,
+ * so the record says *these are lines of the file you edited* about numbers
+ * counted somewhere else. Nothing downstream can catch it: `recorded()` in the
+ * selector hashes the text at the snapshot's commit against that digest, they
+ * agree, the module is not stale, and the changed lines are charged to
+ * whichever region happens to occupy those numbers in the other number line.
+ *
+ * The test that entered the edited function is then absent from `entered` and
+ * absent from `unread`, which is a caller's safe skip list telling it to skip
+ * the only test that would have caught the change.
+ */
+describe('a text the seam cannot map back to the file', () => {
+  const root = join(tmpdir(), `variance-frame-${process.pid}`);
+  const module = 'src/thing.js';
+
+  // The file as the author wrote it, and as the diff will speak of it: `alpha`
+  // on lines 1 to 4, `beta` on lines 6 to 9.
+  const onDisk = [
+    'export function alpha(value) {',
+    '  const a = value + 1;',
+    '  return a;',
+    '}',
+    '',
+    'export function beta(value) {',
+    '  const b = value * 2;',
+    '  return b;',
+    '}',
+    '',
+  ].join('\n');
+
+  // What an earlier plugin hands an `enforce: 'post'` hook: the same code under
+  // a prologue, and no chain to read it back through. Rollup answers the map
+  // request this way as soon as any upstream plugin returns `{ code, map: null }`
+  // — which the two plugins in this package both do.
+  const transformed = [
+    'var __defProp = Object.defineProperty;',
+    'var __name = (t, value) => __defProp(t, "name", { value });',
+    'import { jsxDEV } from "react/jsx-dev-runtime";',
+    'import.meta.hot;',
+    '',
+    onDisk,
+  ].join('\n');
+
+  const unmapped: TransformingContext = {
+    getCombinedSourcemap: () => {
+      throw new Error('no sourcemap chain');
+    },
+  };
+
+  const record = async () => {
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, module), onDisk);
+    const plugin = testSelectionProbes({ root, cacheRoot });
+    plugin.transform.call(unmapped, transformed, join(root, module));
+    return await readRecord(recordStore(root, 'build', cacheRoot), module);
+  };
+
+  afterEach(async () => {
+    await rm(root, { force: true, recursive: true });
+  });
+
+  it('digests the text its block lines were counted in, not the file they moved away from', async () => {
+    // What the record holds is `beta`'s lines under `alpha`'s name. A digest of
+    // the file on disk beside them is the record vouching for coordinates it
+    // never saw, and it is the only evidence the selector has.
+    const written = await record();
+
+    expect(written?.sourceDigest).not.toBe(digestString(onDisk));
+  });
+
+  it('keeps the test the diff reached, rather than the one those line numbers point at', async () => {
+    // One line of `beta`'s body edited. `beta` is on lines 6 to 9 of the file
+    // the author edited and at 11 to 14 of the text the seam was handed, where
+    // 6 to 9 is `alpha` — so a selector reading the recorded numbers answers
+    // with alpha's test and hands beta's to the caller as safe to skip.
+    const written = await record();
+    const crossed = (block: CoverageBlock): readonly string[] =>
+      block.name === 'alpha'
+        ? ['test/alpha.test.js']
+        : block.name === 'beta'
+          ? ['test/beta.test.js']
+          : ['test/alpha.test.js', 'test/beta.test.js'];
+    const snapshot: TestCoverage = {
+      version: 3,
+      instrumentation: 'fixture-instrumentation',
+      commit: 'deadbee',
+      tests: ['test/alpha.test.js', 'test/beta.test.js'].map((file) => ({
+        file,
+        complete: true,
+        preconditions: [{ name: file, digest: `source:${file}` }],
+      })),
+      modules: [coverageModule({ ...written!, file: module }, crossed)],
+    };
+    const diff = [
+      '--- a/src/thing.js',
+      '+++ b/src/thing.js',
+      '@@ -7,1 +7,1 @@ export function beta(value) {',
+      '-  const b = value * 2;',
+      '+  const b = value * 3;',
+    ].join('\n');
+
+    const narrowing = narrowByExecutionFromView(
+      openTestCoverage(encodeTestCoverage(snapshot)),
+      diff,
+      { sourceAt: (file, commit) => (file === module && commit === 'deadbee' ? onDisk : undefined) },
+    );
+
+    expect(narrowing.entered).toContain('test/beta.test.js');
   });
 });

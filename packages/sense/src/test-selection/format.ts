@@ -15,6 +15,7 @@ import {
   sections,
 } from './format-layout.js';
 import { openTestCoverage } from './format-view.js';
+import { CrossingSets } from './crossing-sets.js';
 
 /**
  * The logical model, written to a snapshot and read back out of one.
@@ -25,8 +26,9 @@ import { openTestCoverage } from './format-view.js';
  */
 
 /**
- * One versioned snapshot: interned strings, dense block columns, and a CSR
- * block-to-test relation. No path or block object is repeated in the file.
+ * One versioned snapshot: interned strings, dense block columns, and a pool of
+ * interned test sets a region names one of. No path, block object or crossing
+ * set is repeated in the file.
  */
 export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   if (coverage.version !== MODEL) {
@@ -39,14 +41,6 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const testIds = new Map(normalized.tests.map((value, index) => [value.file, index]));
   if (testIds.size !== normalized.tests.length) throw new Error('duplicate test coverage observation');
   const blockCount = normalized.modules.reduce((total, module) => total + module.blocks.length, 0);
-  const crossingCount = normalized.modules.reduce(
-    (total, module) => total + module.blocks.reduce((sum, block) => sum + block.testFiles.length, 0),
-    0,
-  );
-  const loadedCount = normalized.modules.reduce(
-    (total, module) => total + module.blocks.reduce((sum, block) => sum + (block.loadedBy?.length ?? 0), 0),
-    0,
-  );
   const preconditionCount = normalized.tests.reduce(
     (total, test) => total + test.preconditions.length,
     0,
@@ -99,10 +93,21 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   const blockStart = new Uint32Array(blockCount);
   const blockEnd = new Uint32Array(blockCount);
   const blockSource = new Uint8Array(blockCount);
-  const blockTests = new Uint32Array(blockCount + 1);
-  const crossingTest = new Uint32Array(crossingCount);
-  const blockLoaded = new Uint32Array(blockCount + 1);
-  const loadedTest = new Uint32Array(loadedCount);
+  const blockSet = new Uint32Array(blockCount);
+  // The relation as sets rather than as pairs: a region names one of these, and
+  // a region crossed by the same tests as another names the same one. The count
+  // of pairs is the product of two axes a repository grows independently, and
+  // nothing here ever holds that product — a region's crossers are turned into
+  // an id and forgotten.
+  const crossingSets = new CrossingSets(normalized.tests.length);
+  let crossers = new Uint32Array(64);
+  // What loaded the region before its test began is a set of the same tests,
+  // so it is named the same way. The pool already holds the region's crossers;
+  // a loaded set equal to them costs an id and no pool at all, and a partial
+  // one costs whatever a set of that size costs, once however many regions
+  // share it.
+  const blockLoadedSet = new Uint32Array(blockCount);
+  let loaders = new Uint32Array(64);
   const testId = (testFile: string): number => {
     const test = testIds.get(testFile);
     if (test === undefined) throw new Error(`coverage crossing names an unobserved test: ${testFile}`);
@@ -110,8 +115,6 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
   };
 
   let blockIndex = 0;
-  let crossingIndex = 0;
-  let loadedIndex = 0;
   for (const [moduleIndex, module] of normalized.modules.entries()) {
     modulePaths[moduleIndex] = stringId(module.file);
     moduleSource[moduleIndex] = stringId(module.sourceDigest);
@@ -127,16 +130,22 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       blockStart[blockIndex] = block.startLine;
       blockEnd[blockIndex] = block.endLine;
       blockSource[blockIndex] = block.source ? 1 : 0;
-      blockTests[blockIndex] = crossingIndex;
-      for (const testFile of block.testFiles) crossingTest[crossingIndex++] = testId(testFile);
-      blockLoaded[blockIndex] = loadedIndex;
-      for (const testFile of block.loadedBy ?? []) loadedTest[loadedIndex++] = testId(testFile);
+      if (block.testFiles.length > crossers.length) {
+        crossers = new Uint32Array(1 << (32 - Math.clz32(block.testFiles.length - 1)));
+      }
+      for (const [at, testFile] of block.testFiles.entries()) crossers[at] = testId(testFile);
+      blockSet[blockIndex] = crossingSets.intern(crossers.subarray(0, block.testFiles.length));
+      const loadedBy = block.loadedBy ?? [];
+      if (loadedBy.length > loaders.length) {
+        loaders = new Uint32Array(1 << (32 - Math.clz32(loadedBy.length - 1)));
+      }
+      for (const [at, testFile] of loadedBy.entries()) loaders[at] = testId(testFile);
+      blockLoadedSet[blockIndex] = crossingSets.intern(loaders.subarray(0, loadedBy.length));
       blockIndex += 1;
     }
   }
   moduleBlocks[normalized.modules.length] = blockIndex;
-  blockTests[blockCount] = crossingIndex;
-  blockLoaded[blockCount] = loadedIndex;
+  const pool = crossingSets.pool();
 
   return sections({
     'strings.blob': blob(stringBlob, stringOffsets),
@@ -161,10 +170,10 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
     'blocks.start': column(blockStart),
     'blocks.end': column(blockEnd),
     'blocks.source': column(blockSource),
-    'blocks.tests': column(blockTests),
-    'crossings.test': column(crossingTest),
-    'blocks.loaded': column(blockLoaded),
-    'loaded.test': column(loadedTest),
+    'blocks.set': column(blockSet),
+    'blocks.loadedSet': column(blockLoadedSet),
+    'sets.blob': blob(pool.bytes, pool.offsets),
+    'sets.off': column(pool.offsets),
   });
 }
 
@@ -225,21 +234,22 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
   const blockStart = view.blockStart.all();
   const blockEnd = view.blockEnd.all();
   const blockSource = view.blockSource.all();
-  const blockTests = view.blockTests.all();
-  const crossingTest = view.crossingTest.all();
-  const blockLoaded = view.blockLoaded.all();
-  const loadedTest = view.loadedTest.all();
+  const blockSet = view.blockSet.all();
+  const crossings = view.crossings;
+  const blockLoadedSet = view.blockLoadedSet.all();
   const modules: CoverageModule[] = [];
   for (let module = 0; module < modulePath.length; module += 1) {
     const blocks: CoverageBlock[] = [];
     for (let block = moduleBlocks[module]!; block < moduleBlocks[module + 1]!; block += 1) {
+      // Ascending test id, which is the order the tests were sorted into, which
+      // is the order the crossings were in before they became a set.
       const testFiles: string[] = [];
-      for (let crossing = blockTests[block]!; crossing < blockTests[block + 1]!; crossing += 1) {
-        testFiles.push(string(testPath[crossingTest[crossing]!]!));
+      for (const test of crossings.members(blockSet[block]!)) {
+        testFiles.push(string(testPath[test]!));
       }
       const loadedBy: string[] = [];
-      for (let early = blockLoaded[block]!; early < blockLoaded[block + 1]!; early += 1) {
-        loadedBy.push(string(testPath[loadedTest[early]!]!));
+      for (const test of crossings.members(blockLoadedSet[block]!)) {
+        loadedBy.push(string(testPath[test]!));
       }
       blocks.push({
         ordinal: blockOrdinal[block]!,

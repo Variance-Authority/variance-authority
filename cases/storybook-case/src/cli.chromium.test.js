@@ -167,20 +167,27 @@ live('the durable workflow, end to end', () => {
     // than no summary.
     //
     // The list is not empty here, and that is the branch worth running end to
-    // end: the thirteenth story is held out by tag, so the header says twelve of
-    // thirteen, the second list separates a subject nobody could render from a
-    // subject nobody asked for, and it names the tag that did it. The empty
-    // branch is asserted over a hand-built report in
+    // end: two of the fourteen stories are held out by tag, so the header says
+    // twelve of fourteen, the second list separates a subject nobody could
+    // render from a subject nobody asked for, and it names the tag that did it.
+    // The empty branch is asserted over a hand-built report in
     // `packages/cli/src/commands/report.test.ts`; this one had no exercise
     // anywhere until a real run had something real to leave out.
-    expect(out).toContain('12 of 13 subject(s) observed');
-    expect(out).toContain('0 the run could not see, 1 excluded by configuration');
+    //
+    // The two are held out for the same reason and it is not the same subject
+    // matter: `LeaksASheet` is a cause rather than a subject, and `FinishesLate`
+    // is a subject about the driver — it exists so `src/finish.chromium.test.js`
+    // has a story that is still in `afterEach` when the next one is asked for.
+    // Neither is a component anybody would want a baseline of.
+    expect(out).toContain('12 of 14 subject(s) observed');
+    expect(out).toContain('0 the run could not see, 2 excluded by configuration');
     expect(out).toContain('[excluded] story:case-surface--leaks-a-sheet: excluded by tag `no-variance`');
+    expect(out).toContain('[excluded] story:case-surface--finishes-late: excluded by tag `no-variance`');
 
     // Exactly once. It was printed twice by two formatters over one artifact,
     // and every test asserting it used `toContain`, which the first copy
     // satisfies.
-    expect(out.split('not observed: 1 subject(s)').length - 1).toBe(1);
+    expect(out.split('not observed: 2 subject(s)').length - 1).toBe(1);
   }, 240_000);
 
   it('promotes the images the run already produced, without rendering again', () => {

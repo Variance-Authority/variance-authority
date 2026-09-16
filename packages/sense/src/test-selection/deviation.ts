@@ -53,10 +53,7 @@ export async function deviationFromView(
       const start = view.blockStart.at(block);
       const end = view.blockEnd.at(block);
       const span = end - start;
-      const entered = new Set<number>();
-      for (let crossing = view.blockTests.at(block); crossing < view.blockTests.at(block + 1); crossing += 1) {
-        entered.add(view.crossingTest.at(crossing));
-      }
+      const entered = new Set(view.crossings.members(view.blockSet.at(block)));
       for (let line = start; line <= end && line < lines.length; line += 1) {
         if (lines[line] !== true || span > best[line]!) continue;
         if (span < best[line]!) {

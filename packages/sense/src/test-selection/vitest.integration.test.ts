@@ -7,8 +7,10 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { scanRelations } from '../scan.js';
 import { INSTRUMENTATION_ID, instrumentationId } from '../instrument/index.js';
+import { countCrossings } from './cases.js';
 import { decodeTestCoverage } from './format.js';
-import { deviationOfTests, selectTestFiles } from './index.js';
+import { coveringTests, type ExecutionIndex } from './reverse.js';
+import { deviationOfTests, narrowByExecution, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
 
 const execute = promisify(execFile);
@@ -17,6 +19,7 @@ const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-vitest');
 const entriesFixture = resolve(repository, 'packages/sense/test/fixtures/entries-vitest');
 const unenteredFixture = resolve(repository, 'packages/sense/test/fixtures/unentered-vitest');
+const casesFixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 const temporary: string[] = [];
 
@@ -97,6 +100,82 @@ describe('the Vitest integration', () => {
       'test/beta.case.ts',
       'test/gamma.case.ts',
     ]);
+  });
+
+  it('refuses a file where every test is skipped, which leaves no record to exclude it by', async () => {
+    // A file with no runnable test is still collected — its imports run — so it
+    // reaches everything it imports and breaks when one of those throws at load.
+    // But the runner runs none of that file's hooks, so the `afterAll` that
+    // writes its journal never fires, and skipping is a usable outcome: recorded
+    // whole, the file would claim an empty reach and be excluded from every diff
+    // there will ever be. Material UI recorded four such files, and a throw
+    // placed in `mui-utils/src/clamp/clamp.ts` broke three of them.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--config', resolve(fixture, 'vitest.skipped.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    );
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/skipped.only.ts', false]]);
+    // Nothing credited it, which is the whole reason its record cannot be whole.
+    expect(coverage.modules.flatMap((module) => module.blocks.flatMap((block) => block.testFiles))).toEqual([]);
+
+    // So the snapshot is not entitled to speak for it: a change anywhere leaves
+    // it out of `whole`, and a caller narrowing by this answer runs it.
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
+    const narrowing = await narrowByExecution(coverageFile, `--- a/src/decide.ts
++++ b/src/decide.ts
+@@ -${line},1 +${line},1 @@
+-    return 'A';
++    return 'Alpha';`);
+    expect(narrowing.entered).toEqual([]);
+    expect(narrowing.whole).toEqual([]);
+  });
+
+  it('refuses a file whose fixture threw, which the runner reports as tests skipped', async () => {
+    // The shape a flaky database, server or browser fixture leaves behind. A
+    // `beforeAll` throws; the runner marks every test under it skipped and
+    // fails the suite, and the file's own `afterAll` still runs, so a journal
+    // is written and the record looks like any other. Skipping is a usable
+    // outcome, so read leaf by leaf this file is whole — and it is not: one of
+    // its two tests ran, and `locked`, which only the other one enters, is
+    // recorded as reached by nobody.
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+
+    // The run is red by construction, and a red run still publishes a snapshot.
+    await execute(
+      process.execPath,
+      [vitest, 'run', '--config', resolve(fixture, 'vitest.hook.config.ts')],
+      { cwd: fixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+    ).catch(() => undefined);
+
+    const coverage = decodeTestCoverage(await readFile(coverageFile));
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/hook.throws.ts', false]]);
+    // The amputation this is about: the region behind the thrown hook.
+    const gate = coverage.modules.find((module) => module.file === 'src/gate.ts');
+    expect(gate?.blocks.find((block) => block.name === 'locked')?.testFiles).toEqual([]);
+
+    // So a change inside that region must leave the file out of `whole`. Were
+    // it in, the caller's skip list would hold the one file that reads the line
+    // that moved — and nothing would ever run it again to correct its record,
+    // because every diff it still answers to is a diff somewhere else.
+    const source = await readFile(resolve(fixture, 'src/gate.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf('return `locked')).split('\n').length;
+    const narrowing = await narrowByExecution(coverageFile, `--- a/src/gate.ts
++++ b/src/gate.ts
+@@ -${line},1 +${line},1 @@
+-  return \`locked:\${value}\`;
++  return \`LOCKED:\${value}\`;`);
+    expect(narrowing.entered).toEqual([]);
+    expect(narrowing.whole).toEqual([]);
   });
 
   it('records functions only under the entries recipe, and which of them ran before the first test', async () => {
@@ -197,6 +276,9 @@ describe('the Vitest integration', () => {
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.instrumentation).toBe(INSTRUMENTATION_ID);
+    // `src/decide.ts` is instrumented, so it is not a precondition of anything:
+    // a precondition is a file the answer depended on that the instrument could
+    // not see inside, and this one it could.
     expect(coverage.tests.map((test) => ({
       file: test.file,
       complete: test.complete,
@@ -205,17 +287,17 @@ describe('the Vitest integration', () => {
       {
         file: 'test/alpha.case.ts',
         complete: false,
-        preconditions: ['src/decide.ts', 'test/alpha.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: ['test/alpha.case.ts', 'test/setup.ts', 'vitest.config.ts'],
       },
       {
         file: 'test/beta.case.ts',
         complete: true,
-        preconditions: ['src/decide.ts', 'test/beta.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: ['test/beta.case.ts', 'test/setup.ts', 'vitest.config.ts'],
       },
       {
         file: 'test/gamma.case.ts',
         complete: true,
-        preconditions: ['src/decide.ts', 'test/gamma.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: ['test/gamma.case.ts', 'test/setup.ts', 'vitest.config.ts'],
       },
     ]);
     expect(coverage.modules[0]).toMatchObject({
@@ -264,4 +346,91 @@ describe('the Vitest integration', () => {
       ],
     });
   }, 20_000);
+
+  describe('recording which case entered a region, rather than which file', () => {
+    /** The fixture run once, under either recipe, with whatever it wrote. */
+    async function record(config: string): Promise<{ coverage: Buffer; index?: ExecutionIndex }> {
+      const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
+      temporary.push(directory);
+      const coverageFile = resolve(directory, 'coverage.bin');
+
+      await execute(
+        process.execPath,
+        [vitest, 'run', '--config', resolve(casesFixture, config)],
+        { cwd: casesFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+      );
+
+      const coverage = await readFile(coverageFile);
+      const index = await readFile(`${coverageFile}.cases.json`, 'utf8').catch(() => undefined);
+      return { coverage, ...(index === undefined ? {} : { index: JSON.parse(index) as ExecutionIndex }) };
+    }
+
+    const named = (index: ExecutionIndex, line: number): readonly string[] =>
+      coveringTests(index, { file: 'src/decide.ts', line }).map((test) => test.name);
+
+    it('separates two cases in one file that entered different branches', async () => {
+      const { index } = await record('vitest.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      // The whole point, in one assertion: three cases in one test file reach
+      // one function, and each branch of it names the one case that walked it.
+      // A file-level record answers `branch.case.ts` to all three.
+      expect(named(index, 3)).toEqual(['decide > takes the alpha branch']);
+      expect(named(index, 6)).toEqual(['decide > takes the gamma branch']);
+      expect(named(index, 8)).toEqual(['decide > falls through to B']);
+
+      // And the function they share still names all three, so nothing was
+      // narrowed that should not have been. Only three: a line inside `decide`
+      // is answered by `decide`, not by the module root that also spans it.
+      expect(named(index, 1)).toEqual([
+        'decide > falls through to B',
+        'decide > takes the alpha branch',
+        'decide > takes the gamma branch',
+      ]);
+    }, 20_000);
+
+    it('keeps two concurrent cases apart across the awaits they interleave on', async () => {
+      const { index } = await record('vitest.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      // `describe.concurrent`: both cases are in flight, and each awaits inside
+      // the module under test, so every continuation of one resumes while the
+      // other is open. Snapshot-and-subtract credits the outer case with both
+      // branches here — see `cases.concurrency.test.ts`.
+      expect(named(index, 14)).toEqual(['slowly > takes the alpha branch while the other case is open']);
+      expect(named(index, 17)).toEqual(['slowly > takes the fallthrough while the other case is open']);
+    }, 20_000);
+
+    it('leaves the snapshot CI reads byte for byte what it was', async () => {
+      // The file-level journal under per-case recording is the bitwise union of
+      // the case buckets and the ambient one. Presence is all a reader of it
+      // asks for, so the union is the same record the flat collector wrote —
+      // and the cost of turning cases on is not paid by anyone reading this.
+      const [cased, flat] = await Promise.all([
+        record('vitest.config.ts'),
+        record('vitest.flat.config.ts'),
+      ]);
+
+      expect(cased.coverage.equals(flat.coverage)).toBe(true);
+      expect(flat.index).toBeUndefined();
+    }, 30_000);
+
+    it('costs one crossing per case and region where a file costs one per file', async () => {
+      const { coverage, index } = await record('vitest.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      const files = decodeTestCoverage(coverage).modules
+        .filter((module) => module.file === 'src/decide.ts')
+        .flatMap((module) => module.blocks)
+        .reduce((total, block) => total + block.testFiles.length, 0);
+
+      // Sixteen regions of one module, seventeen file-level crossings — the
+      // two files barely overlap. The same regions cost twenty-seven crossings
+      // per case, a multiplier of 1.6 for 2.5 cases a file: what a case costs
+      // is its own reach, not the file's, and only a region cases *share* is
+      // recorded more than once.
+      expect(files).toBe(17);
+      expect(countCrossings(index)).toBe(27);
+    }, 20_000);
+  });
 });
