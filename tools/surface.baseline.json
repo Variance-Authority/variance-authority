@@ -1002,6 +1002,39 @@
       }
     }
   },
+  "@variance-authority/ioc": {
+    "declared": {
+      "type": "module",
+      "exports": {
+        "./reset": {
+          "types": "./dist/reset/index.d.ts",
+          "default": "./dist/reset/index.js"
+        },
+        "./reset/setup": {
+          "types": "./dist/reset/setup.d.ts",
+          "default": "./dist/reset/setup.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      "./reset": {
+        "ResetHandler": "type",
+        "registerResetHandler": "const"
+      },
+      "./reset/setup": {
+        "EachHook": "type",
+        "configureResetHandler": "const"
+      }
+    }
+  },
   "@variance-authority/jsx-source": {
     "declared": {
       "type": "module",

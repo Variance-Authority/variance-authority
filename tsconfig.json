@@ -101,6 +101,9 @@
       "path": "./packages/cli"
     },
     {
+      "path": "./packages/ioc"
+    },
+    {
       "path": "./examples/kitchen-sink"
     },
     {

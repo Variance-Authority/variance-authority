@@ -1,0 +1,45 @@
+{
+  "name": "@variance-authority/ioc",
+  "version": "0.2.0",
+  "description": "Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.",
+  "keywords": [
+    "variance-authority",
+    "flaky-tests",
+    "test-isolation",
+    "shared-state",
+    "inversion-of-control",
+    "vitest",
+    "jest"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/ioc",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/ioc"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    "./reset": {
+      "types": "./dist/reset/index.d.ts",
+      "default": "./dist/reset/index.js"
+    },
+    "./reset/setup": {
+      "types": "./dist/reset/setup.d.ts",
+      "default": "./dist/reset/setup.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  }
+}

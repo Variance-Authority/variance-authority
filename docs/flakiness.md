@@ -49,7 +49,7 @@ reading. What differs here is the last column.
 | **Device pixel ratio, retina runners** | environment-key | `deviceScaleFactor` is in the key, so a 2× run and a 1× run are different raster baselines and never meet. It is also the *only* field the semantic key drops, because layout happens in CSS pixels and a 2× render lays out identically — one structure-and-style baseline is valid on a retina laptop, a 1× runner and a container alike. |
 | **Different machine, GPU, driver** | environment-key | Renderer identity is not the machine. It is the engine and its version, the normalization ruleset, the computed-style allowlist, the viewport, the fonts by content hash, the resolved media and container conditions, the bytes behind every asset URL, and the digest of the stabilization recipe — and the semantic key is that same list with `deviceScaleFactor` removed. So your browser and CI compare on everything **except the pixels**, which is the one tier where the GPU, the driver and the flags you launched with actually live. That tier alone is partitioned by the full key, which is what makes a cross-machine *image* `incomparable` — one sentence, not a day of unattributable red. What a run captures and where its pixels are made are independent, so the fix for the last tier is to make the pixels in one fixed place or use the ephemeral mode, where there is no second machine to be wrong about. [`placement.md`](placement.md) explains those choices. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | You are told, and the key is why telling you is necessary. Fonts are in the key by content hash, so a run that has `Inter` and a run that does not are different baselines — but that only saves you when the two runs *differ*. When neither machine has it, the key matches, the verdict is `unchanged`, and it is a true statement about a picture of the wrong typeface. So `variance doctor` renders a probe before you record anything, and a run that painted with a substitution puts the family and the subject count on the report: *the renderer lacked `Inter` in 12 subjects; those images are of a substituted font and their metrics are not the product's*. The probe says what it cannot tell you, too — a family that measures identically to the fallback is either absent or a metric-compatible substitute, and nothing on the page distinguishes those. |
-| **Dates, clocks, dynamic content** | policy | Both runs change; both are right. The difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
+| **Dates, clocks, dynamic content** | policy, or **construction** if you can reach the clock | Both runs change; both are right. Where the test can set the value, [freeze it](#freeze-what-the-run-does-not-set) and the cause stops existing. Where it cannot — a timestamp the server stamps, a build id baked into the bundle — the difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, holding everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS reaches, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
@@ -442,6 +442,255 @@ couplings that bite live in module scope — a singleton store, a cached client,
 mocked clock — and touch no DOM at all. With no runtime stack connecting the
 mutation to its writer, the outcome resolves to a node, a component and source
 [attribution](attribution.md). Locating the writer requires bisection over run order.
+
+## Freeze what the run does not set
+
+A clock, a random seed, a locale, a file on disk, a version string. The subject
+reads something no test set, two runs read it differently, and both readings are
+correct. Where the test can reach the value, set it, and the difference stops
+being produced. Where it cannot — a timestamp the server stamps, a build id baked
+into the bundle — [masking](ignores.md) is what remains.
+
+**Freezing a clock is not stopping the timers.** A component that renders
+`new Date()` needs the first. A component that also waits on a timer — a toast
+that dismisses itself, a carousel that advances, a debounce before the first
+paint — never resolves if you take the second, and what you record is the state
+before the timer it was waiting for. Vitest and Jest fake both by default, so ask
+for the clock alone unless you want the timers too.
+
+**Playwright** separates the two, so this is the whole recipe:
+
+```ts
+await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));
+```
+
+`clock.install()` followed by `clock.pauseAt()` is the other call, for a component
+whose timers read `Date.now()` and misbehave when it does not move. Either call
+has to run before `page.goto()`: they patch the page's clock, and a script that
+read the time while the page was loading has already read the real one.
+
+**Vitest** fakes `Date` as one of the timers, so name what you want faked:
+
+```ts
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2024-01-01T00:00:00Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+```
+
+**Jest** inverts the list — everything fakeable is faked unless you exclude it:
+
+```ts
+const TIMERS = [
+  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
+  'setImmediate', 'clearImmediate', 'requestAnimationFrame',
+  'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback',
+  'queueMicrotask', 'nextTick', 'performance', 'hrtime',
+];
+
+beforeEach(() => {
+  jest.useFakeTimers({ now: new Date('2024-01-01T00:00:00Z'), doNotFake: TIMERS });
+});
+```
+
+**Storybook** has no equivalent, and there is nothing to install. The preview is a
+page you own, so freeze the clock in a module of its own:
+
+```ts
+// .storybook/frozen-clock.ts
+const at = Date.parse('2024-01-01T00:00:00Z');
+const Real = Date;
+
+globalThis.Date = new Proxy(Real, {
+  construct: (target, args) => Reflect.construct(target, args.length === 0 ? [at] : args),
+  apply: () => new Real(at).toString(),
+  get: (target, key, self) => (key === 'now' ? () => at : Reflect.get(target, key, self)),
+}) as DateConstructor;
+```
+
+and make it the first import in `.storybook/preview.ts`:
+
+```ts
+import './frozen-clock';
+```
+
+Its own module, and first, because imports are hoisted: the same assignment
+written at the top of `preview.ts` still runs after everything `preview.ts`
+imports. A module that reads the clock while it is being imported has already
+read it, and that is the value a memoized default or a module-level constant
+keeps for the rest of the run.
+
+A proxy rather than a `Date` subclass, because the subclass covers less than it
+looks: `Date()` called without `new` returns a string, and a class constructor
+throws.
+
+Whichever you use, pick an instant and keep it. A frozen clock that moves when
+somebody edits the setup file re-dates every baseline at once.
+
+### The rest of the family
+
+A clock is the one everybody hits, and the others take the same move: find where
+the value enters, and set it.
+
+**A random seed.** Seed the generator your fixture already uses — `faker.seed(1)`
+and its equivalents exist for this. Where the code reaches for `Math.random`
+directly, replace it for the run, because that call has no seed to set:
+
+```ts
+let state = 1;
+
+Math.random = () => {
+  state = (state + 0x6d2b79f5) | 0;
+  let t = Math.imul(state ^ (state >>> 15), 1 | state);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+```
+
+Every operation there is a 32-bit one. The textbook `(state * a + c) % m` is the
+shorter thing to write and the wrong one to paste: the multiply leaves
+`Number.MAX_SAFE_INTEGER` behind, so the arithmetic silently stops being the
+generator it looks like.
+
+Seeding is not tidying up after the fixture. An unsorted collection that renders
+in a different order on every run is a defect in the fixture, and a seed makes it
+reproducible rather than correct.
+
+**A timezone and a locale.** These reach layout through `Intl`, so a date
+formatted in `en-GB` at `Europe/London` is a different string and a different
+width from the same date in `en-US` at `America/Los_Angeles`. In a browser they
+are context options, and setting them is the whole fix:
+
+```ts
+// playwright.config.ts
+use: { locale: 'en-US', timezoneId: 'UTC' }
+```
+
+In Node, set it in the environment rather than in a setup file:
+
+```bash
+TZ=UTC LANG=en_US.UTF-8 vitest run
+```
+
+`process.env.TZ` does take effect mid-process on current Node, so a setup file
+looks like it works — and it does, for every date formatted after it runs. What
+it cannot reach is a module that already resolved a formatter or read the zone
+into a constant while it was being imported, which is the same import-time
+problem the Storybook recipe above has, one layer down.
+
+**A file on disk, or a version string.** If the test reads it, it is a fixture
+and it belongs in the repository beside the test. If the *subject* reads it —
+bytes behind a stable URL, a build id compiled into the bundle — you cannot
+freeze it from the test. Masking the element is the answer, and
+[`ignores.md`](ignores.md) is where that rule is written down.
+
+**A browser or OS version.** Not this list. You do not freeze those, you declare
+them: they are in the environment key, so a run on a different engine is a
+separate baseline rather than a difference, and the
+[table above](#the-causes-and-who-deals-with-each) has the rest.
+
+This moves the `Dates, clocks, dynamic content` row
+[above](#the-causes-and-who-deals-with-each) from **policy** to **construction**,
+for your suite rather than for everybody's.
+
+## Reset what the run does own
+
+The other half is state your own code holds: a counter, a cache, a lazily built
+client, a memoized value. A module-level binding outlives the test that changed
+it, so the suite passes in the order you wrote it and fails in another one — and
+the failure names the test that *read* the state rather than the one that wrote
+it.
+
+`vi.resetModules()` between tests prevents the symptom and costs you the
+evidence, which is the trade [above](#test-order-and-shared-state) rejects; it
+also re-imports the graph, so a singleton two modules were sharing becomes two
+objects. Reaching into a module's internals from a test file is cheaper, but it
+makes the test know something the module never promised: the name of a variable,
+which is free to change under a refactor that kept every behaviour. Exporting a
+`reset()` from each module keeps that promise honest and moves the problem to the
+setup file, which now has to import every module that has one — and to be updated
+by whoever adds the next.
+
+So let the module that owns the state say how to reset it, and the runner say
+when:
+
+```ts
+import { registerResetHandler } from '@variance-authority/ioc/reset';
+
+let counter = 0;
+
+registerResetHandler(() => {
+  counter = 0;
+});
+```
+
+```ts
+// the first entry in setupFiles
+import { beforeEach } from 'vitest';
+import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
+
+configureResetHandler(beforeEach);
+```
+
+`beforeEach` and not `afterEach`. A failing test does run its `afterEach` — that
+is the hook's contract — but resetting on the way in rather than on the way out
+buys two things. The state a failure left behind is still there when the reporter
+reads it, instead of being erased by the cleanup that ran between the failure and
+the report. And a reset on entry does not depend on the previous test having
+finished: a worker that died on an unhandled rejection, or a run somebody stopped,
+skips its teardown and leaves the next file to inherit whatever was set.
+
+Until a setup installs that driver, `registerResetHandler` does not enrol the
+handler and nothing ever calls it, so the call ships in production untouched. It
+keeps a count, and the first handler it had to turn away, only so the error below
+can name it. The gate is whether a driver exists and deliberately not whether
+this is a production build: a static Storybook build **is** a production build,
+and it is exactly where a collector runs a suite. A setup that arrives after a module has already registered is
+refused by name rather than ignored, because a suite that quietly does not reset
+is the defect this removes. [`@variance-authority/ioc`](https://variance-authority.dev/reference/packages/ioc)
+covers both.
+
+What this does not reach is a memoized value inside a package you do not author.
+There is nowhere to put a handler, and the answer stays observation rather than
+cleanup: a changed subject is read twice, and the component and band that moved
+are named.
+
+## Which of the two it is
+
+Both recipes above need you to know which half you are in, and one run cannot
+tell you.
+
+**Read the subject twice.** For a visual subject this already happens — `again`
+and `alone` are [above](#what-still-gets-through-and-how-it-is-found), and they
+run without being asked. For an ordinary test, Playwright's `--repeat-each=2`
+runs it twice whatever the first result was. Vitest counts the other way and
+offers no flag: `repeats` is a test option, and it means *additional* runs, so
+`it('x', { repeats: 1 }, ...)` also executes twice. Jest has no equivalent, and
+running the file twice answers the same question. A test that disagrees with itself
+inside one order is reading something nothing set.
+
+**Run the file in another order.** A test that holds under repetition and breaks
+when their neighbours move is reading state a neighbour wrote. Shuffling *within*
+a file is the resolution that matters, because that is where the reads and writes
+share a module instance:
+
+```bash
+vitest --sequence.shuffle.tests --sequence.seed=1234
+jest --randomize --seed=1234
+```
+
+Pass the seed rather than letting the runner pick one. A shuffle without a
+recorded seed finds a failure nobody can reproduce, and the order that broke it
+is gone the moment the process exits. Both runners accept a seed back, and both
+report the one they used — Jest prints it under `--randomize`, which is the same
+thing as `--showSeed`.
+
+Jest's `--randomize` needs the default `jest-circus` runner, and shuffles within
+each `describe` block rather than across the file.
 
 ## Recurring diff fingerprints
 
