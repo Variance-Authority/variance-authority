@@ -1,14 +1,20 @@
 # Information exchange and retention
 
-Work starts with a project definition, a source checkout, a SUT host, and the
-evidence retained from earlier runs. It ends with independently persisted
-reports, review images, visual references, runtime coverage, scenario paths,
-history facts, and disposable caches. Some of those outputs feed the next run;
-others exist only to explain or review the run that produced them.
+Run `variance run` once and look at what it leaves on disk: a report at
+`.variance/report.json`, PNGs beside it, an approved baseline directory it
+only updates when you accept a change, and cache entries under
+`$XDG_CACHE_HOME/variance-authority`. **[Variance Authority](README.md)** is
+visual and execution regression tooling — it renders **subjects** (the
+stories, routes, fixtures, or values a run observes), compares each against
+its own baseline, and records what changed and why. A **run** is one
+execution of `variance run`: it plans the subjects, captures each one,
+compares it against its baseline, and writes a **report**.
 
-[Variance Authority](README.md) does not serialize one global run object. Each information
-domain keeps its own identity, completeness, disclosure, retention, and merge
-rules. Records meet only on identities their producers actually emitted.
+Each of those outputs is tracked separately, by its own producer: the report,
+review images, approved baselines, runtime coverage, scenario paths, history
+facts, and disposable caches all keep their own identity, completeness,
+disclosure, retention, and merge rules. Records meet only on identities their
+producers actually emitted.
 
 ## Where work starts
 

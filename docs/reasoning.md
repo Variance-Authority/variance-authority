@@ -1,10 +1,12 @@
 # Follow the reasoning loop
 
-Before running another tool, name the decision you are trying to make. The
-useful evidence for choosing tests is different from the evidence for explaining
-a visual change or understanding a stalled run. Starting with the decision keeps
-the investigation focused and makes it easier to see when the available
-evidence is enough.
+Before running another [Variance Authority](README.md) tool, name the decision
+you are trying to make. That decision holds regardless of what renders your
+**subjects** — the stories, routes, fixtures or values a run compares against
+their baselines — React or otherwise. The useful evidence for choosing tests is
+different from the evidence for explaining a visual change or understanding a
+stalled run. Starting with the decision keeps the investigation focused and
+makes it easier to see when the available evidence is enough.
 
 The shared loop is:
 

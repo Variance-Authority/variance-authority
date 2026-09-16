@@ -1,11 +1,15 @@
 # Observe one state end to end
 
-Begin with one stable UI state in a test or harness you already trust. Keep its
-navigation, fixtures, authentication, and readiness there. **Choosing that host
-does not choose where pixels are made**: [Variance Authority](README.md) can
-retain a document for later rendering or keep the caller's already-painted
-image. It gives you the first candidate to review and checks that the accepted
-reading returns `unchanged` on the next run.
+**[Variance Authority](README.md)** renders a UI state, compares it against
+its approved baseline, and records what changed and why. Begin with one
+stable UI state — a **subject** — in a test or harness you already trust: a
+Playwright spec, a Storybook story, a served route. Keep its navigation,
+fixtures, authentication, and readiness with that existing host. Variance
+Authority can retain a document for later rendering or take the caller's
+already-painted image; either way it produces a **reading** — one capture of
+that subject — for you to review. Accept the reading once, and the same
+subject returns `unchanged` on every **run** — one execution of
+`variance run` — after.
 
 This is enough to learn the complete review loop before deciding whether more
 of the suite belongs in it.
@@ -36,7 +40,7 @@ rebuild navigation or fixtures in a second harness.
 | A served application, sitemap, or static build | [Start with `@variance-authority/route-collector`](start-routes.md) | Server, routes, application state, and application-owned readiness markers |
 | Jest or Vitest with a mounted jsdom tree | [Start with `@variance-authority/unit-test`](start-unit.md) | Unit runner and mount lifecycle; a later CLI process renders the captured document |
 | Another harness or material already in hand | [Connect a custom collector or `@variance-authority/observe`](start-custom.md) | State lifecycle and the adapter that emits a document or raster |
-| A collector module that already owns acquisition | [Run its review loop with `@variance-authority/cli`](start-cli.md) | Subject planning, acquisition, and readiness |
+| A **collector** (the host-specific code that discovers and captures subjects) that already owns acquisition | [Run its review loop with `@variance-authority/cli`](start-cli.md) | Subject planning, acquisition, and readiness |
 
 The host choice does not choose where pixels are made. Playwright can retain a
 document for deferred rendering or capture its caller-owned locator in place;
@@ -79,8 +83,8 @@ observation returns `unchanged`.
 
 For Storybook, route, unit-capture, and custom collectors, the CLI owns the
 loop. `doctor` checks the environment selected by the config. The first
-successful durable run exits `1`; inspect its report, accept the intended
-subject id, and run it again. An unchanged run exits `0`. The selected recipe
+successful durable run exits `1`; inspect its **report** (what the run writes
+at the end), accept the intended subject id, and run it again. An unchanged run exits `0`. The selected recipe
 contains the config and commands because acquisition details belong to that
 host.
 

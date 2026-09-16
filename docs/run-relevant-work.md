@@ -1,13 +1,17 @@
 # Run relevant work
 
-A change should pay for every test needed to understand it, not every test the
-repository can run. Source and prior execution can show what the change might
-reach, what has exercised that code before, and which useful answer is nearest.
+[Variance Authority](README.md) renders **subjects** — stories, routes,
+fixtures, or values — compares each against its baseline, and records what
+changed and why. `variance run --since origin/main` narrows a **run** to the
+subjects a source change could plausibly reach, instead of capturing and
+comparing every subject in the suite. Source and prior execution can show what
+the change might reach, what has exercised that code before, and which useful
+answer is nearest.
 
 ## One decision, three readings
 
-Running less is not one graph query. Three readings answer different parts of
-the decision:
+Choosing what to run draws on three separate readings of the codebase and its
+history, each answering a different part of the decision:
 
 | Question | Reading | Route |
 | --- | --- | --- |
@@ -29,17 +33,18 @@ Use [distance](distance.md) when the set is already known but feedback order
 matters. Near tests run first because they usually fail for the simplest reason;
 distance does not remove a selected test.
 
-Use [source reach](source.md) when the source reader itself is the question:
+Use [source reach](source.md) when the source scan itself is the question:
 which requests were found, how they resolved, what could not be determined, or
 why a change widened the answer. The [source index](source-index.md) is the
 retained format and invalidation reference beneath those readings.
 
 ## The boundary is conservative
 
-Selection narrows work, not truth. A skipped test contributes no observation
-and no verdict. Missing coverage, an unreadable edge, an unknown changed file,
-or incompatible recorded evidence widens the run or refuses the selection; it
-never becomes proof that nothing is affected.
+Skipping a subject changes how much of the run executes; it is not a claim
+that the change left that subject unaffected. A skipped test contributes no
+observation and no verdict. Missing coverage, an unreadable edge, an unknown
+changed file, or incompatible recorded evidence widens the run or refuses the
+selection; it never becomes proof that nothing is affected.
 
 The result supports choosing a workload under named conditions. It does not
 describe the unrun surface as unchanged.

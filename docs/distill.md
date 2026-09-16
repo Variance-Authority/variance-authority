@@ -1,13 +1,17 @@
 # Distil a test to the behavior it witnesses
 
-A checkout test may render a navigation bar, a clock and an order form. But
-which elements does it actually use to set up the order, submit it and check the
-result? Rendering the whole page does not make every part of it part of the
-promise the test protects.
+A checkout test may render a navigation bar, a clock and an order form,
+whether that markup comes from React, another framework, or no framework at
+all. But which elements does it actually use to set up the order, submit it
+and check the result? Rendering the whole page does not make every part of it
+part of the promise the test protects.
 
-Distill asks what one test can shed. [Test selection](selecting.md) asks the
-same [execution record](execution-record.md) which tests reached a set of
-changed lines.
+Distill is a [Variance Authority](README.md) capability that asks what one
+test can shed, using the execution and source evidence a run already keeps.
+Where a rendered element has a React component behind it, Distill can name
+that component too; React is not a requirement for the rest of the reading.
+[Test selection](selecting.md) asks the same [execution record](execution-record.md)
+which tests reached a set of changed lines.
 
 [`variance distill`](../packages/cli#distill-find-a-smaller-test-boundary) brings
 together three kinds of evidence about the same test:

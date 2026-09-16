@@ -204,6 +204,6 @@ available evidence. Use it to choose what to run or inspect next.
 ---
 
 **Further:** [Test selection](selecting.md) ·
-[Reading the source graph](source.md) ·
+[The source scan](source.md) ·
 [The execution record](execution-record.md) ·
 [Distance API and options](../packages/sense#place-a-selection-by-how-far-the-change-travelled)

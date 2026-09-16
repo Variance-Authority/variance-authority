@@ -1,17 +1,19 @@
-# Reading the source
+# The source scan
 
-Source analysis is the broadest reading: **what could a change reach?**
-[**Execution recording**](execution-record.md) narrows that to what each test
-actually entered; [**Eyes**](eyes.md) adds what the test queried, operated or
-read. Together they drive [test selection](selecting.md), [distance](distance.md)
-and [distillation](distill.md). This page explains the static foundation beneath
-those answers.
+[Variance Authority](README.md) is visual and execution regression tooling: it renders
+**subjects**, compares them against their baselines, and records what changed
+and why. A subject is one named thing a run captures and compares — a story, a
+route, a fixture, or a value. Before `variance run` can render any of them, it
+has to know what a code change could possibly touch, and that answer comes from
+the **source scan**: a walk over the repository that reads every file, resolves
+what each import points at, and hands back one record per file.
+[**Execution recording**](execution-record.md) narrows that answer to what each
+test actually entered; [**Eyes**](eyes.md) adds what a test queried, operated or
+read. Together the three drive [test selection](selecting.md),
+[distance](distance.md) and [distillation](distill.md). This page is the scan
+itself — the static foundation the other two build on.
 
-The source answer has to exist before anything renders. It is a graph of the
-repository, built by a walk that reads files, resolves what they point at, and
-hands back one record per file.
-
-It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
+It is a *scan*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
 mechanism is a parse, a resolver and one [source index](source-index.md) — which is why a cold scan
 of a thirty-thousand-file repository takes three seconds, every scan after it a
@@ -35,7 +37,7 @@ page is the mechanism underneath that one.
 
 ## A request is not a name
 
-Nothing in the reader resolves a specifier. `readModule` in
+Nothing in the scan resolves a specifier. `readModule` in
 [`packages/sense/src/read.ts`](../packages/sense/src/read.ts) turns a file's text
 into **requests** — specifiers exactly as written — with **bindings** hanging off
 each one, and where a specifier points is a separate question, answered further
@@ -72,7 +74,7 @@ bind and no tree worth building.
 A missed edge is not a smaller answer, it is a wrong one — a file whose imports
 nobody could enumerate may import the file that just changed, and treating "I
 found no imports" as "it imports nothing" produces a green run over a surface
-nobody looked at. So the reader widens instead, by setting `unknown`:
+nobody looked at. So the scan widens instead, by setting `unknown`:
 
 | shape | why |
 |---|---|
@@ -93,7 +95,7 @@ most of them.
 [`packages/sense/src/resolve.ts`](../packages/sense/src/resolve.ts) is the
 configured half, and it is separate because none of what it knows is allowed to
 change what counts as an import. It decides one thing: where a specifier the
-reader already found points.
+scan already found points.
 
 Three resolvers, because one set of options cannot answer all three questions:
 

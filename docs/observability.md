@@ -1,11 +1,14 @@
-# Ask a question the test did not ask
+# Observability: what a run keeps beyond pass or fail
 
-An assertion is a question written before the run, and the answer is one bit.
-That bit is the whole of what a suite conventionally reports about an execution
-that knew a great deal more: which elements it addressed, which components
-rendered, which instance scheduled each render, and which branch a service took
-while the page was waiting on it. All of it exists for a few milliseconds, and
-teardown is the end of it.
+[**Variance Authority**](README.md) renders your **subjects** — a story, a route, a fixture,
+or a value — compares each against its baseline, and records what changed and
+why. A **run** is one execution of `variance run`: it plans the subjects,
+captures each one, compares it against its baseline, and writes a report built
+on one bit per subject, pass or fail. That bit is the whole of what a report
+conventionally carries about an execution that knew a great deal more: which
+elements it addressed, which components rendered, which instance scheduled each
+render, and which branch a service took while the page was waiting on it. All of
+it exists for a few milliseconds, and teardown is normally the end of it.
 
 The cost is not paid when a test fails. It is paid afterwards, when the only
 question anyone can ask is the one somebody already wrote down. `Unable to find
@@ -52,15 +55,16 @@ about a suite. It outlives every subject in the run, it answers several of them
 at once, and nothing inside it can evaluate a test — a time window is not an
 execution.
 
-What crosses instead is one opaque id per execution, minted by the driver and set
-on the browser context before the first navigation. The browser sends it on
+What crosses instead is one opaque id per execution, minted by the **driver** —
+the process that runs your suite — and set on the browser context before the
+first navigation. The browser sends it on
 requests it was already going to send. A service instrumented by its own build
 reads the id off the request and reports what it entered, to a loopback address
 it also read off a cookie. Only the driver holds `journey → subject`, so only the
 driver can join, and a report cannot claim an execution by writing one down: the
 execution is in the address the report arrived on, never in the body.
 
-This is distributed tracing with the runner as the collector, and what it buys is
+This is distributed tracing with the driver as the collector, and what it buys is
 not correlation but separation. Two specs running at once, against one service
 process, inside one module, come back apart. Counters are keyed by async scope
 rather than by the process, and the global the probes read is an accessor rather

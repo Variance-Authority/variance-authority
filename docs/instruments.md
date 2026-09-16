@@ -1,8 +1,13 @@
 # Instruments
 
-Finding that something moved is the easy third of the job. The other two are
-deciding whether the difference is real, and saying what caused it — and in most
-of this category they are the reader's problem, handed over as a red rectangle.
+[**Variance Authority**](README.md) renders each **subject** — a story, a route, a fixture,
+or a value — compares it against its baseline, and records what changed and
+why. When a **run** (one execution of `variance run`) marks a subject
+`changed`, that has answered only the first of three questions: did anything
+move, is the difference real, and what caused it. This page catalogs the
+**instruments** that answer the second and third — each one a repeatable
+technique that holds everything still, varies exactly one thing, and reads a
+representation cheap enough to read again.
 
 Three stages, and they are not equally expensive here:
 

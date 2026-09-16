@@ -1,8 +1,11 @@
 # Architecture
 
-There is no required pipeline. [Variance Authority](README.md) is a set of tools with
-explicit contracts. A team can use one inside an existing workflow or compose
-several into a pipeline that fits its environment.
+[**Variance Authority**](README.md) renders the **subjects** you point it at — a
+story, a route, a fixture, or a value such as a JSON body or a schema — compares
+each capture against its own stored baseline, and records what changed and why.
+It ships as a set of tools with explicit contracts rather than one pipeline you
+must run end to end: a team can use a single tool inside an existing workflow, or
+compose several into a pipeline that fits its own environment.
 
 The tool is the unit of design: a named capability that can be understood,
 replaced, and composed without learning the implementation of every other

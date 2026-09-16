@@ -1,8 +1,15 @@
 # Own fewer tests
 
-One line of product code can sit beneath a hundred tests. That may mean a
-hundred distinct promises depend on it. It may also mean the suite has repeated
-the same answer at every layer and kept every repetition forever.
+A hundred tests can sit beneath one line of product code, in a React
+component, another framework's, or plain logic with no framework at all.
+[Variance Authority](README.md) is visual and execution regression tooling —
+it renders **subjects**, compares them against baselines, and records what
+changed and why — and it reads the execution behind a suite the same way
+regardless of framework. Where its evidence names a rendered component, that
+attribution comes from React, and only when React mounted the element. That
+may mean a hundred distinct promises depend on the line. It may also mean the
+suite has repeated the same answer at every layer and kept every repetition
+forever.
 
 The useful unit is not a test or a covered line. It is a decision the test can
 change. Keep the smallest set of tests that can expose the risks you would act

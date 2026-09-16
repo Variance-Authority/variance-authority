@@ -1,25 +1,30 @@
 # What a run costs
 
-These numbers measure an incremental, content-addressed index: **unchanged runs
-reuse it**, edits rebuild changed records, and path additions invalidate only
-records whose specifiers could have named the affected directory. They were
-taken on a repository this project did not write: [Material
-UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165 tracked paths, of
-which 24,519 are modules and 24.9 MB is source. Scanning it produces 24,909
-records and a 7.8 MB index. It was chosen because it is large enough to break
-things, public enough to check, and nobody here can tune for it.
+[**Variance Authority**](README.md) is visual and execution regression tooling: it renders
+**subjects** — the stories, routes, fixtures and values a run observes — against
+their baselines and records what changed and why. Before a **run** (one
+execution of `variance run`) can capture anything, it has to know which subjects
+a code change could have reached, and that answer comes from an incremental,
+content-addressed index of the checkout: **unchanged runs reuse it**, edits
+rebuild changed records, and path additions invalidate only records whose
+specifiers could have named the affected directory. The numbers on this page
+measure that index — the cost of keeping it current — not the render or the
+comparison. They were taken on a repository this project did not write:
+[Material UI](https://github.com/mui/material-ui) at `62a348bf47`, 41,165
+tracked paths, of which 24,519 are modules and 24.9 MB is source. Scanning it
+produces 24,909 records and a 7.8 MB index. It was chosen because it is large
+enough to break things, public enough to check, and nobody here can tune for
+it.
 
-Every figure below comes from one script, which is in the repository and takes a
-clone of that repository as its argument:
-
-```bash
-node packages/sense/scripts/source-index.mjs {MATERIAL-UI}
-```
+Every figure below comes from one benchmark, kept in this repository and run
+against a clone of that checkout, so each row is a measurement rather than an
+estimate.
 
 ## One whole run
 
-A run opens the index, walks the repository, and publishes what it learned. Each
-row is a working tree put into that shape and then put back, and the last two
+This is what that index costs to keep current: a run opens it, walks the
+repository, and publishes what it learned back into it. Each row is a working
+tree put into that shape and then put back, and the last two
 columns are counted rather than inferred: a record is either reused or rebuilt,
 and a rebuild either opens the file or answers from the parse cache, which is
 keyed by content and by what the file's name said about reading it.
@@ -140,8 +145,8 @@ to perform it faster.
 
 ## git, and the watcher
 
-Everything this system knows about a working tree comes from git, and that is a
-deliberate position: git is the arbiter of what changed, because it is the thing
+Everything Variance Authority knows about a working tree comes from git, and
+that is a deliberate position: git is the arbiter of what changed, because it is the thing
 a person will believe when the answer is wrong. It also means git's cost is ours.
 
 | Asking git                 | Costs | Which is                                     |

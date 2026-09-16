@@ -1,8 +1,17 @@
-# The framework, as a dimension
+# Framework wiring: what React knows that the document doesn't
 
-Every dimension in this system reads the artefact — the markup, the CSS that applies
-to it, the boxes it produced. The artefact is a render in the past tense, and a
-whole class of fact never reaches it.
+[Variance Authority](README.md) renders each **subject** — a story, route,
+fixture or value your config names — and compares it against its baseline. By
+default it works from one **reading**: one capture of that subject — the
+markup, the CSS that applied, the boxes it produced. A whole class of fact
+never reaches that capture: it is the output of a render, not the render.
+
+This page adds one more dimension, **wiring**, read straight from React's
+fiber tree — the tree of internal per-instance records React keeps for every
+component — instead of from the reading. The reader that does it,
+`@variance-authority/react`, is React-specific: if your components render
+through Vue, Svelte, or anything else, nothing on this page applies to your
+suite.
 
 Two components can produce a byte-identical document and differ in everything
 that decides what happens next: which one skips its parent's re-render, which one
@@ -32,11 +41,14 @@ two are read once and stored.
 
 ## Wiring: a sixth digest
 
+Each **collector** captures a subject through one call, `collect(subject, options)`.
+`wiringOf` is one of those options:
+
 ```ts
 collect(subject, { …, provenanceOf, wiringOf })
 ```
 
-One option. With it, every component's root node carries what React knows about
+Passing it makes every component's root node carry what React knows about
 that component, and `componentInstances` folds it into a `wiring` digest beside
 `structure`, `semantics`, `text`, `style` and `geometry`.
 
@@ -157,7 +169,7 @@ together.
 
 ## Framework boundary
 
-- **[Composition](composition.md) [attribution](attribution.md) requires a framework reader.** `collect()` accepts
+- **[Composition](composition.md) and [attribution](attribution.md) require a framework reader.** `collect()` accepts
   `wiringOf` alongside `provenanceOf`. Without a reader, framework wiring is
   absent from the digest rather than reported as empty. The provided reader
   targets React.

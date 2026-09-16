@@ -1,9 +1,12 @@
 # The suite compared to itself
 
-Every other comparison in this system is one subject against its baseline: two
-revisions, one thing. Composition is the other axis — **many subjects, one
-revision, joined on the components they share**. There is no baseline anywhere
-in it.
+[Variance Authority](README.md) renders and compares your **subjects** — the stories, routes,
+fixtures or data values your config names, each carrying a stable id such as
+`story:components-button--primary` — against their **baselines**, the last
+accepted capture of that same subject. Every other comparison this tool makes is
+one subject against its own baseline: two revisions, one thing. Composition is
+the other axis — **many subjects, one revision, joined on the components they
+share**. There is no baseline anywhere in it.
 
 > A visual-regression example is a component built from components. The example
 > *is* a component, at a boundary; the same component appears again, with the
@@ -29,15 +32,22 @@ collection already produced.
 
 ## Turning it on
 
-Nothing. It runs inside `variance run` whenever the collection produced semantic
-snapshots, and the section is in the artifact:
+Nothing. `variance run` captures each subject through a **collector** —
+host-specific code that finds a host's subjects and captures each one, from
+Storybook, a route set or a unit-test runner. Composition runs automatically
+whenever what a collector captured is a full reading — markup, the CSS that
+applied, and the component boundaries React's owner chain produced — rather
+than a raster-only capture that kept only an image and has no markup to derive
+boundaries from. When it runs, the composition section lands in the **report**,
+the file `variance run` writes at the end:
 
 ```bash
 variance run                     # composes, and prints the section
 variance report                  # the same section, from the file, later
 ```
 
-An agent asks for it by name:
+An AI agent connected over MCP asks for it by name, passing the parsed report
+your run just wrote:
 
 ```ts
 toolByName('variance_composition')?.run(report, {});
@@ -46,7 +56,11 @@ toolByName('variance_composition')?.run(report, { subject: 'page/footer--counts'
 toolByName('variance_locate')?.run(report, { query: 'footer chips' });
 ```
 
-**Absent on a raster-only or ephemeral tier**, which has no boundaries to join.
+**Absent on two kinds of run: a raster-only capture, or one under ephemeral
+retention.** A raster-only capture is an image with no markup behind it, so
+there is nothing to derive component boundaries from. A run under ephemeral
+retention (`"retention": "ephemeral"` in your config) compares two revisions
+directly with no baseline stored, and composition finds the same absence there.
 Absent is not empty: the tool answers with a sentence saying the run cannot tell,
 because an empty graph printed there would read as *this suite shares nothing*,
 which is a different claim and a false one.
@@ -171,11 +185,15 @@ default resolved value follows the centre of the border box.
 
 ## The fold
 
-`composeSubjects` walks the per-subject instance lists once, in plan order, and
-buckets them: component → props class → rendering → sites. Every unattributed
-boundary is skipped, and a boundary with no [provenance](attribution.md) is filed under a sentinel
-not under `undefined`, so nothing downstream can read "unknown props" as
-a props class like any other.
+A run decides, before it captures anything, which subjects it will observe and
+in what order — that fixed, ordered list is **the plan**. Captures then run in
+parallel across worker processes, so on any given machine a subject can finish
+before or after another regardless of where it sits in the plan.
+`composeSubjects` walks the per-subject instance lists once, in that plan order
+rather than finishing order, and buckets them: component → props class →
+rendering → sites. Every unattributed boundary is skipped, and a boundary with
+no [provenance](attribution.md) is filed under a sentinel not under `undefined`,
+so nothing downstream can read "unknown props" as a props class like any other.
 
 | level | key | why |
 |---|---|---|
