@@ -14,12 +14,13 @@ import { decodeTestCoverage } from './format.js';
 import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import {
-  addressOf,
+  addressed,
   crossedBlock,
-  first,
+  crossingsAround,
   lostCrossings,
   recutRows,
   reusableBlock,
+  sameNumbering,
   withoutRetired,
 } from './merge-carry.js';
 
@@ -62,6 +63,20 @@ export interface CoverageShard {
  * the row saying *this build never measured this module* is the one a reader
  * widens on, and a fold that let the measured shards outvote it would have turned
  * an unknown into a narrowing.
+ *
+ * Unknown winning has to *retire* the evidence it wins over rather than merely
+ * delete it. Those crossings were some test's whole observation of the module,
+ * and a test left whole with nothing recorded against a module it entered is out
+ * of `entered` at the next diff of that file and in the caller's skip list —
+ * exactly the narrowing the paragraph above refuses, arriving through the tests
+ * instead of through the row. Leaving the module unread does not answer for it:
+ * the recorder that could not instrument a module declares it as a precondition
+ * of every subject that entered it, and a name some test declares is a name no
+ * reader is ever told went unmeasured, so the one channel the widening would
+ * have come out of is shut by the same shard that opened the question. Every
+ * test whose crossings are cleared here is demoted to incomplete instead, the
+ * way {@link mergeCoverage} demotes a carried test that loses one. It runs at
+ * the next selection whatever changed, and that run records it whole again.
  */
 export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage {
   const [first, ...rest] = shards;
@@ -86,6 +101,8 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     }
   }
 
+  /** Tests whose crossings an uninstrumented row wiped, and which no longer stand whole. */
+  const demoted = new Set<string>();
   const modules = new Map<string, {
     module: CoverageModule;
     path: string;
@@ -113,11 +130,23 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
       }
       if (!module.instrumented) {
         seen.module = module;
+        for (const crossings of seen.entered.values()) for (const test of crossings) demoted.add(test);
+        for (const early of seen.loaded.values()) for (const test of early) demoted.add(test);
         seen.entered.clear();
         seen.loaded.clear();
         continue;
       }
-      if (!seen.module.instrumented) continue;
+      if (!seen.module.instrumented) {
+        // The same erasure from the other side, so the same demotion: this
+        // shard's blocks are the ones being dropped, and both branches have to
+        // retire the same tests or the fold's answer would depend on which
+        // shard was read first.
+        for (const block of module.blocks) {
+          for (const test of block.testFiles) demoted.add(test);
+          for (const test of block.loadedBy ?? []) demoted.add(test);
+        }
+        continue;
+      }
       for (const block of module.blocks) {
         const crossings = seen.entered.get(block.ordinal) ?? new Set<string>();
         for (const test of block.testFiles) crossings.add(test);
@@ -134,7 +163,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     instrumentation: first.coverage.instrumentation,
     ...(first.coverage.commit === undefined ? {} : { commit: first.coverage.commit }),
     tests: [...tests.values()]
-      .map(({ test }) => test)
+      .map(({ test }) => (demoted.has(test.file) ? { ...test, complete: false } : test))
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
     modules: [...modules.values()]
       .map(({ module, entered, loaded }): CoverageModule => ({
@@ -218,47 +247,104 @@ export function mergeCoverage(
       ? [test.file]
       : [];
   }));
-  const currentFiles = new Map(current.modules.map((module) => [module.file, module]));
   // Both sides are indexed before the walk rather than searched inside it. The
   // merge is the read-modify-write at the end of every run, so a scan nested in
   // a scan here is M_prev · M_cur — four times ten to the tenth at two hundred
   // thousand modules a side, which is not a constant factor a faster language
-  // recovers. First match wins in both, which is what `find` did.
-  const previousFiles = first(previous.modules, (module) => module.file);
+  // recovers.
+  //
+  // A path is indexed to *all* of its previous rows, not the first of them. One
+  // build reading a path is one row; two builds reading it — a second
+  // environment, a second transform — are two, each with its own text and its
+  // own crossings, and a run that re-recorded one of the builds observed
+  // nothing at all about the other. So each re-recorded row claims the previous
+  // row of its own build, matched by the text it was built from and otherwise
+  // the next unclaimed row of the path, which is that path's one row in the
+  // ordinary case. What nobody claims is carried below. Keeping the first row
+  // alone dropped every other row's crossings while the demotion that answers
+  // for a lost crossing read only the row that was kept, which leaves a test
+  // whole with nothing recorded against the module it entered — out of
+  // `entered` at the next diff of that file, and in the caller's skip list.
+  const previousFiles = new Map<string, CoverageModule[]>();
+  for (const module of previous.modules) {
+    const rows = previousFiles.get(module.file);
+    if (rows === undefined) previousFiles.set(module.file, [module]);
+    else rows.push(module);
+  }
+  const claimed = new Set<CoverageModule>();
+  const claim = (module: CoverageModule): CoverageModule | undefined => {
+    const free = (previousFiles.get(module.file) ?? []).filter((row) => !claimed.has(row));
+    const row = free.find((candidate) => candidate.sourceDigest === module.sourceDigest) ?? free[0];
+    if (row !== undefined) claimed.add(row);
+    return row;
+  };
   const stale = new Set<string>();
   const modules = current.modules.map((module): CoverageModule => {
-    const old = previousFiles.get(module.file);
-    const at = first(module.blocks, addressOf);
+    const old = claim(module);
+    const at = new Map(addressed(module.blocks));
     const surviving = new Map<CoverageBlock, CoverageBlock>();
-    for (const before of old?.blocks ?? []) {
-      const block = at.get(addressOf(before));
-      if (block !== undefined && module.instrumented && old!.instrumented &&
+    // Half of an address is the seat a region took among its siblings, so two
+    // cuts that filled a counter differently do not name the same regions by
+    // the same addresses — {@link sameNumbering}. A branch written in front of
+    // the recorded one takes the address the recorded one had, over text it
+    // never covered, and the kinds match because a branch replaced a branch, so
+    // every row finds somewhere to go and nothing is demoted for the slide.
+    // Across a module that renumbered nothing is carried: every previous row
+    // reads as unmatched, which demotes the tests on it. Same text is the same
+    // numbering, so the seats are counted only where the digests differ.
+    const placeable = old !== undefined &&
+      (old.sourceDigest === module.sourceDigest || sameNumbering(old.blocks, module.blocks));
+    for (const [address, before] of addressed(old?.blocks ?? [])) {
+      const block = at.get(address);
+      if (placeable && block !== undefined && module.instrumented && old!.instrumented &&
         reusableBlock(block, before)) {
         surviving.set(block, before);
         continue;
       }
       for (const test of before.testFiles) if (!currentTests.has(test)) stale.add(test);
     }
+    const kept = (test: string): boolean => !retired.has(test);
+    // A region this run cut that the previous rows never held is not a region
+    // nobody entered; it is one nobody has been asked about. It reads its
+    // carried crossings off the region around it — see `crossingsAround`.
+    const around = crossingsAround(module.blocks, (block) => {
+      const before = surviving.get(block);
+      if (before === undefined) return undefined;
+      return {
+        testFiles: before.testFiles.filter(kept),
+        loadedBy: (before.loadedBy ?? []).filter(kept),
+      };
+    });
     return {
       file: module.file,
       sourceDigest: module.sourceDigest,
       instrumented: module.instrumented,
       blocks: module.blocks.map((block) => {
-        const before = surviving.get(block);
-        const kept = (test: string): boolean => !retired.has(test);
+        const before = around(block);
         return crossedBlock(
           block,
-          [...(before?.testFiles ?? []).filter(kept), ...block.testFiles],
-          [...(before?.loadedBy ?? []).filter(kept), ...(block.loadedBy ?? [])],
+          [...before.testFiles, ...block.testFiles],
+          [...before.loadedBy, ...(block.loadedBy ?? [])],
         );
       }),
     };
   });
   const carried: CoverageModule[] = [];
   for (const module of previous.modules) {
-    if (currentFiles.has(module.file)) continue;
+    // A row a re-recorded row claimed has been folded into it. Every other row
+    // is a module this run did not re-record — whether or not some other build
+    // of the same path was — and is carried with the crossings it holds.
+    if (claimed.has(module)) continue;
     const now = onDisk.get(module.file);
-    const recut = now === undefined ? undefined : recutRows(module, now, current.instrumentation);
+    // A module named {@link UNREADABLE} is mislaid on the ground `recutRows`
+    // mislays one whose text will not parse: there is no text here to place the
+    // rows in. An uninstrumented row is left alone either way — it says this
+    // build never measured the module, and nothing on disk answers that.
+    const recut = now === undefined || !module.instrumented
+      ? undefined
+      : now === UNREADABLE
+        ? ('mislaid' as const)
+        : recutRows(module, now, current.instrumentation);
     const lost = recut === 'mislaid'
       ? [...new Set(module.blocks.flatMap((block) => block.testFiles))]
       : recut === undefined ? [] : lostCrossings(module, recut);
@@ -292,7 +378,8 @@ export interface CarriedModule {
  * The text {@link mergeCoverage} re-cuts carried rows from: of the modules the
  * caller names, the ones whose text has moved since their rows were cut. This
  * is the whole of the I/O, so the merge itself stays a function of two
- * snapshots. A file that is not there is not named, and is carried as it was.
+ * snapshots. A file that is not there is not named, and is carried as it was;
+ * one that is there and would not open is named {@link UNREADABLE}.
  *
  * What the map deliberately does not hold is every other module. A run that
  * re-records ten files of two hundred thousand carries the rest, and almost
@@ -324,8 +411,19 @@ export async function readSources(
       let text: string;
       try {
         text = await readFile(resolve(root, module.file), 'utf8');
-      } catch {
-        continue; // Not on disk under that name: nothing to re-cut from.
+      } catch (error) {
+        // Nothing at the path says the rows are about a file that is gone, and
+        // the module is carried as it was. A path that is there and would not
+        // open says something else: this process does not know whether the text
+        // moved, and carrying the rows on the strength of not having looked
+        // leaves ranges cut from text that may be gone, with no crossing lost
+        // and so no test demoted for them. That is ordinary at this scale —
+        // {@link AT_ONCE} descriptors times however many workers merge at once,
+        // a build rewriting the file under the read, a permission that slipped
+        // — and each is momentary, so it costs one module's tests one run.
+        if (missing(error)) continue;
+        sources.set(module.file, UNREADABLE);
+        continue;
       }
       // Text that has not moved is the text the rows were cut from, so the rows
       // already stand where the next diff will be taken.
@@ -337,6 +435,25 @@ export async function readSources(
   );
   return sources;
 }
+
+/** A path nothing is at, as against one that is there and would not open. */
+function missing(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
+/**
+ * What {@link readSources} names a module whose text it could not read at all,
+ * as against read and found moved.
+ *
+ * The map is texts, and for this module there is none to put in it. A merge that
+ * meets it carries nothing and demotes every test that entered the module, which
+ * is what {@link recutRows} answers `mislaid` for and on the same ground: the
+ * rows are ranges in text nobody has here, and a reader not told so narrows on
+ * coordinates that may be wrong. A file whose whole content is this string is
+ * mislaid too, at the cost of one run to one module's tests.
+ */
+export const UNREADABLE = '\0unreadable';
 
 /**
  * Files read at once by {@link readSources}.

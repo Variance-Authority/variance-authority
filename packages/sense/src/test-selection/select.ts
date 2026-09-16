@@ -1,7 +1,8 @@
+import { digestString } from '../digest.js';
 import { KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason } from './importers.js';
-import { findModule, testsGovernedBy } from './lookup.js';
+import { findModules } from './lookup.js';
 import { changedLines, type LineRange } from './diff-lines.js';
 import { bindsOnly } from './inert.js';
 
@@ -40,9 +41,39 @@ export interface ExecutionNarrowing {
    * report, not a widening: a suite that depends on such a file declares it
    * as a precondition, and it stops appearing here.
    *
+   * A file the caller says the snapshot may hold under several names is here
+   * unless every one of them was answered for. What a record holds under one
+   * name is about the audience that read that name, and the built twin's
+   * audience is a different set of tests from the source's.
+   *
    * Empty is the ordinary state.
    */
   readonly unread: readonly string[];
+
+  /**
+   * Changed modules whose recording was cut from a different text than the one
+   * the diff is written against, so their line ranges were not read.
+   *
+   * A snapshot's ranges are coordinates in the text the suite ran over, and its
+   * label is the commit `git rev-parse HEAD` named at that moment. A suite is
+   * recorded *by being run*, so in a developer's loop or an agent's the tree is
+   * dirty every time and the two are different texts — the ranges number lines
+   * the commit never had. A hunk then lands on whichever region occupies those
+   * numbers now, which answers with other tests, or with none, and the run is
+   * green over a change nothing watched.
+   *
+   * Each of these is charged whole instead, which is what the snapshot can
+   * still say honestly about it. Empty is the ordinary state, and a snapshot
+   * recorded over a clean tree keeps it empty. It is listed because the
+   * widening is a fact about the *recording*, not about the diff: a name that
+   * keeps appearing here is a suite being recorded over an edited tree, and it
+   * is fixed by recording once on a clean one, not by changing the query.
+   *
+   * Populated only when the caller supplies `sourceAt`. Without it nothing is
+   * checked and this is empty because nothing looked — which is not the same
+   * fact, and is why the option is named on the query rather than assumed.
+   */
+  readonly stale: readonly string[];
 
   /**
    * Why each test in `entered` is there: one entry per selected test, in the
@@ -125,7 +156,7 @@ function readDiff(
   coverage: TestCoverageView,
   diff: string,
   options: ExecutionNarrowingOptions,
-): Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because'> {
+): Pick<ExecutionNarrowing, 'entered' | 'unread' | 'because' | 'stale'> {
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   const selected = new Map<number, SelectionReason[]>();
   const select = (test: number, reason: SelectionReason): void => {
@@ -135,67 +166,132 @@ function readDiff(
   };
   const changed = changedLines(diff);
   const governing = new Set<string>();
+  const rowed = new Set<string>();
+  const stale = new Set<string>();
 
   for (const [file, ranges] of changed) {
     for (const name of knownAs(file)) {
-      const module = findModule(coverage, name);
+      // Every row recorded under the name. One build reading a path is one
+      // row; two builds reading it are two, each with its own crossings, and
+      // the answer is all of them.
+      const under = findModules(coverage, name);
+      const rows = under.filter((module) => coverage.moduleInstrumented.at(module) === 1);
       // No row, or a row with nothing behind it. `instrumented: false` is the
       // build saying it never read this module — not that nothing ran in it —
       // and its zero blocks would otherwise select nobody and look like an
       // answer.
-      if (module === undefined || coverage.moduleInstrumented.at(module) !== 1) {
-        governing.add(name);
-        continue;
-      }
-      const first = coverage.moduleBlocks.at(module);
-      const end = coverage.moduleBlocks.at(module + 1);
-      const blocks = new Set<number>();
-      // A file the diff names without lines — a binary, a rename, a mode — is
-      // every region of it.
-      if (ranges.length === 0) for (let block = first; block < end; block += 1) blocks.add(block);
-      for (const range of ranges) {
-        // Text that only binds a name changed nothing that already ran, and the
-        // gap it opens would otherwise be charged to the module itself — every
-        // test that ever imported the file, for a function nobody calls yet.
-        if (range.added !== undefined && bindsOnly(range.added)) continue;
-        for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
-      }
-      for (const block of blocks) {
-        const reason: SelectionReason = {
-          kind: 'region',
-          file: name,
-          name: coverage.string(coverage.blockName.at(block)),
-          path: coverage.string(coverage.blockPath.at(block)),
-          startLine: coverage.blockStart.at(block),
-          endLine: coverage.blockEnd.at(block),
-        };
-        for (
-          let crossing = coverage.blockTests.at(block);
-          crossing < coverage.blockTests.at(block + 1);
-          crossing += 1
-        ) {
-          select(coverage.crossingTest.at(crossing), reason);
+      // Every changed name is asked of the precondition table, whatever its
+      // rows say. A row and a declaration answer different questions: the row
+      // says which tests entered which regions of this module, the declaration
+      // says the observation is void if the file's text moves at all. No
+      // recorder writes the second where it can write the first — an
+      // instrumented module's text is a digest on its own row
+      // (`finished-files.ts`, `journal.ts`) — so what is left in the table is
+      // what no row can answer: a test's own file, a configured setup file, a
+      // module some other run never instrumented.
+      governing.add(name);
+      // A name is answered by its rows only when *every* row under it is one.
+      // Rows are per build, not per path: one file read by a node build and a
+      // browser build is two rows, and `instrumented: false` on either of them
+      // is that build saying it never read this module. The instrumented row
+      // beside it holds the other build's crossings and says nothing whatever
+      // about this one's subjects, which hold no crossing here and — the
+      // browser recorder writing preconditions for the subject's own file only
+      // — no declaration either. Reading one row as the path's answer would
+      // close the valve over subjects nothing in the snapshot speaks for, so
+      // information about one build would remove the protection of another.
+      if (rows.length > 0 && rows.length === under.length) rowed.add(name);
+      for (const module of rows) {
+        const first = coverage.moduleBlocks.at(module);
+        const end = coverage.moduleBlocks.at(module + 1);
+        const blocks = new Set<number>();
+        // Everything below reads line numbers, and a line number is only a place
+        // in the text it was cut from. The recorder wrote a digest of that text,
+        // so whether this module's numbers mean anything here is a question the
+        // snapshot can answer about itself — and one nothing used to ask.
+        if (!recorded(coverage, module, name, options.sourceAt)) {
+          stale.add(name);
+          for (let block = first; block < end; block += 1) blocks.add(block);
+        } else {
+          // A file the diff names without lines — a binary, a rename, a mode — is
+          // every region of it.
+          if (ranges.length === 0) for (let block = first; block < end; block += 1) blocks.add(block);
+          for (const range of ranges) {
+            // Text that only binds a name changed nothing that already ran, and
+            // the gap it opens would otherwise be charged to the module itself —
+            // every test that ever imported the file, for a function nobody calls
+            // yet.
+            if (range.added !== undefined && bindsOnly(range.added)) continue;
+            for (const block of blocksAround(coverage, first, end, range)) blocks.add(block);
+          }
+        }
+        for (const block of blocks) {
+          const reason: SelectionReason = {
+            kind: 'region',
+            file: name,
+            name: coverage.string(coverage.blockName.at(block)),
+            path: coverage.string(coverage.blockPath.at(block)),
+            startLine: coverage.blockStart.at(block),
+            endLine: coverage.blockEnd.at(block),
+          };
+          for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
+            select(test, reason);
+          }
         }
       }
     }
   }
 
-  const governed = testsGovernedBy(coverage, [...governing]);
-  for (const [test, names] of governed.tests) {
-    for (const name of names) select(test, { kind: 'precondition', name });
+  // A row answers for its file; the precondition table is asked only for the
+  // names no row answered. It cannot be asked for the rest: the browser
+  // recorder declares every module a subject entered as a precondition of
+  // that subject, so under it the table holds everyone who loaded the file,
+  // and reading it beside the row would hand a one-branch edit to every test
+  // that loaded the module. The names go to the graph's own walk with the
+  // modules it reached that carry no probes, which need the same table:
+  // handed over together they are one read of it rather than two, and that
+  // table is the only part of a snapshot large enough for the difference to
+  // be the query.
+  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), options, governing);
+  // A declaration is unconditional — *if this file's text moves, retire this
+  // observation* — and nothing here narrows it. It is the one thing a record
+  // says that no region of any row can say.
+  for (const [test, held] of answered.governed.tests) {
+    for (const name of held) select(test, { kind: 'precondition', name });
   }
-  // Every changed file is asked of the graph as well, which answers only a
-  // file no probe can sit in, from the module that imports it; a module with
-  // no row is dead there too. A file is *unread* only when nothing answered
-  // for any of its names, and a name with a row is never in `governed.unread`.
-  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), options);
   for (const [test, reasons] of answered.selected) {
     for (const reason of reasons) select(test, reason);
   }
-  const unmatched = new Set(governed.unread);
-  const unread = answered.unread
-    .filter((file) => knownAs(file).every((name) => unmatched.has(name)))
-    .sort(codeUnitOrder);
+  // A name is answered when something recorded holds it: a row with probes
+  // behind it, or a test declaring it. The table is asked for every changed
+  // name now, so its silence about a name is no longer the same sentence as
+  // *nothing measured this* — a row measured it, whether or not any test wrote
+  // the name down.
+  const unmatched = new Set(answered.governed.unread.filter((name) => !rowed.has(name)));
+  // A file is measured when *every* name it may be held under was answered
+  // for. `knownAs` exists because one file is two names — a package's own suite
+  // loads `src`, every other package loads the built twin — and the two names
+  // carry different audiences. A row or a declaration under `src` witnesses the
+  // subjects that read `src` and says nothing whatever about the tests that
+  // loaded the built file, so reading either name as the file's answer closes
+  // the valve over an audience nothing in the snapshot speaks for: a `dist`
+  // shard that never reached the fold skips the consuming package's whole suite
+  // while the source package's own stories run over the same edit. It is the
+  // rule the graph's chains already follow — one chain ending where the record
+  // never looked leaves the file unread whatever the chains beside it found.
+  //
+  // A file `knownAs` gives no name at all was asked about under nothing, which
+  // is the same silence.
+  //
+  // It costs a caller that lists a name the snapshot never holds: every change
+  // to that file retires the skip list, every run, until the name is recorded
+  // or stops being listed. The option is the names the snapshot *may* hold the
+  // file under, and that is the sentence being paid for.
+  const measured = (file: string): boolean => {
+    const names = knownAs(file);
+    return names.length > 0 && names.every((name) => !unmatched.has(name));
+  };
+  const unread = answered.unread.filter((file) => !measured(file)).sort(codeUnitOrder);
 
   const because = [...selected]
     .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))
@@ -204,8 +300,40 @@ function readDiff(
   return {
     entered: because.map((cause) => cause.test),
     unread,
+    stale: [...stale].sort(codeUnitOrder),
     because,
   };
+}
+
+/**
+ * Whether this module's line ranges are coordinates in the text the diff is
+ * written against.
+ *
+ * `modules.source` is a digest of the text the recorder cut the ranges from —
+ * `probes.ts` takes it off the file on disk, beside the comment saying that is
+ * what the block lines are coordinates in. So the check is the digest the
+ * snapshot already holds against the digest of the text at the position the
+ * snapshot names, and it costs one hash of one changed file.
+ *
+ * True when the caller supplied no `sourceAt`, which is the reading it has
+ * always had: nothing was asked, so nothing is charged. It is the caller's
+ * choice because only the caller knows how to fetch a text from a commit, and
+ * the answer is worth nothing if the library guesses.
+ */
+function recorded(
+  coverage: TestCoverageView,
+  module: number,
+  name: string,
+  sourceAt: ExecutionNarrowingOptions['sourceAt'],
+): boolean {
+  if (sourceAt === undefined) return true;
+
+  const source = sourceAt(name, coverage.commit);
+  // A row for a file the position does not hold is the same disagreement: the
+  // recording saw a text nothing at that commit can be.
+  if (source === undefined) return false;
+
+  return digestString(source) === coverage.string(coverage.moduleSource.at(module));
 }
 
 /**
@@ -240,6 +368,17 @@ function readDiff(
  * when the other props change. The brace that closes a branch has nothing of
  * the enclosing region after it, and charging outwards from it would give every
  * edit to a branch's last line to the tests that never took the branch.
+ *
+ * Narrowest is not always innermost. On a line where one region closes and a
+ * sibling opens — `} else if (score > bonus) {`, `} finally {` — the two meet
+ * rather than nest, and the condition the line carries is the text of the
+ * region that *opens*. Walked from the narrowest alone the chain stops at the
+ * region that ends there, which opens nothing, and the region beginning on that
+ * same line is never asked: an edit to the condition of an `else if` is charged
+ * to the `then` branch, and every test on the else side lands in the caller's
+ * skip list over a line it runs. So a region whose own text is on the line is
+ * charged whether or not the chain reached it, and charges the next one out
+ * from itself.
  *
  * A continuation — the rest of a block after a branch — begins at a statement
  * and ends where its block ends, so its lines are its own and it never charges
@@ -276,7 +415,9 @@ function blocksAround(
 
   for (let line = range.start; line <= range.end; line += 1) {
     // Every region with source the line is in, narrowest first. Regions that
-    // hold one line nest, so this is the chain from the line outwards.
+    // hold one line mostly nest, so this is the chain from the line outwards —
+    // except where two of them meet on it, and then the wider one begins where
+    // the narrower ends and neither is inside the other.
     const around: number[] = [];
     for (let block = first; block < end; block += 1) {
       const from = coverage.blockStart.at(block);
@@ -294,7 +435,7 @@ function blocksAround(
     around.sort((left, right) => span(coverage, left) - span(coverage, right));
     let index = 0;
     let outwards = true;
-    while (index < around.length && outwards) {
+    while (index < around.length) {
       // Regions of one span over one line are the same lines: all are charged,
       // and any of them whose text here sits beside the next region's reaches
       // that region.
@@ -302,9 +443,14 @@ function blocksAround(
       let next = index;
       while (next < around.length && span(coverage, around[next]!) === width) next += 1;
       const group = around.slice(index, next);
-      for (const block of group) found.add(block);
       const besideResume = group.every((block) => KINDS[coverage.blockKind.at(block)] === 'resume');
-      outwards = group.some((block) => sharesLine(coverage, block, line, besideResume));
+      const shares = group.some((block) => sharesLine(coverage, block, line, besideResume));
+      // Charged when the walk reached it, and charged when its own text is on
+      // this line whether or not the walk reached it. The second is the sibling
+      // meeting: the region the line closes does not reach the one it opens,
+      // and the one it opens holds the line all the same.
+      if (outwards || shares) for (const block of group) found.add(block);
+      outwards = shares;
       index = next;
     }
     if (found.size === end - first) break;

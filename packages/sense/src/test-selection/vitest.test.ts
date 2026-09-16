@@ -4,8 +4,102 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
+import {
+  reportedComplete,
+  taskComplete,
+  type ReportedModule,
+  type RunnerTask,
+} from './finished-files.js';
 import { mergeCoverage, withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
+
+describe('what a finished test file is worth', () => {
+  // One file, read by two runners. `test/hook.throws.ts` in the external-vitest
+  // fixture throws in a `beforeAll`, and the shapes below are what each runner
+  // handed the reporter for it — taken off the hook as it was called, not
+  // recalled:
+  //
+  //   vitest 2.1.9   onFinished only                 the task tree here
+  //   vitest 3.2.4   onTestRunEnd, then onFinished    the reported module here
+  //   vitest 4.1.2   onTestRunEnd only
+  //
+  // Under 3 the reported reading is the one that lands, since the snapshot is
+  // written once by whichever hook arrives first. This checkout installs 2.1.9,
+  // so only the task-tree reading has a run of its own behind it —
+  // `reporter-hooks.integration.test.ts` says exactly that, and goes red when a
+  // bump makes the other one live. Until then these shapes are the whole of the
+  // reported reading's evidence, which is the reason each assertion below turns
+  // on one accessor a runner was seen to answer rather than one it might.
+  const test = (state: string) => ({ result: { state } });
+  const reportedTest = (state: string) => ({ result: () => ({ state }) });
+
+  /**
+   * The Vitest 2 task tree: `markTasksAsSkipped` rewrote the guarded test to
+   * `skip` — mode included, so it is indistinguishable from `it.skip` — and the
+   * suite that held the hook kept `fail`.
+   */
+  const taskTree = (suite: string): RunnerTask => ({
+    filepath: 'test/hook.throws.ts',
+    result: { state: suite === 'fail' ? 'fail' : 'pass' },
+    tasks: [test('pass'), { result: { state: suite }, tasks: [test('skip')] }],
+  });
+
+  /**
+   * The Vitest 3 reported module for the same run, answering only the signals
+   * named.
+   *
+   * All three were measured at once for the thrown hook: `ok()` false, the
+   * module's own `errors()` empty — a hook inside a `describe` belongs to that
+   * suite and not to the file — and that suite's `errors()` holding the throw.
+   * They are asked for one at a time because a runner that grew the API later
+   * than this seam may answer only some of them, and each one alone has to be
+   * enough to refuse.
+   */
+  const reported = (...signals: readonly string[]): ReportedModule => ({
+    moduleId: 'test/hook.throws.ts',
+    ok: () => !signals.includes('module verdict'),
+    errors: () => ({ length: signals.includes('module errors') ? 1 : 0 }),
+    children: {
+      allTests: () => [reportedTest('passed'), reportedTest('skipped')],
+      allSuites: () => [{ errors: () => ({ length: signals.includes('suite errors') ? 1 : 0 }) }],
+    },
+  });
+
+  it('refuses a Vitest 2 file where a suite failed under passing and skipped leaves', () => {
+    expect(taskComplete(taskTree('fail'))).toBe(false);
+  });
+
+  it('still counts a Vitest 2 file whose own skips are in its text', () => {
+    expect(taskComplete(taskTree('pass'))).toBe(true);
+  });
+
+  it('refuses a reported module on any one of the signals, taken alone', () => {
+    // Alone is the whole assertion. A module built by hand agrees with whatever
+    // its author believed the runner's API was called, so the only case that
+    // notices `allSuites` being renamed is the case with nothing else left to
+    // refuse on.
+    expect(reportedComplete(reported('module verdict'))).toBe(false);
+    expect(reportedComplete(reported('module errors'))).toBe(false);
+    expect(reportedComplete(reported('suite errors'))).toBe(false);
+    expect(reportedComplete(reported('module verdict', 'module errors', 'suite errors'))).toBe(false);
+  });
+
+  it('counts a reported module no signal objects to, so the refusals are what refused', () => {
+    // The control the three above are read against: the same passed-and-skipped
+    // leaves, and nothing saying the file stopped part-way.
+    expect(reportedComplete(reported())).toBe(true);
+  });
+
+  it('answers what the other writer answered about the same file', () => {
+    // The two hooks fill one `complete` column, and under Vitest 3 both are
+    // called — so a file worth nothing read through the task tree has to be
+    // worth nothing read through the reported modules, or what a suite is
+    // allowed to skip depends on which major ran it.
+    expect(reportedComplete(reported('module verdict', 'suite errors')))
+      .toBe(taskComplete(taskTree('fail')));
+    expect(reportedComplete(reported())).toBe(taskComplete(taskTree('pass')));
+  });
+});
 
 describe('coverage generations', () => {
   it('records instrumentation refusal instead of an empty module observation', async () => {
@@ -163,17 +257,28 @@ describe('coverage generations', () => {
       .toEqual(['case.test.ts']);
   });
 
-  it('drops a crossing when the module no longer has the region it names', () => {
+  it('hands a region the module no longer names the crossings around it', () => {
     // Identity is the address — the declaration name path and the structural
     // path inside it — so a renamed function is not the function that was
-    // recorded, and nothing carries onto the one that took its place.
+    // recorded, and `decide`'s crossings do not carry onto `chose` by address.
+    // What `chose` gets instead is what the region around it holds, which here
+    // is the module, and that is an observation rather than a guess: arrival
+    // nests, so a test recorded against the module was somewhere inside it.
+    //
+    // The alternative is a row reading `chose` was entered by nobody, about
+    // lines no run has been asked about. Nothing downstream would read it as an
+    // unknown — the test still holds the module, so it is not demoted and stays
+    // in `whole`, and the module still has rows, so its name stays out of
+    // `unread` — and a diff inside `chose` would answer nobody against a
+    // `whole` naming the suite, which is the suite skipped.
     const previous = coverage(true, 'test:old', module('source:old', ['case.test.ts']));
     const current = coverage(false, 'test:old', module('source:new', [], {}, 'chose'));
 
     const merged = mergeCoverage(previous, current);
     const blocks = merged.modules[0]!.blocks;
 
-    expect(blocks.find((block) => block.name === 'chose')?.testFiles).toEqual([]);
+    expect(blocks.find((block) => block.name === 'chose')?.testFiles)
+      .toEqual(['case.test.ts']);
     expect(blocks.find((block) => block.path === 'module')?.testFiles).toEqual(['case.test.ts']);
   });
 });

@@ -235,12 +235,16 @@ own in the text the rows are coordinates in, so it is charged to the lines on
 either side of the gap it opens — and at a module's top level both of those are
 the module, whose crossings are every test that ever imported the file. The
 diff carries the added text, so the question is asked of the text instead: a
-function declaration, a type, an interface, an enum, a type-only import, a
-comment, each binds a name or nothing at all and no code that was already there
-mentions it, so the hunk charges nobody. A class declaration is not on that
-list, because its decorators, computed keys, static initializers and base
-expression all run, and neither is a `const`, whose initializer is work every
-importer of the module consumed.
+type, an interface, a signature with no body, a type-only import, a comment,
+each of them erased before the module runs, which leaves the text that was
+already there the whole of what ran, so the hunk charges nobody. A function
+declaration is not on that list, because it hoists: it binds its name at the top
+of the block the text landed in, over whatever that name held there, and the
+lines above it are the ones the hunk did not touch. Neither is a class
+declaration, whose decorators, computed keys, static initializers and base
+expression all run, nor an enum the compiler emits, whose function merges into
+whatever object its name already holds, nor a `const`, whose initializer is work
+every importer of the module consumed.
 
 ## The coverage file
 
@@ -278,10 +282,9 @@ rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 | blocks | `blocks.digest`, `blocks.name`, `blocks.path` | identity, as string ids |
 | blocks | `blocks.start`, `blocks.end` | first and last line in the source |
 | blocks | `blocks.source` | one byte, `1` when the block is a region of the file's text |
-| blocks | `blocks.tests` | range into the crossings |
-| crossings | `crossings.test` | the test row that executed the block |
-| blocks | `blocks.loaded` | range into the early crossings |
-| loaded | `loaded.test` | the test row that had executed the block before its first test ran |
+| blocks | `blocks.set` | the pooled set of tests that executed the block |
+| blocks | `blocks.loadedSet` | the pooled set of tests that had executed the block before their own file began, empty for most regions |
+| sets | `sets.blob`, `sets.off` | the pool both of those name: one copy of each distinct set of tests, however many regions name it |
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -480,7 +483,7 @@ tests.preconditions[t + 1]`, O(preconditions of that test).
 ## Tracing a diff to tests
 
 `selectTestFilesFromView` at
-`packages/sense/src/test-selection/select.ts:107` performs the trace one
+`packages/sense/src/test-selection/select.ts:138` performs the trace one
 changed file at a time.
 
 1. **Diff to lines.** `changedLines` in
@@ -490,14 +493,18 @@ changed file at a time.
    file is read under its old name, and a file with no hunks is charged
    whole. The added text of an insertion is kept with the range it charges.
    O(diff length).
-2. **Added text that only binds a name.** `bindsOnly` in
-   `packages/sense/src/test-selection/inert.ts:57` parses the added text of
-   each such range. A range whose text is nothing but function, type,
-   interface and enum declarations, type-only imports, export lists and
-   comments is dropped before anything is charged: no code that was already
-   there mentions a name the insertion introduces. One parse per inserted run.
+2. **Added text the module never runs.** `bindsOnly` in
+   `packages/sense/src/test-selection/inert.ts:108` parses the added text of
+   each such range. A range whose text is nothing but types, interfaces,
+   signatures with no body, erased enums, type-only imports and a re-export of
+   a name the file already holds is dropped before anything is charged: none of
+   it is evaluated where the code that already ran could reach it. Text that
+   parses to no construct at all — a comment, a blank line — is *not* dropped,
+   because the same bytes at the same line number are equally a line of the CSS
+   or the copy a module renders out of a template literal, and a diff carries no
+   coordinate finer than the line. One parse per inserted run.
 3. **Lines to blocks.** For each charged line, `blocksAround` at
-   `packages/sense/src/test-selection/select.ts:269` scans the module's blocks
+   `packages/sense/src/test-selection/select.ts:408` scans the module's blocks
    once, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
    charged whole. Each wider group is charged in turn as long as a region of
@@ -507,19 +514,36 @@ changed file at a time.
    a function also does when the line is its last, and a resume does only when
    no region of another kind has its span. A line no source region contains
    charges every block of the module.
-4. **Blocks to tests.** Each charged block's crossings, O(C of those blocks).
-   A module with a row but no blocks, or with no row at all, answers through
-   preconditions instead, O(P).
+4. **Blocks to tests.** Each charged block's crossings, O(C of those blocks),
+   of every row recorded under the path — two builds that read one module are
+   two rows, and the answer is all of them. Every changed path is also asked of
+   the precondition table, O(P), whatever its rows say: a row answers which
+   tests entered which regions, a precondition says the observation is void if
+   the file's text moves at all, and the two are not the same sentence. A row
+   does buy the path out of *unread*, which is why a module nothing declares is
+   still measured.
 5. **Files the record cannot see.** When the caller hands in the relations
    graph, `answerByImporters` in
-   `packages/sense/src/test-selection/importers.ts:80` is asked about every
+   `packages/sense/src/test-selection/importers.ts` is asked about every
    changed file, and answers only for one no probe can sit in: it walks the
    graph from the file to its importers along `asset` edges, the kind the
-   source scan records for such a file, selects the tests that crossed or
-   precondition on any importer it reaches, and, when something imports the
-   file as an asset, also charges every file whose edges are unknown. O(n + m) on the graph per changed file.
-6. **Unread.** A changed path that no module row, no precondition and no
-   importer holds is reported as unread, and the caller runs everything.
+   source scan records for such a file, and selects the tests that crossed or
+   precondition on any importer it reaches. The file is answered only when
+   every chain of the walk ends at something the record measured — a test, a
+   module with probes, or a module without probes that some test declares; a
+   chain ending at a module with no row leaves the file unread whatever the
+   other chains selected. When something imports the file as an asset, every
+   file whose edges are unknown is charged as well, as an addition that
+   neither answers nor unsettles. O(n + m) on the graph per changed file.
+6. **Unread.** A changed path is measured only when *every* name the caller
+   says the snapshot may hold it under was answered for by a module row, a
+   precondition or a chain to a recorded importer. One file is often two names
+   — a package's own suite loads `src`, every other package loads the built
+   twin — and the two carry different audiences, so a row under one name
+   witnesses nothing about the tests that loaded the other. A path any of whose
+   names went unanswered, and a path the caller gives no name at all, is
+   reported as unread, and the caller runs everything. A name with a row is
+   answered even when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks
 + P), and one graph walk more per changed file when a graph is supplied.
@@ -531,10 +555,10 @@ whose change must re-run it without any block being involved, and its
 crossings are the inverse of `crossings.test`: the blocks whose crossing range
 contains the test's row. The file holds no index in that direction, so listing
 every block a test crossed is O(C) over the whole record. `ExecutionIndex` at
-`packages/sense/src/test-selection/reverse.ts:32` is the same data in the
+`packages/sense/src/test-selection/reverse.ts:46` is the same data in the
 shape a collector or an editor integration supplies: each block lists the
 tests that crossed it with the call-stack depth from the test to the block,
-and `coveringTests` at line 55 of that file answers by line
+and `coveringTests` at line 69 of that file answers by line
 or by function name in O(M) to find the module and O(B²) to keep only the
 innermost regions of the line.
 
@@ -546,9 +570,12 @@ range, O(B) per step, at most depth steps. `name` and `path` together read
 as a location without the chain: the declaration and the structural position
 inside it. `start` and `end` place the block on the lines of the source at
 `modules.source`. When the file on disk no longer hashes to that digest the
-lines are the record's, not the disk's; `sourcesOnDisk` in
-`packages/sense/src/test-selection/merge.ts:304` is what notices, and the rows
-are re-cut over the text that is there.
+lines are the record's, not the disk's; `readSources` in
+`packages/sense/src/test-selection/merge.ts:402` is what notices, and
+`recutRows` cuts the rows over the text that is there. A file it cannot read at
+all is held apart from one that is not there: a path that has gone leaves the
+module to be answered for by name, and a path that refuses to be read retires
+the observation instead of carrying it forward over text nobody has seen.
 
 ## Journals
 
