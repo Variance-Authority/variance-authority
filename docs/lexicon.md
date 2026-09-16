@@ -299,20 +299,26 @@ The run of segments has to appear entire and in order, so a path answers the
 same whether the run recorded it rooted or not, and whether you paste the
 absolute path your editor gives you or the tail you remember.
 
-A path answers from files and nothing else, and a word answers from everything
-but files. A file name is not unique and is not a place: `I18nProvider` says
-which *component*, and `src/core/Containers/I18nProvider.tsx` says which file.
-That division is what keeps a word honest — a word cannot reach into a path to
-find a fragment of a filename, and it cannot be answered by the directories of
-whatever machine ran the suite.
+A path answers from the files a subject was seen in and from nothing else, and
+a bare word is refused rather than reinterpreted. A file name is not unique and
+is not a place: `I18nProvider` says which *component*, and
+`src/core/Containers/I18nProvider.tsx` says which file. Nothing about
+`I18nProvider` says whether it is a folder, a component or a label, so you are
+asked for the coordinate instead of being guessed at.
+
+Segments are compared whole and literally — `page` is not `pages`, and
+`Activity.ts` is not `Activity.tsx`. What you are looking for may be
+approximate; where to look is a coordinate you already have, and every softening
+of it widens the pond you said to fish in.
 
 Two absolute paths of the same depth under different roots are left alone: they
 share a tail and disagree above it, nothing in a run says which of its leading
 segments are its root, and a rule loose enough to join them would join
 `apps/web/…/Button.tsx` to `apps/admin/…/Button.tsx`.
 
-A word still works and means what it did — `billing` names the area — but where
-you have a coordinate, give the coordinate.
+A start point that names no file searches nothing, and returns nothing. Falling
+back to the rest of the suite would answer a question nobody asked, out of the
+files the reader ruled out, and would do it while printing a confident top hit.
 
 ### What a starting point is worth
 
@@ -349,14 +355,18 @@ prints rather than the id:
 |---|---|---|
 | subjects | 166 | 4,705 |
 | lines kept by the build | 91.7% of landmarks | none |
-| the top hit is the reader's subject | 23.7% | 13.0% |
-| **the top hit names the right place** | **73.7%** | **67.7%** |
-| the right place is within three | 87.0% | 70.7% |
+| the top hit is the reader's subject | 24.0% | — |
+| **the top hit names the right place** | **71.3%** | **—** |
+| the right place is within three | 78.0% | — |
 | the top hit names it without a starting point | 55.7% | 46.0% |
 
-Saying that same folder as a bare word instead answers 68.0% and 84.3%. The
-five points are what grounding the start point in a file is worth; the library
-row does not move, because a production build recorded no file to ground it in.
+The library column is empty on purpose. A production build records no file
+anywhere, so there is no coordinate to start from and no start point is
+accepted — and the row that matters there is the last one, which is the suite
+answered whole. The application column is the same measurement it was when the
+start point could also be a name, minus the questions where the build kept no
+line: those used to be answered by a component name standing in for a place,
+and a component name is not a place.
 
 Read the second and third rows together. On the library the top hit is the
 reader's own story one time in eight and the right place two times in three,
