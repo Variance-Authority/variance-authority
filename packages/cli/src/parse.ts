@@ -120,6 +120,8 @@ export type Parsed =
       readonly file?: string;
       /** `--query <words>`: a description, for the questions that search names. */
       readonly query?: string;
+      /** `--from <words>`: where to look, for the questions that search names. */
+      readonly from?: string;
       readonly limit?: number;
       /**
        * `--at <address>`: a running watcher to ask, instead of the last report.
@@ -299,6 +301,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const state = flags.values.get('--state');
       const file = flags.values.get('--file');
       const query = flags.values.get('--query');
+      const from = flags.values.get('--from');
       const limit = countOf(flags.values.get('--limit'), 'tests to list');
       const at = flags.values.get('--at');
 
@@ -316,6 +319,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(state !== undefined ? { state } : {}),
         ...(file !== undefined ? { file } : {}),
         ...(query !== undefined ? { query } : {}),
+        ...(from !== undefined ? { from } : {}),
         ...(limit !== undefined ? { limit } : {}),
         ...(at !== undefined ? { at } : {}),
         reports: reports.map((path) => resolve(path)),

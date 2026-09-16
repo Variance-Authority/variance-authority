@@ -1,6 +1,10 @@
 import type { LexiconField, RunReport } from '@variance-authority/report';
 import { stringArg, type Tool } from './tool.js';
 import { codeUnit, entriesMatching, indexOf, lower, partsOf, type LocateField } from './locate-index.js';
+import { orient } from './orient.js';
+import { readQuestion } from './question.js';
+import { placesOn, renderOrientation } from './place.js';
+import { scopeLine, scopeOf, type Scope } from './scope.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
 
@@ -53,8 +57,17 @@ export { tokensOf, type LocateField } from './locate-index.js';
  *
  * A wrong top hit here costs one more call. The same wrong hit quoted as a
  * finding would cost a baseline, which is why nothing printed here carries a
- * verdict, a pixel count, or a file to open — only ids, and the tools that take
- * them.
+ * verdict or a pixel count — only ids, the places behind them, and the tools
+ * that take them.
+ *
+ * ## The answer ends at a file
+ *
+ * An id is where the other tools start and not where a person's question ends.
+ * *Where does the assignee warning live* is answered by a file and a line, and
+ * the run wrote one down for every landmark it walked, so each hit carries the
+ * landmark on that surface saying the query's words and where it is declared.
+ * The place is an orientation and not a finding, the same as the order above
+ * it: it says where to start reading.
  */
 export const locate: Tool = {
   name: 'variance_locate',
@@ -66,13 +79,28 @@ export const locate: Tool = {
     'and how rare each is, printing the field and value behind every hit so the order can be ' +
     'checked. Ask this when you know what a subject looks like but not what it is called, ' +
     'before `variance_describe` or `variance_composition {subject}`. A word no subject holds ' +
-    'is answered with the names the suite does use.',
+    'is answered with the names the suite does use. Each hit carries the place behind it — the ' +
+    'landmark saying those words, the file and the line it is declared at — so the answer ends ' +
+    'where the work starts. A `query` carrying a relation — *the warning under the Carrier ' +
+    'field on the dispatch drawer* — is answered by the arrangement the same run recorded.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'Words naming the subject: a story id fragment, a component, a label, visible text.',
+        description:
+          'Words naming the subject: a story id fragment, a component, a label, visible text. ' +
+          'Say `under`, `above`, `inside`, `left of`, `right of` or `beside` to ask where on a ' +
+          'surface something sits rather than which surface it is.',
+      },
+      from: {
+        type: 'string',
+        description:
+          'Optional. Where to look: a route, an area, a directory, a component, a region — ' +
+          'matched against ids, components, creators, files and regions, never against what a ' +
+          'subject shows. Narrows the suite before ranking and recounts rarity inside what ' +
+          'remains, so the area\'s own vocabulary stops distinguishing anything. A start point ' +
+          'that names nowhere says so and scopes nothing.',
       },
       limit: {
         type: 'integer',
@@ -85,8 +113,19 @@ export const locate: Tool = {
 
   run(report, input) {
     const query = stringArg(input, 'query');
+    const from = typeof input['from'] === 'string' && input['from'].trim() !== '' ? input['from'] : undefined;
     const limit = typeof input['limit'] === 'number' && input['limit'] > 0 ? Math.floor(input['limit']) : DEFAULT_LIMIT;
-    return render(locateSubjects(report, query), query, limit);
+
+    // One door. The lexicon holds the words and the arrangement, written by one
+    // walk of one run, so a question about where something sits is not another
+    // tool — it is this one reading the other half of the record it already has.
+    // The relation word in the question is what says which half to read.
+    if (readQuestion(query).relation !== undefined) {
+      const answer = orient(report, query, from);
+      if (answer.surfaces > 0) return renderOrientation(answer, limit);
+    }
+
+    return render(report, locateSubjects(report, query, from), query, limit);
   },
 };
 
@@ -164,10 +203,17 @@ export interface Located {
   readonly indexed: number;
   /** Subjects the run indexed by id only, because it wrote no lexicon for them. */
   readonly idOnly: number;
+  /**
+   * Terms the best hit matched, of `terms.length`. Below it, no subject holds
+   * the whole question and the answer says so: the hits cover a word of it.
+   */
+  readonly cover: number;
   /** Every hit, ranked. The printer applies the limit. */
   readonly hits: readonly LocateHit[];
   /** The suite's accessible names, for a term that matched nothing. */
   readonly names: readonly string[];
+  /** The start point, when one was given, resolved. */
+  readonly scope?: Scope;
 }
 
 /**
@@ -179,8 +225,10 @@ const STOPLIST: ReadonlySet<string> = new Set(['the', 'a', 'an', 'in', 'on', 'of
 /**
  * The lookup, as a value: the tool prints this and a measurement reads it.
  */
-export function locateSubjects(report: RunReport, query: string): Located {
+export function locateSubjects(report: RunReport, query: string, from?: string): Located {
   const index = indexOf(report);
+  const scope = from === undefined ? undefined : scopeOf(report, from);
+  const within = scope === undefined || scope.subjects.size === 0 ? undefined : scope.subjects;
 
   // A word is what sits between spaces with the punctuation around it gone:
   // `withTracking),` is `withtracking`, and prints as what it matched.
@@ -216,6 +264,7 @@ export function locateSubjects(report: RunReport, query: string): Located {
     };
     for (const id of entriesMatching(index, parts)) {
       const entry = index.entries[id]!;
+      if (within !== undefined && !within.has(entry.subject)) continue;
       if (open !== undefined && open.subject === entry.subject && open.field === entry.field) {
         open.values.push(entry.value);
         continue;
@@ -226,7 +275,10 @@ export function locateSubjects(report: RunReport, query: string): Located {
     close();
   }
 
-  const total = index.subjects.size;
+  // Counted over the scope when there is one. This is the half of a start
+  // point that removing rows does not buy: inside one area of an application,
+  // the area's own vocabulary stops distinguishing anything.
+  const total = within === undefined ? index.subjects.size : within.size;
   const rarity = (term: string, field: LocateField): number =>
     Math.floor((1000 * (total - (holdersIn.get(`${field} ${term}`)?.size ?? 0) + 1)) / (total + 1));
 
@@ -252,10 +304,12 @@ export function locateSubjects(report: RunReport, query: string): Located {
     unmatched: terms.filter((term) => !holders.has(term)),
     read: index.read,
     unread: index.unread,
-    indexed: total,
+    indexed: index.subjects.size,
     idOnly: index.idOnly,
+    cover: hits[0]?.terms ?? 0,
     hits,
     names: index.names,
+    ...(scope === undefined ? {} : { scope }),
   };
 }
 
@@ -275,12 +329,16 @@ const WHY_UNREAD: Readonly<Record<LexiconField, string>> = {
 const MAX_VALUES_SHOWN = 3;
 const MAX_NAMES_SHOWN = 24;
 
-function render(located: Located, query: string, limit: number): string {
+function render(report: RunReport, located: Located, query: string, limit: number): string {
   const sections: string[] = [headline(located, query)];
 
   if (located.hits.length > 0) {
     const shown = located.hits.slice(0, limit);
-    sections.push(shown.map(renderHit).join('\n'));
+    // Only the rows about to be printed are read for a place. The rest were
+    // ranked on their names and are counted, not shown, so reading their
+    // arrangement would be work nobody sees.
+    const places = placesOn(report, shown.map((hit) => hit.subject), query);
+    sections.push(shown.map((hit) => renderHit(hit, places.get(hit.subject))).join('\n'));
     const rest = located.hits.slice(limit);
     if (rest.length > 0) {
       sections.push(`…and ${rest.length} more: ${preview(rest.map((hit) => hit.subject), 6)}`);
@@ -301,14 +359,25 @@ function render(located: Located, query: string, limit: number): string {
 
 function headline(located: Located, query: string): string {
   const count = located.hits.length;
+  const asked = located.terms.length;
+  const best = located.cover;
+  const tail = located.dropped.length === 0 ? '.' : `; ${list(located.dropped)} not indexed.`;
   const first =
-    located.terms.length === 0
+    asked === 0
       ? `Nothing left of \`${query}\` after the stoplist dropped ${list(located.dropped)}.`
       : count === 0
         ? `No subject of ${located.indexed} matches \`${query}\`.`
-        : `${count} of ${located.indexed} subject(s) match \`${query}\`` +
-          (located.dropped.length === 0 ? '.' : `; ${list(located.dropped)} not indexed.`);
+        : best < asked
+          ? // Partial cover is the answer a large suite gives to a question it
+            // cannot take. Saying *n subjects match* would be false: they match
+            // a word of it. On fifteen subjects there was nothing to half-match
+            // and the distinction never showed; on five thousand a question
+            // about something the suite does not have still draws hundreds.
+            `No subject of ${located.indexed} matches all ${asked} terms of \`${query}\`. ` +
+            `The best cover is ${best} of ${asked}, over ${count} subject(s)${tail}`
+          : `${count} of ${located.indexed} subject(s) match \`${query}\`${tail}`;
 
+  const scope = located.scope === undefined ? '' : `\n${scopeLine(located.scope, located.indexed)}`;
   const read = `Read: ${located.read.join(', ')}.`;
   const unread =
     located.unread.length === 0
@@ -324,10 +393,10 @@ function headline(located: Located, query: string): string {
           'text, names, components or regions; none was searched.'
         : `\n${located.idOnly} subject(s) are indexed by id alone: the run composed nothing for them.`;
 
-  return `${first}\n${read}${unread}${idOnly}`;
+  return `${first}${scope}\n${read}${unread}${idOnly}`;
 }
 
-function renderHit(hit: LocateHit): string {
+function renderHit(hit: LocateHit, place: string | undefined): string {
   const byTerm = new Map<string, LocateMatch[]>();
   for (const match of hit.matches) {
     let list = byTerm.get(match.term);
@@ -341,6 +410,7 @@ function renderHit(hit: LocateHit): string {
 
   return [
     head,
+    ...(place === undefined ? [] : [`  where: ${place}`]),
     ...[...byTerm].map(
       ([term, matches]) =>
         `  ${term}: ` +

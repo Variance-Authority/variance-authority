@@ -115,6 +115,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   state: '<state>',
   file: '<text>',
   query: '<words>',
+  from: '<words>',
   limit: '<n>',
 };
 
