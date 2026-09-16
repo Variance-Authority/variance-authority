@@ -1,18 +1,18 @@
 # Choose an agent workflow
 
-Start from the question your evidence can already answer. A completed run, a suite
-that is still executing, and a workspace's current TypeScript source have
-different owners and lifetimes, so they use different agent paths.
+Start with the question, then use the evidence already available. A completed
+run, a suite that is still executing, and a workspace's current TypeScript
+source have different owners and lifetimes, so they use different agent paths.
 
 ## Which question are you asking?
 
 | Question | What the agent reads | Guide |
 | --- | --- | --- |
 | What did the last visual run observe, and what explains it? | The run report the CLI wrote, read from a shell | [Ask a run from the command line](agent-cli.md) |
-| What does retained evidence say about a completed run or another recorded observation? | A supplied run report, execution index, archive, or other producer-owned evidence | [Question retained evidence over MCP](agent-mcp.md) |
+| What does retained evidence say about a completed run or another recorded observation? | A supplied run report, [execution index](execution-record.md), archive, or other producer-owned evidence | [Question retained evidence over MCP](agent-mcp.md) |
 | What is an executing suite doing, and where did one test stop making progress? | Process-local test lifecycle and announcement signals | [Inspect a live run](agent-live-run.md) |
 | What is true at one moment inside a test, while the page is still up? | A test held at a call its author placed, and what it sent from there | [Interrogate a test where it stands](agent-interrogate.md) |
-| What can one test be reduced to without losing the behavior it witnesses? | Eyes attention and/or a Sense execution index, followed by a counterfactual rerun | [Distil a test](distill.md) |
+| What can one test be reduced to without losing the behavior it witnesses? | [Eyes](eyes.md) attention and/or a [Sense](../packages/sense) execution index, followed by a counterfactual rerun | [Distil a test](distill.md) |
 | What does this workspace publish, where is a symbol declared, and which packages import it? | Manifests and current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 | Where is a symbol already used here, and which story or test shows how to call it? | The imports in current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 

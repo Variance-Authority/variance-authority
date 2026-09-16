@@ -1,9 +1,10 @@
 # Add one observation to a Playwright test
 
-Use the test that already reaches the state. Variance Authority reads one
-bounded `Locator`, compares it with an approved baseline, and returns an
-observation without taking over the runner, fixtures, authentication, readiness,
-or assertions.
+Use the test that already reaches the state. By default [Variance
+Authority](README.md) uses one bounded `Locator` to retain a document for
+**deferred rendering**; in-place capture is explicit when the caller-owned
+browser raster is the evidence. Either path returns an observation without
+taking over the runner, fixtures, authentication, readiness, or assertions.
 
 ## Before you add the observation
 

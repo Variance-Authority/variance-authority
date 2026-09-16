@@ -1,8 +1,8 @@
 # Run relevant work
 
 A change should pay for every test needed to understand it, not every test the
-repository can run. This aspect turns evidence about source and prior execution
-into a bounded decision about what to run now.
+repository can run. Source and prior execution can show what the change might
+reach, what has exercised that code before, and which useful answer is nearest.
 
 ## One decision, three readings
 
@@ -12,7 +12,7 @@ the decision:
 | Question | Reading | Route |
 | --- | --- | --- |
 | What could this source change reach? | Imports, declarations, unresolved edges, and project-level seeds | [Read source reach](source.md) |
-| Which tests have actually crossed that code? | The execution index retained from previous runs | [Select the tests that matter](selecting.md) |
+| Which tests have actually crossed that code? | The [execution index](execution-record.md) retained from previous runs | [Select the tests that matter](selecting.md) |
 | Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Run the nearest tests first](distance.md) |
 
 Source reach supplies possibility. Recorded execution supplies experience.
@@ -36,10 +36,21 @@ retained format and invalidation reference beneath those readings.
 
 ## The boundary is conservative
 
-This aspect narrows work, not truth. A skipped test contributes no observation
+Selection narrows work, not truth. A skipped test contributes no observation
 and no verdict. Missing coverage, an unreadable edge, an unknown changed file,
 or incompatible recorded evidence widens the run or refuses the selection; it
 never becomes proof that nothing is affected.
 
-The result is authority to choose a workload under named conditions. It is not
-authority to declare the unrun surface unchanged.
+The result supports choosing a workload under named conditions. It does not
+describe the unrun surface as unchanged.
+
+## Running fewer is not owning fewer
+
+Selection reduces the work an edit pays for now. It does not decide whether the
+suite still needs every test it has accumulated. A hundred overlapping tests
+can become a cheap selection and still remain a hundred assertions to
+understand, maintain and trust.
+
+[Own fewer tests](own-fewer-tests.md) starts from that longer-lived decision:
+whether another test adds a distinct answer, when variation deserves fan-out,
+and when temporary or duplicated protection can leave the suite.

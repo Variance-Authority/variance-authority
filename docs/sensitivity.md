@@ -48,7 +48,7 @@ scope or spelling error rather than a policy that has outlived its cause.
 
 ## Declaring one
 
-Add rules to the top-level `sensitivity` list in the Variance Authority config:
+Add rules to the top-level `sensitivity` list in the [Variance Authority](README.md) config:
 
 ```jsonc
 {
@@ -86,8 +86,7 @@ duplicate is refused.
 
 The library folds `applySensitivity` over a pair of snapshots. `variance run`
 compares an image with a stored baseline and reaches the same decision because
-the baseline carries per-component hashes split by band
-([ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)):
+the baseline carries per-component hashes split by band:
 
 | digest | band |
 |---|---|
@@ -115,5 +114,5 @@ comparison leaves that band absent rather than silently absorbing it.
 ---
 
 **Further:** [`ignores.md`](ignores.md) for excluding a named place or difference
-shape · [ADR-0027](context/adr/0027-a-baseline-carries-what-its-document-said.md)
-for the per-component hashes carried by a baseline.
+shape · [`composition.md`](composition.md#what-a-boundary-hashes) for the
+per-component evidence carried into comparison.

@@ -58,8 +58,7 @@ reader has no way to know the difference.
 ## What is there
 
 `attributeRegions` joins those coordinates to the box tree. It needs a snapshot
-carrying rects, so it needs a profile with a layout engine
-([ADR-0002](context/adr/0002-observation-profiles.md)); under a profile without
+carrying rects, so it needs a profile with a layout engine; under a profile without
 one every region comes back unattributed, which is the correct answer — a rect
 that was never observed must never be inferred.
 
@@ -131,7 +130,7 @@ author is noise in every report that prints it.
 
 Carrying both is what lets ranking match a cause list without guessing which
 namespace it is written in. A component *hash* is named for the enclosure
-([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)) while a
+while a
 region is named for its author, and matching one against the other does not fail
 loudly — it silently finds nothing, and the ordering falls back to area, which is
 the thing the cause list exists to prevent.
@@ -160,7 +159,7 @@ find `Button`, and a reviewer still has to guess whether it is the design-system
 one or the local one in checkout.
 
 There are two kinds of answer here and they are not interchangeable. Resolving a
-component name against a source index names where the component is **declared**.
+component name against a [source index](source-index.md) names where the component is **declared**.
 A call site names where the element that changed is **written**, which for
 anything rendered more than once is the only one of the two that distinguishes
 the instances.
@@ -195,8 +194,7 @@ resolved.
 
 A stack frame names the module the browser was *served*; the file a reviewer
 opens is a source map away. Both halves are written out rather than installed,
-because `core` has no third-party dependencies
-([ADR-0013](context/adr/0013-packages-are-named-for-their-requirements.md)).
+because `core` has no third-party dependencies.
 
 Stack syntax is an engine fact, so both spellings are read — V8's
 `at App (url:23:26)` and SpiderMonkey's `App@url:23:26` — and a line neither
@@ -269,8 +267,7 @@ coarser than a call site and enough to open the right file.
 A name may map to several files, and that is not an error to be resolved by
 picking one. Two components genuinely can share a name, and silently choosing the
 first would send an agent to edit the wrong file with full confidence. Ambiguity
-is reported ([ADR-0003](context/adr/0003-cruft-removal-and-css-applicability.md)'s
-rule for overlapping projections, applied to source).
+is reported instead.
 
 ## Ranking, and why area is the wrong order
 
@@ -331,7 +328,5 @@ it has a name · [`source.md`](source.md) for the other direction, from a diff t
 the subjects it could have reached ·
 [`packages/jsx-source`](../packages/jsx-source) for optional production call-site instrumentation ·
 [`packages/react`](../packages/react) for what the fiber gives up ·
-[ADR-0007](context/adr/0007-subject-boundary-is-the-component-tree.md) for the
-subject boundary ·
-[ADR-0033](context/adr/0033-the-component-that-mounted-it-is-not-the-one-it-sits-in.md)
-for why the enclosure is recorded beside the author.
+[`framework.md`](framework.md) for the subject boundary and why the enclosure is
+recorded beside the author.

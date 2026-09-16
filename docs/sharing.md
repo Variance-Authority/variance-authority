@@ -6,7 +6,7 @@ answer for and which nothing here touches. The other is everything the run
 *derived* about the suite itself — which components exist, which subjects hold
 them, which subject is the narrow example of each, and every name the run wrote
 down for all of it. That second half is a fact about a commit, not about a run.
-It costs a source scan, a browser and a composition pass, and it is identical on
+It costs a source scan, a browser and a [composition](composition.md) pass, and it is identical on
 every machine that starts from the same tree.
 
 So the second machine should not pay for it again. Mainline computed it an hour

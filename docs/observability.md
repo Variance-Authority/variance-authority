@@ -30,12 +30,12 @@ the run leaves behind is what changes.
 
 React removes its Fiber pointer from a DOM node when the node unmounts. A click
 handler that removes the element it fired on has destroyed that element's
-attribution before the test's next statement runs. The information is not hidden
+[attribution](attribution.md) before the test's next statement runs. The information is not hidden
 and not expensive — it is gone, between two adjacent lines of the test file,
 which is why a retry, a screenshot, or a trace replayed afterwards all arrive
 too late for it.
 
-Eyes listens on `document` in the capture phase, ahead of React's delegated
+[Eyes](eyes.md) listens on `document` in the capture phase, ahead of React's delegated
 handler on the root container, and copies the owner chain, the props digest at
 each boundary, the authoring component and the JSX coordinate into a plain value
 in that same synchronous turn. The copy holds no DOM node and no Fiber, so
@@ -99,7 +99,7 @@ of key run through this system.
 
 A **carried** value is produced once and propagated. The props digest is computed
 by one function and read back by the diff and by the commit record; the JSX
-coordinate is written by the transform; the journey id is minted by the driver
+coordinate is written by the transform; the [journey](journeys.md) id is minted by the driver
 and handed back by the browser. Comparing one of these across a process boundary
 compares a value to itself.
 

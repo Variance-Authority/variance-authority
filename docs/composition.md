@@ -11,7 +11,7 @@ in it.
 
 That sentence is a join key. A run holds, for every subject it observed, the
 component boundaries the document contained and a digest of what each one
-rendered ([ADR-0018](context/adr/0018-a-component-hash-covers-its-own-nodes.md)).
+rendered.
 Once those boundaries are addressable across subjects, one commit's worth of
 snapshots answers three questions no per-subject comparison can reach:
 
@@ -56,7 +56,7 @@ which is a different claim and a false one.
 sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
 with every cross-shard edge missing and nothing marking where. The structure
-rows go with it. The lexicon does not: a subject's names are a fact about one
+rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
 subject, and one subject is in one shard, so the merged report carries every
 entry under the fields all the shards read. A slice run without a journal keeps
 `regions` out of the whole, and the tool says so.
@@ -135,15 +135,14 @@ components, and the answer is the five that resolve through that token rather
 than everything on a page containing one.
 
 What the placeholder still carries is the *number* of children handed in, so a
-caller passing three where it passed two changes the container. That residual
-limit is stated in
-[ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md).
+caller passing three where it passed two changes the container. The child count
+is part of the container's own structure even though the children's content is
+not.
 
 ### What the join key must not depend on
 
 **Aliases are re-numbered per boundary.** The normalizer replaces every id with
-`#a0`, `#a1`, … in document order across the whole *subject*
-([ADR-0003](context/adr/0003-cruft-removal-and-css-applicability.md)). That is
+`#a0`, `#a1`, … in document order across the whole *subject*. That is
 right for a subject and fatal across two: the same field rendered in a story and
 on a page gets `#a0` in one and `#a7` in the other, so their structure digests
 differ for a reason that is an artefact of what else happened to be mounted.
@@ -174,7 +173,7 @@ default resolved value follows the centre of the border box.
 
 `composeSubjects` walks the per-subject instance lists once, in plan order, and
 buckets them: component → props class → rendering → sites. Every unattributed
-boundary is skipped, and a boundary with no provenance is filed under a sentinel
+boundary is skipped, and a boundary with no [provenance](attribution.md) is filed under a sentinel
 not under `undefined`, so nothing downstream can read "unknown props" as
 a props class like any other.
 
@@ -248,7 +247,7 @@ A **divergence** is one props digest producing more than one rendering *at one
 commit*. It is not a regression. It says the component's own inputs do not
 determine its output, which is either a fact about the design — a token, a theme,
 an ancestor's cascade — or a reading that is not repeatable. The bands say which
-kind, in the same vocabulary a sensitivity absorbs, so a divergence entirely
+kind, in the same vocabulary a [sensitivity](sensitivity.md) absorbs, so a divergence entirely
 inside a relaxed band can be dismissed without opening it.
 
 Every rendering after the first also says **why**. Each is lifted out of the page
@@ -277,8 +276,7 @@ cascade from `styleProvenance` — which is why an ancestor's `color` is nameabl
 on a browser run.
 
 **Measured on todomvc: zero.** A props digest is not a complete statement of a
-component's inputs, so three shapes reach the check and are refused by it
-([ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)):
+component's inputs, so three shapes reach the check and are refused by it:
 
 | shape | why it is not a divergence |
 |---|---|
@@ -351,21 +349,19 @@ applied to every node. Two identical rows under one `<tbody>` are subsumed by
 the body, the body by the table, up to the node that recurs on its own. Each
 entry names the tag, the number of nodes beneath it, the sites by subject and
 path, and whether `semantics` is **held** across the sites or **parted**: the
-same shape saying different things, which is the divergence
-[ADR-0034](context/adr/0034-a-divergence-must-survive-the-children-it-excludes.md)
-permits, at a node no boundary claims. `floor` drops entries under a node count,
+same shape saying different things. This is a divergence at a node no component
+boundary claims. `floor` drops entries under a node count,
 and where the floor sits is the report's to choose.
 
 Neither digest enters a baseline or a join key. The component hash stays
-own-with-holes so that an edit stays local
-([ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md)); a
+own-with-holes so that an edit stays local; a
 closure is computed by a run over what it already collected and compared within
 that run.
 
 ### Why a component moved
 
 For each changed component — named as a *cause* in a diff region or found to
-differ between repeated readings — the run checks attribution rules in order
+differ between repeated readings — the run checks [attribution](attribution.md) rules in order
 and stops at the first matching rule:
 
 | rule | evidence | output |
@@ -453,7 +449,7 @@ what it did plan and points at `variance_locate`.
 The run also writes a **lexicon**: per subject, per field, the distinct values
 the subject carried — the components it holds, who mounted them, its accessible
 names and visible text, its roles, its design tokens, the files that declare its
-components, the regions its journey entered, and the component it is the narrow
+components, the regions its [journey](journeys.md) entered, and the component it is the narrow
 example of. `variance_locate {query}` turns a description into ids over those
 names, printing the field and the value behind every hit and saying which fields
 the run could not read at all.
@@ -531,10 +527,5 @@ component name on it ·
 what an unexplained difference becomes ·
 [`history.md`](history.md) for the same questions across runs ·
 [`packages/mcp`](../packages/mcp) for `variance_composition` and
-`variance_locate` ·
-[ADR-0057](context/adr/0057-the-run-writes-every-name-it-saw.md)
-for why the names are a section of the report and the order is never evidence ·
-[ADR-0033](context/adr/0033-the-component-that-mounted-it-is-not-the-one-it-sits-in.md)
-for why `created by` is recorded beside `within` ·
-[ADR-0035](context/adr/0035-a-node-stands-in-every-component-above-it.md)
-for what a child boundary contributes to its container's hash.
+`variance_locate` · [`framework.md`](framework.md) for how `created by` and
+`within` describe different component relationships.

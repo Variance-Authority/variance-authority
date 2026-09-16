@@ -2,8 +2,7 @@
 
 A durable run compares the image it just rendered against one an earlier run
 wrote. Which of the two wins, and whether they are even allowed to be compared,
-is decided by the identity digest and by nothing about the storage
-([ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md)). What
+is decided by the identity digest and by nothing about the storage. What
 placement decides is **who is holding the bytes when the next run starts**, and
 what that costs.
 
@@ -190,6 +189,11 @@ field, because there is no answer an operator could give that is better than
 
 ### The records, if the diffs are the problem
 
+Baseline images and their attribution records have **independent homes**: images
+stay reviewable beside code while records can be restored from CI cache, so
+document-only changes do not create tracked diffs. A missing record stops the
+run rather than quietly turning an existing baseline into `new`.
+
 Every baseline is an image and a `.json` record of how it was painted: the
 document digest, the identity, the fonts that did not resolve, the regions
 something was inspected in. The image changes when a pixel changes. The record
@@ -235,5 +239,4 @@ files between layouts.
 
 **Further:** [`flows.md`](flows.md) for what each level of adoption buys ·
 [`@variance-authority/store`](../packages/store) for the two file-backed stores ·
-[ADR-0016](context/adr/0016-where-a-baseline-is-kept-decides-nothing.md) for why
-none of this reaches a verdict.
+[`reasoning.md`](reasoning.md) for how evidence reaches a verdict.

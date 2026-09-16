@@ -61,14 +61,14 @@ The outside initiator is an entanglement to investigate, not a verdict. Eyes
 identifies the structural component instance; it does not claim which setter,
 callback, or source statement scheduled the work.
 
-Every target is copied while its DOM node and Fiber attribution are still live.
+Every target is copied while its DOM node and Fiber [attribution](attribution.md) are still live.
 The journal retains portable names, structural owner paths, props digests, and
 source candidates rather than DOM nodes or Fibers. An element removed by its
 own click therefore remains attributable after it has disappeared.
 
 ## Distil attention against execution
 
-Eyes answers what the test addressed. Sense can independently answer which
+Eyes answers what the test addressed. [Sense](../packages/sense) can independently answer which
 source the same stable test id entered. `variance distill` joins the two without
 turning either into coverage:
 

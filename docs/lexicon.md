@@ -9,7 +9,7 @@ marks a todo done*, *the thing that uses the accent token*.
 A run already knows every one of those phrasings. It read the component names
 off the fiber, the roles and accessible names off the accessibility tree, the
 visible text off the DOM, the custom properties off the cascade, the files off
-the source index, the regions off the execution journal. None of it was declared
+the [source index](source-index.md), the regions off the execution journal. None of it was declared
 in order to be found; all of it was derived in order to be compared. Writing it
 down per subject turns a description into ids.
 
@@ -27,7 +27,7 @@ sorted, capped at 200 distinct values per field with the overflow counted.
 | `text` | the snapshot's text band, minus any text the policy digested as volatile |
 | `components`, `createdBy` | every attributed boundary |
 | `regions` | the execution journal: the lexical names of the regions this subject entered |
-| `files` | call-site provenance on the nodes, and the source index for each component |
+| `files` | call-site [provenance](attribution.md) on the nodes, and the source index for each component |
 | `roles` | the snapshot |
 | `tokens` | the custom properties the boundaries resolved through |
 

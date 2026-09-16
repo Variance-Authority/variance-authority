@@ -67,7 +67,7 @@ reading differs from the shared one, therefore the world changed it_, which is o
 evidence if two readings of one world would have agreed. Asked the other way
 round, a page with a clock in it produces a confident sentence about suite
 pollution and sends somebody to bisect a run order that has nothing to do with
-it ([ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md)).
+it. Varying one condition per second reading keeps those causes distinguishable.
 
 Neither is a retry. Both outcomes of both are reported, and `accept` refuses the
 first two — promoting a reading chosen by a race makes the coin flip the thing

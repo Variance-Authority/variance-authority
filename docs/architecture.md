@@ -1,11 +1,13 @@
 # Architecture
 
-There is no pipeline. There are tools, and a pipeline is something a user
-assembles from them.
+There is no required pipeline. [Variance Authority](README.md) is a set of tools with
+explicit contracts. A team can use one inside an existing workflow or compose
+several into a pipeline that fits its environment.
 
-Any fixed sequence encodes one team's workflow and fails the next. The unit of
-design here is therefore the tool: a named thing with a declared contract that
-can be reasoned about, replaced, and composed without reading the others.
+The tool is the unit of design: a named capability that can be understood,
+replaced, and composed without learning the implementation of every other
+part. This keeps lifecycle, rendering, storage, and review choices with the
+systems and people that already own them.
 
 ## Kinds of tool
 
@@ -110,7 +112,7 @@ code does.**
 
 A box is named for what it is for — a requirement the manifest cannot state, what
 the thing is, or a target, format or protocol it serves, never a library it
-imports ([ADR-0042](context/adr/0042-a-package-is-named-for-what-it-is-for.md)).
+imports.
 Code that needs one requirement may not sit with code that needs another.
 Storybook support does not belong with Playwright helpers — not because they are
 different features, but because a Storybook user would then install a browser and
@@ -120,7 +122,7 @@ entrypoints.
 
 | package | requires | holds |
 |---|---|---|
-| `core` | nothing | the format, the rules, comparison, attribution, verdicts, plans |
+| `core` | nothing | the format, the rules, comparison, [attribution](attribution.md), verdicts, plans |
 | `raster` | nothing | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
 | `report` | nothing | what a run leaves behind, so several readers can share one shape |
 | `history` | nothing | what a row may contain, what the numbers mean, what to say with no store |
@@ -132,7 +134,7 @@ entrypoints.
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
 | `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
 | `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node moves |
-| `distill` | portable Eyes attention and/or a Sense execution index | deterministic reduction opportunities for one exact test identity |
+| `distill` | portable [Eyes](eyes.md) attention and/or a [Sense](../packages/sense) [execution index](execution-record.md) | deterministic reduction opportunities for one exact test identity |
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |
 | `react` | React internals | fibers → owner chains, props digests, portals |
@@ -160,8 +162,7 @@ as a rule with none.
 It is a **service**, not a linked tool: the requirement it names is a deployment
 rather than something a consumer supplies to a function, and it composes five
 packages because a deployed thing has to. It is named for what it is rather than
-for the host it currently runs on
-([ADR-0023](context/adr/0023-a-service-is-named-for-what-it-is.md)), which is why
+for the host it currently runs on, which is why
 the row does not say `cloudflare`.
 
 Four boxes require nothing at all, and hash, compare and isolate — the three

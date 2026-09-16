@@ -1,7 +1,9 @@
 # How far the change travelled
 
-Test selection tells you which tests to run after an edit. Distance helps you
-choose which of those tests to run first.
+[Test selection](selecting.md) tells you which tests to run after an edit. Distance helps you
+choose which of those tests to run first. It counts paths **only through modules
+the test actually entered or loaded**; a static graph alone can suggest a path
+the test never took.
 
 A change to a shared module can select most of the suite. Some selected tests
 import that module directly; others depend on it through several modules.
@@ -135,7 +137,7 @@ modules that test entered or loaded. If several changed files select the same
 test, the nearest determines its distance.
 
 An import graph alone can suggest a shorter path through a module the test
-never loaded. The execution record rules out that path.
+never loaded. The [execution record](execution-record.md) rules out that path.
 
 ```ts
 import {

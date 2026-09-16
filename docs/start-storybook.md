@@ -83,5 +83,5 @@ Read [attribution](attribution.md) before choosing how declaration and JSX sourc
 locations survive a production build, or [composition](composition.md) when the
 story result must join other evidence. Read the
 [`@variance-authority/storybook-collector` reference](../packages/storybook-collector/README.md)
-for readiness, loading fallbacks, served Storybooks, source provenance, and the
+for readiness, loading fallbacks, served Storybooks, source [provenance](attribution.md), and the
 complete option contract.

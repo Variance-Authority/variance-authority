@@ -206,8 +206,6 @@ variance_variations { "subject": "story:…" }   # one of them
 code — there is no second formatter.
 
 **Further:** [`composition.md`](composition.md) for the other comparison with no
-baseline in it,
-[ADR-0045](context/adr/0045-a-subject-may-be-a-variation-of-another-subject.md)
-for why the link is a tag and why the difference is never a verdict, and
-[ADR-0046](context/adr/0046-a-name-may-be-told-what-its-words-mean.md) for why
-the format is a grammar rather than a function you write.
+baseline in it. A variation link is a tag because it contributes context rather
+than a verdict. Its name uses a declared grammar so the interpretation remains
+serializable and inspectable without running adopter code.

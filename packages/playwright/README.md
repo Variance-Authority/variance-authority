@@ -258,7 +258,7 @@ separate baselines and a run says `incomparable` rather than comparing them. Tha
 is the safe failure, not a solution: neither answers for the other. If rasters are
 produced in a container, produce them only there — a local WebKit renderer records
 baselines nothing will ever compare against, and pays the raster tier for them.
-The semantic tier is unaffected and stays local (ADR-0010).
+The semantic tier is unaffected and stays local.
 
 The container is cheap, which is not what people assume. Measured on an M4 Max
 under Docker Desktop 29.0.1, `mcr.microsoft.com/playwright:v1.62.1-noble` costs
@@ -353,4 +353,3 @@ than resolving them.
 A bundle that throws leaves the agent global undefined, and the failure would
 otherwise surface as a timeout with no cause. Page-side errors are recorded and
 reported, so `React is not defined` reads as `React is not defined`.
-

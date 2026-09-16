@@ -205,18 +205,18 @@ describe('the architecture inventory lists every package', () => {
 });
 
 /**
- * The vocabulary the documentation index defines is the vocabulary the code has.
+ * The vocabulary the information model defines is the vocabulary the code has.
  *
- * `docs/README.md` is the first page an outside reader opens, and the only place
- * that says what a band, a digest, a root, a docket or a verdict is. A glossary
- * is the worst thing in a repository to leave unchecked: it is written once, read
- * by everyone who arrives after, and nothing about a stale entry looks wrong.
+ * `docs/information.md` owns the retained information model, including the terms
+ * that carry one observed result into a report. A glossary is the worst thing in
+ * a repository to leave unchecked: it is written once, read by everyone who
+ * arrives after, and nothing about a stale entry looks wrong.
  *
  * Both lists come out of the source rather than out of the built package, so this
  * fails on the commit that renames a band and not on the one that rebuilds.
  */
 describe('the documented vocabulary is the real one', () => {
-  const INDEX = readFileSync(join(ROOT, 'docs/README.md'), 'utf8');
+  const INDEX = readFileSync(join(ROOT, 'docs/information.md'), 'utf8');
 
   /** The backticked words in one glossary row. Column alignment is not part of it. */
   const worded = (term: string) =>

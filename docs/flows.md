@@ -6,7 +6,7 @@ observed evidence decide whether two readings are comparable. Deployment decides
 who retains the baseline, where review happens, and whether the record survives
 long enough to answer questions across runs.
 
-The first four levels are alternative retention and placement choices. Tribunal
+The first four levels are alternative retention and placement choices. [Tribunal](../packages/tribunal)
 and history are services that a durable run can add; one Tribunal deployment can
 also supply the remote-baseline and history protocols. Subject acquisition is a
 separate choice described in [surface](surface.md), and the renderer may remain
@@ -119,6 +119,10 @@ you operate, or use the compatible baseline surface supplied by
 
 ## Level 4 — tribunal: review outside the CI log
 
+Tribunal owns review and retention, not rendering: `push` uploads the report and
+candidate images the run already produced, and approval promotes those artifacts
+**without another browser render**.
+
 Tribunal combines a baseline store, history store, build docket, candidate
 images, region overlays, recorded decisions, and retention sweeps. A deployment
 uses a database and object storage, plus two different secrets:
@@ -146,10 +150,8 @@ Point `variance push` at the deployment with the ingest token:
 variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
 ```
 
-`push` sends the report and the candidate images the run already produced. The
-review surface promotes that reviewed artifact; it never renders a replacement.
-Keeping `push` separate from `run` also lets several shard reports become one
-build and lets an upload retry without rerunning the browser.
+`push` stays separate from `run`, so several shard reports can become one build
+and an upload can retry without rerunning the browser.
 
 The [`@variance-authority/tribunal` reference](../packages/tribunal/README.md)
 owns the Worker, Node, and Next.js deployment paths and their authorization

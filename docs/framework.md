@@ -64,8 +64,7 @@ produces work.
 `geometry` already sits. `rendering` is the four content digests and its contract
 is that two instances sharing it rendered the same thing — a component that gains
 a `memo()` renders the same thing. So turning this on invalidates no baseline,
-re-approves nothing, and changes no stored digest
-([ADR-0036](context/adr/0036-the-fiber-is-a-band-and-a-finding.md)).
+re-approves nothing, and changes no stored digest.
 
 ### Absent is not empty
 
@@ -158,7 +157,7 @@ together.
 
 ## Framework boundary
 
-- **Composition attribution requires a framework reader.** `collect()` accepts
+- **[Composition](composition.md) [attribution](attribution.md) requires a framework reader.** `collect()` accepts
   `wiringOf` alongside `provenanceOf`. Without a reader, framework wiring is
   absent from the digest rather than reported as empty. The provided reader
   targets React.

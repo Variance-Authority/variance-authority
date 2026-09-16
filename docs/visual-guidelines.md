@@ -88,6 +88,22 @@ around them. The composition stays understandable without labels and remains
 clear when reduced. Background dot grids, alignment points and construction
 circles are optional, faint and subordinate to the subject.
 
+## The figure carries the page's intent
+
+A useful documentation figure is a mental model, not a compressed table of
+contents. It shows why the parts belong together before the prose develops
+them. A reader who sees the figure first should be able to anticipate the page's
+argument and know which detail they want to understand next.
+
+Build the figure from the relationship the page exists to explain. A page about
+test cost, for example, is not four boxes labelled with its four headings. Its
+picture reveals the strategy that makes those outcomes belong together. Labels
+name the major ideas; position, direction and contrast carry the relationship.
+
+Use the fewest objects and labels that can carry that model. If the figure needs
+a legend, explains every section or merely repeats the headings, remove it or
+find the simpler relationship the page is missing.
+
 ## Illustration generation grammar
 
 Use this stable grammar when generating a new visual:

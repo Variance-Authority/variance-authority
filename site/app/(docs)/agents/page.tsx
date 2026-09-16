@@ -1,5 +1,6 @@
 import DocsPage from "../../components/DocsPage";
 import MarkdownDocument from "../../components/MarkdownDocument";
+import MarkdownLead from "../../components/MarkdownLead";
 import {
   documentDescription,
   documentTitle,
@@ -20,7 +21,12 @@ export default function Page() {
       current="/agents"
       eyebrow="Agents"
       title={title}
-      description={description}
+      description={
+        <MarkdownLead
+          source={document.source}
+          sourcePath={document.sourcePath}
+        />
+      }
       toc={documentToc(document.source)}
     >
       <MarkdownDocument

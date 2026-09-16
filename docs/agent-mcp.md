@@ -57,7 +57,7 @@ verdict, so silence cannot be mistaken for a clean run.
 
 If the summary names changes, ask `variance_changes` before opening an
 individual subject. It groups shared causes across subjects. Narrow to a
-subject, component, finding, composition, or verdict explanation only when the
+subject, component, finding, [composition](composition.md), or verdict explanation only when the
 question requires that detail. After replacing the report with a completed
 rerun, `variance_diff` compares the current supplied state with the one held from
 the preceding successful tool call.

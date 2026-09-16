@@ -1,8 +1,9 @@
-# Choosing a composition
+# Choose from the state you already have
 
-Start from the state owner, then choose capture material and renderer placement.
-Those choices are independent: a Storybook or route host does not imply local
-rendering, and a Playwright host does not imply in-place pixels.
+Start with the harness that already knows how to reach the state and declare it
+ready. Keep that lifecycle where it works, then choose what to capture and
+where to render it. A Storybook or route host does not require local rendering,
+and a Playwright host does not require in-place pixels.
 
 ## The three questions
 
@@ -12,7 +13,7 @@ rendering, and a Playwright host does not imply in-place pixels.
 | What crosses the acquisition boundary? | RenderDocument — environment-dependent or resource-closed — or already-painted Raster | Selects portability, disclosure, and which semantic evidence can travel |
 | Where are pixels made? | Caller browser, local renderer, operator-owned remote renderer | Selects latency, reproducibility, infrastructure, and renderer identity |
 
-Observation, baseline lookup, comparison, attribution, acceptance, and reporting
+Observation, baseline lookup, comparison, [attribution](attribution.md), acceptance, and reporting
 remain the same downstream contracts.
 
 ## Built or served Storybook
@@ -132,5 +133,5 @@ branch baseline workflow, perceptual differ, or compliance commitment.
 Self-operation is a product boundary, not a feature-equivalent substitute for
 those services.
 
-See [comparison.md](comparison.md#5-when-not-to-choose-this) for the vendor
+See [comparison.md](comparison.md#5-choose-the-ownership-model-you-want) for the vendor
 models and [surface.md](surface.md) for exact package APIs.

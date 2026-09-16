@@ -57,7 +57,7 @@
   the change reached along no chain of imports it executed, reported only when the
   rest of that run is accounted for. `unmeasured` is the opposite of a finding —
   the graph could not answer — and carries `because` saying which; a walk that was
-  never possible is absent rather than zero (ADR-0002).
+  never possible is absent rather than zero.
 
   `indexFaces` reads the entry-point convention most repositories keep — a
   directory with an `index` module — and `eitherFace` stacks a caller's own

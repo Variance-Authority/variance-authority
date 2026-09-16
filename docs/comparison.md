@@ -1,9 +1,13 @@
-# Comparison
+# Choose the operating model that fits
 
 Visual-regression systems differ first in what they capture, where pixels are
 made, and who operates review. Those decisions determine privacy, browser
 coverage, reproducibility, latency, and price more directly than the name of the
 test runner adapter.
+
+Most teams are not choosing from an empty workspace. They already have a runner,
+a way to reach important states, and some form of review. Start by keeping the
+parts that work, then compare the responsibilities that remain.
 
 They also decide what the practice costs. Visual review is paid for twice: once
 in the meter, and once in the hours somebody spends deciding whether a diff
@@ -12,10 +16,10 @@ person — and an architecture fixes that quantity long before a report does.
 
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
-Variance Authority entries state the capture and operational contracts available
+[Variance Authority](README.md) entries state the capture and operational contracts available
 to an adopter.
 
-## 1. The dimensions a buyer actually decides on
+## 1. Compare the responsibilities that matter
 
 | Dimension | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- |
@@ -24,7 +28,7 @@ to an adopter.
 | Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | Self-hosted `tribunal` — builds, docket, region overlays, recorded decisions, posted by `variance push`; or the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
 | Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam through `observeRasters` or raster `CaptureArtifact`; no CLI ingest command |
-| Source attribution | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching provenance |
+| Source [attribution](attribution.md) | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies matching [provenance](attribution.md) |
 | Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
 | Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
@@ -48,15 +52,14 @@ file names shown where execution crosses files, with a time-travel debugger
 attached. Variance Authority exposes the underlying index through
 `coveringTests`, not a time-travel viewer. Given a source line or function, it
 returns the individual tests that executed it, nearest call stack first, from an
-execution index supplied by any collector. The shipped integration records one
+[execution index](execution-record.md) supplied by any collector. The shipped integration records one
 entry per test file and stores no call-stack depth, so per-test answers require a
 collector that already records them.
 
 The Variance integration matrix and exact material/placement choices are in
-[`surface.md`](surface.md). The underlying decision is recorded in
-[ADR-0044](context/adr/0044-capture-material-and-rendering-placement-are-independent.md).
+[`surface.md`](surface.md).
 
-### The cost of a comparison
+### Account for both compute and review
 
 Hosted products meter different units. Percy and Argos count screenshots;
 Chromatic counts snapshots with product-specific multipliers; Applitools defines
@@ -175,7 +178,7 @@ Sources: [Ultrafast Grid](https://applitools.com/docs/eyes/concepts/test-executi
 [match levels](https://applitools.com/docs/eyes/concepts/best-practices/match-levels),
 and [deployment modes](https://help.applitools.com/hc/en-us/articles/360007189231-The-different-deployment-modes).
 
-## 3. Where composition differs
+## 3. What Variance Authority makes independently configurable
 
 Variance Authority treats host acquisition, capture material, rendering
 placement, observation, retention, and reporting as independent responsibilities.
@@ -245,7 +248,7 @@ answers one question: did this change since the last time somebody said it was
 right. Two comparisons here answer different questions, and neither consults
 history.
 
-A subject declared as a variation of another — `variance-parent:<id>` — is
+A subject declared as a [variation](variations.md) of another — `variance-parent:<id>` — is
 compared against the subject it varies, in the same run. The reported difference
 carries a digest taken over the difference itself, so it holds still while both
 sides move together and moves when the variation gains or loses something its
@@ -254,7 +257,7 @@ digest where it was. That separates *everything moved and the flag still does
 what it did* from *the flag now does something else* — a distinction a reviewer
 otherwise draws by hand, on every diff. Nothing on this axis reaches the exit
 code, `accept`, or the baseline store. See [`variations.md`](variations.md) and
-[ADR-0045](context/adr/0045-a-subject-may-be-a-variation-of-another-subject.md).
+[`composition.md`](composition.md).
 
 A changed subject is also read a second time, and the two second passes vary one
 thing each: `again` holds the world and advances time, `alone` rebuilds the world
@@ -263,8 +266,7 @@ against a baseline, and because a document carries its component hashes the
 answer is a component and a band instead of a page to re-examine. The order is
 load-bearing — `again` runs first, because `alone`'s inference is only evidence
 once two readings of one world are known to agree. See
-[`flakiness.md`](flakiness.md) and
-[ADR-0030](context/adr/0030-two-second-passes-one-variable-each.md).
+[`flakiness.md`](flakiness.md).
 
 Both are the labour half of the cost of a comparison made structural. A
 difference a digest has already settled, and a movement already named as an
@@ -289,13 +291,12 @@ unit capture, and custom collectors. The additive Playwright package operates
 inside the suite and leaves `test` and `expect` with Playwright. Raster input is a
 library seam; the CLI has no arbitrary-PNG ingest workflow.
 
-## 5. When not to choose this
+## 5. Choose the ownership model you want
 
 Percy, Chromatic, Argos, and Applitools supply managed browser coverage, hosted
-review links, and vendor support. **Buy one of them when visual review should be a
-product rather than infrastructure you run** — when nobody on the team wants to
-own a renderer image, a storage bucket, an upload path, and the pager that comes
-with them.
+review links, and vendor support. Choose one when the team wants visual review
+as a managed product and does not want to own renderer images, storage, upload
+paths, and their operational support.
 
 Choose Variance Authority when a changed screenshot should arrive as one cause
 with its evidence, and be settled in one decision — and when

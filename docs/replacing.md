@@ -1,17 +1,21 @@
-# Replacing what you have
+# Add Variance Authority to what you already use
 
-Each replacement trades a current workflow for one Variance composition. The
-important choice is not the adapter name; it is whether the host produces pixels
-in place or a document for a later renderer. A document is portable only when it
-contains the bytes behind every external reference.
+You can introduce [Variance Authority](README.md) at one boundary without rebuilding the
+workflow around it. Keep the runner or host that already reaches the state,
+then choose whether it should produce pixels in place or a document for a later
+renderer. A document is portable only when it contains the bytes behind every
+external reference.
 
 See [`surface.md`](surface.md) for exact APIs and [`comparison.md`](comparison.md)
 for managed-product boundaries.
 
-## 1. Replacing `expect(page).toHaveScreenshot()`
+## Alongside `expect(page).toHaveScreenshot()`
 
-**What you keep.** Playwright owns `test`, `expect`, page lifecycle, navigation,
-fixtures, retries, and configuration.
+Try the observation on one locator while the rest of the suite keeps its
+existing screenshot assertions.
+
+**What you keep.** Playwright owns `test`, `expect`, page lifecycle,
+navigation, fixtures, retries, and configuration.
 
 **What you add.**
 
@@ -52,10 +56,10 @@ agreeing raster to the same baseline comparison.
 - the integration intentionally supports locator subjects, not whole-page shots;
 - review and retention remain workflows the adopter operates.
 
-## 2. Replacing `toMatchImageSnapshot` in Jest or Vitest
+## Alongside Jest or Vitest
 
-**What you keep.** The runner, its `test` and `expect`, the jsdom lifecycle,
-mount helpers, and ordinary semantic assertions.
+**What you keep.** The runner, its `test` and `expect`, the jsdom
+lifecycle, mount helpers, and ordinary semantic assertions.
 
 **What you add.**
 
@@ -102,21 +106,22 @@ and paints them with its configured local or remote browser.
 Vitest Browser Mode with a Playwright provider is the Playwright composition, not
 this browserless route.
 
-## 2b. Replacing Percy on a set of URLs
+## Alongside an application or static site
 
-**What you keep.** The application or static build, its startup command, and the
-explicit list of states worth treating as subjects.
+**What you keep.** The application or static build, its
+startup command, and the explicit list of states worth treating as subjects.
 
-**What you add.** A route collector config mapping stable ids to URLs and widths.
-The collector navigates, waits for the configured ready state, and emits a
-document for the CLI renderer. The renderer must have equivalent access to the
-route's resources because this collector records their hashes, not their bytes.
+**What you add.** A route collector config mapping stable ids to
+URLs and widths. The collector navigates, waits for the configured ready state,
+and emits a document for the CLI renderer. The renderer must have equivalent
+access to the route's resources because this collector records their hashes,
+not their bytes.
 
 **What you gain.**
 
 - operator-selected local or remote rendering;
 - document and semantic evidence alongside the pixels;
-- source attribution when the application carries provenance;
+- source [attribution](attribution.md) when the application carries [provenance](attribution.md);
 - directory, LFS, or remote baseline storage behind one store contract.
 
 **What you pay.**
@@ -126,14 +131,14 @@ route's resources because this collector records their hashes, not their bytes.
 - a managed browser and device fleet and a hosted reviewer surface are absent;
 - each viewport is a distinct planned subject and render.
 
-## 3. Replacing Percy or Chromatic on a Storybook
+## Alongside Storybook
 
-**What you keep.** Storybook's build, story index, renderer, decorators, play
-functions, and parameters.
+**What you keep.** Storybook's build, story index, renderer,
+decorators, play functions, and parameters.
 
-**What you add.** `@variance-authority/storybook-collector` beside Storybook.
-It reads the story index, reuses one preview, applies the story viewport before
-mount, waits for Storybook's rendered state, and emits documents.
+**What you add.** `@variance-authority/storybook-collector`
+beside Storybook. It reads the story index, reuses one preview, applies the story
+viewport before mount, waits for Storybook's rendered state, and emits documents.
 
 **What you gain.**
 
@@ -149,7 +154,7 @@ mount, waits for Storybook's rendered state, and emits documents.
   are not part of the collector;
 - cross-browser breadth is limited to renderer engines you install and operate.
 
-## 4. Replacing nothing at all
+## Start without replacing anything
 
 With no approved baseline, the first durable observation is `new`, never green.
 An ephemeral comparison can instead render two documents in one renderer and

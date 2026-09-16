@@ -1,5 +1,7 @@
 import DocsPage from "../../components/DocsPage";
+import DocumentFigure from "../../components/DocumentFigure";
 import MarkdownDocument from "../../components/MarkdownDocument";
+import MarkdownLead from "../../components/MarkdownLead";
 import {
   documentDescription,
   documentTitle,
@@ -20,9 +22,15 @@ export default function Page() {
       current="/start"
       eyebrow="Rendered comparison"
       title={title}
-      description={description}
+      description={
+        <MarkdownLead
+          source={document.source}
+          sourcePath={document.sourcePath}
+        />
+      }
       toc={documentToc(document.source)}
     >
+      <DocumentFigure slug="start" />
       <MarkdownDocument
         source={document.source}
         sourcePath={document.sourcePath}

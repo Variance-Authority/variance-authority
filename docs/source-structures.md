@@ -1,12 +1,18 @@
 # Source index structures
 
-This page is the reference for the data structures behind a source scan: what
-each one holds, what its primary key is, how a value is found, how a fact is
-traced back to the file that produced it, and what a lookup, an insert and a
-save cost. [`source.md`](source.md) says what the scan reads and why;
+Adding a path does not invalidate the whole index. The scan remembers which
+directories each resolution could see, so a new path invalidates **only records
+that could have named its directory**. A resolver configuration change
+invalidates the full index; an unreadable configuration forces the conservative
+path set.
+
+This page is the reference for the data structures behind that source scan:
+what each one holds, what its primary key is, how a value is found, how a fact
+is traced back to the file that produced it, and what a lookup, insert and save
+cost. [`source.md`](source.md) says what the scan reads and why;
 [`source-index.md`](source-index.md) gives the byte layout of the persisted
-generation. This page sits between the two: the logical structures, their
-keys, and their complexity.
+generation. This page sits between the two: the logical structures, their keys,
+and their complexity.
 
 Throughout, `n` is the number of files a scan visits, `m` is the number of
 resolved edges between them, `d` is the number of files whose bytes differ from
@@ -307,7 +313,7 @@ reaches no importer. `EDGE_KINDS` walks it for a question about source rather
 than a runtime, and the shipped selection passes `asset` alone when it asks
 which module imports a file no probe can sit in. `closureOf` walks
 `CLOSURE_EDGES`, a list of the same five kinds kept separately because the
-digest depends on it, so a type-only change moves no merkle digest. The execution record
+digest depends on it, so a type-only change moves no merkle digest. The [execution record](execution-record.md)
 agrees by construction: a type-only import runs nothing, so no crossing ever
 joins the two files.
 
@@ -341,5 +347,5 @@ after that is O(degree).
 byte layout · [`source.md`](source.md) for what the scan reads and where it
 stops · [`execution-record.md`](execution-record.md) for the structures on the
 execution side · [`selecting.md`](selecting.md) for what a run does with the
-graph · [ADR-0040](context/adr/0040-git-already-named-every-files-content.md)
-for why the digest comes from git.
+graph · [`source.md`](source.md#what-a-second-scan-costs)
+for how Git supplies the committed file digests.

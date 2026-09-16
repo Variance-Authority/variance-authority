@@ -6,7 +6,7 @@ reports, review images, visual references, runtime coverage, scenario paths,
 history facts, and disposable caches. Some of those outputs feed the next run;
 others exist only to explain or review the run that produced them.
 
-Variance Authority does not serialize one global run object. Each information
+[Variance Authority](README.md) does not serialize one global run object. Each information
 domain keeps its own identity, completeness, disclosure, retention, and merge
 rules. Records meet only on identities their producers actually emitted.
 
@@ -15,7 +15,7 @@ rules. Records meet only on identities their producers actually emitted.
 A run begins from four inputs:
 
 1. **Project definition:** subject discovery, profiles, viewport, renderer,
-   retention, source roots, variation grammar, scenario definitions, policies,
+   retention, source roots, [variation](variations.md) grammar, scenario definitions, policies,
    and output addresses.
 2. **Source checkout:** file contents, paths, dependency resolution context,
    component declarations, and the revision or diff being asked about.
@@ -90,7 +90,7 @@ flowchart TD
 ```
 
 The solid arrows are production or exchange. The dotted arrows are reuse or
-attribution. Runtime execution is inside the SUT host and is broader than visual
+[attribution](attribution.md). Runtime execution is inside the SUT host and is broader than visual
 regression: an execution can produce crossings without a capture, and those
 crossings still power later test selection.
 
@@ -203,7 +203,7 @@ addresses, not local replicas of either store.
 
 ### Sense source information
 
-Sense source information is one versioned binary index, not a pair of serialized
+[Sense](../packages/sense) source information is one versioned binary index, not a pair of serialized
 object documents. The index stores source identities and names once, then keeps
 requests, bindings, exports, declarations, resolved edges, and forward/reverse
 relations in aligned typed-array sections. Sparse graph relations use CSR
@@ -240,15 +240,15 @@ replaces the incompatible block universe.
 
 `ExecutionIndex` is the runner-independent query shape used for source-to-test
 questions. An MCP integration supplies it to the tool; the MCP server is not its
-store. The persisted Vitest coverage file and a supplied execution index are two
+store. The persisted Vitest coverage file and a supplied [execution index](execution-record.md) are two
 carriers for the runtime domain, not copies of the visual run report.
 
 ### The three kinds of journey
 
-“Execution journey” names three different values and they live differently:
+“Execution [journey](journeys.md)” names three different values and they live differently:
 
 1. A **source reach trail** explains how a changed file reaches a component. It
-   is derived from query views over the binary source index and is not
+   is derived from query views over the binary [source index](source-index.md) and is not
    independently stored.
 2. A **runtime crossing record** says which tests entered which instrumented
    blocks. The coverage binary persists that relation. It is not a chronological
@@ -265,7 +265,7 @@ edges have incompatible meanings.
 ### MCP observability view
 
 An MCP connection can receive the run report, full presentation readings,
-execution index, live Vantage state, Eyes archive, and scenario manifests as
+execution index, live [Vantage](vantage.md) state, [Eyes](eyes.md) archive, and scenario manifests as
 optional fields of one subject. This is a view over separately supplied records,
 not a global run object. Tool discovery is shared; evidence identity, completeness, retention, and storage
 remain native to each domain.
@@ -289,9 +289,9 @@ discarded. At that boundary it can consume:
 
 - the resolved plan, including every planned, excluded, and failed subject;
 - per-subject acquisition diagnostics and stabilization declarations;
-- semantic snapshots and source provenance for findings and attribution;
+- semantic snapshots and source [provenance](attribution.md) for findings and attribution;
 - the candidate-to-reference comparison, changed regions, ignores, and
-  sensitivity;
+  [sensitivity](sensitivity.md);
 - paired presentation readings, when the caller supplied one for each side;
 - review-image addresses written beside the report;
 - same-run snapshots needed for suite composition and named variations; and
@@ -321,6 +321,21 @@ Collector results form planned-subject outcomes and capture artifacts. A report
 must not infer one from the other: a passing test does not prove its visual
 subject was observed, and an observed visual subject does not make the whole
 test execution complete.
+
+### Read one observed result
+
+These terms carry a rendered observation from the state that was read to the
+decision it supports.
+
+| Term | Meaning |
+| --- | --- |
+| **subject** | One UI state the run addresses — a story, route, fixture, or value — under an id that survives a rename. |
+| **band** | The kind of visible difference: `geometry`, `token`, `content`, `texture`, loudest first. |
+| **digest** | One hashed dimension of a component instance. Equal digests are a match, never a resemblance. |
+| **root** | The stable cause attributed to a change, such as a component or token. |
+| **cluster** | Regions with one semantic fingerprint, so one decision can cover all of them and nothing else. |
+| **docket** | The causes a run leaves for a person or system to decide. |
+| **verdict** | The decision for one subject: `unchanged`, `inherited`, `authorized`, `needs-review`, `violation`, or `unexplained`. `unobserved` is reported beside the verdicts when the profile did not make the required observation. |
 
 ## Full, partial, and lifecycle rules
 

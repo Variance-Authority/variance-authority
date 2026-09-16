@@ -3,7 +3,7 @@
 A live run answers a narrow question: which tests have opened, what each test
 has announced, and which announced work has not ended. The evidence lives in a
 watcher process and disappears with it. It is useful before a completed report,
-Eyes archive or execution index exists.
+[Eyes](eyes.md) archive or [execution index](execution-record.md) exists.
 
 This is distinct from [distilling a completed test](distill.md). Live signals
 locate a stall; retained attention and execution evidence explain the test's

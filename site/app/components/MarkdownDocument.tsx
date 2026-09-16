@@ -68,9 +68,11 @@ function CodeBlock({ children }: { children: ReactNode }) {
 export default function MarkdownDocument({
   source,
   sourcePath,
+  sectionFigures = {},
 }: {
   source: string;
   sourcePath: string;
+  sectionFigures?: Readonly<Record<string, ReactNode>>;
 }) {
   const blocks = withoutDocumentTitle(source).split(/\n\s*\n/);
   const lead = blocks.findIndex(
@@ -85,9 +87,15 @@ export default function MarkdownDocument({
         rehypePlugins={[rehypeRaw]}
         remarkPlugins={[remarkGfm]}
         components={{
-          h2: ({ children }) => (
-            <h2 id={headingId(textOf(children))}>{children}</h2>
-          ),
+          h2: ({ children }) => {
+            const id = headingId(textOf(children));
+            return (
+              <>
+                <h2 id={id}>{children}</h2>
+                {sectionFigures[id]}
+              </>
+            );
+          },
           h3: ({ children }) => (
             <h3 id={headingId(textOf(children))}>{children}</h3>
           ),

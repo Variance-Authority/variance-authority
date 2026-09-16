@@ -1,9 +1,14 @@
 # Observe one state end to end
 
-Put one stable UI state through a complete durable review loop: reach it with
-the process that already owns it, record a bounded subject, review the first
-candidate, accept it explicitly, and confirm that the same reading returns
-`unchanged`.
+Begin with one stable UI state in a test or harness you already trust. Keep its
+navigation, fixtures, authentication, and readiness there. **Choosing that host
+does not choose where pixels are made**: [Variance Authority](README.md) can
+retain a document for later rendering or keep the caller's already-painted
+image. It gives you the first candidate to review and checks that the accepted
+reading returns `unchanged` on the next run.
+
+This is enough to learn the complete review loop before deciding whether more
+of the suite belongs in it.
 
 ## The result you are building
 
@@ -36,11 +41,11 @@ rebuild navigation or fixtures in a second harness.
 The host choice does not choose where pixels are made. Playwright can retain a
 document for deferred rendering or capture its caller-owned locator in place;
 collector documents can be rendered locally or by an operator-owned renderer.
-[Choosing a composition](cases.md) separates those decisions.
+[Choose from the state you already have](cases.md) separates those decisions.
 
 These paths share observation and reporting contracts, not identical signals.
 For example, browser accessibility evidence requires a browser reading,
-`file:line` attribution requires source provenance, and portable remote painting
+`file:line` [attribution](attribution.md) requires source [provenance](attribution.md), and portable remote painting
 requires resource-closed capture. When a path does not supply a signal, the
 result omits it.
 

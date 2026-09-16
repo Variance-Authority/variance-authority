@@ -96,6 +96,47 @@ describe('every link resolves', () => {
   });
 });
 
+/**
+ * Pages published as product documentation, rather than repository context for
+ * contributors and maintainers.
+ */
+const PUBLIC_MARKDOWN = MARKDOWN.filter(
+  (file) =>
+    file === 'README.md' ||
+    /^docs\/[^/]+\.md$/.test(file) ||
+    /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file),
+);
+
+describe('public documentation stands without internal project history', () => {
+  it.each(PUBLIC_MARKDOWN)('%s', (file) => {
+    const text = prose(file);
+    const internal: string[] = [];
+
+    for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+      const target = match[2]!;
+      if (/^(https?:|mailto:)/.test(target)) continue;
+
+      const [path] = target.split('#') as [string];
+      const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
+      if (relative(ROOT, resolved).startsWith('docs/context/')) {
+        internal.push(`${file}:${lineOf(text, match.index)} → ${target}`);
+      }
+    }
+
+    for (const match of text.matchAll(/\b(?:ADR-\d{4}|journal\s+\d{4})\b/gi)) {
+      internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
+    }
+
+    for (const match of text.matchAll(
+      /\b(?:docs\/context|context\/(?:adr|journal)|context\/checkpoint\.md)(?:\/[\w./-]+)?/gi,
+    )) {
+      internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
+    }
+
+    expect(internal).toEqual([]);
+  });
+});
+
 interface Claim {
   readonly path: string;
   /** Line of the opening backtick, 1-based, in the text the claim was read from. */

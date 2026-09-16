@@ -1,15 +1,33 @@
 import type { ReactNode } from "react";
 import Attribution from "./Attribution";
+import BetterTests from "./BetterTests";
 import DiffReport from "./DiffReport";
+import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
+import OwnFewerTests from "./OwnFewerTests";
 import PresentationPaint from "./PresentationPaint";
+import ReasoningLoop from "./ReasoningLoop";
+import ReviewLoop from "./ReviewLoop";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
 import Subjects from "./Subjects";
+import TestPurpose from "./TestPurpose";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
+  overview:
+    "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
+  "better-tests":
+    "Keep reusable work and recorded evidence long enough to improve the next run.",
+  "own-fewer-tests":
+    "Count the decisions the suite can change, then keep the cheapest credible test for each one.",
+  reasoning:
+    "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
+  "evidence-field":
+    "One question chooses the evidence it needs. The result carries only the move and limit that evidence supports.",
+  start:
+    "The existing host reaches the state. Observation, review, and acceptance add a durable comparison without taking that responsibility away.",
   surface:
     "The same observation model can address several kinds of subject without pretending they need the same retained evidence.",
   attribution:
@@ -39,6 +57,42 @@ function Figure({ children, caption }: { children: ReactNode; caption: string })
 
 export default function DocumentFigure({ slug }: { slug: string }) {
   switch (slug) {
+    case "overview":
+      return (
+        <Figure caption={CAPTIONS.overview!}>
+          <TestPurpose />
+        </Figure>
+      );
+    case "better-tests":
+      return (
+        <Figure caption={CAPTIONS["better-tests"]!}>
+          <BetterTests />
+        </Figure>
+      );
+    case "own-fewer-tests":
+      return (
+        <Figure caption={CAPTIONS["own-fewer-tests"]!}>
+          <OwnFewerTests />
+        </Figure>
+      );
+    case "reasoning":
+      return (
+        <Figure caption={CAPTIONS.reasoning!}>
+          <ReasoningLoop />
+        </Figure>
+      );
+    case "evidence-field":
+      return (
+        <Figure caption={CAPTIONS["evidence-field"]!}>
+          <EvidenceMap />
+        </Figure>
+      );
+    case "start":
+      return (
+        <Figure caption={CAPTIONS.start!}>
+          <ReviewLoop />
+        </Figure>
+      );
     case "surface":
       return (
         <Figure caption={CAPTIONS.surface!}>

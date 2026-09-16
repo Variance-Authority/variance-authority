@@ -1,27 +1,33 @@
 # Reading the source
 
-To skip work, a run has to know what a change could have reached, and it has to
-know it before anything renders. That answer is a graph of the
-repository, and this is the part of the system that builds one: a walk that reads
-files, resolves what they point at, and hands back one record per file.
+Source analysis is the broadest reading: **what could a change reach?**
+[**Execution recording**](execution-record.md) narrows that to what each test
+actually entered; [**Eyes**](eyes.md) adds what the test queried, operated or
+read. Together they drive [test selection](selecting.md), [distance](distance.md)
+and [distillation](distill.md). This page explains the static foundation beneath
+those answers.
+
+The source answer has to exist before anything renders. It is a graph of the
+repository, built by a walk that reads files, resolves what they point at, and
+hands back one record per file.
 
 It is a *reader*, not a builder. Nothing here executes the code it reads, loads a
 config that a bundler would load, or asks a package manager anything. The whole
-mechanism is a parse, a resolver and one source index — which is why a cold scan
+mechanism is a parse, a resolver and one [source index](source-index.md) — which is why a cold scan
 of a thirty-thousand-file repository takes three seconds, every scan after it a
 fraction of that, and neither of them the minutes a build costs.
 
 The package is [`packages/sense`](../packages/sense), and it is named for what it
 is for: sensing what is there. The graph it feeds lives in
-[`packages/core`](../packages/core), which never touches a disk
-([ADR-0006](context/adr/0006-host-free-core.md)).
+[`packages/core`](../packages/core), which never touches a disk.
 
-Two questions come out of it:
+Three readings meet around it:
 
 | question | what answers it |
 |---|---|
 | what could this change have reached? | the file graph, walked backwards from a diff |
-| what did this run actually cross? | the transform, which marks every region a run entered |
+| what did this test actually enter? | [execution recording](execution-record.md), which marks the regions a run entered |
+| what did this test deliberately address? | [Eyes](eyes.md), which records queried, operated and read elements |
 
 The first question belongs to [`selecting.md`](selecting.md), which covers
 `--since`, what it over-includes, and what a scan costs on a real monorepo. This
@@ -47,8 +53,7 @@ makes `Card` stop being a name at all — so nothing downstream can ask which fi
 declares it. One edge per *name* turns a barrel republishing fifty exports into
 fifty edges to one file. So the specifier survives resolution: a bare specifier
 that resolves to nothing is the package this file depends on, and that question
-has no answer once the string has been thrown away for a file id
-([ADR-0041](context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md)).
+has no answer once the string has been thrown away for a file id.
 
 **It reads the module record, not the tree.** `oxc-parser` returns a lazily
 deserialized result: the full AST sits behind `.program` and is the expensive
@@ -151,17 +156,16 @@ bare one that fails is a package this scan has no business finding; a *relative*
 one names a path inside this repository and could not be identified, which is a
 hole in the edge list rather than an absence of one. It lands in `unknown`, and everything
 downstream treats an unknown file as reaching everything
-([ADR-0002](context/adr/0002-observation-profiles.md): absent is not empty). A
-file that cannot be read is the same case, and produces a record with a reason
-and not an empty one.
+because absent evidence is not evidence of an empty dependency set. A file that
+cannot be read is the same case, and produces a record with a reason rather than
+an empty one.
 
 ## What a second scan costs
 
 Three things can arrive already known, and each one removes a layer of work.
 
 **Git already named every file's content.** `ls-tree -r` hands over the whole file
-list with a blob hash attached, in one subprocess, having opened nothing
-([ADR-0040](context/adr/0040-git-already-named-every-files-content.md)). The
+list with a blob hash attached, in one subprocess, having opened nothing. The
 working tree is not the commit, so the porcelain status is read too and every path
 it names is re-hashed from disk by `hash-object`; a file edited back to its
 committed contents lands on its committed digest and costs nothing. Those digests
@@ -249,8 +253,7 @@ it.
 components it reached, the changed paths the graph holds no node for, the files
 seeded because their own edges are unknown, and a breadth-first trail per node.
 The trail is what lets a report say *why* a subject was included, one hop at a
-time, instead of asserting that it was
-([ADR-0039](context/adr/0039-the-digest-is-the-proof-the-trail-is-the-explanation.md)).
+time, instead of asserting that it was.
 
 ## The transform that records the path
 
@@ -276,8 +279,7 @@ Two properties make the emitted code explicit about its runtime:
   probe, so a runner cannot silently omit collection.
 
 A source it cannot parse returns nothing instead of throwing, because a file
-whose blocks are unknown is *not instrumented*, never *not executed*
-([ADR-0008](context/adr/0008-per-profile-expectations.md)).
+whose blocks are unknown is *not instrumented*, never *not executed*.
 
 The transform alone does not select tests. The runner records crossings first;
 `selectTestFiles` then joins the persisted coverage data to a diff and returns the
@@ -314,10 +316,5 @@ can, in principle, shadow a resolution. That is the one gap, it is bounded by
 [`source-structures.md`](source-structures.md) for the keys, lookups and
 costs of every structure the scan builds ·
 [`packages/sense`](../packages/sense) for the API ·
-[ADR-0038](context/adr/0038-a-change-reaches-a-component-through-files.md) for
-why a change reaches a component through files ·
-[ADR-0041](context/adr/0041-a-request-is-the-edge-a-binding-is-the-name.md) for
-requests and bindings ·
-[ADR-0040](context/adr/0040-git-already-named-every-files-content.md) for the
-digests · [`attribution.md`](attribution.md) for the other direction, from a
+[`attribution.md`](attribution.md) for the other direction, from a
 changed pixel back to a line.

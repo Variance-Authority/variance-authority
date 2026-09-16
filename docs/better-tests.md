@@ -1,139 +1,187 @@
-# Make a suite faster, stabler, smarter and cheaper
+# Make a suite faster, more stable, smarter and cheaper
 
-Your suite gets slower, flakier and more expensive every month somebody works on
-it. You can shard it and buy the time back in machines, retry it and trade a
-false alarm for a missed regression, or rebuild the world between tests and pay
-on every test for a leak in a few.
+A growing test suite should give you more confidence to change the code. Too
+often it gives you longer waits, failures nobody trusts, and a larger CI bill.
+You add machines, add retries, rebuild the environment between tests, and spend
+more to get the same answer.
 
-Those are the moves available when a run leaves nothing behind but an exit code.
-A run also knows which source it entered, which elements it addressed, and what
-had already happened before its first line, and teardown is normally where all
-of that ends. Keep it, and each of the four axes below has a measured answer
-rather than a policy.
+That does not have to be the cost of growth. Fast feedback and reliable tests
+belong together. Flakiness deserves a fix. A run should help you decide what to
+do next, and every dependency should earn the work it adds.
 
-Rendered comparison is the loudest use of that evidence and it is one use. The
-Vitest 2 and Jest 30 seams instrument, collect and persist around the
-transformer you already use, and Eyes watches React Testing Library's `screen`
-from a setup file, so selection, order and distillation reach a suite that never
-opens a browser.
+A test run already knows much of what you need: which code executed, which
+elements the tests queried or clicked, and what setup ran before they began.
+Teardown is normally where all of that disappears. [Variance Authority](README.md) keeps it
+so the work you have already paid for can make the next run better.
 
-## Faster: keep the browser you already opened
+Visual comparison is one use of that evidence. The Vitest 2 and Jest 30
+integrations record execution through the transformer you already use. [Eyes](eyes.md)
+records React Testing Library's `screen` queries from a setup file. Choosing
+tests, investigating shared state and reducing unnecessary imports all work in
+a suite that never opens a browser.
 
-A screenshot tool opens a browser, navigates, takes one picture and throws the
-whole thing away, because a page that already rendered something might colour
-what comes next. Do that a few hundred times and the launching is the run.
+## Faster: don't surrender to workarounds
 
-One Chromium and one page serve a whole run here instead. Measured over 48
-renders, a capture into an already-open page costs about **9 ms** against about
-**233 ms** for one that launches a browser first. The Storybook collector holds a
-single preview open and switches stories over Storybook's own channel rather than
-navigating; the renderer keeps a pool of pages keyed by viewport, so 1x and 2x,
-or a phone width and a desktop one, come out of one browser in one run.
+Slow tests interrupt development. Unreliable tests teach people to ignore them.
+You need feedback that arrives while the edit is still in your head and that you
+can act on when it does. Rebuilding the environment can hide a state leak, but
+every test then pays for that workaround. Finding and fixing the leak lets you
+keep both speed and trust in the result.
 
-Painting is the expensive half, so a run avoids it wherever a cheaper reading can
-decide: a document identical to the one a baseline was painted from is compared,
-found equal, and never photographed again.
-[Evidence instruments](instruments.md) measures reading against painting on a
-fixture you can run yourself, and those ratios come from one machine and one
-Chromium.
+Starting a fresh browser for each capture prevents one page's state from leaking
+into the next. It also means launching, navigating and tearing down for every
+picture. Do that a few hundred times and setup becomes much of the run.
 
-Holding the page open is exactly what lets one test's leftovers reach the next
-one. The next axis is how that gets caught.
+One Chromium and one page serve a whole run here instead. Measured over multiple
+renders, a capture into an already-open page costs about **7.5 ms** against about
+**205 ms** for one that launches a browser first. These are steady-state capture
+times from one machine and one Chromium, not a prediction for every suite.
+The [kitchen-sink example](../examples/kitchen-sink/README.md#running-it) carries
+the runnable warm-versus-cold benchmark.
+The Storybook collector holds a single preview open and switches stories over
+Storybook's own channel rather than navigating. The renderer keeps a pool of
+pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
+out of one browser in one run.
 
-## Stabler: name what moved instead of rebuilding the world
+Rendering an image is expensive, so a run avoids it when comparing the captured
+document is enough. If that document is identical to the one used for the
+baseline image, there is no need to take another screenshot.
+[Evidence instruments](instruments.md) measures the cost of collecting a document
+against taking a screenshot. The timings come from one machine and one Chromium;
+they are not a prediction for every suite.
 
-A changed subject is collected a second time, and there are two second passes,
-each varying exactly one thing. `again` holds the world and advances time, and
-answers whether the subject drifts on its own — reported as `unstable`. `alone`
-rebuilds the world and holds time, and answers whether some other subject changed
-this one — reported as `order-dependent`.
+Keeping the page open saves that work, but it also lets one test's leftovers
+reach the next. The saving depends on finding those leaks and helping you fix
+them. That is where speed and reliability meet.
 
-`again` runs first, and when it finds drift `alone` is never asked: `alone`'s
-whole inference is that a clean reading differs from the shared one, which is
-only evidence if two readings of one world would have agreed. Neither is a retry
-— neither clears a verdict — and `accept` refuses to promote either outcome
-unless a sensitivity rule already covers every band that moved. `alone.limit`
-caps how much re-collection a red run pays for, and outside a sweep a green run
-pays nothing.
+## More stable: see the root cause
 
-An `order-dependent` reading resolves to a region, a component and a source file,
-plus the fact that a clean world does not show it. Narrowing from there to the
-code that wrote it is a bisection over run order.
+A test that fails intermittently gives everyone a reason to dismiss its next
+failure. Retrying may get the build through; it leaves the reason to distrust
+the test in place. To fix it, you need to see what changed, under which
+conditions, and where the explanation leads. Each check should narrow the cause
+and give you evidence for the next step.
+
+When a story or page region changes, Variance Authority captures it again to
+check why. Two checks separate timing problems from shared state. `again`
+captures it in the same page: does it change on its own? That is reported as
+`unstable`. `alone` captures it in a clean environment under the same time
+conditions: does removing the earlier subjects change the result? That is
+reported as `order-dependent`.
+
+`again` runs first. If the subject changes between two captures in the same
+page, a different result in a clean page would tell you nothing about shared
+state: a clock could explain both. So an unstable subject is not checked with
+`alone`.
+
+Both checks retain their findings; a second capture does not turn a failure into
+a pass. `accept` refuses to save either result as a baseline unless a declared
+[sensitivity](sensitivity.md) rule covers every kind of change found. `alone.limit` caps the extra
+captures on a failing run. Outside a full flake sweep, a passing run pays nothing
+for these checks.
+
+An `order-dependent` finding names the affected region, component and source
+file, and establishes that the difference disappears in a clean environment.
+To find which earlier subject left the state behind, narrow the preceding run
+order by halves and check which half reproduces it.
 
 A unit suite has the same leak one level down. A client built at a module's top
 level, a registry a decorator fills, a clock read into a constant: the work
 happened before the first test of every file that imported the module, and
 whether it had happened when a given test looked depends on which file loaded it
-first. The Vitest and Jest seams snapshot every counter before each file's first
-test, so a region already entered by then is recorded as **loaded** by that file
-as well as crossed by it.
+first. The Vitest and Jest integrations record what code has already executed
+before each file's first test. That initialization is recorded as **loaded**,
+separately from code executed during the tests.
 
-[Test order and shared state](flakiness.md#test-order-and-shared-state) is the
-whole taxonomy, including what a probe can and cannot attribute.
+[Test order and shared state](flakiness.md#test-order-and-shared-state) explains
+these cases and how far the recorded execution can trace them.
 
-## Smarter: decide from what the run recorded
+## Smarter: let evidence guide the work
 
-Selection here rests on what a run recorded itself doing rather than on what a
-graph predicts a change could reach. `withTestSelection` wraps the runner
-configuration once — installing the reporter it needs along the way — and every
-run from then on records which test file entered which source. The next run reads
-that back and asks which test files the diff reaches. This repository does it to
-itself: `yarn test:since` runs those files through `tools/test-since.mjs` over
-`@variance-authority/sense/test-selection`, the published entry point rather than
-a private path.
+Running everything again is an expensive way to answer a small change. When a
+test fails, running it repeatedly without learning anything is expensive too.
+The previous run should help with both decisions: what needs to run now, and
+where to look when it fails.
 
-The record rules paths out as well as in. A selection reports how many files it
-left behind because the snapshot saw them whole and they entered none of the
-change, which is a different claim from a graph that never looked.
+An import graph tells you which tests might depend on a changed module. A
+recorded run also tells you which tests executed the changed code.
+`withTestSelection` wraps the runner configuration once, installing the reporter
+it needs along the way. Every run then records which source code each test file
+executed. The next run uses that record to choose tests for the source diff.
+This repository uses the same published API through `yarn test:since`.
 
-[Run relevant work](run-relevant-work.md) is the decision;
-[selection](selecting.md) owns the rules that widen it, including how an `nx` or
-`turbo` answer is folded in as more changed input rather than a second opinion,
-and [distance](distance.md) puts the nearest selected test first and shows one of
-this repository's own selections at the commit it was recorded against.
+The record also explains exclusions. A selection reports which tests have a
+complete recording and executed none of the changed code. Missing or incomplete
+evidence widens the run or prevents selection; a skipped test has no new verdict.
 
-The same record answers questions nobody wrote an assertion for. The process that
-produced a pass or a fail also knew which elements were addressed, which
-components rendered, which instance scheduled each render, and which branch a
-module took, and your test does not change to keep any of it.
-[Ask a question the test did not](observability.md) is the record,
-[Eyes](eyes.md) is the addressed surface, and [journeys](journeys.md) follow the
-source an execution entered across processes.
+[Run relevant work](run-relevant-work.md) explains how to choose a workload.
+[Selection](selecting.md) covers the fallback rules and how `nx` or `turbo` adds
+to the list of changed inputs. [Distance](distance.md) orders selected tests by
+how many imports separate them from the edit, so nearby tests give feedback first.
 
-## Cheaper: stop paying for imports nothing exercises
+The same record answers questions nobody wrote an assertion for. The process
+that produced a pass or a fail also knew which elements the test queried or
+clicked, which components rendered, which component instances initiated updates,
+and which branches executed. Your test does not change to keep any of it.
+[Ask a question the test did not](observability.md) explains what you can learn
+from that record. [Eyes](eyes.md) records interactions and component details;
+[journeys](journeys.md) connect executed source across processes.
 
-A test that never calls into a module still pays for it. The import runs, every
-change to that file moves the test, and a spy leaves the same trace as a branch
-never taken — a file-level answer cannot tell the two apart.
+## Cheaper: make the work leaner
 
-`variance distill` reads each module the test entered region by region, so a
-module whose only crossing is its own load is reported as exactly that, and where
-declarations went unreached it names them and the substitution to try.
+More machines can shorten the queue while every test keeps doing the same
+unnecessary work. Before buying capacity, ask what the test needs to load at
+all. A smaller dependency setup costs less to run and gives unrelated changes
+fewer ways to drag the test back into the suite.
 
-Writing that substitution pays twice: the run stops evaluating the module, and
-the scan — which reads `vi.mock`, `jest.mock` and `sb.mock` off test, story and
-setup files — stops drawing the edge, so the next selection is narrower too.
+Making each test cheaper is not the same as needing every test. [Own fewer
+tests](own-fewer-tests.md) asks which distinct decision each test contributes,
+where a large fan-out belongs, and how long temporary protection should remain.
+The rest of this section assumes the test has earned its place and reduces the
+work inside it.
 
-[Make one test cost less](optimize-a-test.md) is that loop.
+A test that never calls into a module still pays for it. The import runs its
+initialization, and an import graph can select the test whenever that file
+changes. A file-level [execution record](execution-record.md) tells you that the module ran, but not
+whether the test called its functions. A spy that replaced a function and a
+branch that never called it can look the same.
 
-## What each reading asks for
+`variance distill` examines execution within each module. It identifies modules
+that only ran initialization, names the functions the test never called, and
+suggests a substitution to try. The suggestion needs verification: initialization
+may register a handler or create a singleton the test relies on.
 
-| Reading | Seam | Also needs |
+A verified mock pays twice. The test stops evaluating the replaced module, and
+the source scanner recognizes `vi.mock`, `jest.mock` and `sb.mock` in test, story
+and setup files. It removes the mocked dependency from the graph, so changes to
+that module can stop selecting the test too.
+
+[Make one test cost less](optimize-a-test.md) is that loop: find unnecessary
+work, try a smaller setup, and verify that the test still checks what matters.
+
+The gains reinforce each other. Reusing setup makes feedback faster. Diagnosing
+shared state makes that reuse trustworthy. Recording execution helps choose the
+next tests, and removing unnecessary dependencies leaves less to select. The
+suite gets better because you understand and improve the work it does.
+
+## What each capability needs
+
+| Capability | Integration | Also needs |
 | --- | --- | --- |
 | One page across a run | the harness, or a shipped collector | nothing further |
-| Order-dependent subjects | a collector that can rebuild a clean world | nothing further |
+| Test-order checks | a collector that can create a clean environment | nothing further |
 | Selection and distance | `withTestSelection` in the Vitest or Jest config | a recorded run to select from |
 | Order-dependent module state | the same instrumentation | nothing further |
-| Region-level distillation | the same instrumentation | one test's execution index, and `variance distill` |
-| Addressed elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React commits additionally need that setup file to run before `react-dom`, and the attention journal records the refusal when it does not |
+| Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
+| Recording queried elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React updates also need a commit hook installed before `react-dom` loads; `watch` attaches to that hook and reports when it is unavailable |
 
-Selection, order and distillation come from one wrap of the runner
-configuration. Nothing here asks the suite to adopt a baseline, a `test`, or an
-`expect`.
+Test selection, shared-state records and dependency analysis come from one wrap
+of the runner configuration. They work with your existing `test` and `expect`,
+and do not require visual baselines.
 
 ---
 
 **Further:** [`packages/sense`](../packages/sense) for what the scan reads and
-where the seams stop · [`packages/eyes`](../packages/eyes) for the attention
-journal · [`packages/distill`](../packages/distill) for the analyzer ·
+the integration limits · [`packages/eyes`](../packages/eyes) for recorded
+interactions · [`packages/distill`](../packages/distill) for the analyzer ·
 [`performance.md`](performance.md) for what a source scan costs.

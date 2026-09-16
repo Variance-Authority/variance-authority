@@ -70,6 +70,33 @@ The failure this rules out is a correct page nobody finishes: three levels of
 detail on a defence that runs once, in front of the mechanism the reader opened
 the page for.
 
+### Editorial direction
+
+Write with substance and character, in language that does not require belonging
+to the project.
+
+- Respect what the page is doing. An argument persuades, an explanation develops
+  understanding, and a reference answers precisely. Each needs its own shape.
+- Assume engineering experience, not shared vocabulary. Readers know software;
+  they do not know the project's private shorthand or the conversations behind it.
+- Make the thought easy to follow. Clear relationships between ideas matter more
+  than short sentences or fewer words.
+- Preserve the author's intent and voice. Improve how the idea reaches the reader
+  without replacing it with a generic documentation pattern.
+- Keep the depth. Translate difficult wording while retaining distinctions,
+  reasoning, and technical detail that earn their place.
+- Let detail serve the purpose. Its placement and prominence depend on what the
+  reader came for.
+- Keep internal rationale internal. Public documentation does not link to
+  `docs/context/`, name an ADR or journal entry, or depend on private project
+  history. State any reasoning the reader needs in the public page itself.
+
+Welcome the reader from the system and constraints they already have. Seek to
+understand those choices before presenting another one. Build shared ground,
+state tradeoffs fairly, and show how existing tools can remain in place. A strong
+position should clarify a decision, not manufacture an opponent. Readability is
+better expression of the ideas, not simplification of them.
+
 ## The project reports on itself in code
 
 How far along the project is — what is written and has never run, what nobody

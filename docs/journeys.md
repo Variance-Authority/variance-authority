@@ -9,8 +9,8 @@ A build carrying `testSelectionProbes()` from `@variance-authority/sense/journal
 records that. A probe sits at every region of the instrumented source where
 control can arrive — a function body, a branch, a `case`, a loop body, a `catch`
 or `finally`, the code after a decision, the resumption after an `await` — and
-each [subject](README.md#read-a-report-from-subject-to-verdict)'s record is the
-set of regions it entered while it was painted. That record is the subject's
+each observed UI state's record is the set of regions it entered while it was
+painted. That record is the subject's
 **journey**: the path one execution took through the source, in every process
 the execution touched.
 
@@ -145,7 +145,7 @@ look once something else has said that something changed.
   part at one place; a chain of `if`s is a mark per `if`, in the order the code
   asks them. A region a component's own stories agree on is no mark, whatever
   other components did there.
-- The run's [lexicon](composition.md#the-subject-you-can-only-describe) indexes
+- The run's [lexicon](lexicon.md) indexes
   each subject under the lexical names of the regions it entered, read off the
   journal once the run is over, so `variance_locate {query: "onClick"}` finds
   the stories that ran a handler by the handler's name. A run without a journal

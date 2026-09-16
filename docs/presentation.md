@@ -30,7 +30,7 @@ names the relationship rather than a preferred density or layout.
 The acquisition boundary also governs default image settlement. Images inside
 the locator and its React portals settle before geometry is read; an unrelated
 incomplete image elsewhere in the document does not hold the reading open. The
-collector omits React provenance because no presentation report field consumes
+collector omits React [provenance](attribution.md) because no presentation report field consumes
 it. Font settlement remains document-wide because it can change geometry inside
 the boundary. A caller-owned static document whose page clock cannot advance can
 replace the recipe with `stabilize: []`; live pages retain the default.

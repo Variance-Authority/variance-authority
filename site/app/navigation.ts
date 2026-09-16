@@ -16,9 +16,9 @@ export const NAVIGATION = [
   {
     label: "Overview",
     items: [
-      { href: "/docs", label: "Why Variance Authority" },
+      { href: "/docs", label: "What tests are for" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
-      { href: "/docs/evidence-field", label: "See the evidence field" },
+      { href: "/docs/evidence-field", label: "Use the evidence you have" },
     ],
   },
   {
@@ -26,7 +26,11 @@ export const NAVIGATION = [
     items: [
       {
         href: "/docs/better-tests",
-        label: "Faster, stabler, smarter, cheaper",
+        label: "Faster, more stable, smarter, cheaper",
+      },
+      {
+        href: "/docs/own-fewer-tests",
+        label: "Own fewer tests",
       },
       {
         href: "/docs/run-relevant-work",
@@ -202,7 +206,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/cases",
-        label: "Choose where observation runs",
+        label: "Start from the state you have",
         cluster: "Compose an observation",
       },
       {
@@ -237,12 +241,12 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/replacing",
-        label: "Replace a screenshot suite",
+        label: "Fit into a screenshot suite",
         cluster: "Adopt it",
       },
       {
         href: "/docs/gates",
-        label: "Decide whether it can gate",
+        label: "See where it fits",
         cluster: "Adopt it",
       },
     ],
@@ -293,7 +297,7 @@ export const NAVIGATION = [
       { href: "/docs/performance", label: "Performance" },
       { href: "/docs/native-code", label: "Native code" },
       { href: "/reference/packages", label: "Package reference" },
-      { href: "/reference/comparison", label: "Product comparison" },
+      { href: "/reference/comparison", label: "Compare operating models" },
     ],
   },
 ] as const satisfies readonly NavigationSection[];

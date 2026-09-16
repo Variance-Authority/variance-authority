@@ -2,8 +2,9 @@
 
 Use this path when a collector module already owns subject planning, acquisition,
 and readiness. The CLI checks the selected environment, runs the collector,
-writes one report, promotes reviewed candidates, and returns the exit code CI
-reads.
+writes one report, and returns the exit code CI reads. Acceptance promotes
+the named subject's **exact reviewed candidate**; it never creates a replacement
+render. Unattended `accept --all` promotes reviewed and unopened subjects alike.
 
 ## Before you run
 
