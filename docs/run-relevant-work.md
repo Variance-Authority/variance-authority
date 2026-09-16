@@ -43,3 +43,14 @@ never becomes proof that nothing is affected.
 
 The result supports choosing a workload under named conditions. It does not
 describe the unrun surface as unchanged.
+
+## Running fewer is not owning fewer
+
+Selection reduces the work an edit pays for now. It does not decide whether the
+suite still needs every test it has accumulated. A hundred overlapping tests
+can become a cheap selection and still remain a hundred assertions to
+understand, maintain and trust.
+
+[Own fewer tests](own-fewer-tests.md) starts from that longer-lived decision:
+whether another test adds a distinct answer, when variation deserves fan-out,
+and when temporary or duplicated protection can leave the suite.

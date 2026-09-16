@@ -189,3 +189,8 @@ The current reading counts addressed target paths and entered files. It does
 not claim a percentage of the Fiber tree: unmounted, hidden, lazy and
 never-observed branches have different denominators, and a DOM target does not
 establish that every ancestor or descendant participates in the assertion.
+
+Distill also does not decide whether the suite should retain several tests that
+protect the same promise. That is a portfolio decision across tests, assertions
+and risk; [own fewer tests](own-fewer-tests.md) describes the questions the
+execution evidence can inform without turning overlap into a deletion verdict.

@@ -134,6 +134,12 @@ unnecessary work. Before buying capacity, ask what the test needs to load at
 all. A smaller dependency setup costs less to run and gives unrelated changes
 fewer ways to drag the test back into the suite.
 
+Making each test cheaper is not the same as needing every test. [Own fewer
+tests](own-fewer-tests.md) asks which distinct decision each test contributes,
+where a large fan-out belongs, and how long temporary protection should remain.
+The rest of this section assumes the test has earned its place and reduces the
+work inside it.
+
 A test that never calls into a module still pays for it. The import runs its
 initialization, and an import graph can select the test whenever that file
 changes. A file-level [execution record](execution-record.md) tells you that the module ran, but not
