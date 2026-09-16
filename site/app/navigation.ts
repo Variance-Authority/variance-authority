@@ -29,6 +29,10 @@ export const NAVIGATION = [
         label: "Faster, more stable, smarter, cheaper",
       },
       {
+        href: "/docs/own-fewer-tests",
+        label: "Own fewer tests",
+      },
+      {
         href: "/docs/run-relevant-work",
         label: "Run relevant work",
         cluster: "Run less of the suite",

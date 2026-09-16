@@ -32,6 +32,7 @@ import lexicon from "../../../docs/lexicon.md?raw";
 import metrics from "../../../docs/metrics.md?raw";
 import nativeCode from "../../../docs/native-code.md?raw";
 import observability from "../../../docs/observability.md?raw";
+import ownFewerTests from "../../../docs/own-fewer-tests.md?raw";
 import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
@@ -73,6 +74,7 @@ const documents = [
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
+  ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],

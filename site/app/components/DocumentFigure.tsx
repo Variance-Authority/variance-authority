@@ -5,6 +5,7 @@ import DiffReport from "./DiffReport";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
 import Journeys from "./Journeys";
+import OwnFewerTests from "./OwnFewerTests";
 import PresentationPaint from "./PresentationPaint";
 import ReasoningLoop from "./ReasoningLoop";
 import ReviewLoop from "./ReviewLoop";
@@ -19,6 +20,8 @@ const CAPTIONS: Record<string, string> = {
     "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
+  "own-fewer-tests":
+    "Count the decisions the suite can change, then keep the cheapest credible test for each one.",
   reasoning:
     "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
   "evidence-field":
@@ -64,6 +67,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS["better-tests"]!}>
           <BetterTests />
+        </Figure>
+      );
+    case "own-fewer-tests":
+      return (
+        <Figure caption={CAPTIONS["own-fewer-tests"]!}>
+          <OwnFewerTests />
         </Figure>
       );
     case "reasoning":
