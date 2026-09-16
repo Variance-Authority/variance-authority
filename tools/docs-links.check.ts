@@ -118,17 +118,18 @@ describe('public documentation stands without internal project history', () => {
 
       const [path] = target.split('#') as [string];
       const resolved = path === '' ? join(ROOT, file) : resolve(dirname(join(ROOT, file)), path);
-      if (relative(ROOT, resolved).startsWith('docs/context/')) {
+      const inside = relative(ROOT, resolved);
+      if (inside.startsWith('docs/context/') || inside.startsWith('docs/specs/')) {
         internal.push(`${file}:${lineOf(text, match.index)} → ${target}`);
       }
     }
 
-    for (const match of text.matchAll(/\b(?:ADR-\d{4}|journal\s+\d{4})\b/gi)) {
+    for (const match of text.matchAll(/\b(?:ADR-\d{4}|(?:journal|spec)\s+\d{4})\b/gi)) {
       internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
     }
 
     for (const match of text.matchAll(
-      /\b(?:docs\/context|context\/(?:adr|journal)|context\/checkpoint\.md)(?:\/[\w./-]+)?/gi,
+      /\b(?:docs\/(?:context|specs)|context\/(?:adr|journal)|context\/checkpoint\.md|specs\/\d{4}-[\w-]+\.md)(?:\/[\w./-]+)?/gi,
     )) {
       internal.push(`${file}:${lineOf(text, match.index)} → ${match[0]}`);
     }

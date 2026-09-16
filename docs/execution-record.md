@@ -854,7 +854,4 @@ of those into an absent record, so a corrupt file costs one full run.
 
 **Further:** [`selecting.md`](selecting.md) for what a run does with the
 answer · [`source-structures.md`](source-structures.md) for the static side ·
-[spec 0028](specs/0028-the-instrument.md) for the instrument ·
-[spec 0029](specs/0029-what-a-run-remembers.md) for what a run remembers ·
-[spec 0030](specs/0030-a-diff-lands-on-blocks.md) for how a diff lands on
-blocks · [`journeys.md`](journeys.md) for executions that cross processes.
+[`journeys.md`](journeys.md) for executions that cross processes.
