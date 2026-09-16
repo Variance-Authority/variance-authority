@@ -109,9 +109,11 @@ function segmentsOf(path: string): readonly string[] {
  * names the file a run recorded as `src/pages/Activity/Activity.tsx`;
  * `src/pages/Activity` names every file under it; the absolute path an editor
  * hands over names the file too, because the shorter run may be either side.
- * A `*` stands for one segment a caller does not want to name, so
- * `app/about-us/*` reaches the layouts beside the page — though a trailing one
- * changes nothing, since a run of segments already names everything under it.
+ * A `*` stands for one segment a caller does not want to name, and a trailing
+ * one is the file: `app/about-us/*` is the files of that folder and nothing
+ * deeper, while `app/about-us/` is everything underneath it. The narrower of
+ * the two is the one that has to be said, because a caller who says nothing
+ * about depth means any.
  *
  * What it will not do is join two absolute paths of the same depth under
  * different roots — a build host's checkout and the caller's — which share a
@@ -122,20 +124,46 @@ function segmentsOf(path: string): readonly string[] {
  * run records absolutely it also records unrooted.
  */
 function pathRuns(value: string, term: string): boolean {
-  const left = segmentsOf(value);
-  const right = segmentsOf(term);
+  const value_ = segmentsOf(value);
+  const term_ = segmentsOf(term);
+  if (value_.length === 0 || term_.length === 0) return false;
+
+  // `app/about-us/*` is the files of that folder and no deeper: the wildcard is
+  // the file, so what precedes it has to be where the file actually sits,
+  // rather than somewhere above it. `app/about-us/` keeps the wildcard's job
+  // for itself and means everything underneath.
+  if (term_[term_.length - 1] === '*') {
+    return tails(value_.slice(0, -1), term_.slice(0, -1));
+  }
+  return run(value_, term_);
+}
+
+/** The shorter list, read from the end, has to be the other's ending. */
+function tails(left: readonly string[], right: readonly string[]): boolean {
   if (left.length === 0 || right.length === 0) return false;
+  const depth = Math.min(left.length, right.length);
+  for (let back = 1; back <= depth; back += 1) {
+    if (!alike(left[left.length - back]!, right[right.length - back]!)) return false;
+  }
+  return true;
+}
+
+/** The shorter list appears in the other entire, in order and unbroken. */
+function run(left: readonly string[], right: readonly string[]): boolean {
   const [longer, shorter] = left.length >= right.length ? [left, right] : [right, left];
   for (let from = 0; from + shorter.length <= longer.length; from += 1) {
     let all = true;
     for (let at = 0; at < shorter.length && all; at += 1) {
-      const mine = shorter[at]!;
-      const theirs = longer[from + at]!;
-      all = mine === '*' || mine === theirs || stem(mine) === stem(theirs);
+      all = alike(shorter[at]!, longer[from + at]!);
     }
     if (all) return true;
   }
   return false;
+}
+
+/** One segment against one, with the wildcard and the stem both sides use. */
+function alike(mine: string, theirs: string): boolean {
+  return mine === '*' || theirs === '*' || mine === theirs || stem(mine) === stem(theirs);
 }
 
 /** A start point, resolved. `subjects` empty means it named nowhere. */
@@ -171,7 +199,9 @@ export function scopeOf(report: RunReport, from: string): Scope {
     ...new Set(
       from
         .split(/\s+/)
-        .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''))
+        // A trailing `*` is a width the caller asked for, not punctuation they
+        // left behind, so it survives the trim that removes everything else.
+        .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9*]+$/g, ''))
         .filter((word) => word !== ''),
     ),
   ];

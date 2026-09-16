@@ -287,10 +287,13 @@ file already open in front of you. Give it as a path and it is read as one:
 
 ```
 from: app/about-us/page.tsx    the file itself, and only what it shows
-from: app/about-us/*           the layouts and anything else beside it
-from: app/about-us/            the same, for when you remember a direction
+from: app/about-us/*           the files of that folder — the layout beside it
+from: app/about-us/            everything underneath, however deep
 from: app/*/page.tsx           one segment you do not want to name
 ```
+
+Say nothing about depth and you mean any depth, so the folder on its own is the
+wider of the two. A trailing `*` is the file, which is why it stops there.
 
 The run of segments has to appear entire and in order, so a path answers the
 same whether the run recorded it rooted or not, and whether you paste the

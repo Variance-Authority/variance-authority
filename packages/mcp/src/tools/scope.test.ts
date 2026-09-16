@@ -359,21 +359,42 @@ describe('a start point is grounded in a file, at whatever width the caller has'
     boundaries: 2,
     terms: { files: ['app/contact/page.tsx'], names: ['Contact'] },
   };
-  const APP = reportOf([PAGE, LAYOUT, OTHER]);
+  /** A route nested below the folder, which only the recursive width reaches. */
+  const NESTED: SubjectLexicon = {
+    subject: 'story:about-team',
+    boundaries: 2,
+    terms: { files: ['app/about-us/team/page.tsx'], names: ['The team'] },
+  };
+  const APP = reportOf([PAGE, LAYOUT, OTHER, NESTED]);
 
   it('the file itself names only what that file shows', () => {
     expect([...scopeOf(APP, 'app/about-us/page.tsx').subjects]).toEqual(['story:about-page']);
   });
 
-  it('a wildcard segment reaches what sits beside it', () => {
+  it('a trailing wildcard is the files of that folder and nothing deeper', () => {
     expect([...scopeOf(APP, 'app/about-us/*').subjects].sort()).toEqual([
       'story:about-layout',
       'story:about-page',
     ]);
+    expect([...scopeOf(APP, 'app/*').subjects]).toEqual([]);
   });
 
-  it('the directory alone says the same, for a caller who remembers a direction', () => {
+  it('the folder alone is everything underneath it', () => {
     expect([...scopeOf(APP, 'app/about-us/').subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+      'story:about-team',
+    ]);
+    expect([...scopeOf(APP, 'app/').subjects].sort()).toEqual([
+      'story:about-layout',
+      'story:about-page',
+      'story:about-team',
+      'story:contact',
+    ]);
+  });
+
+  it('reads a trailing wildcard against the absolute path an editor gives you', () => {
+    expect([...scopeOf(APP, '/Users/somebody/site/app/about-us/*').subjects].sort()).toEqual([
       'story:about-layout',
       'story:about-page',
     ]);
