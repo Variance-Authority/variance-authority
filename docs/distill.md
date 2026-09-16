@@ -5,11 +5,31 @@ which elements does it actually use to set up the order, submit it and check the
 result? Rendering the whole page does not make every part of it part of the
 promise the test protects.
 
-[Eyes](eyes.md) records the elements the test queries, operates or reads during
-**Arrange, Act and Assert (AAA)**, with their React owners when available.
-`variance distill` compares that evidence with the source the same test entered.
-It shows where execution extends beyond the UI the test used, giving you places
-to investigate for a smaller test boundary.
+`variance distill` brings together three kinds of evidence about the same test:
+
+- **Which files loaded.** Sense records the modules whose initialization ran.
+- **Which functions and branches executed.** Sense distinguishes work done while
+  loading a module from functionality the test exercised afterwards.
+- **Which components the test interacted with.** [Eyes](eyes.md) records the
+  elements the test queries, operates or reads during **Arrange, Act and Assert
+  (AAA)**, and connects them to their React components when attribution exists.
+
+Together, these readings suggest two ways to make the test smaller:
+
+- **A file loaded, but the test never used its functionality.** Try replacing it
+  with an explicit mock. Avoiding the real module's initialization can shorten
+  startup, and the mock removes a dependency that would otherwise make unrelated
+  edits select this test again.
+- **A component rendered, but the test never interacted with its UI.** Try a
+  lightweight stand-in. If that branch contributes nothing to the behaviour
+  being checked, replacing it can also remove rendering, effects and updates
+  from the run. The test does less work and has fewer ways to be disturbed by
+  changes outside its purpose.
+
+Keep a substitution only after rerunning the test and checking that it still
+exercises the same behaviour. Initialization may supply something the test
+needs, and a component can influence the result without being directly used.
+Distill identifies candidates; the confirming run establishes which ones can go.
 
 ```bash
 variance distill \
