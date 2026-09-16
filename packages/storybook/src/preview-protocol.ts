@@ -104,6 +104,34 @@ export const STORYBOOK_ERROR_OVERLAY: ErrorOverlay = {
   stack: '#error-stack',
 };
 
+/**
+ * The preview's event channel, as the two Storybooks that ship one spell it.
+ *
+ * A declaration rather than an import: `showStory` is serialized into the page
+ * and may name no value from this module, but types are erased before it goes.
+ *
+ * `off` is the modern spelling; Storybook 5's `Channel` shipped `removeListener`
+ * and no alias for it. Both are optional, because the cost of assuming one is
+ * not a degraded reading but a run that never ends — the detach happens inside
+ * `release`, reached from a `setTimeout` callback, and a `TypeError` there
+ * leaves the promise `showStory` handed back pending with nothing to settle it.
+ */
+export interface StoryChannel {
+  on(event: string, handler: (payload: unknown) => void): void;
+  off?(event: string, handler: (payload: unknown) => void): void;
+  removeListener?(event: string, handler: (payload: unknown) => void): void;
+  emit(event: string, payload: unknown): void;
+}
+
+/** Where a preview hangs its channel, newest spelling first. */
+export interface StorybookScope {
+  readonly __STORYBOOK_PREVIEW__?: {
+    readonly channel?: StoryChannel;
+    readonly currentSelection?: { readonly storyId?: string };
+  };
+  readonly __STORYBOOK_ADDONS_CHANNEL__?: StoryChannel;
+}
+
 /** Everything `showStory` needs, since it can close over nothing. */
 export interface ShowRequest {
   readonly storyId: string;

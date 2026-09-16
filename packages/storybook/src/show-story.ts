@@ -1,4 +1,4 @@
-import type { Readiness, ShowRequest, ShowResult, ShowStatus } from './preview-protocol.js';
+import type { Readiness, ShowRequest, ShowResult, ShowStatus, StorybookScope } from './preview-protocol.js';
 
 /**
  * The half of this adapter that runs inside the browser.
@@ -36,31 +36,6 @@ import type { Readiness, ShowRequest, ShowResult, ShowStatus } from './preview-p
  * Handing a story back is not the same as making the switch to the next one
  * safe; `story-finished.ts` holds that half, and says why it is not here.
  */
-
-interface StoryChannel {
-  on(event: string, handler: (payload: unknown) => void): void;
-  /**
-   * Detachment, under whichever of its two names this preview carries.
-   *
-   * `off` is the modern spelling; Storybook 5's `Channel` shipped
-   * `removeListener` and no alias for it. Both are optional here because the
-   * cost of guessing is not a degraded reading but a run that never ends: the
-   * detach happens inside `release`, which is reached from a `setTimeout`
-   * callback, and a `TypeError` there leaves the promise `showStory` handed
-   * back pending forever with nothing left to settle it.
-   */
-  off?(event: string, handler: (payload: unknown) => void): void;
-  removeListener?(event: string, handler: (payload: unknown) => void): void;
-  emit(event: string, payload: unknown): void;
-}
-
-interface StorybookScope {
-  readonly __STORYBOOK_PREVIEW__?: {
-    readonly channel?: StoryChannel;
-    readonly currentSelection?: { readonly storyId?: string };
-  };
-  readonly __STORYBOOK_ADDONS_CHANNEL__?: StoryChannel;
-}
 
 /**
  * Show one story and report what happened. **Runs in page scope.**
@@ -114,9 +89,8 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
 
   const polls: ReturnType<typeof setTimeout>[] = [];
 
-  const pollAgain = (tick: () => void): void => {
-    polls.push(setTimeout(tick, request.pollMs));
-  };
+  const pollAgain = (tick: () => void): void =>
+    void polls.push(setTimeout(tick, request.pollMs));
 
   const abandonPolls = (): void => {
     handedBack = true;
@@ -324,26 +298,25 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
     let signalled = false;
 
     const release = (value: ShowResult, notes: readonly string[] = []): void => {
+      // Listeners outlive the story: the page is not reloaded between subjects, so a
+      // handler left attached answers for the *next* story too. Best-effort, because
+      // the failures are not comparable: a detach this preview does not have costs a
+      // stale listener; a throw here costs the run, leaving this promise unsettled.
       const detachNotes: string[] = [];
-      // Listeners outlive the story: the page is not reloaded between subjects,
-      // so a handler left attached would answer for the *next* story as well.
-      // Detaching is best-effort on purpose. A preview that spells it neither way
-      // leaves handlers attached, which costs a stale listener; a throw here
-      // costs the entire run, because nothing else can settle this promise.
       const detach = typeof channel.off === 'function' ? channel.off : channel.removeListener;
-      if (typeof detach === 'function') {
+      if (typeof detach !== 'function') {
+        detachNotes.push(
+          'the channel exposes neither `off` nor `removeListener`, so this session\'s listeners ' +
+            'stay attached for the life of the preview document',
+        );
+      } else {
         for (const entry of listeners) {
           try {
             detach.call(channel, entry.event, entry.handler);
           } catch {
-            detachNotes.push(`a Storybook channel listener for \`${entry.event}\` could not be detached`);
+            detachNotes.push(`a \`${entry.event}\` listener could not be detached`);
           }
         }
-      } else {
-        detachNotes.push(
-          'the Storybook channel exposes neither `off` nor `removeListener`, so this session\'s ' +
-            'listeners stay attached for the life of the preview document',
-        );
       }
       const added = [...notes, ...detachNotes];
       resolve(added.length === 0 ? value : { ...value, warnings: [...value.warnings, ...added] });
@@ -434,7 +407,6 @@ export const showStory = (request: ShowRequest): Promise<ShowResult> => {
       // was configured to prevent. The marker poll closes this out.
       signalled = true;
     });
-
 
     // No id filter on the exception events: Storybook sends a serialized error,
     // not a story id, and only one story is rendering at a time.
