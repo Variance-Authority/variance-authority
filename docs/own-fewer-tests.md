@@ -50,13 +50,15 @@ integration evidence to show that the real parts still compose.
 
 ## Social and solitary tests pay different bills
 
-A **social** test uses the real collaborators around the subject. It is good at
+A [**social** test](https://martinfowler.com/articles/2021-test-shapes.html) uses
+the real collaborators around the subject. It is good at
 proving that contracts meet: routing reaches authorization, serialization
 survives transport, or a browser action produces the product outcome. Its
 reach is also its cost. A failure has more possible causes, and multiplying
 cases repeats setup and composition that most cases are not trying to test.
 
-A **solitary** test replaces collaborators and concentrates on one unit's own
+A [**solitary** test](https://martinfowler.com/articles/2021-test-shapes.html)
+replaces collaborators and concentrates on one unit's own
 choices. It is the better place to fan out a decision table or exercise a large
 set of edge cases. Its substitutes are a boundary: it cannot prove that the
 real collaborators still agree.
