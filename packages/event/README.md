@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/event
 
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 An **announcement** is three coordinates — `location`, `subject`, `action` — sent
 from the point in the code where something was decided. A test names the same
@@ -118,7 +122,7 @@ for a driver that is not Playwright.
 
 `EventLogOptions` takes `onRecord` and `onRemark`, called as each one arrives.
 They exist for a second reader — something watching the run from outside the
-worker, such as [`@variance-authority/vantage`](../vantage/README.md). They fire
+worker, such as [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage). They fire
 at the moment of recording rather than at teardown: the question worth asking of
 a running suite is what the test hanging *right now* has heard, and an answer
 that arrives once it finishes answers a different question. A watcher that
@@ -131,7 +135,7 @@ else would be a race with a stopwatch in it.
 
 `eventCollectorSource()` returns the source a driver evaluates in the page before
 navigation; it reports through the carrier
-[`@variance-authority/wire`](../wire/README.md) puts in the same page, in either
+[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) puts in the same page, in either
 evaluation order. Neither needs a build step: the page's sink appears underneath
 an application that already announces, and it holds what it hears until the
 carrier exists.
@@ -167,7 +171,7 @@ no report directory, no file to clean up, and no artifact to mistake for evidenc
 later.
 
 The channel is the cookie the driver already sets, and it is not this package's:
-[`@variance-authority/wire`](../wire/README.md) carries announcements and
+[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) carries announcements and
 coverage accounts on one medium under one execution id, and only reports which of
 the two was speaking. `enter` takes the request's `Cookie` header, or the pairs a
 service's own cookie accessor holds, joined the same way; a request the run did not drive
@@ -213,3 +217,7 @@ needs to be told where it was answering instead.
 - **A wait that hangs where the announcement plainly happened.** Something is
   listening in a realm the log is not reading, or the process announcing was
   started without `VARIANCE_AUTHORITY_EVENTS`.
+
+---
+
+**[@variance-authority/event](https://variance-authority.dev/reference/packages/event)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -1,10 +1,14 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/vantage
 
 > What a run is saying, while it is still saying it.
 >
 > Held in a process that outlives the test, so a suite in flight is something to look at rather than something to wait for.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A suite already knows a great deal that nothing outside it can see. Which realms
 answered and in what order. Which work began and never finished. That a service
@@ -18,7 +22,7 @@ npm install @variance-authority/vantage
 ```
 
 You do not install it on purpose either. It arrives under
-[`@variance-authority/playwright-test`](../playwright-test/README.md), and the
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test), and the
 whole of its configuration is one environment variable.
 
 ## The question a timeout cannot answer
@@ -96,7 +100,7 @@ compares against, and it cannot come back to say it succeeded — so the watcher
 rotates as it hands a reading over. One `previous` is shared by every reader,
 which is the bargain one MCP connection already makes for its one client.
 
-The medium is [`@variance-authority/wire`](../wire/README.md): one id per
+The medium is [`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire): one id per
 execution, one address to answer on, and the execution in the address rather
 than in the body. A run is simply another participant with something to say. The
 only difference from a head is which end is the subject — and that this is the
@@ -156,10 +160,10 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
 ```
 
 Two things start a watcher, and they hold the run identically. `variance watch`,
-from [`@variance-authority/cli`](../cli/README.md), prints that line and stays
+from [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli), prints that line and stays
 up; `variance ask --at <address>` reads it from any other shell.
 `variance-authority-mcp --watch`, from
-[`@variance-authority/mcp`](../mcp/README.md), does the same over stdio for a
+[`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), does the same over stdio for a
 client that speaks it. Both answer `variance_self`, `variance_run_signals`, `variance_waiting` and
 `variance_test_signals` about a suite that is still going, from the same
 functions over the same snapshot.
@@ -188,3 +192,7 @@ stops at next.
 Nothing here knows what a subject is, and none of it is about visual regression.
 A suite that never takes a screenshot reports exactly the same sentences as one
 that does.
+
+---
+
+**[@variance-authority/vantage](https://variance-authority.dev/reference/packages/vantage)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

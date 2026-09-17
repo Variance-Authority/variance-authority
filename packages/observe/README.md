@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/observe
 
 > Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 This package is the comparison core. Give it two images of the same
 **subject** — a story, route, fixture, or value under test, identified by a
@@ -202,3 +206,7 @@ pipeline needs another order, compose the public tools in
 `@variance-authority/core`,
 `@variance-authority/raster`, and
 `@variance-authority/png` directly.
+
+---
+
+**[@variance-authority/observe](https://variance-authority.dev/reference/packages/observe)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/raster
 
 > Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Take away the browser, the directory and the port, and most of the pixel tier is
 still here: what a document assembles to, what a renderer promises, what a store
@@ -222,3 +226,6 @@ field reproduces that, because the decision is not a property of the pixel.
 Keep both: the field for how far a change reaches, the policy for whether a
 renderer's antialiasing counts as a change at all.
 
+---
+
+**[@variance-authority/raster](https://variance-authority.dev/reference/packages/raster)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

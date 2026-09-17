@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/history
 
 > Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A **run** is one execution of the visual-regression suite, recorded whether or
 not anything changed. It produces **observations**: rows recording that one
@@ -124,3 +128,7 @@ Skip it if all you need is one run's pass/fail comparison against a baseline —
 no churn, flakiness, reach, or drift questions across runs. `@variance-authority/cli`
 runs that comparison on its own; the `history` config block is opt-in, and a
 run with no such block writes nothing here.
+
+---
+
+**[@variance-authority/history](https://variance-authority.dev/reference/packages/history)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

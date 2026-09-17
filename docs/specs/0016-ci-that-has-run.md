@@ -39,7 +39,7 @@ detection.
    a workspace on a detached merge ref.
 
 **Then the second platform, on its own terms.** The Bitbucket recipe in
-[`packages/cli/README.md`](../../packages/cli/README.md#bitbucket-pipelines-and-what-carries-to-any-ci)
+[`packages/cli/README.md`](../../packages/cli/README.md#run-it-in-ci)
 is three steps against a different API and is currently a starting point
 somebody still has to prove. Either run it or say plainly that it is untested —
 and running it is cheaper than the paragraph explaining why it is not.

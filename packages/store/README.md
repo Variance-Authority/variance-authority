@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/store
 
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Use this package when a comparison needs baselines on a filesystem. Choose the
 plain durable backend for a directory owned by one runner, or the LFS backend
@@ -37,7 +41,7 @@ could have changed at all without comparing any images.
 ### A share is not a baseline store
 
 `createDirectoryShare(root)` implements `SharedCache` from
-[`@variance-authority/core/share`](../core/README.md): `get` and `put` over
+[`@variance-authority/core/share`](https://variance-authority.dev/reference/packages/core): `get` and `put` over
 bytes, and neither ever throws. It holds what a run *derived* — a suite index,
 whatever comes after it — and everything in it can be derived again from the
 tree it was derived at, which is why losing it costs a rebuild and losing a
@@ -46,7 +50,7 @@ baseline costs the comparison.
 A directory rather than one backend per service, because a directory is what
 every transport already is on the machine using it: `actions/cache` restores
 one, `aws s3 sync` mirrors one, an NFS mount is one, and a laptop has one.
-[Sharing an evaluation](../../docs/sharing.md) is the operator's side.
+[Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the operator's side.
 
 ### The `RasterStore` contract
 
@@ -187,3 +191,6 @@ it could not see. `bounded` collects the same kind of line for a commit whose
 record this reader could not decode, and for a read that stopped because it hit
 `limit`.
 
+---
+
+**[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/server
 
 > A self-hosted HTTP history service for Variance Authority observations and approvals.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Run this package when a pipeline needs a self-hosted HTTP history service. A
 **run** — one execution of the pipeline, recorded whether or not anything
@@ -150,3 +154,7 @@ when a `history` config block is present and the run can name itself — a run w
 no identity writes nothing and says so — and `variance accept` posts approvals.
 An empty database under a configured endpoint therefore means either that no run
 could name itself, or that nothing in your pipeline has posted yet.
+
+---
+
+**[@variance-authority/server](https://variance-authority.dev/reference/packages/server)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

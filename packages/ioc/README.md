@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/ioc
 
 > Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A module-level `let` outlives the test that changed it. A counter, a cache, a
 lazily built client, a memoized value — each one is written by whichever test
@@ -120,3 +124,7 @@ order-dependent state the reset was for.
 ## License
 
 MIT © Machine Garden
+
+---
+
+**[@variance-authority/ioc](https://variance-authority.dev/reference/packages/ioc)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

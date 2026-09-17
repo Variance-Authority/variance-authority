@@ -228,7 +228,7 @@ nothing to be done.
 What the scan reads, and where it stops, is
 [`packages/sense`](../packages/sense). The graph itself is data: fold the records
 into it, walk it, ask it things. The traversals live in
-[`core/relate`](../packages/core/src/relate) and open nothing, so a repository
+[`core/relate`](../packages/core/README.md#entrypoints) and open nothing, so a repository
 that already computes its own dependency graph can feed this from that instead.
 
 ## What `nx` and `turbo` know that a scan cannot
@@ -434,7 +434,7 @@ remembers both ·
 [`execution-record.md`](execution-record.md) for the keys, lookups, traces
 and costs of the coverage file ·
 [`distill.md`](distill.md) for using that record to make one test smaller ·
-[`packages/sense`](../packages/sense#say-what-a-file-really-imports) for the taint
+[`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-claims-to-import) for the taint
 tables themselves ·
 [`packages/sense`](../packages/sense) for what the scan reads and where it stops ·
 [`packages/cli`](../packages/cli) for the rest of the command line ·

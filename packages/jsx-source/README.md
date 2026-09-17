@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/jsx-source
 
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Most projects do not need this package. Variance Authority reads exact JSX call
 sites from React development builds without a plugin, a custom JSX runtime or a
@@ -245,3 +249,7 @@ happens.
 - **A Vite config fails to load the plugin:** a `vitest.config.ts` or
   `vite.config.ts` in a package that is not `"type": "module"` is loaded as
   CommonJS, and this package is ES-module-only. Rename it to `.mts`.
+
+---
+
+**[@variance-authority/jsx-source](https://variance-authority.dev/reference/packages/jsx-source)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/help
 
 > Find the public name, signature, documentation, consumers and call sites of an exported TypeScript workspace symbol, over MCP.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 It reads TypeScript source across a workspace and answers what a name is, where
 it is declared, who imports it, and where the repository already writes it.
@@ -251,6 +255,7 @@ exported — so `docs_search` answers in two sections and says which is which. A
 published name is API and carries its specifier; an exported one carries a file
 and a line, because nothing else was read for it.
 
+
 ### Say where you are standing
 
 On a few thousand names a substring is enough. On a large repository it is not,
@@ -280,3 +285,7 @@ about the whole repository under a heading you would read as *your area*.
 This removes names rather than ranking them down, which is the point: an empty
 answer is then a fact about the area, and the answer says how many files it
 looked in so you can place the count it gives you.
+
+---
+
+**[@variance-authority/help](https://variance-authority.dev/reference/packages/help)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

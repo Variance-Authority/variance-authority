@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/session
 
 > Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A **subject** is one thing to render and compare — a story, a component
 instance, a page. A session owns one reusable container and **brackets** each
@@ -189,3 +193,7 @@ rather than a flake: the subject is stably wrong. Catching it means varying the
 world instead, and collecting the subject in a session nothing else has touched.
 That is what `variance run` — the `run` command in `@variance-authority/cli` —
 asks its collector for when a subject's pixels change.
+
+---
+
+**[@variance-authority/session](https://variance-authority.dev/reference/packages/session)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

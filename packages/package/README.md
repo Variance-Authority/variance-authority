@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/package
 
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 This package reads a TypeScript workspace's public API as data: a **surface**.
 For each package it records which subpaths a manifest opens — an **entrypoint**
@@ -227,3 +231,7 @@ An unmapped declaration form, a workspace glob more elaborate than `dir/*`, a
 `types` target that maps to no file, or a name re-exported from a module that
 does not publish it — each of these makes the read throw an `Error` naming the
 file, rather than silently producing a smaller surface.
+
+---
+
+**[@variance-authority/package](https://variance-authority.dev/reference/packages/package)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

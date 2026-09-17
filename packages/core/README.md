@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/core
 
 > The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A **subject** is whatever is under test — a component, a page, or a plain
 value. A **capture** is the raw material a collector records from it once,
@@ -196,7 +200,7 @@ nobody can parse are one outcome: `get` answers `null` and `put` resolves.
 Everything a share holds was derived from a tree and can be derived again, so
 the worst a broken one does is cost the derivation — which also means a failing
 share is indistinguishable from a cold one, and only the wall clock says so.
-[Sharing an evaluation](../../docs/sharing.md) is the operator's side of it.
+[Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the operator's side of it.
 
 ## What it refuses
 
@@ -211,3 +215,6 @@ pass.
 A difference in conditions reported as a difference in the product is a
 confident wrong answer, and the confidence is what makes it expensive.
 
+---
+
+**[@variance-authority/core](https://variance-authority.dev/reference/packages/core)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

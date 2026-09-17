@@ -41,6 +41,8 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/ds/ChipGroup.tsx': "a reader's own component, quoted from a sample answer",
   'src/dispatch/CarrierPicker.tsx': "a reader's own component, quoted from a sample answer",
   'src/dispatch/PickupWindow.tsx': "a reader's own component, quoted from a sample answer",
+  'src/checkout/Stack.tsx': "a reader's own component, quoted from a sample answer",
+  'src/app/cart.tsx': "a reader's own component, quoted from a sample answer",
 };
 
 

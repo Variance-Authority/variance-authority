@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/png-sharp
 
 > Faster PNG decoding for Variance Authority through sharp, for runtimes that can load a native addon.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Here, the **subject** is the newly rendered image under test, the **baseline**
 is the previously approved image it's checked against, and a **decoder** is
@@ -89,3 +93,7 @@ two decoders can agree while both losing the same information.
 If the native addon cannot load, `sharpDecoder` rejects; the CLI's default
 `decoder: "auto"` selection catches that and falls back to `pngjs`. Set
 `decoder: "sharp"` when a missing native binary should fail the run instead.
+
+---
+
+**[@variance-authority/png-sharp](https://variance-authority.dev/reference/packages/png-sharp)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

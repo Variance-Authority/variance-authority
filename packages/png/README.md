@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/png
 
 > Decode, compare and diff PNGs without a browser: two buffers in, a mask out.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 This package needs a PNG codec and a runtime with `Buffer` — so Node, not a
 browser — and nothing else: nothing to launch, nothing to write, nothing to
@@ -153,3 +157,7 @@ The first example pads different dimensions onto a white union canvas and sets
 because its per-pixel correspondence would otherwise be fabricated. Neither
 path can recover component ownership from PNG bytes; supply that through the
 capture or attribution tiers when a mask needs an owner.
+
+---
+
+**[@variance-authority/png](https://variance-authority.dev/reference/packages/png)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -145,7 +145,7 @@ look once something else has said that something changed.
   section is for — the pull-request comment, the MCP tools, the review service —
   are on machines without one, so the run asks once and writes the answer beside
   its verdicts.
-- The [review service](../packages/tribunal/README.md#review-surface) draws one
+- The [review service](../packages/tribunal/README.md#what-a-reviewer-sees) draws one
   timeline per component: a line for the story nothing varies from, or the
   shortest name where none of them is a [variation](variations.md) of another,
   marked at every place its stories took different paths, in source order, and

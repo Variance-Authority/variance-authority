@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/scenario
 
 > Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Use this package when a host can arrange a named UI state, perform meaningful
 acts, and attempt a semantic snapshot after each one. A scenario is AAA
@@ -144,3 +148,7 @@ must refuse the snapshot instead of redacting it after hashing.
 `createScenarioArchive` takes `root`, the writable archive directory, and an
 optional `now` clock for deterministic expiry decisions. The system clock is the
 default. Neither option enables archival by itself; only calling `put` writes.
+
+---
+
+**[@variance-authority/scenario](https://variance-authority.dev/reference/packages/scenario)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

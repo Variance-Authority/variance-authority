@@ -1,48 +1,77 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/cli
 
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
-This CLI runs that workflow end to end from a project-owned config: it
-collects **subjects** — the individual stories, routes, or fixtures being
-compared — settles the ones cheap hashing can already answer, renders what
-remains, writes one report, and returns a CI-safe exit code. What you
-need on the machine follows from what that config selects: a browser binary for
-Chromium, writable storage for directory baselines, `git` for LFS, reachable
-services for remote rendering and storage. `variance doctor` checks the ones
-your config asked for, before the first expensive run.
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
-Use this package for an executable, config-driven integration. If navigation
-and readiness already live in Playwright tests, use
-`@variance-authority/playwright-test` instead of this CLI — it runs the same
-comparison from inside a test, not from a separate command.
+`variance` is the executable. It captures every **subject** your project asked
+for — one named UI state you asked for and can ask for again: one story, one
+route at one viewport, one component mounted in a test, under an id you choose
+such as `cart/empty` — compares each against the baseline you approved, writes
+one report, and returns the exit code CI gates on. When pixels moved, the report
+names the component that drew them and the `file:line` it was written at.
 
-Install the executable together with the collector adapter your project uses:
+Use this package when a command reading a config file in your repository is the
+integration you want. If navigation and readiness already live in Playwright
+tests, use
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test)
+instead — it runs the same comparison from inside a test rather than from a
+separate command.
+
+## Install
+
+The CLI never mounts your application. A **collector** — the module that mounts
+a subject and says when it is ready to be captured — owns that boundary, so you
+install one beside the executable. For a Storybook:
 
 ```bash
-npm install --save-dev @variance-authority/cli
+npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
+npx playwright install chromium
 ```
 
-The `config` path passed to `variance` defaults to `variance.config.json` and is
-resolved before the file is read. The CLI does not mount application pages
-itself; a **collector** — the adapter that mounts a subject and reports when it
-is ready to be captured — owns that boundary.
+Playwright's browser binaries do not arrive with an `npm install`, which is what
+the second command is for.
+[`@variance-authority/route-collector`](https://variance-authority.dev/reference/packages/route-collector)
+is the other shipped adapter, for served routes, a sitemap or a static build.
+Anything else is a module you write, and step 1 has its shape.
 
 ## Integrate the CLI
 
-### 1. Choose how subjects enter
+### 1. Write the collector module
 
-The CLI does not guess how your application mounts. Point
-`subjects.collector` at one of the shipped adapters or at a collector module
-owned by your project:
+`subjects.collector` in the config names a module in your project that
+default-exports a collector factory. With a shipped adapter, that module is the
+adapter's factory plus your project-specific facts — this is the complete file:
 
-- `@variance-authority/storybook-collector` for a
-  built or served Storybook;
-- `@variance-authority/route-collector` for served routes,
-  a sitemap, or a static build;
-- `@variance-authority/playwright-test` instead of this
-  CLI when navigation and readiness already live in Playwright tests.
+```js
+// variance/collector.mjs
+import { storybookCollector } from '@variance-authority/storybook-collector';
+
+export default storybookCollector({
+  // Only for a story that keeps mounting after Storybook says it rendered.
+  ready: { 'checkout--deferred': '[data-testid="checkout-ready"]' },
+  // Where components are declared, which is what resolves a component name to
+  // `file:line` in the report.
+  source: { dirs: ['src'] },
+});
+```
+
+`@variance-authority/route-collector` is configured the same way from its own
+options. A collector you write yourself is a factory the CLI calls once per run,
+returning `plan`, `collect` and `close`;
+[run visual review from the command line](https://variance-authority.dev/docs/start-cli)
+carries the full shape, and `Collector`, `CollectorContext`, `Plan`,
+`PlannedSubject`, `Collected` and `SubjectSource` are type-only exports of this
+package. A module whose default export is not a function is refused by path
+before anything is collected.
+
+The CLI holds no URL. Nothing in the config names an origin, a port or a server,
+so start whatever the collector talks to before you run, and let the collector
+carry the address.
 
 ### 2. Add `variance.config.json`
 
@@ -50,9 +79,19 @@ The config declares the observation **profile** (`jsdom` for structure only, or
 `chromium` for a full render), viewport, subject source, **retention**
 (`durable`, which compares against a saved baseline image, or `ephemeral`,
 which compares two images produced within the same run and keeps neither),
-baseline backend, renderer identity inputs, and report location. Start from the
-[configuration example](#configuration), then use the selected collector
-README for its subject-specific module.
+baseline backend, renderer identity inputs, and report location. The
+[configuration example](#configuration) below is a complete file. The path
+passed to `--config` defaults to `variance.config.json`, and relative paths
+inside the file resolve against the file's own directory rather than the
+working directory.
+
+`profile` and `browser` are two different choices and the synopsis below carries
+only one of them. `profile` says how much of the page is observed: `chromium`
+for a full render, `jsdom` for structure with no layout engine and no animation
+clock. `browser` names the engine that paints — `chromium` (the default),
+`firefox` or `webkit`. `run --profile jsdom|chromium` overrides the config's
+profile for one run; the engine has no flag, because it is part of the identity
+a baseline is stored under.
 
 Unknown keys are refused, so a misspelled option cannot run silently against a
 different config than the one the operator is reading.
@@ -80,6 +119,24 @@ The first successful durable run exits `1` because its subjects are `new`.
 Review the generated candidates, accept the intended subject ids explicitly,
 then rerun. An unchanged run exits `0`; a configuration, browser, collector, or
 store failure exits `2`.
+
+`run` prints what it found, in the order it decided it:
+
+```
+$ variance run --config variance.config.json
+42 subject(s) observed, durable run at 2026-08-21T10:14:02.000Z
+rendered by playwright-chromium (chromium@131.0.6778.33, darwin/arm64, 1x)
+42 unchanged
+
+coverage: every planned subject was observed.
+
+nothing to review
+```
+
+Unchanged subjects are counted, not listed; a subject that needs a decision gets
+a line of its own with its component. `nothing to review` is printed only from a
+run that accounted for every subject it planned — a subject the run meant to see
+and could not is named under `coverage:` and takes the exit code to `1`.
 
 Keep `accept --all` out of unattended workflows. It cannot
 distinguish a never-reviewed baseline from a changed one, so explicit subject
@@ -161,6 +218,23 @@ comparison and nothing else.
 
 ### Distill: find a smaller test boundary
 
+`distill` reads two evidence files your test run writes, and neither comes from
+`variance run`:
+
+- **the Eyes archive** — what each test queried, operated and read. Install
+  [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes),
+  record a journal per test, and fold the directory once where the run ends with
+  `writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'))`
+  from `@variance-authority/eyes/collect`;
+- **the execution index** — which files and regions each test entered. Install
+  [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
+  and wrap the Vitest config in `withTestSelection(config, { cases: true,
+  executionFile: '.variance/execution.json' })`.
+
+Either file may be omitted and the missing domain stays unavailable; execution
+alone lists entered source but produces no opportunities, because missing
+attention is not an empty addressed surface.
+
 Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
 `tests` array:
 
@@ -181,17 +255,30 @@ exact ID, including after Eyes resolves a title.
 `distill` reads the paths named on the command line and does not read project
 configuration. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
-entered by the exact test id without addressed source attribution. Either
-evidence file may be omitted; the missing domain remains unavailable.
-Execution alone lists entered source but cannot produce opportunities, because
-missing attention is not an empty addressed surface.
+entered by the exact test id without addressed source attribution:
+
+```text
+act:
+  components: CheckoutForm
+  source: src/checkout/form.tsx
+
+React update initiators:
+  act: 2 commit(s)
+    inside addressed component paths: CheckoutForm
+    outside addressed component paths: Clock
+
+Runtime journey: 4 source file(s) entered by exact test id.
+Entered with no addressed target attributed to the same file: 2.
+  distillation opportunity at depth 0 — src/analytics.ts
+  distillation opportunity at depth 0 — src/top-nav.tsx
+```
 
 The command options are `test`, `eyes`, `execution`, and `format`; their flag
 forms are shown in the synopsis above.
 
 `--format json` returns the same ordered analysis as data. The command always
 reads: a distillation opportunity is not a verdict that a file is safe to mock.
-The verification workflow is in [distil a test](../../docs/distill.md).
+The verification workflow is in [distill a test](https://variance-authority.dev/docs/distill).
 
 ### Watch: ask about a suite that has not finished
 
@@ -235,13 +322,14 @@ between questions and there is nothing to write down: the run lives in memory
 that ends with the watcher. Stop it and the run is gone.
 
 The same questions are served over stdio by `variance-authority-mcp --watch`,
-from [`@variance-authority/mcp`](../mcp/README.md), for a client that speaks it.
+from [`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), for a client that speaks it.
 Same functions, same text.
 
 ### Push: put a build in front of a reviewer
 
-A [`tribunal`](../tribunal/README.md) deployment holds builds, a docket and
-recorded decisions. `push` is what gets a run there — the report the run already
+A [`tribunal`](https://variance-authority.dev/reference/packages/tribunal) deployment holds builds, a **docket** — one
+entry per root cause, grouping every subject that cause reached — and recorded
+decisions. `push` is what gets a run there — the report the run already
 wrote, with the images beside it.
 
 The `review` section is what tells `push` where to send it — an `endpoint` and
@@ -425,10 +513,17 @@ Write the HTML beside `report.json` and include both files and the accompanying
 image directory in the CI artifact. This portable report directory needs no
 report server or account.
 
-It renders the same **docket** the pull-request body does: one entry per root
+It renders the same docket the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per
 subject. Causes come first, with `file:line`, and their collateral is counted
-and not listed.
+and not listed. Each card carries the subject id in its heading, the changed
+region with its component and `file:line`, and the commands for that id already
+filled in, to copy out:
+
+```
+variance accept checkout/empty
+variance report --subject checkout/empty
+```
 
 A pixel-diff **region** — a bounding box of changed pixels — that the semantic
 tier could not attribute to a component is marked *largest region, not a named
@@ -569,8 +664,8 @@ journal both read.
 ### `select`: what your own runner may skip
 
 `variance run --since` narrows the subjects this tool renders. `variance select`
-answers the same journal for a suite this tool does not run — plain `vitest`,
-`jest`, `mocha`, a shell script in CI — by naming the test files that diff
+answers the same journal for a suite this tool does not run — `vitest`, `jest`,
+or any runner a shell script hands paths to — by naming the test files that diff
 cannot reach:
 
 ```bash
@@ -698,11 +793,11 @@ declared comes back `overreached`. It changes no verdict and no exit code; it
 reports on the run `run` already judged. `variance serve` exposes the same
 check to an agent as `variance_adjudicate`.
 
-Those twelve commands cover capture, inspection, approval and delivery.
-`push` uploads a finished run and its images to the configured review endpoint
-using the operator's ingest token. `comment` generates a comment body;
-`.github/actions/variance` posts it with the operator's token. The exit code and
-report are what a CI job gates on.
+Those commands cover capture, inspection, approval and delivery. `push` uploads
+a finished run and its images to the configured review endpoint using the
+operator's ingest token. `comment` generates a comment body and posts nothing;
+posting it is the platform integration's half. The exit code and report are what
+a CI job gates on.
 
 ## Exit codes
 
@@ -880,9 +975,10 @@ line and ignores its value, so a wrong path costs completion and never a run.
 
 `subjects` is one of three kinds. `{ kind: "list", ids, collector }` and
 `{ kind: "storybook", index, collector }` name the subjects up front — **both
-need a collector**, and for Storybook that collector is
-`@variance-authority/storybook-collector` and five lines. For anything else, neither a list of ids nor a story index says how to
-mount, and the mounting half is code you write. `{ kind: "collector", collector }`
+need a collector**, and for Storybook that collector is the module in
+[step 1](#1-write-the-collector-module). For anything else, neither a list of
+ids nor a story index says how to mount, and the mounting half is code you
+write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
 `sitemap` or a `directory` route collector needs, and the trade is the operator's
 — a page that stops being discovered stops being watched with no diff to approve,
@@ -958,12 +1054,24 @@ a run under a new engine finds nothing under its key and reports every subject
 stack. `retention: "ephemeral"` needs no baselines at all — both images are
 produced by this run.
 
-## Bitbucket Pipelines, and what carries to any CI
+## Run it in CI
 
-There is a composite action for GitHub Actions (`.github/actions/variance`).
-No second integration is required elsewhere: the exit code above is the whole
-interface, so any CI that can run a command already has the gate. What a
-platform integration adds on top is posting the comment.
+The exit code is the whole interface, so any CI that can run a command already
+has the gate. On GitHub Actions that is one step:
+
+```yaml
+- run: npx playwright install --with-deps chromium
+- run: npx variance run --config variance.config.json
+```
+
+`run` exits `0` when nothing needs review, `1` when it found something a person
+must look at, and `2` when the run did not happen as configured. Do not grep the
+output: the three integers are the contract, and a check whose colour depends on
+a sentence changes meaning the day the wording improves.
+
+Posting the report back to the pull request is the one thing a command line
+cannot do for itself. Read the report path out of your config and post it with
+whichever commenting action you already use.
 
 ```yaml
 # bitbucket-pipelines.yml
@@ -1001,8 +1109,8 @@ one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of
 `/2.0/repositories/{workspace}/{repo}/pullrequests/{id}/comments`, a search for
 the marker in `content.raw`, and a `PUT` to the one that has it or a `POST` if
-none does. `.github/actions/variance/post-comment.mjs` is the same three steps
-against GitHub's API and is the file to read while writing the other.
+none does. The composite action above does the same three steps against
+GitHub's API.
 
 The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
@@ -1021,3 +1129,7 @@ anything.
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |
 | A change is green but reported as `ignored` | Differences existed and declarations absorbed all of them. | Read the ignore and sensitivity registers; `ignored` is intentionally distinct from `unchanged`. |
+
+---
+
+**[@variance-authority/cli](https://variance-authority.dev/reference/packages/cli)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

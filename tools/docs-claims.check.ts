@@ -103,12 +103,26 @@ describe("every documented config parses", () => {
     // file a reader saves is JSON.
     const json = fence.code.replace(/^\s*\/\/.*$/gm, "");
 
-    expect(() =>
-      parseConfig(JSON.parse(json), {
-        source: where,
-        baseDir: dirname(join(ROOT, fence.file)),
-      }),
-    ).not.toThrow();
+    // Every environment variable the fence names is given a value first. Some
+    // sections read their secret while parsing and some defer it, so otherwise
+    // the rule would turn on which key a page documented rather than on whether
+    // the config is right. A config claims a shape, not a machine.
+    const named = [...json.matchAll(/"env"\s*:\s*"([A-Z0-9_]+)"/g)];
+    const held = named.map((m) => [m[1]!, process.env[m[1]!]] as const);
+    for (const [name] of held) process.env[name] = "documented-value";
+    try {
+      expect(() =>
+        parseConfig(JSON.parse(json), {
+          source: where,
+          baseDir: dirname(join(ROOT, fence.file)),
+        }),
+      ).not.toThrow();
+    } finally {
+      for (const [name, value] of held) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
   });
 });
 

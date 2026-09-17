@@ -133,7 +133,7 @@ authored AAA attention, React update initiators and entered source, and returns
 the same reading as the MCP tool `variance_distill`. Either evidence path may be
 omitted; the absent domain is not replaced by an empty one. The deterministic
 reading and the skill's counterfactual verification loop are described in
-[distil a test](distill.md).
+[distill a test](distill.md).
 
 ## Point an agent at it
 

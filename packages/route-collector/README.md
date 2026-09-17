@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/route-collector
 
 > Turn pages your application already serves into Variance Authority subjects.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A **subject** is the rendered unit a report compares against its approved
 baseline. This package is a **collector**: a module that plans subjects from
@@ -244,3 +248,7 @@ preview navigation, so use `@variance-authority/storybook-collector` when the
 source is Storybook. If navigation and readiness already live in a Playwright
 test, use `@variance-authority/playwright-test` and let the test body remain
 the collector.
+
+---
+
+**[@variance-authority/route-collector](https://variance-authority.dev/reference/packages/route-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

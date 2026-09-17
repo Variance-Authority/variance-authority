@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/storybook-collector
 
 > Turn a built or already-served Storybook into Variance Authority subjects.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Turn a built or already-served Storybook into subjects that `variance run` can
 observe — one subject per story, the unit a comparison runs against. Use this
@@ -71,7 +75,7 @@ automatic development JSX, and the plugin belongs in `viteFinal`:
 npm install --save-dev @variance-authority/jsx-source
 ```
 
-See [`@variance-authority/jsx-source`](../jsx-source) for the Vite configuration
+See [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source) for the Vite configuration
 and for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 ### 3. Point the CLI at the Storybook index and collector
@@ -224,3 +228,7 @@ use `@variance-authority/route-collector`. For an existing
 Playwright test, use
 `@variance-authority/playwright-test`, where the test body
 already performs navigation, mounting, and readiness.
+
+---
+
+**[@variance-authority/storybook-collector](https://variance-authority.dev/reference/packages/storybook-collector)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

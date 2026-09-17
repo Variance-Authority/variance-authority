@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/remote
 
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Use this package when rendering or baseline storage must happen in another
 process or on another machine — for example, painting screenshots on a box with
@@ -159,3 +163,7 @@ Every failure mode **throws**; none is translated into a missing baseline:
 They share one safety boundary. `new` re-records what is on screen, so a network
 blip read as a miss does not just skip a check — it **destroys the thing the
 check was against, and reports success while doing it.**
+
+---
+
+**[@variance-authority/remote](https://variance-authority.dev/reference/packages/remote)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

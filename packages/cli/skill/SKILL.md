@@ -1,6 +1,6 @@
 ---
 name: variance-authority
-description: Use when asked to inspect, explain, distil, or verify a Variance Authority run, watcher, evidence artifact, or MCP connection.
+description: Use when asked to inspect, explain, distill, or verify a Variance Authority run, watcher, evidence artifact, or MCP connection.
 ---
 
 # Variance Authority

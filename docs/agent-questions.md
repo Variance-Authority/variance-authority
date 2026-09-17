@@ -89,7 +89,7 @@ stands](agent-interrogate.md).
 Live signals do not carry authored AAA attention. They answer where progress
 stopped, not what UI the test owns.
 
-## Distil one test
+## Distill one test
 
 AAA is authored structure, not an inference:
 
@@ -108,7 +108,7 @@ The deterministic command and `variance_distill` MCP tool return the same
 reading. The skill then tries one reversible substitution, reruns the exact
 test, and compares the witness before keeping an edit. This division matters:
 the analyzer can nominate a file; only the counterfactual run can justify the
-new boundary. See [distil a test to the behavior it witnesses](distill.md).
+new boundary. See [distill a test to the behavior it witnesses](distill.md).
 
 A plain unit test, fake component or non-React harness remains eligible. With
 execution evidence it receives a source reading. Without Eyes, attention and

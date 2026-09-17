@@ -1,4 +1,4 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/wire
 
@@ -6,10 +6,14 @@
 >
 > One id per execution, one address to answer on, and nothing written down.
 
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
+
 Two instruments talk to a run while it happens.
-[`@variance-authority/event`](../event/README.md) says what the code decided, so
+[`@variance-authority/event`](https://variance-authority.dev/reference/packages/event) says what the code decided, so
 a test waits for a decision instead of guessing when it was made.
-[`@variance-authority/sense/journey`](../sense/README.md#follow-one-execution-into-a-service)
+[`@variance-authority/sense/journey`](https://variance-authority.dev/reference/packages/sense#follow-one-execution-into-a-service)
 says which regions of source an execution entered, so the next run can narrow.
 They are different questions with the same three answers, and this package is
 those three answers and nothing else. A driver listens, a participant answers,
@@ -73,7 +77,7 @@ report. `events` and `journeys` are the two instruments above. `run` is the one
 that talks the other way: a run is a participant too when something is watching
 it — the same three answers, with the suite reporting and a watcher listening
 instead of the other way around. That is
-[`@variance-authority/vantage`](../vantage/README.md), and it needed no new
+[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), and it needed no new
 medium.
 
 ## Two guarantees, on purpose
@@ -101,7 +105,7 @@ the length of one execution is worth nothing after it.
 ## The driver's end, from `@variance-authority/wire/listen`
 
 Written by hand only where the driver is not
-[`@variance-authority/playwright-test`](../playwright-test/README.md), which
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test), which
 holds a listener per worker and hands both instruments their end of it.
 
 ```ts
@@ -141,7 +145,7 @@ const wire = await listen({ answer: (path) => (path === '/' ? state() : undefine
 Opt-in because a head and an event collector have nothing they mean to publish,
 and a medium that made them readable would have given each of them a surface it
 never agreed to. Where it is used — by a watcher, in
-[`@variance-authority/vantage`](../vantage/README.md) — the reader asks on the
+[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) — the reader asks on the
 same address the run reports to, so there is no second port to keep in step.
 Reading is separated from reporting by method rather than by path, so a reader's surface
 cannot collide with an execution id a participant chose. Returning `undefined`
@@ -159,3 +163,7 @@ execution off the document's own cookie, so a page reports under the same
 execution as a service behind it; anything said before the driver's function
 exists is held rather than dropped, because the first decision of the first
 script is exactly the one a test most wants.
+
+---
+
+**[@variance-authority/wire](https://variance-authority.dev/reference/packages/wire)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

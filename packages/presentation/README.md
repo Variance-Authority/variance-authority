@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/presentation
 
 > Sense spacing, alignment, prominence and repetition inside one live interface, as evidence an agent can read.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Sense one rendered subject and return a machine-readable presentation graph. The
 report keeps semantic anchors attached to concrete element references, and
@@ -321,3 +325,7 @@ whether a changed CSS property can only repaint or must also reflow the page —
 still answers how far a change can reach, and project policy still decides
 whether any finding blocks a run. A collector that participates in the general
 regression pipeline returns this value as its optional `presentation` field.
+
+---
+
+**[@variance-authority/presentation](https://variance-authority.dev/reference/packages/presentation)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -64,6 +64,13 @@ function fencedCode(text: string): string {
  */
 const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
   'examples/agent-claim/collector/index.mjs': ['@variance-authority/playwright'],
+  // `provenanceOf`, `wiringOf` and `holdingOf` are optional capture callbacks
+  // that only a React adopter passes, and `unit-test` declares no React
+  // dependency. Re-exporting them would mean depending on `react` to forward
+  // three functions most readers never supply, so the page names the producer
+  // instead. The fix is a surface that pairs a capture with a framework reader,
+  // not a dependency added to keep one import out of a page.
+  '@variance-authority/unit-test README': ['@variance-authority/react'],
 };
 
 describe('adopter-facing code knows one package', () => {

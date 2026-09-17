@@ -1,87 +1,142 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/playwright
 
 > A persistent Playwright harness and renderer for Variance Authority: one browser per run, documents turned into rasters.
 
-Use this package when your integration owns a **harness** — a long-lived browser
-instance kept open across captures — or needs to turn a `RenderDocument` into a
-**raster**, a PNG image plus the conditions it was captured under. A
-`RenderDocument` is a serialized snapshot of one **subject**'s rendered state,
-where a subject is the story, route, or component variant under test.
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
-If you already have a Playwright Test suite, use
-`@variance-authority/playwright-test` instead. For a CLI route or Storybook
-collection, use the corresponding collector.
+## What this package does
 
-This lower-level package does not choose subjects, mount application state, or
-build the `PageAgent` — the in-page object a bundle installs to read a subject
-and hand back a capture. Your integration supplies that.
+It is the browser half of the system, and nothing else. Two tools live here:
+
+- a **harness** — one Chromium, one page, one navigation, and a capture per
+  subject obtained by calling into that page. A **subject** is one named UI
+  state you asked for and can ask for again, such as `cart/empty`.
+- a **renderer** — a `RenderDocument` in, a PNG plus the conditions it was
+  captured under out, without keeping a browser open across calls.
+
+Beside them sit the network observers (`observeNetwork`, `freezeGif`, the
+`blank*` helpers, `fetchModules`), `unresizable`, and `captureOnce` for a single
+capture with no harness standing.
+
+**Reach for this package when you are writing the integration**, not when you
+are writing tests. It does not choose subjects, mount application state, or
+build the page-side agent; you supply that. If you already have a Playwright
+Test suite, install `@variance-authority/playwright-test` instead. For a CLI
+route or a Storybook collection, use the corresponding collector.
+
+## Install
 
 Playwright's browser binaries do not arrive with an `npm install`, so there are
-two commands here rather than one:
+two commands rather than one:
 
 ```bash
 npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
-This is the only Variance Authority package that will ever ask you to install a
-browser. Everything downstream of a render — comparison, isolation, attribution,
-storage — sits elsewhere and stays reachable without one.
+The package depends on `playwright ^1.49.0` and installs it for you, so you
+supply only the browser binaries. Node 22 or newer. The engine and container
+figures further down were taken on Playwright 1.62.1.
 
-Two tools live here: the harness described above, and a **renderer**, which
-turns a single `RenderDocument` into a raster without keeping a browser open
-across calls. Beside them sit the wire's observers: `observeNetwork` and its
-`freezeGif`, `blank*` and `fetchModules` helpers, `unresizable`, and
-`captureOnce` for a single capture without standing up a harness.
+Installing a browser is what this package is for. Comparison, isolation,
+attribution and storage live in other packages and need no browser.
+
+## A capture, end to end
+
+This runs as written. The bundle is a classic-script IIFE that installs a
+`PageAgent` at `AGENT_GLOBAL` — the object the harness calls to read a subject —
+and the one here is a stub that reports a rectangle, so you can see the
+round trip before you have an application-side bundle.
+
+```js
+import { createHarness } from '@variance-authority/playwright';
+import { AGENT_GLOBAL } from '@variance-authority/playwright/agent';
+
+const bundle = `
+(() => {
+  window[${JSON.stringify(AGENT_GLOBAL)}] = {
+    capture(request) {
+      const host = document.createElement('div');
+      host.textContent = request.subject + '/' + request.variant;
+      document.body.appendChild(host);
+      const rect = host.getBoundingClientRect();
+      host.remove();
+      return JSON.stringify({
+        captureVersion: 1,
+        subject: { id: request.subjectId, kind: 'fixture' },
+        profile: { id: 'chromium', ariaTree: true, declaredStyle: true, computedStyle: true, layout: true, raster: true },
+        environment: {
+          profile: 'chromium',
+          engine: request.engine,
+          viewport: request.viewport,
+          fonts: request.fonts ?? [],
+          conditions: {},
+          assets: {},
+        },
+        root: { tag: 'div', attributes: {}, matchedRules: [], rect, children: [] },
+        inheritedSeed: {},
+        diagnostics: [],
+      });
+    },
+  };
+})();
+`;
+
+const harness = await createHarness({
+  url: 'about:blank',
+  bundle,
+  viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
+});
+
+const capture = await harness.capture('button', 'primary');
+console.log(capture.subject.id, capture.environment.engine, capture.root.rect.width);
+await harness.close();
+```
+
+```
+fixture:button chromium@151.0.7922.34 784
+```
+
+Your own bundle replaces the stub: it reads the real subject, serializes a
+`RawCapture`, and tears the previous subject down before each capture. The
+harness cannot do that teardown — it does not know what the previous subject
+installed. If you do not own page-side code of that kind, use
+`@variance-authority/playwright-test`.
+
+`capture` returns a JSON **string** from the page, which the harness parses. A
+capture that acquires a `Map`, a DOM handle or a cycle fails here rather than
+three transports later.
 
 ## Entrypoints
 
 | entrypoint | holds | note |
 |---|---|---|
 | `.` | the harness and the network observation | needs `playwright` |
-| `playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
-| `playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
-| `playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is asked to use, and whether this machine has them |
+| `@variance-authority/playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
+| `@variance-authority/playwright/agent` | `PageAgent`, `CaptureRequest`, `AGENT_GLOBAL` | **must not** need `playwright` — it is bundled into the page |
+| `@variance-authority/playwright/engines` | `declaredEngines`, `requireEngines`, `engineStatus` | which engines a run is asked to use, and whether this machine has them |
 
 `playwright/agent` is published separately because it runs inside the browser:
-it is injected as a classic script, and importing Playwright behind it would
-put a Node module in a bundle destined for a page.
+it is injected as a classic script, and importing Playwright behind it would put
+a Node module in a bundle destined for a page.
 
 ## The harness: one Chromium, one page, one navigation
 
-**A warm capture costs roughly a twenty-sixth of a cold one.** Measured over 48
-renders, a capture into an already-open page took about 9 ms against about 233 ms
-for one that launched a browser first. Absolute numbers depend on your machine;
-the ratio is why the harness keeps one Chromium and one page for a whole run
-instead of opening a browser per subject.
+The harness keeps one browser and one page for a whole run and switches subjects
+by calling into the page. `captureOnce` is the same code with nothing reused —
+launch, navigate, inject, collect, close — and it ships so that the comparison
+measures one capture path on both sides. Over 48 distinct `(subject, variant)`
+renders on an Apple-silicon Mac with `chromium@151.0.7922.34`, the reused page
+cost **7.5 ms a capture against 205 ms** when each capture launched a browser
+first: 27x, reproduced across three runs. Absolute numbers move with the
+machine; the ratio is the reason for the shape.
 
-```ts
-import { createHarness } from '@variance-authority/playwright';
-
-// This is an application-owned classic-script bundle that installs a PageAgent
-// at AGENT_GLOBAL. The package has no framework-specific agent to substitute.
-const harness = await createHarness({
-  url: 'file:///…/fixture.html',
-  bundle: iifeBundleInstallingYourAgent,
-  viewport: { width: 1024, height: 768, deviceScaleFactor: 1, colorScheme: 'light' },
-});
-
-const capture = await harness.capture('story:button--primary', 'after');
-await harness.close();
-```
-
-The harness example is an adapter contract: `iifeBundleInstallingYourAgent`
-must be a real IIFE string produced by your page integration. It is not an
-export of this package. The bundle must install a `PageAgent` at `AGENT_GLOBAL`
-and tear down the previous subject before each capture; if you do not own that
-page-side code, use `@variance-authority/playwright-test` instead.
-
-The harness carries **no knowledge of subjects, stories or frameworks**. The page
-bundle supplies all of that through `PageAgent`, so the same harness serves a
-fixture page, a Storybook, or a route. The agent owns subject teardown, because
-the harness cannot: it does not know what the previous subject installed.
+The harness carries no knowledge of subjects, stories or frameworks, so the same
+harness serves a fixture page, a Storybook, or a route.
 
 `capture` is sequential by contract. Two concurrent calls would render two
 subjects into one document and let one decide the other's verdict.
@@ -90,7 +145,7 @@ subjects into one document and let one decide the other's verdict.
 
 | option | default | what it decides |
 |---|---|---|
-| `url` | required | the page navigated once and reused |
+| `url` | required | the page navigated once and reused. `file://` is fine and needs no server |
 | `bundle` | required | IIFE source installing a `PageAgent` at `AGENT_GLOBAL`. Not ESM: a module evaluates asynchronously, so the harness would poll instead of failing the moment the bundle is broken |
 | `viewport` | required | width, height, scale, colour scheme |
 | `fonts` | optional | families this capture is asserted to have; when it is omitted the capture records that nothing was asserted |
@@ -104,7 +159,7 @@ subjects into one document and let one decide the other's verdict.
 browser, so decisions about the environment key — like asset hashing — stay in
 the page, not the harness.
 
-## The wire: what the page actually received
+## What the page was actually served
 
 `observeNetwork` watches every request a page's navigation makes and returns a
 `NetworkObservation`: which assets were seen, and — per the options below —
@@ -150,17 +205,16 @@ Only the party that watched the network response knows otherwise.
 `retainResources` keeps **what was served** — the blank an image became, the
 single frame a GIF was truncated to. Keeping what *arrived* would paint a
 different picture later than the run that observed it, which is the one thing an
-archive exists to prevent. `@variance-authority/route-collector`'s `portable: true`
-is this option with a refusal on top.
+archive exists to prevent.
 
 `assets` is the map folded into the environment key. `frozen` and `blanked` are
-ledgers rather than counts — blanking is the one intervention here that can
-hide a real regression, so an operator who blanked more than they meant to can
-read back exactly what disappeared.
+ledgers rather than counts — blanking is the one intervention here that can hide
+a real regression, so an operator who blanked more than they meant to can read
+back exactly what disappeared.
 
 ## Where a component is declared, asked of the engine
 
-The source scan answers a name: every declaration in the configured directories
+A source scan answers a name: every declaration in the configured directories
 that spells `Button`, and when two do, the name is ambiguous and the report says
 so. The page holds something better than a name. The fiber carries the function
 React called, and V8 knows where every function it compiled begins. So the page
@@ -168,7 +222,14 @@ agent keeps the functions it met, and `createDeclarationReader(page)` asks
 Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
 through the served module's source map to a repository file and line.
 
+Excerpt — `page` is `harness.page`, `scanned` is the `SourceIndex` your scan
+produced, and `overlaySourceIndex` comes from
+`@variance-authority/core/attribute`:
+
 ```ts
+import { createDeclarationReader } from '@variance-authority/playwright';
+import { overlaySourceIndex } from '@variance-authority/core/attribute';
+
 const declared = createDeclarationReader(page);
 // ...after the agent has read a subject...
 const engine = await declared.read(); // SourceIndex, every ref `via: 'engine'`
@@ -187,11 +248,10 @@ once, and `read()` answers the empty index for the rest of the page's life.
 Nothing downstream tells that from a page with no components, and the scan still
 stands underneath.
 
-`global` names the global the agent is installed at, `AGENT_GLOBAL` unless the
-bundle chose another. `fetchModule` supplies the fetch for served modules and
-their maps, from inside the page unless told otherwise — the same choice the
-call-site path makes, and for the same reason. `root` is the path an answer is
-made relative to, the working directory unless told otherwise.
+Options: `global` names the global the agent is installed at, `AGENT_GLOBAL`
+unless the bundle chose another. `fetchModule` supplies the fetch for served
+modules and their maps, from inside the page unless told otherwise. `root` is the
+path an answer is made relative to, the working directory unless told otherwise.
 
 ## Which engine paints
 
@@ -201,14 +261,14 @@ import { createPlaywrightRenderer } from '@variance-authority/playwright/rendere
 const safari = await createPlaywrightRenderer({ browser: 'webkit' });
 ```
 
-`chromium` by default; `firefox` and `webkit` are the other two. The browser
-binary is still the caller's to install — `npx playwright install webkit`.
+`chromium` by default, `webkit` the other declared engine. The browser binary is
+still yours to install — `npx playwright install webkit`. `firefox` is accepted
+by the renderer but is not declared; see below.
 
 ### A run measures what it declares
 
-Anything that paints in more than one engine — this package's own cross-engine
-suite and benchmarks — takes its list from `playwright/engines` rather than from
-whatever is installed:
+Anything that paints in more than one engine takes its list from
+`playwright/engines` rather than from whatever is installed:
 
 ```ts
 import { declaredEngines, requireEngines } from '@variance-authority/playwright/engines';
@@ -216,24 +276,33 @@ import { declaredEngines, requireEngines } from '@variance-authority/playwright/
 const engines = requireEngines(declaredEngines()); // ['chromium', 'webkit']
 ```
 
-`requireEngines` **throws and names the engine** when a declared one is not
+`requireEngines` throws and names the engine when a declared one is not
 installed, because the alternative is a result that changes with the machine: a
 laptop missing WebKit measures one engine, reports green, and says nothing about
-the claim it did not check. A machine with no browsers at all returns empty,
-which is the one case a caller may skip on.
+the claim it did not check. On a machine with Chromium and no WebKit, that throw
+reads:
+
+```
+declared engine not installed: webkit (this machine has chromium)
+  npx playwright install webkit
+  (the list is DECLARED_ENGINES in packages/playwright/src/engines.ts; VARIANCE_ENGINES overrides it)
+```
+
+A machine with no browsers at all returns empty, which is the one case a caller
+may skip on.
 
 `VARIANCE_ENGINES=chromium,webkit` overrides the list for a single run. It
 changes what is asked for, not the rule — whatever it names still has to exist.
 
-**A second engine costs a second paint and nothing else.** A `RenderDocument` is
-engine-independent, so it is collected once and rasterized once per engine,
-instead of being re-collected for each one.
+A `RenderDocument` is engine-independent, so **a second engine costs a second
+paint and no second collection**. What that paint costs differs sharply by
+engine and by subject; the table below is the size of it.
 
-The engine is part of `RenderIdentity`, which keys the baseline store: a
-WebKit baseline lands in its own directory, and a Chromium run that finds one
-reports `incomparable`, naming both engines. The supplied stabilization recipe
-targets Chromium — use `prepare` for engine-specific controls needed by
-Firefox or WebKit.
+The engine is part of `RenderIdentity`, which keys the baseline store: a WebKit
+baseline lands in its own directory, and a Chromium run that finds one reports
+`incomparable`, naming both engines. The supplied stabilization recipe targets
+Chromium — use `prepare` for engine-specific controls needed by Firefox or
+WebKit.
 
 ### Only Chromium can be told how to paint text
 
@@ -241,16 +310,16 @@ Firefox or WebKit.
 makes Chromium's text independent of host defaults, and there is no equivalent
 for Firefox or WebKit. Their text is painted the way the host paints text.
 WebKit's one lever is the page's own `-webkit-font-smoothing`, which is not a
-substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the subject
-rather than the conditions the subject is photographed under.
+substitute: it changes 4,204 pixels of a 500x160 subject, so it changes the
+subject rather than the conditions the subject is photographed under.
 
 On macOS none of this bites. The system has had no subpixel antialiasing since
 10.14, all four candidate flags are no-ops, and every engine paints greyscale
 headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI —
 the flags are load-bearing for Chromium and absent for the other two. Measured in
 `mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
-6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit are
-unaffected because the flags never reached them.
+6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit
+are unaffected because the flags never reached them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
 `RenderIdentity` carries `platform`, so a laptop's baseline and a container's are
@@ -260,23 +329,26 @@ produced in a container, produce them only there — a local WebKit renderer rec
 baselines nothing will ever compare against, and pays the raster tier for them.
 The semantic tier is unaffected and stays local.
 
-The container is cheap, which is not what people assume. Measured on an M4 Max
-under Docker Desktop 29.0.1, `mcr.microsoft.com/playwright:v1.62.1-noble` costs
-Chromium 1.17x and WebKit 1.66x per paint against native macOS, and costs Firefox
-nothing at all — it is *faster* in the container, 7.5 ms against 8.3. The same
-image run as arm64 and as translated amd64 produces byte-identical rasters, so the
-pixels follow the image rather than the machine.
+The container is cheap, which is not what people assume. Measured on an Apple M4
+Max (16 cores, 64 GB) under Docker Desktop 29.0.1 with Playwright 1.62.1,
+`mcr.microsoft.com/playwright:v1.62.1-noble` costs WebKit 1.66x per paint against
+native macOS and Chromium roughly 1.1x — the least repeatable of the three cells,
+and not worth quoting to two figures. Firefox it costs nothing at all: Firefox is
+*faster* in the container, 7.5 ms against 8.3. The same image run as arm64 and as
+translated amd64 produces byte-identical rasters, so the pixels follow the image
+rather than the machine.
 
 The engine outranks both the host and the emulator: across those three hosts, all
 nine arrangements sort by engine before they sort by anything else, and WebKit in
 a *translated x86* container paints faster than Chromium on bare metal — 11.0 ms
-against 29.0.
+against 27 to 29.
 
 ### Which engine is fastest depends on what you are painting
 
 Capture cost and rasterization cost are separate, and no engine is cheap at both.
-Median ms per paint on macOS, one page reused, both subjects captured the same
-way:
+Median ms per paint over three 60-paint runs on an Apple M4 Max (16 cores, 64 GB)
+under macOS with Playwright 1.62.1, one page reused, both subjects captured the
+same way:
 
 | engine | text on a flat fill | 240 blurred gradient cells |
 | --- | ---: | ---: |
@@ -289,12 +361,17 @@ WebKit is the reverse, seven times cheaper to capture and four times more
 expensive per unit of drawing. **WebKit is the fastest engine on the first
 subject and the slowest on the second**, so a ranking measured on one kind of
 subject does not transfer to a suite made of the other kind. Firefox is second
-on both, which makes it the engine to reach for when the suite is mixed or
-unmeasured.
+on both, and would be the engine to reach for on a mixed or unmeasured suite —
+but it is not one of the engines this package declares. `DECLARED_ENGINES` is
+`chromium` and `webkit`, because the Playwright Firefox build does not launch
+under the macOS sandbox on recent versions, and an engine that is declared and
+absent fails a run by name rather than quietly painting in something else. The
+row above is a measurement, not a recommendation; declare Firefox only with
+`VARIANCE_ENGINES`, on a host where you have confirmed it launches.
 
-The package ships `scripts/host.mjs`, which paints both subjects and imports
-nothing from the package itself, so the same bytes run on every host. Sixty
-paints per arm, one raster per engine written into `./native`:
+To take those numbers on your own machine, run the script the package ships. It
+imports nothing from the package itself, so the same bytes run on every host.
+Sixty paints per arm, one raster per engine written into `./native`:
 
 ```bash
 mkdir -p native
@@ -330,23 +407,28 @@ node node_modules/@variance-authority/playwright/scripts/host.mjs --compare ./na
 
 ## The renderer: a document in, a raster out
 
+Excerpt — a `RenderDocument` comes from a collector:
+
 ```ts
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
+import type { RenderDocument } from '@variance-authority/core/format';
+
+declare const document: RenderDocument;
 
 const renderer = await createPlaywrightRenderer();
 const raster = await renderer.render(document);
 ```
 
-Chromium launches with `--disable-lcd-text` and
-`--font-render-hinting=none` by default. An explicit ordered `launchArgs` list
-replaces that default. Headless mode and the ordered launch recipe are hashed
-into `RenderIdentity.rasterization`, so changing font rasterization settings
+Chromium launches with `--disable-lcd-text` and `--font-render-hinting=none` by
+default. An explicit ordered `launchArgs` list replaces that default. Headless
+mode and the ordered launch recipe are hashed into
+`RenderIdentity.rasterization`, so changing font rasterization settings
 partitions baselines instead of appearing as a product diff.
 
-A resource-closed document is rendered without network access: archived
-resource bytes satisfy matching requests and every unresolved request is
-aborted. A document without a `resources` field remains a local,
-environment-dependent input and may use the network available to the renderer.
+A resource-closed document is rendered without network access: archived resource
+bytes satisfy matching requests and every unresolved request is aborted. A
+document without a `resources` field remains a local, environment-dependent
+input and may use the network available to the renderer.
 
 **The viewport is not a renderer setting.** It arrives with each document, and
 the renderer keeps one page per viewport and reuses it — so one renderer serves
@@ -362,13 +444,13 @@ browser.
 | `launchArgs` | `CHROMIUM_RASTER_ARGS` on Chromium, none elsewhere | launch flags that may affect pixels. The exact ordered list is folded into the identity |
 | `fonts` | none | what this machine is **asserted** to have, as `family/weight/style/hash`. A page can ask whether a family resolves and cannot read the bytes behind it, so this is a declaration — and it is what makes a baseline from a different font stack `incomparable` rather than `changed` |
 | `waitForFonts` | `true` | wait on `document.fonts.ready` before painting |
-| `stabilization` | `RASTER_RECIPE` | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are `incomparable` |
+| `stabilization` | the raster recipe | which tricks hold the page still. Folded into the identity, so a baseline made under one recipe and a run under another are `incomparable` |
 | `assemble` | `AssembleOptions` defaults | how the document is turned into a page |
 | `concurrency` | `1` | how many documents may be painted at once. Above 1 each render leases its own page, because `setContent` replaces a page's whole document. Worth having: the raster tier is where a run's time is |
 
-It satisfies the `Renderer` contract from `@variance-authority/raster` — the
-same contract a renderer running across a network satisfies, so callers can
-swap one for the other without a rewrite.
+It satisfies the `Renderer` contract from `@variance-authority/raster` — the same
+contract a renderer running across a network satisfies, so you can swap one for
+the other without a rewrite.
 
 It applies the stabilization recipe it is given, and reports conflicts rather
 than resolving them.
@@ -377,4 +459,9 @@ than resolving them.
 
 A bundle that throws leaves the agent global undefined, and the failure would
 otherwise surface as a timeout with no cause. Page-side errors are recorded and
-reported, so `React is not defined` reads as `React is not defined`.
+reported, so `React is not defined` reads as `React is not defined`. Read them
+with `harness.pageErrors()`.
+
+---
+
+**[@variance-authority/playwright](https://variance-authority.dev/reference/packages/playwright)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

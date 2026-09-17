@@ -822,11 +822,13 @@
         "ReactCommitAttention": "interface",
         "ReactTapRefusedAttention": "interface",
         "RtlQueryAttention": "type",
+        "TapRefusal": "type",
         "TargetSnapshot": "interface",
         "createEyesArchive": "function",
         "createEyesLog": "function",
         "eyesTestAttention": "function",
-        "snapshotNode": "function"
+        "snapshotNode": "function",
+        "tapCommits": "function"
       },
       "./rtl": {
         "RtlTestWatch": "interface",

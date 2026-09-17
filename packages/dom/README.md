@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/dom
 
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 Extract a `RawCapture` — a serializable snapshot of an element's tree, ARIA, and
 applicable styles — from a mounted element. One implementation covers both
@@ -130,3 +134,7 @@ rather than the component.
 one only when the missing fact is genuinely outside the assertion; otherwise pass
 `fonts`, `assets`, or `portalsOf` so the resulting identity does not claim more
 than the page established.
+
+---
+
+**[@variance-authority/dom](https://variance-authority.dev/reference/packages/dom)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

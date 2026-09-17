@@ -1,8 +1,12 @@
-<p align="center"><img src="./mark.svg" alt="Variance Authority mark" width="72"></p>
+<p align="center"><img src="https://variance-authority.dev/mark.svg" alt="Variance Authority mark" width="72"></p>
 
 # @variance-authority/report
 
 > The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.
+
+Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source.
 
 A run compares one or more **subjects** — the pages,
 routes, or components under test — and produces its answers in memory before the
@@ -128,7 +132,7 @@ regions, and the pool that finding is drawn from, as three lists of subjects:
 the ones with a complete journal, the ones whose journal was cut short, and the
 ones the journal has no row for. Absent is *no journal*, never *nobody parted*;
 `found` empty is the pool agreeing everywhere. The terms are in
-[journeys](../../docs/journeys.md).
+[journeys](https://variance-authority.dev/docs/journeys).
 
 ## Presentation consequence is a signal, not a verdict
 
@@ -274,3 +278,7 @@ is `@variance-authority/tribunal`'s.
 
 A caller gets a fully-typed `RunReport` back, or a thrown error — never a
 partially-parsed value with some fields silently absent.
+
+---
+
+**[@variance-authority/report](https://variance-authority.dev/reference/packages/report)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -120,5 +120,5 @@ The [`@variance-authority/eyes` integration reference](../packages/eyes)
 contains the installation, phase markers, journal publication, and React-hook
 timing for both adapters. Once an archive exists, use
 [`variance distill`](distill.md) for the deterministic reading or
-[`variance_distill`](agent-questions.md#distil-one-test) when the archive is
+[`variance_distill`](agent-questions.md#distill-one-test) when the archive is
 supplied through MCP.

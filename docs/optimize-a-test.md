@@ -96,5 +96,5 @@ a suite is worth opening first.
 **Further:** [`distill.md`](distill.md) for the three readings and the CLI, MCP
 and skill entrances · [`selecting.md`](selecting.md) for the scan, the taints
 and what a record knows · [`packages/distill`](../packages/distill) for the
-callable analyzer · [`packages/sense`](../packages/sense#say-what-a-file-really-imports)
+callable analyzer · [`packages/sense`](../packages/sense/README.md#correct-what-a-files-text-claims-to-import)
 for the taint tables themselves.

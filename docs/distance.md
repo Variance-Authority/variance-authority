@@ -239,4 +239,4 @@ integration orders work.
 **Further:** [Test selection](selecting.md) ·
 [The source scan](source.md) ·
 [The execution record](execution-record.md) ·
-[Distance API and options](../packages/sense#place-a-selection-by-how-far-the-change-travelled)
+[Distance API and options](../packages/sense/README.md#run-the-near-tests-first)

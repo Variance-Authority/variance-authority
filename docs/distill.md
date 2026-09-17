@@ -110,9 +110,16 @@ React update initiators:
 
 Runtime journey: 4 source file(s) entered by exact test id.
 Entered with no addressed target attributed to the same file: 2.
-  distillation opportunity at depth 4 — src/analytics.ts
-  distillation opportunity at depth 5 — src/top-nav.tsx
+  distillation opportunity at depth 0 — src/analytics.ts
+  distillation opportunity at depth 0 — src/top-nav.tsx
 ```
+
+Depth is whatever the producer of the execution index recorded. The Vitest
+recorder in [Sense](../packages/sense/README.md) records every crossing at depth
+0: it reports which regions a test entered, not how many calls deep it was
+standing when it entered them. The field carries a real number only from a
+producer that tracks call depth, so read `depth 0` as "not recorded here"
+rather than as "called directly".
 
 An opportunity is not permission to mock, replace, or delete the file.
 [Static reachability](source.md) describes what the test could load; execution
@@ -138,7 +145,7 @@ import statement above it still reads as a use.
 
 Distill separates the two. Every entered module is read
 [region by region](execution-record.md#blocks):
-[`loadedOnly`](../packages/distill#a-module-the-test-loaded-but-never-entered)
+[`loadedOnly`](../packages/distill/README.md#api)
 marks a module whose only crossings are the consequence of loading
 it, and `unentered` names the declarations the test never reached.
 
@@ -160,7 +167,7 @@ before you keep it.
 | Entrance | Use it when | Invocation |
 | --- | --- | --- |
 | CLI | the evidence is in portable files | `variance distill --test <id> --eyes <path> --execution <path>` |
-| [MCP](agent-questions.md#distil-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
+| [MCP](agent-questions.md#distill-one-test) | a producer already supplies Eyes and Sense evidence to a connection | `variance_distill {"test":"<id>"}` |
 | [`variance-authority` skill](../packages/cli#ask-the-agent-answers-without-an-agent-protocol) | an agent must turn opportunities into a smaller verified test | install the skill shipped by `@variance-authority/cli` |
 
 The CLI and MCP tool call the same analyzer and text formatter. `--format json`
