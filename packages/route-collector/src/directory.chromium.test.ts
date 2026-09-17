@@ -86,6 +86,22 @@ chromium_('a built directory as a suite', () => {
     expect(collected.document.html).toContain('Home');
   }, 120_000);
 
+  it('serves a nested page at the directory the plan addresses it by', async () => {
+    // The plan strips `index.html`, so this subject's URL ends at a directory —
+    // and a server that read what that path names would throw EISDIR from
+    // inside its request handler, where nothing in the run can catch it. Every
+    // build with a nested page has this shape, so it is the common case rather
+    // than an edge of one.
+    const plan = await collector!.plan();
+    const about = plan.subjects.find((planned) => planned.subject.id === 'about');
+
+    const collected = await collector!.collect(about!);
+
+    expect(collected.ok).toBe(true);
+    if (!collected.ok) return;
+    expect(collected.document.html).toContain('About');
+  }, 120_000);
+
   it('refuses a directory with no page in it', async () => {
     // Zero subjects and exit 0 is indistinguishable from a suite that passed.
     const empty = mkdtempSync(join(tmpdir(), 'variance-empty-'));

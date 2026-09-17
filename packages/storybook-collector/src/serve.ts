@@ -1,5 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 /**
@@ -37,23 +37,51 @@ export interface StaticServer {
   close(): Promise<void>;
 }
 
+/** Whether a path names a directory, with a missing path answering `false`. */
+function directory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function serveStatic(root: string): Promise<StaticServer> {
   const server: Server = createServer((request, response) => {
     const path = decodeURIComponent((request.url ?? '/').split('?')[0] ?? '/');
     const resolved = join(root, normalize(path === '/' ? '/index.html' : path));
 
-    // Containment before existence: a request that escapes the root must be
-    // refused rather than answered, and answering it 404 when it happens to miss
-    // would make the refusal depend on what is on disk.
-    if (!resolved.startsWith(root) || !existsSync(resolved)) {
+    // Containment first: a request that escapes the root must be refused rather
+    // than answered, and letting it fall through to a missing-file 404 would
+    // make the refusal depend on what happens to be on disk.
+    if (!resolved.startsWith(root)) {
+      response.writeHead(404).end('not found');
+      return;
+    }
+
+    // A directory is an address here, not a mistake. `routesFromFiles` strips
+    // `index.html` because that is the URL the page will be deployed at, so a
+    // build holding `about/index.html` puts `/about/` in the plan and this is
+    // the request that arrives for it.
+    const file = directory(resolved) ? join(resolved, 'index.html') : resolved;
+
+    let body: Buffer;
+    try {
+      body = readFileSync(file);
+    } catch {
+      // Missing, unreadable, or a directory with no index — all of them are a
+      // 404 for this request rather than the end of the run. The read is
+      // synchronous inside a request handler, which is past every await the
+      // run could have caught a throw at: reading a directory answers EISDIR,
+      // and one nested index used to take the process down with it.
       response.writeHead(404).end('not found');
       return;
     }
 
     response.writeHead(200, {
-      'content-type': TYPES[extname(resolved)] ?? 'application/octet-stream',
+      'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
-    response.end(readFileSync(resolved));
+    response.end(body);
   });
 
   const port = await new Promise<number>((resolve) => {
