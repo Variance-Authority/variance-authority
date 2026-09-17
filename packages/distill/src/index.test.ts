@@ -32,6 +32,21 @@ const EXECUTION: ExecutionIndex = { tests: [
     startLine: 1, endLine: 20, source: true, crossings: [{ test: 0, distance: 5 }] }] },
 ] };
 
+/** The same test, with its addressed component named by the given source files. */
+const addressedAt = (...files: readonly string[]): EyesArchive => ({
+  eyesVersion: 1,
+  tests: [{
+    id: 'redraw-test', title: 'redraws', complete: true,
+    attention: files.map((file, at) => ({
+      kind: 'document-event', event: 'click', trusted: false, sequence: at,
+      target: { ...TARGET, provenance: { status: 'resolved', provenance: {
+        owners: [{ name: 'DrawingPanel', propsDigest: 'props' }],
+        source: { file, line: 7, column: 3 },
+      } } },
+    })),
+  }],
+});
+
 describe('distill', () => {
   it('separates addressed source, outside update initiators, and opportunities', () => {
     const result = distill({ test: 'redraw-test', eyes: EYES, execution: EXECUTION });
@@ -62,6 +77,79 @@ describe('distill', () => {
     expect(formatDistillation(result)).toContain(
       'Distillation opportunities: unavailable; Eyes attention was not supplied.',
     );
+  });
+
+  it('shows the ids the index does hold when the join finds none', () => {
+    const eyes: EyesArchive = { eyesVersion: 1, tests: [{
+      id: '875862714_0', title: 'redraws', complete: true, attention: [],
+    }] };
+    const execution: ExecutionIndex = {
+      tests: Array.from({ length: 8 }, (_unused, at) => ({
+        id: `test/redraw.test.tsx > case ${at}`,
+        file: 'test/redraw.test.tsx',
+        name: `case ${at}`,
+      })),
+      modules: [],
+    };
+    const result = distill({ test: '875862714_0', eyes, execution });
+    expect(result.execution).toMatchObject({ joined: false, availableTotal: 8 });
+    expect(result.execution?.available).toHaveLength(5);
+
+    const text = formatDistillation(result);
+    expect(text).toContain('no test with exact id 875862714_0');
+    expect(text).toContain('It records 8 test id(s), of which:');
+    expect(text).toContain('  test/redraw.test.tsx > case 0');
+    expect(text).toContain('  and 3 more.');
+    expect(text).toContain('give Eyes that same string');
+  });
+
+  it('says the index records nothing rather than listing an empty sample', () => {
+    const eyes: EyesArchive = { eyesVersion: 1, tests: [{
+      id: 'plain', title: 'parses', complete: true, attention: [],
+    }] };
+    const text = formatDistillation(
+      distill({ test: 'plain', eyes, execution: { tests: [], modules: [] } }),
+    );
+    expect(text).toContain('It records no tests at all.');
+  });
+
+  it('joins an absolute addressed path to a project-relative entered module', () => {
+    // What a normal run supplies: Eyes names the component's source the way the
+    // bundler handed it over, and Sense names the module through `projectPath`.
+    const eyes = addressedAt('/repo/src/panel.tsx');
+    const result = distill({ test: 'redraw-test', eyes, execution: EXECUTION, root: '/repo' });
+    expect(result.execution?.opportunities).toEqual([{ file: 'src/top-nav.tsx', distance: 5 }]);
+    // The addressed component is the file this defect used to name first.
+    expect(result.execution?.opportunities?.map(({ file }) => file)).not.toContain('src/panel.tsx');
+    expect(result.execution?.addressedNotEntered).toBeUndefined();
+  });
+
+  it('withholds the comparison when the two sides disagree and no root was supplied', () => {
+    const result = distill({ test: 'redraw-test', eyes: addressedAt('/repo/src/panel.tsx'), execution: EXECUTION });
+    expect(result.execution?.opportunities).toBeUndefined();
+    expect(result.execution?.withheld).toContain('no root was supplied');
+    const text = formatDistillation(result);
+    expect(text).toContain('Distillation opportunities: unavailable;');
+    // The failure being fixed is a confident list, so no list may be printed.
+    expect(text).not.toContain('distillation opportunity at depth');
+  });
+
+  it('withholds the comparison when the supplied root joins nothing', () => {
+    const result = distill({
+      test: 'redraw-test', eyes: addressedAt('/repo/src/panel.tsx'), execution: EXECUTION, root: '/elsewhere',
+    });
+    expect(result.execution?.opportunities).toBeUndefined();
+    expect(result.execution?.withheld).toContain('rooted differently');
+    expect(formatDistillation(result)).not.toContain('distillation opportunity at depth');
+  });
+
+  it('names addressed source no entered module matched, rather than dropping it', () => {
+    const eyes = addressedAt('/repo/src/panel.tsx', '/repo/src/uninstrumented.tsx');
+    const result = distill({ test: 'redraw-test', eyes, execution: EXECUTION, root: '/repo' });
+    expect(result.execution?.opportunities).toEqual([{ file: 'src/top-nav.tsx', distance: 5 }]);
+    expect(result.execution?.addressedNotEntered).toEqual(['src/uninstrumented.tsx']);
+    expect(formatDistillation(result))
+      .toContain('addressed, not entered — src/uninstrumented.tsx');
   });
 
   it('validates execution indexes at the JSON boundary', () => {

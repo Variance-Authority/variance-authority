@@ -38,6 +38,38 @@ export interface Flags {
  */
 export const BOOLEAN = new Set(['--all', '--marker', '--flakes', '--publish', '--exit-zero-on-changes']);
 
+/**
+ * Whether these arguments ask for help rather than do anything.
+ *
+ * Here rather than in the parser because the question is entirely syntactic: no
+ * command's flag table decides it, and the answer has to be the same for every
+ * command or `--help` is a flag the operator has to look up per subcommand.
+ *
+ * It reads the line the way {@link readFlags} does rather than scanning it for a
+ * word, because the two differ in the two places it matters. `--` ends flags, so
+ * `variance accept -- --help` names a subject that starts with hyphens. And a
+ * value-taking flag consumes what follows it, so `variance ask --query --help`
+ * is a missing value — the refusal `readFlags` already writes — and not a
+ * request for a synopsis.
+ */
+export function asksForHelp(argv: readonly string[]): boolean {
+  let index = 0;
+
+  while (index < argv.length) {
+    const argument = argv[index] as string;
+    index += 1;
+
+    if (argument === '--') return false;
+    if (argument === '--help' || argument === '-h') return true;
+    if (!argument.startsWith('-')) continue;
+    // An unknown flag is still refused, by `readFlags`, after this returns false.
+    if (argument.includes('=') || BOOLEAN.has(argument)) continue;
+    index += 1;
+  }
+
+  return false;
+}
+
 export function readFlags(
   argv: readonly string[],
   command: string,

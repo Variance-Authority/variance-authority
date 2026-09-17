@@ -6,6 +6,7 @@ import type { RasterStore } from '@variance-authority/raster';
 import { promotionOf, selectByShape, whyNotWhole } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import type { CliObservationRecord, CliRunReport } from './run.js';
+import { readCliRunReport } from './run-report.js';
 
 /**
  * `variance accept` — record that a change became the baseline.
@@ -133,6 +134,37 @@ export interface AcceptResult {
     readonly recorded: number;
     readonly because?: string;
   };
+}
+
+/**
+ * The run report `accept` promotes out of, or a refusal that says why there is none.
+ *
+ * A missing file here is not a defect in this tool: it is the state of a
+ * repository where the run this command exists to finish has not happened. Left
+ * to `readRunReport`, it arrives as an `ENOENT` stack under "a defect in the
+ * tool", which sends the reader to file a bug about their own working directory.
+ *
+ * The third sentence is the one that costs a cold reader an afternoon. Baselines
+ * written by `@variance-authority/playwright-test` look exactly like a store this
+ * command should promote into, and they carry no run report at all, so the
+ * refusal has to name that package rather than only the file it could not open.
+ */
+export async function reportToPromoteFrom(path: string): Promise<CliRunReport> {
+  try {
+    return await readCliRunReport(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException | null)?.code !== 'ENOENT') throw error;
+
+    throw new OperatorError(
+      `there is no run report at ${path}, which is where \`report\` in your configuration ` +
+        'points. `accept` promotes a candidate that a `variance run` produced and wrote there, ' +
+        'so run `variance run` first and accept from the report it leaves behind.\n' +
+        'If those baselines were written by `@variance-authority/playwright-test`, there is no ' +
+        'run report to promote from: that package compares inside your Playwright suite, and you ' +
+        'promote its baselines with `playwright test --update-snapshots`, not with this command.',
+      { cause: error },
+    );
+  }
 }
 
 export async function accept(options: AcceptOptions): Promise<AcceptResult> {

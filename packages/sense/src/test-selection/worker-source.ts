@@ -212,6 +212,11 @@ export function caseWriterSource(caseDirectory: string): string {
  */
 export function caseRunnerSource(): string {
   return `
+// \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
+// favour of the package root and prints a line saying so on each run, but does
+// not export the class there yet — measured on 4.1.11, where the root has no
+// \`VitestTestRunner\` at all. The notice is the cost of the only entry that
+// answers on 2, 3 and 4 alike.
 import { VitestTestRunner } from 'vitest/runners';
 import { getFn } from '@vitest/runner';
 import { getNames } from '@vitest/runner/utils';

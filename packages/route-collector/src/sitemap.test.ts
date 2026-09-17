@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { locationsIn, routesFrom, subjectIdFor } from './sitemap.js';
+import { locationsIn, routesFrom, routesFromFiles, subjectIdFor } from './sitemap.js';
 
 /**
  * A subject list taken from what the application already publishes.
@@ -67,5 +67,28 @@ describe('reading a sitemap', () => {
     </sitemapindex>`;
 
     expect(routesFrom(index)).toEqual({ 'pages.xml': 'https://a.example/pages.xml' });
+  });
+});
+
+describe('reading a built directory', () => {
+  it('names a page by what an operator types back, not by the file on disk', () => {
+    // `cart/empty` is what `--subjects` and `variance accept` are given, so it
+    // is what the id has to be. The URL keeps `.html`, because that is what the
+    // server is asked for, and `index.html` already resolved to its directory —
+    // an extension on the sibling beside it would be a difference nobody asked
+    // for.
+    expect(routesFromFiles(['index.html', 'about/index.html', 'cart/empty.html'], 'http://l:1/')) //
+      .toEqual({
+        '/': 'http://l:1/',
+        about: 'http://l:1/about/',
+        'cart/empty': 'http://l:1/cart/empty.html',
+      });
+  });
+
+  it('refuses two files that would answer to one id rather than letting one win', () => {
+    // `cart/empty.html` and `cart/empty/index.html` both name `cart/empty`.
+    // Whichever sorted last would silently own the baseline.
+    expect(() => routesFromFiles(['cart/empty.html', 'cart/empty/index.html'], 'http://l:1/')) //
+      .toThrow(/two pages that are both the subject `cart\/empty`/);
   });
 });

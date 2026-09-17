@@ -6,6 +6,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exi
 import { dispatch } from './dispatch.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
+import { helpFor } from './usage.js';
 import { skillLine } from './skill.js';
 
 /**
@@ -49,7 +50,10 @@ export async function main(
   }
 
   if (parsed.command === 'help') {
-    streams.out(`${USAGE}\n`);
+    // The whole table only when no command was named. Help asked about one
+    // command answers about that command — and either way this is what was
+    // asked for, so it is exit 0 rather than the 2 a refusal would carry.
+    streams.out(`${parsed.topic === undefined ? USAGE : helpFor(parsed.topic)}\n`);
     return EXIT_CLEAN;
   }
 

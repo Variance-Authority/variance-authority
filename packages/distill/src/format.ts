@@ -46,20 +46,61 @@ function executionLines(execution: Distillation['execution'], id: string): reado
   if (!execution.joined) return [
     `Runtime journey: supplied, but it contains no test with exact id ${id}.`,
     'No title or file join was guessed.',
+    ...availableLines(execution.available ?? [], execution.availableTotal ?? 0),
   ];
   return [
     'Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.',
     `Runtime journey: ${execution.entered.length} source file(s) entered by exact test id.`,
     ...(execution.entered.length === 0 ? ['  measured empty'] : execution.entered.map(({ file, distance }) =>
       `  depth ${distance} — ${file}`)),
-    ...(execution.opportunities === undefined
-      ? ['Distillation opportunities: unavailable; Eyes attention was not supplied.']
-      : [
-          `Entered with no addressed target attributed to the same file: ${execution.opportunities.length}.`,
-          ...execution.opportunities.map(({ file, distance }) =>
-            `  distillation opportunity at depth ${distance} — ${file}`),
-        ]),
+    ...opportunityLines(execution),
     ...regionLines(execution.modules),
+  ];
+}
+
+/**
+ * The opportunity list, or what stopped it from being one.
+ *
+ * A withheld comparison prints in the place the list would have taken, and says
+ * what the evidence could not establish. Printing nothing there would read as
+ * "no opportunities", which is the same confident wrong answer in the other
+ * direction.
+ */
+function opportunityLines(
+  execution: NonNullable<Distillation['execution']>,
+): readonly string[] {
+  if (execution.opportunities === undefined) return [
+    'Distillation opportunities: unavailable; ' +
+      (execution.withheld ?? 'Eyes attention was not supplied.'),
+  ];
+  const missing = execution.addressedNotEntered ?? [];
+  return [
+    `Entered with no addressed target attributed to the same file: ${execution.opportunities.length}.`,
+    ...execution.opportunities.map(({ file, distance }) =>
+      `  distillation opportunity at depth ${distance} — ${file}`),
+    ...(missing.length === 0 ? [] : [
+      `Addressed source this run never entered: ${missing.length}. ` +
+        'Either the module is not instrumented, or the two sides are rooted differently.',
+      ...missing.map((file) => `  addressed, not entered — ${file}`),
+    ]),
+  ];
+}
+
+/**
+ * What the index does hold, so a failed join reads as a mismatch.
+ *
+ * Naming only the id that was missing leaves the reader with nothing to compare
+ * it against, and the usual cause is two producers keying the same test
+ * differently. A handful of recorded ids shows that in one glance.
+ */
+function availableLines(available: readonly string[], total: number): readonly string[] {
+  if (total === 0) return ['It records no tests at all.'];
+  return [
+    `It records ${total} test id(s), of which:`,
+    ...available.map((recorded) => `  ${recorded}`),
+    ...(total > available.length ? [`  and ${total - available.length} more.`] : []),
+    'A test id must be identical on both sides. Sense keys a case by its coordinate, ' +
+      '`<project-relative file> > <describe path and name>`, so give Eyes that same string.',
   ];
 }
 

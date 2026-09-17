@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BOOLEAN } from './args.js';
-import { USAGE, parseArgs } from './bin.js';
+import { USAGE, main, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
-import { EXIT_OPERATOR, OperatorError } from './exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
 import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
+import { helpFor } from './usage.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {
@@ -139,8 +140,13 @@ describe('parseArgs', () => {
         command: 'distill',
         test: 'redraw',
         eyes: resolve('eyes.json'),
+        // Eyes names source absolutely and Sense names it relative to the
+        // project root, so the comparison needs a root; unnamed, it is here.
+        root: resolve(process.cwd()),
         format: 'json',
       });
+    expect(parseArgs(['distill', '--test', 'redraw', '--eyes', 'eyes.json', '--root', 'elsewhere']))
+      .toMatchObject({ root: resolve('elsewhere') });
     expect(attempt(['distill', '--test', 'redraw']).message).toContain('needs --eyes');
     expect(attempt(['distill', '--execution', 'execution.json']).message).toContain('--test');
   });
@@ -243,6 +249,58 @@ describe('parseArgs', () => {
     for (const argv of [[], ['help'], ['--help'], ['-h']]) {
       expect(parseArgs(argv)).toEqual({ command: 'help' });
     }
+  });
+
+  it('reads `--help` after a command as a request for that command', () => {
+    // Not a flag `run` accepts, and refusing it was accurate about the table and
+    // useless about the request. A reader who typed the command has chosen it.
+    for (const argv of [['run', '--help'], ['run', '-h'], ['run', '--flakes', '--help']]) {
+      expect(parseArgs(argv)).toEqual({ command: 'help', topic: 'run' });
+    }
+  });
+
+  it('leaves `--help` after `--` as a positional, and after a value-taking flag as its missing value', () => {
+    // Both are the lexer's rules, and help must not be the one word that escapes
+    // them: `accept -- --help` names a subject, and `ask --query --help` is a
+    // flag with nothing after it.
+    expect(parseArgs(['accept', '--', '--help'])).toMatchObject({
+      command: 'accept',
+      subjects: ['--help'],
+    });
+    expect(attempt(['ask', '--query', '--help']).message).toContain('needs a value');
+  });
+
+  it('answers help about a command with that command and its flags', () => {
+    const help = helpFor('run');
+
+    expect(help).toContain('variance run     [--config <path>]');
+    expect(help).toContain('flags: --config, --profile');
+    expect(help).not.toContain('variance distill');
+  });
+
+  it('answers help about a command that takes no flags with its own line', () => {
+    // `watch`'s synopsis is the bare `variance watch`. Falling back to the whole
+    // table here would answer a reader who asked about one command with fifteen.
+    expect(helpFor('watch')).toContain('variance watch');
+    expect(helpFor('watch')).toContain('flags: none');
+    expect(helpFor('watch')).not.toContain('variance run');
+  });
+
+  it('exits 0 on help for a subcommand, because help is what was asked for', async () => {
+    // The code is the part a CI step reads. This printed the whole table under a
+    // complaint and then claimed the command had succeeded; now it prints run's
+    // synopsis and the 0 is true.
+    let out = '';
+    const code = await main(['run', '--help'], {
+      out: (text) => {
+        out += text;
+      },
+      err: () => undefined,
+    });
+
+    expect(code).toBe(EXIT_CLEAN);
+    expect(out).toContain('variance run     [--config <path>]');
+    expect(out).not.toContain('is not a flag');
   });
 
   it('omits absent optional flags rather than setting them undefined', () => {

@@ -7,6 +7,8 @@ export interface ParsedDistill {
   readonly test: string;
   readonly eyes?: string;
   readonly execution?: string;
+  /** The project root both producers recorded against; defaults to the working directory. */
+  readonly root: string;
   readonly format: 'text' | 'json';
 }
 
@@ -27,6 +29,7 @@ export function parseDistill(flags: Flags): ParsedDistill {
   return {
     command: 'distill',
     test,
+    root: resolve(flags.values.get('--root') ?? process.cwd()),
     ...(eyes === undefined ? {} : { eyes: resolve(eyes) }),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     format,

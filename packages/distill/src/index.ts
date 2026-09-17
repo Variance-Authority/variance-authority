@@ -9,6 +9,7 @@ import type {
 import type {
   ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
+import { attribute } from './attribution.js';
 
 type Phase = EyesPhase | 'unphased';
 type OwnerPath = Extract<TargetSnapshot['provenance'], { status: 'resolved' }>['provenance']['owners'];
@@ -19,6 +20,16 @@ export interface DistillInput {
   readonly test: string;
   readonly eyes?: EyesArchive;
   readonly execution?: ExecutionIndex;
+  /**
+   * The project root both producers recorded against.
+   *
+   * Eyes names a component's source with the path the bundler handed over —
+   * absolute in a normal run — and Sense names an entered module relative to the
+   * project root. Supplying the root is what lets the two be compared. Without
+   * it the comparison is made only when both sides already agree in shape, and
+   * is withheld otherwise.
+   */
+  readonly root?: string;
 }
 
 export interface AddressedPhase {
@@ -93,9 +104,24 @@ export interface Distillation {
   };
   readonly execution?: {
     readonly joined: boolean;
+    /**
+     * Ids the index does hold, when the join found none — bounded, so a refusal
+     * can show the reader the mismatch rather than only the id that was missing.
+     */
+    readonly available?: readonly string[];
+    /** How many ids the index holds in total, however few `available` shows. */
+    readonly availableTotal?: number;
     readonly entered: readonly EnteredFile[];
-    /** Absent when Eyes did not supply the addressed side of the comparison. */
+    /** Absent when the entered-versus-addressed comparison was not made. */
     readonly opportunities?: readonly EnteredFile[];
+    /** Present exactly when `opportunities` is absent: what stopped the comparison. */
+    readonly withheld?: string;
+    /**
+     * Addressed source files that matched no entered module, in the shape the
+     * comparison used. A long list here says the two sides are rooted
+     * differently even though enough of them met for the join to stand.
+     */
+    readonly addressedNotEntered?: readonly string[];
     /** The same crossings read region by region, in the order of `entered`. */
     readonly modules: readonly EnteredModule[];
   };
@@ -118,6 +144,15 @@ export { parseExecutionIndex } from './execution-json.js';
 
 const PHASES = ['unphased', 'arrange', 'act', 'assert'] as const;
 
+/**
+ * How many recorded ids a refusal shows.
+ *
+ * Enough for a reader to see the shape their own id should have had, and few
+ * enough that an index of four thousand cases does not answer with four
+ * thousand lines.
+ */
+const AVAILABLE_SHOWN = 5;
+
 /** Distil supplied observations into deterministic reduction opportunities. */
 export function distill(input: DistillInput): Distillation {
   const eyesTest = input.eyes === undefined ? undefined : locateEyesTest(input.eyes, input.test);
@@ -133,7 +168,7 @@ export function distill(input: DistillInput): Distillation {
     : new Set(attention.phases.flatMap((phase) => phase.files));
   const execution = input.execution === undefined
     ? undefined
-    : executionOf(input.execution, identity.id, addressed);
+    : executionOf(input.execution, identity.id, addressed, input.root);
   return {
     test: {
       id: identity.id,
@@ -272,19 +307,51 @@ function executionOf(
   index: ExecutionIndex,
   id: string,
   addressed: ReadonlySet<string> | undefined,
+  root: string | undefined,
 ): NonNullable<Distillation['execution']> {
   const test = index.tests.findIndex((candidate) => candidate.id === id);
-  if (test < 0) return { joined: false, entered: [], opportunities: [], modules: [] };
+  if (test < 0) return {
+    joined: false,
+    available: index.tests.slice(0, AVAILABLE_SHOWN).map((candidate) => candidate.id),
+    availableTotal: index.tests.length,
+    entered: [],
+    opportunities: [],
+    modules: [],
+  };
   const modules = index.modules.flatMap((module) => enteredModule(module, test))
     .sort((left, right) => left.distance - right.distance || compare(left.file, right.file));
   const entered = modules.map(({ file, distance }) => ({ file, distance }));
   return {
     joined: true,
     entered,
-    ...(addressed === undefined
-      ? {}
-      : { opportunities: entered.filter(({ file }) => !addressed.has(file)) }),
+    ...opportunitiesOf(entered, addressed, root),
     modules,
+  };
+}
+
+/**
+ * The opportunity list, or the reason there is none.
+ *
+ * An entered file with no addressed target attributed to it is the whole
+ * finding, so a list produced from a join that did not hold is worse than no
+ * list: it is the same sentence, said confidently, about every entered file.
+ * Both withholding branches therefore carry what could not be established, and
+ * `format.ts` prints it where the list would have gone.
+ */
+function opportunitiesOf(
+  entered: readonly EnteredFile[],
+  addressed: ReadonlySet<string> | undefined,
+  root: string | undefined,
+): Pick<
+  NonNullable<Distillation['execution']>,
+  'opportunities' | 'withheld' | 'addressedNotEntered'
+> {
+  if (addressed === undefined) return { withheld: 'Eyes attention was not supplied.' };
+  const attribution = attribute(root, entered.map(({ file }) => file), addressed);
+  if (!attribution.joined) return { withheld: attribution.because };
+  return {
+    opportunities: entered.filter(({ file }) => !attribution.addressed.has(attribution.key(file))),
+    ...(attribution.notEntered.length === 0 ? {} : { addressedNotEntered: attribution.notEntered }),
   };
 }
 

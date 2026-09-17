@@ -73,7 +73,10 @@ describe('which of the two complete writers this checkout drives', () => {
     // installed runner ignores is the one a bump makes live, and a reporter with
     // no hook the runner knows never objects — the suite goes green and writes
     // no snapshot at all.
-    const reporters = withTestSelection({}, { coverageFile: '/tmp/coverage.bin' }).test?.reporters;
+    // A root of its own: constructing the configuration writes this seam's
+    // shims under it, and this one is read rather than run.
+    const reporters = withTestSelection({}, { root: tmpdir(), coverageFile: '/tmp/coverage.bin' })
+      .test?.reporters;
     const seam = (reporters as readonly object[]).at(-1) as Record<string, unknown>;
 
     expect(typeof seam['onFinished']).toBe('function');

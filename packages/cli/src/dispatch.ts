@@ -44,7 +44,7 @@ import {
 } from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
 import { mergeReports } from './commands/merge.js';
-import { accept, formatAcceptance, readCandidate } from './commands/accept.js';
+import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
@@ -240,7 +240,7 @@ export async function dispatch(
     }
 
     case 'accept': {
-      const report = await readCliRunReport(config.report);
+      const report = await reportToPromoteFrom(config.report);
       const acceptHistory = historyFor(config);
       const result = await accept({
         report,

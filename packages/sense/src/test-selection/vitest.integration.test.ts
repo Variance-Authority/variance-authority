@@ -29,7 +29,10 @@ afterEach(async () => {
 
 describe('the Vitest integration', () => {
   it('adds one product plugin, setup file, and reporter to an ordinary configuration', () => {
-    const configured = withTestSelection({}, { coverageFile: '/tmp/coverage.bin' });
+    // A root of its own, because constructing the configuration writes this
+    // seam's shims under it — and this one never runs, so nothing settles to
+    // take them off again.
+    const configured = withTestSelection({}, { root: tmpdir(), coverageFile: '/tmp/coverage.bin' });
 
     expect(configured.plugins).toHaveLength(1);
     expect(configured.test?.setupFiles).toHaveLength(1);

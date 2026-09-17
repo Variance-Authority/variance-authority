@@ -207,12 +207,12 @@ describe('instrumented code does what the original did', () => {
     expect(instrumented?.code.split('\n')).toHaveLength(source.split('\n').length);
   });
 
-  it('throws when no collector is installed', () => {
+  it('names the situation when no collector is installed', () => {
     const source = `function f(n) { if (n) out.push('y'); } f(1); f(0);`;
     const instrumented = instrument(source, 'fixture.js');
 
     expect(() => runInContext(instrumented!.code, realm([]), { filename: 'fixture.js' })).toThrow(
-      /__VA__ is not a function/,
+      /fixture\.js was instrumented for test selection, but the counter factory globalThis\.__VA__/,
     );
   });
 

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { countOf, noPositionals, readFlags } from './args.js';
+import { asksForHelp, countOf, noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
@@ -169,7 +169,17 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | { readonly command: 'help' }
+  | {
+      readonly command: 'help';
+      /**
+       * The command help was asked about, when one was named.
+       *
+       * Absent for `variance --help`, which is a reader who has not chosen yet
+       * and wants the table. Present for `variance run --help`, which is a
+       * reader who has.
+       */
+      readonly topic?: (typeof COMMANDS)[number];
+    }
   | { readonly command: 'version' };
 
 export function parseArgs(argv: readonly string[]): Parsed {
@@ -192,6 +202,13 @@ export function parseArgs(argv: readonly string[]): Parsed {
         `${didYouMean(first, COMMANDS)}\n\n${USAGE}`,
     );
   }
+
+  // Before the flag table is consulted, because `--help` is not one of the
+  // things `run` accepts and must not have to be. Refusing it was accurate about
+  // the table and useless about the request: a reader who types
+  // `variance run --help` wants run's synopsis, and got the whole table under a
+  // complaint — and then an exit code that said the command had succeeded.
+  if (asksForHelp(argv.slice(1))) return { command: 'help', topic: first };
 
   const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first));
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);

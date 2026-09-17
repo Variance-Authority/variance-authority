@@ -23,7 +23,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { INSTRUMENTATION_ID, type Block, type ModuleId } from '../instrument/index.js';
 import { cacheLayers, defaultCacheRoot, seedFromBase } from './cache-layers.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
@@ -382,12 +382,21 @@ export function cleanId(id: string): string {
   return id.split('?')[0] ?? id;
 }
 
-/** Product source, as every runner seam defaults to reading it. */
+/**
+ * Product source, as every runner seam defaults to reading it.
+ *
+ * A `*.config.[cm]?[jt]s` file is read by a loader rather than by the test
+ * environment, so the setup shim that installs the counter factory has never run
+ * where one evaluates: instrumented, its first probe throws and takes the run
+ * with it. The precise exclusion is the resolved config's own `globalSetup` list
+ * (`vitest.ts`); this is the backstop for what no config names, itself first.
+ */
 export function defaultInclude(file: string): boolean {
   return (
     isAbsolute(file) &&
     /\.[cm]?[jt]sx?$/.test(file) &&
     !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file) &&
+    !/\.config\.[cm]?[jt]s$/.test(basename(file)) &&
     !file.split(sep).includes('node_modules') &&
     !file.split(sep).includes('dist')
   );

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
@@ -81,8 +81,6 @@ export interface TestSelectionOptions {
 interface VitePlugin {
   readonly name: string;
   readonly enforce: 'post';
-  readonly resolveId: (id: string) => string | null;
-  readonly load: (id: string) => string | null;
   readonly transform: (
     this: TransformingContext,
     code: string,
@@ -163,9 +161,28 @@ export function withTestSelection(
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
   if (options.cases === true) run.cases = true;
-  const setupId = resolve(root, '.variance-authority/test-selection-setup.js');
-  const runnerId = resolve(root, '.variance-authority/test-selection-case-runner.js');
-  const include = options.include ?? defaultInclude;
+  // Named for the run rather than for the seam. These are files on disk now, so
+  // two Vitest processes over one project — a watch run beside a CLI one, or
+  // this repository's own integration tests — would otherwise write each other's
+  // setup shim, and a shim carries the directory its journals go to. The run
+  // directory already carries a pid and a uuid; the same stamp names the shim.
+  const stamp = basename(run.runDirectory).replace(/^\.run-/, '');
+  const setupId = resolve(root, `.variance-authority/test-selection-setup-${stamp}.mjs`);
+  const runnerId = resolve(root, `.variance-authority/test-selection-case-runner-${stamp}.mjs`);
+  // A `globalSetup` file runs once, in the Vitest process, before any test
+  // environment exists — the setup shim that installs `globalThis.__VA__` is a
+  // `setupFiles` entry and has never run there. Instrumented, such a file
+  // throws at its first probe and takes the whole suite with it before a single
+  // test loads. The resolved config names these files, so they are excluded by
+  // path rather than guessed at from their names; `defaultInclude` carries the
+  // filename-shaped backstop for config files themselves.
+  const globalSetup = new Set(
+    array((config.test as { globalSetup?: string | readonly string[] } | undefined)?.globalSetup)
+      .filter((file): file is string => typeof file === 'string')
+      .map((file) => resolve(root, file)),
+  );
+  const chosen = options.include ?? defaultInclude;
+  const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const setupFiles = array(config.test?.setupFiles);
   // A setup entry may be a package — `dotenv/config` — rather than a file of
   // the project's; a package is no precondition a diff can carry, and read as a
@@ -193,26 +210,19 @@ export function withTestSelection(
     return { ...config, test: { ...config.test, reporters: [...reporters, reporter] } };
   }
 
-  const plugin = selectionPlugin(
-    root,
-    run.runDirectory,
-    run.caseDirectory,
-    setupId,
-    runnerId,
-    run.modules,
-    include,
-    run.names,
-    mode,
-    options.cases === true,
-  );
+  const plugin = selectionPlugin(root, setupId, runnerId, run.modules, include, run.names, mode);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
     test: {
       ...config.test,
       // First, so a setup file of the project's that loads an instrumented
-      // module finds the counter factory its header resolves.
-      setupFiles: [setupId, ...setupFiles],
+      // module finds the counter factory its header resolves. On disk rather
+      // than virtual — see {@link writeSeamModule}.
+      setupFiles: [
+        writeSeamModule(setupId, setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined)),
+        ...setupFiles,
+      ],
       // Kept for a single-configuration project, where this config is the root
       // one as well and its reporters are the ones that run.
       reporters: [...reporters, reporter],
@@ -221,45 +231,55 @@ export function withTestSelection(
       // no bracket and records the file as one ambient bucket, which is the
       // file-level answer it already had.
       ...(options.cases === true && config.test?.runner === undefined
-        ? { runner: runnerId }
+        ? { runner: writeSeamModule(runnerId, caseRunnerSource()) }
         : {}),
     },
   };
 }
 
+/**
+ * Put one of this seam's own modules on disk, and answer with its path.
+ *
+ * The setup module and the case runner used to be virtual ids this plugin
+ * resolved and loaded. Vitest 4 loads both through Vite's module runner, which
+ * resolves them before any plugin of the test config is consulted: the ids come
+ * back `ERR_MODULE_NOT_FOUND`, and the shape of the failure is the reason this
+ * is a file now rather than a special case. The runner one reports *no tests*
+ * and still writes an execution index — green, and empty. A real absolute path
+ * needs no plugin on any major.
+ *
+ * Written every time rather than when absent: the source is this package's, so
+ * a version bump has to land, and a stale file here would be another release's
+ * shim wrapping this one's run. `.mjs`, because the project it lands in may not
+ * declare `"type": "module"`.
+ */
+function writeSeamModule(id: string, source: string): string {
+  mkdirSync(dirname(id), { recursive: true });
+  writeFileSync(id, source, 'utf8');
+  return id;
+}
+
 function selectionPlugin(
   root: string,
-  runDirectory: string,
-  caseDirectory: string,
   setupId: string,
   runnerId: string,
   modules: Map<ModuleId, CapturedModule>,
   include: (file: string) => boolean,
   names: ModuleNames,
   mode: InstrumentMode,
-  cases: boolean,
 ): VitePlugin {
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
-    // The setup module keeps its path as its id rather than taking a virtual
-    // one. Vitest drops every setup file from the module cache by path before
-    // each test file so setup runs again without isolation; a module cached
-    // under another id would survive that and run once for the whole worker.
-    resolveId: (id) => (id === setupId || id === runnerId ? id : null),
-    load: (id) =>
-      id === setupId
-        ? setupSource(runDirectory, cases ? caseDirectory : undefined)
-        : id === runnerId
-          ? caseRunnerSource()
-          : null,
     transform(code, id) {
       // The setup module installs the counter factory; instrumented, its own
       // header would ask for the factory before the module has installed it.
       // The runner module is this seam's too, and both sit under the root the
-      // default include reaches.
-      if (id === setupId || id === runnerId) return null;
+      // default include reaches. Compared after the query suffix is stripped,
+      // because the runner is a file on disk now and a real file is the kind of
+      // id a bundler decorates.
       const file = cleanId(id);
+      if (file === setupId || file === runnerId) return null;
       if (!include(file)) return null;
       // The digest is of the text on disk, which is what the block lines are
       // coordinates in once the prior transforms' maps are read back through —
@@ -307,9 +327,27 @@ function selectionReporter(
   // is a reporter that never objects. A suite would go green and write no
   // snapshot. Both hooks are declared, both narrow to the same two facts, and
   // whichever the runner calls first is the one that counts.
+  // The shims this run wrote, named after this run. Nothing else reads them
+  // once the journals are folded, and leaving them would grow a directory in
+  // the user's project by two files a run — including after a run that refuses,
+  // which is why they come off in a `finally` rather than at the happy end.
+  const stamp = basename(runDirectory).replace(/^\.run-/, '');
+  const dropShims = async (): Promise<void> => {
+    await rm(resolve(root, `.variance-authority/test-selection-setup-${stamp}.mjs`), { force: true });
+    await rm(resolve(root, `.variance-authority/test-selection-case-runner-${stamp}.mjs`), { force: true });
+  };
+
   const settle = async (files: readonly FinishedFile[]): Promise<void> => {
     if (run.settled) return;
     run.settled = true;
+    try {
+      await record(files);
+    } finally {
+      await dropShims();
+    }
+  };
+
+  const record = async (files: readonly FinishedFile[]): Promise<void> => {
     noteAnEmptyRecord(files.length, modules.size);
     const journals = await readJournals(runDirectory);
     // A journal names modules by id, so nothing here re-keys paths; the id is

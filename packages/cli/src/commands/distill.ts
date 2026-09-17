@@ -13,6 +13,15 @@ export interface DistillOptions {
   readonly test: string;
   readonly eyes?: string;
   readonly execution?: string;
+  /**
+   * The project root both producers recorded against.
+   *
+   * Eyes names a component's source with an absolute path and Sense names an
+   * entered module relative to the project root, so the two are compared
+   * against this. When it is wrong the reading says so rather than reporting
+   * every entered file as an opportunity.
+   */
+  readonly root?: string;
 }
 
 /** Read portable observations and produce one test's deterministic distillation. */
@@ -29,6 +38,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
     ]);
     return distill({
       test: options.test,
+      ...(options.root === undefined ? {} : { root: options.root }),
       ...(eyes === undefined ? {} : { eyes }),
       ...(execution === undefined ? {} : { execution }),
     });

@@ -32,11 +32,16 @@ export const EYES_JOURNAL_SUFFIX = '.va-eyes.json';
  * Publish one test's journal, refusing to be the second write for a test id.
  *
  * `link` rather than `rename`, for the reason `writeCapture` gives: the filename
- * is the runner's own test id, and taking the second write for an occupied name
- * makes the first test invisible to the archive while every process involved
- * reports success. A collision is a duplicate id, which `createEyesArchive`
- * refuses as well — this is that refusal reached before the evidence is gone
- * rather than after.
+ * is the id the caller gave the test, and taking the second write for an
+ * occupied name makes the first test invisible to the archive while every
+ * process involved reports success. A collision is a duplicate id, which
+ * `createEyesArchive` refuses as well — this is that refusal reached before the
+ * evidence is gone rather than after.
+ *
+ * The id is the caller's to choose, and the choice has a consumer: `variance
+ * distill` joins this journal to a Sense `ExecutionIndex` on exact id, and Sense
+ * keys a case by `<project-relative file> > <describe path and name>`. An id
+ * that is merely unique still archives; only that one also joins.
  */
 export async function recordEyesTest(
   directory: string,
@@ -54,9 +59,11 @@ export async function recordEyesTest(
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     throw new Error(
       `eyes test ${test.id} already has a journal at ${path}. Two tests under one id makes ` +
-        'the earlier one invisible to the archive; take the runner id rather than the title, ' +
-        'or, if this is a second run over the same directory, call `resetEyesJournals` once ' +
-        'when the run starts.',
+        'the earlier one invisible to the archive; give each test an id that is stable across ' +
+        'runs and unique within one — and, where the journal will be joined against a Sense ' +
+        'ExecutionIndex, the coordinate Sense keys a case by, ' +
+        '`<project-relative file> > <describe path and name>`. If this is a second run over ' +
+        'the same directory, call `resetEyesJournals` once when the run starts.',
       { cause: error },
     );
   } finally {

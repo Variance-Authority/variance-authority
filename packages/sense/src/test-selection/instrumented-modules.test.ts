@@ -5,6 +5,7 @@ import { digestString } from '@variance-authority/core/format';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   crossingsOf,
+  defaultInclude,
   loadedOf,
   openRecords,
   readRecord,
@@ -47,6 +48,32 @@ const captured = (over: Partial<CapturedModule> = {}): CapturedModule => {
 
 afterEach(async () => {
   await rm(cacheRoot, { force: true, recursive: true });
+});
+
+describe('what the default include calls product source', () => {
+  const root = resolve('/repo');
+
+  it('takes an ordinary module', () => {
+    expect(defaultInclude(resolve(root, 'src/cart.ts'))).toBe(true);
+  });
+
+  it('leaves a config file alone, because no setup shim runs where one is read', () => {
+    // A config module is evaluated by the loader, in the Vitest process, before
+    // any test environment exists. Instrumented, its first probe throws and the
+    // run dies before a test file loads.
+    for (const file of [
+      'vite.config.ts',
+      'vitest.config.ts',
+      'vitest.config.mts',
+      'vitest.checks.config.ts',
+      'jest.config.js',
+    ]) expect([file, defaultInclude(resolve(root, file))]).toEqual([file, false]);
+  });
+
+  it('still takes a module that only has `config` in its name', () => {
+    expect(defaultInclude(resolve(root, 'src/config.ts'))).toBe(true);
+    expect(defaultInclude(resolve(root, 'src/app-config.ts'))).toBe(true);
+  });
 });
 
 describe('the id a module carries', () => {

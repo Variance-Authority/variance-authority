@@ -101,6 +101,72 @@ describe('what a finished test file is worth', () => {
   });
 });
 
+describe('what the seam refuses to instrument', () => {
+  it('leaves a declared globalSetup file alone', async () => {
+    // Vitest runs `globalSetup` in its own process, before any test
+    // environment: the setup shim that installs `globalThis.__VA__` is a
+    // `setupFiles` entry and has not run there. Instrumented, the file throws
+    // at its first probe and the whole suite dies before a test loads.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-global-setup-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection(
+        { test: { globalSetup: ['./eyes.globalSetup.ts'] } },
+        { root, coverageFile },
+      );
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+      const source = 'export default function setup() { return 1; }';
+
+      expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
+      // The exclusion is the named path, not every file beside it.
+      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('__va(0)');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('puts its setup shim and case runner on disk, where no plugin has to resolve them', async () => {
+    // Vitest 4 loads both through Vite's module runner, which never consults
+    // this config's plugins: as virtual ids they came back
+    // ERR_MODULE_NOT_FOUND, the run reported *no tests*, and the reporter still
+    // wrote an empty execution index. Measured on 4.1.11.
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-seam-modules-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection({}, { root, coverageFile, cases: true });
+      const setup = (configured.test!.setupFiles as string[])[0]!;
+      const runner = configured.test!.runner as string;
+
+      // Stamped with the run, because two Vitest processes over one project
+      // would otherwise write each other's shim — and a shim carries the
+      // directory its journals go to.
+      expect(setup).toMatch(/\.variance-authority\/test-selection-setup-\d+-[0-9a-f-]+\.mjs$/);
+      expect(runner).toMatch(/\.variance-authority\/test-selection-case-runner-\d+-[0-9a-f-]+\.mjs$/);
+      expect(await readFile(setup, 'utf8')).toContain('__VA__');
+      expect(await readFile(runner, 'utf8')).toContain('runTask');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the config file itself alone under the default include', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-config-file-'));
+    const coverageFile = resolve(root, 'coverage.bin');
+    try {
+      const configured = withTestSelection({}, { root, coverageFile });
+      const plugin = (configured.plugins as unknown as Array<{
+        transform(code: string, id: string): { code: string } | null;
+      }>)[0]!;
+
+      expect(plugin.transform('export default {};', resolve(root, 'vitest.config.ts'))).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('coverage generations', () => {
   it('records instrumentation refusal instead of an empty module observation', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-instrumentation-refusal-'));

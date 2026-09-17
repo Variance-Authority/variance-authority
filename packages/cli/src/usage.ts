@@ -74,7 +74,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--limit',
     '--at',
   ],
-  distill: ['--test', '--eyes', '--execution', '--format'],
+  distill: ['--test', '--eyes', '--execution', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
@@ -92,7 +92,7 @@ export const USAGE = [
   'variance select  [--since <ref>] [--format plain|json|vitest|jest]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--limit <n>] [--at <address>] [<report>...]',
-  'variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]',
+  'variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
@@ -138,7 +138,48 @@ export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] 
  * place a synopsis is written.
  */
 export function synopsisFor(command: (typeof COMMANDS)[number]): string {
-  return USAGE.split('\n').find((line) => line.startsWith(`variance ${command} `)) ?? USAGE;
+  // The command name, then either padding or the end of the line: `watch` takes
+  // no flags and its synopsis is the bare `variance watch`, which a trailing
+  // space would miss — and the fallback below would then answer a reader who
+  // asked about one command with all fifteen.
+  return (
+    USAGE.split('\n').find((line) => /^variance (\w+)/.exec(line)?.[1] === command) ?? USAGE
+  );
+}
+
+/**
+ * The commands that can answer `1`, because they reach a verdict about the UI.
+ *
+ * `run` compares, `report` re-reads what a comparison wrote, and `adjudicate`
+ * holds a comparison against a declaration; each of the three ends in `exitFor`
+ * or its sibling and can therefore say "changes need review". Every other
+ * command returns `0` when it did what was asked and `2` when it could not, and
+ * a help text that offered them `1` would describe an outcome the command has no
+ * way to produce — `accept` promotes a baseline or refuses, and a reader waiting
+ * for its `1` is waiting for a code that is never coming.
+ */
+const REVIEWS: readonly string[] = ['run', 'report', 'adjudicate'];
+
+/**
+ * What `variance <command> --help` prints: that command, and nothing else.
+ *
+ * Assembled from the tables above rather than written out a sixteenth time, so a
+ * flag added to `PER_COMMAND` appears here the same day. A reader who typed a
+ * command has already chosen it; answering with the whole table is answering a
+ * question they did not ask, and the exit codes are repeated because they are the
+ * part of this tool a CI step consumes and the part nobody remembers — narrowed
+ * to the codes *this* command can return, for the reason {@link REVIEWS} gives.
+ */
+export function helpFor(command: (typeof COMMANDS)[number]): string {
+  const flags = flagsFor(command);
+  return [
+    synopsisFor(command),
+    '',
+    `flags: ${flags.length === 0 ? 'none' : flags.join(', ')}`,
+    REVIEWS.includes(command)
+      ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'
+      : 'exit codes: 0 done, 2 operator error.',
+  ].join('\n');
 }
 
 /** Whether a word is one of the commands above, narrowed for the parser. */

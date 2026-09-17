@@ -133,17 +133,41 @@ export async function discover(sitemap: string): Promise<Readonly<Record<string,
  * deployed at, and a baseline keyed on the file name would be a baseline for a
  * page nobody visits. The root's `index.html` becomes `/`, for the reason
  * `subjectIdFor` gives it a name at all.
+ *
+ * `cart/empty.html` becomes `cart/empty` for the same reason: an id is the name
+ * an operator types back at `--subjects` and `variance accept`, not the path the
+ * build happened to write, and `.html` on one sibling but not the one beside it
+ * that was `index.html` is a difference nobody asked for. The URL keeps the
+ * extension — that is what the server is asked for — and only the id drops it.
+ *
+ * Two files that would answer to one id — `cart/empty.html` and
+ * `cart/empty/index.html` — are refused by name, the way a sitemap listing one
+ * path twice is: whichever sorted last would silently own the baseline.
  */
 export function routesFromFiles(
   files: readonly string[],
   baseUrl: string,
 ): Readonly<Record<string, string>> {
   const routes: Record<string, string> = {};
+  const sources: Record<string, string> = {};
 
   for (const file of [...files].sort()) {
-    const path = file.replace(/\\/g, '/').replace(/(^|\/)index\.html$/, '$1');
+    const normalized = file.replace(/\\/g, '/');
+    const path = normalized.replace(/(^|\/)index\.html$/, '$1');
     const url = `${baseUrl.replace(/\/+$/, '')}/${path}`;
-    routes[subjectIdFor(url)] = url;
+    const id = subjectIdFor(url).replace(/\.html$/, '');
+
+    const claimed = sources[id];
+    if (claimed !== undefined && claimed !== normalized) {
+      throw operatorError(
+        `this directory holds two pages that are both the subject \`${id}\` (${claimed} and ` +
+          `${normalized}). One subject cannot have two addresses, and picking either would watch ` +
+          'one page while reporting the other — rename one, or list the routes explicitly instead',
+      );
+    }
+
+    sources[id] = normalized;
+    routes[id] = url;
   }
 
   return routes;
