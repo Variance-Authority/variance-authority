@@ -326,6 +326,12 @@ which test entered which probed block — as aligned typed-array sections linked
 by CSR (compressed sparse row) offsets, the compact layout sparse matrices use
 to skip empty cells. Only its small versioned section index is JSON.
 
+This integration records evidence. It does not install a `test:since` command,
+enumerate the test files a current Vitest invocation would collect, or invoke
+Vitest with the paths selection returns. The caller owns that inventory and
+dispatch. With several runners or projects, it also owns the mapping from each
+current test file to the host that can execute it.
+
 ```ts
 import { defineConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
@@ -550,11 +556,17 @@ entered it is marked partial and runs at the next selection regardless.
 
 ## Place a selection by how far the change travelled
 
-A selection tells you which tests to run. It does not tell you which to run
-first, and after a change to a shared module most of the suite is selected.
-Distance answers the second question: for each selected test, the shortest
-import path from the change to it, counted only through the modules that test
-actually entered.
+A snapshot selection tells you which recorded test paths a change reached. It
+does not tell you which to run first, and after a change to a shared module most
+of the recorded suite can be selected. Distance answers the second question:
+for each path in that reading, the shortest import path from the change to it,
+counted only through the modules that test actually entered.
+
+Here, **selection** means the files the snapshot can place. A runnable workload
+has one more input: the current inventory from every test host. Compute the skip
+list from `whole − entered`, clear it when `unread` is non-empty, subtract only
+that skip list from the current inventory, and retain the host identity needed
+to dispatch every remaining path. Distance does not perform that join.
 
 The count is worth having because the selection is not flat. The edited module's
 own test is one hop away and its callers' tests are two, so a failure at one hop
@@ -621,11 +633,11 @@ with an `index` module — and `eitherFace` stacks your own provider in front of
 it, which is where a manifest reader belongs: this package depends on what it
 needs, and a manifest is not it.
 
-## Run the near end of a selection first
+## Partition measured distances into ranges
 
-`atDistance` takes the tests a given number of imports from the change, so a
-loop can spend six seconds finding out it was wrong before it spends eleven
-minutes finding out it was right:
+`atDistance` takes the recorded tests a given number of imports from the change.
+It partitions the `TestDistance` values supplied to it; it does not discover
+current test files or run them:
 
 ```ts
 import { atDistance, distanceRange, remaining } from '@variance-authority/sense/test-selection';
@@ -635,10 +647,10 @@ const running = atDistance(distances, from, to);
 const later = remaining(distances, from, to);
 ```
 
-The range is hop counts. `0-2` is every selected test no more than two imports
+The range is hop counts. `0-2` is every measured test no more than two imports
 from the change, and it asks the same question whatever the reading turned out
-to hold: if the nearest test is five hops away, `0-2` runs nothing — no test is
-that close — and `3-` runs all of them. `distanceRange` reads `2`, `0-2`, and
+to hold: if the nearest test is five hops away, `0-2` returns nothing — no test
+is that close — and `3-` returns the rest of the reading. `distanceRange` reads `2`, `0-2`, and
 `3-` (*three and beyond*, which is what a last leg asks for and cannot spell in
 advance), and returns nothing for anything else, so a caller reports the typo
 rather than quietly running one distance.
@@ -650,17 +662,18 @@ starting at one leaves it until last.
 A test nobody could place runs with the range that reaches the end — the one
 whose far edge is open, or is at least the furthest distance measured. It is not
 distance zero, which says the opposite. So `0-2` and then `3-` runs every
-selected file exactly once, and no near range is made expensive by everything
-nobody could place.
+selected file represented in the distance reading exactly once, and no near
+range is made expensive by everything nobody could place. A current test file
+that is not represented in `distances` remains outside both arrays; the host
+integration must keep it selected and carry it in its final leg.
 
-`remaining` names what a range left behind rather than counting it, because *26
-files were not run* is a number and *these 26 files were not run* is the thing
-somebody hands to CI. Every range is a smaller claim than the selection, which
-is already a smaller claim than the suite: a green `0-2` says the nearest tests
-pass and says nothing at all about four hops. Printing that sentence is the
-caller's job. `groupByDistance` reports the whole reading as one group per hop
-count, which is the table to print beside the range you took out of it, and
-`yarn test:since --at-distance 0-2` in this repository is the worked example.
+`remaining` names which paths in the reading a range left behind rather than
+counting them. Every range is a smaller claim than the snapshot selection,
+which is already a smaller claim than the suite: a green `0-2` says the nearest
+tests pass and says nothing at all about four hops. Printing that sentence is
+the caller's job. `groupByDistance` reports the whole reading as one group per
+hop count, which is the table to print beside the range you took out of it.
+Runner inventory, formatting and invocation remain caller-owned.
 
 ## Select Jest files from a change
 

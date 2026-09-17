@@ -425,8 +425,9 @@ second run onward.
 
 ---
 
-**Further:** [`distance.md`](distance.md) for ordering the selected tests by
-how far the change travelled to each one, and running the nearest first ·
+**Further:** [`distance.md`](distance.md) for the API that measures how far the
+change travelled to selected test files, and the inventory and runner work an
+integration still owns ·
 [`flows.md`](flows.md) for where baselines live ·
 [`source.md`](source.md) for how the scan reads a file, resolves a specifier and
 remembers both ·

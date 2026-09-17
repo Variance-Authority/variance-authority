@@ -8,6 +8,13 @@ comparing every subject in the suite. Source and prior execution can show what
 the change might reach, what has exercised that code before, and which useful
 answer is nearest.
 
+That command belongs to rendered subjects the Variance Authority CLI owns. For
+an existing test suite, `@variance-authority/sense` exports recording and
+selection APIs instead: it does not install a command that inventories every
+test host or runs the selected files. The repository integrating those APIs
+keeps the current inventory, runner identity and invocation for each kind of
+test.
+
 ## One decision, four readings
 
 Choosing what to run draws on four separate readings of the codebase and its
@@ -18,7 +25,7 @@ history, each answering a different part of the decision:
 | What could this source change reach? | Imports, declarations, unresolved edges, and project-level seeds | [Read source reach](source.md) |
 | What was this subject last seen to be made of? | The component names its own baseline recorded when you approved it | [Select the tests that matter](selecting.md) |
 | Which tests have actually crossed that code? | The [execution index](execution-record.md) retained from previous runs | [Select the tests that matter](selecting.md) |
-| Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Run the nearest tests first](distance.md) |
+| Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Measure test distance](distance.md) |
 
 Source reach supplies possibility. The baseline record and the execution index
 supply experience, of two different kinds and at two different grains. Distance
@@ -56,13 +63,13 @@ reading when file-level reach is too coarse to be worth acting on, and read
 
 ## Start with the saving you need
 
-Use [test selection](selecting.md) when the outcome is a smaller set of tests.
-It owns `--since`, the conservative rules that widen the set, and the report of
-what was excluded.
+For rendered subjects, use [test selection](selecting.md) when the outcome is a
+smaller run. It owns `--since`, the conservative rules that widen the set, and
+the report of what was excluded.
 
-Use [distance](distance.md) when the set is already known but feedback order
-matters. Near tests run first because they usually fail for the simplest reason;
-distance does not remove a selected test.
+Use [distance](distance.md) when an integration already owns the current test
+inventory and runner dispatch, but feedback order matters. Distance orders the
+measured part of a selection; it does not discover or execute the suite.
 
 Use [source reach](source.md) when the source scan itself is the question:
 which requests were found, how they resolved, what could not be determined, or

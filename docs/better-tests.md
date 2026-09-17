@@ -118,8 +118,12 @@ An import graph tells you which tests might depend on a changed module. A
 recorded run also tells you which tests executed the changed code.
 `withTestSelection` wraps the runner configuration once, installing the reporter
 it needs along the way. Every run then records which source code each test file
-executed. The next run uses that record to choose tests for the source diff.
-This repository uses the same published API through `yarn test:since`.
+executed. A repository integration can use that record to choose tests for the
+next source diff.
+The published package stops at that evidence: it does not install a selection
+command, inventory the current suite, or invoke a runner. A repository
+integration supplies those three pieces. This repository has such an integration
+for its own Vitest suite, but that contributor command is not part of the package.
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
@@ -127,8 +131,9 @@ evidence widens the run or prevents selection; a skipped test has no new verdict
 
 [Run relevant work](run-relevant-work.md) explains how to choose a workload.
 [Selection](selecting.md) covers the fallback rules and how `nx` or `turbo` adds
-to the list of changed inputs. [Distance](distance.md) orders selected tests by
-how many imports separate them from the edit, so nearby tests give feedback first.
+to the list of changed inputs. [Distance](distance.md) measures how many imports
+separate recorded test paths from the edit; an integration can use that reading
+to order its workload.
 
 The same record answers questions nobody wrote an assertion for. The process
 that produced a pass or a fail also knew which elements the test queried or
@@ -181,7 +186,7 @@ suite gets better because you understand and improve the work it does.
 | --- | --- | --- |
 | One page across a run | the harness, or a shipped collector | a page this side opens; a runner that drives its own browser keeps its own lifecycle |
 | Test-order checks | a collector that can create a clean environment | the ability to mount the subject again, which a runner-owned mount does not offer |
-| Selection and distance | `withTestSelection` in the Vitest or Jest config | a recorded run to select from |
+| Selection and distance | `withTestSelection` in the Vitest or Jest config | a recorded run, plus repository-owned inventory and runner dispatch |
 | Order-dependent module state | the same instrumentation | nothing further |
 | Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
 | Recording queried elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React updates also need a commit hook installed before `react-dom` loads; `watch` attaches to that hook and reports when it is unavailable |

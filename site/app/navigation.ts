@@ -51,7 +51,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/distance",
-        label: "Run the nearest tests first",
+        label: "Measure test distance",
         cluster: "Run less of the suite",
       },
       {
