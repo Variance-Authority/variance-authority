@@ -37,6 +37,10 @@ const PACKAGES: {
         role: "pages an application already serves, opened and collected",
       },
       {
+        name: "vitest-browser",
+        role: "the mounted component read and judged inside a browser-mode test",
+      },
+      {
         name: "unit-test",
         role: "resource-closed capture archives, for a later render process",
       },
