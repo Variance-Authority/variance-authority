@@ -28,15 +28,19 @@ them.
 ## How far down you have to read
 
 The first two readings answer most of the question for a suite of rendered
-subjects, and neither one asks you to change how the application is built.
+subjects.
 
 Source reach is a parse of the repository. The component list is a by-product of
-a run you already do: each capture reads the names off the fiber, and they are
-written beside the approved image. That second reading is what lets a change to
-a file reach a **route** at all — a URL names a page, and nothing in the page's
-address says which components render there. What does say it is the page having
-been seen rendering them. So the join is empirical, and it is as current as the
-last render you approved.
+a run you already do: each capture reads the name off every element it collects
+and writes the list beside the approved image. React carries that name on the
+fiber, so a React suite pays nothing for it; another framework needs a build step
+that stamps the name onto the element, which is the same step
+[attribution](composition.md) needs anyway.
+
+That second reading is what lets a change to a file reach a **route** at all. A
+URL names a page, and nothing in the page's address says which components render
+there. What says it is the page having been seen rendering them — so the join is
+empirical, and it is exactly as current as the last render you approved.
 
 Together the two answer at the grain of a file: this change is inside
 `Button.tsx`, and these subjects were last seen rendering `Button`. For a large

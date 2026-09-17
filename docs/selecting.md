@@ -30,12 +30,16 @@ source itself — a scan, not a build. It answers only that half: a subject is
 skipped when its own baseline records none of the components the change reached,
 and never because the graph said so.
 
-Neither half asks you to change how the application is built. The graph is a
-parse of the repository, and the component list is written beside the approved
-image by the capture that was already reading it. For a route that is the only
-link there is: a URL says nothing about what renders at it, so a change travels
-from a file to a page by way of the page having been seen rendering that
-component, and the answer is as current as the last render you approved.
+The graph is a parse of the repository. The component list is written beside the
+approved image by the capture that was already reading it, and what that capture
+needs is a name on each element: React carries it on the fiber and costs you
+nothing, and every other framework needs a build step that stamps it, which is
+the same step [attribution](composition.md) needs anyway.
+
+For a route that list is the only link there is. A URL says nothing about what
+renders at it, so a change travels from a file to a page by way of the page
+having been seen rendering that component — and the answer is exactly as current
+as the last render you approved.
 
 ```bash
 variance run --since origin/main

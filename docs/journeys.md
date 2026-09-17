@@ -19,7 +19,7 @@ the execution touched.
 You do not need a recording to run less of the suite. A source scan says which
 components a change can reach, and a subject's own baseline says which
 components it was last seen rendering; together those skip subjects at the grain
-of a file, and neither asks anything of your build.
+of a file, on the reading a capture already takes.
 [Running less of the suite](selecting.md) is built on that pair.
 
 A journey answers below the file. It is the reading that tells the three
