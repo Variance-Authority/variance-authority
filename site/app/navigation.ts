@@ -19,6 +19,7 @@ export const NAVIGATION = [
       { href: "/docs", label: "What tests are for" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
+      { href: "/docs/great-data", label: "With great data comes great…" },
     ],
   },
   {

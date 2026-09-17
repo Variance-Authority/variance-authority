@@ -23,6 +23,7 @@ import flows from "../../../docs/flows.md?raw";
 import framework from "../../../docs/framework.md?raw";
 import frameworkReference from "../../../docs/framework-reference.md?raw";
 import gates from "../../../docs/gates.md?raw";
+import greatData from "../../../docs/great-data.md?raw";
 import history from "../../../docs/history.md?raw";
 import howSelectionScales from "../../../docs/how-selection-scales.md?raw";
 import ignores from "../../../docs/ignores.md?raw";
@@ -79,6 +80,7 @@ const documents = [
   ["overview", index, "docs/README.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
+  ["great-data", greatData, "docs/great-data.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],

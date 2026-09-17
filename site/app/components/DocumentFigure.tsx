@@ -4,6 +4,7 @@ import BetterTests from "./BetterTests";
 import DiffReport from "./DiffReport";
 import EvidenceMap from "./EvidenceMap";
 import EvidenceSlices from "./EvidenceSlices";
+import GreatData from "./GreatData";
 import Journeys from "./Journeys";
 import OwnFewerTests from "./OwnFewerTests";
 import PresentationPaint from "./PresentationPaint";
@@ -26,6 +27,8 @@ const CAPTIONS: Record<string, string> = {
     "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
   "evidence-field":
     "One question chooses the evidence it needs. The result carries only the move and limit that evidence supports.",
+  "great-data":
+    "Selected runs renew the evidence that selected them. That record also supports distillation, fewer tests, visual review, and tools with other jobs.",
   start:
     "The existing host reaches the state. Observation, review, and acceptance add a durable comparison without taking that responsibility away.",
   surface:
@@ -85,6 +88,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS["evidence-field"]!}>
           <EvidenceMap />
+        </Figure>
+      );
+    case "great-data":
+      return (
+        <Figure caption={CAPTIONS["great-data"]!}>
+          <GreatData />
         </Figure>
       );
     case "start":
