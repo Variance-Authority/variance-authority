@@ -104,6 +104,65 @@ Variance Authority is not using ClickHouse as a service or dependency. It is
 using the same storage instincts for one local question whose complete schema
 is known in advance.
 
+## A module keeps the number it was given
+
+Every column above stores modules as numbers, not paths. The numbers come from
+one table the repository keeps beside the record, and the property that table
+exists to hold is this: **adding a file never changes the number of a file that
+already has one.** Add a module in the middle of a directory, rename a sibling,
+grow the repository by a thousand paths — nothing already numbered moves.
+
+That does not fall out of a sorted table by itself. Paths are stored in sorted
+order, so a lookup can binary-search them and so neighbouring paths share a
+prefix worth front-coding away; sorting is what makes the table small. If the
+number were the position in that order, every insertion would shift every path
+after it, and an earlier run's record would describe modules by numbers that
+now mean different files.
+
+The number is therefore a column beside the sorted paths rather than the
+position of one:
+
+```text
+sorted order          id column
+  src/cart.ts            41
+  src/cart/total.ts     903   ← added later, appended
+  src/checkout.ts        42
+```
+
+A new path takes the next unused number and is written into its own sorted
+place. Both facts hold at once because they are held in different places.
+
+The failure this prevents is not a crash. A record is a set of crossings between
+test identities and module numbers, and nothing in it restates the path. If a
+number silently changed hands, the record would still load, still answer, and
+answer about the wrong module — selecting the tests that entered `cart.ts`
+for a change in `checkout.ts`, and skipping the ones that matter. A stable
+number is what makes evidence from an earlier run usable by a later one.
+
+Growth keeps the property. The table is a chain of immutable segments under one
+manifest: an append is a new segment holding only the paths that are new, and
+compaction merges the chain into one sorted run without disturbing a single
+number. Reads are reads of immutable files, so builds transforming ten modules
+in parallel need nothing from each other; only the fold that adds new paths
+writes, and it writes under an exclusive lock.
+
+Two boundaries are worth knowing:
+
+- **A number is not derived from the path.** It is assigned, because a
+  path-derived identity — a digest, however narrow — spends its full width at
+  each of the millions of crossings, while assigned numbers form a sorted run
+  of small gaps that compresses. Nothing recovers a number from a path except
+  the table.
+- **A number is meaningful only within one table's lineage.** Two caches grown
+  independently on two machines number the same repository differently and have
+  no way to agree, so a record travels with the table it was numbered against.
+  Within one lineage the number is permanent for as long as the file exists.
+
+A module the table has never seen — a file created since the last run — is
+instrumented under its path instead, because a transform cannot wait for an
+authority to hand it a number. The run is correct with one module costing
+path-length bytes at its crossings, and the next fold numbers it for good.
+
 ## One edit becomes one narrow read
 
 When a function changes, selection follows a short path through that structure:
