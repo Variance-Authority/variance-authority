@@ -44,13 +44,13 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
-        href: "/docs/distance",
-        label: "Run the nearest tests first",
+        href: "/docs/how-selection-scales",
+        label: "See why the test map stays small",
         cluster: "Run less of the suite",
       },
       {
-        href: "/docs/source",
-        label: "Map what a source change can reach",
+        href: "/docs/distance",
+        label: "Run the nearest tests first",
         cluster: "Run less of the suite",
       },
       {
@@ -120,11 +120,6 @@ export const NAVIGATION = [
       {
         href: "/docs/vantage",
         label: "Watch a run that has not finished",
-        cluster: "Understand an execution",
-      },
-      {
-        href: "/docs/observability",
-        label: "Ask a question the test did not",
         cluster: "Understand an execution",
       },
       {
@@ -216,11 +211,6 @@ export const NAVIGATION = [
         cluster: "Compose an observation",
       },
       {
-        href: "/docs/surface",
-        label: "Choose what to observe",
-        cluster: "Compose an observation",
-      },
-      {
         href: "/docs/flows",
         label: "Compose the evidence flow",
         cluster: "Compose an observation",
@@ -295,6 +285,17 @@ export const NAVIGATION = [
       { href: "/docs/architecture", label: "Architecture" },
       { href: "/docs/information", label: "Information model" },
       { href: "/docs/instruments", label: "Evidence instruments" },
+      {
+        href: "/docs/presentation-reference",
+        label: "Presentation evidence",
+      },
+      {
+        href: "/docs/framework-reference",
+        label: "React framework evidence",
+      },
+      { href: "/docs/source", label: "Source scan" },
+      { href: "/docs/surface", label: "Observation surfaces" },
+      { href: "/docs/observability", label: "Observability contracts" },
       { href: "/docs/lexicon", label: "Lexicon" },
       { href: "/docs/metrics", label: "Metrics" },
       { href: "/docs/source-index", label: "Source index" },

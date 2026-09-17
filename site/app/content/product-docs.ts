@@ -21,8 +21,10 @@ import eyes from "../../../docs/eyes.md?raw";
 import flakiness from "../../../docs/flakiness.md?raw";
 import flows from "../../../docs/flows.md?raw";
 import framework from "../../../docs/framework.md?raw";
+import frameworkReference from "../../../docs/framework-reference.md?raw";
 import gates from "../../../docs/gates.md?raw";
 import history from "../../../docs/history.md?raw";
+import howSelectionScales from "../../../docs/how-selection-scales.md?raw";
 import ignores from "../../../docs/ignores.md?raw";
 import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
@@ -38,6 +40,7 @@ import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
+import presentationReference from "../../../docs/presentation-reference.md?raw";
 import performance from "../../../docs/performance.md?raw";
 import replacing from "../../../docs/replacing.md?raw";
 import reasoning from "../../../docs/reasoning.md?raw";
@@ -115,9 +118,11 @@ const documents = [
   ["stabilization", stabilization, "docs/stabilization.md"],
   ["flakiness", flakiness, "docs/flakiness.md"],
   ["framework", framework, "docs/framework.md"],
+  ["framework-reference", frameworkReference, "docs/framework-reference.md"],
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
   ["selecting", selecting, "docs/selecting.md"],
+  ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
   ["scale", scale, "docs/scale.md"],
   ["distance", distance, "docs/distance.md"],
   ["distill", distill, "docs/distill.md"],
@@ -130,6 +135,11 @@ const documents = [
   ["locate", locate, "docs/locate.md"],
   ["lexicon", lexicon, "docs/lexicon.md"],
   ["presentation", presentation, "docs/presentation.md"],
+  [
+    "presentation-reference",
+    presentationReference,
+    "docs/presentation-reference.md",
+  ],
   ["scenarios", scenarios, "docs/scenarios.md"],
   ["vantage", vantage, "docs/vantage.md"],
   ["architecture", architecture, "docs/architecture.md"],

@@ -13,6 +13,10 @@ uncertainty widens the run, and the report explains why.
 Selection reads the record across tests. [Distill](distill.md) reads the same
 evidence inside one test, looking for work its promise does not need.
 
+[How the test-to-code map stays small](how-selection-scales.md) explains why
+that relation can remain practical at monorepo scale without being materialised
+as one stored pair per test and region.
+
 For rendered subjects, selection joins possibility to observation. A
 [source graph](#the-expensive-row-and-what-retires-it) shows which components
 the changed files can reach. A stored baseline records what the subject
@@ -107,16 +111,20 @@ same way: it does not gate, and `variance report` over several shards
 — because the combined report needs to distinguish a deliberately excluded
 subject from one no shard observed.
 
-## Where `source.dirs` matters twice
+## Where `source.dirs` starts the answer
 
-It names where components are declared, and it is also a **declaration about
-scope**. A changed file *inside* those directories is one this scan understands,
-so a change it finds no component in forces a whole run. A changed file *outside*
-them is one nobody claimed could affect a render, and narrowing past it is your
-own statement about where your components live.
+`source.dirs` names where component discovery and source traversal begin. With
+`source.relations: true`, it is a starting point rather than a graph boundary:
+an import from `src/` into `design/button.css` brings that stylesheet and the
+files it reaches into the graph, so a later diff can be followed through them.
 
-That is why a diff touching `README.md` does not widen anything, and a diff
-touching `src/tokens.css` widens everything.
+The directories remain a **declaration about scope** where no graph edge brings
+a file in. A changed file inside them that the scan did not read is a gap and
+forces a whole run. A changed file outside them is ignored when another in-scope
+change gives selection an answer; when the whole diff is outside the graph or
+the declared directories, the run is whole because the diff says nothing about
+which component moved. That is why `README.md` beside a component edit does not
+widen the run, while a diff containing only `README.md` does.
 
 ## A change nothing has been seen rendering
 
@@ -185,6 +193,11 @@ That reads what imports what — `import`, `export … from`, `import()`,
 this file**. It is off by default because it costs a scan of the source tree, and
 because a graph is only worth selecting on if it is honest about its own holes.
 
+Type-only requests stay in that graph, so source-oriented tools can follow them.
+Runtime selection does not walk them by default: every compiler erases
+`import type`, so a change connected only through a type edge reaches no
+importer, test or rendered subject unless another runtime edge also connects it.
+
 The graph believes the text, and the text lies in one known way: a test that
 calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
 scan reads those calls off test, story and setup files as it goes, and the
@@ -203,11 +216,14 @@ refusals of its own:
 | The diff is entirely outside the graph | The whole suite runs. A lockfile, a `package.json`, a CI config: none of them is a node here, and every one of them can repaint the suite |
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
 | A file's own imports could not be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | It is traversed **as though it changed**, and named in the report with the reason |
+| A relative specifier resolves nowhere | Its file is treated as having unknown edges and widens for the same reason: the missing target belongs to this repository but could not be identified |
+| A bare specifier resolves nowhere | It is retained as an unresolved package request but does not widen the graph. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
-The last row is why the report distinguishes *reached* from *widened*. A file
-that had to be widened is printed with the specifier that did it, because that
-line is the only thing in the run that tells you which file to fix to make the
-next run smaller — and a count would tell you there is nothing to be done.
+The widening rows are why the report distinguishes *reached* from *widened*. A
+file that had to be widened is printed with the specifier or read failure that
+caused it, because that line is the only thing in the run that tells you which
+file to fix to make the next run smaller — and a count would tell you there is
+nothing to be done.
 
 What the scan reads, and where it stops, is
 [`packages/sense`](../packages/sense). The graph itself is data: fold the records
@@ -259,12 +275,12 @@ known, and each removes a layer:
   the file's name said about reading it, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in
   any year.
-- **A digest plus the shape of the tree names the whole record, edges and all.**
-  Edges are not a function of the bytes alone — resolution also depends on which
-  paths exist and how resolution is configured — so that cache is additionally
-  keyed by a digest over the path set and the resolver settings. Any file
-  appearing, disappearing or moving costs one full scan. Every run that only
-  edits files costs the diff.
+- **A digest plus resolution configuration and witness directories names the
+  whole record, edges and all.** Edges are not a function of bytes alone: they
+  also depend on resolver settings and on the directories that could have
+  answered that file's specifiers. A configuration change rebuilds every record;
+  a path appearing, disappearing or moving rebuilds the records watching its
+  directory. An unreadable configuration falls back to the whole path set.
 
 30,500 files and 40,479 edges, one Mac:
 
@@ -280,8 +296,15 @@ Both caches live under `XDG_CACHE_HOME` (or `~/.cache`), keyed by repository
 root, outside the work tree — so nothing here is committed and `git clean` will
 not take it. Both halves are content-addressed, which is what makes their
 location a cost decision, not a correctness one: a stale entry, a cache
-from another branch, or no cache at all costs a slower scan and can never produce
-a different graph. Deleting them costs one cold scan and nothing else.
+from another branch, or no cache at all costs a slower scan and does not produce
+a different graph for the tracked tree. Deleting them costs one cold scan and
+nothing else.
+
+There is one bounded exception to that invalidation rule. Git-ignored generated
+files do not enter the digest map, so one can appear or disappear and shadow a
+resolution without moving the recorded directory membership. Track the file
+when it participates in source resolution, or set `digests: false` to disable
+record reuse for a scan that must observe that generated layout directly.
 
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,

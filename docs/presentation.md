@@ -1,166 +1,174 @@
-# Presentation intelligence
+# Inspect presentation relationships during a UI edit
 
-Presentation intelligence is a sensing and support surface for a coding agent.
-It describes how required information is grouped, separated, aligned, repeated,
-and emphasized in one live interface. It does not decide how much information
-the product should contain or which visual strategy should present it.
+A screenshot can show that an interface changed without explaining what changed
+about the way it reads. One repeated row may have drifted from its peers, a
+heading may no longer stand apart from its body, or two groups may have become
+hard to distinguish even though every word is still present.
 
-The operating principle is: **preserve information; expose relationships**.
+[Presentation evidence](presentation-reference.md) makes those relationships
+inspectable inside the Playwright session that already reaches the interface.
+A coding agent can read the rendered subject, narrow one finding to the box
+that owns it, paint that evidence over the live page, make the product-authorized
+edit, and read the same subject again. The comparison then answers two separate
+questions: did the measured relationship change, and did the interface preserve
+its information?
 
-## One report, independent dimensions
+Use this path when those answers would change an edit or review decision. It
+does not decide that a design is good, choose a layout, or turn density,
+whitespace, page length, or a spacing value into a target.
 
-[`sensePresentation`](../packages/presentation/README.md#sense-once-then-choose-the-structural-owner)
-reads a locator in a live Playwright page. Its report keeps these dimensions
-separate:
+## Where it enters the workflow
 
-| Dimension | Evidence |
-|---|---|
-| Semantic context | DOM-correlated roles, accessible names, state, and the independent Playwright ARIA snapshot |
-| Presentation graph | Element references and containment, separation, alignment, baseline, and peer relations |
-| Telemetry | Content volume, dimensions, utilization, occupied area, and density |
-| Derived structures | Spacing, alignment, baseline, prominence, and surface clusters; repeated patterns and dominant signatures |
-| Findings | Measured relationship collapse or unexplained peer drift |
-| Paint | Rectangles, axes, baselines, gaps, patterns, surfaces, prominence clusters, and finding locations |
+Presentation reading begins after your existing Playwright setup has brought the
+page to the state you care about. It does not replace navigation, fixtures,
+authentication, or the product interaction that reveals that state.
 
-Telemetry is context. A tall page, dense viewport, narrow region, large margin,
-or unused horizontal area cannot create a finding independently. Those values
-may help an agent interpret a measured relationship failure, but the failure
-names the relationship rather than a preferred density or layout.
+Read before the edit, focus and paint one relationship, make the change, return
+to the same state, then read and compare again. The evidence enters while it
+can still change the next move; it does not make the product decision. If all
+you need is a baseline verdict or screenshot approval, keep using the
+visual-regression path instead.
 
-The acquisition boundary also governs default image settlement. Images inside
-the locator and its React portals settle before geometry is read; an unrelated
-incomplete image elsewhere in the document does not hold the reading open. The
-collector omits React [provenance](attribution.md) because no presentation report field consumes
-it. Font settlement remains document-wide because it can change geometry inside
-the boundary. A caller-owned static document whose page clock cannot advance can
-replace the recipe with `stabilize: []`; live pages retain the default.
+## Follow one relationship through an edit
 
-## Presentation graph
+Assume Playwright has already opened a page containing repeated work items and
+one item appears out of step with the rest. The package installation and full
+API signatures live in the
+[`@variance-authority/presentation` package reference](../packages/presentation/README.md).
 
-A graph node is a rendered element with a stable boundary-relative reference,
-semantic class, geometry, typography, surface evidence, state signature, and
-relative prominence. Root `0` is the inspected locator; later roots are React
-portal content in capture order. Text nodes occupy path positions but are not
-invented as rendered objects.
+### Read the rendered subject
 
-Relations retain containment, measured sibling separation, discovered alignment,
-inferred text baselines, and semantic peers. Baselines remain labelled
-`inferred`; browser geometry and a typographic approximation are not presented as
-optical alignment.
+Start with the smallest locator that contains the relationship you are asking
+about. A named region is usually more useful than the whole document because the
+locator is an evidence boundary, not a claim that every descendant is a peer.
 
-Repeated sibling shapes form local peer groups. Each group carries recurring
-labels, presentation similarity, a dominant signature, and outliers. A state
-signature such as `invalid`, `selected`, or `disabled` explains visual variance;
-the measurement remains in the report, but it is not called unexplained drift.
+```ts
+import { comparePresentation, focusPresentation } from '@variance-authority/presentation';
+import {
+  clearPresentationPaint,
+  paintPresentationFocus,
+  sensePresentation,
+} from '@variance-authority/presentation/playwright';
 
-## Structural ownership
+const subject = page.getByRole('main', { name: 'Work queue' });
+const before = await sensePresentation(page, subject, {
+  subjectId: 'work:queue',
+});
+```
 
-A broad locator is an acquisition boundary, not a claim that every descendant
-is a peer. Each finding names the graph-node `owner` whose immediate structural
-relationship produced it. `focusPresentation` reads that owner without another
-browser acquisition and keeps findings from nested owners separate by default.
-Its `nested` counts signal that deeper boxes contain evidence without folding
-that evidence into the parent composition.
+The first reading keeps the rendered relationships together with semantic and
+browser accessibility evidence. It creates no baseline and no pass/fail result.
 
-This supports three distinct readings from one report:
+### Focus and paint one question
 
-- A composition is read holistically to understand which boxes and flows it
-  contains. Its content and illustration need not align merely because they
-  share the composition.
-- A box owns the relationships among its immediate contents. Repeated rows in a
-  list, for example, are inspected at the list owner rather than at the page.
-- A visual flow may cross implementation wrappers. A caller that knows the
-  product relationship selects those nodes with `inspectPresentationAlignment`;
-  the returned coordinate, spread, and member deviations remain evidence, not
-  an automatic design verdict. The selection stays at one structural level: a
-  matching role on a container and on its nested control does not make both
-  peers. Its paint marks that exact peer selection and median axis without
-  acquiring the page again.
+Choose a finding that matches the product question rather than treating the
+whole report as a diagnosis of the whole page. Here the question is whether one
+repeated item departs from the presentation its peers share.
 
-`depth: 'subtree'` is an explicit request to fold nested ownership into a
-holistic reading. It is not the default.
+```ts
+const target = before.findings?.find(
+  (finding) => finding.rule === 'PRESENTATION_GRAMMAR_DRIFT',
+);
 
-## Findings
+if (target === undefined) {
+  throw new Error('no unexplained repeated-item drift was observed');
+}
 
-The deterministic set remains deliberately small:
+const focusedBefore = focusPresentation(before, target.owner, {
+  findings: [target.id],
+  paint: ['findings'],
+});
 
-| Rule | Measured condition |
-|---|---|
-| `SEPARATION_COLLISION` | Between-object boundary strength is indistinguishable from within-object boundaries |
-| `SPACING_RELATION_COLLISION` | Different relationship classes occupy the same inferred spacing cluster or distribution |
-| `SPACING_HIERARCHY_COLLISION` | A leading structural label-to-body relation occupies the same spacing cluster or distribution as the body peer-to-peer relation it should distinguish |
-| `ALIGNMENT_OUTLIER` | One corresponding peer departs from a dominant alignment axis |
-| `BASELINE_DRIFT` | One corresponding text-bearing peer departs from an inferred baseline |
-| `PROMINENCE_COLLAPSE` | A heading class and an ordinary text class occupy the same prominence treatment |
-| `SURFACE_COLLISION` | A meaningful painted surface has low perceptual difference from its containing surface and no border or shadow contribution |
-| `REPETITION_GRAMMAR_COLLAPSE` | Repeated objects have weak between-instance boundary evidence |
-| `PRESENTATION_GRAMMAR_DRIFT` | A peer departs from a dominant signature without observed semantic state explaining it |
+await paintPresentationFocus(page, focusedBefore);
+```
 
-Thresholds are implementation calibration, not design targets. They determine
-when measured peer evidence supports one of the named relationship findings;
-they never define a preferred density, margin, page dimension, or spacing scale.
+The paint marks only that owned relationship, from the report already in hand.
+It does not re-read the page. Inspect the highlighted nodes and the finding's
+measurements before choosing an edit; the same visual difference may be valid
+when selection, validation, or another observed state explains it.
 
-Product-known relationships can be declared after sensing with
-`inspectPresentationHierarchy`. Its typed roles run from `owner-boundary`
-through `content-internal`; the API refuses reversed or duplicated roles,
-relationships reused under two roles, missing separations and nodes outside the
-declared owner. Adjacent roles sharing a spacing cluster or calibrated local
-distribution become `SPACING_HIERARCHY_COLLISION` evidence. Design-system token
-identity is neither a role nor an exemption.
+If no automatic finding matches the product question, stop rather than forcing
+one. Product-known alignments, spacing runs, and relationship roles can be
+measured explicitly; the [technical reference](presentation-reference.md#choose-a-reading)
+routes those cases.
 
-## ARIA is retained, not repaired
+### Edit, return to the state, and sense again
 
-The Playwright ARIA snapshot is a separately sensitive input to the report. The
-DOM-correlated anchors let graph nodes point back to rendered elements; the
-browser snapshot retains what the engine exposed. Neither substitutes for the
-other.
+Remove the diagnostic overlay before continuing, make the edit through the
+repository's normal workflow, and let Playwright return to the same state. Then
+sense the same boundary again.
 
-A snapshot exposing no ARIA nodes is an observed empty root. One with no parent
-or no children, relative to the boundary, is an observed partial root. Both
-remain present and participate in the report digest. Only the absence of browser
-accessibility altogether means it was not observed.
+```ts
+await clearPresentationPaint(page);
+```
 
-## Paint the evidence
+After the product-authorized source edit, reload and return to the same state.
 
-Pass `paint: true` to paint every diagnostic layer, or name the layers to show.
-The page agent draws a non-interactive SVG over the document without changing the
-application's styles. Every mark carries its layer and measurement id. A later
-inspection removes an earlier overlay before reading the page, and
-`clearPresentationPaint` removes it explicitly.
+```ts
+const after = await sensePresentation(page, subject, {
+  subjectId: 'work:queue',
+});
+const comparison = comparePresentation(before, after);
+if (!comparison.information.content.preserved) {
+  throw new Error('the edit changed product information as well as presentation');
+}
 
-The colors are diagnostic identities, not an interpretation of the product's
-colors. Surface groups, repeated patterns, and outliers are deliberately painted
-with conspicuous colors so a human can challenge the analyzer's grouping.
+const focusedAfter = focusPresentation(after, target.owner, {
+  paint: ['repetition', 'findings'],
+});
+await paintPresentationFocus(page, focusedAfter);
 
-Paint instructions carry their owner and touched nodes. Pattern and finding
-instructions also carry the corresponding stable report-local id. A focused
-reading can therefore paint one owner or one finding from an existing report;
-an explicit alignment reading can paint its selected members and median axis.
-Neither requires re-sensing the page.
+const drift = comparison.findings?.find(
+  (finding) => finding.rule === 'PRESENTATION_GRAMMAR_DRIFT',
+);
+console.log(drift, comparison.information);
+```
 
-## Re-sense and retain the consequence without owning the verdict
+The second focus shows the relationship at the same structural owner after the
+edit. The comparison reports finding counts by rule beside content identity and
+the element, character, and repeated-object counts. Those signals remain
+separate so fewer findings cannot hide missing or substituted information.
 
-`comparePresentation` reports finding counts before and after beside a
-presentation-independent content identity and element, character, and
-repeated-object counts. The identity covers semantic classes, names, text,
-state, and browser ARIA evidence before layout analysis, so equal counts cannot
-hide substituted or deleted information even when layout is unobserved. It does
-not claim improvement from a density change. The comparison is optional edit
-feedback between two sensed reports. The offering owns no baseline, approval
-lifecycle, regression verdict, or threshold that decides whether a build may
-pass.
+### Make the decision the evidence supports
 
-`presentationSignal` projects that before-and-after evidence into the general run
-report. Automatic findings and supplied product-owned hierarchy readings become
-introduced, resolved, or measurement-changing persisted effects under
-`ObservationRecord.signals.presentation`. The signal also retains content
-identity and information-count deltas. Missing reports or layout findings are
-`incomparable`; a present empty effect list means both sides were measured and no
-relationship consequence changed. The stored signal remains independent of the
-renderer's layout, paint and composite impact, and never changes the observation
-verdict.
+For this example, the edit has support when the drift finding is gone from the
+focused owner, the count for `PRESENTATION_GRAMMAR_DRIFT` decreased, content
+identity held, the information counts show no unexplained loss, and the
+repainted owner confirms that the comparison concerns the intended relationship.
 
-The engine supplies objective evidence. The coding agent remains responsible for
-product meaning and for choosing whether the appropriate response is a table,
-cards, typography, spacing, a denser presentation, a less dense presentation, or
-no change.
+That result supports the statement “this edit removed the measured peer drift
+without changing the interface's information.” It does not support “the design
+is better.” Product intent still decides whether the peer should match, whether
+another distinction matters more, and whether the edit should ship.
+
+An unchanged finding means the attempted edit did not resolve the measured
+relationship. A changed content identity means presentation and information
+moved together, so the product task must justify both. If either report lacks
+layout evidence, the relationship comparison is unavailable rather than clean.
+
+## What this path can and cannot establish
+
+Presentation evidence applies to grouping, separation, alignment, repetition,
+surface distinction, and emphasis in one rendered state. It is especially
+useful when a coding agent needs a concrete relationship to inspect instead of
+the instruction “make this look better.”
+
+It remains deliberately narrower than a design review:
+
+- A report with no findings means no implemented relationship rule fired. It
+  does not certify the interface.
+- Dimensions, utilization, density, whitespace, and content volume are context,
+  never defects on their own.
+- Browser accessibility evidence is retained independently; this path is not an
+  accessibility audit and does not repair or reinterpret the browser's tree.
+- Findings belong to structural owners. A broad locator does not make every
+  descendant comparable, and evidence inside a nested box is not automatically
+  evidence about its parent.
+- The product owns meaning. A design token can explain how a distance was
+  implemented, but cannot prove what that distance is supposed to communicate.
+
+Use the [presentation evidence reference](presentation-reference.md) to choose
+an explicit alignment, spacing, or hierarchy reading; understand findings and
+missing evidence; or carry a before/after consequence into a run report. The
+[package reference](../packages/presentation/README.md) owns installation,
+complete signatures, and integration details.

@@ -1,183 +1,129 @@
-# Framework wiring: what React knows that the document doesn't
+# When React changes but the rendered page does not
 
-[Variance Authority](README.md) renders each **subject** — a story, route,
-fixture or value your config names — and compares it against its baseline. By
-default it works from one **reading**: one capture of that subject — the
-markup, the CSS that applied, the boxes it produced. A whole class of fact
-never reaches that capture: it is the output of a render, not the render.
+A form renders correctly and its screenshot passes. A child component declared
+inside the form is nevertheless rebuilt on every parent render, so the next
+validation update discards what the user typed. Before that interaction, the
+stable and broken versions produce the same document. The capture describes
+what is on screen; it cannot say whether that component will survive.
 
-This page adds one more dimension, **wiring**, read straight from React's
-fiber tree — the tree of internal per-instance records React keeps for every
-component — instead of from the reading. The reader that does it,
-`@variance-authority/react`, is React-specific: if your components render
-through Vue, Svelte, or anything else, nothing on this page applies to your
-suite.
+[Variance Authority](README.md) can read
+[React evidence](framework-reference.md) beside the document to answer that
+kind of question. This path is **React-only** and needs a live client tree
+mounted by `react-dom`. For Vue, Svelte, static HTML or server-rendered markup
+that was never hydrated, use the document and raster evidence instead; there is
+no React tree to inspect.
 
-Two components can produce a byte-identical document and differ in everything
-that decides what happens next: which one skips its parent's re-render, which one
-keeps a row's state through a reorder, which one loses what the user typed. A
-suite that cannot see those differences is not missing an edge case. It has
-recorded two different components as the same component and called it a pass.
+## Choose the evidence for the failure
 
-`@variance-authority/react` reads them off the fiber. There is no protocol to
-adopt, no build plugin and no annotation — the fiber is already in the page, and
-the five instruments below are five different questions asked of it.
+Start with what you need to learn, not with the shape of React's internals.
 
-| Instrument | Answers | Shape |
+| What happened in practice | Evidence to use | What it gives you |
 |---|---|---|
-| [`wiringOf`](#wiring-a-sixth-digest) | how the framework holds this component — hooks, wrappers, contexts, keys | a **digest**, hashed and stored beside the others |
-| [`holdingOf`](parting.md) | what this component was handed and what it retained — props, contexts, hook cells | **evidence**, carried beside the snapshot and entering no hash |
-| [`remountedSince`](#remounts-what-the-document-cannot-show-you) | which instances were destroyed and rebuilt rather than updated | a **finding**, from an export you call |
-| [`awaitQuiet`](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | which components are still committing, by name | a wait, and a diagnostic |
-| [`awaitSuspense`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | which boundary has not resolved, and who wrote it | a wait, and a **refusal** |
-
-The last two are about a page that has not finished and live in
-[`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished).
-`holdingOf` is about two readings of a page that has, and lives in
-[`parting.md`](parting.md) with the comparison it exists to feed. The remaining
-two are read once and stored.
-
----
+| State, focus, scroll or an uncontrolled input resets during an interaction | [`markRender` before the action, then `remountedSince` afterwards](framework-reference.md#markrender-and-remountedsince) | The components rebuilt during that interval, their owners and any reconciliation key |
+| Two components render the same document but differ in hooks, wrappers, context subscriptions or keys | [`wiringOf`](framework-reference.md#wiringof) | Stable component wiring that can be digested and compared without treating hook values as identity |
+| Two renderings differ and you need to know which prop, context or hook cell parted first | [`holdingOf` and parting](parting.md) | One-way evidence about the inputs each component held, outside every baseline hash |
+| A capture may be a Suspense fallback rather than the intended state | [Suspense arrival checks](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | A wait followed by a refusal that names the unresolved boundary |
+| The page keeps committing and you need to know which components are active | [The commit tap](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | A component-level quiet check, provided the tap was installed before `react-dom` loaded |
 
 ## Wiring: a sixth digest
 
-Each **collector** captures a subject through one call, `collect(subject, options)`.
-`wiringOf` is one of those options:
+The shipped route, Storybook, Playwright and Vitest Browser integrations read
+wiring by default. Set `wiring: false` for a non-React surface where the walk can
+only produce an absent result. Lower-level `collect` and unit-capture calls do
+not choose a framework for you; pass `wiringOf` explicitly.
 
-```ts
-collect(subject, { …, provenanceOf, wiringOf })
-```
+Wiring describes a revision, so it is safe to digest. A remount describes an
+interval, so it is a finding you ask for around an action. Keeping those paths
+separate prevents an ordinary second reading from reporting the act of
+measurement as a change.
 
-Passing it makes every component's root node carry what React knows about
-that component, and `componentInstances` folds it into a `wiring` digest beside
-`structure`, `semantics`, `text`, `style` and `geometry`.
-
-| recorded | why it is not derivable from the document |
-|---|---|
-| **hook shape**, in call order | `useState` and `useReducer` leave the same markup. React's own record separates them; no heuristic can |
-| **wrapper chain** — `memo`, `forwardRef` | a memoised component renders exactly what the unmemoised one renders, and re-renders on completely different occasions |
-| **context subscriptions**, by display name | a component reading a theme and a component merely sitting inside a provider are the same markup and different components |
-| **reconciliation keys** | `['0','1','2']` and `['a','b','c']` serialize identically and behave differently the moment the list reorders |
-
-Measured on the example application
-([`fiber.test.tsx`](../examples/todomvc/src/fiber.test.tsx)): a
-`memo(Row)` with `useState` and `useContext` and a plain `Bare` returning the
-same `<li>` agree on `rendering`, `structure`, `semantics`, `text` and `style` —
-byte-identical `innerHTML` — and disagree on `wiring`.
-
-**Hook *values* are deliberately absent.** `useState(0)` records `useState` and
-never `0`. A value drifts between two readings of an unchanged page by design, and
-a dimension that moves when nothing changed is worse than none, because it
-produces work.
-
-### It stores nothing you were storing before
-
-`wiring` sits **beside** `rendering` rather than inside it, exactly where
-`geometry` already sits. `rendering` is the four content digests and its contract
-is that two instances sharing it rendered the same thing — a component that gains
-a `memo()` renders the same thing. So turning this on invalidates no baseline,
-re-approves nothing, and changes no stored digest.
-
-### Absent is not empty
-
-A node no adapter could read is **absent** from the digest. A component that was
-read perfectly and declares nothing reports an empty wiring, which is a different
-claim and hashes differently. A page with no framework and a plain component must
-not compare equal, and a component that *lost* its `memo` must not read like one
-that never had a framework at all.
-
-One conflation is real and is stated rather than hidden: React assigns
-`_debugHookTypes` only once a hook runs, so a **hookless component in a
-development build is indistinguishable from a production build**. Both report
-absent. The cost is a component gaining its first `useState` reading as "became
-readable"; the alternative claims something the observation does not support.
-
-`holdingOf` splits the same fact where the digest cannot, and the difference is
-what it costs to be wrong. React creates the property as `null` and assigns the
-array on the first hook call, so *presence* separates a development build from a
-production one, and a hookless component reports an empty cell list rather than
-silence. Nothing downstream of a holding is a baseline
-([`parting.md`](parting.md)), so the positive claim buys the one verdict worth
-having — a component with no inputs to disagree about, rendering two ways — at
-no risk of re-approving a page.
-
----
+The [reference](framework-reference.md#wiringof) defines the recorded fields,
+absence rules and digest boundary.
 
 ## Remounts: what the document cannot show you
 
-React can respond to a parent's re-render in two ways. It can **update** a child —
-keep the fiber, the hooks, the state, the DOM node — or it can **remount**: tear
-the subtree down and build a new one. Both produce the same document. Not a
-similar one, the same one.
+Use the remount path when a test can already reach the mounted state and perform
+the action that triggers the reset. Take the mark after setup is complete and
+immediately before that action; a mark taken after the action has no earlier
+instance to compare with.
 
-What differs is everything the user had:
-
-| | update | remount |
-|---|---|---|
-| `useState` | kept | reset to its initial value |
-| focus | kept | lost to `<body>` |
-| scroll position of a subtree | kept | reset |
-| an uncontrolled `<input>` | kept | emptied |
-| a CSS transition in flight | continues | restarts |
-| `useEffect` with `[]` | does not re-run | runs again, cleanup fires |
+This complete Vitest example contains the defect deliberately: `InlineCounter`
+is declared inside `Screen`, so each render creates a new component type. The
+test reports both the rebuilt component and the consequence to the user.
 
 ```ts
-const mark = markRender(subject);
-// …do the thing: a click, a prop change, a route
-const remounted = remountedSince(subject, mark);
-// [{ name: 'InnerRow', owners: ['InlineHost'], element }]
+// @vitest-environment jsdom
+import { act, createElement as h, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, test } from 'vitest';
+import { markRender, remountedSince } from '@variance-authority/react';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+test('a parent update preserves the counter', async () => {
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  const root = createRoot(host);
+
+  function Counter({ tick }: { tick: number }) {
+    const [clicks, setClicks] = useState(0);
+    return h(
+      'button',
+      { onClick: () => setClicks((value) => value + 1) },
+      `${String(clicks)} of ${String(tick)}`,
+    );
+  }
+
+  function Screen({ tick }: { tick: number }) {
+    function InlineCounter() {
+      return h(Counter, { tick });
+    }
+    return h('main', { 'data-subject': '' }, h(InlineCounter));
+  }
+
+  try {
+    await act(async () => root.render(h(Screen, { tick: 0 })));
+
+    const subject = host.querySelector('[data-subject]');
+    const button = host.querySelector('button');
+    if (subject === null || button === null) throw new Error('subject did not mount');
+
+    await act(async () => button.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    const mark = markRender(subject);
+
+    await act(async () => root.render(h(Screen, { tick: 1 })));
+
+    const accidental = remountedSince(subject, mark)
+      .filter((entry) => entry.key === undefined)
+      .map((entry) => ({ component: entry.name, inside: entry.owners }));
+
+    expect({ accidental, text: subject.querySelector('button')?.textContent }).toEqual({
+      accidental: [],
+      text: '1 of 1',
+    });
+  } finally {
+    await act(async () => root.unmount());
+    host.remove();
+  }
+});
 ```
 
-Two calls by construction. After a page's first commit every fiber looks newly
-built, correctly and uninterestingly, so a one-call `remounted()` would report the
-entire page — the mark is what makes the distinction impossible to forget.
+As written, the received value names `InlineCounter` and `Counter`, and the text
+is `0 of 1`. Move `InlineCounter` outside `Screen` and pass `tick` as a prop; the
+same assertion then has no accidental remounts and the counter retains `1 of 1`.
+That is the completion condition: the action preserves the state the user had,
+and the interval contains no unkeyed rebuild.
 
-Measured
-([`identity.test.tsx`](../packages/react/src/identity.test.tsx)): a child declared
-inside its parent's body, which is the most common way to write this bug, against
-the same child declared at module scope. The two renders serialize identically,
-and a counter clicked once reads `1 of 1` under the stable child and `0 of 1`
-under the inline one. That the same pair is identical in `rendering` and in
-`wiring` as well is measured separately, on differently-named boundaries, in
-[`fiber.test.tsx`](../examples/todomvc/src/fiber.test.tsx).
+A reported key changes the interpretation, not the observation. React was asked
+to create a fresh instance under that key; check whether the key was intended to
+change for this action before treating the remount as a defect.
 
-**A remount that was asked for and one that was not look identical**, so the
-reconciliation key is reported rather than filtered on. Under a key, somebody
-wrote `key={…}` and it changed — a decision. With no key, nothing asked for it.
+## Continue from the result
 
-**Findings come back cause-first.** A component that renders only another
-component owns no element of its own, and it is usually the one the author wrote
-and the one whose remount explains the rest, so `remounted[0]` is the outermost
-thing that was rebuilt rather than the innermost thing that noticed.
-
-### Why this is a finding and not a digest
-
-The rule is checkable: **read the same page twice without changing anything, and
-if the value moved, it is not a digest.**
-
-Hook shape, wrappers, contexts and keys survive that. Whether an instance
-remounted cannot, by construction — it is a property of a *reading*, not of a
-*revision*, and it has no value at all when read once. So it is reported by a
-run, and never stored beside `style`.
-
-The residual ambiguity is stated: two unkeyed siblings of one component at one
-depth, one removed and one added, will match each other. That is a list with no
-keys — which the wiring digest reports separately, and the two are meant to be read
-together.
-
----
-
-## Framework boundary
-
-- **[Composition](composition.md) and [attribution](attribution.md) require a framework reader.** `collect()` accepts
-  `wiringOf` alongside `provenanceOf`. Without a reader, framework wiring is
-  absent from the digest rather than reported as empty. The provided reader
-  targets React.
-- **Wiring and remount observation are opt-in inputs.** A collector that supplies
-  `wiringOf` includes wiring in the digest; otherwise it remains absent. Browser
-  collectors wait for Suspense boundaries to settle before reading and refuse a
-  subject that is still showing a fallback
-  ([`stabilization.md`](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)).
-  The commit tap remains available for commit-level stability.
-- **A remount is not attributed to a line.** It names the component, its owner
-  chain and its element. Which parent re-render caused it is not recovered.
+After the focused test passes, run the normal subject observation so the fix is
+also checked against its rendered and accessibility evidence. Use the
+[React evidence reference](framework-reference.md) when you need exact return
+shapes, collector defaults or the limits of fiber matching. Use
+[parting](parting.md) when the component survived but its inputs led to a
+different rendering, and [stabilization](stabilization.md) when the state was
+read before it had finished arriving.
