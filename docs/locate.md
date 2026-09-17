@@ -172,9 +172,10 @@ thing. It is a coordinate you already have, so it is read exactly:
   suite would answer a question you did not ask, out of the files you ruled
   out — and would do it while printing a confident top hit.
 
-Every path counts. `--from "app/dispatch/ src/shared/"` keeps only subjects seen
-in a file at both, because two paths in a start point are you narrowing on
-purpose rather than describing more fully.
+Every path counts, and they are taken together. `--from "app/dispatch/
+src/shared/"` answers from both — two paths are two entry points, not one
+narrower description, and two areas of an application have very nearly no files
+in common.
 
 **It does two things, and the second is the one worth having.** Removing
 subjects is the obvious half. The other is that rarity is a count over subjects,
