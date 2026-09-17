@@ -399,3 +399,50 @@ describe('a start point reaches the arrangement too', () => {
     expect(scoped.scope?.refused).toContain('not found');
   });
 });
+
+describe('how far in, recorded beside the closure', () => {
+  it('sums the arrows along the way, in half-hops', () => {
+    // `InvoiceTable.tsx` → `total.ts` is the same folder, 1. `total.ts` →
+    // `src/lib/round.ts` is sideways, 1.5. `round.ts` → `precision.ts` is the
+    // same folder again, 1. Three and a half hops in.
+    const hops = TREE.hopsFrom(['src/billing/InvoiceTable.tsx']);
+    expect(hops.get('src/billing/InvoiceTable.tsx')).toBe(0);
+    expect(hops.get('src/billing/total.ts')).toBe(2);
+    expect(hops.get('src/lib/round.ts')).toBe(5);
+    expect(hops.get('src/lib/precision.ts')).toBe(7);
+  });
+
+  it('costs every file the closure holds, and no file it does not', () => {
+    const seeds = ['src/billing/InvoiceTable.tsx'];
+    const reached = TREE.reachedFrom(seeds);
+    const hops = TREE.hopsFrom(seeds);
+    expect([...hops.keys()].sort()).toEqual([...reached].sort());
+  });
+
+  it('costs the arrow rather than the reading, so the chain is the same price both ways', () => {
+    expect(TREE.hopsTo(['src/lib/precision.ts']).get('src/billing/InvoiceTable.tsx')).toBe(7);
+  });
+
+  it('gives a subject the cheapest of the files it was recorded in', () => {
+    const scope = scopeOf(REPORT, 'src/billing/InvoiceTable.tsx', TREE);
+    expect(scope.hops.get('billing/invoice-table--overdue')).toBe(0);
+  });
+
+  it('keeps the cheaper when a subject is in both directions at once', () => {
+    const one = 'src/billing/total.ts';
+    const scope = scopeOf(REPORT, one, TREE, one);
+    expect(scope.hops.get('billing/invoice-table--overdue')).toBe(2);
+  });
+
+  it('records nothing for a start point that was refused', () => {
+    expect(scopeOf(REPORT, 'src/nowhere.ts', TREE).hops.size).toBe(0);
+  });
+
+  it('does not reorder an answer, because nothing reads it yet', () => {
+    // The whole point of the column at this stage. If a ranking starts reading
+    // it, this is the test that should be changed on purpose rather than
+    // discovered to be failing.
+    const scope = scopeOf(REPORT, 'src/billing/InvoiceTable.tsx', TREE);
+    expect(scopeLine(scope, 3)).not.toContain('hop');
+  });
+});

@@ -177,6 +177,20 @@ export interface Scope {
   readonly reachable: number;
   /** Files in scope whose own imports the scan could not enumerate. */
   readonly unresolved: readonly string[];
+  /**
+   * Subject → the cheapest way in to any file it was recorded in, in half-hops.
+   *
+   * Recorded, and read by nothing: the order an answer comes back in is decided
+   * by the words, and this is here so a ranking can be *measured* against
+   * position before it is changed by it. Cheapest of the subject's files rather
+   * than a mean, because reachability is already "any one of its files" and
+   * this is that predicate sharpened, not a different one.
+   *
+   * Empty for a refused start point, and empty for the `to` direction's own
+   * arithmetic in the sense that the two directions are unioned here the way
+   * the closure is: a subject in both keeps the cheaper.
+   */
+  readonly hops: ReadonlyMap<string, number>;
   /** Why the start point was not found. Absent when it resolved. */
   readonly refused?: string;
 }
@@ -261,6 +275,7 @@ export function scopeOf(
     entries: 0,
     reachable: 0,
     unresolved: [] as readonly string[],
+    hops: new Map<string, number>() as ReadonlyMap<string, number>,
   };
 
   if (terms.length === 0) return { ...nowhere, refused: 'no start point was said' };
@@ -306,9 +321,20 @@ export function scopeOf(
   // each file produced. The other place-shaped fields — the id, the component a
   // subject is an example of, the components it holds, who mounted them, the
   // regions it entered — are names, and a name is not a location.
+  const cost = new Map<string, number>([...tree.hopsFrom(down.files)]);
+  for (const [file, paid] of tree.hopsTo(up.files)) {
+    if (paid < (cost.get(file) ?? Infinity)) cost.set(file, paid);
+  }
+
   const subjects = new Set<string>();
+  const hops = new Map<string, number>();
   for (const entry of indexOf(report).entries) {
-    if (entry.field === 'files' && reachable.has(entry.value)) subjects.add(entry.subject);
+    if (entry.field !== 'files' || !reachable.has(entry.value)) continue;
+    subjects.add(entry.subject);
+    const paid = cost.get(entry.value);
+    if (paid !== undefined && paid < (hops.get(entry.subject) ?? Infinity)) {
+      hops.set(entry.subject, paid);
+    }
   }
 
   return {
@@ -320,6 +346,7 @@ export function scopeOf(
     entries: entries.size,
     reachable: reachable.size,
     unresolved: tree.unknownAmong(reachable),
+    hops,
   };
 }
 

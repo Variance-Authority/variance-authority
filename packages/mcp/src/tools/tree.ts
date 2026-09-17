@@ -10,6 +10,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
+import { costsFrom } from './hops.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -78,6 +79,17 @@ export interface Tree {
    * could survive being unioned with.
    */
   unknownAmong(files: Iterable<string>): readonly string[];
+  /**
+   * How far in each reachable file is, in half-hops, along the arrows.
+   *
+   * Recorded beside the closure and used by nothing. What it costs to get
+   * somewhere is not what decides whether it is in scope — the closure is whole
+   * or it is nothing — and this is a column to measure a ranking against before
+   * a ranking is changed by it. See `./hops.js`.
+   */
+  hopsFrom(seeds: Iterable<string>): ReadonlyMap<string, number>;
+  /** The same quantity against the arrows, for the `to` direction. */
+  hopsTo(seeds: Iterable<string>): ReadonlyMap<string, number>;
 }
 
 /**
@@ -87,7 +99,19 @@ export interface Tree {
  * here and can be tested with a handful of records, without a repository on
  * disk and without the parser.
  */
-export function treeOf(records: Iterable<FileRecord>, root = '.'): Tree {
+export function treeOf(
+  records: Iterable<FileRecord>,
+  root = '.',
+  /**
+   * Directories a manifest governs, for the out-of-package hop.
+   *
+   * Supplied rather than guessed: `packages/` and `apps/` are two repositories'
+   * conventions and neither is a fact. With none given the out-of-package bucket
+   * never fires for workspace code, which is the right answer for a repository
+   * that is one package. `node_modules` is read off the path regardless.
+   */
+  packages: readonly string[] = [],
+): Tree {
   const relations = relationsOfFiles(records);
   const files = new Set<string>();
   for (const id of nodesOfKind(relations, 'file')) files.add(relations.names[id]!);
@@ -98,6 +122,8 @@ export function treeOf(records: Iterable<FileRecord>, root = '.'): Tree {
     reachedFrom: (seeds) => walk(relations, seeds, dependenciesOf),
     reaching: (seeds) => walk(relations, seeds, dependentsOf),
     unknownAmong: (among) => unknownAmong(relations, among),
+    hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
+    hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
   };
 }
 
