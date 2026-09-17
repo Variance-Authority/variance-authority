@@ -220,6 +220,25 @@ export function handle<Subject>(
   }
 }
 
+/**
+ * Whether answering this request needs the source tree read first.
+ *
+ * Decided here rather than in the transport, and by the tool rather than by
+ * either: a host that sniffed arguments for a path would be making a decision,
+ * and the transport is the one file in this package that makes none. Reading a
+ * tree is a walk of the repository, so it is done for the calls that asked for
+ * one and no others.
+ */
+export function wantsTree<Subject>(
+  request: JsonRpcRequest,
+  served: Served<Subject>,
+): boolean {
+  if (request.method !== 'tools/call') return false;
+  const params = request.params ?? {};
+  const tool = served.tools.find((candidate) => candidate.name === params['name']);
+  return tool?.wants?.((params['arguments'] ?? {}) as Record<string, unknown>) === true;
+}
+
 function callTool<Subject>(
   id: string | number,
   params: Readonly<Record<string, unknown>>,

@@ -51,6 +51,7 @@
     "build": "tsc --build"
   },
   "dependencies": {
+    "@variance-authority/core": "workspace:^",
     "@variance-authority/distill": "workspace:^",
     "@variance-authority/eyes": "workspace:^",
     "@variance-authority/presentation": "workspace:^",
@@ -58,8 +59,5 @@
     "@variance-authority/scenario": "workspace:^",
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/vantage": "workspace:^"
-  },
-  "devDependencies": {
-    "@variance-authority/core": "workspace:^"
   }
 }

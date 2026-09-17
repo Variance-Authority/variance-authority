@@ -1,5 +1,7 @@
+import { isAbsolute, resolve } from 'node:path';
 import type { RunReport } from '@variance-authority/report';
 import { indexOf } from './locate-index.js';
+import type { Tree } from './tree.js';
 
 /**
  * Where to look, said as a place on disk and nothing else.
@@ -46,16 +48,39 @@ import { indexOf } from './locate-index.js';
  * path as another because one ends with the other. A `*` is the one thing that
  * stands for something, and only because the caller wrote it, and only as the
  * last segment.
+ *
+ * ## The tree says what exists, and the run says what it produced
+ *
+ * Those are two questions and they have two authorities. Whether a path is
+ * there is a fact about the source tree, and only [`tree.ts`](./tree.ts)
+ * answers it — not the file paths an observation recorded, which are the files
+ * a run was *seen in* and are wrong in both directions about what is on disk.
+ * Which subject a file produced is a fact about the run, and only the report
+ * answers that.
+ *
+ * ## And the path is the entrance, not the room
+ *
+ * A start point selects **entry points**; the import graph decides the scope. A
+ * file is in it when it is connected to an entry point — reachable along the
+ * arrows or reaching it against them, at any depth — and a file in neither
+ * closure is rejected outright rather than ranked low. That is the entire
+ * reason a start point exists: *the checkout page* is one file and forty
+ * neighbours, and a caller who names the page means the area.
  */
 
 /**
- * A path as the segments a person means: separators of either slash, empty
+ * A path as the segments a person means: separators of forward slash, empty
  * pieces dropped, and otherwise exactly as written. The extension stays on —
  * `page.tsx` is a different file from `page.ts` — and so does the case, because
  * a path that differs in case is a path that does not exist.
+ *
+ * A backslash is a character in a name here, not a separator. Sense's
+ * coordinates are repo-relative with forward slashes, so reading
+ * `src\billing\Card.tsx` as three segments is one more inference about what
+ * somebody meant.
  */
 function segmentsOf(path: string): readonly string[] {
-  return path.split(/[/\\]/).filter((segment) => segment !== '');
+  return path.split('/').filter((segment) => segment !== '');
 }
 
 /** The widths a start point can be said at. */
@@ -81,14 +106,14 @@ function widthOf(term: string): Width | undefined {
   const last = segments[segments.length - 1]!;
   if (last === '*') return segments.length === 1 ? undefined : 'own';
   if (last.includes('*')) return undefined;
-  return /[/\\]$/.test(term) ? 'under' : 'file';
+  return term.endsWith('/') ? 'under' : 'file';
 }
 
 /**
- * Whether one recorded path is at the place a start point names.
+ * Whether one path in the tree is at the place a start point names.
  *
  * Anchored at the root and compared whole: the caller's segments have to *be*
- * the beginning of the recorded path, in order, character for character. The
+ * the beginning of the tree's path, in order, character for character. The
  * width then says how much of the rest is allowed — none for a file, one
  * segment for a directory's own files, any depth for a directory.
  */
@@ -107,25 +132,52 @@ function at(value: string, term: string, width: Width): boolean {
   return true;
 }
 
-/** A start point, resolved. `subjects` empty means it named nowhere. */
+/**
+ * An absolute path as the repo-relative one the tree holds, or nothing when it
+ * is outside the repository.
+ *
+ * A caller pasting the path of the file open in front of them has pasted an
+ * absolute one, and under the root it names exactly the coordinate the tree
+ * uses. Outside the root it is a real path to a real file that this repository
+ * does not contain, which is *not found* and not an error.
+ */
+function underRoot(term: string, root: string): string | undefined {
+  if (!isAbsolute(term)) return term;
+  const base = segmentsOf(resolve(root));
+  const said = segmentsOf(term);
+  for (let segment = 0; segment < base.length; segment += 1) {
+    if (base[segment] !== said[segment]) return undefined;
+  }
+  // The width the caller said survives the move: a trailing separator is not a
+  // segment, so it is put back by hand.
+  return `${said.slice(base.length).join('/')}${term.endsWith('/') ? '/' : ''}`;
+}
+
+/** A start point, resolved. */
 export interface Scope {
-  /** As the caller typed it. */
+  /** As the caller said it, for printing. */
   readonly from: string;
   /** Its paths as written, deduplicated. Empty when the start point was refused. */
   readonly terms: readonly string[];
-  /** The subjects it names. */
+  /** The subjects in it: those a file in scope produced. */
   readonly subjects: ReadonlySet<string>;
   /** Where each path resolved to, in the order they were said. */
   readonly at: readonly string[];
   /** Paths of it that resolved to nothing. */
   readonly unmatched: readonly string[];
+  /** Files the paths themselves named. */
+  readonly entries: number;
+  /** Files connected to them, entry points included. */
+  readonly reachable: number;
+  /** Files in scope whose own imports the scan could not enumerate. */
+  readonly unresolved: readonly string[];
   /** Why the start point was not found. Absent when it resolved. */
   readonly refused?: string;
 }
 
 /**
- * The subjects a start point names: those recorded in a file at **any** one of
- * its paths.
+ * The subjects a start point names: those produced by a file connected to
+ * **any** one of its paths.
  *
  * Several paths are several start points, and a caller with two entry points
  * into the same investigation — the settings page and the invite modal — is
@@ -134,41 +186,59 @@ export interface Scope {
  * points of one application share almost no file, so an intersection would
  * quietly answer nothing at exactly the moment the caller was most specific.
  */
-export function scopeOf(report: RunReport, from: string): Scope {
-  const index = indexOf(report);
-  const terms = [
-    ...new Set(
-      from
-        .split(/\s+/)
-        // Quotes, brackets and a trailing comma are how a path arrives when it
-        // was copied out of something. A trailing `*` or separator is not
-        // punctuation — it is the width the caller asked for — and stays.
-        .map((word) => word.replace(/^["'`([]+|["'`)\],]+$/g, ''))
-        .filter((word) => word !== ''),
-    ),
-  ];
+export function scopeOf(
+  report: RunReport,
+  from: string | readonly string[],
+  tree: Tree | undefined,
+): Scope {
+  // One string is one path, whole. Splitting it on spaces is how a file whose
+  // name has a space in it becomes unsayable and comes back *not found* — a
+  // false negative about a file that is plainly there, which is the failure
+  // this entire rule exists against. Several paths are said as several
+  // strings. The outer whitespace goes, and nothing else does: no quote
+  // stripping, no comma splitting, because both are guesses about typing that
+  // land on a real character in a real name.
+  const said = (typeof from === 'string' ? [from] : from).map((term) => term.trim());
+  const raw = typeof from === 'string' ? from : from.join(', ');
+  const terms = [...new Set(said.filter((term) => term !== ''))];
+  const nowhere = {
+    from: raw,
+    terms: [] as readonly string[],
+    subjects: new Set<string>(),
+    at: [] as readonly string[],
+    unmatched: [] as readonly string[],
+    entries: 0,
+    reachable: 0,
+    unresolved: [] as readonly string[],
+  };
 
-  if (terms.length === 0) {
-    return { from, terms: [], subjects: new Set<string>(), at: [], unmatched: [], refused: 'no start point was said' };
+  if (terms.length === 0) return { ...nowhere, refused: 'no start point was said' };
+
+  // No tree, no answer. Falling back to the paths the run recorded would answer
+  // a question nobody asked — those are the files a run was seen in, not the
+  // files that are there — and it would answer it while looking like this.
+  if (tree === undefined) {
+    return {
+      ...nowhere,
+      terms,
+      refused:
+        'a start point is a path in the source tree, and no source tree was read. Ask from a ' +
+        'checkout of the repository the run was made in, or ask without a start point',
+    };
   }
-
-  // Only the files a subject was seen in can answer a path. The other place
-  // fields — the id, the component a subject is an example of, the components
-  // it holds, who mounted them, the regions it entered — are names, and a name
-  // is not a location.
-  const files = index.entries.filter((entry) => entry.field === 'files');
 
   const found: string[] = [];
   const unmatched: string[] = [];
-  const held = new Set<string>();
+  const entries = new Set<string>();
 
   for (const term of terms) {
-    const width = widthOf(term);
+    const said_ = underRoot(term, tree.root);
+    const width = said_ === undefined ? undefined : widthOf(said_);
     let here = false;
-    if (width !== undefined) {
-      for (const entry of files) {
-        if (!at(entry.value, term, width)) continue;
-        held.add(entry.subject);
+    if (said_ !== undefined && width !== undefined) {
+      for (const file of tree.files) {
+        if (!at(file, said_, width)) continue;
+        entries.add(file);
         here = true;
       }
     }
@@ -177,23 +247,42 @@ export function scopeOf(report: RunReport, from: string): Scope {
   }
 
   // Not found is a rejection, not an empty result, and it is the only failure
-  // there is. The caller handed over a coordinate; this run does not have it.
+  // there is. The caller handed over a coordinate; the tree does not have it.
   // Saying so is a different fact from saying the place exists and holds
   // nothing, and it is the difference between fixing a typo and looking
   // somewhere else.
   if (unmatched.length > 0) {
     const named = unmatched.map((term) => `\`${term}\``).join(', ');
     return {
-      from,
+      ...nowhere,
       terms,
-      subjects: new Set<string>(),
       at: found,
       unmatched,
-      refused: `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — no file of this run is at that path`,
+      refused: `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — the source tree holds no file at that path`,
     };
   }
 
-  return { from, terms, subjects: held, at: found, unmatched };
+  const reachable = tree.connected(entries);
+
+  // The report answers the second question and only the second: which subject
+  // each file produced. The other place-shaped fields — the id, the component a
+  // subject is an example of, the components it holds, who mounted them, the
+  // regions it entered — are names, and a name is not a location.
+  const subjects = new Set<string>();
+  for (const entry of indexOf(report).entries) {
+    if (entry.field === 'files' && reachable.has(entry.value)) subjects.add(entry.subject);
+  }
+
+  return {
+    from: raw,
+    terms,
+    subjects,
+    at: found,
+    unmatched,
+    entries: entries.size,
+    reachable: reachable.size,
+    unresolved: tree.unknownAmong(reachable),
+  };
 }
 
 /**
@@ -213,10 +302,23 @@ export function scopeLine(scope: Scope, indexed: number): string {
       'path. To search everywhere, leave the start point out.'
     );
   }
+
+  // Counted and said rather than widened over. A file whose imports could not
+  // be enumerated may import anything, so the scope is not a proof about what
+  // it leaves out — but unioning in every file that reaches an unknown one is
+  // 209 of this repository's 1,574 files whatever the start point was, which is
+  // not a narrowing any caller would recognise as one.
+  const holes =
+    scope.unresolved.length === 0
+      ? ''
+      : ` ${scope.unresolved.length} file(s) in it import something the scan could not resolve, ` +
+        'so what lies behind those is not enumerated.';
+
   return (
-    `Searched ${scope.subjects.size} of ${indexed} subject(s), those recorded in a file at ` +
-    `${scope.at.map((place) => `\`${place}\``).join(' and ')}. Rarity is counted inside that ` +
-    'scope, so a word common to this area is worth nothing here even when the suite at large ' +
-    'barely says it.'
+    `Searched ${scope.subjects.size} of ${indexed} subject(s), those produced by a file ` +
+    `connected to ${scope.at.map((place) => `\`${place}\``).join(' and ')} — ` +
+    `${scope.entries} file(s) named, ${scope.reachable} connected to them along the imports ` +
+    `and against them. Rarity is counted inside that scope, so a word common to this area is ` +
+    `worth nothing here even when the suite at large barely says it.${holes}`
   );
 }

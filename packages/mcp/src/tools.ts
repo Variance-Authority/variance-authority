@@ -100,6 +100,9 @@ import { variations } from './tools/variations.js';
  */
 
 export type { Served, Tool, ToolInvocation } from './tools/tool.js';
+// The tree a start point is resolved against, exported for the hosts that have
+// a repository to read: a tool cannot walk one, so somebody outside has to.
+export { readTree, treeOf, type Tree, type TreeOptions } from './tools/tree.js';
 export type { StateDifference };
 
 // The tool-authoring contract, not an implementation detail of this set. A

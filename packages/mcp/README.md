@@ -438,6 +438,31 @@ decision, and the header carries the coordinate the decision needs. It is omitte
 when there is nothing to offer: no index on disk, an index with no position, or
 a working tree that has not changed since.
 
+## Answer from the source tree
+
+A question can say where to start — `variance_locate {query, from}` takes a path
+and answers only from the files connected to it. A path is a fact about a
+repository, and a report is a file that travels, so the repository has to be
+named when the server is started. `serveReportFile(path, options)` takes it:
+
+| option | what it decides |
+|---|---|
+| `root` | the repository the run was made in. Without it, a question carrying a start point is refused rather than answered from the paths the run happened to record |
+| `index` | where the scan keeps what it has already parsed, so a second question that names a path costs a map lookup per unchanged file instead of a parse |
+
+`readTree(options)` is the same walk on its own, for a host that would rather
+read the tree itself and hand it to a call:
+
+| option | what it decides |
+|---|---|
+| `root` | the repository. Every coordinate comes back relative to it |
+| `dirs` | where to start walking, relative to the root. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
+| `index` | the persistent scan index, as above |
+
+The walk happens once per session and only when something asks for it: most
+questions do not name a path, and a repository is not a thing to read before
+anybody wanted it.
+
 ## Serve a custom subject
 
 `serveReportFile(path)` is the whole executable, and `serve(options)` is what it

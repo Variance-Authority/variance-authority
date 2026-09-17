@@ -1153,16 +1153,20 @@
         "TOOLS": "const",
         "Tool": "interface",
         "ToolInvocation": "interface",
+        "Tree": "interface",
+        "TreeOptions": "interface",
         "VANTAGE_TOOLS": "const",
         "diffState": "function",
         "eyesToolByName": "function",
         "notObservedSentence": "function",
         "observabilityToolByName": "function",
         "presentationToolByName": "function",
+        "readTree": "function",
         "scenarioToolByName": "function",
         "sourceTestToolByName": "function",
         "stringArg": "function",
         "toolByName": "function",
+        "treeOf": "function",
         "vantageToolByName": "function"
       },
       "./protocol": {
@@ -1179,7 +1183,8 @@
         "SOURCE_TESTS": "const",
         "VANTAGE": "const",
         "createLineReader": "function",
-        "handle": "function"
+        "handle": "function",
+        "wantsTree": "function"
       }
     }
   },

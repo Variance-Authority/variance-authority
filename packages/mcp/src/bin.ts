@@ -11,6 +11,13 @@ import { serveReportFile, serveVantage } from './server.js';
  * Nothing it could be configured to *do* would be work the run should have done,
  * on the machine the run was on.
  *
+ * The repository is the working directory this was started in, which is the one
+ * coordinate a report cannot carry: a report is a file and it travels, and a
+ * question that names a path is a question about a tree. Nothing to configure —
+ * a client starting a server starts it somewhere, and somewhere is the answer.
+ * Where that is not a checkout, a question with a start point in it is refused,
+ * which is the same sentence as any other path that is not there.
+ *
  * The address goes to stderr because stdout is the protocol. It is printed
  * rather than merely available, because a watcher nobody attached a run to is
  * indistinguishable from a broken one, and one line at startup is the cheapest
@@ -37,5 +44,5 @@ if (path === '--watch') {
   );
   process.exit(2);
 } else {
-  await serveReportFile(path);
+  await serveReportFile(path, { root: process.cwd() });
 }

@@ -119,7 +119,7 @@ variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx
 
 ```text
 3 of 4,705 subject(s) match `the contract warning`.
-Searched 128 of 4,705 subject(s), those recorded in a file at `app/dispatch/`. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
+Searched 128 of 4,705 subject(s), those produced by a file connected to `app/dispatch/page.tsx` — 1 file(s) named, 41 connected to them along the imports and against them. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
 Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
 …
 ```
@@ -128,7 +128,7 @@ Say it as wide as you actually know:
 
 | you say | you get |
 |---|---|
-| `app/dispatch/page.tsx` | that file, and only what it shows |
+| `app/dispatch/page.tsx` | that file as the way in |
 | `app/dispatch/*` | the files of that folder — the layout beside the page |
 | `app/dispatch/` | everything underneath, however deep |
 
@@ -137,14 +137,44 @@ wider of the two, and the trailing `*` is the one that stops. Those three are
 the whole vocabulary: a `*` anywhere but the last segment is a pattern, and a
 pattern is not a path.
 
-A path is read from the root down and compared segment for whole segment, so
-say it the way the run recorded it. If the run recorded its files relative to
-the repository, the absolute path your editor gives you is a different path and
-this run holds nothing at it.
-
 Say the parent along with the name, because a file name is not unique. Somewhere
 there is a `Provider.tsx` loaded by every screen you have, and `Provider.tsx` on
 its own cannot tell you which one you meant.
+
+### Ask it from the checkout
+
+A path is a fact about the source tree, so the source tree is what answers it.
+Ask from a checkout of the repository the run was made in and the path is
+resolved against the files that are actually there — not against the files the
+run recorded, which are the files it was *seen in* and answer this wrongly in
+both directions: every file the run never rendered would read as missing, and a
+path a build wrote down would read as present long after the file was deleted.
+
+The directory you ask in is the repository. Ask somewhere with no source beside
+you and a start point is refused rather than approximated, and the answer says
+which of the two happened.
+
+The absolute path your editor hands you is the same question asked from the
+root: under the repository it is that file, and outside the repository there is
+nothing there.
+
+### The path is the entrance, not the room
+
+What you name is the way in. The imports decide the rest: a file is in the scope
+when it is connected to one of your entry points — reached along the imports, or
+reaching one against them, at any depth — and a subject is in the scope when a
+file in the scope was seen producing it.
+
+That is why naming one file still hands you an area. A checkout page is one file
+and forty neighbours: the hook it calls, the component three imports down that
+draws the badge, the layout above it that exists because the page does. Naming
+the page means the neighbourhood, and you should not have to list it.
+
+The walk is never shortened to save time, because a cut-off drops a file that is
+genuinely connected and you would never see it go. Where the scan could not read
+some file's own imports, the answer counts those files and says so: what lies
+behind them is not enumerated, so the scope is not a proof about what it left
+out.
 
 ### It is a boundary, not a preference
 
@@ -154,11 +184,6 @@ thing. It is a coordinate you already have, so it is read exactly:
 
 - Segments are compared whole and literally. `page` is not `pages`, and
   `Activity.ts` is not `Activity.tsx`.
-- Only the files each subject was seen in can answer it — never a component,
-  never an id, and never what a subject shows on screen. A button labelled
-  *Dispatch* on the account screen is the thing you are looking for wearing the
-  clothes of the place to look, and a start point that read visible text would
-  hand it to you first.
 - **A path exists or it does not, and that is the whole test.** `Badge.tsx`
   does not name the file under `apps/web` — it names a file at the root, and
   where no file is at the root, nothing is there and the answer is not found.
@@ -166,16 +191,24 @@ thing. It is a coordinate you already have, so it is read exactly:
   candidates is the same fragment rule wearing a politer face. Say
   `apps/web/Badge.tsx` or say `apps/web/`.
 - **Nothing is looked for inside a path.** No matching tail, no run of segments
-  found somewhere in the middle, no case folding, and no reading one recorded
-  path as another because one ends with the other.
-- **No answer is ever given from outside it.** Falling back to the rest of the
-  suite would answer a question you did not ask, out of the files you ruled
-  out — and would do it while printing a confident top hit.
+  found somewhere in the middle, no case folding, and no reading one path as
+  another because one ends with the other.
+- **A name is not a place.** Never a component, never an id, and never what a
+  subject shows on screen. A button labelled *Dispatch* on the account screen is
+  the thing you are looking for wearing the clothes of the place to look, and a
+  start point that read visible text would hand it to you first.
+- **A space is a character in a name**, and so is a backslash. One path is one
+  string, spaces and all, and several paths are said as several strings.
+- **A start point that names nothing is refused**, and nothing is searched. No
+  answer is ever given from outside it: falling back to the rest of the suite
+  would answer a question you did not ask, out of the files you ruled out — and
+  would do it while printing a confident top hit.
 
-Every path counts, and they are taken together. `--from "app/dispatch/
-src/shared/"` answers from both — two paths are two entry points, not one
-narrower description, and two areas of an application have very nearly no files
-in common.
+Several paths are several entry points, and they are taken together rather than
+intersected: two areas of an application have very nearly no files in common, so
+keeping only what both hold would answer nothing exactly where you were most
+specific. The CLI takes one `--from`; over MCP `from` also takes a list, as in
+`variance_locate {query: "the contract warning", from: ["app/dispatch/", "src/shared/"]}`.
 
 **It does two things, and the second is the one worth having.** Removing
 subjects is the obvious half. The other is that rarity is a count over subjects,

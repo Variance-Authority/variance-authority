@@ -5,6 +5,7 @@ import { orient } from './orient.js';
 import { readQuestion } from './question.js';
 import { placesOn, renderOrientation } from './place.js';
 import { scopeLine, scopeOf, type Scope } from './scope.js';
+import type { Tree } from './tree.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
 
@@ -94,20 +95,22 @@ export const locate: Tool = {
           'surface something sits rather than which surface it is.',
       },
       from: {
-        type: 'string',
+        oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
         description:
-          'Optional. Which files to answer from, as a real path and only a real path: ' +
+          'Optional. Where to start, as a real path in the source tree and only a real path: ' +
           '`app/dispatch/page.tsx` is that file, `app/dispatch/*` that folder\'s own files, ' +
           '`app/dispatch/` everything under it. Those three forms and no others — a `*` ' +
           'anywhere but the last segment is a pattern, not a path. A path exists or it does ' +
           'not: read from the root down, segment for whole segment, case included, against the ' +
-          'files each subject was seen in. Nothing is looked for inside a path, so `Badge.tsx` ' +
-          'is not the file under `apps/web` — it is a file at the root, and where none is ' +
-          'there the start point is rejected as not found. Say `apps/web/Badge.tsx`. Several ' +
-          'paths are several entry points and are taken together. No answer is ever given from ' +
-          'outside it. Narrows the suite before ' +
-          'ranking and recounts rarity inside what remains, so the area\'s own vocabulary stops ' +
-          'distinguishing anything.',
+          'files the repository actually holds. Nothing is looked for inside a path, so ' +
+          '`Badge.tsx` is not the file under `apps/web` — it is a file at the root, and where ' +
+          'none is there the start point is rejected as not found. Say `apps/web/Badge.tsx`. ' +
+          'One string is one path, spaces and all; several paths are said as an array, and are ' +
+          'several entry points taken together. The path names the entry points and the import ' +
+          'graph decides the scope: every file connected to them, along the imports or against ' +
+          'them, at any depth. Nothing outside that is ever answered from. Narrows the suite ' +
+          'before ranking and recounts rarity inside what remains, so the area\'s own ' +
+          'vocabulary stops distinguishing anything.',
       },
       limit: {
         type: 'integer',
@@ -118,9 +121,12 @@ export const locate: Tool = {
     additionalProperties: false,
   },
 
-  run(report, input) {
+  wants: (input) => startPoint(input) !== undefined,
+
+  run(report, input, invocation) {
     const query = stringArg(input, 'query');
-    const from = typeof input['from'] === 'string' && input['from'].trim() !== '' ? input['from'] : undefined;
+    const from = startPoint(input);
+    const tree = invocation?.tree;
     const limit = typeof input['limit'] === 'number' && input['limit'] > 0 ? Math.floor(input['limit']) : DEFAULT_LIMIT;
 
     // One door. The lexicon holds the words and the arrangement, written by one
@@ -128,13 +134,30 @@ export const locate: Tool = {
     // tool — it is this one reading the other half of the record it already has.
     // The relation word in the question is what says which half to read.
     if (readQuestion(query).relation !== undefined) {
-      const answer = orient(report, query, from);
+      const answer = orient(report, query, from, tree);
       if (answer.surfaces > 0) return renderOrientation(answer, limit);
     }
 
-    return render(report, locateSubjects(report, query, from), query, limit);
+    return render(report, locateSubjects(report, query, from, tree), query, limit);
   },
 };
+
+/**
+ * The start point as it was said, or nothing.
+ *
+ * A string is one path and an array is several, and neither is read any further
+ * here: a path with a space in it is a path, so nothing is split, and an empty
+ * one is nothing said rather than a path that failed.
+ */
+function startPoint(
+  input: Readonly<Record<string, unknown>>,
+): string | readonly string[] | undefined {
+  const said = input['from'];
+  if (typeof said === 'string') return said.trim() === '' ? undefined : said;
+  if (!Array.isArray(said)) return undefined;
+  const paths = said.filter((term): term is string => typeof term === 'string' && term.trim() !== '');
+  return paths.length === 0 ? undefined : paths;
+}
 
 const DEFAULT_LIMIT = 8;
 
@@ -232,9 +255,14 @@ const STOPLIST: ReadonlySet<string> = new Set(['the', 'a', 'an', 'in', 'on', 'of
 /**
  * The lookup, as a value: the tool prints this and a measurement reads it.
  */
-export function locateSubjects(report: RunReport, query: string, from?: string): Located {
+export function locateSubjects(
+  report: RunReport,
+  query: string,
+  from?: string | readonly string[],
+  tree?: Tree,
+): Located {
   const index = indexOf(report);
-  const scope = from === undefined ? undefined : scopeOf(report, from);
+  const scope = from === undefined ? undefined : scopeOf(report, from, tree);
   // A boundary, not a preference. A start point that named nowhere leaves an
   // empty scope and an empty scope is searched empty: answering out of the
   // files the caller ruled out would be answering a question nobody asked.

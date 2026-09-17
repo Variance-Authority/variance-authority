@@ -15,7 +15,8 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { TOOLS, VANTAGE_TOOLS } from '@variance-authority/mcp/tools';
+import { TOOLS, VANTAGE_TOOLS, readTree, type Tree } from '@variance-authority/mcp/tools';
+import { scanCacheRoot } from './resources.js';
 import { readVantage } from './watch.js';
 
 /**
@@ -149,12 +150,41 @@ async function finished(
   const asked = join(dirname(request.report), ASKED);
   const report = await request.read();
   const previous = await recorded(asked);
-  const answer = tool.run(report, input, previous === undefined ? {} : { previous });
+  // A path is a fact about a tree, and this is the one side of the product that
+  // is already standing in one. Read only for the questions that say they need
+  // it — `wants` is the tool's answer about its own arguments — because it is a
+  // walk of the repository and most questions name no path at all.
+  const tree = tool.wants?.(input) === true ? await sourceTree() : undefined;
+  const answer = tool.run(report, input, {
+    ...(previous === undefined ? {} : { previous }),
+    ...(tree === undefined ? {} : { tree }),
+  });
 
   // After the answer and only after it, which is the MCP rule verbatim: a
   // refused call must not become the thing the next diff compares against.
   await record(asked, report);
   return answer;
+}
+
+/**
+ * The tree under the working directory, through the run's own scan index.
+ *
+ * The same index a run's selection scan writes, so a question asked after a run
+ * costs a map lookup per unchanged file rather than a parse of the repository.
+ *
+ * A tree that cannot be read is not fatal here: `scopeOf` refuses a start point
+ * it has no tree for, in the sentence a reader can act on, and the questions
+ * that name no path are unaffected. What must never happen is the other thing —
+ * falling back to the paths the run recorded and answering as though a tree had
+ * been read.
+ */
+async function sourceTree(): Promise<Tree | undefined> {
+  const root = process.cwd();
+  try {
+    return await readTree({ root, index: join(scanCacheRoot(root), 'source-index.bin') });
+  } catch {
+    return undefined;
+  }
 }
 
 /**

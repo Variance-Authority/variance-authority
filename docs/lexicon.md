@@ -286,7 +286,7 @@ A starting point is a place, and the most exact place you have is usually the
 file already open in front of you. Give it as a path and it is read as one:
 
 ```
-from: app/about-us/page.tsx    the file itself, and only what it shows
+from: app/about-us/page.tsx    the file itself, and what it is wired to
 from: app/about-us/*           the files of that folder — the layout beside it
 from: app/about-us/            everything underneath, however deep
 ```
@@ -295,31 +295,50 @@ Say nothing about depth and you mean any depth, so the folder on its own is the
 wider of the two, and the trailing `*` is the one that stops. Those three forms
 are the whole vocabulary.
 
-A path is read from the root down and compared segment for whole segment. Say
-it the way the run recorded it: where a run recorded its files relative to the
-repository, the absolute path your editor gives you is a different path, and
-this run holds nothing at it.
+**A path is resolved against the source tree**, read from the checkout you ask
+in, and against nothing else. The files a run recorded are not a tree: they are
+the files a run was *seen in*, and asked whether a path exists they answer
+wrongly in both directions — every real file the run never rendered reads as
+missing, and a path a build wrote down reads as present long after the file was
+deleted. Ask from a checkout of the repository the run was made in, or ask
+without a starting point.
 
-A path answers from the files a subject was seen in and from nothing else, and
-the only question asked of it is whether it exists. `I18nProvider.tsx` does not
+A path is read from the root down and compared segment for whole segment. An
+absolute path is the same question asked from the root: under the repository it
+is the coordinate the tree holds, and outside the repository there is nothing
+there.
+
+The only thing asked of a path is whether it exists. `I18nProvider.tsx` does not
 name the file under `src/core/Containers` — it names a file at the root, and
 where no file is there, the answer is not found. Nothing is looked for inside a
-path: no matching tail, no run of segments found in the middle, no case
-folding.
+path: no matching tail, no run of segments found in the middle, no case folding.
 
 Segments are compared whole and literally — `page` is not `pages`, and
-`Activity.ts` is not `Activity.tsx`. What you are looking for may be
-approximate; where to look is a coordinate you already have, and every softening
-of it widens the pond you said to fish in.
+`Activity.ts` is not `Activity.tsx`. A space is a character in a name rather
+than a separator, and so is a backslash, so one path is said as one string and
+several paths are said as several. What you are looking for may be approximate;
+where to look is a coordinate you already have, and every softening of it widens
+the pond you said to fish in.
 
-Two absolute paths of the same depth under different roots are left alone: they
-share a tail and disagree above it, nothing in a run says which of its leading
-segments are its root, and a rule loose enough to join them would join
-`apps/web/…/Button.tsx` to `apps/admin/…/Button.tsx`.
+**The path is the entrance, not the room.** What you name is the way in, and the
+imports decide the rest: a file is in the scope when it is connected to an entry
+point — reached along the imports, or reaching one against them, at any depth —
+and a subject is in the scope when a file in the scope was seen producing it.
+That is why naming one file still hands you an area: a checkout page is one file
+and forty neighbours, and the reader who names the page means the neighbourhood.
 
-A start point that names no file searches nothing, and returns nothing. Falling
-back to the rest of the suite would answer a question nobody asked, out of the
-files the reader ruled out, and would do it while printing a confident top hit.
+The walk is never shortened to save time. A cut-off would drop a file that is
+genuinely connected, and under-answering a place you named is the one failure a
+coordinate may not have. Where the scan could not read some file's own imports,
+the answer says how many such files are in the scope, because what lies behind
+them is not enumerated.
+
+A starting point that names nothing is **refused**. The question is not quietly
+answered suite-wide instead: falling back to the rest of the suite would answer
+a question nobody asked, out of the files the reader ruled out, and would do it
+while printing a confident top hit. An empty answer inside a real place and a
+place that is not there are different sentences, and only one of them means look
+somewhere else.
 
 ### What a starting point is worth
 

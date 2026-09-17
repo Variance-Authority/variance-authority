@@ -10,10 +10,12 @@ import {
   VANTAGE,
   createLineReader,
   handle,
+  wantsTree,
   type JsonRpcRequest,
 } from './protocol.js';
 import { continuing } from './tools/continue.js';
 import type { Served } from './tools/tool.js';
+import { readTree, type Tree } from './tools/tree.js';
 
 /**
  * The transport, and nothing else.
@@ -42,6 +44,18 @@ export interface ServerOptions<Subject = RunReport> {
    * that just re-ran.
    */
   readonly subject: () => Subject | Promise<Subject>;
+
+  /**
+   * Supplies the source tree, for the calls that name a path.
+   *
+   * Separate from the subject and asked for separately, because it is a
+   * different artifact read at a different cost. A report is a file; a tree is
+   * a walk of a repository, so it is read when a call says it needs one and
+   * never on the way past. `undefined` — or no supplier at all — is a host that
+   * has no repository to read, and a start point is then refused rather than
+   * resolved against something that is not a tree.
+   */
+  readonly tree?: () => Tree | undefined | Promise<Tree | undefined>;
 }
 
 export function serve<Subject>(options: ServerOptions<Subject>): () => void {
@@ -68,12 +82,11 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
 
     queue = queue.then(async () => {
       const subject = await options.subject();
-      const response = handle(
-        request,
-        () => subject,
-        options.served,
-        previous === undefined ? {} : { previous },
-      );
+      const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
+      const response = handle(request, () => subject, options.served, {
+        ...(previous === undefined ? {} : { previous }),
+        ...(tree === undefined ? {} : { tree }),
+      });
       if (request.method === 'tools/call' && succeeded(response)) {
         previous = structuredClone(subject);
       }
@@ -99,6 +112,51 @@ function succeeded(response: ReturnType<typeof handle>): boolean {
 export interface ReportFileOptions {
   readonly input?: Readable;
   readonly output?: Writable;
+  /**
+   * The repository the report was made in, for questions that name a path.
+   *
+   * A report says nothing about where its source is — it is a file, and it
+   * travels. So the root arrives here, and where it does not, a question with a
+   * start point in it is refused: answering it out of the paths the run
+   * recorded would be answering a question about a tree from something that is
+   * not one.
+   */
+  readonly root?: string;
+  /** Where the scan index is kept, so a second question does not re-parse the tree. */
+  readonly index?: string;
+}
+
+/**
+ * The tree, read once and held.
+ *
+ * Read lazily, because most questions do not name a path and a walk of the
+ * repository is not a thing to spend before anybody asked for one. Held after
+ * the first read, because the alternative is paying for it on every question
+ * that does. A failure is held too: a repository that could not be walked is
+ * not going to become walkable between two requests of one session, and
+ * retrying it silently would make every later answer slow for nothing.
+ */
+function treeOnce(options: ReportFileOptions): (() => Promise<Tree | undefined>) | undefined {
+  const root = options.root;
+  if (root === undefined) return undefined;
+
+  let read: Promise<Tree | undefined> | undefined;
+  return () => {
+    read ??= readTree({ root, ...(options.index === undefined ? {} : { index: options.index }) }).catch(
+      (error: unknown) => {
+        // Said on stderr rather than swallowed. The refusal the caller reads is
+        // about their question — *no source tree was read* — and the reason the
+        // walk failed is about the setup, which is the operator's to see and not
+        // the model's to be handed mid-answer.
+        process.stderr.write(
+          `variance: the source tree at \`${root}\` could not be read, so questions with a ` +
+            `start point will be refused: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+        return undefined;
+      },
+    );
+    return read;
+  };
 }
 
 /**
@@ -118,10 +176,13 @@ export async function serveReportFile(
   // startup rather than on whichever request happens to arrive first.
   let cached = await readRunReport(path);
 
+  const tree = treeOnce(streams);
+
   return serve({
     input: streams.input ?? process.stdin,
     output: streams.output ?? process.stdout,
     served: REPORTS,
+    ...(tree === undefined ? {} : { tree }),
     subject: async () => {
       try {
         cached = await readRunReport(path);

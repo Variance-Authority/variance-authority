@@ -1,4 +1,5 @@
 import type { RunReport } from '@variance-authority/report';
+import type { Tree } from './tree.js';
 
 /**
  * The contract every tool implements, and the untyped boundary it sits behind.
@@ -28,11 +29,35 @@ export interface Tool<Subject = RunReport> {
     input: Readonly<Record<string, unknown>>,
     invocation?: ToolInvocation<Subject>,
   ): string;
+
+  /**
+   * Whether this call needs the source tree read before it runs.
+   *
+   * Asked of the tool rather than worked out by the host, because the host is
+   * transport and the answer is about arguments. Reading the tree is a walk of
+   * the repository, and a tool list where every call paid for one would tax
+   * every question to serve the few that take a path — so `variance_locate`
+   * says yes exactly when a start point was given, and no otherwise.
+   *
+   * Absent means never, which is what almost every tool here means.
+   */
+  wants?(input: Readonly<Record<string, unknown>>): boolean;
 }
 
-/** State held for exactly one previous tool invocation, by whatever is holding it. */
+/** What a host has already read, handed to a tool that cannot read anything itself. */
 export interface ToolInvocation<Subject> {
+  /** State held for exactly one previous invocation, by whatever is holding it. */
   readonly previous?: Subject;
+  /**
+   * The source tree, where the host could read one and the call asked for it.
+   *
+   * A tool is a pure function from something already read, and a path is a fact
+   * about a tree that somebody has to walk. So the walk happens out here, ahead
+   * of the call, and arrives as a value like the report does. Absent means no
+   * tree was read, and a question that needed one is refused rather than
+   * answered from something that is not a tree.
+   */
+  readonly tree?: Tree;
 }
 
 /**

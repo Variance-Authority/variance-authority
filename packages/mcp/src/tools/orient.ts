@@ -4,6 +4,7 @@ import { readQuestion, type Asked, type Relation } from './question.js';
 import { holdersAmong, orientIndexOf } from './holds.js';
 import { deepestUnder, enclosedBy, enclosing } from './containment.js';
 import { scopeOf, type Scope } from './scope.js';
+import type { Tree } from './tree.js';
 
 /**
  * Where on a screen, rather than which screen.
@@ -91,9 +92,14 @@ export interface Orientation {
  * neighbour beats a further one, and the id breaks the tie so two machines
  * answering one question print one answer.
  */
-export function orient(report: RunReport, question: string, from?: string): Orientation {
+export function orient(
+  report: RunReport,
+  question: string,
+  from?: string | readonly string[],
+  tree?: Tree,
+): Orientation {
   const index = orientIndexOf(report);
-  const scope = from === undefined ? undefined : scopeOf(report, from);
+  const scope = from === undefined ? undefined : scopeOf(report, from, tree);
   // A boundary, not a preference: an empty scope is read empty rather than
   // widened back to the suite the caller narrowed away from.
   const within = scope === undefined ? undefined : scope.subjects;
