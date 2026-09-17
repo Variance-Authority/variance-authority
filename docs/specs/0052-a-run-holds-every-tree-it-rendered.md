@@ -144,7 +144,7 @@ neither is fixed.
 
 ## 5. What this is not
 
-It is not the rasters. `packages/core/src/report/images.ts` reads each raster
+It is not the rasters. `packages/cli/src/commands/images.ts` reads each raster
 from the disk-backed render cache, writes it and drops it, and the file already
 argues why holding two PNGs per subject "is the shape that makes this tool
 unusable on a real suite". That part was done. The trees were not.
