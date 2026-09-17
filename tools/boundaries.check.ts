@@ -227,6 +227,9 @@ const SERVES: Record<string, string> = {
     'a Playwright suite, whose requirement is a browser binary an install does not fetch',
   '@variance-authority/playwright-test':
     'a run of the Playwright test runner, entered through its fixture protocol',
+  '@variance-authority/vitest-browser':
+    "a run of Vitest's browser mode, entered through its command protocol — " +
+    'the target is the mode, which is a place a test body runs and not a library anyone installs',
   '@variance-authority/png-sharp':
     "a runtime that can load a compiled native addon, on sharp's published platform matrix — " +
     'the vendor is the requirement here, which is what makes this the one exception',

@@ -149,6 +149,7 @@ entrypoints.
 | `playwright` | a browser | the persistent harness, and a renderer |
 | `playwright-test` | a browser, and a Playwright test run | additive observation and assertion helpers; optional unbound fixture and matcher parts |
 | `unit-test` | a live DOM, and a writable artifact directory | resource-closed capture archives and a CLI collector for a later render process |
+| `vitest-browser` | a Vitest browser-mode run, and a browser for the deferred paint | one observation per mounted component, read in the tab and judged in the runner's own process |
 | `png` | a runtime with `Buffer` — Node, not a browser | decoding, comparison, the diff image |
 | `png-sharp` | a runtime that can load a native addon, and a platform published for it | the same comparison, with the decoding done natively |
 | `store` | a filesystem | baselines on disk, and in git-LFS |

@@ -1,6 +1,7 @@
 import type { CaptureArtifact } from '@variance-authority/core';
 import {
   digestBytes,
+  type Digest,
   type Holding,
   type Provenance,
   type Wiring,
@@ -64,6 +65,16 @@ export interface UnitCaptureOptions {
   readonly provenanceOf?: (element: Element) => Provenance | undefined;
   readonly wiringOf?: (element: Element) => Wiring | undefined;
   readonly holdingOf?: (element: Element) => Holding | undefined;
+
+  /**
+   * Identity of the stabilization recipe the subject was held still with.
+   *
+   * Nothing here holds anything still -- a caller that stabilized did it before
+   * mounting or before calling, and this is how that fact reaches the snapshot.
+   * Absent says the subject was read as it was found, which is a different
+   * reading of the same tree and hashes accordingly.
+   */
+  readonly stabilization?: Digest;
 }
 
 /** Capture a mounted DOM tree without importing or launching a browser. */
@@ -100,6 +111,7 @@ export async function capture(
     ...(options.provenanceOf === undefined ? {} : { provenanceOf: options.provenanceOf }),
     ...(options.wiringOf === undefined ? {} : { wiringOf: options.wiringOf }),
     ...(options.holdingOf === undefined ? {} : { holdingOf: options.holdingOf }),
+    ...(options.stabilization === undefined ? {} : { stabilization: options.stabilization }),
   });
 
   const document: RenderDocument = {
@@ -203,9 +215,30 @@ async function closeResources(
     }
     closed[url] = {
       contentType: response.contentType,
-      bytes: Buffer.from(response.bytes).toString('base64'),
+      bytes: base64(response.bytes),
       digest: digestBytes(response.bytes),
     };
   }
   return closed;
+}
+
+/**
+ * Base64 without `Buffer`.
+ *
+ * This function runs in whatever realm mounted the subject, and that realm is
+ * not always a Node one: `@variance-authority/vitest-browser` archives a
+ * subject from inside the browser tab the test is running in. `Buffer` is the
+ * shorter spelling and is a `ReferenceError` there, thrown while closing the
+ * first resource a fixture references -- which arrives as a capture that
+ * cannot see images rather than as a missing global.
+ */
+function base64(bytes: Uint8Array): string {
+  // `String.fromCharCode(...bytes)` in one call overflows the argument limit on
+  // anything the size of an actual image.
+  const stride = 0x8000;
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += stride) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + stride));
+  }
+  return btoa(binary);
 }

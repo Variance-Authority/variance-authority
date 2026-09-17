@@ -29,6 +29,7 @@ import storybook from "../../../packages/storybook/README.md?raw";
 import tribunal from "../../../packages/tribunal/README.md?raw";
 import unitTest from "../../../packages/unit-test/README.md?raw";
 import vantage from "../../../packages/vantage/README.md?raw";
+import vitestBrowser from "../../../packages/vitest-browser/README.md?raw";
 import wire from "../../../packages/wire/README.md?raw";
 
 export interface PackageDocument {
@@ -69,6 +70,7 @@ const packages = [
   ["tribunal", tribunal],
   ["unit-test", unitTest],
   ["vantage", vantage],
+  ["vitest-browser", vitestBrowser],
   ["wire", wire],
 ] as const;
 

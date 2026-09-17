@@ -54,6 +54,13 @@ installed as an init script rather than appended as a tag, because a module
 evaluates asynchronously — the check for a broken bundle would race it — and an
 init script survives the navigations a real test performs.
 
+Where the suite's test body already runs in the subject's own realm — a
+browser-mode component test — there is no crossing to make and no locator to
+resolve on the far side: the read happens in the tab and only the artifact
+leaves it, over whatever protocol the runner gives its test body. The judging
+half stays outside, because a baseline and a paint are the two things that realm
+does not have.
+
 ## Implementation coordinates
 
 - `packages/playwright-test/src/acquire.ts` — `acquireFrom`, portal accessibility roots
@@ -61,6 +68,8 @@ init script survives the navigations a real test performs.
 - `packages/playwright-test/src/fixture.ts` — `observeLocator` and the fixture surface
 - `packages/playwright-test/src/direct.ts` — a session held across several observations
 - `packages/playwright-test/src/in-place.ts` — the suite's own browser as the source of pixels
+- `packages/vitest-browser/src/observe.ts` — `observeSubject`, the read performed in the subject's own realm
+- `packages/vitest-browser/src/node.ts` — `varianceCommands`, the judging half on the runner's side
 
 ## Diagram
 

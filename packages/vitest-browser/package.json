@@ -1,0 +1,63 @@
+{
+  "name": "@variance-authority/vitest-browser",
+  "version": "0.2.0",
+  "description": "Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.",
+  "keywords": [
+    "variance-authority",
+    "visual-regression",
+    "visual-testing",
+    "vitest",
+    "browser-mode",
+    "component-testing",
+    "react"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/vitest-browser",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/vitest-browser"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@variance-authority/core": "workspace:^",
+    "@variance-authority/dom": "workspace:^",
+    "@variance-authority/observe": "workspace:^",
+    "@variance-authority/playwright": "workspace:^",
+    "@variance-authority/raster": "workspace:^",
+    "@variance-authority/react": "workspace:^",
+    "@variance-authority/store": "workspace:^",
+    "@variance-authority/unit-test": "workspace:^"
+  },
+  "peerDependencies": {
+    "vitest": ">=3"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0"
+  }
+}

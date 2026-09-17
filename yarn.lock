@@ -4068,6 +4068,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/ioc@workspace:packages/ioc":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/ioc@workspace:packages/ioc"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/jsx-source@workspace:^, @variance-authority/jsx-source@workspace:packages/jsx-source":
   version: 0.0.0-use.local
   resolution: "@variance-authority/jsx-source@workspace:packages/jsx-source"
@@ -4382,6 +4388,24 @@ __metadata:
   dependencies:
     "@variance-authority/event": "workspace:^"
     "@variance-authority/wire": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/vitest-browser@workspace:packages/vitest-browser":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/vitest-browser@workspace:packages/vitest-browser"
+  dependencies:
+    "@variance-authority/core": "workspace:^"
+    "@variance-authority/dom": "workspace:^"
+    "@variance-authority/observe": "workspace:^"
+    "@variance-authority/playwright": "workspace:^"
+    "@variance-authority/raster": "workspace:^"
+    "@variance-authority/react": "workspace:^"
+    "@variance-authority/store": "workspace:^"
+    "@variance-authority/unit-test": "workspace:^"
+    pngjs: "npm:^7.0.0"
+  peerDependencies:
+    vitest: ">=3"
   languageName: unknown
   linkType: soft
 

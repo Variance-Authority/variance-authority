@@ -84,11 +84,20 @@ It does not produce a screenshot or visual verdict.
 | `provenanceOf` | none | `(node) => owners`. Attaches the component chain that rendered each node, so a difference can be named by component rather than by path |
 | `wiringOf` | none | `(node) => wiring`. Attaches the framework wiring a node carries — hook count, keys, boundaries — as part of the compared identity |
 | `holdingOf` | none | `(node) => holding`. Attaches what each component boundary was handed and what it retained: props, contexts, and hook cells as digests. Evidence beside the snapshot, not part of any hash |
+| `stabilization` | none | the identity of the recipe the subject was held still with, when a caller held it still before capturing. Absent says the subject was read as it was found, which is a different reading of the same tree and hashes accordingly |
 
 `resolveResource` is the whole of the requirement above. A capture is rendered in
 another process — possibly on another machine, possibly hours later — so a
 document that carries digests and no bytes is a document that paints holes over
 there and cannot say why.
+
+`capture` is published on its own as `@variance-authority/unit-test/capture`,
+carrying nothing that touches a filesystem. The subject is read wherever it is
+mounted, and that is not always a Node process: `@variance-authority/vitest-browser`
+imports this entrypoint from inside the browser tab the test is running in, then
+sends the artifact out to be rendered. Everything else on this page — the
+archive, the collector, the value snapshot — is the Node half and stays on the
+default entrypoint.
 
 `writeCapture(directory, artifact)` writes one versioned file per subject;
 `readCapture` and `captureFiles` are the read half, and `CAPTURE_SUFFIX` is what

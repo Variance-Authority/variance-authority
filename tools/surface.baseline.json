@@ -2899,6 +2899,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./capture": {
+          "types": "./dist/capture.d.ts",
+          "default": "./dist/capture.js"
         }
       },
       "files": [
@@ -2934,6 +2938,12 @@
         "retainStyles": "function",
         "snapshotValue": "function",
         "writeCapture": "function"
+      },
+      "./capture": {
+        "AbsentResource": "interface",
+        "ResolvedResource": "interface",
+        "UnitCaptureOptions": "interface",
+        "capture": "function"
       }
     }
   },
@@ -2995,6 +3005,54 @@
         "VANTAGE_ASK": "const",
         "VantageReading": "interface",
         "attachVantage": "function"
+      }
+    }
+  },
+  "@variance-authority/vitest-browser": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "./node": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "Deliver": "type",
+        "LocatedSubject": "interface",
+        "OBSERVE_COMMAND": "const",
+        "ObserveRequest": "interface",
+        "Observed": "interface",
+        "Sensitivity": "interface",
+        "VarianceOptions": "interface",
+        "VarianceSubject": "type",
+        "assertUnchanged": "function",
+        "observeSubject": "function",
+        "toBeUnchanged": "function",
+        "variance": "function"
+      },
+      "./node": {
+        "VarianceCommands": "interface",
+        "VarianceNodeOptions": "interface",
+        "VarianceVitePlugin": "interface",
+        "varianceCommands": "function",
+        "variancePlugin": "function"
       }
     }
   },
