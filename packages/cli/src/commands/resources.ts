@@ -1,4 +1,5 @@
 import { readdirSync, type Dirent } from 'node:fs';
+import { said } from '../here.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
@@ -181,7 +182,7 @@ export async function journeyAgainst(
   } catch (error) {
     if (isMissing(error)) return undefined;
     throw new OperatorError(
-      `the recorded execution journal at ${file} could not be read: ${messageOf(error)}. ` +
+      `the recorded execution journal at ${said(file)} could not be read: ${messageOf(error)}. ` +
         'Delete it and run once without `--since` to record a new one; a run that ignored it ' +
         'would look exactly like a run that never had one.',
       { cause: error },

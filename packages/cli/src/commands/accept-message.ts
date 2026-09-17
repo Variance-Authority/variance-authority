@@ -1,4 +1,5 @@
 import { writeFile } from 'node:fs/promises';
+import { said } from '../here.js';
 import {
   changelogOf,
   isRecorded,
@@ -65,12 +66,12 @@ export async function writeAcceptMessage(options: AcceptMessageOptions): Promise
   });
 
   if (!isRecorded(record)) {
-    return `no commit message was written to ${options.path}: ${record.because}`;
+    return `no commit message was written to ${said(options.path)}: ${record.because}`;
   }
 
   await writeFile(options.path, renderCommitMessage({ message: options.message, record }), 'utf8');
   return (
     `wrote a commit message describing ${String(record.entries.length)} change(s) to ` +
-    `${options.path}; commit the baselines with \`git commit -F ${options.path}\``
+    `${said(options.path)}; commit the baselines with \`git commit -F ${said(options.path)}\``
   );
 }

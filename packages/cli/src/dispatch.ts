@@ -33,6 +33,7 @@ import {
 } from './commands/run.js';
 import { ask } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
+import { said } from './here.js';
 import { formatReport } from './commands/report.js';
 import {
   adjudicateReport,
@@ -175,7 +176,7 @@ export async function dispatch(
         const shared = await publishedLine(effective, report);
 
         streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${effective.report}\n${shared}`,
+          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}`,
         );
         return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {

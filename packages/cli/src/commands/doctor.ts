@@ -6,6 +6,7 @@ import {
   type Viewport,
 } from '@variance-authority/core/format';
 import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
+import { said } from '../here.js';
 import type { Config } from '../config.js';
 import type { DoctorProbes } from './doctor-probes.js';
 
@@ -313,7 +314,7 @@ async function baselines(
     return {
       kind: store.kind,
       because:
-        `${store.root} does not exist yet, so every subject will be \`new\` on the first ` +
+        `${said(store.root)} does not exist yet, so every subject will be \`new\` on the first ` +
         'run here — which is not a regression and is not a pass',
     };
   }
@@ -330,7 +331,7 @@ async function baselines(
     return {
       kind: store.kind,
       because:
-        `${store.root} exists and holds no baseline yet, so every subject will be \`new\` ` +
+        `${said(store.root)} exists and holds no baseline yet, so every subject will be \`new\` ` +
         'on the first run here — which is not a regression and is not a pass',
     };
   }
@@ -341,7 +342,7 @@ async function baselines(
     return {
       kind: store.kind,
       because:
-        `${store.root} holds ${stored} baseline(s) across ${scanned.length} machine ` +
+        `${said(store.root)} holds ${stored} baseline(s) across ${scanned.length} machine ` +
         'identit(ies). Which of them is this machine cannot be said, because no renderer ' +
         'opened here to be asked',
       partitions: scanned.map((entry) => ({ ...entry, mine: false })),
@@ -361,7 +362,7 @@ async function baselines(
       kind: store.kind,
       comparable: true,
       because:
-        `${ours.baselines} baseline(s) in ${store.root} were painted by a machine matching ` +
+        `${ours.baselines} baseline(s) in ${said(store.root)} were painted by a machine matching ` +
         `this one (${mine.slice(0, 12)}…), so a run here compares rather than reports ` +
         `\`incomparable\`${
           partitions.length > 1
@@ -380,7 +381,7 @@ async function baselines(
     // until a run goes uniformly red, and then it looks like the product broke.
     comparable: false,
     because:
-      `no baseline in ${store.root} was painted by a machine like this one. This machine is ` +
+      `no baseline in ${said(store.root)} was painted by a machine like this one. This machine is ` +
       `${mine.slice(0, 12)}… and the store holds ${stored} baseline(s) under ` +
       `${scanned.length} other identit(ies), so every subject would report \`incomparable\` ` +
       'rather than compare — a full run producing no verdicts at all. Two ways out: set ' +

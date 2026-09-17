@@ -11,6 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
+import { said } from './here.js';
 import { parseConfig, type Config } from './config.js';
 
 /**
@@ -21,14 +22,20 @@ import { parseConfig, type Config } from './config.js';
  * observing nothing and reporting success.
  */
 export async function loadConfig(path: string): Promise<Config> {
-  const source = path;
+  // The path is held absolute and said from here: one spelling can only ever mean
+  // one file, and the other is the one the reader typed and can type again.
+  const source = said(path);
   let text: string;
 
   try {
     text = await readFile(path, 'utf8');
   } catch (error) {
+    // A file that is not there is said once. The system's own message repeats the
+    // path in full, which on an installed consumer is a second line about
+    // somebody's home directory and nothing about what to do.
+    const because = missing(error) ? 'there is no file there' : messageOf(error);
     throw new OperatorError(
-      `cannot read the config file ${path}: ${messageOf(error)}. ` +
+      `cannot read the config file ${source}: ${because}. ` +
         'Nothing about a run is inferred, so there is no default to fall back to.',
       { cause: error },
     );
@@ -42,4 +49,9 @@ export async function loadConfig(path: string): Promise<Config> {
   }
 
   return parseConfig(value, { source, baseDir: dirname(resolve(path)) });
+}
+
+/** Whether a failed read is the file simply not being there. */
+function missing(error: unknown): boolean {
+  return (error as { code?: string } | undefined)?.code === 'ENOENT';
 }

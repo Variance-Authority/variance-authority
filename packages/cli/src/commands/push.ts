@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { said } from '../here.js';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type {
@@ -393,7 +394,7 @@ async function bytesOf(read: (path: string) => Promise<Buffer>, path: string): P
   try {
     return { ok: true, value: await read(path) };
   } catch (error) {
-    return { ok: false, because: `${path} could not be read: ${messageOf(error)}` };
+    return { ok: false, because: `${said(path)} could not be read: ${messageOf(error)}` };
   }
 }
 
@@ -414,7 +415,7 @@ async function candidate(
   try {
     sidecar = JSON.parse((await read(sidecarPath)).toString('utf8')) as Sidecar;
   } catch (error) {
-    return { ok: false, because: `${sidecarPath} could not be read: ${messageOf(error)}` };
+    return { ok: false, because: `${said(sidecarPath)} could not be read: ${messageOf(error)}` };
   }
 
   if (
@@ -426,7 +427,7 @@ async function candidate(
     return {
       ok: false,
       because:
-        `${sidecarPath} carries no \`documentDigest\`, \`width\`, \`height\` and ` +
+        `${said(sidecarPath)} carries no \`documentDigest\`, \`width\`, \`height\` and ` +
         '`missingFonts`, so this candidate could be looked at but never approved',
     };
   }

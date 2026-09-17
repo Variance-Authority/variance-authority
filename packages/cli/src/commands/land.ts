@@ -1,4 +1,5 @@
 import { OperatorError } from '../exit.js';
+import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
 import { isMissing, messageOf } from './resources.js';
 
@@ -43,8 +44,8 @@ export async function landJourneys(
       } catch (error) {
         throw new OperatorError(
           isMissing(error)
-            ? `there is no snapshot at ${path}`
-            : `the snapshot at ${path} could not be read: ${messageOf(error)}`,
+            ? `there is no snapshot at ${said(path)}`
+            : `the snapshot at ${said(path)} could not be read: ${messageOf(error)}`,
           { cause: error },
         );
       }
@@ -64,7 +65,7 @@ export async function landJourneys(
   } catch (error) {
     if (!isMissing(error)) {
       throw new OperatorError(
-        `the snapshot already at ${at} could not be read: ${messageOf(error)}. ` +
+        `the snapshot already at ${said(at)} could not be read: ${messageOf(error)}. ` +
           'Delete it and land again; a fold written over it would have replaced evidence ' +
           'nobody could see.',
         { cause: error },
