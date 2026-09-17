@@ -35,10 +35,14 @@ is not a slow path. It is an impossible one:
   `Map<ModuleId, Map<ordinal, Set<string>>>` — one entry per region a test
   entered, holding test paths as strings. Thirty-one test files of a
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
-  The shipped reporters call it: `vitest.ts:319` and `jest-reporter.ts:97`.
-- **Publishing.** `layeredCoverage` decodes the snapshot to that same model,
-  replaces the rows the run re-recorded, and encodes it again. Ten modules of
-  200,000 cost 3.1 s and 1,111 MB.
+  The shipped reporters call it: `vitest.ts:320` and `jest-reporter.ts:97`.
+- **Publishing.** `layeredCoverage` no longer decodes the snapshot to that
+  model — `format-layer.ts:238-260` copies an untouched module's rows column to
+  column as integers, and `:335-350` remaps each carried crossing set once per
+  distinct set rather than once per region. What it still does is open and
+  rewrite *every* column and re-intern the *whole* pool to replace ten modules
+  of 200,000, which costs 3.1 s and 1,111 MB. The defect is that the cost is
+  proportional to the file rather than to the change, not that a model is built.
 
 Both are the same defect at two ends, and it is a defect rather than a limit:
 the fold that does not have it is already in the repository, unwired.
@@ -88,10 +92,22 @@ rather than the snapshot. An overlay that cannot be read costs the run it would
 have recorded, which is the direction [0029](0029-what-a-run-remembers.md)
 already requires of every cache in this system.
 
-**Overlay reads may not narrow.** A test whose row is in the overlay and also in
-the snapshot is answered from the overlay; a test in neither is unknown and runs.
-The reader unions and never subtracts, so an overlay lost between the run and
-the query costs a full run and can never cost a skipped test.
+**Overlay reads may not narrow.** The rule is one sentence in two halves, and
+both halves are needed. *Across* test files the reader unions: a test file the
+overlay does not mention keeps the snapshot's answer, and a test file neither
+holds is unknown and runs. *Within* one test file the overlay supersedes — a
+later recording of a test file is the truth about that file, which is what
+layering already does at `format-layer.ts:262-266`. Nothing is subtracted in
+either direction, so an overlay lost between the run and the query costs a full
+run and can never cost a skipped test.
+
+**The overlay interns into a pool of its own.**
+[ADR-0061](../context/adr/0061-a-crossing-relation-is-interned-not-owned.md) holds that a
+`SetId` is meaningful only against the pool that minted it, so the overlay may
+neither borrow the snapshot's ids nor renumber them. A query opens two
+`CrossingSetsView`s and joins them on test *names*, which is the only coordinate
+the two files share. An overlay that cannot do that is an overlay that has to
+renumber on every append, and renumbering is the cost this item exists to avoid.
 
 **4. The encoder copies the bytes it is not changing.** A publish that replaces
 ten modules of 200,000 knows which ten. Every other module's region rows,
@@ -111,11 +127,31 @@ bytes rather than a ratio of two timed runs, so it means the same thing on any
 machine.
 
 **Acceptance:** `snapshot-scale.mjs layer` against the 200,000-module fixture,
-reporting a peak under 600 MB and a time proportional to the modules re-recorded
-rather than to the file. Then a suite of 2,000 test files of a 40,000-module
-shape recorded end to end under the same ceiling, where today it breaks it at
-about thirty-two test files. Both under `/usr/bin/time -l`, both with the command
-in the journal.
+run twice over the same snapshot — once replacing 10 modules and once replacing
+100 — with both peaks under 600 MB and the two wall clocks within 2x of each
+other. Proportionality is not a predicate one run can answer; two points and a
+bound is. Then a suite of 2,000 test files of a 40,000-module shape recorded end
+to end under the same ceiling, where today it breaks it at about thirty-two test
+files — which needs a fixture of that shape, so this half is blocked on
+[0047](0047-a-skip-list-is-worth-what-it-skips.md) item 3 and says so rather than
+waiting quietly. Both under `/usr/bin/time -l`, both with the command in the
+journal.
+
+**6. Something retires what the repository no longer holds.** Every item above
+bounds the cost of a *run*. Nothing bounds the cost of the *file*. A module
+deleted from the repository is carried verbatim with all of its crossings —
+`test-selection/merge.ts:415` carries it because nothing at the path says the rows are about a
+file that is gone, and `format-layer.ts:248` pushes every unclaimed row onward —
+and a test file that no longer exists keeps its row and its `complete` flag
+(`format-layer.ts:263-265`). So the snapshot is monotonically non-shrinking over
+a repository's life, and the 600 MB ceiling is approached from this side too,
+by a repository that never grew.
+
+**Acceptance:** a fold retires rows for paths absent at its own commit, says how
+many it retired, and a test deletes a thousand modules from a fixture and asserts
+the snapshot got smaller. A run may not do this — a run sees a subset of the
+tree and would retire what it merely did not look at — so this belongs to the
+cadence [0044](0044-many-writers-one-record.md) owns.
 
 ## What it forecloses
 
@@ -130,6 +166,7 @@ publish is the ordinary case, and a tool that cannot say what it has not folded
 yet is an incomplete tool rather than a fast one.
 
 **The overlay is not a second format.** It holds rows in the columns the snapshot
-holds them in, or it becomes a second decoder with its own version, its own
-validation and its own way of being wrong. A separate shape is how a cache stops
-costing a run and starts costing an answer.
+holds them in, through the same codec and the same validation, and differs only
+in carrying its own pool and its own section index. Anything more than that is a
+second decoder with its own version and its own way of being wrong, and a
+separate shape is how a cache stops costing a run and starts costing an answer.

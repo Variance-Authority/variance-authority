@@ -25,7 +25,7 @@ without anyone choosing between them:
   (`packages/sense/src/test-selection/vitest.ts:343-344`). The Jest reporter does
   the same.
 - `nameModules` — read-modify-write over the file that assigns every module its
-  id — reads at `packages/sense/src/module-names.ts:123` and publishes at `:140`
+  id — reads at `packages/sense/src/module-names.ts:127` and publishes at `:140`
   with no lock between them, and swallows its write errors at `:141`.
 
 Two Vitest projects, a Jest multi-project run, or a Vitest run beside a
@@ -72,9 +72,13 @@ is a property of one observation and not of the index.
 
 Without a number, nothing can tell a partially-landed fold from a complete one,
 nothing can detect that a merge was lost, and the question *is this index
-complete?* has no field to read. `immutable-log.ts` already holds a real
-generation mechanism and `coverage.bin` does not go through it — it is written by
-plain temp-file rename.
+complete?* has no field to read. Nor is there a mechanism elsewhere to borrow:
+`immutable-log.ts:25-29` carries a `format`, a `version` pinned to 1 and a list
+of segments — a format version, not a generation — and publishes by the same
+read-modify-write-and-rename with no expected-prior check
+(`immutable-log.ts:122-140`). `names.bin` has the lost-update hazard this spec
+indicts `coverage.bin` for, one layer down, and its compaction discards segments
+a concurrently-published manifest may still name.
 
 **4. A demotion carries its reason.** Three sites write `{ ...test, complete:
 false }` and drop why: `test-selection/merge.ts:166`, `test-selection/merge.ts:357`, `format-layer.ts:266`. The
@@ -133,8 +137,12 @@ generated inputs, or the second implementation needs to go.
   it — and doing it without a word is not.
 
 **Acceptance:** two runs against one repository, started together and finishing
-in either order, where both contributions are in the index afterwards and the run
-that waited says it waited. Then the same pair with `nameModules` racing, where
+in either order, where both contributions survive and the writer that waited says
+it waited — *both contributions in the index* while a run still writes the index,
+and *both contributions in the overlay, and in the index after the fold that
+follows* once [0043](0043-a-record-costs-what-the-run-cost.md) item 3 lands. The
+two are the same requirement against two write paths, and this spec's item 1
+follows the index writer wherever that item puts it. Then the same pair with `nameModules` racing, where
 no two paths hold one id. Then a fold of sixteen shards of the 200,000-module
 fixture under `/usr/bin/time -l`, reporting a peak under the 600 MB ceiling. Then
 a landed fold over a local index whose carried modules have moved on disk, where

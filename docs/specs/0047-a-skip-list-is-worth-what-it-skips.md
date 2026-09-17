@@ -4,13 +4,14 @@
 should use it — **how much of a suite it removes** and **how often it removes
 something it should not** — and neither has ever been produced. The instrument
 for the second exists and has never been run against a mutation plan, because no
-plan is in the tree. The instrument for the first cannot be run at all, because
-the fixture behind every published figure is not in the repository and the one
-that can be rebuilt has the wrong shape.
+plan is in the tree, and it measures a configuration the product does not ship.
+The instrument for the first cannot be run at all, because the fixture behind
+every published figure is not in the repository and the one that can be rebuilt
+has the wrong shape.
 **Built on:** [0043](0043-a-record-costs-what-the-run-cost.md) (the cost side,
 which is measured), [0046](0046-the-safety-rule-lives-in-one-place.md) (the rule
 a miss rate measures), [0027](0027-a-test-is-selected-by-what-it-executed.md)
-(the overhead criterion still unmeasured at `:211`).
+(the overhead criterion whose reading is still unpublished at `:211`).
 
 ## Purpose
 
@@ -35,12 +36,18 @@ The evidence problem is structural rather than lazy, which is why it needs a
 spec rather than a task:
 
 - **The fixtures are gone.** The files behind every published scale number are
-  not in the tree, and the generator that remains produces a *uniform* shape —
-  a flat count of regions per module — rather than the sampled distribution the
-  published figures were taken over. The numbers are real and they are not
-  reproducible from this repository.
-- **One axis has never moved.** Every fixture is 2,000 test files. The axis this
-  whole feature narrows along is the one nothing has varied.
+  not in the tree, and the generator the scale figures are taken over produces
+  a *uniform* shape — `snapshot-scale.mjs:51` fixes a flat count of regions per
+  module and `:123` multiplies it out — rather than the sampled distribution
+  the published figures were taken over. The corpus generator is not the same
+  story: `coverage-corpus.mjs:118-145` deliberately tails its crossing sets.
+  The published numbers are real and they are not reproducible from this
+  repository.
+- **One axis barely moves.** `snapshot-scale.mjs:533-546` sweeps the test-file
+  count for the journals arm, and `shape-sweep.mjs` varies it. The snapshot and
+  selection arms are 2,000 test files and nothing else — and those are the arms
+  every published figure comes from. The axis this whole feature narrows along
+  is the one the headline numbers hold fixed.
 - **The safety metric has no home.** `docs/metrics.md` scores rendering and
   comparison and carries no selection question at all; `docs/instruments.md` —
   the page that links the executable readings and says where each stops — names
@@ -61,8 +68,14 @@ entirely on prose and on twenty-odd hand-built unit fixtures.
 
 The run must also be honest about its own configuration, which today it is not:
 the script calls the narrowing with no `sourceAt`, no `relations` and no
-`knownAs`, and applies a safe set no shipping caller applies. A measurement of a
-configuration nobody ships is not a measurement of the product
+`knownAs`, and builds its safe set at
+`packages/sense/scripts/select-check.mjs:110-112` without the `unread` widen
+that every shipping caller applies
+(`packages/cli/src/commands/select.ts:216-217`). It measures a narrower answer
+than the product gives, which makes its miss rate an upper bound on the
+product's and its selectivity an upper bound too — neither of which is the
+number anyone asked for. A measurement of a configuration nobody ships is not a
+measurement of the product
 ([0046](0046-the-safety-rule-lives-in-one-place.md) is the same disagreement
 seen from the code side).
 
@@ -70,8 +83,9 @@ seen from the code side).
 For a body of actual commits: how many test files did the suite hold, and how
 many did the record clear? Reported as a distribution, not a mean — the
 interesting cases are the tail where a hub is touched and nothing is skipped.
-Grounded in a public library corpus, which is the only corpus this project may
-publish against.
+Grounded in Material UI — the public corpus this project already checks against
+— over a named, pinned range of merged commits, because a distribution whose
+input range is not stated cannot be re-taken.
 
 **3. A fixture that is in the repository and has the right shape.** Either the
 generator learns the sampled distribution its published figures came from, or
@@ -96,16 +110,31 @@ value collapses on one change in three is a different product from one whose
 value collapses on one in thirty, and the page that raises the question does not
 answer it.
 
-**7. The overhead criterion is discharged or withdrawn.**
-[Spec 0027](0027-a-test-is-selected-by-what-it-executed.md) sets a bound on
-recording overhead and nothing measures it. A stated criterion that nothing
-checks is weaker than no criterion, because it reads as though something did.
+**7. The overhead criterion has a published reading.**
+[Spec 0027](0027-a-test-is-selected-by-what-it-executed.md) pre-registers `o` —
+instrumented run over uninstrumented run — at 1.35, and the instrument exists:
+`packages/sense/scripts/overhead.mjs`, wired as `yarn overhead`. What is missing
+is the reading. `docs/instruments.md` names no selection instrument and no
+overhead instrument, so the criterion is checked by a script an operator has to
+know to run. A criterion whose reading is not published reads, from outside, as
+a criterion nothing checks.
+
+**8. A shadow mode.** The skip list is computed, the whole suite runs anyway,
+and the run reports which tests the answer would have removed and which of those
+failed. That is the only instrument that exercises what a mutation plan cannot:
+shards, retries, a flake, a merge queue that lands three changes between the
+snapshot and the run, and a cache restore of a snapshot from another machine —
+all at once, on a real suite, at no risk. It is also the only form in which an
+adopter can buy the claim before depending on it, and the first number this spec
+produces that is not taken in a laboratory.
 
 **Acceptance:** a committed mutation plan and a recorded run of it over the
-public corpus, reporting a miss count against the shipped configuration; a
-selectivity distribution over that corpus' real changes; and both readings
-linked from the metrics page with their stopping points named. A miss rate above
-zero is a result, not a failure of this spec — an unmeasured one is.
+named range of the public corpus, reporting a miss count against the shipped
+configuration; a selectivity distribution over that range's real changes; and
+both readings linked from the metrics page with their stopping points named.
+Then a shadow run over one real suite, reporting what it would have skipped and
+what of that failed. A miss rate above zero is a result, not a failure of this
+spec — an unmeasured one is.
 
 ## What it forecloses
 

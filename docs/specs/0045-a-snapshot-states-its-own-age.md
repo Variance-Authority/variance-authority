@@ -57,11 +57,18 @@ file that is not ours is rejected as not ours, not as corrupt.
 **2. Three distinct refusals, and they are typed.** *Not this format*, *not this
 version* and *damaged* are three different conditions with three different
 remedies, and today they are two untyped `Error`s that
-`format-view.ts:380-386`, `carried-sources.ts:46-48` and `test-selection/index.ts:254-257` all
-catch identically and answer with `undefined`. A merge cannot tell a
+`format-view.ts:378-386` and `carried-sources.ts:46-48` both catch identically
+and answer with `undefined`, and `test-selection/index.ts:254-257` catches the
+same three to skip a seed without a word. A merge cannot tell a
 one-release-old base from a damaged one; a version bump looks like a corruption
 epidemic and a corruption epidemic looks like a version bump. Each refusal
 carries a code, and a caller may branch on it.
+
+Identity has to arrive with the policy, not before it. No file in the field
+carries the magic bytes item 1 adds, so the first release that can refuse a
+foreign file must recognise its own predecessors by the absence of magic *plus*
+`version === 8`, and item 1 and item 5 land together or item 1 evicts every
+snapshot it was meant to protect.
 
 **3. Integrity, and a stated position on what it is for.** At minimum
 `ZSTD_c_checksumFlag`, which costs a constant per frame, plus a digest over the
@@ -75,8 +82,7 @@ first is that its absence fails silently in the narrowing direction.
 sorted ones.** `format-validation.ts:32-58` checks row-count agreement, and the
 value checks run only when their column materializes: ordinal uniqueness, owner
 rooting, extents and instrumented-implies-regions are all skipped by an ordinary
-selection, and `blocks.ordinal` has no check at all. **Sortedness is checked
-nowhere**, and it is the invariant every `lookup.ts` binary search rests on. An
+selection. **Sortedness is checked nowhere**, and it is the invariant every `lookup.ts` binary search rests on. An
 unsorted dictionary opens cleanly, validates cleanly, and returns wrong skip
 lists forever.
 
@@ -103,7 +109,7 @@ case it is a position, it says why, it names the cost, and the version gate
 reports *old* rather than *corrupt* so the operator knows a rebuild is
 scheduled rather than a disk failing.
 
-**6. Durability matches the claim.** `test-selection/index.ts:307` says "whole or not at all".
+**6. Durability matches the claim.** `test-selection/index.ts:312` says "whole or not at all".
 `writeCoverageBytes` (`:340-345`) is a temp-write and a rename with no `fsync`
 of the file and none of the directory, which holds against a concurrent reader
 and not against a crash.

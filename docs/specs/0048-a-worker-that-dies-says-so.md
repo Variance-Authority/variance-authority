@@ -1,56 +1,68 @@
-# Spec 0048 — a worker that dies leaves no trace, and the record cannot tell that from a test that touched nothing
+# Spec 0048 — one worker's bad journal costs the whole run, and the two runners disagree about what to do with it
 
-**Missing:** the production half of the record. A crossing is observed in a
-worker's memory and reaches disk exactly once, in an `afterAll`, as one
-unframed buffer written straight to its final name. Every way that can fail —
-the worker is killed, the write is cut short, the file is stale from a retry,
-the counter wraps — arrives at the reader as the same thing a passing test that
-entered nothing arrives as: a file that is absent, or a run that is empty. The
-snapshot then records that absence as fact, and selection skips on it.
+**Missing:** a production path that survives its own failures. A crossing is
+observed in a worker's memory and reaches disk once, in an `afterAll`, written
+straight to its final name. The journal format is framed and refuses a truncated
+file — and that refusal is taken inside one `Promise.all` over every file in the
+run directory, so one damaged journal, or one `.DS_Store`, throws for the whole
+run and names nothing. Underneath that, the two reporters answer an unknown
+module id three different ways, one of them in the narrowing direction.
 **Built on:** [0043](0043-a-record-costs-what-the-run-cost.md) (the per-worker
 model this bounds), [0044](0044-many-writers-one-record.md) (which begins where
-the journals are already on disk), [0045](0045-a-snapshot-states-its-own-age.md)
-(self-description, one layer down),
+the journals are already on disk),
 [ADR-0059](../context/adr/0059-a-record-is-invalidated-by-what-could-have-answered-it.md).
 
 ## Purpose
 
 Specs 0043 through 0047 all start from journals that exist. Nothing states what
-has to be true for them to exist, and the code says less than it looks like it
-does.
+has to be true for them to exist.
 
-- The only write is `worker-source.ts:82-91`: an `afterAll` that mints
-  `<pid>-<uuid>.va`, encodes the whole journal in memory, and `writeFile`s it to
-  its final path. No temporary name, no rename, no fsync, no length prefix, no
-  checksum. A worker killed by the OOM killer, by a segfault, or by
-  `process.exit` writes nothing at all; a worker killed during the write leaves
-  a prefix of a journal under a name that says it is whole.
-- The reader cannot tell those apart, and does not try. `finished-files.ts:206`
-  sets `recorded = false` when no journal named the file — the same state a
-  skipped file reaches — and `readJournals` at `:230-241` `readdir`s the
-  directory with **no extension filter** and decodes every name inside one
-  `Promise.all`, so one truncated or stray file throws for the whole run and the
-  error names no file.
+What is already right, and is the floor this spec builds on: the journal opens
+with `VAJRN` and a version (`journal-format.cts:33`), every read is bounded, and
+`decodeJournal` refuses a file that runs out or has bytes left over
+(`journal-format.cts:116`). A truncated journal is *refused*, not decoded short.
+Completeness is gated too — a test file whose journal never arrived is
+`complete: false` (`finished-files.ts:227`), and `test-selection/select.ts:130` builds `whole`
+only from tests the snapshot recorded whole, so an unrecorded file cannot be
+skipped. Neither of those is the problem.
+
+The problem is everything around them.
+
+- The refusal is taken in bulk. `readJournals` (`finished-files.ts:230-241`)
+  `readdir`s the run directory with **no extension filter** and decodes every
+  name inside one `Promise.all`. One truncated journal, or one file the
+  operating system put there, throws for the whole run — and the error names no
+  file, so the message is the same whichever caused it.
+- The write is not durable. `worker-source.ts:82-91` mints `<pid>-<uuid>.va`,
+  encodes the journal in memory and `writeFile`s it to its final path: no
+  temporary name, no rename, no fsync. A worker killed mid-write leaves a file
+  that will be refused — which is correct — but one that will take the run down
+  with it, per the previous point.
+- **An unknown module id is handled three ways.** Vitest *throws*
+  (`finished-files.ts:213`), which aborts the settle and loses the run. Jest's
+  crossing path *silently drops the row*
+  (`jest-reporter.ts:95` filters `journal.modules`), so the crossing disappears
+  while the test stays complete — a narrowing. Jest's finished-file path sets
+  `placed = false` (`jest-reporter.ts:186`), which demotes correctly. One
+  condition, three behaviours, and the middle one is the unsafe one.
 - `run.settled` is set at `vitest.ts:310-311` and never reset, so `vitest
   --watch` records the **first** run and silently ignores every one after it.
   Jest does not have this bug: `jest-reporter.ts:71-77` re-mints the run
-  directory in `onRunStart`. Two runners, one seam, opposite behaviour, and
-  nothing tests it.
+  directory in `onRunStart`.
 - Neither `settle` has a `try`/`finally`. Vitest marks the run settled before
-  doing any work and `rm`s the run and case directories as plain trailing
-  statements at `vitest.ts:358-359`, so any throw in between loses the run
-  *and* leaves its directories behind.
+  doing any work and `rm`s the run and case directories as trailing statements
+  at `vitest.ts:358-359`, so a throw in between loses the run *and* leaves its
+  directories behind. A killed process leaves them too, and nothing ever
+  collects them.
 - Counts are `Uint32Array` increments with bit 31 taken for `EVALUATING`
   (`instrument/index.ts:238`), and the increment does not saturate. A region
   entered 2³¹ times does not overflow into a wrong count, it overflows into the
   flag that means *this belongs to every subject*.
 - `instrument()` returns `undefined` when the parse produced errors
   (`instrument/index.ts:161`) and the caller uses the original text. That is the
-  right refusal, and it is silent: nothing counts it, so a run in which every
-  module failed to parse and a run in which none did are the same run to a
-  reader. The one check that exists, `noteAnEmptyRecord`
-  (`finished-files.ts:74-84`), fires only when `instrumented === 0 &&
-  testFiles > 0`, and Jest never calls it.
+  right refusal, and it is silent: nothing counts it. The one check that exists,
+  `noteAnEmptyRecord` (`finished-files.ts:74-84`), fires only when
+  `instrumented === 0 && testFiles > 0`, and Jest never calls it.
 - `test-selection/journey.ts:233-234` deletes a journey's counters and factory at the top of
   `report()`, then returns without sending at `:253` when the channel is
   undefined. The observation is destroyed before the code discovers it cannot be
@@ -60,81 +72,82 @@ does.
 
 None of these is marked. `FIXME`, `it.todo` and `test.todo` appear **zero**
 times across `packages/sense/src/test-selection` and
-`packages/sense/src/instrument`, which is not a claim that the stage is
-finished; it is the absence of the project's own way of saying it is not.
+`packages/sense/src/instrument`.
 
 ## What would discharge it
 
-**1. A journal arrives whole or does not arrive.** Encode to a temporary name,
-fsync, rename — the rule `test-selection/index.ts:307` already states for the snapshot, applied
-one layer earlier — and frame the journal with magic bytes and a length so a
-truncated one is refused as truncated rather than decoded as short.
-**Acceptance:** a test that kills a worker mid-write leaves either a complete
-journal or no journal, and never a file that decodes.
+**1. One bad journal costs one journal.** Filter `readdir` to the extension the
+writer uses, decode each file in isolation, and report what failed by name and
+by reason. **Acceptance:** a run directory holding one truncated `.va` and one
+`.DS_Store` still settles, the summary names the truncated file, and the test
+file it belonged to is demoted rather than the run lost.
 
-**2. One bad journal costs one journal.** Filter `readdir` to the extension the
-writer uses, decode each file in isolation, and report what failed by name.
-**Acceptance:** a run directory containing one truncated `.va` and one stray
-`.DS_Store` still settles, and the summary names the truncated file.
+**2. A journal is written durably.** Temporary name, fsync, rename — the rule
+`test-selection/index.ts:312` already states for the snapshot, applied one layer earlier.
+**Acceptance:** with a failure injected between write and rename, the run
+directory holds no `.va` at all — not a file a reader has to refuse.
 
-**3. An unrecorded file says which kind of unrecorded it is.** *Skipped*,
-*crashed before it wrote*, *wrote something unreadable* and *ran and entered
-nothing* are four states, and `recorded = false` is currently all four.
-**Acceptance:** the reporter distinguishes them, and only the last of the four
-is allowed to narrow a later selection.
+**3. An unknown module id has one answer, and it is not a silent drop.** Pick
+the behaviour, write down why, and make both runners take it.
+**Acceptance:** the Jest filter at `jest-reporter.ts:95` is gone, a journal
+naming an id the inventory does not hold demotes its test file on both runners,
+and a test asserts the same outcome under each.
 
 **4. A second journal for a test file is reconciled, not raced.** Retries and
-re-runs both produce one, and the name `<pid>-<uuid>.va` carries no test
-identity to reconcile on. **Acceptance:** a suite with a retried test file
-records the attempt that finished, deterministically, and says that it did.
+re-runs both produce one, and `<pid>-<uuid>.va` carries no test identity to
+reconcile on. **Acceptance:** a suite with a retried test file records the
+attempt that finished, deterministically, and says that it did.
 
 **5. `settled` is per-run, not per-process.** **Acceptance:** an integration
 test under `vitest --watch` that edits a file and re-runs writes a second
 execution record reflecting the second run.
 
-**6. Both settles are exception-safe.** `try`/`finally` around the work, the
-directory cleanup in the `finally`, the settled marker set on the way out.
-**Acceptance:** a settle that throws leaves no run directory behind and does not
-claim a run it did not write.
+**6. Both settles are exception-safe, and their directories are collectable.**
+`try`/`finally` around the work, cleanup in the `finally`, and a run directory
+named so that a later run can recognise and remove an abandoned one.
+**Acceptance:** a settle that throws leaves no run directory behind, and a run
+started after a killed one removes what the killed one left.
 
 **7. Overflow and instrumentation failure are counted, not assumed away.**
 Saturate the counter below the flag bit, and carry a per-run count of modules
-refused by the parser through to the settle. **Acceptance:** a module that
-fails to parse is visible in the run's own output, and no count can reach
-`EVALUATING` by arithmetic.
+the parser refused through to the settle, on both runners.
+**Acceptance:** a module that fails to parse is visible in the run's own output,
+and no count can reach `EVALUATING` by arithmetic.
 
 **8. An observation is not destroyed before it is delivered.** Move the
-`counters.delete` in `test-selection/journey.ts:233` after the point where the account is
-known to be sendable, and check every `writeSync` return in
+`counters.delete` in `test-selection/journey.ts:233` past the point where the account is known
+to be sendable, and check every `writeSync` return in
 `instrumented-modules.ts`. **Acceptance:** a `report()` with no channel leaves
 the journey's counters intact for the next attempt.
 
 **9. The production path measures itself.** Journal bytes, modules per worker,
-counter-array bytes, flush duration and worker peak RSS, under the 600 MB
-ceiling [0043](0043-a-record-costs-what-the-run-cost.md) item 5 makes a gate.
+counter-array bytes, flush duration and worker peak RSS, against the 600 MB
+ceiling [0043](0043-a-record-costs-what-the-run-cost.md) item 5 makes a gate —
+which owns the gate script; this owns the per-worker figures it reports.
 **Acceptance:** one command prints those five numbers for a run, and the
 per-worker figure appears beside the whole-run figure on the metrics page.
 
-**10. The holes carry markers.** Each item above gets an `it.todo` or a
-`// FIXME` at its site while it is open. **Acceptance:** the count of status
-markers in `test-selection/` and `instrument/` is not zero while this spec
-exists.
+**10. Each open item above carries an `it.todo` or a `// FIXME` at its site**
+while it is open, in the form `tools/unrun.mjs` already reads.
+**Acceptance:** every item in this spec that is not discharged is findable from
+the code it is about, not only from this file.
 
 ## What it forecloses
 
-**Absence is not evidence.** A missing journal is a thing that did not happen
-being read as a thing that did: the test entered nothing. Every failure in this
-spec ends at that one sentence, and it is the sentence that makes a wrong skip
-list look like a correct one.
+**A refusal is not a failure mode until it is isolated.** The format refuses a
+damaged journal correctly. Taking that refusal over a whole directory at once
+converts a per-file fault into a per-run one, and that conversion — not the
+refusal — is the defect.
 
-**The reporters are not a pair of independent programs.** Vitest and Jest
-compute `complete` differently and reset differently, and each difference found
-so far was a bug in one of them, not a choice made twice. Behaviour that differs
-between the two is a defect until someone writes down why it should not be.
+**The reporters are not a pair of independent programs.** Vitest and Jest reset
+differently, count differently, and answer an unknown module id differently, and
+each difference found so far was a bug in one of them, not a choice made twice.
+Behaviour that differs between the two is a defect until someone writes down why
+it should not be.
 
-**A worker is not trusted to finish.** Nothing in this spec asks the worker to
-be more careful. It asks the record to be readable by someone who assumes the
-worker was killed.
+**A drop is worse than a throw.** Of the three answers to an unknown module id,
+the one that keeps the run alive is the one that loses a crossing and leaves the
+test complete. Where the two cannot both be had, the record refuses.
 
 **Silence is not a status.** The project's convention is a marker at the site.
 A stage with ten open items and no markers in it reports itself as done.

@@ -21,15 +21,20 @@ little. This one is about the moment the record is believed.
 — and a safe answer is a function of all four. The library computes all four
 correctly and then leaves the function to its callers, who have each written it
 themselves: `variance select`, `variance run --since`, `tools/test-since.mjs`,
-and the README. A fourth exported surface hands out `entered` alone. **The
-sentence the entire feature rests on is not a line of shipped code anywhere.**
+and the README (`packages/sense/README.md:717`). A fourth exported surface
+hands out `entered` alone. **The sentence the entire feature rests on is not a
+line of shipped code anywhere.**
 
 That would be a tidiness complaint if the four agreed. They do not:
 
 - `tools/test-since.mjs` narrows `unread` before deciding, with a
   hand-maintained list of inert path prefixes and a test-file exemption.
-  Nothing checks that list against what the suite actually opens, and an entry
-  that is wrong removes the guard for everything under it.
+  `tools/test-since.check.ts:26-50` checks that list structurally — each entry
+  exists, is the directory or file it is written as, sits outside the collected
+  workspaces, and prefixes no include pattern in `vitest.config.mts`. Nothing
+  checks it against what the suite actually *opens*, which is the property the
+  guard rests on: an entry naming a real directory that some module imports
+  removes the guard for everything under it and passes every check there is.
 - `variance select` never passes `relations`; `variance run --since` does. Two
   callers of one library run with the importer walk on and off, and nothing
   reconciles them — the same diff against the same snapshot yields two different
@@ -44,8 +49,9 @@ That would be a tidiness complaint if the four agreed. They do not:
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
 names no commit, with a docblock at `recorded-text.ts:111-113` saying this
-avoids "reporting every module stale". `recorded()` at `test-selection/select.ts:333` reads
-`undefined` as disagreement and returns `false`. **A commitless snapshot
+avoids "reporting every module stale". `recorded()` at
+`test-selection/select.ts:334` reads `undefined` as disagreement and returns
+`false`. **A commitless snapshot
 therefore reports exactly every changed module stale** — the widening is safe,
 and the operator is told N modules "were recorded from a different text" and
 advised to record once over a clean tree, which cannot fix a missing commit.
@@ -62,11 +68,14 @@ four hand-written versions are deleted, the README quotes the function rather
 than restating the rule, and the two surfaces that hand out `entered` alone
 either hand out the whole narrowing or are removed.
 
-**2. The narrowing cannot express a state its callers mishandle.**
-`whole: []` beside a non-empty `entered`, and a non-empty `unread` beside a
-non-empty `entered`, are both constructible today and both mean *do not
-subtract* — which a caller reading only `entered` cannot see. The type makes
-the unsafe combinations unrepresentable, or the constructor rejects them.
+**2. The unguarded shape is not exported.** The four sets are each legitimate
+on their own — `whole: []` beside a non-empty `entered` means every test file
+was demoted, and the library already widens correctly for a non-empty `unread`
+(`test-selection/select.ts:206-214`). What is not legitimate is a surface that
+hands a caller `entered` with neither of the two sets that decide whether
+subtracting from it is safe. Either those surfaces return the whole narrowing,
+or they return the answer itself and not its inputs. A caller that never holds
+a partial narrowing cannot build an unsafe one.
 
 **3. The frame check says what it found, and its failures are typed.** Three
 conditions arrive today as one `undefined`: *the snapshot names no commit*,
@@ -86,19 +95,34 @@ belongs beside the check, once.
 
 **5. The record's own precision is used.** Per-region digests exist in the
 format and selection reads none of them: the frame check is whole-module and
-all-or-nothing. `answerByImporters` selects every test that entered *any*
-region of a reached module, so the per-region narrowing that is the point of the
-record is not applied on the importer path at all. A precondition's recorded
-digest is never compared at query time, so a file answered only by a
-declaration is never frame-checked. `loadedBy` — which tests had already
-entered a region before their first test ran — is recorded, encoded, folded,
-decoded, and then read only by the ranking layer.
+all-or-nothing. A precondition's recorded digest is never compared at query
+time, so a file answered only by a declaration is never frame-checked.
+`loadedBy` — which tests had already entered a region before their first test
+ran — is recorded, encoded, folded, decoded, and then read only by the ranking
+layer.
+
+The importer path is the exception, and the position needs writing down rather
+than fixing. `answerByImporters` selects every test that entered *any* region of
+a reached module, and it must: a module reached through an importer has no
+changed line of its own, and the record holds no reverse relation from a region
+to the regions that reach it — by
+[ADR-0061](../context/adr/0061-a-crossing-relation-is-interned-not-owned.md)
+the relation is interned per test, scanned, and never stored inverted. Narrowing
+there would be inventing evidence the record does not hold. Say so where the
+widening happens, so the next reader does not file it as a missed optimization.
 
 **6. The query re-asks what the write path already guards.** The
 `instrumentation` recipe on the snapshot is never checked at query time, so a
 record made under a coarser mode is believed exactly as a branch-level one.
 Nothing distinguishes a snapshot whose `whole` set predates the diff base from
-one recorded at it. Generations guard the write path
+one recorded at it. The same hole has a second edge the write path already names
+and the read path cannot see: `usableOutcome`
+(`test-selection/finished-files.ts:125`) counts a skip as a usable outcome, and
+its docblock states the boundary — a skip decided outside the source, by an
+environment variable or a platform check, is not covered. A record made where
+that condition was true is applied where it is false without a word, because the
+record carries nothing the query could compare it against. Generations guard the
+write path
 ([0044](0044-many-writers-one-record.md) item 3); the read path does not ask.
 
 **7. A narrowing that is truncated says so.** `--at-distance` cuts the run to a
@@ -115,13 +139,33 @@ carries an `it.todo` or a `// FIXME`, which is how this repository is supposed
 to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
-**Acceptance:** a property test over generated diffs and generated snapshots
-asserting the one invariant that matters — *every test the record does not
-witness as unaffected is in the answer* — replacing the per-shape unit fixtures
-as the safety argument. Then `variance select` and `variance run --since`
+**9. The frame is checked against the frame the diff is in.** `recorded()`
+asks `sourceAt(name, coverage.commit)` (`test-selection/select.ts:331`) — the
+text as of the *snapshot's* commit. The hunks it is deciding about are line
+ranges in the *diff base's* coordinates. The two coincide only while the
+snapshot was recorded at the base, which is the local case and not the CI one:
+a snapshot recorded on a `main` that has since moved maps base-coordinate hunks
+onto snapshot-coordinate regions, and a line that has shifted charges the wrong
+region — or no region. **The failure direction is narrowing**, and no refusal
+fires, because every module's text still agrees with itself at the commit it was
+recorded at. Either the query takes the base as a parameter and checks against
+it, or it refuses a snapshot whose commit is not an ancestor of the base and
+says which.
+
+**Acceptance:** a property test over generated narrowings asserting the algebra
+the one entry point implements — `skip` is a subset of `whole`, `skip` and
+`entered` are disjoint, and a non-empty `unread` forces an empty `skip` —
+replacing the per-shape unit fixtures as the argument that the *rule* is
+applied. That the rule is the *right* rule is not a property a test can
+establish against the implementation that defines it: the measurement that
+argues it is [0047](0047-a-skip-list-is-worth-what-it-skips.md)'s, over real
+revisions where the run answers whether a skipped test would have failed. Then
+`variance select` and `variance run --since`
 producing the same skip list for the same diff and snapshot. Then a commitless
 snapshot, a snapshot outside a checkout, and a shallow clone each producing a
-distinct diagnostic naming what is missing and what to do.
+distinct diagnostic naming what is missing and what to do. Then a snapshot
+recorded two commits behind the diff base, where either every changed line is
+charged to the region it lands in at the base or the query refuses.
 
 ## What it forecloses
 
@@ -136,7 +180,9 @@ instrument is not a stale module.
 
 **A hand-maintained exemption list is not a contract.** Prefixes that disable
 the guard for a subtree may exist as a measured, tested policy inside the
-library; they may not exist as a literal in a script, checked by nobody.
+library. A literal in a script, checked only for the shape of its entries and
+never against what the suite reaches, is not that — the check confirms the list
+is well-formed, which is not the property the guard rests on.
 
 **Ranking is not selection.** `loadedBy`, hop distance and ordering explain and
 prioritize a run. Nothing in this spec permits any of them to remove a test from
