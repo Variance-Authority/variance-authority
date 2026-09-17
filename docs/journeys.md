@@ -14,6 +14,19 @@ painted. That record is the subject's
 **journey**: the path one execution took through the source, in every process
 the execution touched.
 
+## What narrowing a run does without this
+
+You do not need a recording to run less of the suite. A source scan says which
+components a change can reach, and a subject's own baseline says which
+components it was last seen rendering; together those skip subjects at the grain
+of a file, and neither asks anything of your build.
+[Running less of the suite](selecting.md) is built on that pair.
+
+A journey answers below the file. It is the reading that tells the three
+`CartCard` stories apart — and the one to reach for when the file-level answer
+is too coarse to act on: a shared component half the suite mounts, a handler one
+flow reaches, a branch whose two sides are different products.
+
 ## A path, not a stack
 
 A journey says which regions an execution entered and nothing else. Not how deep

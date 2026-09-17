@@ -8,20 +8,47 @@ comparing every subject in the suite. Source and prior execution can show what
 the change might reach, what has exercised that code before, and which useful
 answer is nearest.
 
-## One decision, three readings
+## One decision, four readings
 
-Choosing what to run draws on three separate readings of the codebase and its
+Choosing what to run draws on four separate readings of the codebase and its
 history, each answering a different part of the decision:
 
 | Question | Reading | Route |
 | --- | --- | --- |
 | What could this source change reach? | Imports, declarations, unresolved edges, and project-level seeds | [Read source reach](source.md) |
+| What was this subject last seen to be made of? | The component names its own baseline recorded when you approved it | [Select the tests that matter](selecting.md) |
 | Which tests have actually crossed that code? | The [execution index](execution-record.md) retained from previous runs | [Select the tests that matter](selecting.md) |
 | Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Run the nearest tests first](distance.md) |
 
-Source reach supplies possibility. Recorded execution supplies experience.
-Distance supplies order. None is substituted for another, and a use may need
-only one of them.
+Source reach supplies possibility. The baseline record and the execution index
+supply experience, of two different kinds and at two different grains. Distance
+supplies order. None is substituted for another, and a use may need only one of
+them.
+
+## How far down you have to read
+
+The first two readings answer most of the question for a suite of rendered
+subjects, and neither one asks you to change how the application is built.
+
+Source reach is a parse of the repository. The component list is a by-product of
+a run you already do: each capture reads the names off the fiber, and they are
+written beside the approved image. That second reading is what lets a change to
+a file reach a **route** at all — a URL names a page, and nothing in the page's
+address says which components render there. What does say it is the page having
+been seen rendering them. So the join is empirical, and it is as current as the
+last render you approved.
+
+Together the two answer at the grain of a file: this change is inside
+`Button.tsx`, and these subjects were last seen rendering `Button`. For a large
+suite that is usually the saving you came for.
+
+The execution index answers below that grain, at the region. Three stories mount
+the same component and one of them clicks Remove; the body of that handler is a
+place the other two have never been inside, though all three import the same
+file. Nothing read from the source tells them apart, because the difference is
+not in the tree — it is in what each execution did with it. Reach for that
+reading when file-level reach is too coarse to be worth acting on, and read
+[the path an execution took](journeys.md) for what it costs to record.
 
 ## Start with the saving you need
 
