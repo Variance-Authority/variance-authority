@@ -41,15 +41,15 @@
  * join only reads the mark.
  */
 
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { readFile, rename, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { digestString } from '../digest.js';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
-import { takeIndexLock } from './index-lock.js';
+import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   coverageModule,
@@ -360,34 +360,27 @@ export async function recordExecution(
   // A worktree layers onto the repository's months of recording rather than
   // onto nothing. A no-op here and after the first run.
   await seedTestCoverage(coverageFile, root, options.cacheRoot);
-  await mkdir(dirname(coverageFile), { recursive: true });
-  const lock = await takeIndexLock(coverageFile);
-  if (lock === undefined) {
-    return {
-      recorded: false,
-      coverageFile,
-      subjects: 0,
-      because:
-        `another process is holding ${coverageFile}.lock: nothing was recorded rather ` +
-        'than merged over whatever it is writing',
-    };
-  }
-  try {
+  const merged = await withIndexLock(coverageFile, async (lock) => {
     const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
     await writeFile(temporary, await layeredCoverage(coverageFile, current, root));
     await rename(temporary, coverageFile);
     // Every module this run could identify, numbered for the next one. A file
     // first met today was instrumented under its path; from here on it has a
     // number, and the transform that emits it needs to consult nothing. Under
-    // the same lock as the merge: the table is read-modify-write too, and two
-    // folds appending at once would each read the same `count` and hand one
-    // number to two paths.
+    // the same lock as the merge, which is what handing `lock` on says.
     await nameModules(
       moduleNamesFile(root, options.cacheRoot),
       [...byId.values()].map((module) => module.file),
+      lock,
     );
-  } finally {
-    await rm(lock, { force: true });
+  });
+  if (!merged.held) {
+    return {
+      recorded: false,
+      coverageFile,
+      subjects: 0,
+      because: busyIndex(coverageFile),
+    };
   }
 
   return { recorded: true, coverageFile, subjects: subjects.length };

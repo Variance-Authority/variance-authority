@@ -256,9 +256,9 @@ function index(root: SemanticNode): ReadonlyMap<NodePath, SemanticNode> {
  * A map's `sources` entry as a path, resolved against the module it describes.
  *
  * Maps state sources relatively — Vite writes `probe.jsx` for `/src/probe.jsx` —
- * so the entry alone is ambiguous between two directories. Resolved first, then
- * stripped by the same rule the unmapped frame is stripped by, so a location
- * reads the same whether or not a map was there to read it.
+ * so the entry alone is ambiguous between two directories. Resolved against the
+ * module first, then stripped of the origin it resolved against, which is a fact
+ * about the machine that served it rather than about the code.
  */
 function sourcePath(source: string, moduleUrl: string): string {
   return servedPath(absolute(source, moduleUrl) ?? source);

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { OriginalPosition } from './source-map.js';
-import { isVendorPath, parseStackFrames, writerLocationOf, type StackFrame } from './stack.js';
+import {
+  isVendorPath,
+  parseStackFrames,
+  servedPath,
+  writerLocationOf,
+  type StackFrame,
+} from './stack.js';
 
 /**
  * A `_debugStack` React actually constructed, read off a fiber in Chromium.
@@ -142,30 +148,36 @@ describe('choosing the frame that wrote the element', () => {
     expect(writerLocationOf(frames, intoVendor)).toBeNull();
   });
 
-  it('keeps a frame with no map, without the origin it was served from', () => {
+  it('says nothing for a served frame with no map, rather than naming the served text', () => {
     const frames = parseStackFrames('    at Badge (http://host/src/probe.js:4:26)');
 
-    // An unmapped module was served as written, so its own coordinates are the
-    // answer. The origin is not part of them: a dev server binds an ephemeral
-    // port, and a location carrying one would differ between two runs of the
-    // same suite.
+    // `src/probe.js:4` is a position in whatever the dev server sent under that
+    // name, and only a map can say whether the file on disk agrees. Answering it
+    // anyway would be a coordinate in this repository's basis that nothing in
+    // this repository was measured in.
+    expect(writerLocationOf(frames, () => null)).toBeNull();
+  });
+
+  it('keeps a filesystem frame with no map, because Node already applied one', () => {
+    const frames = parseStackFrames('    at Badge (/app/src/probe.js:4:1)');
+
+    // Node resolves maps into `Error.stack` itself, so a Vitest or Jest frame
+    // arrives original and there is nothing left for a fetch to add.
     expect(writerLocationOf(frames, () => null)).toEqual({
-      file: 'src/probe.js',
+      file: '/app/src/probe.js',
       line: 4,
-      column: 26,
+      column: 1,
     });
   });
 
-  it('drops a cache-busting query, which moves under the same hand as the port', () => {
-    const frames = parseStackFrames('    at Badge (http://127.0.0.1:59975/src/probe.js?t=17312:4:1)');
-
-    expect(writerLocationOf(frames, () => null)?.file).toBe('src/probe.js');
+  it('takes the origin and a cache-busting query off a served path', () => {
+    // Both move between two runs of one suite — an ephemeral port, a timestamp —
+    // and neither is a fact about the code.
+    expect(servedPath('http://127.0.0.1:59975/src/probe.js?t=17312')).toBe('src/probe.js');
   });
 
   it('leaves a filesystem path alone, because it is not a served URL', () => {
-    const frames = parseStackFrames('    at Badge (/app/src/probe.js:4:1)');
-
-    expect(writerLocationOf(frames, () => null)?.file).toBe('/app/src/probe.js');
+    expect(servedPath('/app/src/probe.js')).toBe('/app/src/probe.js');
   });
 
   it('says nothing when every frame is a dependency', () => {

@@ -12,9 +12,10 @@ import { createDeclarationReader } from './declarations.js';
  * V8 internal property, and the only interesting failure is a real browser
  * answering a coordinate this reader turns into the wrong file. So the page is
  * real, the source map is real, and the three functions are declared at three
- * different kinds of address — mapped, vendor, and served as written — because
+ * different kinds of address — mapped, vendor, and served with no map — because
  * those are the three answers the call-site path gives and the engine's must be
- * the same ones.
+ * the same ones. Only the first is a location; the other two are things this
+ * page knows the name of and cannot place in a repository.
  */
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -90,21 +91,22 @@ describe.skipIf(!BROWSER_AVAILABLE)('the declaration reader', () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it('maps a declaration through the module map, drops a vendor one, keeps a plain one', async () => {
+  it('maps a declaration through the module map, and drops a vendor one and an unmapped one', async () => {
     const reader = createDeclarationReader(page);
     const index = await reader.read();
 
     expect(index['Button']).toEqual([{ file: 'src/Button.tsx', line: 5, via: 'engine' }]);
     expect(index['Vendor']).toBeUndefined();
-    // Served from the dev server's own origin and kept as a repository-relative
-    // path. The port a harness happened to bind is a coordinate, not a file: it
-    // differs on every run, so a name carrying it joins to nothing later.
-    expect(index['Plain']).toEqual([{ file: 'plain.js', line: 3, via: 'engine' }]);
-    expect(reader.stats).toEqual({ asked: 3, located: 2 });
+    // `plain.js` is a name this server made up, and only a map could say which
+    // file it was cut from. Recorded anyway it would be a path in the same
+    // namespace as `src/Button.tsx` that no checkout contains — and `files` is a
+    // join key, so it would not fail, it would quietly match nothing.
+    expect(index['Plain']).toBeUndefined();
+    expect(reader.stats).toEqual({ asked: 3, located: 1 });
 
     // Nothing new in the page: the engine is not asked again.
     await reader.read();
-    expect(reader.stats).toEqual({ asked: 3, located: 2 });
+    expect(reader.stats).toEqual({ asked: 3, located: 1 });
 
     // A component met later is asked about, and only it.
     await page.evaluate((global: string) => {
@@ -114,9 +116,11 @@ describe.skipIf(!BROWSER_AVAILABLE)('the declaration reader', () => {
       declared.functions.push((window as unknown as Record<string, Function>)['Later']!);
     }, AGENT_GLOBAL);
     const grown = await reader.read();
-    expect(grown['Later']).toEqual([{ file: 'plain.js', line: 5, via: 'engine' }]);
+    // Asked about — `asked` grew — and unplaceable for the same reason `Plain`
+    // was, which is what an engine answer with no map is worth.
+    expect(grown['Later']).toBeUndefined();
     expect(grown['Button']).toEqual(index['Button']);
-    expect(reader.stats).toEqual({ asked: 4, located: 3 });
+    expect(reader.stats).toEqual({ asked: 4, located: 1 });
 
     await reader.close();
   });

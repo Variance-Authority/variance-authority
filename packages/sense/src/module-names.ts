@@ -40,11 +40,14 @@
  *
  * ## Who assigns
  *
- * The fold assigns — one process, at the end of a run, holding the lock it
- * already holds to merge coverage. Transforms only read, which is what makes the
- * table safe under a build that transpiles ten changed files in parallel: a
- * lookup is a read of an immutable file, and parallel readers of an immutable
- * file need nothing from each other.
+ * The fold assigns, and {@link nameModules} asks for the lock as an argument
+ * rather than asking callers to remember it. Three folds grow this table today
+ * and a fourth will be written one day; an exclusion each of them decides for
+ * itself is an exclusion one of them will decide differently, so the decision is
+ * spent here, once, where it cannot be read past. Transforms only read, which is
+ * what makes the table safe under a build that transpiles ten changed files in
+ * parallel: a lookup is a read of an immutable file, and parallel readers of an
+ * immutable file need nothing from each other.
  *
  * A transform that meets a path the table has never seen — a file created since
  * the last run — has nothing to look up, and waiting for an authority is not
@@ -58,6 +61,7 @@
  */
 
 import { emptyImmutableLog, openImmutableLog, readImmutableLog } from './immutable-log.js';
+import type { IndexLock } from './test-selection/index-lock.js';
 
 /** "VANAMES" and the format version. */
 const MAGIC = Buffer.from([0x56, 0x41, 0x4e, 0x41, 0x4d, 0x45, 0x53, 0x01]);
@@ -119,11 +123,27 @@ export function readModuleNames(path: string): ModuleNames {
  * New paths are numbered in sorted order rather than in the order they were
  * met, so two machines that meet the same set of new files agree on what to call
  * them and the emitted code they cache is the same emitted code.
+ *
+ * `lock` is the exclusion, and it is a parameter because this is
+ * read-modify-write: the table is read here and the segment is published a few
+ * lines later, and two folds running that gap at once each read the same `count`
+ * and hand one number to two paths. That is the failure this package can least
+ * afford — nothing detects it, and afterwards a run attributes one module's
+ * crossings to another. Holding the index is therefore a precondition of
+ * calling, so it is written where a precondition belongs.
  */
 export async function nameModules(
   path: string,
   paths: Iterable<string>,
+  lock: IndexLock,
 ): Promise<ModuleNames> {
+  // Asking for one is not the same as still having one: a token can be stored
+  // and used after the merge it was taken for has released it, which is the one
+  // way past the signature that is left.
+  if (!lock.held) {
+    throw new Error(`the lock over ${lock.file} was released before ${path} was numbered`);
+  }
+
   const current = readModuleNames(path);
   const fresh = [...new Set(paths)].filter((name) => current.idOf(name) === undefined).sort(order);
   if (fresh.length === 0) return current;

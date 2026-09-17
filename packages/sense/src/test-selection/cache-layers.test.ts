@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { nameModules, readModuleNames } from '../module-names.js';
+import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
+import { withIndexLock } from './index-lock.js';
 import { cacheLayers, layeredFiles } from './cache-layers.js';
 import { openModuleNames, recordStore, recordStores } from './instrumented-modules.js';
 import {
@@ -13,6 +14,21 @@ import {
   writeTestCoverage,
   type TestCoverage,
 } from './index.js';
+
+/**
+ * {@link nameModules} under the exclusion it requires.
+ *
+ * Every test here grows the table, and growing it is what the lock covers — so
+ * the fixture takes one rather than each test remembering to, which is the same
+ * reason the production folds hand one another a token instead of a convention.
+ */
+async function number(names: string, paths: Iterable<string>): Promise<ModuleNames> {
+  const held = await withIndexLock(resolve(dirname(names), 'coverage.bin'), (lock) =>
+    nameModules(names, paths, lock),
+  );
+  if (!held.held) throw new Error(`the index beside ${names} was already held`);
+  return held.value;
+}
 
 async function checkout(): Promise<string> {
   const at = await mkdtemp(resolve(tmpdir(), 'va-layers-'));
@@ -98,10 +114,10 @@ describe('what a checkout inherits', () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    const base = await nameModules(openModuleNames(primary, cacheRoot), ['a.ts', 'b.ts', 'c.ts']);
+    const base = await number(openModuleNames(primary, cacheRoot), ['a.ts', 'b.ts', 'c.ts']);
 
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    const grown = await nameModules(openModuleNames(path, cacheRoot), ['d.ts']);
+    const grown = await number(openModuleNames(path, cacheRoot), ['d.ts']);
 
     // Every id the base assigned still means the path it meant, and the new one
     // continues the count instead of repeating an id that is already spoken for.
@@ -114,9 +130,9 @@ describe('what a checkout inherits', () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    await nameModules(openModuleNames(primary, cacheRoot), ['a.ts']);
+    await number(openModuleNames(primary, cacheRoot), ['a.ts']);
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    await nameModules(openModuleNames(path, cacheRoot), ['branch-only.ts']);
+    await number(openModuleNames(path, cacheRoot), ['branch-only.ts']);
 
     expect(readModuleNames(openModuleNames(primary, cacheRoot)).idOf('branch-only.ts')).toBeUndefined();
   });
@@ -138,11 +154,11 @@ describe('what a checkout inherits', () => {
     const at = await checkout();
     const cacheRoot = resolve(at, 'cache');
     const primary = resolve(at, 'primary');
-    await nameModules(openModuleNames(primary, cacheRoot), ['a.ts']);
+    await number(openModuleNames(primary, cacheRoot), ['a.ts']);
     const path = await worktree(at, resolve(primary, '.git', 'worktrees', 'feature'));
-    await nameModules(openModuleNames(path, cacheRoot), ['b.ts']);
+    await number(openModuleNames(path, cacheRoot), ['b.ts']);
     // The base grows after the worktree already took a copy.
-    await nameModules(openModuleNames(primary, cacheRoot), ['later.ts']);
+    await number(openModuleNames(primary, cacheRoot), ['later.ts']);
 
     const held = readModuleNames(openModuleNames(path, cacheRoot));
     expect(held.idOf('b.ts')).toBeDefined();

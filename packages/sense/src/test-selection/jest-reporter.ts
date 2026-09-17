@@ -23,6 +23,7 @@ import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { commitOf } from './commit.js';
+import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { layeredCoverage } from './format-layer.js';
 import {
   codeUnitOrder,
@@ -118,10 +119,20 @@ class SelectionReporter {
     // lands on it, so a worktree layers onto months of recording rather than
     // onto nothing. A no-op in the primary checkout and after the first run.
     await seedTestCoverage(coverageFile, root);
-    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
-    // Everything this run saw, numbered for the next one. A file first met today
-    // was instrumented under its path; from here on it has a number.
-    await nameModules(moduleNamesFile(root), [...modules.values()].map((module) => module.file));
+    // Both writes are read-modify-write over one index and both happen under one
+    // lock, because a merge that landed while the numbering was still deciding
+    // would describe modules the table had not agreed on yet.
+    const merged = await withIndexLock(coverageFile, async (lock) => {
+      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+      // Everything this run saw, numbered for the next one. A file first met
+      // today was instrumented under its path; from here on it has a number.
+      await nameModules(
+        moduleNamesFile(root),
+        [...modules.values()].map((module) => module.file),
+        lock,
+      );
+    });
+    if (!merged.held) noteABusyIndex(coverageFile);
     await rm(runDirectory, { recursive: true, force: true });
   }
 }

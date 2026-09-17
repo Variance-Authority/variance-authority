@@ -155,21 +155,25 @@ describe('what it fetches, and what it will not', () => {
         sources: ['../node_modules/@emotion/react/jsx-runtime.js'],
         mappings: 'AAAA',
       }),
-      'http://host/src/App.tsx': 'x',
+      'http://host/src/bundle.js': inlined({
+        version: 3,
+        sources: ['App.tsx'],
+        mappings: 'AAAA',
+      }),
     });
     const resolver = createCallSiteResolver(dev.fetch);
 
     const located = await resolver.locate([
       frame({ url: 'http://host/src/chunk.js', line: 1, column: 1 }),
-      frame({ url: 'http://host/src/App.tsx', line: 12, column: 3 }),
+      frame({ url: 'http://host/src/bundle.js', line: 1, column: 1 }),
     ]);
 
-    // The second frame's module carries no map, so it stands as served — minus
-    // the origin, which is a fact about the server rather than about the code.
-    expect(located).toEqual({ file: 'src/App.tsx', line: 12, column: 3 });
+    // The first frame maps into a dependency and is spent; the second maps into
+    // the project and is the answer.
+    expect(located).toEqual({ file: 'src/App.tsx', line: 1, column: 1 });
   });
 
-  it('keeps an unmapped module as served, which is what a Node runner reports', async () => {
+  it('keeps an unmapped filesystem module, which is what a Node runner reports', async () => {
     // Node applies source maps to `Error.stack` itself, so a Vitest or Jest frame
     // arrives already original. Fetching finds nothing and nothing is needed.
     const dev = server({});

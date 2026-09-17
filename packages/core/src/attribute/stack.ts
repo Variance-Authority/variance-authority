@@ -130,11 +130,38 @@ export function servedPath(url: string): string {
 }
 
 /**
+ * Whether this frame names something a server sent rather than something on a
+ * disk.
+ *
+ * The two arrive in the same field and mean different things when no map
+ * answers for them. A browser frame is a position in whatever text the build
+ * served, and only a map can say where that text came from. A Node frame is
+ * already a position in a file: Node applies maps to `Error.stack` itself, so a
+ * Vitest or Jest frame has been resolved before anything here sees it.
+ *
+ * Decided by the frame's own shape — a bare path does not parse as a URL, and a
+ * `file:` URL is a path spelled formally — because that is a property of the
+ * value in hand. Nothing here asks a filesystem whether a path is real; a
+ * coordinate is ours because of how it was obtained, and a disk cannot be asked
+ * about how.
+ */
+export function wasServed(url: string): boolean {
+  if (URL_OF === undefined) return false;
+  try {
+    return new URL_OF(url).protocol !== 'file:';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * The one host global this file needs, asked for rather than assumed. `core`
  * types no host library (ADR-0001), and taking a URL apart by hand is a bug
  * farm.
  */
-const URL_OF = (globalThis as { URL?: new (url: string) => { readonly pathname: string } }).URL;
+const URL_OF = (globalThis as {
+  URL?: new (url: string) => { readonly pathname: string; readonly protocol: string };
+}).URL;
 
 /**
  * The location that wrote this element, chosen from its stack.
@@ -148,7 +175,9 @@ const URL_OF = (globalThis as { URL?: new (url: string) => { readonly pathname: 
  *
  * That is the same answer the recorded-symbol path gives, arrived at from the
  * other side. Where `jsx-source` is installed it wins, because it is exact
- * without a map; this is what a project that installed nothing still gets.
+ * without a map; this is what a project that installed nothing still gets — as
+ * long as the build serving those frames emits maps. Where it does not, this
+ * answers `null`, and a caller with no location is a caller that says so.
  *
  * `originalFor` is supplied rather than performed because resolving a frame
  * means fetching the module the browser was served, and this package may not
@@ -165,11 +194,17 @@ export function writerLocationOf(
 
     const original = originalFor(frame);
 
-    // No map is not the same as a vendor frame. An unmapped application module
-    // is one a build served as written — which a dev server does for plain `.js`
-    // — and its own coordinates are already the answer, once the origin it was
-    // served from is off them.
+    // A served frame with no map is a position in text the build made, and only
+    // a map can say where that text came from. It is one fewer candidate rather
+    // than a location: naming it anyway would put a coordinate in this
+    // repository's basis that nothing in this repository was measured in, which
+    // reads exactly like a real one and sends a reviewer to a line at random.
+    //
+    // A frame that is a path needs no map to have been read. Node applies them
+    // to `Error.stack` before a runner ever sees it, so the position arrived
+    // already resolved and the only thing left to take off it is the origin.
     if (original === null) {
+      if (wasServed(frame.url)) continue;
       return { file: servedPath(frame.url), line: frame.line, column: frame.column };
     }
 
