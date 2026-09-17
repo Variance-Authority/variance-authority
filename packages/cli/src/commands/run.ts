@@ -295,8 +295,8 @@ async function observeAll(
       compositions[index] = {
         subject: id,
         instances: componentInstances(collected.snapshot),
-        // Carried so a divergence can name the input that moved, which needs the
-        // documents and not the digests. It does not outlive this array.
+        // Carried so a divergence can name the input that moved. FIXME: it and
+        // `readings` hold every tree to the end — 28.8 GB at 502 (spec 0052).
         snapshot: collected.snapshot,
       };
     }
