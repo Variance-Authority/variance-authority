@@ -14,6 +14,12 @@ import {
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { askCoverageFile } from './coverage-file.js';
+import type {
+  SourceAudience,
+  SourceAudienceTest,
+  SourcePoint,
+  SourceRegion,
+} from './at-source.js';
 import { foldTestCoverage, mergeCoverage, type CoverageShard } from './merge.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import {
@@ -49,6 +55,8 @@ export {
   type DistanceGroup,
 } from './at-distance.js';
 export { distanceFromView, nearestFirst } from './distance.js';
+export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
+export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
 // The file list a selection will ask about, so a caller wiring `sourceAt` names
 // exactly the paths the selector will name and not a second parse of the same
 // diff that disagrees with this one at the edges — a rename, a mode change, a
