@@ -1,9 +1,10 @@
-import { access, readdir } from 'node:fs/promises';
+import { access, readdir, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
+import { renderCacheRoot } from './resources.js';
 
 /**
  * What `variance doctor` asks *this* machine, separated from what it concludes.
@@ -36,6 +37,26 @@ export interface DoctorProbes {
    * than no doctor.
    */
   partitions(root: string): Promise<readonly { identity: string; baselines: number }[]>;
+
+  /**
+   * This machine's render cache: where it is, and what each identity holds.
+   *
+   * A probe with no argument, because unlike a baseline root the operator never
+   * chose this path — `variance run` puts the cache under `XDG_CACHE_HOME` and
+   * nothing in a config can move it. Reporting it is therefore the only way an
+   * operator learns the directory exists at all, which is the condition it is
+   * reported for: a cache that prunes itself and a cache nobody can find are
+   * still two different problems.
+   */
+  renderCache(): Promise<RenderCacheReading>;
+}
+
+/** What a walk of the render cache found, per identity and in total. */
+export interface RenderCacheReading {
+  readonly root: string;
+  readonly bytes: number;
+  readonly entries: number;
+  readonly identities: readonly { identity: string; entries: number; bytes: number }[];
 }
 
 /**
@@ -68,6 +89,7 @@ export function machineProbes(config: Config): DoctorProbes {
         return false;
       }
     },
+    renderCache: async () => readRenderCache(renderCacheRoot()),
     partitions: async (root) => {
       const found = new Map<string, number>();
       // A root that cannot be listed is reported by `exists` in the same finding.
@@ -78,6 +100,53 @@ export function machineProbes(config: Config): DoctorProbes {
         .map(([identity, baselines]) => ({ identity, baselines }))
         .sort((left, right) => right.baselines - left.baselines);
     },
+  };
+}
+
+/**
+ * Walk the render cache, without opening a store.
+ *
+ * `stat` per file rather than a size the store could report, for the reason the
+ * baseline scan reads a directory too: what an operator wants to know is what is
+ * *on the disk*, and a number a store computed from its own bookkeeping would
+ * agree with the disk right up until the interesting case.
+ *
+ * Bytes are the image and its record together, because an entry is the pair —
+ * that is the unit the sweep evicts and so the unit a size should be quoted in.
+ */
+async function readRenderCache(root: string): Promise<RenderCacheReading> {
+  const identities: { identity: string; entries: number; bytes: number }[] = [];
+
+  for (const name of await orNone(root)) {
+    if (!IDENTITY_DIRECTORY.test(name)) continue;
+    const directory = join(root, name, 'by-document');
+    let entries = 0;
+    let bytes = 0;
+
+    for (const file of await orNone(directory)) {
+      try {
+        const found = await stat(join(directory, file));
+        if (!found.isFile()) continue;
+        bytes += found.size;
+        // Counted on the record, which every entry has: a subject with no pixels
+        // is cached as a `.json` alone, and counting images would report a cache
+        // holding fewer entries than it will answer hits for.
+        if (file.endsWith('.json')) entries += 1;
+      } catch {
+        // Deleted under the walk by a concurrent run's sweep. It is not in the
+        // cache any more, which is what a number omitting it says.
+      }
+    }
+
+    if (entries > 0 || bytes > 0) identities.push({ identity: name, entries, bytes });
+  }
+
+  identities.sort((left, right) => right.bytes - left.bytes);
+  return {
+    root,
+    bytes: identities.reduce((total, held) => total + held.bytes, 0),
+    entries: identities.reduce((total, held) => total + held.entries, 0),
+    identities,
   };
 }
 

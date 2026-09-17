@@ -55,7 +55,40 @@ export interface Diagnosis {
   readonly renderer: RendererFinding;
   readonly fonts: FontFinding;
   readonly baselines: BaselineFinding;
+  readonly renders: RenderCacheFinding;
   readonly history: HistoryFinding;
+}
+
+/**
+ * The render cache, named so that somebody knows where it is.
+ *
+ * A finding about a directory rather than about a fault, and it is here for the
+ * one property the other findings do not have: nobody chose this path. The
+ * baseline root is in a config file the operator wrote; the cache is under
+ * `XDG_CACHE_HOME` because `run` put it there, and an operator looking at a full
+ * disk has no name to search for. A run prunes it and prints its size, and this
+ * is the same answer on demand — including on the machine where the last run
+ * was a fortnight ago and the output has scrolled away.
+ *
+ * Never a reason to exit non-zero. Every byte of it is regenerable, so the worst
+ * a full cache costs is renders, and a diagnostic that failed a build over one
+ * would be the thing this project refuses everywhere else.
+ */
+export interface RenderCacheFinding {
+  /** The directory, printed whether or not it exists yet. */
+  readonly root: string;
+  readonly bytes: number;
+  readonly entries: number;
+  /** Largest first. `mine` is the identity a renderer opened here writes under. */
+  readonly identities: readonly CachedIdentity[];
+  readonly because: string;
+}
+
+export interface CachedIdentity {
+  readonly identity: string;
+  readonly entries: number;
+  readonly bytes: number;
+  readonly mine: boolean;
 }
 
 export interface RendererFinding {
@@ -126,7 +159,7 @@ export interface HistoryFinding {
 // The machine half lives next door; `./doctor` remains the one import for both,
 // because a caller needs the probes and the reasoning together or neither.
 export { machineProbes, rendererOptionsFor } from './doctor-probes.js';
-export type { DoctorProbes } from './doctor-probes.js';
+export type { DoctorProbes, RenderCacheReading } from './doctor-probes.js';
 
 export async function doctor(config: Config, probes: DoctorProbes): Promise<Diagnosis> {
   let renderer: Renderer | null = null;
@@ -158,6 +191,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       },
       profile: config.profile,
       baselines: await baselines(config, probes, undefined),
+      renders: await renders(probes, undefined),
       history: history(config),
     };
   }
@@ -190,6 +224,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       renderer: rendererFinding,
       fonts,
       baselines: await baselines(config, probes, rendererFinding.identity),
+      renders: await renders(probes, rendererFinding.identity),
       history: history(config),
     };
   } finally {
@@ -197,6 +232,38 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
     // a CI step runs, and a leaked Chromium keeps the step alive past its work.
     if (renderer !== null) await renderer.close();
   }
+}
+
+/**
+ * What the render cache holds here, and whose renders are in it.
+ *
+ * `mine` is marked for the same reason it is marked on a baseline partition: an
+ * operator reading two identities wants to know which one this machine will
+ * write under. Unlike a baseline partition, a foreign identity here is not a
+ * problem — it is another checkout's browser, or this machine's own before an
+ * upgrade — so it is reported as a size and never as a fault.
+ */
+async function renders(
+  probes: DoctorProbes,
+  identity: RenderIdentity | undefined,
+): Promise<RenderCacheFinding> {
+  const mine = identity === undefined ? undefined : identityDigest(identity);
+  const reading = await probes.renderCache();
+
+  return {
+    ...reading,
+    identities: reading.identities.map((held) => ({ ...held, mine: held.identity === mine })),
+    because:
+      reading.entries === 0
+        ? 'nothing is cached here yet. Renders land in this directory so that a document ' +
+          'that has not changed is not repainted, and it is outside the work tree so that ' +
+          'no repository ever carries them'
+        : 'images already painted on this machine, keyed by the document that produced ' +
+          'them. Every run that stores baselines in a directory prunes this one — entries ' +
+          'nothing has asked for in a fortnight, then oldest-first down to the ceiling — ' +
+          'so the size below is bounded and deleting the directory costs renders and ' +
+          'nothing else',
+  };
 }
 
 /**

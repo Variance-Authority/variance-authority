@@ -71,6 +71,9 @@ function probesWith(
     },
     exists: async () => exists,
     partitions: async () => partitions,
+    // Nothing cached. The cache is reported, never diagnosed: it holds only
+    // images this machine can repaint.
+    renderCache: async () => ({ root: '/cache/renders', bytes: 0, entries: 0, identities: [] }),
   };
 }
 
@@ -81,6 +84,9 @@ function refusingProbes(): DoctorProbes {
     },
     exists: async () => true,
     partitions: async () => [],
+    // Nothing cached. The cache is reported, never diagnosed: it holds only
+    // images this machine can repaint.
+    renderCache: async () => ({ root: '/cache/renders', bytes: 0, entries: 0, identities: [] }),
   };
 }
 
@@ -206,6 +212,42 @@ describe('formatDiagnosis', () => {
     expect(text).toContain('NOT AVAILABLE');
     expect(text).toContain('fonts: not probed');
     expect(text).not.toContain('known limit');
+  });
+
+  it('names the render cache, where it is, and whose renders fill it', async () => {
+    // The directory no config chose and nothing in a repository points at. An
+    // operator who has never been told this path exists cannot search for it,
+    // so a doctor that reported the cache only when something was wrong with it
+    // would leave every machine in exactly the state that produced this line.
+    const text = formatDiagnosis(
+      await doctor(configOf(), {
+        ...probesWith([]),
+        renderCache: async () => ({
+          root: '/cache/renders',
+          bytes: 8 * 1024 * 1024,
+          entries: 12,
+          identities: [
+            { identity: identityDigest(IDENTITY), entries: 8, bytes: 6 * 1024 * 1024 },
+            { identity: 'v1:0123456789abcdef0123456789abcdef', entries: 4, bytes: 2 * 1024 * 1024 },
+          ],
+        }),
+      }),
+    );
+
+    expect(text).toContain('renders: 8.0 MiB in 12 entries');
+    expect(text).toContain('/cache/renders');
+    // The split is the half a total cannot say: a large size with no arrow is a
+    // browser this machine upgraded away from and will never hit again.
+    expect(text).toContain('(this machine)');
+    expect(text).toContain('4 entries, 2.0 MiB');
+  });
+
+  it('says what an empty cache is for, rather than reporting a fault', async () => {
+    const text = formatDiagnosis(await doctor(configOf(), probesWith([])));
+
+    expect(text).toContain('renders: 0.0 MiB in 0 entries');
+    expect(text).toContain('nothing is cached here yet');
+    expect(text).not.toContain('cached by identity');
   });
 });
 

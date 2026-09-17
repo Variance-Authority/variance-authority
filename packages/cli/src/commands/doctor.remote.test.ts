@@ -32,6 +32,9 @@ const PROBES = {
   },
   exists: async () => true,
   partitions: async () => [],
+  // Nothing cached. The cache is reported, never diagnosed: it holds only
+  // images this machine can repaint.
+  renderCache: async () => ({ root: '/cache/renders', bytes: 0, entries: 0, identities: [] }),
 };
 
 describe('doctor with a remote renderer', () => {

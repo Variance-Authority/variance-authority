@@ -1,5 +1,5 @@
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
-import type { Diagnosis, FontFinding, Partition } from './doctor.js';
+import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
 
 /**
  * A diagnosis as the two things a caller does with one: an integer, and a page.
@@ -86,6 +86,11 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     `  ${diagnosis.baselines.because}`,
     ...partitionLines(diagnosis.baselines.partitions ?? []),
     '',
+    `renders: ${mib(diagnosis.renders.bytes)} in ${diagnosis.renders.entries} entries`,
+    `  ${diagnosis.renders.root}`,
+    `  ${diagnosis.renders.because}`,
+    ...cacheLines(diagnosis.renders),
+    '',
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,
   ].join('\n');
@@ -109,6 +114,32 @@ function partitionLines(partitions: readonly Partition[]): readonly string[] {
         `${entry.baselines} baseline(s)${entry.mine ? '  (this machine)' : ''}`,
     ),
   ];
+}
+
+/**
+ * The cache, one line per identity, largest first.
+ *
+ * The split is the half a total cannot say. An operator who deleted a browser
+ * version six months ago has a directory holding renders under an identity
+ * nothing will ever hit again, and from a single number that is indistinguishable
+ * from a cache that is working — it is the *second* line, the one with no arrow
+ * beside a large size, that answers what is actually on the disk.
+ */
+function cacheLines(finding: RenderCacheFinding): readonly string[] {
+  if (finding.identities.length === 0) return [];
+  return [
+    '  cached by identity:',
+    ...finding.identities.map(
+      (held: CachedIdentity) =>
+        `    ${held.mine ? '→' : ' '} ${held.identity.slice(0, 16)}… ` +
+        `${held.entries} entr${held.entries === 1 ? 'y' : 'ies'}, ${mib(held.bytes)}` +
+        `${held.mine ? '  (this machine)' : ''}`,
+    ),
+  ];
+}
+
+function mib(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 function fontHeadline(finding: FontFinding): string {
