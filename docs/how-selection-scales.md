@@ -5,14 +5,11 @@ forgets: **which tests entered the code that changed?** Keeping that answer for
 a large repository sounds like keeping every test beside every line it touched.
 That representation would be enormous.
 
-Variance Authority keeps the relationship, but not as repeated test-and-code
-pairs. It notices that large parts of a repository are reached by the same
-audience of tests, stores that audience once, and lets every matching execution
-region point to it. The rest of the storage design follows from that choice.
-
-This is why the system resembles ClickHouse without containing ClickHouse. Both
-arrange repeated values into dictionaries and columns, then read only the small
-part a question needs. Here the question is narrower, and so is the database.
+[Variance Authority](README.md) keeps the relationship, but not as repeated
+test-and-code pairs. It notices that large parts of a repository are reached by
+the same audience of tests, stores that audience once, and lets every matching
+execution region point to it. The rest of the storage design follows from that
+choice.
 
 ## The relation selection needs
 
@@ -72,7 +69,7 @@ crossings resolve to 3,408 distinct test sets. That ratio is not a promise that
 every repository shares equally well. It shows why ordinary import structure
 creates a much smaller physical relation than the logical crossing count.
 
-## Why the ClickHouse comparison fits
+## Why the record is columnar
 
 The [execution record](execution-record.md#the-coverage-file) is a small,
 purpose-built columnar store. Modules, regions, test sets and test identities
@@ -93,16 +90,12 @@ the header, locate one module, read the region rows for the changed lines,
 follow their set identifiers, and decode only the corresponding test sets. It
 does not need to load the file or construct objects for unrelated modules.
 
-That is the useful ClickHouse analogy:
+The layout follows the question the record must answer:
 
 - repeated values become dictionary identities;
 - fields are stored by column rather than by object;
 - columns are divided into independently readable runs; and
 - a query reads only the columns and runs that can answer it.
-
-Variance Authority is not using ClickHouse as a service or dependency. It is
-using the same storage instincts for one local question whose complete schema
-is known in advance.
 
 ## A module keeps the number it was given
 
@@ -204,7 +197,7 @@ Runtime evidence describes the source the tests actually ran. It cannot, by
 itself, know that today's edit introduced a new import path or moved a
 relationship the previous run never observed.
 
-The [source index](source.md) supplies that other half:
+The [source index](source-index.md) supplies that other half:
 
 ```text
 source index       what could this change reach?
@@ -241,6 +234,6 @@ dependency and test shape permits; it does not extrapolate from repository size
 alone.
 
 For the measured byte counts, latency, memory ceilings, worst-case unshared
-sets, source-index sizes and lexicon costs, continue to the
+sets, source-index sizes and [lexicon](lexicon.md) costs, continue to the
 [scale reference](scale.md). For the situations that deliberately widen a run,
 return to [running less of the suite](selecting.md#where-selection-widens).

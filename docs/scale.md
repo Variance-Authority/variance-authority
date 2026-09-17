@@ -2,7 +2,7 @@
 
 This page keeps the measurements and their boundaries. If you first want the
 calm mechanical account—what is shared, why the relation factorises, and where
-the ClickHouse comparison applies—start with
+one question avoids reading the whole record—start with
 [how the test-to-code map stays small](how-selection-scales.md).
 
 Most tools that reason about a whole codebase were never built for a large one,
