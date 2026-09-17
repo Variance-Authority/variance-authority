@@ -1656,6 +1656,7 @@
         "DEFAULT_POLICY": "const",
         "Described": "interface",
         "DiffPolicy": "interface",
+        "EphemeralStoreOptions": "interface",
         "Found": "interface",
         "PlanOptions": "interface",
         "REFUSAL": "const",
@@ -2577,7 +2578,10 @@
       "./durable": {
         "BaselineLayout": "type",
         "DurableStoreOptions": "interface",
-        "createDurableStore": "function"
+        "RenderCacheBound": "interface",
+        "RenderCacheSwept": "interface",
+        "createDurableStore": "function",
+        "sweepRenderCache": "function"
       },
       "./lfs": {
         "CommandResult": "interface",

@@ -374,44 +374,6 @@ export function neverFails(cache: RenderCache): RenderCache {
 }
 
 /**
- * In-memory, discarded when the process ends.
- *
- * `find` never returns anything: an ephemeral run has no past. Both images are
- * rendered in the same run and the caller compares them directly, which is why
- * this mode has nothing to say about comparability — there is only one machine
- * in the story.
- */
-export function createEphemeralStore(): RasterStore {
-  const cache = new Map<string, Raster>();
-
-  return {
-    retention: 'ephemeral',
-    async find(): Promise<Found | null> {
-      return null;
-    },
-    async describe(): Promise<Described | null> {
-      // Nothing to be cheap about. Answering `null` here is the same statement
-      // `find` makes and is made for the same reason: this mode has no past.
-      return null;
-    },
-    async put(): Promise<void> {
-      // Nothing is kept. Making this a silent no-op rather than a throw lets one
-      // pipeline serve both modes, which is the point of the shared interface.
-    },
-    // Wrapped even though a `Map` cannot fail, so that the rule is visible at
-    // every construction site rather than at the ones that happen to need it.
-    renderCache: neverFails({
-      async get(digest, identity): Promise<Raster | null> {
-        return cache.get(`${digest}/${identityDigest(identity)}`) ?? null;
-      },
-      async put(raster): Promise<void> {
-        cache.set(`${raster.documentDigest}/${identityDigest(raster.identity)}`, raster);
-      },
-    }),
-  };
-}
-
-/**
  * An identity off a wire, rebuilt field by field.
  *
  * **Every field of `RenderIdentity` must appear here, including the optional

@@ -4,7 +4,8 @@ import {
   type Raster,
   type RenderIdentity,
 } from '@variance-authority/core/format';
-import { createEphemeralStore, identityFrom, neverFails } from './store.js';
+import { identityFrom, neverFails } from './store.js';
+import { createEphemeralStore } from './ephemeral.js';
 import { rasterFrom } from './codec.js';
 
 /**
@@ -69,6 +70,50 @@ describe('the ephemeral mode', () => {
     await renderCache.put(rasterOf(MAC, 'v1:x'));
 
     expect(await renderCache.get('v1:x', RUNNER)).toBeNull();
+  });
+
+  it('drops the least recently used render once the ceiling binds', async () => {
+    // The mode that claims to store nothing used to hold every image it ever
+    // painted, base64, until the process ended — so a wide suite kept its whole
+    // output resident to serve a lookup only the current subject makes.
+    const { renderCache } = createEphemeralStore({ heldBytes: 16 });
+    const first = rasterOf(MAC, 'v1:a', 'AAAAAAAA');
+    const second = rasterOf(MAC, 'v1:b', 'BBBBBBBB');
+    const third = rasterOf(MAC, 'v1:c', 'CCCCCCCC');
+
+    await renderCache.put(first);
+    await renderCache.put(second);
+    await renderCache.put(third);
+
+    expect(await renderCache.get('v1:a', MAC)).toBeNull();
+    expect(await renderCache.get('v1:c', MAC)).toEqual(third);
+  });
+
+  it('counts a hit as use, so the subject about to be asked again survives', async () => {
+    // `again` and `alone` re-read the subject the run just observed, inline and
+    // immediately. Evicting by insertion order would drop exactly that one.
+    const { renderCache } = createEphemeralStore({ heldBytes: 16 });
+    const first = rasterOf(MAC, 'v1:a', 'AAAAAAAA');
+    const second = rasterOf(MAC, 'v1:b', 'BBBBBBBB');
+
+    await renderCache.put(first);
+    await renderCache.put(second);
+    expect(await renderCache.get('v1:a', MAC)).toEqual(first);
+
+    await renderCache.put(rasterOf(MAC, 'v1:c', 'CCCCCCCC'));
+    expect(await renderCache.get('v1:a', MAC)).toEqual(first);
+    expect(await renderCache.get('v1:b', MAC)).toBeNull();
+  });
+
+  it('keeps an image larger than the whole ceiling, rather than refusing the run', async () => {
+    // A miss costs a render, and the entry just written is the one the caller is
+    // working on: a cache that evicted it would answer nothing to the only
+    // question anything was going to ask.
+    const { renderCache } = createEphemeralStore({ heldBytes: 4 });
+    const huge = rasterOf(MAC, 'v1:huge', 'X'.repeat(64));
+
+    await renderCache.put(huge);
+    expect(await renderCache.get('v1:huge', MAC)).toEqual(huge);
   });
 
   it('has nothing to describe either, and says so the same way', async () => {

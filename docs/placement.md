@@ -197,6 +197,38 @@ field, because there is no answer an operator could give that is better than
 "outside the work tree". Building a store yourself, `createDurableStore` and
 `createLfsStore` both take `cacheRoot` and both default it to the baseline root.
 
+### The cache prunes itself
+
+That directory is outside the work tree, so `git clean` never reaches it, and it
+is under a dot-directory nobody browses. Every edit to a document mints a new
+key and kills the old one — a run against a changed file never asks for the
+previous document's image again — so left alone it is a directory that only
+grows, in a place you have no reason to look.
+
+Every run sweeps it, and prints what it holds:
+
+```
+renders: 214.6 MiB cached in /home/you/.cache/variance-authority/renders, freed 91.2 MiB
+```
+
+An entry survives on two conditions. It must have been asked for in the last
+fortnight — a hit refreshes its timestamp, so this is time since something
+wanted the image and not time since it was painted — and what is left is cut
+oldest-first to 512 MiB across the whole cache. `variance doctor` prints the same
+size on demand, split by the renderer identity that painted each part, so a
+browser you upgraded away from shows up as the entries it left behind.
+
+Every run, not only the runs that fill it. A run against a tribunal, or with
+`"retention": "ephemeral"`, writes nothing here — and that is the arrangement
+this project is built for, so the machines carrying a cache are usually the ones
+that have already moved off it. Nothing refreshes an entry once you stop
+rendering locally, so the whole cache ages out over a fortnight and the directory
+goes with it.
+
+Nothing here touches baselines: the sweep walks the cache root only, which is the
+reason `run` keeps the two apart. Deleting the whole directory costs you renders
+and nothing else.
+
 ### The records, if the diffs are the problem
 
 Baseline images and their attribution records have **independent homes**: images

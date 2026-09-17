@@ -51,6 +51,16 @@ lives here for the same reason, and it is the clearest case: *"no container, no
 pinned runner, no stored artifact"* stops being a claim in a comment when the
 mode's package pulls in no filesystem and no socket.
 
+What an ephemeral run does keep, while it is still running, is the images it has
+painted — so a subject read a second time in the same run is not painted twice.
+That is bounded: `heldBytes`, passed to `createEphemeralStore`, sets how much
+resident image it may hold — 64 MiB by default, and the least recently used goes
+first.
+Unbounded, the mode that stores nothing would hold a wide suite's entire output
+in memory until the process ended, to serve a lookup nothing but the current
+subject makes. Dropping an entry costs a render, which is what every miss in
+this interface costs.
+
 ## What it holds
 
 - **`assemble`** — a `RenderDocument` becomes an HTML string. Pure text.

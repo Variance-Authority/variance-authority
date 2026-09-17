@@ -44,13 +44,21 @@ export type { DiffPolicy, RasterComparison, CompareOptions } from './policy.js';
 export {
   REFUSAL,
   RasterStoreError,
-  createEphemeralStore,
   neverFails,
   identityFrom,
   recordFrom,
   messageOf,
 } from './store.js';
-export type { RasterStore, RenderCache, Retention, BaselineKey, Found, Described } from './store.js';
+export type {
+  RasterStore,
+  RenderCache,
+  Retention,
+  BaselineKey,
+  Found,
+  Described,
+} from './store.js';
+export { createEphemeralStore } from './ephemeral.js';
+export type { EphemeralStoreOptions } from './ephemeral.js';
 export { rasterFrom, sidecarFrom } from './codec.js';
 
 export { settle } from './settle.js';

@@ -91,9 +91,10 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
  * produce a wrong image. Cost, not correctness, is a thing `XDG_CACHE_HOME` is
  * entitled to decide.
  *
- * *What it costs.* Nothing prunes this directory. It is outside the repository,
- * so `git clean` will not either, and a machine that runs many suites accumulates
- * PNGs until someone deletes it — the price of not committing them instead.
+ * *What it costs.* A directory nothing in the repository can reach, which is
+ * why it prunes itself rather than waiting to be found: `git clean` does not
+ * come here, and a path under a dot-directory is not one anybody browses. See
+ * {@link sweepRenderCache}, which every run applies.
  */
 export function renderCacheRoot(): string {
   return cacheRoot('renders');

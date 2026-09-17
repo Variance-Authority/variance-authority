@@ -1,6 +1,6 @@
 // compass: variance-authority.retention
 
-import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   identityDigest,
@@ -31,6 +31,17 @@ import { IDENTITY_DIRECTORY, holder, pathFor, type BaselineLayout } from './plac
  * file of their own.
  */
 export type { BaselineLayout } from './placement.js';
+
+/**
+ * Re-exported for {@link BaselineLayout}'s reason, and one more: the bound on
+ * the render cache is only meaningful to whoever passed
+ * {@link DurableStoreOptions.cacheRoot}, and that is this entrypoint's caller.
+ */
+export {
+  sweepRenderCache,
+  type RenderCacheBound,
+  type RenderCacheSwept,
+} from './retention.js';
 
 /**
  * On disk, partitioned by renderer identity.
@@ -222,7 +233,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         // One prefix for both halves. The cache's record is as regenerable as
         // its image, so there is nothing here for a split root to save.
         const path = join(cacheRoot, identityDigest(identity), 'by-document', digest);
-        return readRaster({ image: path, record: path });
+        const raster = await readRaster({ image: path, record: path });
+        if (raster !== null) await touch(path);
+        return raster;
       },
 
       async put(raster): Promise<void> {
@@ -246,6 +259,34 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   };
 }
 
+
+/**
+ * Mark an entry as wanted, so the sweep can tell live keys from dead ones.
+ *
+ * The only signal a cache entry carries about its own value. A render is
+ * addressed by the digest of the document that produced it, so an entry stops
+ * being reachable the moment the source moves — nothing will ever ask for that
+ * key again, and from the outside it is indistinguishable from an entry that is
+ * hit on every run. The difference is only visible here, at the hit, which is
+ * why `sweepRenderCache` reads mtimes and this writes them.
+ *
+ * Both halves, and failures swallowed. A clock that did not move costs the
+ * entry its place in the next sweep, which costs a render; refusing the hit
+ * over it would cost the same render now, and a read-only cache directory would
+ * turn every hit into a miss.
+ */
+async function touch(path: string): Promise<void> {
+  const when = new Date();
+  await Promise.all(
+    [`${path}.png`, `${path}.json`].map(async (file) => {
+      try {
+        await utimes(file, when, when);
+      } catch {
+        // Absent, or not ours to stamp. Neither changes what was read.
+      }
+    }),
+  );
+}
 
 /**
  * Where the two halves of one baseline go.

@@ -31,6 +31,7 @@ import {
   type CliRunReport,
   type Plan,
 } from './commands/run.js';
+import { renderCacheLine, sweepRenders } from './commands/renders.js';
 import { ask } from './commands/ask.js';
 import { questionFor } from './commands/asking.js';
 import { said } from './here.js';
@@ -175,8 +176,17 @@ export async function dispatch(
         // first thing that must not change what this run concluded.
         const shared = await publishedLine(effective, report);
 
+        // Last, and for the same reason: the cache this run may have added to
+        // is regenerable, so nothing it does here can reach a verdict. It runs
+        // on every run rather than on a command of its own — an operator who
+        // knew to prune was never the one whose disk filled up — and on every
+        // run rather than on the durable ones, because a machine that has moved
+        // to a tribunal is the machine whose leftover cache nothing else will
+        // ever come back for.
+        const renders = renderCacheLine(await sweepRenders(effective));
+
         streams.out(
-          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}`,
+          `${formatReport({ report, format: 'text' })}\n\nreport: ${said(effective.report)}\n${shared}${renders}`,
         );
         return sideJob(exitFor(report), parsed.exitZeroOnChanges, streams);
       } finally {
