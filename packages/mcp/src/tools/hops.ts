@@ -68,9 +68,25 @@ import { nodeAt } from '@variance-authority/core/relate';
  *
  * Nothing reads these to decide an answer yet. They are a column, kept beside
  * the scope so a ranking can be measured against them before a ranking is
- * changed by them. Separate, too, from **distance** — the hop count between two
- * subjects that `--at-distance` names — which is a different quantity over a
- * different pair of things and is not touched here.
+ * changed by them.
+ *
+ * And they will never be **distance**. `--at-distance 0-2` means two imports,
+ * counted by a person, and a range whose ends are 3.5 and 6 is a range nobody
+ * can check against the source. So the two quantities do different jobs and
+ * must not be confused: **distance selects, and costs rank**. What runs is
+ * chosen in whole hops; the order it runs in may be priced.
+ *
+ * The difference shows on a design system that re-exports a button. Its own
+ * integration test sits four hops from that button and the first external
+ * consumer's test sits three, so distance alone runs somebody else's
+ * application test first. Priced, the consumer pays for crossing the package
+ * boundary and goes last, behind the further test that stayed inside. Widening
+ * the range is what brings the internal test in — a number the caller still
+ * counted — and the price is only what orders them once they are in.
+ *
+ * Note what does the work there: no rule about packages, no tier, no ordering
+ * law. One edge was expensive. A boundary sets the price of a hop and never
+ * sets a rule about what to run.
  */
 
 /**
