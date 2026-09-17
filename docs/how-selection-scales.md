@@ -97,13 +97,37 @@ The layout follows the question the record must answer:
 - columns are divided into independently readable runs; and
 - a query reads only the columns and runs that can answer it.
 
-## A module keeps the number it was given
+## Small numbers need a shared names database
 
-Every column above stores modules as numbers, not paths. The numbers come from
-one table the repository keeps beside the record, and the property that table
-exists to hold is this: **adding a file never changes the number of a file that
-already has one.** Add a module in the middle of a directory, rename a sibling,
-grow the repository by a thousand paths — nothing already numbered moves.
+Many tools avoid shared naming state by deriving identity from the thing itself:
+a stable hash of its content or path, or a deterministic filename. Two tools can
+meet the same input independently and compute the same name. The name is wider,
+but it travels inside the artifact and needs no earlier agreement.
+
+Variance Authority makes the other trade at the busiest part of the record. Its
+instrumented modules and crossings carry small assigned numbers, not hashes or
+paths. The number cannot be recomputed from the module: its meaning lives in the
+repository's **module names database**.
+
+```text
+derived identity              assigned identity
+
+path ──hash──▶ identity       names database: path ◀──▶ number
+any tool can recompute it                     │
+                                              └──▶ instrumenters, journals,
+                                                   records and queries
+```
+
+Every generation and tool using the compact form must therefore share one
+numbering lineage. Number `41` means nothing by itself; it means the path that
+this database assigned `41`. This is the cost accepted in return for repeating
+a small, compressible integer across millions of crossings instead of repeating
+a path or uniformly distributed digest.
+
+The database keeps one promise: **adding a file never changes the number of a
+file that already has one.** Add a module in the middle of a directory, rename a
+sibling, grow the repository by a thousand paths — nothing already numbered
+moves.
 
 That does not fall out of a sorted table by itself. Paths are stored in sorted
 order, so a lookup can binary-search them and so neighbouring paths share a
@@ -141,12 +165,27 @@ and answer about the wrong module — selecting the tests that entered `cart.ts`
 for a change in `checkout.ts`, and skipping the ones that matter. A stable
 number is what makes evidence from an earlier run usable by a later one.
 
-Growth keeps the property. The table is a chain of immutable segments under one
-manifest: an append is a new segment holding only the paths that are new, and
-compaction merges the chain into one sorted run without disturbing a single
-number. Reads are reads of immutable files, so builds transforming ten modules
-in parallel need nothing from each other; only the fold that adds new paths
-writes, and it writes under an exclusive lock.
+Growth keeps the property through a small log-structured merge design. The
+database is a chain of immutable segments under one atomic manifest: an append
+adds a segment holding only new paths, and compaction merges the chain into one
+sorted run without disturbing a single number. Reads touch immutable files, so
+parallel transforms need nothing from one another; only the fold that assigns
+new numbers writes, under an exclusive lock.
+
+That shape also makes the numbering authority shareable. `names.bin` can travel
+beside the execution record through a CI cache, shared directory or artifact
+transfer. Local worktrees seed their table from the primary checkout and then
+continue that lineage in their own writable layer. A consumer restoring both
+artifacts reads the same compact numbers the producer wrote; two independently
+grown tables must not be treated as interchangeable merely because they name
+the same repository. [Sharing evidence](sharing.md) describes the transport
+choices, while the [execution-record reference](execution-record.md#the-module-names-table)
+owns the exact format and lookup costs.
+
+This dependency is about reuse, not availability. If the database is missing or
+unreadable, a run can identify unnumbered modules by path and rebuild the table,
+paying the cold cost. What it cannot safely do is reuse compact numeric evidence
+while silently assigning those numbers a different meaning.
 
 Two boundaries are worth knowing:
 
