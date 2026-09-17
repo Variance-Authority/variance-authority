@@ -186,6 +186,40 @@ chromium_('a run over routes', () => {
     }
   }, 60_000);
 
+  it('accepts a pattern where every page carries the same marker', async () => {
+    // A framework that attaches one readiness marker to every page it renders
+    // makes the per-subject map five hundred copies of one line, and a map like
+    // that drifts: the page added last is the page nobody keyed, and a route
+    // that is never waited for is captured mid-arrival rather than refused.
+    const patterned = await routeCollector({
+      routes: { 'page/deferred': `${base}/deferred` },
+      roots: ['#app'],
+      ready: { 'page/*': '[data-testid="late"]' },
+      readyTimeoutMs: 5000,
+    })({
+      config: {
+        viewport: { width: 800, height: 600, deviceScaleFactor: 1, colorScheme: 'light' },
+      },
+      plan: {
+        subjects: [{ subject: { id: 'page/deferred', kind: 'route' } }],
+        notObserved: [],
+        warnings: [],
+      },
+    });
+
+    try {
+      const plan = await patterned.plan();
+      const collected = await patterned.collect(plan.subjects[0]!);
+
+      expect(collected.ok).toBe(true);
+      if (!collected.ok) return;
+      expect(collected.document.html).toContain('Arrived');
+      expect(collected.document.html).not.toContain('loading…');
+    } finally {
+      await patterned.close();
+    }
+  }, 60_000);
+
   it('reports an id with no route rather than dropping it', async () => {
     // A run that observes two of three subjects and says nothing about the third
     // is the silence this project refuses. It travels as a value, not an

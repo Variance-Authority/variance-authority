@@ -83,12 +83,17 @@ export interface RouteCollectorOptions {
   /**
    * Subject id to a selector that says the page is ready.
    *
-   * Per route, not per project. `load` fires when the document is parsed, which
+   * Declared, never defaulted. `load` fires when the document is parsed, which
    * for anything that fetches after mount is *before the page exists* — and a
-   * project-wide default would be a guess about every route to solve a problem
-   * some of them have. A route that declares a marker and never attaches it
-   * times out saying which selector it waited for; falling back is how you
-   * photograph a spinner.
+   * marker we chose for you would be a guess about every route to solve a
+   * problem some of them have. A route that declares a marker and never
+   * attaches it times out saying which selector it waited for; falling back is
+   * how you photograph a spinner.
+   *
+   * A key is a subject id or a glob over them, so a framework that attaches the
+   * same marker to every page it renders is one entry rather than five hundred
+   * that drift apart. A literal key wins over a pattern, and between two
+   * patterns the first declared wins.
    */
   readonly ready?: Readonly<Record<string, string>>;
 

@@ -54,8 +54,23 @@ export async function readRoute(
   const { page, engine, network } = world;
 
   const id = planned.subject.id;
-  const readyFor = (subject: string): string | undefined =>
-    options.ready?.[subject] ?? options.ready?.[routeOf(subject, options.widths)];
+  const readyFor = (subject: string): string | undefined => {
+    const route = routeOf(subject, options.widths);
+    const declared = Object.entries(options.ready ?? {});
+    // A literal key first, then a pattern. `matchesGlob` escapes everything but
+    // `*` and `?`, so a key that names one subject still matches only itself and
+    // the lookup below finds it — the pattern pass exists for a site whose
+    // framework attaches the same marker to every page, where writing the map
+    // out is five hundred copies of one line that drift apart. Declaration
+    // order decides between two patterns that both match: narrow first.
+    return (
+      options.ready?.[subject] ??
+      options.ready?.[route] ??
+      declared.find(
+        ([pattern]) => matchesGlob(subject, pattern) || matchesGlob(route, pattern),
+      )?.[1]
+    );
+  };
   // `route/home@375` is one width of `route/home`, and the URL belongs to the
   // route. Resolved here rather than by rewriting the plan's ids, because the id
   // is what a baseline, a report line and a `--subjects` glob all name — and
