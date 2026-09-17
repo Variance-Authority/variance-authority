@@ -1,16 +1,27 @@
-# Every name a run saw
+# How search finds a subject
 
-**To search a suite, go to [find the subject you mean](locate.md).** That page
-is the task: what you need, how to ask, how to read the answer. This one is what
-sits behind it, for when you want to know why a question matched what it
-matched, what it costs on a suite your size, or why there is no model to
-install.
+Searching a suite here works without a thesaurus, an embedding or a trained
+model, and it works because of something a run was already doing. This page is
+what sits behind the search: why a question matched what it matched, what the
+record costs to keep, and why there is no model to install.
 
-The short version: searching here works without a thesaurus, an embedding or a
-trained model, and it works because of something a run was already doing.
+**To search, go to [find the subject you mean](locate.md).** That page is the
+task — what you need, how to ask, how to read the answer.
 
-A run reads a subject under many vocabularies at once. It takes the component
-names off the fiber, the roles and accessible names off the accessibility tree,
+**This is not a glossary.** Terms are defined on the page that owns each one,
+and the table in [what every record means](information.md#the-words) holds the
+ones a report uses.
+
+**Nothing switches this on.** Every `variance run` that reads component
+boundaries writes the record search reads: no option, no second pass, no
+service. Where a run read no boundaries — a raster-only capture, or a suite
+built on something other than React — there are no names to write, and the
+answer says that rather than reporting no match.
+
+A **subject** is one UI state a run observes and compares — a story, a route, a
+fixture, a value — under an id such as `page/footer--counts`. A run reads a
+subject under many vocabularies at once. It takes the component names off the
+fiber, the roles and accessible names off the accessibility tree,
 the visible text off the DOM, the custom properties off the cascade, the files
 off the [source index](source-index.md), the regions off the
 [execution journal](journeys.md). **The synonyms are not inferred, they were
@@ -19,7 +30,8 @@ other reasons, and that were finished with the readings long before anybody
 asked a question.
 
 Writing those readings down per subject is what turns a description into ids.
-That record is the **lexicon**.
+That record is the **lexicon**, which is the word in this page's address and the
+whole of what it describes.
 
 ## Why no thesaurus and no model
 
@@ -47,7 +59,8 @@ against is an inverted index, built from the names the run already wrote down.
 Per subject, per field: the distinct values the subject carried, code-unit
 sorted, capped at 200 distinct values per field with the overflow counted. Where
 the cap fires it keeps the values the fewest other subjects hold — see [what a
-deep tree does to it](#what-a-deep-tree-does-to-it).
+deep tree does to it](#what-a-deep-tree-does-to-it). A **boundary**, below, is
+one component instance in the rendered tree.
 
 | field | from |
 |---|---|
@@ -60,9 +73,11 @@ deep tree does to it](#what-a-deep-tree-does-to-it).
 | `roles` | the snapshot |
 | `tokens` | the custom properties the boundaries resolved through |
 
-It is one pass over the instances every subject already reported, sharing the
-composition census rather than deriving its own keys, so the two cannot disagree
-about which story shows what.
+The **census** is the run's own count of which component was mounted in how many
+subjects, and a subject is the **narrow example** of a component when it shows
+that component with the fewest other boundaries around it. This is one pass over
+the instances every subject already reported, reading the census rather than
+deriving its own keys, so the two cannot disagree about which story shows what.
 
 Values are kept exactly as they were read — `TodoFooter`, `Clear completed`,
 `--va-space-2` — and never pre-split. A hit prints the value it matched, so the
@@ -70,9 +85,10 @@ fact stands under the rank; and splitting is a rule, which applied at write time
 would be applied to one side of the match only. The reader owns the rule and
 applies it to the query and the value alike.
 
-Digests never enter. A text the policy declared volatile reaches the snapshot as
-`v1:…`, and a reader that matched on it would be matching a coordinate rather
-than a word.
+Digests never enter. Text an [ignore](ignores.md) declared volatile — a clock, a
+feed, an order number — reaches the snapshot hashed, as `v1:9a3f1c2e…` rather
+than as words, and a reader that matched on it would be matching a coordinate
+rather than a word.
 
 ## The same pass writes the arrangement
 
@@ -84,19 +100,21 @@ field*, *the button to the right of the total*.
 So the pass that fills the bags also writes down where each thing was. A node
 earns a place when it bears a role, an accessible name, or words of its own;
 everything else is scaffolding, and a screen built out of four wrappers per
-control writes four entries rather than four hundred. Each one carries:
+control writes four entries rather than four hundred. Each recorded place is a
+**landmark** — this page's word, not ARIA's — and carries:
 
 | | |
 |---|---|
 | `role`, `name`, `text` | what it is, what it is called, and what it says — its own words only, so a container never inherits its button's sentence |
-| `within` | the nearest enclosing **landmark**, not the nearest node, so containment survives any depth of wrapper |
+| `within` | the nearest enclosing landmark, not the nearest node, so containment survives any depth of wrapper |
 | `box` | `[x, y, width, height]`, integers, from the layout the run resolved |
-| `file`, `line`, `createdBy`, `handle` | where it is declared, who mounted it, and its test id |
+| `file`, `line`, `createdBy`, `handle` | where it is declared, who mounted it, and the test id the suite set on it, where it set one |
 | `component` | the innermost component that owns it, off the fiber's owner chain |
 
-Capped at 400 per subject, keeping the named over the wordless and counting the
-rest. Where the cap fires it rewrites `within` onto the entries that survived,
-so no record points at something that is no longer there.
+Capped at 1,200 per subject, which clears the largest real screen with room,
+keeping the named over the wordless and counting the rest. Where the cap fires
+it rewrites `within` onto the entries that survived, so no record points at
+something that is no longer there.
 
 **`component` is the half that survives a production build.** The exact line an
 element was written on comes from the JSX-source plugin, and a build strips it —
@@ -137,16 +155,16 @@ subjects. The index is built on the first question asked of a report and kept
 with it, and it is built from the same values the answer quotes, so the order
 and the fact under it are read off one structure.
 
-The symmetry is the point. One rule, applied to both sides at read time, is a
-rule a reader can predict from what the answer printed. A rule applied to the
-values at write time is invisible, unversioned, and wrong in exactly the cases
-where the reader typed the compound the writer had already broken up.
+One rule applied to both sides at read time is a rule you can predict from what
+the answer printed: the value is in front of you, and the rule that met it is
+the one on this page.
 
 ## How the hits are ordered
 
 A hit ranks by how many of the query's terms it matched, then by the sum over
 its matches of a per-field weight times how rare the matched word is in that
-field, then by fewer boundaries, then by id.
+field, then by fewer boundaries, then by id. The third key prefers
+the subject that shows your words with less else around it.
 
 The weights are fixed, and a field weighs by how strongly a name in it picks out
 one subject rather than a family of them:
@@ -178,7 +196,7 @@ One rule handles it, and it is a count rather than a list:
 
 > A component almost every subject mounts is structure, not subject matter.
 
-Nothing in the fold knows that `withStyles(Account)` is a higher-order
+Nothing in that count knows that `withStyles(Account)` is a higher-order
 component, that `Ctx.Consumer` is a context consumer, that a class component is
 a class component, or that a minified `aL` is a decorator a build renamed. It
 knows that more than half the suite mounts it, which is enough, and which keeps
@@ -222,16 +240,17 @@ to read the header that carries this.
 
 ## Where it is kept
 
-The run report carries it, and a report is about one run — its verdicts, its
-diffs, its docket. The lexicon is the one section of it that is not: the names a
-suite holds change when the suite changes, and the question *which subject do I
-mean* is asked far more often than a run happens.
+The run report carries it, and a report is about one run — what moved, what each
+subject's comparison decided, and what the run left for somebody to decide. The
+lexicon is the one section of it that is not: the names a suite holds change
+when the suite changes, and the question *which subject do I mean* is asked far
+more often than a run happens.
 
 So the lexicon is also written to the **suite index**, the binary artifact a run
-leaves behind: the census, the count of subjects the suite holds that every
-share in the census is taken over, the lexicon, and the commit they were read
-at. Equal facts encode to equal bytes there, which is what lets a cache carry it
-and a second machine recognise it.
+leaves beside its report: the census, the subject denominator the census's
+shares are counted against, the lexicon, and the commit they were read at. Equal
+facts encode to equal bytes there, which is what lets a cache carry it and a
+second machine recognise it.
 
 That is what a second machine reads instead of deriving the same thing again.
 Mainline's names were read on a runner that no longer exists, and a branch that
@@ -241,11 +260,28 @@ evaluation](sharing.md) is how the file gets there: a directory, an action
 cache, a bucket, or a deployment, on terms where losing it costs a rebuild and
 never a wrong answer.
 
+## What it costs
+
+The record is written in the pass the run already makes over its instances, so
+what it adds to a run is bytes rather than a stage.
+
+**Storage runs 38 to 51 bytes per component boundary**, measured across suites.
+That is a spread rather than a constant, so count the boundaries your suite
+reports, multiply by the top of it, and plan for that. [What a suite costs at
+scale](scale.md) carries the per-subject figures and prices the source index and
+the [execution record](execution-record.md) beside them.
+
+Reading costs once. The index a question runs against is built on the first
+question asked of a report and kept with it: a lexicon generated at Material
+UI's shape — 4,705 subjects, ninety-odd thousand kept values — goes through that
+build in under a tenth of a second on one warm machine, so the first question of
+a session pays about that and every question after it pays nothing.
+
 ## What it is measured at
 
 Three suites, of three different shapes. Each question was written by a reader
 who was shown only roles, accessible names and visible text under opaque
-handles, never an id or a file path, and the handles were resolved to subjects
+labels, never an id or a file path, and the labels were resolved to subjects
 afterwards. So a question is phrased the way somebody who has seen the product
 would phrase it, and never the way somebody who has seen the index would.
 
@@ -308,9 +344,9 @@ absolute path is the same question asked from the root: under the repository it
 is the coordinate the tree holds, and outside the repository there is nothing
 there.
 
-The only thing asked of a path is whether it exists. `I18nProvider.tsx` does not
-name the file under `src/core/Containers` — it names a file at the root, and
-where no file is there, the answer is not found. Nothing is looked for inside a
+The only thing asked of a path is whether it exists. A bare `Button.tsx` names
+a file at the root of the tree, not the one under `src/ui/` you had in mind, and
+where no file is there the answer is *not found*. Nothing is looked for inside a
 path: no matching tail, no run of segments found in the middle, no case folding.
 
 Segments are compared whole and literally — `page` is not `pages`, and
@@ -367,7 +403,7 @@ and re-runnable, each one a landmark's own words with the folder of the file
 that landmark was written in, said as a path, as the starting point — and scored
 on the file the answer prints rather than on the id:
 
-| a 2019 application · 165 subjects | within the scope | whole suite |
+| another product suite · 165 subjects | within the scope | whole suite |
 |---|---:|---:|
 | subjects the question is put to, mean | 72 | 165 |
 | **the top hit names the right place** | **68.0%** | **55.7%** |
@@ -388,13 +424,14 @@ shape to expect wherever a scope stays wide, and this one does: naming a folder
 of four files still puts the question to two subjects in five, because the
 imports run from those four files into a provider every screen is built on.
 
-The other two suites are absent because no start point is accepted for either.
-Both were built for production, a production build records no file anywhere, so
-there is no coordinate to start from and the whole-suite row is the only one
-there is. On the component library it is 46.0%, against 4,705 subjects and with
-no line to print: the place an answer hands over there is the component that
-owns the landmark and the files declaring it, which is somewhere to open rather
-than a coordinate, and it is said differently for that reason.
+The other two suites are absent because no start point is accepted for either:
+neither run wrote any files — a production build names no source, and Material
+UI's field was read and is genuinely empty — so there is no coordinate to start
+from and the whole-suite row is the only one there is. On the component library
+it is 46.0%, against 4,705 subjects and with no line to print: the place an
+answer hands over there is the component that owns the landmark and the files
+declaring it, which is somewhere to open rather than a coordinate, and it is
+said differently for that reason.
 
 Whether the scope is applied before the rank or after it is very nearly not a
 question. Asked across every query the suites' own names produce against every
@@ -427,8 +464,9 @@ in one footer is a fact about a list and not a better match. No length
 normalisation, because the size of a subject is already a rank key.
 
 **Not evidence.** A wrong top hit costs one more call. The same wrong hit quoted
-as a finding would cost a baseline, which is why nothing here carries a verdict,
-a pixel count, or a file to open — only ids, and the tools that take them.
+as a finding would cost a baseline, which is why nothing here carries a verdict
+— the decision a comparison reached about one subject — or a pixel count, or a
+file to open. Only ids, and the tools that take them.
 
 **Not a declaration.** Nothing in the lexicon was written by hand or annotated
 for discovery, so there is no `@locate` tag to add to a component that is hard

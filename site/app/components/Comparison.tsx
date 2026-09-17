@@ -26,8 +26,8 @@ export default function Comparison() {
           className="text-ivory underline decoration-hairline underline-offset-4 transition-colors hover:decoration-orange"
         >
           detailed comparison
-        </a>
-        {" "}links each commercial claim to the vendor&apos;s published material.
+        </a>{" "}
+        links each commercial claim to the vendor&apos;s published material.
       </p>
 
       <ComparisonTable />
@@ -62,7 +62,7 @@ export default function Comparison() {
             )}
             .{" "}
             {doc(
-              "Variance Authority exposes the underlying index through coveringTests, not a time-travel viewer",
+              "Variance Authority exposes the underlying index through a function called `coveringTests`, not a time-travel viewer",
             )}
             .{" "}
             {doc(
@@ -81,9 +81,10 @@ export default function Comparison() {
             sources
           </dt>
           <dd className="text-xs leading-5 text-quiet">
-            {doc("Vendor documentation is authoritative for vendor behaviour")}
-            .{" "}
-            {doc("Verify pricing and hosted-service features there before buying")}
+            {doc("Vendor documentation is authoritative for vendor behaviour")}.{" "}
+            {doc(
+              "Verify pricing and hosted-service features there before buying",
+            )}
             .{" "}
             <a
               href="#1-the-dimensions-a-buyer-actually-decides-on"

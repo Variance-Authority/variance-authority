@@ -26,7 +26,7 @@ npm install --save-dev @variance-authority/playwright
 npx playwright install chromium
 ```
 
-This is the only package in this repository that will ever ask you to install a
+This is the only Variance Authority package that will ever ask you to install a
 browser. Everything downstream of a render — comparison, isolation, attribution,
 storage — sits elsewhere and stays reachable without one.
 
@@ -143,7 +143,7 @@ Only the party that watched the network response knows otherwise.
 |---|---|---|
 | `hashAssets` | `true` | fold asset bodies into the environment key. Off is a real position for a build whose URLs are content-addressed already: the URL is then the identity, and hashing the bytes again buys a read and nothing else |
 | `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still changes the key when the file changes, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
-| `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame. Done on the wire rather than in the page — see [`gif.ts`](src/gif.ts) |
+| `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
 | `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It knows the URL and the intrinsic size, and does not know the DOM |
 | `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and held long enough to digest, so a portable document costs a map and not a second crawl |
 
@@ -292,15 +292,40 @@ subject does not transfer to a suite made of the other kind. Firefox is second
 on both, which makes it the engine to reach for when the suite is mixed or
 unmeasured.
 
-`scripts/host.mjs` is the reproduction — it paints both subjects and imports
-nothing from this repository, so the same bytes run on every host:
+The package ships `scripts/host.mjs`, which paints both subjects and imports
+nothing from the package itself, so the same bytes run on every host. Sixty
+paints per arm, one raster per engine written into `./native`:
 
 ```bash
-yarn workspace @variance-authority/playwright host 60
+mkdir -p native
+node node_modules/@variance-authority/playwright/scripts/host.mjs 60 --out ./native
 ```
 
+To find out whether another host's pixels are interchangeable with these, run
+that same file there. The Playwright image already carries the browsers, and the
+script is the only thing you mount:
+
 ```bash
-yarn workspace @variance-authority/playwright host --compare ./native ./box/out
+mkdir -p box && cp node_modules/@variance-authority/playwright/scripts/host.mjs box/
+docker run --rm --ipc=host --user pwuser -v "$PWD/box:/work" -w /work \
+  -e PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+  mcr.microsoft.com/playwright:v1.62.1-noble \
+  sh -c 'npm i playwright@1.62.1 >/dev/null && node host.mjs --out .'
+```
+
+Use `--ipc=host`: on a container's 64 MB `/dev/shm` Chromium crashes rather than
+slows down. Use `--user pwuser`: Chromium's sandbox refuses to run as root, and
+`--no-sandbox` would make the container arm differ from the native one by a
+launch argument.
+
+Then read the two directories against each other — geometry first, then area and
+peak at two scales, then chroma. `--compare` decodes PNGs, so it needs
+`@variance-authority/png` resolvable from the directory you run it in; `--out`
+needs nothing but Playwright.
+
+```bash
+npm install --save-dev @variance-authority/png
+node node_modules/@variance-authority/playwright/scripts/host.mjs --compare ./native ./box
 ```
 
 ## The renderer: a document in, a raster out

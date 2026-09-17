@@ -7,33 +7,106 @@ It ships as a set of tools with explicit contracts rather than one pipeline you
 must run end to end: a team can use a single tool inside an existing workflow, or
 compose several into a pipeline that fits its own environment.
 
-The tool is the unit of design: a named capability that can be understood,
-replaced, and composed without learning the implementation of every other
-part. This keeps lifecycle, rendering, storage, and review choices with the
-systems and people that already own them.
+The unit you adopt is the tool: a named capability you can understand, replace
+and compose without learning the implementation of the others. Lifecycle,
+rendering, storage and review stay with the systems and people that already own
+them in your project.
+
+## Three compositions, and what each one costs you
+
+The same tools, assembled three ways. None is privileged, and you can run one
+without the others.
+
+### Cheap gate
+
+`acquire → hash → compare against a stored identity`. Answers "anything to do?"
+with no browser at all. A suite where two subjects changed pays for two.
+
+```bash
+variance run --since origin/main
+```
+
+Subjects the diff cannot reach are ruled out by name, with the reason:
+
+```
+[not observed] story:checkout--summary
+not affected by the diff against origin/main: its baseline records 4 component(s)
+and this diff touched none of them (Button, Badge, Toggle)
+```
+
+Of the subjects that survive that cut, one whose document digest equals the
+digest its baseline was painted from is settled on those 32 hex characters
+without painting anything.
+
+### Full observation
+
+`acquire → prepare → render → compare → isolate → map → judge`. What a change
+costs when the cheap gate cannot settle it.
+
+```bash
+variance run
+variance report --format html > .variance/report.html
+```
+
+One card per subject that needs a decision: the subject id, the changed region,
+the component that drew it, the `file:line` it was written at, and a paste-ready
+`variance accept` line. [Run visual review from the command line](start-cli.md)
+walks the loop.
+
+### Stability check
+
+`acquire twice → compare → map`. No render. Catches a subject that will not hold
+still — one that reads differently twice in a row with nothing changed between
+the two reads — and names why, before any image exists.
+
+```bash
+variance run --flakes
+```
+
+```
+[unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
+  (geometry, token, content)
+```
+
+It costs one collection per subject and never a render, so 300 subjects is 300
+cheap collections. Unstable subjects exit `1` even when every verdict is green.
+
+### Extension
+
+You keep the runner you have. A team with Playwright tests chooses an in-place
+raster or a deferred document without replacing it. A browserless unit suite
+writes a document archive for a later browser process. A team with images from
+elsewhere takes only the reading end. Nothing below the material you chose learns
+which of the three it was.
 
 ## Kinds of tool
 
-| Kind | Takes | Gives | Needs |
-|---|---|---|---|
-| **acquire** | a live tree | capture material — a document or an in-place raster | a DOM or browser |
-| **prepare** | a subject | a subject that holds still | varies; each declares its own |
-| **render** | a document | pixels | a browser, here or elsewhere |
-| **hash** | anything | an identity | nothing |
-| **compare** | two of a kind | a difference | nothing |
-| **isolate** | a difference | places | nothing |
-| **map** | places | components, then files | a snapshot |
-| **judge** | everything above | a verdict | a policy |
-| **record** | a verdict | an artifact, or a row that outlives the run | a store |
+Nine kinds. A kind is not something you invoke — there is no command and no
+config key for one — so the last column is where each shows up in what you read.
+
+| Kind | Takes | Gives | Needs | You meet it when |
+|---|---|---|---|---|
+| **acquire** | a live tree | capture material — a document or an in-place raster | a DOM or browser | a subject is reported failed with the sentence your collector refused it with |
+| **prepare** | a subject | a subject that reads the same twice | varies; each declares its own | a baseline made under a different recipe comes back `incomparable` rather than as a diff |
+| **render** | a document | pixels | a browser, here or elsewhere | `variance doctor` prints the renderer as `available` or `NOT AVAILABLE` with the launch error |
+| **hash** | anything | an identity | nothing | a run finishes having painted nothing, because the digests matched |
+| **compare** | two of a kind | a difference | nothing | the verdict on a subject is `changed` and a diff image lands beside the report |
+| **isolate** | a difference | changed regions, each with its box | nothing | the report card highlights a region instead of handing you two whole images |
+| **map** | regions | components, then files | a snapshot | the failure line names the component and the `file:line` that wrote it |
+| **judge** | everything above | a verdict | a policy | the per-subject verdict and the exit code your CI job gates on |
+| **record** | a verdict | an artifact, or a row that outlives the run | a store | `.variance/report.json`, the PNGs beside it, and the history rows a later run reads back |
 
 Two of these need a host — a DOM to acquire from, a browser to render in. Three
-need nothing at all. That distribution is the whole economic argument, and it
-only exists because the kinds are separate.
+need nothing at all, which is what makes the cheap gate above cheap.
 
-**prepare** is itself a set rather than a stage: resets, holds, waits and
-supports are individual tricks, each declaring the cheapest tier that can observe
-its effect and the property it governs. A recipe is a list of them. Two tricks
-over one property is a conflict to report, not a precedence rule to invent.
+**prepare** is a set rather than a stage. A **trick** is one named move that holds
+part of the page still: a reset puts the page into a known state, a hold stops
+something that would keep moving, a wait blocks until something outside the
+page's control lands, a support removes something present that must not be
+measured. Each trick declares the cheapest tier that can observe its effect and
+the one property it governs, and a **recipe** is the list of tricks a run applies
+([holding a page still](stabilization.md)). Two tricks over one property is a
+conflict the run reports, not a precedence rule it invents.
 
 Every kind here is asked about a subject that already exists. Which subjects are
 worth asking about is settled before any of them runs, out of the components a
@@ -50,78 +123,70 @@ renderer must have equivalent access to its references. The raster has already
 materialized in the host browser and joins at observation.
 
 ```
-document → identity → raster → difference → places → components → verdict
+document → identity → raster → difference → regions → components → verdict
 ```
 
-The last three hops of that line are one chain and it is written out in
-[`attribution.md`](attribution.md); the graph the first question is asked of is
-in [`source.md`](source.md). [`information.md`](information.md) defines how the
-visual, semantic, source, runtime, presentation, scenario, review, and history
-domains exchange records, align identities, retain evidence, and combine full or
-partial runs.
+The three hops from `difference` to `verdict` are one chain, and
+[`attribution.md`](attribution.md) writes each of them out. The chain never
+starts unless selection let the subject through, and the source graph selection
+reads is in [`source.md`](source.md). [`information.md`](information.md) is the
+reference for what each output holds, how long it is kept, and which outputs
+merge with which.
 
 ## The contracts
 
-Five rules. A tool that breaks one is broken, whatever it produces.
+Five rules. A tool that breaks one is broken, whatever it produces. Each one
+shows up in your output as a specific line.
 
-**1. Declare what you need.** A tool states the cheapest tier that can answer its
-question. A tier is then never charged for another tier's requirements — an
-unloaded font cannot change which rules match, so the cheap tier waits for
-nothing.
+**1. A tool declares the cheapest tier it needs.** A **tier** is one of four
+rungs, ordered by cost: `reachability`, `semantic`, `layout`, `raster`. A run
+reaches one of them — `profile: "jsdom"` stops at the semantic rung and
+`profile: "chromium"` reaches the raster rung — and `variance doctor` prints
+which, before the first expensive run. A tool that needs a rung the run is below is named as
+unable to do its job rather than allowed to answer from less. The rule also runs
+the other way: a tier is never charged for another tier's requirements, so the
+cheap rungs wait for no fonts and no images, because neither can change which
+CSS rules match or what they declare.
 
-**2. Declare what you did.** Anything that could change the answer becomes part
-of the identity of the result. The machine, the scale, the fonts, the tricks
-applied. Two results whose identities differ are *incomparable*, never
-*different* — because a difference in conditions reported as a difference in the
-product is a confident wrong answer, and confidence is what makes it expensive.
+**2. Anything that could change the answer is part of the result's identity.**
+The machine, the engine, the scale factor, the fonts, the tricks applied. Two
+results whose identities differ come back as one word:
 
-**3. Absent is not empty.** Not measured, measured as zero, and unobservable are
-three states. Collapsing any two produces a pass that nobody earned. This is the
-single failure the system exists to refuse, and it reappears at every layer in a
-new costume.
+```
+incomparable
+```
 
-**4. Never retry to make a problem go away.** Re-observing until one attempt
-happens to agree hides the finding. Repeated reads may classify stability, but
-all scheduled reads count and any disagreement refuses the candidate. Detect on
-the cheapest capable tier and name the component and file.
+The report names which part of the identity differs. It never means zero
+difference, and it is never rendered as a diff — a difference in conditions
+reported as a difference in your product is a confident wrong answer.
 
-**5. Order is the caller's.** Tools compose in whatever order their types allow.
-The shipped compositions are supported offerings, not one mandatory pipeline.
+**3. Not measured, measured as zero, and unobservable are three states.** The run
+prints which of the three it is rather than collapsing any two into a pass. When
+a reading was never taken, the answer says so on its own line:
 
-## Compositions
+```
+Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
+```
 
-Assembled from the same tools, and none is privileged.
+When the profile could not observe a band, that band reports `unobserved` beside
+the verdicts instead of folding into `unchanged`. A miss you can read as "never
+measured here" is a different fact from "measured, found nothing", and you act on
+them differently.
 
-**Cheap gate.** acquire → hash → compare against a stored identity. Answers
-"anything to do?" with no browser at all. A suite where two subjects changed pays
-for two.
+**4. Re-observing never makes a problem go away.** Repeated reads may classify
+stability, but every scheduled read counts and any disagreement refuses the
+candidate rather than taking the attempt that happened to agree. So a retry
+budget will not turn a red build green for you, and a subject that disagrees with
+itself surfaces as `[unstable]` with the component, the `file:line` and the bands
+that moved — on the cheapest tier that could see it.
 
-**Full observation.** acquire → prepare → render → compare → isolate → map →
-judge. What a change costs when the cheap gate cannot settle it.
-
-**Stability check.** acquire twice → compare → map. No render. Catches a subject
-that will not hold still, and names why, before any image exists.
-
-**Extension.** A team with Playwright tests chooses an in-place raster or a
-deferred document without replacing its runner. A browserless unit suite writes
-a document archive for a later browser process. A team with images from elsewhere
-takes only the reading end. The pieces below the chosen material never learn
-which of the three it was.
+**5. Order is yours.** Tools compose in whatever order their types allow. The
+three compositions above are supported offerings, not one mandatory pipeline.
 
 ## Packages
 
-**The primary cut between packages is what a consumer must supply, not what the
-code does.**
-
-A box is named for what it is for — a requirement the manifest cannot state, what
-the thing is, or a target, format or protocol it serves, never a library it
-imports.
-Code that needs one requirement may not sit with code that needs another.
-Storybook support does not belong with Playwright helpers — not because they are
-different features, but because a Storybook user would then install a browser and
-a Playwright user would install a Storybook adapter, and neither asked for the
-other. What something *does* is the second cut, made inside a box with
-entrypoints.
+**You install only what your setup already has. Check the `requires` column
+before anything else.**
 
 | package | requires | holds |
 |---|---|---|
@@ -161,42 +226,20 @@ entrypoints.
 | `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |
 
-`tribunal` is the deliberate exception to the rule this table is about, and it is
-listed here rather than left out, because a rule with an unstated exception reads
-as a rule with none.
-It is a **service**, not a linked tool: the requirement it names is a deployment
-rather than something a consumer supplies to a function, and it composes five
-packages because a deployed thing has to. It is named for what it is rather than
-for the host it currently runs on, which is why
-the row does not say `cloudflare`.
+Four boxes require nothing at all, and `hash`, `compare` and `isolate` — the
+three kinds that need nothing — all live in one of them. Running the ephemeral
+retention mode therefore pulls in no filesystem and no socket.
 
-Four boxes require nothing at all, and hash, compare and isolate — the three
-kinds the tool table shows needing nothing — all live in one of them. That is the
-same economic argument arrived at from the other end, and it is what makes the
-cheap tiers cheap in practice rather than only on paper: running the ephemeral
-retention mode pulls in no filesystem and no socket, because the mode needs
-neither.
+Entrypoints are the second cut, and each one exists because the two halves cost
+different things to have. `store/lfs` needs `git`; `history/client` needs a
+network; `server/sqlite` needs `node:sqlite`; `report/file` needs a disk;
+`playwright/agent` is imported by the bundle that runs inside the browser page,
+so it pulls in no Playwright and nothing Node-only.
 
-Entrypoints are the second cut. `store/lfs` needs `git`; `history/client`
-needs a network; `server/sqlite` needs `node:sqlite`; `report/file` needs a disk;
-`playwright/agent` must be importable *without* Playwright, since it is bundled
-into the page. In every case the split exists because the two halves cost
-different things to have.
+## Your logs will be noisy, on purpose
 
-Two consequences worth stating, because they are the ones that get argued about:
-
-- **A package may be small.** Splitting by requirement produces small boxes, and
-  a small box with one requirement is better than a large one with four.
-- **Package boundaries are structural.** Each package declares exactly the
-  external requirements it uses, names its responsibility rather than an outside
-  library, exposes resolvable entrypoints, and keeps the adopter-facing production
-  graph acyclic without cross-package reach-through.
-
-## What this forecloses
-
-- A stage that only works inside the pipeline. If it cannot be exercised alone,
-  it is not a tool and the seam is in the wrong place.
-- A tool that reaches for what it was not given. Hidden inputs are why one
-  machine's results do not reproduce on another's.
-- Silent degradation. Every fallback is reported as a fallback, and a contract
-  that quietly answers a weaker question is worse than one that fails.
+Every fallback is reported as a fallback. A run that could not do the expensive
+thing and did the cheap thing instead says so on the line, rather than answering
+a weaker question under the same heading. Do not filter those lines out: they are
+the difference between a green build that checked what you asked for and one that
+checked less.

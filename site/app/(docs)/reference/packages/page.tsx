@@ -4,13 +4,9 @@ import { pageMetadata } from "../../../metadata";
 
 const TITLE = "Package map";
 const DESCRIPTION =
-  "Find the smallest public surface that matches what you already have and what your process can supply.";
+  "Every published package, and the install command for the three most common starting points: a Playwright suite, a Storybook, and a suite you want to run less of.";
 
-export const metadata = pageMetadata(
-  "/reference/packages",
-  TITLE,
-  DESCRIPTION,
-);
+export const metadata = pageMetadata("/reference/packages", TITLE, DESCRIPTION);
 
 export default function Page() {
   return (
@@ -19,7 +15,10 @@ export default function Page() {
       eyebrow="Reference"
       title={TITLE}
       description={DESCRIPTION}
-      toc={[{ id: "packages", label: "Packages by responsibility" }]}
+      toc={[
+        { id: "packages", label: "Start from what you already have" },
+        { id: "responsibility", label: "Choose by responsibility" },
+      ]}
     >
       <Packages />
     </DocsPage>

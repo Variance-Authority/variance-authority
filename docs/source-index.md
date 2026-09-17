@@ -1,182 +1,162 @@
 # The source index format
 
-The [Sense](../packages/sense) source index is **optional cache state**. A missing or
-corrupt generation is treated as absent, so it can save scan work but cannot
-change scan evidence. It is one versioned binary generation assembled as a small
-log-structured merge tree: an ordered log of immutable segments with periodic
-compaction. It contains the two facts a repeated source scan can reuse: parses
-keyed by content digest and the way the file's name said to read it, and
-resolved file records keyed by file path, content digest, and the configuration
-and directories they resolved under. Both maps share one publication boundary.
+The [Sense](../packages/sense) source index is **optional cache state**. A
+missing or corrupt index is treated as absent, so it can save scan work but
+cannot change scan evidence. It holds the two things a repeated source scan
+would otherwise redo over a tree that did not move: one parse per set of file
+bytes, and one resolved record per file — that file's outgoing edges, the
+declarations it publishes, and the directories its specifiers looked in. Both
+are published together, so no scan can read a parse state and a record state
+that never existed at the same time.
 
-## Manifest and segments
+## Where it goes
 
-The path passed to `openSourceIndex` is the atomic pointer to the committed
-segment chain:
-
-```text
-magic            8 bytes   "VAIDXLSM"
-manifest length  4 bytes   unsigned 32-bit little-endian
-manifest         n bytes   UTF-8 JSON
-```
-
-The manifest has format `variance-authority-immutable-log`, version `1`, and an
-oldest-to-newest `segments` array. Each entry records a `v1:` content digest and
-byte length. Segment files live under `<index path>.segments/`, named by that
-digest. Readers load every named segment, verify its length and digest, and
-reject the complete chain when any member is missing or corrupt.
-
-A segment starts with a padded JSON section table followed by aligned binary
-sections:
+`openSourceIndex` takes the path you want it at. `sourceIndexPath(root)` gives
+the one every tool here agrees on, so two of them scanning the same checkout
+reuse each other's work rather than each paying for a cold start:
 
 ```text
-header length  4 bytes   unsigned 32-bit little-endian
-header         n bytes   UTF-8 JSON followed by NUL padding
-payload        m bytes   sections, each starting at an 8-byte boundary
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-index.bin
 ```
 
-The segment header length includes its padding and makes the payload start on
-an 8-byte boundary. The header has this shape:
+`<checkout>` is a digest of the checkout's absolute path. A git worktree gets a
+directory of its own beneath the checkout it was cut from, reads both and writes
+only its own.
 
-```json
-{
-  "format": "variance-authority-source-index",
-  "version": 1,
-  "sections": [
-    { "name": "strings.blob", "offset": 0, "length": 123, "width": 1 }
-  ]
-}
-```
+**The index is two things on disk.** Beside `source-index.bin` is a directory
+`source-index.bin.segments/` holding the data; the file itself is only the
+pointer to which segments are current. Copy, restore or move the two together.
+The file alone names segments that are not there, and a chain whose members are
+missing is rejected whole — a cold scan, not a wrong answer.
 
-Section offsets are relative to the start of the payload. `length` is in bytes;
-`width` is either one byte or four bytes. Four-byte sections are arrays of
-unsigned 32-bit integers in the runtime's `Uint32Array` byte order. Version 1
-does not claim portability between machines with different endianness. Padding
-between sections is not part of either section.
+Put it outside the checkout: it is operational state, not source, and nothing
+about it belongs in a commit. At the path above, `git clean` will not take it
+either.
 
-The segment reader requires the exact format name and version. It rejects
-duplicate section names, overlapping or out-of-bounds sections, invalid widths,
-unaligned offsets, malformed column lengths and invalid references. A missing,
-incompatible or rejected chain is an empty cache and causes a normal scan. A
-standalone version-1 segment remains readable as a legacy one-layer generation.
+## Caching it in CI
 
-## Strings and nullable values
+Cache the directory the file and its segments sit in, and restore it before the
+scan. Four rules decide whether a restored index is worth anything:
 
-Every string within one segment is interned once across its parse and record
-rows. `strings.blob` concatenates its UTF-8 bytes without delimiters;
-`strings.off` contains one unsigned 32-bit offset per string plus a terminal
-offset. String id `i` therefore occupies `blob[off[i]..off[i + 1]]`.
+- **Key it by the checkout path, not by the branch or the commit.** Both halves
+  are content-addressed, so a cache restored from another branch costs a slower
+  scan and cannot produce a different graph for the tracked tree. There is
+  nothing to invalidate on merge.
+- **Restore it to the same absolute path it was written from.** Records are
+  keyed by the repository root among other things, so an index restored under a
+  different checkout path keeps every parse and rebuilds every record. Runners
+  that check out at a fixed workspace path keep both halves; runners that use a
+  per-job directory keep the parses only.
+- **Do not move it between machines of different endianness.** Four-byte
+  sections are written in the writing host's native byte order, and nothing in
+  the file records which that was.
+- **Delete the directory to force a cold scan.** That is the whole recovery
+  procedure, for a stale index and a corrupt one alike.
 
-String ids are assigned after code-unit sorting. `0xffffffff` is the sentinel
-for a missing scalar string and is never a string id.
+## How large it gets
 
-An offset column encodes nested rows in the same way: a parent row `i` owns the
-child rows in `[off[i], off[i + 1])`. Every offset column begins at zero, is
-monotonic, and ends at the child-row count.
+Measured on public checkouts, as the bytes on disk after a full scan:
 
-Optional lists have a separate one-byte `*-present` column. This preserves the
-difference between an absent fact and a known empty list; an offset range alone
-cannot express that distinction. Boolean columns contain only zero or one.
+| Repository | Files recorded | Index | Per file |
+| --- | ---: | ---: | ---: |
+| [Material UI](https://github.com/mui/material-ui), `packages` and `docs/src` | 25,117 | 7,987,244 B | 318 B |
+| [Docusaurus](https://github.com/facebook/docusaurus) | 2,670 | 1,097,060 B | 411 B |
+| This repository | 1,236 | 687,539 B | 556 B |
 
-## Sections
+Size against the bytes per file record, which is a property of the repository
+rather than of the machine — but as a range of 318 to 556 B, not as a constant.
+It moves with how many edges and names each file carries, not with how large the
+repository is, which is why Material UI has twenty times the files of this
+repository and is the cheapest of the three per file.
 
-The source-index schema is columnar. A group of equally named columns has one
-row per logical object unless an offset column connects it to a child group.
+A measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
+sections versus 598 MB as JSON; the difference is names interned once rather
+than repeated per row. Every figure here covers the serialized index on disk,
+not the memory used to build it.
 
-| section | width | meaning |
-|---|---:|---|
-| `strings.blob` | 1 | concatenated UTF-8 dictionary |
-| `strings.off` | 4 | dictionary byte offsets |
-| `index.config` | 4 | one nullable resolution-configuration digest id |
-| `directories.path` | 4 | repository-relative directory ids |
-| `directories.digest` | 4 | directory-membership digest ids |
-| `directories.deleted` | 4 | directory tombstones |
-| `parses.key` | 4 | parse content-digest ids |
-| `parses.key-way` | 4 | ids of how each parse's name said to read it |
-| `parses.deleted` | 4 | parse-key tombstones, content-digest half |
-| `parses.deleted-way` | 4 | parse-key tombstones, read-way half |
-| `parses.requests` | 4 | parse-to-request offsets |
-| `parses.exports` | 4 | parse-to-export offsets |
-| `parses.exports-present` | 1 | whether each export list is known |
-| `parses.declares` | 4 | parse-to-declaration offsets |
-| `parses.declares-present` | 1 | whether each declaration list is known |
-| `parses.unknown` | 4 | nullable parse-uncertainty string ids |
-| `requests.value` | 4 | specifier string ids |
-| `requests.kind` | 4 | request-kind string ids |
-| `requests.bindings` | 4 | request-to-binding offsets |
-| `bindings.imported` | 4 | imported-name string ids |
-| `bindings.local` | 4 | local-name string ids |
-| `bindings.type` | 1 | type-only flags |
-| `exports.exported` | 4 | nullable exported-name ids |
-| `exports.local` | 4 | nullable local-name ids |
-| `exports.from` | 4 | nullable source-specifier ids |
-| `exports.imported` | 4 | nullable imported-name ids |
-| `exports.type` | 1 | type-only flags |
-| `declares.name` | 4 | parsed declaration-name ids |
-| `records.file` | 4 | repository-relative path ids |
-| `records.deleted` | 4 | repository-relative path tombstones |
-| `records.digest` | 4 | nullable content-digest ids |
-| `records.edges` | 4 | record-to-edge offsets |
-| `records.edges-present` | 1 | whether each edge list is known |
-| `records.declares` | 4 | record-to-declaration offsets |
-| `records.declares-present` | 1 | whether each declaration list is known |
-| `records.unresolved` | 4 | record-to-unresolved-request offsets |
-| `records.unresolved-present` | 1 | whether each unresolved list is known |
-| `records.unknown` | 4 | nullable record-uncertainty string ids |
-| `records.witnesses` | 4 | record-to-witness offsets |
-| `witnesses.directory` | 4 | witness directory-path ids |
-| `edges.to` | 4 | target-path string ids |
-| `edges.kind` | 4 | edge-kind string ids |
-| `record-declares.name` | 4 | resolved declaration-name ids |
-| `unresolved.value` | 4 | unresolved-specifier string ids |
+What it buys in time, on the same Material UI checkout: a first scan with no
+index costs 2,866 ms and the next unchanged run costs 357 ms. Those two are
+wall clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with
+a warm filesystem cache, so they are the fast end of the range: size a CI
+container above them rather than against them. [What a run
+costs](performance.md) carries the rest of the shapes, the machine in full, and
+what is left underneath both numbers.
 
-Parse rows and parse tombstones are sorted by digest; record rows, record
-tombstones, directory rows and directory tombstones are sorted by path. All use code-unit ordering. Nested arrays retain
-their semantic order. With the sorted dictionary and a fixed schema, equal
-logical segments encode to equal bytes.
+## What a change costs you
 
-## Reuse and publication
+| You change | What survives |
+| --- | --- |
+| a file's contents | everything except that file's record, and its parse when no path in any branch has held those bytes |
+| a file added, moved or deleted | every record except those whose specifiers could have been answered from the directory that moved |
+| a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | the parses. Every record is rebuilt: one `paths` entry can redirect every bare specifier in the repository |
+| the checkout's absolute path | the parses, for the same reason |
+| which directories you scan | everything. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work |
 
-Parse rows depend only on content, so they remain reusable when the repository
-moves. Record rows also depend on resolution, and on two keys rather than one.
-The adopted configuration digest covers the inputs that control resolution
-everywhere — manifests, lockfiles, `tsconfig` and `jsconfig` contents, the
-requested `tsconfig`, and the condition names — and a mismatch discards the
-record layer as a unit while retaining parse rows. The directory map names each
-directory by the entries it holds; a record whose stored witnesses include a
-directory that moved is discarded individually. An individual record is reused
-only when its content digest also matches.
+One case removes the per-directory bound and makes every run cold. To know that
+an added file cannot change where a bare specifier lands, the scan reads `paths`
+and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`. A
+config it cannot follow — not valid JSON, or an `extends` naming a package
+rather than a relative path — leaves the whole tree unbounded, and then every
+record is rebuilt whenever any tracked file appears or disappears. The symptom
+is a warm run that costs what a cold one does.
+[Source index structures](source-structures.md) names that case and the two
+others like it, and what to change.
 
-Where no tracked configuration can be read, there is no bound on where a bare
-specifier may land, and the whole path set is folded into the configuration
-digest instead — which discards the record layer whenever any path appears.
+A configuration change is published only after the scan has produced the
+complete next record map, so unchanged record values may be carried over
+physically without being reused during that validating scan.
 
-The newest segment's configuration applies to the materialized record map. A
-configuration change is published only after the scan has produced the complete
-next map, so unchanged record values may be inherited physically without being
-reused during that validating scan.
+## Reading it
 
-One `openSourceIndex` call returns the parse cache, record cache and `save`
-operation together. Opening creates one ordered lookup for each map. Point
-reads ask segments newest to oldest, stopping at the first put or tombstone;
-iteration materializes them oldest to newest. `save` retains only rows used or
-written by that scan, compares that complete state with the committed one, and
-writes the smallest segment that connects them. The segment is published before
-a scratch manifest is renamed over the destination.
+No command opens this file for you. It is a private cache rather than an
+interchange format: the layout below belongs to the version that wrote it, the
+reader refuses anything it does not recognise, and neither is a stable interface
+you can build against. To read the graph, scan for it —
+[`scanRelations`](source.md) answers from the index when one is there. To fix an
+index, delete it.
 
-The ninth pending segment compacts the chain into one complete segment. The
-compacted segment restores generation-wide string interning, and the obsolete
-segments from the prior manifest are removed after publication. Write failures
-leave scanning correct and preserve the previous manifest when one exists;
-without one, later work is cold.
+`openSourceIndex` returns the parse cache, the record cache and a `save`
+operation together. Point reads ask segments newest to oldest and stop at the
+first value or tombstone; iteration materializes them oldest to newest. `save`
+keeps only the rows that scan used or wrote, compares them with what is
+committed, and writes the smallest segment that connects the two. Saves append,
+so a run that changed nothing writes nothing; once the chain has grown enough it
+compacts back to a single segment, and the segments it replaces are removed
+after the new pointer is in place. Write failures leave scanning correct and
+preserve the previous pointer when one exists.
 
-The measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
-sections versus 598 MB as JSON. The ratio comes chiefly from interning names
-once across the generation. The measurement covers the serialized source index,
-not the memory used while building it.
+## The bytes
+
+For reimplementers only, and only of the version that wrote the file in front of
+you.
+
+`source-index.bin` is an atomic pointer: an eight-byte magic, a 32-bit
+little-endian length, and a UTF-8 JSON manifest naming the committed segments
+oldest to newest, each by content digest and byte length. Readers load every
+named segment and verify both, and reject the complete chain when any member is
+missing or fails. A missing, incompatible or rejected chain is an empty cache
+and causes a normal scan.
+
+Each segment is a 32-bit little-endian header length, a padded UTF-8 JSON
+section table, and the sections themselves, each starting on an eight-byte
+boundary. The schema is columnar: one dictionary holding every string in that
+segment interned once, and integer columns over it — one row per parse, per
+record, and per child object such as an import request or an edge, with offset
+columns connecting a parent row to the range of children it owns. Sections are
+one or four bytes wide; the four-byte ones are native-endian, which is why the
+file does not travel between architectures. Optional lists carry a separate
+one-byte column, because an offset range cannot distinguish a fact that is
+absent from a list that is known to be empty.
+
+Rows are sorted and the dictionary is sorted, so two logically equal segments
+encode to equal bytes. The reader rejects duplicate section names, overlapping
+or out-of-bounds sections, invalid widths, unaligned offsets, malformed column
+lengths and invalid references.
 
 ---
 
-**Further:** [`source-structures.md`](source-structures.md) for the logical
-structures behind these sections, their keys, lookups and costs ·
-[`source.md`](source.md) for what the scan reads and where it stops.
+**Further:** [`source-structures.md`](source-structures.md) for the structures
+behind these sections, their keys, lookups and costs ·
+[`source.md`](source.md) for what the scan reads and where it stops ·
+[`performance.md`](performance.md) for what a run costs with this index and
+without it.

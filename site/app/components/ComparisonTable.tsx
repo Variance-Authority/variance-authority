@@ -26,7 +26,7 @@ const ROWS = [
       doc("Capture Cloud"),
       doc("Caller-owned browser"),
       doc("Caller browser or Ultrafast Grid"),
-      doc("Caller-owned browser, local renderer, or operator-owned remote renderer"),
+      doc("Caller-owned browser, local renderer, or a renderer you host"),
     ],
   },
   {
@@ -36,7 +36,9 @@ const ROWS = [
       doc("Hosted UI Test and UI Review"),
       doc("Hosted test review, comments, and flake history"),
       doc("Eyes Test Manager"),
-      doc("Self-hosted tribunal — builds, docket, region overlays, recorded decisions"),
+      doc(
+        "`tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions",
+      ),
     ],
   },
   {
@@ -77,7 +79,9 @@ const ROWS = [
     q: "change-driven selection",
     cells: [
       doc("No documented equivalent"),
-      doc("TurboSnap uses the module graph to avoid snapshots a change cannot reach"),
+      doc(
+        "TurboSnap uses the module graph to avoid snapshots a change cannot reach",
+      ),
       doc("No documented equivalent"),
       doc("No documented equivalent"),
       doc(
@@ -100,7 +104,9 @@ const ROWS = [
     cells: [
       doc("Vendor"),
       doc("Vendor"),
-      doc("Vendor, with an open-source self-host option outside the supported service contract"),
+      doc(
+        "Vendor, with an open-source self-host option outside the supported service contract",
+      ),
       doc("Vendor or contracted on-premise deployment"),
       doc("Adopter"),
     ],
@@ -108,12 +114,18 @@ const ROWS = [
   {
     q: "choose it when",
     cells: [
-      doc("managed browser coverage, organization-wide review, or a wide SDK catalog"),
+      doc(
+        "managed browser coverage, organization-wide review, or a wide SDK catalog",
+      ),
       doc(
         "review should be a product — Storybook inventory, E2E archives, or both — and non-engineer review, branch semantics, and managed stability matter more to you than self-operation",
       ),
-      doc("the suite should own pixels but the vendor should own review and history"),
-      doc("managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment"),
+      doc(
+        "the suite should own pixels but the vendor should own review and history",
+      ),
+      doc(
+        "managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment",
+      ),
       doc(
         "a changed screenshot should arrive as one cause with its evidence, and be settled in one decision",
       ),

@@ -1,15 +1,82 @@
 # Own fewer tests
 
-A hundred tests can sit beneath one line of product code, in a React
-component, another framework's, or plain logic with no framework at all.
-[Variance Authority](README.md) is visual and execution regression tooling —
-it renders **subjects**, compares them against baselines, and records what
-changed and why — and it reads the execution behind a suite the same way
-regardless of framework. Where its evidence names a rendered component, that
-attribution comes from React, and only when React mounted the element. That
-may mean a hundred distinct promises depend on the line. It may also mean the
-suite has repeated the same answer at every layer and kept every repetition
-forever.
+Your suite only grows. Every test in it was justified when it was written, and a
+merged coverage report cannot tell you which of them still earns its keep: it
+says a line ran, not which tests ran it, not whether six of them ran it for the
+same reason. **[Variance Authority](README.md)** is a visual and execution
+regression system you run yourself, and its execution side records the half
+coverage drops — for each test case, which regions of your source that case
+entered. Point at a line and it hands back the named cases that walked it, which
+is where the question *why do all of these tests need this code?* starts having
+an answer.
+
+This page is the decision that sits on top of that reading: which tests to keep,
+where to put them, and when to retire one. The reading never authorizes a
+deletion on its own — execution says where a test went, not which assertion or
+risk made the trip worthwhile — so each section below pairs a reading with the
+rerun that settles it.
+
+## Ask which tests claim a line
+
+Record case identities once. `withTestSelection` wraps a Vitest configuration
+and keeps its plugins, setup files and reporters; `cases: true` writes an
+[execution index](execution-record.md) naming which individual case entered each region, beside the
+file-level snapshot the same run already writes.
+
+```bash
+npm install --save-dev @variance-authority/sense
+```
+
+```ts
+import { defineConfig } from 'vitest/config';
+import { withTestSelection } from '@variance-authority/sense/vitest';
+
+export default withTestSelection(
+  defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
+  { cases: true, executionFile: '.variance-authority/cases.json' },
+);
+```
+
+Run the suite the way you already run it, then ask the index about the line you
+are considering:
+
+```ts
+import { readFile } from 'node:fs/promises';
+import {
+  coveringTests,
+  coveringTestsInFile,
+  type ExecutionIndex,
+} from '@variance-authority/sense/test-selection';
+
+const index = JSON.parse(
+  await readFile('.variance-authority/cases.json', 'utf8'),
+) as ExecutionIndex;
+
+const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
+const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
+```
+
+Each entry in `walked` carries the case's `id`, its test `file` and its `name`,
+so every answer is a test you can open. `coveringTestsInFile` answers the whole
+indexed file at once, as ranges of lines that share the same cases. A range with
+an empty list is instrumented and unreached; a line outside the instrumented
+regions produces no range at all, which is a different statement from nobody
+reaching it.
+
+Two limits shape how you read the list. Anything a file entered before its first
+case — imports, `beforeAll`, top-level evaluation — is credited to every case
+in that file. And case crossings carry no call-stack depth, so the answer is
+ordered by identity rather than by how near each case stood to the line; the
+file-level [execution record](execution-record.md) is where distance lives. Turn
+cases on for a local loop over the code you are changing, not for the
+repository-wide index CI reads to select files. A Jest suite wraps its own
+configuration the same way and records the same regions against test files; the
+case axis is the Vitest integration.
+
+The list starts the conversation. It does not finish it, and the rest of this
+page is about what finishes it. For one candidate test rather than a set of
+them, [Distill](distill.md) separates what that test loaded, entered and
+addressed, and names what it never witnessed.
 
 The useful unit is not a test or a covered line. It is a decision the test can
 change. Keep the smallest set of tests that can expose the risks you would act
@@ -137,13 +204,11 @@ Age alone proves none of these. Nor does overlap. Two tests reaching the same
 function may assert different promises, while two tests reaching different
 code may still provide the same answer.
 
-Use the [execution record](execution-record.md) to find which tests entered a
-region and how much source each test carries with it. Use
-[source-to-test lookup](../packages/sense#find-tests-that-cover-source) when a
-producer supplies individual test identities. Those readings identify a
-conversation: why do all of these tests need this code? They do not authorize
-deletion, because execution says where a test went, not which assertion or risk
-made the trip worthwhile.
+[Ask which tests claim a line](#ask-which-tests-claim-a-line) names the cases
+that entered a region. The file-level [execution record](execution-record.md)
+answers the same question by test file, adds the call-stack depth each test
+stood at, and says how much source that test carries with it. Both readings
+identify a conversation rather than a verdict.
 
 For one candidate, [Distill](distill.md) can show what it loaded, entered and
 addressed. Change one boundary and rerun the exact test before keeping a smaller

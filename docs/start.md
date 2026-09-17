@@ -1,123 +1,157 @@
-# Observe one state end to end
+# Find out which component changed, and whether anyone changed it
 
-**[Variance Authority](README.md)** renders a UI state, compares it against
-its approved baseline, and records what changed and why. Begin with one
-stable UI state — a **subject** — in a test or harness you already trust: a
-Playwright spec, a Storybook story, a served route. Keep its navigation,
-fixtures, authentication, and readiness with that existing host. Variance
-Authority can retain a document for later rendering or take the caller's
-already-painted image; either way it produces a **reading** — one capture of
-that subject — for you to review. Accept the reading once, and the same
-subject returns `unchanged` on every **run** — one execution of
-`variance run` — after.
+**[Variance Authority](README.md)** renders a UI state, compares it against its
+approved baseline, and records what changed and why. You already have a way to
+catch the pixels — `toHaveScreenshot`, Chromatic, Percy, `jest-image-snapshot` —
+and what any of them hands back on a red build is a count of differing pixels
+and two images. Somebody then opens the diff, finds the changed region by eye,
+works out which component drew it, and decides whether that change was authored
+or whether the test is just unstable. Variance Authority answers those last two
+from the run itself: a changed region resolves to the component that drew it and
+the `file:line` it was written at, and a subject that changed is read again
+before it is reported, so a change somebody authored arrives separately from a
+subject that disagrees with itself.
 
-This is enough to learn the complete review loop before deciding whether more
-of the suite belongs in it.
+This page takes one UI state through that loop end to end, so you can see the
+whole review cycle before deciding how much of the suite belongs in it.
 
-## The result you are building
+## Start from a state something already knows how to reach
 
-A complete first loop has four visible states.
+A **subject** is one named UI state you asked for and can ask for again — one
+Storybook story, one route at one viewport, one component mounted in a test —
+captured and compared under an id you choose. Pick a first subject whose state
+a harness you already trust can reach: a Playwright spec, a Storybook story, a
+served route. Navigation, fixtures, authentication, and readiness stay with that
+harness. Variance Authority either keeps the document for later rendering or
+takes an image the caller already painted.
 
-| Event | What it establishes |
+The recipes below all use **durable retention**: the approved baseline image is
+written to a store and read back by the next run, instead of being rendered and
+thrown away inside a single run. That is what makes the first run report `new`
+and the second report `unchanged`.
+
+## The loop you are building
+
+| Step | What you see |
 | --- | --- |
-| The host reaches the intended UI state | Navigation, fixtures, authentication, and readiness remain with their existing owner. |
-| The first reading reports `new` | The run observes the subject, but no approved baseline exists. |
-| A reviewer accepts that candidate | The store promotes exactly the candidate under review. |
-| The same subject reports `unchanged` | The current evidence and approved baseline are comparable and no difference remains. |
-
-This loop proves the integration for that subject. It does not turn one stable
-reading into a claim about every state in the suite.
+| The harness reaches the intended UI state | Navigation, fixtures, authentication, and readiness stay where they already work. |
+| The first run reports `new` | The subject was captured, and no approved baseline exists yet. |
+| You accept that candidate | `variance accept <subject-id>`, or Playwright's snapshot update flag, promotes exactly the image the run under review produced. It never renders a replacement. |
+| The next run reports `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
 
 ## Choose who already owns the state
 
-Choose the integration from the place where the UI is already ready. Do not
-rebuild navigation or fixtures in a second harness.
+Start from the place where the UI is already ready. Do not rebuild navigation or
+fixtures in a second harness.
 
-| Existing state owner | Integration path | What remains with the host |
+| You already have | Start here | Choose it when |
 | --- | --- | --- |
-| A Playwright test | [Start with `@variance-authority/playwright-test`](start-playwright.md) | Test runner, page, fixtures, navigation, authentication, readiness, and assertions |
-| A built or served Storybook | [Start with `@variance-authority/storybook-collector`](start-storybook.md) | Story catalog, decorators, play functions, build, and story readiness |
-| A served application, sitemap, or static build | [Start with `@variance-authority/route-collector`](start-routes.md) | Server, routes, application state, and application-owned readiness markers |
-| Jest or Vitest with a mounted jsdom tree | [Start with `@variance-authority/unit-test`](start-unit.md) | Unit runner and mount lifecycle; a later CLI process renders the captured document |
-| Vitest browser mode with a mounted component | [Start with `@variance-authority/vitest-browser`](start-vitest-browser.md) | Runner, provider, mount library, locators, and assertions; the Vitest process holds the baseline and paints |
-| Another harness or material already in hand | [Connect a custom collector or `@variance-authority/observe`](start-custom.md) | State lifecycle and the adapter that emits a document or raster |
-| A **collector** (the host-specific code that discovers and captures subjects) that already owns acquisition | [Run its review loop with `@variance-authority/cli`](start-cli.md) | Subject planning, acquisition, and readiness |
+| A Playwright test | [`@variance-authority/playwright-test`](start-playwright.md) | The state only exists after navigation, login, or fixture setup the suite performs. |
+| A built or served Storybook | [`@variance-authority/storybook-collector`](start-storybook.md) | Story ids are the ids you want your baselines named by, and decorators or play functions already reach the state. |
+| A served application, sitemap, or static build | [`@variance-authority/route-collector`](start-routes.md) | The application route, not an isolated component, is what you review. |
+| Jest or Vitest with a mounted jsdom tree | [`@variance-authority/unit-test`](start-unit.md) | The unit run must not start a browser; a later CLI process renders what it captured. |
+| Vitest browser mode with a mounted component | [`@variance-authority/vitest-browser`](start-vitest-browser.md) | The component is mounted in a real browser by the Vitest run itself. |
+| Another harness | [A custom collector or `@variance-authority/observe`](start-custom.md) | Nothing above owns the state lifecycle. |
 
-The host choice does not choose where pixels are made. Playwright can retain a
-document for deferred rendering or capture its caller-owned locator in place;
-collector documents can be rendered locally or by an operator-owned renderer.
-[Choose from the state you already have](cases.md) separates those decisions.
+If you have both a Playwright suite and a Storybook, both rows apply and you can
+use both later. For the first subject, choose by where the state you want to
+review lives: use Storybook when the story already renders it and you want the
+story id as the baseline id, and use Playwright when reaching that state needs
+navigation, authentication, or fixtures a story does not perform.
 
-These paths share observation and reporting contracts, not identical signals.
-For example, browser accessibility evidence requires a browser reading,
-`file:line` [attribution](attribution.md) requires source [provenance](attribution.md), and portable remote painting
-requires resource-closed capture. When a path does not supply a signal, the
-result omits it.
+If you have already written a collector that plans and captures subjects itself,
+you are past this chooser: [run its review loop with
+`@variance-authority/cli`](start-cli.md).
+
+Where pixels are made is a separate choice from which harness you start in. A
+Playwright test can hand its document to a pinned renderer or capture the browser
+it is already driving, and a collector's documents can be rendered locally or by
+a renderer you host. [Choose from the state you already
+have](cases.md) covers those choices.
+
+Not every path can supply every kind of evidence. Browser accessibility evidence
+needs a browser, and `file:line` [attribution](attribution.md) needs a build that
+carries source locations. Where a path cannot supply something, the result leaves
+it out rather than guessing.
 
 ## Bound the first subject
 
-Give the state an id that survives a test-title or route-name change, such as
-`cart/empty`. Select the smallest root that contains the behavior under review,
-such as the cart, not the whole application page. Shared chrome and
-unrelated updates then stay outside this subject by construction.
+Give the state an id that survives a renamed test title or route, such as
+`cart/empty`. Select the smallest root that contains the behavior you are
+reviewing — the cart, not the whole page. Shared chrome and unrelated updates
+then stay outside the subject.
 
 Keep the first state deliberately ordinary:
 
-- its inputs are controlled by the existing host;
+- its inputs are controlled by the existing harness;
 - its ready condition is explicit;
-- its resources and fonts are available to the chosen renderer;
-- its root is present when acquisition begins.
+- its fonts and images are available to the renderer you chose;
+- its root is on the page before capture begins.
 
-A missing root or an unmet ready condition is a collection failure, not an
-empty observation and not an unchanged result.
+If the root is missing or the ready condition never holds, the run reports a
+collection failure for that subject. That is not a visual result, and it is not
+an `unchanged`: fix the boundary the run names.
 
 ## Run the first review loop
 
-Follow the chosen integration recipe through its first observation. With
-durable retention, the expected result is `new`; accepting an unseen baseline
-automatically would turn missing review into green output.
+Follow your chosen recipe through its first run. With durable retention the
+expected first result is `new`. Accepting an unseen baseline automatically would
+record whatever is on screen as the truth and report green from then on, so
+nothing accepts on your behalf.
 
-For a Playwright-owned loop, the observation lives inside the existing test.
-Its first unchanged assertion fails with `new`; Playwright's explicit snapshot
-update flag promotes the candidate produced by that run, and the promoted
-observation returns `unchanged`.
+For a Playwright-owned loop the comparison lives inside the existing test. Its
+first assertion fails with `new`; `npx playwright test --update-snapshots=all`
+promotes the candidate that run produced, and the next run reports `unchanged`.
 
-For Storybook, route, unit-capture, and custom collectors, the CLI owns the
-loop. `doctor` checks the environment selected by the config. The first
-successful durable run exits `1`; inspect its **report** (what the run writes
-at the end), accept the intended subject id, and run it again. An unchanged run exits `0`. The selected recipe
-contains the config and commands because acquisition details belong to that
-host.
+For Storybook, route, unit-capture, and custom collectors the CLI owns the loop:
+
+```bash
+variance doctor --config variance.config.json
+variance run --config variance.config.json
+```
+
+`doctor` checks the environment your config selects, against the machine or CI
+image that will do the comparing. The first durable run exits `1`, because every
+subject without a baseline is `new`. Render its report, open it, and copy the id
+of the candidate you want to keep:
+
+```bash
+variance report --config variance.config.json --format html > .variance/report.html
+variance accept --config variance.config.json cart/empty
+variance run --config variance.config.json
+```
+
+The rerun exits `0` once the subject is `unchanged`. Keep `accept --all` out of
+unattended workflows: it cannot tell a candidate somebody reviewed from one
+nobody opened.
 
 ## Read what came back
 
-| Observation | Next action |
+| Result | What you do |
 | --- | --- |
-| `new` | Review the candidate and accept this subject explicitly if it is the intended state. |
-| `unchanged` | The subject completed the loop; add another state or follow a deeper evidence question. |
-| `changed` | Open the report at the highest band and attributed root; [trace the region to source](attribution.md) or [compose evidence across subjects](composition.md). |
-| `incomparable` | Read the reason and reconcile renderer or evidence identity; do not replace a refused comparison with zero difference. See [baseline placement](placement.md) and [stabilization](stabilization.md). |
-| Not observed | Fix the named collection boundary. A subject the run could not read has no observation verdict. |
-
-The observation words describe whether material could be compared. Policy then
-turns a changed observation into a verdict such as `authorized`,
-`needs-review`, `violation`, or `unexplained`; [composition](composition.md)
-defines that fold.
+| `new` | Open the report, check the candidate is the state you meant, and accept that id. |
+| `unchanged` | The subject is through the loop. Add another state, or ask a deeper question below. |
+| `changed` | Open the report at the region it names: it carries the component and the `file:line` that drew it. [Trace the region to source](attribution.md), or [compare across subjects](composition.md) to see whether the same component held elsewhere. |
+| `incomparable` | The two images were refused a comparison because they were not made under the same renderer identity — engine, platform, scale factor, fonts, or stabilization recipe. The report names which. Make the pixels in one fixed place, a pinned local renderer or one you host, or switch to ephemeral retention where both sides are rendered in the same run. See [baseline placement](placement.md) and [stabilization](stabilization.md). Do not read a refused comparison as zero difference. |
+| Collection failure | The run could not read the subject at all, so it has no visual result. Fix the boundary it names. |
 
 ## Choose the next question
 
-Once one subject completes the loop, add only the evidence needed by the next
-decision:
+Once one subject is through the loop, add only the evidence the next decision
+needs:
 
 - resolve a changed region to a component and `file:line` with
   [attribution](attribution.md);
-- distinguish an authored change from unstable execution with
-  [parting](parting.md) and [flakiness](flakiness.md);
+- separate a change somebody authored from an unstable subject, and name the
+  input a component saw differently, with [parting](parting.md) and
+  [flakiness](flakiness.md);
 - select the subjects a source edit can reach with
   [source reach](source.md) and [test selection](selecting.md);
 - choose ephemeral, directory, Git LFS, or remote retention with
   [baseline placement](placement.md);
-- read presentation or runtime behavior without a durable baseline with
+- ask whether the same component held in every other subject that rendered it,
+  with [composition](composition.md);
+- read presentation or runtime behavior without a stored baseline with
   [presentation intelligence](presentation.md) and
   [runtime scenarios](scenarios.md).
 

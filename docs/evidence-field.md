@@ -1,9 +1,68 @@
-# Use the evidence you already have
+# Ask more of the run you already have
 
-A useful answer may need evidence from source, a running test, the rendered
-interface, a previous comparison, or retained history. [Variance Authority](README.md) keeps
-those sources compatible so you can follow a question across them without
-replacing the tools that already serve you well.
+**[Variance Authority](README.md)** renders a UI state, compares it against its
+approved baseline, and records what changed and why. A red build from
+`toHaveScreenshot`, Chromatic, Percy or Argos hands back a count of differing
+pixels and two images; every question after that — which component drew the
+region, whether the same state reads the same way twice, whether your edit could
+reach it at all — is answered by somebody opening the diff. This page is about
+those later questions, and about answering them from readings the run already
+took rather than from a second tool asked to take them again.
+
+**Evidence** is what one of those readings retained: a
+[source index](source-index.md), a record of which tests entered which code, a
+rendered document, a stored baseline, or the history of previous runs. Each is
+kept with the question it answered and the conditions it was read under, so a
+later question can be put to it directly.
+A **subject** is one named UI state a run observes and can observe again — a
+story, a route, a fixture — under an id that survives a rename.
+
+## Read a run back
+
+`variance ask` reads a completed report and answers in text. It never renders,
+never re-runs and never promotes a baseline, and every answer exits `0` —
+gating is what `variance run`, `variance report` and `variance adjudicate` do,
+and those exit `1` when something needs review and `2` on an operator error.
+
+```bash
+variance ask            # the questions, their arguments, and what each answers
+variance ask summary    # the last run, from the configured report
+```
+
+The listing reads no configuration, so it answers before any run exists. The
+summary is the entrance to the rest: it prints how many subjects were observed
+out of how many were planned, the renderer, engine, platform and device scale
+that drew them, a count per verdict, one line per subject that needs attention,
+and then every subject the run meant to see and did not — each marked
+`[failed]`, `[excluded]` or `[unreached]`. A subject that was planned and never
+observed is named rather than counted, so silence about it cannot be read as a
+pass.
+
+Two of those attention lines are not verdicts about a component:
+
+- `[unstable]` — the subject was read twice, seconds apart, with nothing changed
+  in between, and the two readings disagreed. The line names the component that
+  moved and the band it moved in (`content`, `geometry`, `token`, `a11y` or
+  `texture`), and `accept` refuses the subject.
+- `[order-dependent]` — the subject changed under the shared session and matched
+  its baseline when collected alone. The writer of the shared state is not
+  named; module-level state is outside anything a render can see.
+
+The summary closes an unstable finding with the command that tests a fix against
+one subject instead of the suite:
+
+```bash
+variance run --subjects '<subject>' --flakes
+```
+
+It exits `1` while two readings still disagree, even with every verdict green.
+
+Narrow from the summary with `changes`, `describe`, `explain-verdict`,
+`trace-component`, `findings`, `composition` or `variations`; each takes only
+the arguments its own question declares and refuses another by name. For one
+test rather than one subject, `variance distill --test <id>` reads portable
+[Eyes](eyes.md) and [Sense](../packages/sense) evidence without a report at all.
+[Asking from the command line](agent-cli.md) covers the full set.
 
 ## Five ways in, no required pipeline
 
@@ -25,12 +84,9 @@ use them.
 
 ## Bring the tools you already trust
 
-The system supplies an answer for each boundary because a boundary without an
-observation cannot support a conclusion. It does not require every answer to
-come from Variance Authority.
-
+An **observation** is one reading with the context that makes it usable later.
 An existing runner, collector, index, renderer, store, or review system can
-fill a role when it preserves the observation contract:
+supply one when it carries:
 
 - the question the observation answered;
 - the subject and conditions it read;
@@ -38,8 +94,11 @@ fill a role when it preserves the observation contract:
 - the evidence and its [provenance](attribution.md); and
 - any absence, incompatibility, or authority boundary.
 
-This lets the parts work together without requiring one product to own the
-whole workflow.
+Each boundary in the system has an answer behind it, because a boundary without
+an observation cannot support a conclusion. Which product produced that answer
+is open. [Choose the operating model that fits](comparison.md) sets the capture
+and operational contracts side by side with Percy, Chromatic, Argos and
+Applitools.
 
 ## Decisions, memory, and consumers
 

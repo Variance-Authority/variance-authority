@@ -350,8 +350,7 @@ A claim carrying a field this resolution cannot check is named rather than
 dropped. A **band** is a category of visual difference, such as `content` or
 `geometry`; an agent told `delivered` about a band nothing looked at has been
 told something the run never established, so the answer ends `Not checked here:
-bands`. `examples/agent-claim` runs the whole boundary — CLI and this tool,
-every verdict, one process.
+bands`.
 
 `variance_changelog` previews what accepting this run would write into the
 baseline record, before the write happens — otherwise a baseline update is only

@@ -1,88 +1,88 @@
-# Tests preserve the paths we care about
+# See what changed in the UI, and what changed it
 
-A test turns one path through a product into a repeatable proof. When the same
-starting conditions and action still produce the expected outcome, the test
-earns confidence that this promise has been preserved.
+**Variance Authority** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source. `toHaveScreenshot`, Percy,
+Chromatic and Argos answer a red build with a pixel count and two images, which
+leaves somebody to find the changed region by eye, work out which component drew
+it, and guess whether a person authored that change or the state is simply
+unstable. Here a changed region carries the component that rendered it and the
+`file:line` it was written at; a state that changed is captured a second time
+before the result is reported, so an authored change arrives separately from one
+that disagrees with itself; and an image painted under a different browser,
+platform, scale factor or font stack comes back `incomparable`, naming what
+differs, instead of as a page of red pixels you triage by hand.
 
-## Confidence is specific
+## Try it on one state
 
-Each test protects one codified path under the conditions it observed.
-Confidence grows from important paths being preserved, not from the number of
-tests or the size of a green bar. That proof lets an engineer refactor beneath
-stable behaviour, a team state what must remain true, and an agent reproduce the
-promise instead of relying on an instruction to “be careful.”
+Each comparison is keyed by a **subject id** — one named UI state you can ask
+for again, such as `cart/empty`. In a Playwright test you already have, add one
+call and one assertion; the test keeps its runner, navigation, fixtures and
+existing assertions.
 
-## High level is a strength — and a blind spot
+```bash
+npm install --save-dev @variance-authority/playwright-test @playwright/test
+npx playwright install chromium
+```
 
-Good tests describe behaviour at a level that survives implementation changes.
-They do not fail because a function moved, a component was wrapped, or the same
-outcome took another internal route. [Test Desiderata](https://testdesiderata.com/)
-names this balance through properties such as behavioural,
-structure-insensitive, readable, specific and predictive.
+```ts
+import { test } from '@playwright/test';
+import { assertUnchanged, observe } from '@variance-authority/playwright-test';
 
-The same restraint creates a blind spot. A high-level assertion can pass while
-presentation, execution, component state, dependencies, or an unasserted part
-of the interface changed. That can be harmless, intentional, or damage. The
-pass alone cannot distinguish them.
+test('the cart survives an empty basket', async ({ page }, testInfo) => {
+  await page.goto('https://example.test/cart');
+  await page.getByRole('button', { name: 'Clear' }).click();
 
-## Confidence has a boundary and a bill
+  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
+    subjectId: 'cart/empty',
+  });
 
-A test costs what it takes to write, execute, understand and maintain. A fast
-test with an obscure failure can be expensive. A slower test can earn its place
-when it protects a consequential path no cheaper observation can prove.
+  assertUnchanged(observation);
+});
+```
 
-Spend that effort where it buys confidence:
+The first run reports `new`, because no baseline has been approved for that id
+yet. Promote the image that run produced, and the next run reports `unchanged`.
+Nothing accepts a first baseline on your behalf.
 
-- **Protect promises that matter.** Consider how easily a behaviour could break,
-  what its failure would cost, and how late someone would otherwise notice.
-- **Add cases that address another risk.** A boundary, permission or recovery
-  path can expose a failure the happy path misses. Another example earns its
-  place when it tells you something the existing cases do not.
-- **Choose the level that can answer the question.** Exercise calculation cases
-  close to the logic; use integration tests to check the contracts between
-  parts, and product journeys to check that those parts deliver the promise.
-- **Keep the protection while the risk remains.** A migration rehearsal may
-  serve one change. A regression test can protect against the same mistake for
-  years. Its lifetime follows the promise, even as implementations come and go.
+Storybook, application routes, unit tests and custom collectors run the same
+loop from the CLI instead:
 
-Coverage answers whether an execution reached code. It does not establish that
-the test noticed the behaviour that matters, would fail when that behaviour
-breaks, or explains the cause when it does. A suite can execute every line and
-leave its important promises untested.
+```bash
+variance run --config variance.config.json
+variance accept --config variance.config.json cart/empty
+```
 
-Adding assertions for every nuance increases the work, couples the test to
-details, and turns unrelated changes into failures. Add tests while they
-materially improve confidence in the changes ahead. When the next test mostly
-repeats what the suite already tells you, look for a risk it still leaves open
-before adding to the count.
+[Observe one state](start.md) takes one subject through capture, review and
+acceptance end to end, and chooses the harness to start from.
 
-## An agent needs both answers
+## Why a passing test is not the whole answer
 
-After changing code, an agent needs proof that it **did not break the codified
-path**. That is the test's answer. It also needs proof that it **did change the
-thing it intended to change**. A passing test cannot provide that second answer
-when the intended effect sits outside its assertion.
+A good test describes behaviour at a level that survives implementation changes.
+It does not fail because a function moved or a component was wrapped.
+[Test Desiderata](https://testdesiderata.com/) names that balance through
+properties such as behavioural, structure-insensitive and predictive.
 
-Neither answer substitutes for the other. Preserving the path while producing
-no effect means the work did not land. Producing the effect while breaking the
-path means it landed badly.
+The same restraint leaves a blind spot. A high-level assertion passes while
+presentation, execution, component state, dependencies, or an unasserted part of
+the interface changed. That can be harmless, intentional, or damage, and the
+pass alone does not separate them.
 
-## Variance gives the test a second answer
+So after changing code you need two answers, and neither substitutes for the
+other: the codified path still holds, and the edit produced the effect you
+intended. Preserving the path while producing no effect means the work did not
+land; producing the effect while breaking the path means it landed badly. A
+passing assertion supplies the first answer only.
 
-Variance Authority helps you learn more from the tests worth keeping. It observes
-beside the assertion, retaining what changed in the interface, execution,
-component state and source. Visual regression establishes the correlated effect.
-[Divergence](composition.md) finds where two readings first parted. [Provenance](attribution.md) and [composition](composition.md)
-connect that fork to its cause and to every observed subject it reached.
+Variance Authority observes beside the assertion and retains what changed in the
+interface, execution, component state and source. The rendered comparison
+establishes the effect. [Attribution](attribution.md) connects that effect to the
+component and line that caused it, and [composition](composition.md) shows every
+other observed state the same component reached. The test stays readable and
+structure-insensitive; the nuance is available when a person or an agent needs
+it, rather than turned into a failure.
 
-The test remains a readable, behavioural, structure-insensitive statement.
-Variance does not turn every nuance into a failure; it makes the nuance
-available when a person or agent needs to understand the result. Where the run
-recorded the whole chain, the same test can say both: **the promised path still
-holds, and this is the change the edit produced.** Where evidence ends, the
-explanation says so.
-
-Start where the current cost or uncertainty is visible.
+## Where to go next
 
 <div class="doc-link-grid doc-link-grid--capabilities">
 <a class="doc-link-card doc-link-card--compact" href="better-tests.md">
@@ -111,7 +111,15 @@ Start where the current cost or uncertainty is visible.
 </a>
 </div>
 
-The [reasoning loop](reasoning.md) shows how a question becomes a bounded
-observation. If durable rendered comparison is the decision in front of you,
-[observe one state](start.md) follows it through capture, review and explicit
-acceptance.
+Start from the harness that already reaches the state you want to review:
+[Playwright](start-playwright.md), [Storybook](start-storybook.md),
+[application routes](start-routes.md), [Jest or Vitest](start-unit.md),
+[Vitest browser mode](start-vitest-browser.md), [a custom
+collector](start-custom.md), or [the CLI lifecycle](start-cli.md).
+
+Or enter by the question in front of you: [find the subject you
+mean](locate.md), [trace a visible change to source](attribution.md), [trace
+instability to its owner](flakiness.md), [fit into an existing screenshot
+suite](replacing.md), [compare operating models](comparison.md) against Percy,
+Chromatic, Argos and Applitools, or follow [the reasoning
+loop](reasoning.md) from a question to a bounded observation.

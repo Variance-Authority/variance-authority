@@ -177,10 +177,15 @@ two tokens are the same* reach the operator as the response body.
 `PROJECT` is a deployment setting, so one deployment serves one project; a
 second tenant needs a second deployment.
 
-The migrations in `migrations/` are **generated** from `SCHEMA` by
-`tools/tribunal-migrations.mjs` — change `schema.ts` and rebuild rather than
-editing a generated `.sql` file. `wrangler.jsonc` carries the project name and
-no credentials; keep both tokens in Wrangler secrets.
+`migrations/` ships with the package, one file per schema step, and
+`wrangler d1 migrations apply` is what puts them into your database. Wrangler
+records which steps it has applied, so run that same command again after you
+upgrade the package: a release that adds a step applies that step alone, and one
+that adds none applies nothing. `GET /version` reports the schema version the
+deployed build expects.
+
+`wrangler.jsonc` carries the project name and no credentials; keep both tokens
+in Wrangler secrets.
 
 ### Or run it on a machine you own
 

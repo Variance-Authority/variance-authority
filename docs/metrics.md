@@ -1,9 +1,33 @@
-# How to judge the evidence
+# Metric definitions
 
-[Variance Authority](README.md) reads structure, component ownership and source [provenance](attribution.md)
-alongside pixels. That evidence is meant to replace _an image moved_ with a
-smaller decision: whether the change is real, what caused it, where it is
-written, and which other changed regions share that cause.
+This page specifies nine metrics — M1–M9 — for judging visual-regression
+evidence, giving the unit, denominator and evidence boundary of each. **It
+reports no readings.** The readings the repository can substantiate, with their
+counts, timings and the test files that produce them, are in
+[Evidence instruments](instruments.md#where-each-claim-is-measured);
+[replacement gates](gates.md) turns those readings into an adoption decision,
+and [product comparison](comparison.md) covers capability and ownership
+differences.
+
+**You do not need this page to review a run.** A run already presents its
+verdict, causes and unresolved docket. Come here to publish a product claim, to
+check whether a result transfers to another corpus, host or machine, or to
+decide what to measure before adopting.
+
+**If you are deciding whether to adopt, start with M6, M9 and M3.** M6 is the
+time and integration work between a clean checkout and your first correct
+verdict; M9 is the blind-spot inventory for the capture surface you pick; M3 is
+the machine cost of a run on your own hardware. The other six need per-case
+ground truth, a declared corpus, a second machine or a history of approvals —
+[what you can run yourself](#what-you-can-run-yourself) gives the cost of each.
+
+## What these metrics defend
+
+[Variance Authority](README.md) reads structure, component ownership and source
+[provenance](attribution.md) alongside pixels. That evidence is meant to replace
+_an image moved_ with a smaller decision: whether the change is real, what
+caused it, where it is written, and which other changed regions share that
+cause.
 
 More evidence is not automatically a better visual-regression workflow. It is
 better only when three things hold together:
@@ -19,27 +43,56 @@ History adds a fourth question: whether evidence retained across approved
 revisions reveals cumulative drift. Every conclusion is bounded by what the
 chosen capture and host can observe.
 
-This page defines the measurements required to make those claims. It specifies
-the unit, denominator and evidence boundary of each number so that a strong
-result on one fixture cannot stand in for a usable workflow. The readings behind
-current product claims are in [Evidence instruments](instruments.md);
-[replacement gates](gates.md) turn those readings into an adoption decision, and
-[product comparison](comparison.md) covers capability and ownership differences.
+Each metric below specifies the unit, denominator and evidence boundary of one
+number, so that a strong result on one fixture cannot stand in for a usable
+workflow.
 
-Use these definitions when deciding whether Variance Authority should augment or
-replace a visual-regression workflow, when publishing a product claim, or when
-checking whether a result transfers to another corpus, host or machine. They are
-not needed to review an individual run: a run already presents its verdict,
-causes and unresolved docket.
+## Terms this page uses
+
+- **docket root** — one cause a run leaves for a person or system to decide,
+  such as a component or a token, rather than one changed pixel region
+  ([information exchange](information.md)).
+- **resource-closed document** — a captured document carrying the bytes it
+  references, so a second renderer needs no access to the origin; an
+  environment-dependent document instead requires that renderer to reach
+  equivalent resources through a preserved base URL
+  ([choose from the state you already have](cases.md)).
+- **composition** — the combination a setup selects across four independent
+  choices: which process reaches the state, what crosses the acquisition
+  boundary, where pixels are made, and where the answer is retained
+  ([compose an observation](compose-observation.md)). The composition sets the
+  evidence boundary, which is what M9 inventories.
+
+## What you can run yourself
+
+M6, M9 and M3 need only your own repository. The rest need ground truth or
+hardware declared outside the tool, and the right column states what the
+repository publishes for each today.
+
+| Metric | Runnable on your repository | What it costs you | Reading published |
+| --- | --- | --- | --- |
+| M1 Changed-file hit rate | No | A per-case declaration of which files your edit touched, for every changed subject | Partial — `cases/incumbent-case` scores file-and-cause naming over eight cases |
+| M2 Review compression | No | One declared intentional edit per case, plus a hand-scored judgement of each merge and split | None |
+| M3 CI machine cost | **Yes** | One cold and one warm run of your own suite, per observation tier you are considering | Partial — component-level timings on the maintainers' fixtures, not a phase-split run cost |
+| M4a False alarms | No | Synthetic cases that vary one environment input at a time | None |
+| M4b False misses | No | A corpus whose cases are declared changed or unchanged before they run | None |
+| M5 Cross-machine comparability | No, unless you have a second declared machine | Two machines and one resource-closed document | None — every timing and instability probe in the repository comes from one machine and one Chromium |
+| M6 Time-to-first-verdict | **Yes** | A clean checkout, the public docs and a stopwatch, repeated per offering you are considering | None |
+| M7 Cause and collateral ranking | No | A declared responsible component per case | Partial — the same `cases/incumbent-case` scoring |
+| M8 Accumulated drift | No | A configured history endpoint and a sequence of approved revisions | None |
+| M9 Blind spots | **Yes, by reading** | Nothing: read the M9 table against the composition you chose | The M9 table is the reading |
+
+M9 is a compatibility matrix rather than a measurement, which is why it is the
+one metric you can settle without running anything.
 
 ## Who produces a measurement
 
 M1–M9 are evaluation metrics, not fields emitted by `variance run`. Variance
 Authority produces one side of the evidence: observations, verdicts, attributed
 regions, grouped causes, renderer identities and, when configured, history rows.
-An evaluator supplies the other side: the known edit or unchanged state, the
-responsible file or component, the comparison environment, and the work required
-to adopt the tool.
+The other side — the known edit or unchanged state, the responsible file or
+component, the comparison environment, and the work required to adopt the tool —
+is declared by whoever runs the evaluation.
 
 That separation is necessary. A tool cannot measure its own attribution accuracy
 from the file it chose to name, or its own false-miss rate from the changes it
@@ -52,17 +105,17 @@ of the result.
 | M2 | Changed subjects, regions, component causes, collateral and docket roots | A test or case author declares one intentional edit and scores false merges and splits |
 | M3 | The acquisition and comparison workflow being timed | A benchmark runner records phase and total machine time under a named environment |
 | M4 | A verdict and the dimensions the selected profile could observe | A corpus author declares unchanged and intentionally changed cases before running them |
-| M5 | A resource-closed document, renderer identity and comparison refusal | An evaluator renders it on both declared machines and compares the results |
-| M6 | The documented installation and baseline workflow | An evaluator starts from a clean repository and records the human and machine cost |
+| M5 | A resource-closed document, renderer identity and comparison refusal | Whoever owns both declared machines renders it on each and compares the results |
+| M6 | The documented installation and baseline workflow | An adopter starts from a clean repository and records the human and machine cost |
 | M7 | Regions ranked as causes or collateral | A corpus author declares the responsible component and scores the ordering |
 | M8 | Observations and approvals written by configured runs | The history calculation applies a declared drift policy to those retained rows |
 | M9 | The capabilities declared by the selected capture surface and observation profile | The integration author inventories the conclusions outside that evidence boundary |
 
-The evaluator may be a project maintainer establishing a product claim or an
-adopter testing the claim on their own repository. A test, case or benchmark can
-automate the calculation only when it carries the independent ground truth the
-metric requires. [Evidence instruments](instruments.md#where-each-claim-is-measured)
-links the repository's executable readings and states where each one stops.
+A maintainer publishing a product claim and an adopter testing that claim on
+their own repository need the same definitions and produce different subsets of
+them; the split is in [what you can run yourself](#what-you-can-run-yourself). A
+test, case or benchmark can automate the calculation only when it carries the
+independent ground truth the metric requires.
 
 ## What the measurements decide
 
@@ -76,7 +129,7 @@ links the repository's executable readings and states where each one stops.
 No row substitutes for another. Accurate attribution does not excuse a false
 `unchanged`; fast comparison does not establish low adoption cost; review
 compression is not useful when it merges unrelated causes. M9 limits every
-other result by naming what its [composition](composition.md) could not observe.
+other result by naming what its composition could not observe.
 
 ## Rules for a valid reading
 
@@ -88,6 +141,9 @@ other result by naming what its [composition](composition.md) could not observe.
    pixel measurement.
 6. Treat a result fitted against its own corpus as regression evidence, not an
    estimate of general accuracy.
+
+Rules 1, 2 and 6 bind whoever publishes a rate. Rules 3, 4 and 5 bind any
+reading, including one you take on your own repository.
 
 The core strata are component stories, composed page stories, route-level
 subjects and non-React subjects. A headline rate without those strata hides
@@ -143,7 +199,8 @@ rendering pays to archive and paint, and can reuse content-addressed rasters.
 
 The measurements in source tests are local benchmark evidence. They establish
 relative behavior on that fixture and machine, not a universal throughput
-promise.
+promise. Run this on your own suite and hardware; that is the number that
+transfers.
 
 ## M4. False verdicts
 
@@ -197,7 +254,10 @@ public docs. Measure through one real change and its baseline workflow.
 | External accounts | Procurement burden |
 
 Run the Storybook, route, Playwright and unit-capture offerings separately. Do
-not substitute a package's internal fixture for the adopter path.
+not substitute a package's internal fixture for the adopter path. Each offering
+has its own starting page: [Storybook](start-storybook.md),
+[routes](start-routes.md), [Playwright](start-playwright.md) and
+[unit capture](start-unit.md).
 
 ## M7. Cause and collateral ranking
 
@@ -234,7 +294,8 @@ answer is absent evidence, not zero drift.
 | DOM provenance | framework and runtime ownership not supplied by the host |
 
 This metric is not ranked to be won. It is complete when every unsupported
-conclusion is visible at the decision boundary.
+conclusion is visible at the decision boundary. Match the left column against
+the composition your setup selects in [compose an observation](compose-observation.md).
 
 ## Drawing a conclusion
 
@@ -248,8 +309,10 @@ with M2, M3 and M6; otherwise the result says only that one part works.
 Cross-machine operation needs M5. Longitudinal value needs M8. M9 bounds every
 one of those conclusions.
 
-The outcome is therefore a set of measurements, not a product score. Missing
-metrics remain missing, and a result on the nearest proxy does not fill them.
-Use [Evidence instruments](instruments.md#where-each-claim-is-measured) for the
+The outcome is therefore a set of measurements, not a product score. The right
+column of [what you can run yourself](#what-you-can-run-yourself) states which
+metrics the repository has readings for and which it does not; a result on the
+nearest proxy does not fill the second group. Use
+[Evidence instruments](instruments.md#where-each-claim-is-measured) for the
 readings the repository can substantiate and [replacement gates](gates.md) for
 the decision those readings support.

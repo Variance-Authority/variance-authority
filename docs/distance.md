@@ -1,28 +1,36 @@
-# Measure distance within a test-file selection
+# Measure test distance
 
-Distance is an integration API in
-`@variance-authority/sense/test-selection`. It describes how far a source change
-travelled to each test file selected from an execution snapshot. It does not
-discover the current suite or run a test command.
+After a source change, [test selection](selecting.md) narrows your suite to the
+test files that change could have reached. On a shared module that narrowed set
+is still most of the suite, and nothing in it tells you which file to run first.
+Distance orders it: for each selected test file it counts the import steps —
+**hops** — between the changed source and that test, so you can run the closest
+files first and read an answer while the edit is still fresh.
 
-The package does **not** install `test:since`, add `--at-distance` to a runner,
-or decide whether a path belongs to Vitest, Jest, Playwright or another test
-host. The Vitest and Jest integrations record execution; orchestration remains
-with the repository that owns those hosts.
+What you have for this today is an import graph. A graph on its own can offer a
+short path through a module the test never loaded. Distance walks only the
+modules that test entered or loaded in a recorded run, so the count it gives you
+describes execution rather than possibility.
 
-An integration that turns distance into a run must provide four things:
+Distance is an API in `@variance-authority/sense/test-selection`, not a command.
+It reads an execution snapshot and a diff. It does not discover your current
+suite, decide whether a path belongs to Vitest, Jest, Playwright or another test
+host, or invoke a runner. The Vitest and Jest integrations record execution;
+orchestration stays with the repository that owns those hosts.
 
-1. the current test-file inventory for every host it owns;
+To turn distance into a run, you supply four things:
+
+1. the current test-file inventory for every host you own;
 2. a unified diff and the import relations needed to place paths;
 3. the conservative join between that inventory and the snapshot's skip list;
 4. dispatch from each selected path to the runner and project that owns it.
 
 The inventory matters because a snapshot is historical. It can justify skipping
 a test it observed completely; it cannot enumerate a new test, know that a
-recorded test no longer belongs to the suite, or decide which runner should
-execute a file. A repository may obtain that inventory from a retained host
-index, incremental discovery, or the runner itself. [Sense](../packages/sense)
-does not choose that mechanism.
+recorded test no longer belongs to your suite, or decide which runner should
+execute a file. You can take that inventory from a retained host index,
+incremental discovery, or the runner itself. [Sense](../packages/sense) does not
+choose that mechanism for you.
 
 ## Partition the distances Sense can measure
 
@@ -123,11 +131,23 @@ not renumber the groups to fill a requested range.
 A test selected from the snapshot without a measurable path is **unplaced**.
 `atDistance` carries such tests with the range that reaches the measured end.
 Tests selected only by the current host inventory are outside the distance
-reading altogether and remain the caller's responsibility.
+reading altogether and stay your integration's responsibility.
 
 Every range is a smaller claim than the selection, which is already a smaller
 claim than the suite. Passing a near range says nothing about selected tests in
 later ranges or about tests the snapshot could not place.
+
+### What a near range buys you
+
+Not a shorter suite. A nearby test can be slow, and running `0-2` and then `3-`
+can cost more wall clock than running the selection once. What arrives earlier
+is the first answer, from the tests with the fewest modules between the change
+and the assertion, so a failure reaches you sooner and has fewer candidate
+causes.
+
+A distance is not a time estimate. Take a near range when you want feedback
+during the edit, and run the whole selection before you treat the change as
+verified.
 
 ## Connections worth investigating
 

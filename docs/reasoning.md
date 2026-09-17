@@ -1,14 +1,51 @@
 # Follow the reasoning loop
 
-Before running another [Variance Authority](README.md) tool, name the decision
-you are trying to make. That decision holds regardless of what renders your
-**subjects** — the stories, routes, fixtures or values a run compares against
-their baselines — React or otherwise. The useful evidence for choosing tests is
-different from the evidence for explaining a visual change or understanding a
-stalled run. Starting with the decision keeps the investigation focused and
-makes it easier to see when the available evidence is enough.
+You already have visual regression covered — `toHaveScreenshot`, Chromatic,
+Percy, `jest-image-snapshot` — and the question you carry to a red build is
+rarely *did these pixels move*. It is which tests this edit could reach, whether
+the change on screen is the change somebody authored, or why one state keeps
+disagreeing with itself. [Variance Authority](README.md) answers those from
+different readings — a parse of the source, a completed run report, a record of
+what previous executions entered, a suite still running — and asking the wrong
+one pays for a full suite render to get an answer a source reading already had.
+This page is how you pick the reading before you pay for it.
 
-The shared loop is:
+## Start from the decision, not the tool
+
+A **subject** is one named UI state a run captures and compares against its
+approved baseline — a Storybook story, a route at a viewport, a component
+mounted in a test. Which reading you need depends on the decision, not on what
+renders those subjects.
+
+| The decision in front of you | What answers it | Command |
+| --- | --- | --- |
+| Which test files can this diff not have reached? | The recorded execution journal, checked against the diff | `variance select --since origin/main` |
+| Which subjects are worth rendering this run? | Source reach, what each subject was last seen rendering, and the [execution index](execution-record.md) | `variance run --since origin/main` |
+| What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
+| Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
+| What is this test actually exercising? | Attention markers joined to the source that execution entered | `variance distill --test <id>` |
+
+`select` is the one written for a runner this tool never enters — a plain
+`vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
+never a run list: a test the journal has never recorded is absent from it and
+stays in the suite. It reads no project configuration, and with no recording it
+skips nothing and says so on stderr.
+
+`run --flakes` reads every subject twice instead of only the ones a comparison
+already called `changed`, and exits `1` even when every verdict is green.
+
+A first pass through the loop is three commands:
+
+```bash
+variance run --since origin/main
+variance ask summary
+variance ask changes
+```
+
+`variance ask` with no question prints every question the last run and a live
+watcher can answer, and the arguments each takes.
+
+## The loop behind those commands
 
 **Name the outcome → frame the variance → choose an eye and a [vantage](vantage.md) → sense
 or instrument → read the evidence → act or step back.**

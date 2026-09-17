@@ -1,141 +1,134 @@
-# Surface
+# Connect your suite
 
-A suite connects to [Variance Authority](README.md) by composing independent choices:
+A **surface** is the package that connects [Variance Authority](README.md) to
+one test suite. It finds the states worth observing, drives your host to each
+one, and gives each a stable id. It does not replace your test runner,
+assertions, configuration, build, or teardown. This page lists the surfaces,
+what each installs, and how to pick one — and, at the end, what to write when
+none of them covers your host.
 
-1. the host reaches the state to observe;
-2. acquisition keeps either a `RenderDocument` or a `Raster`;
-3. a document is painted by a local or remote renderer, while a raster is
-   already painted;
-4. both reach the same observation, retention, and reporting contracts.
+If you have not taken a first subject through a review loop yet, start with the
+[getting-started chooser](start.md) and come back here to compare the options.
 
-The code that carries out step 1 above — reaching the host's state — is the
-**host adapter**: it discovers which subjects exist, drives the host through
-render or navigation, and gives each subject its stable id. It does not
-replace the host's test runner, assertions, configuration, build, or teardown.
-The resulting combination is chosen for the suite's privacy, latency,
-repeatability, and coverage requirements. Steps 2 and 3 above are also named:
-**deferred** rendering keeps a document and paints it later, through a local
-or remote renderer; **in-place** rendering keeps a raster that is already
-painted, with no separate render step. Both are first-class.
+Two words recur below, and they name the material a surface keeps:
 
-A **surface** is the adopter-facing package built for one host. It bundles a
-host adapter and, where the host runs in a browser, a page agent, behind a
-single import, so a suite installs one package instead of composing those
-pieces itself. "Surface" and "adopter-facing package" name the same thing;
-this page uses both.
+- **Deferred** rendering keeps a render document and paints it later, through a
+  local or a remote renderer.
+- **In-place** rendering keeps a raster the host already painted, with no
+  separate render step.
 
-## 1. The three things you write
+Both reach the same observation, retention, and reporting path. The choice
+changes cost and disclosure, not the verdict you get.
 
-The smallest integration names a subject, acquires its state, and chooses where
-the resulting material goes. Host surfaces remove one or more of those steps.
+## 1. What you install
 
-### The collector — three methods
+Pick the row for the host that already reaches the state you want to review.
+Everything the surface needs beyond that stays behind its package boundary.
 
-The CLI collector contract is for hosts whose subjects are observed as a run:
-
-```ts
-interface Collector {
-  plan(): Promise<Plan>;
-  collect(subject: PlannedSubject): Promise<Collected>;
-  close(): Promise<void>;
-}
-```
-
-`plan` names what the run intends to observe. `collect` returns a render document
-and optional semantic and source evidence. `close` releases the host. The
-Storybook, route, and unit-capture surfaces implement this contract.
-
-Collectors do not choose the renderer or baseline store. `variance run` wires
-their documents to the configured local or remote renderer, then to the same
-path every subject follows afterward: the renderer paints a raster if the
-material was a document, the **observation engine** — the
-`@variance-authority/observe` package that compares two images and returns
-one verdict — compares that raster against the subject's baseline, and the
-run writes the result into its report.
-
-### The page agent — one method
-
-A browser collector installs a serializable page-side acquisition method:
-
-```ts
-interface PageAgent {
-  capture(root: Element, request: CaptureRequest): Promise<RawCapture>;
-}
-```
-
-The Storybook and route collectors include their own agent. The Playwright Test
-surface also bundles one, because the suite's existing `Locator` already
-identifies the root.
-
-### Provenance — one function
-
-Acquisition may inject component [provenance](attribution.md) without making the DOM package
-framework-specific:
-
-```ts
-type ProvenanceOf = (element: Element) => Provenance | undefined;
-```
-
-Absence reduces [attribution](attribution.md); it does not prevent capture or pixel comparison.
-React and emitted `data-*` metadata are supported provenance sources. The host
-surface decides which one is available before acquisition.
-
-## 2. What you install
-
-Choose the adopter-facing package for the host. Its collaborators remain behind
-that package boundary.
-
-| Existing host | Surface | Material and placement |
+| Existing host | Install | Material and placement |
 | --- | --- | --- |
-| Built or served Storybook | `@variance-authority/storybook-collector` | Document rendered later; a remote renderer needs equivalent resource access. |
-| Served routes or a static directory | `@variance-authority/route-collector` | Document rendered later, resource-closed on request so a remote renderer needs no access to the origin. |
+| Built or served Storybook | `@variance-authority/cli` and `@variance-authority/storybook-collector` | Document rendered later; a remote renderer needs equivalent resource access. |
+| Served routes or a static directory | `@variance-authority/cli` and `@variance-authority/route-collector` | Document rendered later, resource-closed on request so a remote renderer needs no access to the origin. |
 | Existing Playwright Test | `@variance-authority/playwright-test` | Deferred document by default, or explicit in-place raster from the caller-owned page. |
-| Jest or Vitest with jsdom | `@variance-authority/unit-test` | Resource-closed document archive written in the unit process and rendered by a later CLI process. |
+| Jest or Vitest with jsdom | `@variance-authority/unit-test` and `@variance-authority/cli` | Resource-closed document archive written in the unit process and rendered by a later CLI process. |
 | Vitest browser mode | `@variance-authority/vitest-browser` | Document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Existing raster or document material through an injected store and, for documents, a renderer. |
 
-The CLI, renderer, and store packages remain available for operators composing
-their own run. Adopter-facing examples import one surface package; reaching
-through it to its collaborators is not required.
+For a Storybook, that first step is:
 
-## 3. By suite
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
+npx playwright install chromium
+```
+
+Playwright's browser binaries do not arrive with an `npm install`, which is what
+the second command is for. Every path that paints needs it, including the
+Playwright Test and unit-test surfaces.
+
+`@variance-authority/cli` supplies the `variance` binary: `variance run`,
+`variance report`, `variance accept`, `variance doctor`. The Playwright Test and
+Vitest browser surfaces own their loop inside the existing test run and do not
+need it; the collector-based surfaces do.
+
+## 2. By suite
 
 ### Storybook
 
 The Storybook collector reads `index.json`, reuses one preview, switches stories
 through Storybook's channel, waits for the rendered state, and acquires each
-subject. It operates beside Storybook: it does not install an addon, modify
-`.storybook`, replace the renderer, or own the build command.
+subject. It runs beside Storybook: it installs no addon, reads no `.storybook`
+directory, and does not own your build command.
 
-One optional capability is bought in the build rather than beside it. A built,
-minified Storybook reports the line each component is **declared** on; resolving
-a changed element to the line it is *written* on additionally requires the
-[`jsx-source`](../packages/jsx-source) plugin and automatic development JSX
-emission. Preserving component names through minification is a separate
-setting, and it moved with Vite: `build.rolldownOptions.output.keepNames` on
-Vite 8, `esbuild.keepNames` on Vite 7 and below. A development Storybook needs
-none of these settings, and every other part of collection is unaffected either
-way.
+Build the Storybook first, then write a collector module that says where your
+components live:
 
-This route deliberately produces documents. A run may paint them locally, reuse
-a cached raster, or use a remote renderer that can reach the same resources. The
-Storybook collector records resource hashes but not resource bytes, so its output
-is not a resource-closed portable archive. Acquisition is unchanged by renderer
-placement.
+```js
+// variance/storybook.mjs
+import { storybookCollector } from '@variance-authority/storybook-collector';
 
-See [`@variance-authority/storybook-collector`](../packages/storybook-collector)
-for the collector module and configuration.
+export default storybookCollector({
+  source: { dirs: ['src'] },
+});
+```
 
-### Any other suite
+Point the run config at the built index and that module:
 
-A host-specific surface is useful only when it removes real host work without
-taking ownership of the host. For an unsupported browser harness, a custom
-collector can satisfy `plan`, `collect`, and `close`. For a mounted browserless
-DOM, the unit-test surface already supplies the archive and collector lifecycle.
+```jsonc
+// variance.config.json
+{
+  "project": "checkout-ui",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/storybook.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "report": ".variance/report.json"
+}
+```
 
-Cypress, WebdriverIO, and Appium do not acquire special status from being test
-runners. Their adapters would name subjects and emit the shared capture material;
-they would not create new comparison or retention pipelines.
+```bash
+variance run --config variance.config.json
+```
+
+Storybook subject ids carry a `story:` prefix, so a story whose Storybook id is
+`checkout--empty` is accepted as `story:checkout--empty`.
+
+`source.dirs` is what resolves a component to the file it is declared in. A
+built Storybook ships bundled code: the browser can say which component drew an
+element, not which file it is written in, so the collector scans your tree
+instead.
+
+**Set `keepNames` in the Storybook build, or the report names components that do
+not exist in your source.** Minification renames component functions, so a run
+against a built Storybook reports the cause as `Ce` rather than `Button`, and
+that name matches nothing the source scan indexed — you get a confident report
+pointing at a component you cannot find. The key moved with Vite:
+`build.rolldownOptions.output.keepNames` on Vite 8,
+`esbuild.keepNames` on Vite 7 and below. A config carrying the other major's key
+is read by nothing and warns about nothing, so check which Vite your Storybook
+runs on. A development Storybook needs neither key.
+
+Names and declarations are one level of precision. Resolving a changed element
+to the line it is *written* on, rather than the line its component is declared
+on, additionally needs the
+[`@variance-authority/jsx-source`](../packages/jsx-source/README.md) plugin and
+automatic development JSX emission in the build. Collection, comparison, and
+declaration-level attribution work without it.
+
+This route produces documents. A run may paint them locally, reuse a cached
+raster, or use a remote renderer that can reach the same resources. The
+collector records resource hashes but not resource bytes, so its output is not a
+portable resource-closed archive, and acquisition is unchanged by where the
+renderer sits.
+
+[`@variance-authority/storybook-collector`](../packages/storybook-collector/README.md)
+carries every collector option: `baseUrl`, `ready`, `loading`, `readyTimeoutMs`,
+`roots`. The walkthrough is
+[compare Storybook stories against approved screenshots](start-storybook.md).
 
 ### Playwright
 
@@ -166,11 +159,6 @@ same-run pixel disagreement, and hands the agreeing raster straight to baseline
 comparison. It requires the suite to declare the browser launch recipe used by
 its Playwright configuration; the declaration enters renderer identity.
 
-Both placements acquire Playwright-native ARIA snapshots from the locator and
-its React portal content. The report keeps document, pixel, and browser
-accessibility results separately; a browser accessibility change is reviewable
-even when the image has no changed pixels.
-
 ```ts
 import { CHROMIUM_RASTER_ARGS, createVariance } from '@variance-authority/playwright-test';
 
@@ -182,13 +170,19 @@ const variance = await createVariance(page, testInfo, {
 });
 ```
 
+Both placements acquire Playwright-native ARIA snapshots from the locator and
+its React portal content. The report keeps document, pixel, and browser
+accessibility results separately, so a browser accessibility change is
+reviewable even when no pixel moved.
+
 The package exports neither `test` nor `expect`. Fixtures and matcher parts are
-unbound values for suites that already own a shared extension module.
+unbound values for suites that already own a shared extension module. The
+walkthrough is [start with Playwright](start-playwright.md).
 
 ### Jest and Vitest
 
-Vanilla Jest or Vitest has a DOM and no rasterizer. The unit surface therefore
-does acquisition only:
+Vanilla Jest or Vitest has a DOM and no rasterizer, so the unit surface does
+acquisition only:
 
 ```ts
 import { test, expect } from 'vitest';
@@ -204,46 +198,26 @@ test('save button', async () => {
 });
 ```
 
-A later `variance run` loads those artifacts with `captureCollector` and uses its
-configured local or remote browser. The unit process has finished before that
-browser starts. External resources must be supplied as immutable bytes during
-capture; unresolved resources are refused.
+A later `variance run` loads those artifacts and paints them with its configured
+local or remote browser. The unit process has finished before that browser
+starts. External resources must be supplied as immutable bytes during capture;
+unresolved resources are refused. The walkthrough is
+[start from a unit test](start-unit.md).
 
 Vitest Browser Mode with the Playwright provider is the Playwright composition.
 It is not the browserless unit route under another name.
 
-## 4. What cannot enter, and where the binary stops
+### Any other suite
 
-### An image this system did not paint
+For an unsupported browser harness, write a collector — section 4 gives the
+three contracts. For a mounted browserless DOM, the unit-test surface already
+supplies the archive and the collector lifecycle.
 
-The observation engine accepts an existing `Raster`. A `CaptureArtifact` with
-`material.kind: "raster"` reaches `observeCaptureAgainstBaseline` without a
-renderer, and `observeRasters` compares two images already in hand.
+Cypress, WebdriverIO, and Appium get no special status from being test runners.
+An adapter for one of them would name subjects and emit the shared capture
+material; it would not create a second comparison or retention pipeline.
 
-The CLI does not expose a foreign-PNG ingest command. Its run collectors produce
-documents, and its acceptance workflow expects the render cache's stored
-candidate raster (the `RenderCache` seam in the table below), plus the
-semantic evidence and renderer identity a run creates alongside it. That CLI
-boundary is not a claim that raster evidence is forbidden from the engine.
-
-A foreign raster is useful only with an honest identity declaration. Without a
-snapshot it also has no component attribution, exclusions, or band-specific
-policy; those fields remain absent rather than being inferred from pixels.
-
-### Three seams the library opens, and what the binary does with each
-
-| Seam | Library contract | CLI composition |
-| --- | --- | --- |
-| Document material | `Renderer.render(document)` | Local Playwright renderer or configured remote endpoint. |
-| Raster material | `observeCaptureAgainstBaseline` or `observeRasters` | No foreign-image command; in-place Playwright uses the library seam directly. |
-| Retention | `RasterStore` and `RenderCache` | Durable directory or configured remote backend. |
-
-The distinction is intentional: a library accepts injected capabilities; a
-binary needs a complete operator workflow, error contract, and acceptance path.
-
-## 5. Cost, speed and signal
-
-The material and placement choices trade different costs:
+## 3. What each material costs
 
 | Choice | Saves | Pays | Best fit |
 | --- | --- | --- | --- |
@@ -254,27 +228,103 @@ The material and placement choices trade different costs:
 
 Renderer identity partitions durable baselines by engine, platform, scale,
 fonts, stabilization, and rasterization recipe. Chromium rendering defaults to
-`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered launch
-recipe changes identity instead of presenting font rasterization as a component
-regression.
+`--disable-lcd-text` and `--font-render-hinting=none`; changing the ordered
+launch recipe changes identity, so a font rasterization difference is reported
+as a refused comparison rather than as a component regression. See
+[baseline placement](placement.md).
 
-## 6. Why this is flexible, and what flexibility costs
+## 4. Writing a surface for a host that has none
 
-The engine is composable because each expensive or host-bound capability arrives
-as a value: collector, renderer, store, decoder, and source evidence. A remote
-renderer implements the same `Renderer` contract as the local one. An in-place
-raster skips that contract because materialization already happened, then joins
-the same observation path.
+A custom integration names a subject, acquires its state, and chooses where the
+resulting material goes. The surfaces above remove one or more of those steps;
+write these three only when none of them covers your host.
+[Write a custom collector](start-custom.md) takes one through end to end.
 
-Flexibility costs explicit boundaries:
+### The collector — three methods
 
-- A host adapter must preserve lifecycle and name stable subjects.
-- A portable document must close over every resource it needs to paint.
-- An in-place browser must declare the launch recipe that owns its pixels.
-- A baseline store must refuse cross-identity comparison.
-- Repeated-render instability must be classified before baseline difference.
+The CLI collector contract is for hosts whose subjects are observed as a run:
+
+```ts
+interface Collector {
+  plan(): Promise<Plan>;
+  collect(subject: PlannedSubject): Promise<Collected>;
+  close(): Promise<void>;
+}
+```
+
+`plan` names what the run intends to observe. `collect` returns a render document
+and optional semantic and source evidence. `close` releases the host. The
+Storybook, route, and unit-capture surfaces implement this contract.
+
+Collectors do not choose the renderer or the baseline store. `variance run` wires
+their documents to the configured local or remote renderer, then to the path
+every subject follows afterward: the renderer paints a raster if the material
+was a document, the **observation engine** — the
+`@variance-authority/observe` package that compares two images and returns one
+verdict — compares that raster against the subject's baseline, and the run
+writes the result into its report.
+
+### The page agent — one method
+
+A browser collector installs a serializable page-side acquisition method:
+
+```ts
+interface PageAgent {
+  capture(root: Element, request: CaptureRequest): Promise<RawCapture>;
+}
+```
+
+The Storybook and route collectors include their own agent. The Playwright Test
+surface also bundles one, because the suite's existing `Locator` already
+identifies the root.
+
+### Provenance — one function
+
+Acquisition may inject component [provenance](attribution.md) without making the
+DOM package framework-specific:
+
+```ts
+type ProvenanceOf = (element: Element) => Provenance | undefined;
+```
+
+Absence reduces [attribution](attribution.md); it does not prevent capture or
+pixel comparison. React and emitted `data-*` metadata are supported provenance
+sources. The surface decides which one is available before acquisition.
+
+## 5. Bringing pixels this system did not paint
+
+The observation engine accepts an existing `Raster`. A `CaptureArtifact` with
+`material.kind: "raster"` reaches `observeCaptureAgainstBaseline` without a
+renderer, and `observeRasters` compares two images already in hand. Compose that
+yourself with `@variance-authority/observe`; the `variance` binary has no
+foreign-image ingest command, because its acceptance workflow reads the stored
+candidate raster, semantic evidence, and renderer identity that a run creates
+together.
+
+A foreign raster is useful only with an honest identity declaration. Without a
+snapshot it also carries no component attribution, exclusions, or band-specific
+policy; those fields stay absent rather than being inferred from pixels.
+
+| Material you hold | Entrypoint |
+| --- | --- |
+| A render document | `Renderer.render(document)`, local or a configured remote endpoint |
+| A raster | `observeCaptureAgainstBaseline`, or `observeRasters` for two images in hand |
+| Storage for either | `RasterStore` and `RenderCache`, a durable directory or a configured remote backend |
+
+## 6. What a surface has to hold
+
+Each expensive or host-bound capability arrives as a value — collector,
+renderer, store, decoder, source evidence — so a remote renderer implements the
+same `Renderer` contract as the local one, and an in-place raster skips that
+contract and joins the same observation path afterwards. What that costs you:
+
+- A surface preserves the host's lifecycle and names stable subjects.
+- A portable document closes over every resource it needs to paint.
+- An in-place browser declares the launch recipe that owns its pixels.
+- A baseline store refuses cross-identity comparison.
+- Repeated-render instability is classified before baseline difference.
 - Missing semantic or source evidence reduces the report instead of inventing an
   empty answer.
 
-Those costs are carried by types, artifact validation, identity digests, and
-tests. They are not configuration folklore the adopter is expected to remember.
+Types, artifact validation, identity digests, and tests carry those, so a run
+tells you when one is unmet.

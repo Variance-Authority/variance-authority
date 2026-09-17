@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { parseConfig } from '@variance-authority/cli';
-import { FENCES, MARKDOWN, ROOT, lineOf } from './markdown.js';
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { parseConfig } from "@variance-authority/cli";
+import { FENCES, MARKDOWN, ROOT, lineOf } from "./markdown.js";
 
 /**
  * Claims the documentation makes about the repository.
@@ -37,26 +37,33 @@ import { FENCES, MARKDOWN, ROOT, lineOf } from './markdown.js';
  * What a spec *says* is deliberately not checked. Prose about work that has not
  * happened has nothing to check it against; that is what makes it a spec.
  */
-describe('the specs directory lists exactly what is unfinished', () => {
-  const INDEX = 'docs/specs/README.md';
-  const index = readFileSync(join(ROOT, INDEX), 'utf8');
+describe("the specs directory lists exactly what is unfinished", () => {
+  const INDEX = "docs/specs/README.md";
+  const index = readFileSync(join(ROOT, INDEX), "utf8");
 
-  const SPECS = MARKDOWN.filter((file) => /^docs\/specs\/\d{4}-/.test(file)).sort();
+  const SPECS = MARKDOWN.filter((file) =>
+    /^docs\/specs\/\d{4}-/.test(file),
+  ).sort();
 
   /** Spec filenames the index links to, from anywhere in it. */
   const LINKED = new Set(
-    [...index.matchAll(/\((\d{4}-[\w-]+\.md)\)/g)].map((match) => `docs/specs/${match[1]!}`),
+    [...index.matchAll(/\((\d{4}-[\w-]+\.md)\)/g)].map(
+      (match) => `docs/specs/${match[1]!}`,
+    ),
   );
 
-  it('has an index that links to something, so this cannot pass by matching nothing', () => {
+  it("has an index that links to something, so this cannot pass by matching nothing", () => {
     expect(LINKED.size).toBeGreaterThan(0);
   });
 
-  it.each(SPECS)('%s is listed in the index', (file) => {
-    expect([...LINKED], `${file} exists and the index does not mention it`).toContain(file);
+  it.each(SPECS)("%s is listed in the index", (file) => {
+    expect(
+      [...LINKED],
+      `${file} exists and the index does not mention it`,
+    ).toContain(file);
   });
 
-  it('links to no spec that has been discharged', () => {
+  it("links to no spec that has been discharged", () => {
     // The other direction, and the one deletion breaks: a discharged spec leaves
     // a link behind that resolves to nothing. `every link resolves` above would
     // also catch it — this says *which* rule was broken, which is the difference
@@ -78,22 +85,29 @@ describe('the specs directory lists exactly what is unfinished', () => {
  * too — the `mcp` README's `jsonc` block says `claude_desktop_config.json` and is
  * a different product's schema.
  */
-describe('every documented config parses', () => {
+describe("every documented config parses", () => {
   const CONFIGS = FENCES.filter(
-    (fence) => fence.lang === 'jsonc' && /^\/\/\s*variance\.config\.json/.test(fence.code),
+    (fence) =>
+      fence.lang === "jsonc" &&
+      /^\/\/\s*variance\.config\.json/.test(fence.code),
   );
 
-  it('finds configs to check', () => {
+  it("finds configs to check", () => {
     expect(CONFIGS.length).toBeGreaterThan(0);
   });
 
-  it.each(CONFIGS.map((fence) => [`${fence.file}:${fence.line}`, fence] as const))('%s', (where, fence) => {
+  it.each(
+    CONFIGS.map((fence) => [`${fence.file}:${fence.line}`, fence] as const),
+  )("%s", (where, fence) => {
     // Comments out, because the fence is `jsonc` for the reader's benefit and the
     // file a reader saves is JSON.
-    const json = fence.code.replace(/^\s*\/\/.*$/gm, '');
+    const json = fence.code.replace(/^\s*\/\/.*$/gm, "");
 
     expect(() =>
-      parseConfig(JSON.parse(json), { source: where, baseDir: dirname(join(ROOT, fence.file)) }),
+      parseConfig(JSON.parse(json), {
+        source: where,
+        baseDir: dirname(join(ROOT, fence.file)),
+      }),
     ).not.toThrow();
   });
 });
@@ -117,59 +131,67 @@ describe('every documented config parses', () => {
  * was decided when, and an ADR that names the package it decided to rename is
  * correct precisely because that package no longer exists.
  */
-describe('every package this repository names exists', () => {
+describe("every package this repository names exists", () => {
   const WORKSPACES = new Set(
-    execFileSync('git', ['ls-files', 'package.json', '*/package.json', '*/*/package.json'], {
-      cwd: ROOT,
-      encoding: 'utf8',
-    })
+    execFileSync(
+      "git",
+      ["ls-files", "package.json", "*/package.json", "*/*/package.json"],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+      },
+    )
       .trim()
-      .split('\n')
-      .map((file) => JSON.parse(readFileSync(join(ROOT, file), 'utf8')).name as string),
+      .split("\n")
+      .map(
+        (file) =>
+          JSON.parse(readFileSync(join(ROOT, file), "utf8")).name as string,
+      ),
   );
 
   const SOURCE = execFileSync(
-    'git',
-    ['ls-files', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs'],
-    { cwd: ROOT, encoding: 'utf8' },
+    "git",
+    ["ls-files", "*.ts", "*.tsx", "*.js", "*.jsx", "*.mjs"],
+    { cwd: ROOT, encoding: "utf8" },
   )
     .trim()
-    .split('\n')
+    .split("\n")
     .filter((file) => existsSync(join(ROOT, file)));
 
   const NAMED = [
-    ...MARKDOWN.filter((file) => !file.startsWith('docs/context/')),
+    ...MARKDOWN.filter((file) => !file.startsWith("docs/context/")),
     ...SOURCE,
   ].flatMap((file) => {
-    const text = readFileSync(join(ROOT, file), 'utf8');
+    const text = readFileSync(join(ROOT, file), "utf8");
     return [...text.matchAll(/@variance-authority\/[a-z0-9-]+/g)].map(
       (match) => [`${file}:${lineOf(text, match.index)}`, match[0]] as const,
     );
   });
 
-  it('finds names to check, so this rule cannot pass by reading nothing', () => {
+  it("finds names to check, so this rule cannot pass by reading nothing", () => {
     expect(NAMED.length).toBeGreaterThan(20);
     expect(WORKSPACES.size).toBeGreaterThan(20);
   });
 
-  it.each(NAMED)('%s names %s', (_where, name) => {
-    expect([...WORKSPACES], `${name} is documented and no workspace is called that`).toContain(
-      name,
-    );
+  it.each(NAMED)("%s names %s", (_where, name) => {
+    expect(
+      [...WORKSPACES],
+      `${name} is documented and no workspace is called that`,
+    ).toContain(name);
   });
 });
 
 /** A box is a directory directly under `packages/`; nothing deeper is one. */
-const PACKAGES = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
+const PACKAGES = execFileSync("git", ["ls-files", "packages/*/package.json"], {
   cwd: ROOT,
-  encoding: 'utf8',
+  encoding: "utf8",
 })
   .trim()
-  .split('\n')
+  .split("\n")
   // `*` matches `/` in a git pathspec, so this glob also reaches the miniature
   // workspace `packages/package` keeps under `src/__fixtures__`.
-  .filter((file) => file.split('/').length === 3)
-  .map((file) => file.split('/')[1]!);
+  .filter((file) => file.split("/").length === 3)
+  .map((file) => file.split("/")[1]!);
 
 /**
  * The inventory in `docs/architecture.md` is the package list, not a sample of it.
@@ -186,20 +208,22 @@ const PACKAGES = execFileSync('git', ['ls-files', 'packages/*/package.json'], {
  * the only place that enumerates them; a row with no directory sells something
  * that is not there.
  */
-describe('the architecture inventory lists every package', () => {
+describe("the architecture inventory lists every package", () => {
   const INVENTORY =
-    readFileSync(join(ROOT, 'docs/architecture.md'), 'utf8')
-      .split('\n## ')
-      .find((section) => section.startsWith('Packages\n')) ?? '';
+    readFileSync(join(ROOT, "docs/architecture.md"), "utf8")
+      .split("\n## ")
+      .find((section) => section.startsWith("Packages\n")) ?? "";
 
-  const LISTED = [...INVENTORY.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map((match) => match[1]!);
+  const LISTED = [...INVENTORY.matchAll(/^\| `([a-z0-9-]+)` \|/gm)].map(
+    (match) => match[1]!,
+  );
 
-  it('finds a table to check, so this rule cannot pass by reading nothing', () => {
+  it("finds a table to check, so this rule cannot pass by reading nothing", () => {
     expect(PACKAGES.length).toBeGreaterThan(20);
     expect(LISTED.length).toBeGreaterThan(20);
   });
 
-  it('lists every package there is, and nothing that is not one', () => {
+  it("lists every package there is, and nothing that is not one", () => {
     expect([...LISTED].sort()).toEqual([...PACKAGES].sort());
   });
 });
@@ -215,62 +239,102 @@ describe('the architecture inventory lists every package', () => {
  * Both lists come out of the source rather than out of the built package, so this
  * fails on the commit that renames a band and not on the one that rebuilds.
  */
-describe('the documented vocabulary is the real one', () => {
-  const INDEX = readFileSync(join(ROOT, 'docs/information.md'), 'utf8');
+describe("the documented vocabulary is the real one", () => {
+  const INDEX = readFileSync(join(ROOT, "docs/information.md"), "utf8");
 
   /** The backticked words in one glossary row. Column alignment is not part of it. */
   const worded = (term: string) =>
-    [...(new RegExp(`^\\|\\s*\\*\\*${term}\\*\\*\\s*\\|(.+)$`, 'm').exec(INDEX)?.[1] ?? '').matchAll(
-      /`([a-z-]+)`/g,
-    )].map((match) => match[1]!);
+    [
+      ...(
+        new RegExp(`^\\|\\s*\\*\\*${term}\\*\\*\\s*\\|(.+)$`, "m").exec(
+          INDEX,
+        )?.[1] ?? ""
+      ).matchAll(/`([a-z-]+)`/g),
+    ].map((match) => match[1]!);
 
   const listed = (file: string, name: string) =>
-    [...(new RegExp(`${name}[^=]*= \\[([^\\]]+)\\]`).exec(readFileSync(join(ROOT, file), 'utf8'))?.[1] ?? '')
-      .matchAll(/'([a-z-]+)'/g)].map((match) => match[1]!);
+    [
+      ...(
+        new RegExp(`${name}[^=]*= \\[([^\\]]+)\\]`).exec(
+          readFileSync(join(ROOT, file), "utf8"),
+        )?.[1] ?? ""
+      ).matchAll(/'([a-z-]+)'/g),
+    ].map((match) => match[1]!);
 
-  it('finds a glossary to check, so this rule cannot pass by reading nothing', () => {
-    expect(worded('band').length).toBeGreaterThan(3);
-    expect(worded('verdict').length).toBeGreaterThan(3);
+  /** The alternatives of one union type, in declaration order. */
+  const union = (file: string, name: string) =>
+    [
+      ...(
+        new RegExp(`${name}: ([^;]+);`).exec(
+          readFileSync(join(ROOT, file), "utf8"),
+        )?.[1] ?? ""
+      ).matchAll(/'([a-z-]+)'/g),
+    ].map((match) => match[1]!);
+
+  it("finds a glossary to check, so this rule cannot pass by reading nothing", () => {
+    expect(worded("band").length).toBeGreaterThan(3);
+    expect(worded("verdict").length).toBeGreaterThan(3);
   });
 
-  it('names every band, in the order the loudest one is read from', () => {
-    expect(worded('band')).toEqual(listed('packages/core/src/compare/band.ts', 'const BANDS'));
+  it("names every band, in the order the loudest one is read from", () => {
+    expect(worded("band")).toEqual(
+      listed("packages/core/src/compare/band.ts", "const BANDS"),
+    );
   });
 
-  it('names every verdict, in severity order, and `unobserved` after them', () => {
-    expect(worded('verdict')).toEqual([
-      ...listed('packages/core/src/judge/verdict.ts', 'const SEVERITY'),
-      'unobserved',
-    ]);
+  // Against `@variance-authority/report`, not `packages/core/src/judge/verdict.ts`.
+  // `core`'s six-word `Verdict` is reachable only from `adjudicate()` in
+  // `core/src/judge/intent.ts`, which carries a standing FIXME saying nothing
+  // shipped calls it — the CLI's `adjudicate` routes to `adjudicateRun` from
+  // `report` instead. Pinning the published glossary to a vocabulary no run can
+  // emit made this rule enforce a fiction, which is the one failure mode a
+  // glossary check exists to prevent.
+  it("names every verdict an observation can carry", () => {
+    expect(worded("verdict")).toEqual(
+      union("packages/report/src/format.ts", "readonly verdict"),
+    );
   });
 });
 
 /** Package registries keep reference ownership; the start guide links outward. */
-describe('the site routes package visitors to adopter integrations', () => {
-  const GUIDE = readFileSync(join(ROOT, 'docs/start.md'), 'utf8');
+describe("the site routes package visitors to adopter integrations", () => {
+  const GUIDE = readFileSync(join(ROOT, "docs/start.md"), "utf8");
   const STARTS = [
-    '@variance-authority/observe',
-    '@variance-authority/playwright-test',
-    '@variance-authority/route-collector',
-    '@variance-authority/storybook-collector',
-    '@variance-authority/unit-test',
+    "@variance-authority/observe",
+    "@variance-authority/playwright-test",
+    "@variance-authority/route-collector",
+    "@variance-authority/storybook-collector",
+    "@variance-authority/unit-test",
   ];
 
-  it.each(STARTS)('names the %s start', (name) => {
+  it.each(STARTS)("names the %s start", (name) => {
     expect(GUIDE).toContain(name);
   });
 
-  const manifests = execFileSync('git', ['ls-files', ':(glob)packages/*/package.json'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n');
+  const manifests = execFileSync(
+    "git",
+    ["ls-files", ":(glob)packages/*/package.json"],
+    { cwd: ROOT, encoding: "utf8" },
+  )
+    .trim()
+    .split("\n");
 
-  it.each(manifests)('%s links to its reference', (path) => {
-    const manifest = JSON.parse(readFileSync(join(ROOT, path), 'utf8')) as { homepage?: string };
-    expect(manifest.homepage).toBe(`https://variance-authority.dev/reference/packages/${path.split('/')[1]}`);
+  it.each(manifests)("%s links to its reference", (path) => {
+    const manifest = JSON.parse(readFileSync(join(ROOT, path), "utf8")) as {
+      homepage?: string;
+    };
+    expect(manifest.homepage).toBe(
+      `https://variance-authority.dev/reference/packages/${path.split("/")[1]}`,
+    );
   });
 
-  it('renders the canonical first-observation guide', () => {
-    const page = readFileSync(join(ROOT, 'site/app/(docs)/start/page.tsx'), 'utf8');
+  it("renders the canonical first-observation guide", () => {
+    const page = readFileSync(
+      join(ROOT, "site/app/(docs)/start/page.tsx"),
+      "utf8",
+    );
     expect(page).toContain('productDocument("start")');
-    expect(page).toContain('<MarkdownDocument');
+    expect(page).toContain("<MarkdownDocument");
   });
 });
 
@@ -298,25 +362,27 @@ describe('the site routes package visitors to adopter integrations', () => {
  * footnotes say "this project" in the landing page's voice and carry no marker,
  * so `doc()` never means "quoted, except where it isn't".
  */
-describe('the comparison tables quote the compared document', () => {
-  const COMPONENTS = execFileSync('git', ['ls-files', 'site/app/components'], {
+describe("the comparison tables quote the compared document", () => {
+  const COMPONENTS = execFileSync("git", ["ls-files", "site/app/components"], {
     cwd: ROOT,
-    encoding: 'utf8',
+    encoding: "utf8",
   })
     .trim()
-    .split('\n')
+    .split("\n")
     .filter((file) => /Comparison[A-Za-z]*\.tsx$/.test(file));
 
   const flatten = (text: string): string =>
     text
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/`|\*\*/g, '')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/`|\*\*/g, "")
       .replace(/[\u201c\u201d]/g, '"')
       .replace(/[\u2018\u2019]/g, "'")
-      .replace(/\s+/g, ' ')
+      .replace(/\s+/g, " ")
       .toLowerCase();
 
-  const COMPARED = flatten(readFileSync(join(ROOT, 'docs/comparison.md'), 'utf8'));
+  const COMPARED = flatten(
+    readFileSync(join(ROOT, "docs/comparison.md"), "utf8"),
+  );
 
   // Block comments blanked first, because every one of these components explains
   // the marker by naming it and a header that says `doc()` is not a claim. Blanked
@@ -325,8 +391,9 @@ describe('the comparison tables quote the compared document', () => {
     (file) =>
       [
         file,
-        readFileSync(join(ROOT, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, (comment) =>
-          comment.replace(/[^\n]/g, ' '),
+        readFileSync(join(ROOT, file), "utf8").replace(
+          /\/\*[\s\S]*?\*\//g,
+          (comment) => comment.replace(/[^\n]/g, " "),
         ),
       ] as const,
   );
@@ -334,11 +401,14 @@ describe('the comparison tables quote the compared document', () => {
   const CLAIMS = SOURCES.flatMap(([file, text]) =>
     [...text.matchAll(/doc\(\s*"((?:[^"\\]|\\.)+)"\s*,?\s*\)/g)].map(
       (match) =>
-        [`${file}:${lineOf(text, match.index)}`, JSON.parse(`"${match[1]!}"`) as string] as const,
+        [
+          `${file}:${lineOf(text, match.index)}`,
+          JSON.parse(`"${match[1]!}"`) as string,
+        ] as const,
     ),
   );
 
-  it('reads every component that quotes, so a new page cannot arrive unchecked', () => {
+  it("reads every component that quotes, so a new page cannot arrive unchecked", () => {
     // Three: the shared rows, and the framing each page puts around them. The
     // floor is what stops the glob from silently narrowing back to one file.
     expect(COMPONENTS.length).toBeGreaterThan(2);
@@ -346,11 +416,11 @@ describe('the comparison tables quote the compared document', () => {
   });
 
   it.each(SOURCES)(
-    '%s parses every doc() call, so a fragment the extractor cannot read fails here',
+    "%s parses every doc() call, so a fragment the extractor cannot read fails here",
     (file, text) => {
-      expect(CLAIMS.filter(([where]) => where.startsWith(`${file}:`)).length).toBe(
-        (text.match(/doc\(/g) ?? []).length,
-      );
+      expect(
+        CLAIMS.filter(([where]) => where.startsWith(`${file}:`)).length,
+      ).toBe((text.match(/doc\(/g) ?? []).length);
     },
   );
 
@@ -358,18 +428,21 @@ describe('the comparison tables quote the compared document', () => {
     expect(COMPARED).toContain(flatten(claim));
   });
 
-  it('is rendered on the comparison page', () => {
-    const page = readFileSync(join(ROOT, 'site/app/(docs)/reference/comparison/page.tsx'), 'utf8');
-    expect(page).toContain('<Comparison />');
+  it("is rendered on the comparison page", () => {
+    const page = readFileSync(
+      join(ROOT, "site/app/(docs)/reference/comparison/page.tsx"),
+      "utf8",
+    );
+    expect(page).toContain("<Comparison />");
   });
 
-  it('is routed from the landing page without duplicating the reference', () => {
-    const page = readFileSync(join(ROOT, 'site/app/page.tsx'), 'utf8');
+  it("is routed from the landing page without duplicating the reference", () => {
+    const page = readFileSync(join(ROOT, "site/app/page.tsx"), "utf8");
     const bargain = readFileSync(
-      join(ROOT, 'site/app/components/OperatingBargain.tsx'),
-      'utf8',
+      join(ROOT, "site/app/components/OperatingBargain.tsx"),
+      "utf8",
     );
-    expect(page).toContain('<OperatingBargain />');
+    expect(page).toContain("<OperatingBargain />");
     expect(bargain).toContain('href="/reference/comparison"');
   });
 });
@@ -382,20 +455,31 @@ describe('the comparison tables quote the compared document', () => {
  * own references. Absolute links are left alone — an external URL that rots is
  * the other end's decision, and checking it would make this suite need a network.
  */
-describe('every relative link resolves', () => {
+describe("every relative link resolves", () => {
   const LINKS = MARKDOWN.flatMap((file) => {
-    const text = readFileSync(join(ROOT, file), 'utf8');
+    const text = readFileSync(join(ROOT, file), "utf8");
     return [...text.matchAll(/\]\(([^)\s]+)\)/g)]
-      .map((match) => [`${file}:${lineOf(text, match.index)}`, match[1]!] as const)
+      .map(
+        (match) => [`${file}:${lineOf(text, match.index)}`, match[1]!] as const,
+      )
       .filter(([, target]) => !/^(?:https?:|mailto:|#)/.test(target))
-      .map(([where, target]) => [where, target, resolve(dirname(join(ROOT, file)), target.replace(/[#?].*$/, ''))] as const);
+      .map(
+        ([where, target]) =>
+          [
+            where,
+            target,
+            resolve(dirname(join(ROOT, file)), target.replace(/[#?].*$/, "")),
+          ] as const,
+      );
   });
 
-  it('finds links to check, so this rule cannot pass by reading nothing', () => {
+  it("finds links to check, so this rule cannot pass by reading nothing", () => {
     expect(LINKS.length).toBeGreaterThan(50);
   });
 
-  it.each(LINKS)('%s links to %s', (_where, target, path) => {
-    expect(existsSync(path), `${target} is linked and nothing is there`).toBe(true);
+  it.each(LINKS)("%s links to %s", (_where, target, path) => {
+    expect(existsSync(path), `${target} is linked and nothing is there`).toBe(
+      true,
+    );
   });
 });

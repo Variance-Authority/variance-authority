@@ -4,7 +4,9 @@ The **source scan** turns a checkout into one stable record per file: resolved
 outgoing edges, component declarations, content identity, and any reason the
 edge list is incomplete. This page defines that contract—what the scan reads,
 how to interpret its records, what makes an answer reusable, and where the
-answer stops.
+answer stops. [Variance Authority](README.md) walks those records to decide which components,
+tests and visual subjects a change can reach, so a run covers the affected work
+rather than the whole suite.
 
 Selection is a separate decision. The scan can establish that a change reaches
 a component; it does not decide which subjects or tests may be skipped.
@@ -22,6 +24,9 @@ files.
 | Need | Contract |
 |---|---|
 | Read a checkout | [`scanRelations`](#scan-inputs) |
+| Check whether a file extension is read | [Extensions](#extensions) |
+| Reach a workspace package's source instead of its `dist` | [Workspace packages](#workspace-packages) |
+| Resolve a `@/…` alias | [Resolution](#resolution) |
 | Read source text already held by an editor, VFS or build | [`readModule` and `readStyle`](#requests-bindings-and-published-names) |
 | Interpret one returned file | [`FileRecord`](#file-records) |
 | Distinguish a missing package from an incomplete edge list | [Unresolved and unknown](#unresolved-and-unknown) |
@@ -54,6 +59,29 @@ more work.
 `readModule(file, contents)` and `readStyle(file, contents)` are exported from
 `@variance-authority/sense/read` for callers that already hold source text. They
 read requests and names without resolving anything or opening the checkout.
+
+### Extensions
+
+The scan opens two sets of extensions and no others:
+
+| Set | Extensions |
+|---|---|
+| Module dialects | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` |
+| Stylesheets | `.css`, `.scss`, `.sass`, `.less` |
+
+A file under `dirs` with one of those extensions gets a record. A file with any
+other extension gets none and is never a traversal seed, so `.vue`, `.svelte`,
+`.json`, `.md`, images and fonts are not read for requests of their own.
+
+Such a file can still be an edge target. The edge kind follows the target, not
+the syntax that asked for it, so `import './App.vue'`, `import './icon.svg'` and
+`import data from './data.json'` each record an `asset` edge to a repository
+path. Editing that path marks its importers; nothing continues from the far
+side, because there is no record there to continue from.
+
+`.json` is also tried during extensionless resolution, after every module and
+stylesheet extension: `./config` finds `src/config.json` when nothing else
+answers, and records the same `asset` edge.
 
 ## Requests, bindings and published names
 
@@ -109,6 +137,17 @@ request under the project governing its importing file, which matters when two
 files in one directory belong to solution-style projects whose path mappings
 disagree.
 
+`paths` from that configuration are honoured. With
+
+```json
+{ "compilerOptions": { "baseUrl": ".", "paths": { "@/*": ["src/*"] } } }
+```
+
+`import { Button } from '@/components/Button'` records an ordinary `imports`
+edge to `src/components/Button.tsx`. Discovery walks up from the importing file,
+so an alias table declared once at the repository root and inherited through
+`extends` in each package needs nothing configured on the scan.
+
 Every accepted target is canonicalized to the spelling on disk. A case-only
 match is rejected on a case-insensitive filesystem, preventing a graph that
 names a path no case-sensitive checkout contains.
@@ -125,11 +164,60 @@ Traversal stops at the repository edge. Builtins, installed dependencies, and
 paths above `root` cannot be named by a diff in this repository, so they do not
 become file edges.
 
-A workspace package boundary can stop the same way. A bare package request often
-resolves through a symlink to that package's built output, and built output is
-excluded because it is not what a repository diff names. A package publishing a
-source condition can produce an ordinary source edge; otherwise a workspace
-project graph supplies the missing relationship as additional changed seeds.
+### Workspace packages
+
+A bare request for a package in the same repository resolves through the
+`node_modules` symlink onto that package's real directory, and the package's own
+manifest decides which file it lands on. The excluded directories apply to
+resolved targets as well as to traversal, so a manifest naming only built output
+produces no edge:
+
+```json
+{ "name": "@scope/ui", "exports": { ".": { "default": "./dist/index.js" } } }
+```
+
+`import { Button } from '@scope/ui'` lands on that package's `dist/index.js`,
+which is outside the graph. The importing record keeps `@scope/ui` under `unresolved`
+and carries no `unknown` reason, because a bare specifier normally names a
+dependency rather than repository source. An edit to the package's own
+`src/Button.tsx` then reaches nothing in the consuming package.
+
+Three arrangements give the edge back, and one is enough.
+
+**A `source` export condition.** `source` leads the default `conditionNames`,
+ahead of `import`, `require` and `default`:
+
+```json
+{
+  "name": "@scope/ui",
+  "exports": { ".": { "source": "./src/index.ts", "default": "./dist/index.js" } }
+}
+```
+
+The same request now records `imports → packages/ui/src/index.ts`, and the walk
+continues through that package's files like any other.
+
+**A top-level `source` field**, for a package with no `exports`. The main fields
+are read as `source`, `module`, `main`.
+
+**A `tsconfig` path mapping**, which asks nothing of the package manifest:
+
+```json
+{ "compilerOptions": { "baseUrl": ".", "paths": { "@scope/*": ["packages/*/src"] } } }
+```
+
+When none of the three is available—a vendored package, or a manifest you do not
+own—the relationship stays outside the scan, and a workspace tool supplies it at
+project granularity. `source.changes` in the CLI configuration asks `nx` or
+`turbo` which projects a diff affects and treats every file under each named
+project as changed input:
+
+```json
+{ "source": { "changes": { "tool": "turbo", "task": "build" } } }
+```
+
+That widens by whole package rather than by file, and it is the only path that
+does not require a manifest or alias change.
 [`selecting.md`](selecting.md#what-nx-and-turbo-know-that-a-scan-cannot) owns how
 those seeds affect a run.
 
@@ -143,7 +231,7 @@ produces byte-stable graph input across machines.
 | `file` | Repository-relative path and record key. |
 | `digest` | Content digest when one is available. |
 | `edges` | Resolved outgoing targets with their edge kinds, deduplicated and sorted. |
-| `declares` | Component names declared by this file. Test, spec, story and declaration files are not component declarations. |
+| `declares` | [Component names](#component-declarations) declared by this file. Test, spec, story and declaration files are not component declarations. |
 | `unresolved` | Specifiers that produced no repository file, preserved as written. |
 | `unknown` | Sentence explaining why outgoing edges could not be enumerated completely. |
 
@@ -151,6 +239,19 @@ An unreadable file still receives a record. Its `unknown` sentence is the
 answer; an empty edge list would make the stronger and unsafe claim that it
 depends on nothing. A file above `largestFile` behaves the same way and says
 both its size and the configured cap.
+
+### Component declarations
+
+A **component** here is a React component as the source spells it: a top-level
+`function`, `const`, `let` or `class` declaration whose name begins with an
+uppercase letter, exported or not. Those names are what `declares` holds, and
+what a `declared-in` edge points from.
+
+Recognition is by that shape and that name, so a component produced by a
+factory, assigned dynamically, or re-exported under a different name is missed,
+and a capitalised helper declared at top level can be listed as one. A miss
+leaves a report naming the component without a file; a false positive can only
+surface for an identifier something else already named.
 
 ### Unresolved and unknown
 
@@ -180,14 +281,16 @@ file reaches importers and components together.
 | `reexports` | Import that also republishes. |
 | `dynamic` | Literal `import()`. |
 | `type` | Type-only request, erased before runtime. |
-| `asset` | Stylesheet request, font, image, or another non-module target. |
+| `asset` | Stylesheet request, font, image, JSON, or another target the scan does not open. |
 | `declared-in` | Component to the file declaring it. |
 
 Type-only edges remain in the graph because source-oriented questions need
 them. The default reach and closure use `RUNTIME_EDGES`, every kind except
 `type`: a type-only dependency runs no test and paints no pixel. A caller asking
 about source—for example a documentation generator reading prop types—passes
-`EDGE_KINDS` or another explicit set.
+`EDGE_KINDS` or another explicit set. `relationsOfFiles`, `movedBy`,
+`RUNTIME_EDGES` and `EDGE_KINDS` are all exported from
+`@variance-authority/core/relate`.
 
 Files with `unknown` edges are retained as unknown nodes. `movedBy` seeds every
 such file alongside the changed set, because it may import the changed file.
@@ -274,10 +377,11 @@ directory even though it changes which path a request resolves to. Tracking the
 file closes the gap. `digests: false` disables content- and layout-based record
 reuse when the checkout must be read without that assumption.
 
-**Package edges are conditional.** Source exports and path mappings can keep a
-workspace edge inside the repository. Built-output resolution does not; the
-workspace tool's affected-project answer supplies that boundary at project
-granularity.
+**Package edges are conditional.** A `source` export condition, a `source` main
+field or a path mapping keeps a workspace edge inside the repository; a manifest
+resolving only to built output does not, and the workspace tool's
+affected-project answer supplies that boundary at project granularity. See
+[Workspace packages](#workspace-packages).
 
 **Large files become unknown.** The default one-megabyte cap prevents generated
 barrels and bundles from consuming a scan's memory budget. Raising

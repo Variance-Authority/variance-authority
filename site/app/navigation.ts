@@ -284,7 +284,7 @@ export const NAVIGATION = [
     label: "Reference",
     items: [
       { href: "/docs/architecture", label: "Architecture" },
-      { href: "/docs/information", label: "Information model" },
+      { href: "/docs/information", label: "Records and retention" },
       { href: "/docs/instruments", label: "Evidence instruments" },
       {
         href: "/docs/presentation-reference",
@@ -295,10 +295,10 @@ export const NAVIGATION = [
         label: "React framework evidence",
       },
       { href: "/docs/source", label: "Source scan" },
-      { href: "/docs/surface", label: "Observation surfaces" },
+      { href: "/docs/surface", label: "Connect a suite" },
       { href: "/docs/observability", label: "Observability contracts" },
-      { href: "/docs/lexicon", label: "Lexicon" },
-      { href: "/docs/metrics", label: "Metrics" },
+      { href: "/docs/lexicon", label: "How search works" },
+      { href: "/docs/metrics", label: "Metric definitions" },
       { href: "/docs/source-index", label: "Source index" },
       { href: "/docs/source-structures", label: "Source structures" },
       { href: "/docs/scale", label: "Scale" },

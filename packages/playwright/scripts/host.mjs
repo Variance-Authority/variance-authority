@@ -26,8 +26,11 @@
  *
  * Run:
  *
- *   yarn workspace @variance-authority/playwright host --out ./native
- *   yarn workspace @variance-authority/playwright host --compare ./native ./box
+ *   node node_modules/@variance-authority/playwright/scripts/host.mjs --out ./native
+ *   node node_modules/@variance-authority/playwright/scripts/host.mjs --compare ./native ./box
+ *
+ * This file ships in the package, imports nothing from the repository it was
+ * written in, and resolves `playwright` from the directory you run it in.
  *
  * And on another host — the standard image, arm64 or amd64, browsers already in
  * it, this file the only thing mounted:
@@ -380,8 +383,8 @@ async function compare(leftDir, rightDir) {
       pathToFileURL(from.resolve('@variance-authority/png')).href
     ));
   } catch {
-    console.error('--compare needs @variance-authority/png, which only the workspace has.');
-    console.error('Run it from a checkout; --out runs anywhere and needs nothing.');
+    console.error('--compare needs @variance-authority/png resolvable from this directory.');
+    console.error('Install it here, or use --out, which needs nothing but playwright.');
     process.exitCode = 1;
     return;
   }

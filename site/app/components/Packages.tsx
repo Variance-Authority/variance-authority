@@ -11,6 +11,39 @@ function fill(n: number, cols: number): number {
   return rest === 0 ? 1 : cols - rest + 1;
 }
 
+/** What you already have, and the command that acts on it. */
+const ROUTES: {
+  have: string;
+  install: string[];
+  outcome: string;
+  more?: { href: string; label: string };
+}[] = [
+  {
+    have: "A Playwright Test suite, and you want screenshots compared",
+    install: [
+      "npm install --save-dev @variance-authority/playwright-test @playwright/test",
+      "npx playwright install chromium",
+    ],
+    outcome: "Your suite keeps its runner, fixtures and matchers. Call observe() on a Locator the test already reached; the approved image lands under .variance/baselines, the next run compares against it, and you approve a change with Playwright's own --update-snapshots=changed. You do not need the CLI.",
+    more: { href: "/start/playwright", label: "Observe a Playwright test" },
+  },
+  {
+    have: "A built Storybook, or routes an application already serves",
+    install: [
+      "npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector",
+      "npx playwright install chromium",
+    ],
+    outcome: "Here the CLI is the runner: variance collects every story, compares it, writes the report, and accepts what you approve, all from one config file. Swap storybook-collector for route-collector to walk URLs instead of stories.",
+    more: { href: "/start/storybook", label: "Observe a Storybook" },
+  },
+  {
+    have: "A Vitest or Jest suite, and you want to run fewer tests after a change",
+    install: ["npm install --save-dev @variance-authority/sense"],
+    outcome: "withTestSelection wraps the config you already have and writes an execution index as the suite runs: which source regions each test file entered. coveringTests then answers which tests reached a changed line, and variance run --since origin/main selects on the same index.",
+    more: { href: "/docs/selecting", label: "Select the tests that matter" },
+  },
+];
+
 /** Package roles grouped by an adopter's next action. */
 const PACKAGES: {
   group: string;
@@ -19,22 +52,27 @@ const PACKAGES: {
 }[] = [
   {
     group: "what you install",
+    note: "Published on npm under MIT, all at one version. Each name links to its reference page, which names the public contract, the setup, and the limits.",
     items: [
       {
         name: "cli",
-        role: "collect, compare, render, report, accept — the whole workflow from one config",
+        role: "collect, compare, render, report, accept — the whole workflow from one config. The only package that installs a binary, variance",
       },
       {
         name: "playwright-test",
-        role: "additive observation and assertion helpers for a suite you already have",
+        role: "visual comparison added to a Playwright suite you already have: screenshot a Locator, compare it against the approved baseline, approve through Playwright's own update flag. This is the package a Playwright suite installs — not @variance-authority/playwright below",
       },
       {
         name: "storybook-collector",
-        role: "the browser half: each story opened, made ready, and collected",
+        role: "the browser half: each story opened, made ready, and collected. Install it beside the CLI, which runs it",
       },
       {
         name: "route-collector",
-        role: "pages an application already serves, opened and collected",
+        role: "pages an application already serves, opened and collected. Install it beside the CLI, which runs it",
+      },
+      {
+        name: "sense",
+        role: "which source regions each test entered, and which tests a change reaches. Install this one to run fewer Vitest or Jest tests after a change",
       },
       {
         name: "vitest-browser",
@@ -42,7 +80,7 @@ const PACKAGES: {
       },
       {
         name: "unit-test",
-        role: "resource-closed capture archives, for a later render process",
+        role: "resource-closed capture archives, rendered and compared later by the CLI",
       },
       {
         name: "observe",
@@ -53,33 +91,21 @@ const PACKAGES: {
         name: "help",
         role: "what a workspace publishes, ranked by what imports it, answered on demand",
       },
-    ],
-  },
-  {
-    group: "what needs no baseline",
-    note: "Evidence about one interface, for a person or a coding agent to read. Nothing to approve, and no verdict to gate on.",
-    items: [
       {
         name: "presentation",
-        role: "one interface's presentation graph, independent ARIA evidence, relationship findings, and removable diagnostic paint",
+        role: "one interface's presentation graph, independent ARIA evidence, relationship findings, and removable diagnostic paint — a report to read, with nothing to approve and no verdict to gate on",
       },
       {
         name: "scenario",
-        role: "witnessed AAA paths, transition effects, and a partial state machine",
+        role: "witnessed AAA paths, transition effects, and a partial state machine — again with no baseline behind it",
       },
-    ],
-  },
-  {
-    group: "what observes a live run",
-    note: "Signals that exist while the system under test is still executing.",
-    items: [
       {
         name: "eyes",
-        role: "selector and locator attention, retained with React attribution",
+        role: "selector and locator attention during a run, retained with React attribution",
       },
       {
         name: "event",
-        role: "announcements a running system makes about its own decisions",
+        role: "announcements a running system makes about its own decisions, while it is still executing",
       },
       {
         name: "vantage",
@@ -89,14 +115,11 @@ const PACKAGES: {
   },
   {
     group: "what they are built on",
+    note: "These arrive as dependencies of the packages above, so a working setup never lists them. Install one directly only when you are composing your own integration.",
     items: [
       {
         name: "core",
         role: "the format, the rules, comparison, attribution, verdicts, plans",
-      },
-      {
-        name: "sense",
-        role: "source relations and execution-presence transforms",
       },
       { name: "dom", role: "extraction, and CSS applicability pruning" },
       { name: "react", role: "fibers → owner chains, props digests, portals" },
@@ -111,10 +134,13 @@ const PACKAGES: {
       { name: "png", role: "decoding, comparison, the diff image" },
       {
         name: "png-sharp",
-        role: "the same comparison, with the decoding done natively",
+        role: "the same comparison with the decoding done natively. Optional: install it beside @variance-authority/png when you want that, and nothing breaks if you never do",
       },
       { name: "session", role: "many subjects in one standing world" },
-      { name: "playwright", role: "the persistent harness, and a renderer" },
+      {
+        name: "playwright",
+        role: "the persistent harness, and a renderer. Read the name carefully: this is the low-level harness a custom integration drives, not the package a Playwright suite installs",
+      },
       {
         name: "storybook",
         role: "a project's own stories as a subject list",
@@ -140,6 +166,7 @@ const PACKAGES: {
   },
   {
     group: "what an operator deploys",
+    note: "Services someone hosts for a whole team, rather than something each checkout installs. If nobody at your company has stood one up, you do not need these to run anything above.",
     items: [
       { name: "server", role: "the history service the operator runs" },
       {
@@ -169,23 +196,51 @@ if (!inventoryMatches) {
 /** The kinds on offer, grouped by what a reader does with them. */
 export default function Packages() {
   return (
-    <section
-      id="packages"
-      className="doc-section scroll-mt-24"
-    >
-      <h2>Choose by responsibility</h2>
+    <section id="packages" className="doc-section scroll-mt-24">
+      <h2>Start from what you already have</h2>
       <p>
-        Start with the package whose boundary matches the capability your
-        process can supply. Its README names the public contract, setup, and
-        limits; the lower-level collaborators remain available for custom
-        compositions.
+        Pick the row that matches your project and run the command in it.{" "}
+        <a href="/start">Observe one state</a> walks the rest of the loop from
+        there.
+      </p>
+      <div className="mt-6 space-y-6">
+        {ROUTES.map((route) => (
+          <div
+            key={route.have}
+            className="rounded-2xl border border-hairline bg-panel p-5"
+          >
+            <p className="text-sm leading-6 text-ivory">{route.have}</p>
+            <pre className="mt-3 overflow-x-auto rounded-xl border border-hairline bg-deep p-4 font-mono text-[11px] leading-5 text-quiet">
+              {route.install.join("\n")}
+            </pre>
+            <p className="mt-3 max-w-2xl text-xs leading-5 text-quiet">
+              {route.outcome}
+            </p>
+            {route.more ? (
+              <p className="mt-3 text-xs leading-5">
+                <a href={route.more.href}>{route.more.label}</a>
+              </p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+
+      <h2 id="responsibility" className="scroll-mt-24">
+        Choose by responsibility
+      </h2>
+      <p>
+        Everything published is below. The first group is what you add to a
+        project; the rest are named so you can recognise them when they appear
+        in a lockfile or a stack trace.
       </p>
       <div className="mt-8 space-y-8">
         {PACKAGES.map((g) => {
           const n = g.items.length;
           const lgCols = n < 3 ? n : 3;
           const SM = ["", "", "sm:col-span-2"][fill(n, 2)];
-          const LG = ["", "", "lg:col-span-2", "lg:col-span-3"][fill(n, lgCols)];
+          const LG = ["", "", "lg:col-span-2", "lg:col-span-3"][
+            fill(n, lgCols)
+          ];
           return (
             <div key={g.group}>
               <p className="mb-3 flex items-center gap-3 font-mono text-[11px] tracking-[0.16em] text-warm uppercase">
@@ -216,7 +271,9 @@ export default function Packages() {
                       <span className="text-quiet">@variance-authority/</span>
                       {p.name}
                     </p>
-                    <p className="mt-2 text-xs leading-5 text-quiet">{p.role}</p>
+                    <p className="mt-2 text-xs leading-5 text-quiet">
+                      {p.role}
+                    </p>
                   </a>
                 ))}
               </div>
@@ -224,10 +281,6 @@ export default function Packages() {
           );
         })}
       </div>
-      <p className="mt-6 max-w-2xl text-sm leading-6 text-quiet">
-        Adopter-facing code names its immediate package, not that package&rsquo;s
-        collaborators.
-      </p>
     </section>
   );
 }

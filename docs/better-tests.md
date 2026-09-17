@@ -1,24 +1,28 @@
 # Make a suite faster, more stable, smarter and cheaper
 
-A growing test suite should give you more confidence to change the code. Too
-often it gives you longer waits, failures nobody trusts, and a larger CI bill.
-You add machines, add retries, rebuild the environment between tests, and spend
-more to get the same answer.
+[Variance Authority](README.md) is a visual regression system you run yourself:
+it renders a UI state, compares it against the baseline you approved, and
+reports what changed in the vocabulary of your source. `toHaveScreenshot`,
+Percy, Chromatic and Argos answer a red build with a pixel count and two images,
+and the run ends there. Getting to that answer means watching a test suite work:
+which code executed, which elements the tests queried or clicked, what setup ran
+before they began. Teardown is normally where all of that disappears.
 
-That does not have to be the cost of growth. Fast feedback and reliable tests
-belong together. Flakiness deserves a fix. A run should help you decide what to
-do next, and every dependency should earn the work it adds.
+This page is about spending that record on the rest of your suite. A suite that
+grows usually gives you longer waits, failures nobody trusts, and a larger CI
+bill, and the usual answers are more machines, more retries, and rebuilding the
+environment between tests. What the previous run recorded buys you four other
+moves: reusing an open page instead of starting a browser per capture,
+separating a timing flake from a shared-state one, running the tests a change
+actually reached, and finding the dependencies a test loads but never calls.
 
-A test run already knows much of what you need: which code executed, which
-elements the tests queried or clicked, and what setup ran before they began.
-Teardown is normally where all of that disappears. [Variance Authority](README.md) keeps it
-so the work you have already paid for can make the next run better.
-
-Visual comparison is one use of that evidence. The Vitest 2 and Jest 30
-integrations record execution through the transformer you already use. [Eyes](eyes.md)
+Most of that needs no visual baselines. The Vitest 2 and Jest 30 integrations
+record execution through the transformer you already use, and [Eyes](eyes.md)
 records React Testing Library's `screen` queries from a setup file. Choosing
-tests, investigating shared state and reducing unnecessary imports all work in
-a suite that never opens a browser.
+tests, investigating shared state and reducing unnecessary imports all work in a
+suite that never opens a browser. [Choose the operating
+model](comparison.md) compares the capture and review contracts of the hosted
+services against this one.
 
 ## Faster: don't surrender to workarounds
 
@@ -36,8 +40,8 @@ One Chromium and one page serve a whole run here instead. Measured over multiple
 renders, a capture into an already-open page costs about **7.5 ms** against about
 **205 ms** for one that launches a browser first. These are steady-state capture
 times from one machine and one Chromium, not a prediction for every suite.
-The [kitchen-sink example](../examples/kitchen-sink/README.md#running-it) carries
-the runnable warm-versus-cold benchmark.
+That comparison comes from a benchmark script in this project's own
+kitchen-sink example, which is not part of the package.
 The Storybook collector holds a single preview open and switches stories over
 Storybook's own channel rather than navigating. The renderer keeps a pool of
 pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
@@ -182,18 +186,22 @@ suite gets better because you understand and improve the work it does.
 
 ## What each capability needs
 
+Each row is one capability described above, what turns it on, and what else has
+to be true before it works. It is a list of the capabilities on this page, not
+of everything the packages do.
+
 | Capability | Integration | Also needs |
 | --- | --- | --- |
 | One page across a run | the harness, or a shipped collector | a page this side opens; a runner that drives its own browser keeps its own lifecycle |
 | Test-order checks | a collector that can create a clean environment | the ability to mount the subject again, which a runner-owned mount does not offer |
-| Selection and distance | `withTestSelection` in the Vitest or Jest config | a recorded run, plus repository-owned inventory and runner dispatch |
+| Selection and distance | `withTestSelection` in a Vitest 2 or Jest 30 config; the four `@variance-authority/sense/jest-*` modules for a Jest configuration assembled by hand; `@variance-authority/sense/journal` for a build driven through a browser | a recorded run, plus repository-owned inventory and runner dispatch; the journal seam also needs a Vite-compatible build and a driver that can evaluate in the page |
 | Order-dependent module state | the same instrumentation | nothing further |
 | Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
 | Recording queried elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React updates also need a commit hook installed before `react-dom` loads; `watch` attaches to that hook and reports when it is unavailable |
 
 Test selection, shared-state records and dependency analysis come from one wrap
-of the runner configuration. They work with your existing `test` and `expect`,
-and do not require visual baselines.
+of the Vitest or Jest configuration. They work with your existing `test` and
+`expect`, and do not require visual baselines.
 
 ---
 

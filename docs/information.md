@@ -1,4 +1,4 @@
-# Information exchange and retention
+# What every record means, and where it is kept
 
 Run `variance run` once and look at what it leaves on disk: a report at
 `.variance/report.json`, PNGs beside it, an approved baseline directory it
@@ -13,8 +13,89 @@ compares it against its baseline, and writes a **report**.
 Each of those outputs is tracked separately, by its own producer: the report,
 review images, approved baselines, runtime coverage, scenario paths, history
 facts, and disposable caches all keep their own identity, completeness,
-disclosure, retention, and merge rules. Records meet only on identities their
-producers actually emitted.
+disclosure, retention, and merge rules.
+
+Read this page for the vocabulary the artifacts are written in, the verdict
+values, what each store holds, how two records from different producers join,
+and what survives to the next run.
+
+## The words
+
+Every term below appears in a file you can open or a command you can run.
+They are defined here rather than at first use because most of them appear in
+several sections.
+
+### Things a run addresses
+
+| Term | What it is |
+| --- | --- |
+| **subject** | One UI state the run addresses — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
+| **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already hold. |
+| **band** | The kind of visible difference: `geometry`, `token`, `content`, `texture`, loudest first. `a11y` joins them where a profile resolves the ARIA tree. |
+| **root** | The stable cause attributed to a change, such as a component or token. |
+| **cluster** | Regions with one semantic fingerprint, so one decision can cover all of them and nothing else. |
+| **docket** | The causes a run leaves for a person or system to decide. |
+
+### Things a run records
+
+| Term | What it is |
+| --- | --- |
+| **semantic snapshot** | The normalized tree a verdict is decided from, and the thing a render hash addresses. It holds the subject reference, the profile and environment key it was taken under, a `renderHash` identifying the state plus separate `structureHash` and `styleHash`, the tree itself, where each winning style declaration came from, any subtrees your ignore rules excluded, and whatever the collector could not do. Ids have become structural aliases, class attributes are gone, inapplicable CSS is pruned, and the cascade is resolved to winning values — it is meant to be read. |
+| **observation** | One subject's result: its id, the verdict, one sentence saying why, the comparison, the attributed regions with their components and `file:line`, whether the image was painted or came from the cache, fonts the document declared and the renderer lacked, the independently measured signals, and what your ignores absorbed. This is what `report.observations` is a list of. |
+| **block** | One region of a module's text that control enters under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Entering a `try` body follows from entering the code around it, so it is no block; entering its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that holds them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
+| **crossing** | One test entering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
+| **verdict** | The one word an observation carries for its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
+| **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
+| **component digest** | One hashed dimension of a component instance — `structure`, `semantics`, `text`, `style`, `geometry` — one per band. Equal component digests are a match, never a resemblance. A baseline carries these so a later run can settle a subject on hashes instead of pixels. |
+
+### The named evidence producers
+
+- **[Sense](../packages/sense)** builds a versioned binary index of your checkout and the execution
+  record beside it. It answers which components and tests a source change
+  reaches. See [source structures](source-structures.md) and the
+  [execution record](execution-record.md).
+- **[Eyes](eyes.md)** records what one test actually witnessed as an authored
+  Arrange–Act–Assert chronology — the UI it operated, the React work that
+  arrived alongside, the source that merely executed. It is this project's
+  own recorder and has nothing to do with any similarly named commercial
+  service.
+- **[Vantage](vantage.md)** holds a running suite's in-flight signals in a process that
+  outlives the test, so a suite that has not finished is something to look at.
+
+## Verdicts
+
+Every observation in `report.json` carries exactly one `verdict`, from this
+set and no other:
+
+| `verdict` | What it means |
+| --- | --- |
+| `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
+| `changed` | Pixels moved. The report names the region, the component and the `file:line`. |
+| `new` | The subject was captured and no approved baseline exists. |
+| `ignored` | Pixels moved, and every one of them fell inside a subtree your `ignore` rules excluded. Green, and a separate word from `unchanged`, so a report can be asked how much of its green was earned and how much was declared. |
+| `incomparable` | The comparison was refused because the two images came from different painters. The report names which field differs. It is not zero difference. |
+
+A subject the run could not observe at all gets no verdict. It goes in
+`notObserved` under one of three kinds — `excluded` by configuration, `failed`
+where the run meant to look and could not, or `unreached` by this change — and
+a report whose `notObserved` is absent entirely cannot be read as a clean run.
+
+Beside the verdict, `signals` carries what each boundary independently
+measured: `document` is `unchanged` or `changed`; `pixels` adds `unobservable`
+for a subject that occupies no pixels; `accessibility` adds `incomparable`.
+These are measurements, not decisions, and they do not override the verdict.
+
+`variance adjudicate --claims <path>` answers a second question — whether the
+change you said you were making is the change that happened — and it uses its
+own words. Each claim comes back `delivered`, `overreached` (it landed and
+reached further than you declared), `undelivered` (the run watched for it and
+it did not take), or `unobservable` (the run could not have seen it either
+way). The run-level answer is `clean`, `review`, or `unmet`. Adjudication
+changes no verdict and no exit code beyond its own.
+
+Exit codes are `0` nothing needs review, `1` changes need review, `2` operator
+error. A verdict and a crash never share a code.
 
 ## Where work starts
 
@@ -35,90 +116,65 @@ Configuration and the subject plan define the work. Caches may reduce its cost;
 they cannot change which answer is correct. Baselines and history are evidence,
 not caches: losing them changes what later runs can know.
 
-## From execution to persisted results
+## From execution to what lands on disk
+
+Each box below is either a file you can open or a store you configure the
+address of.
 
 ```mermaid
 flowchart TD
-  accTitle: Variance Authority information exchange and retention
-  accDescr: Project, source, and SUT inputs become independently retained reports, evidence, references, histories, and reusable caches.
-  Config["project definition"] --> Plan["subject and test plan"]
+  accTitle: What a run reads and what it writes
+  accDescr: Configuration, checkout and SUT host produce a report, review images, and the caches and stores a later run reads back.
+  Config["variance.config.json"] --> Plan["subject plan"]
   Checkout["source checkout"] --> Scan["source scan"]
-  Scan --> SourceStore["versioned binary source index"]
-  SourceStore --> SourceGraph["run-wide graph views"]
-  SourceStore --> SourceIndex["component / source query views"]
-  SourceGraph --> Plan
+  Scan --> SourceStore["source index<br/>scans/ namespace"]
+  SourceStore --> Plan
 
-  subgraph SUT["SUT host / execution"]
-    Exec["instrumented execution stream"]
-    Point["0..n named observation points"]
-    Runtime["run-wide runtime evidence"]
-    Capture["capture artifact"]
-    Frame["scenario frame"]
-
-    Exec --> Runtime
-    Exec --> Point
-    Point --> Capture
-    Point --> Frame
-  end
-
-  Plan --> Exec
-  Capture -. "shared execution interval" .-> Runtime
-  Frame -. "shared execution interval" .-> Runtime
+  Plan --> Exec["SUT execution"]
+  Exec --> Coverage["execution record<br/>coverage.bin"]
+  Exec --> Capture["capture: document, raster, or value"]
 
   Capture --> Snapshot["semantic snapshot"]
-  Frame --> Snapshot
-  Capture --> Material["render document or in-place raster"]
-  Material -->|document| Renderer["deferred renderer"]
-  Renderer --> Candidate["candidate raster"]
-  Material -->|raster| Candidate
+  Capture --> Candidate["candidate PNG"]
+  RenderCache["render cache<br/>renders/"] -. "reuse exact paint" .-> Candidate
+  Candidate --> RenderCache
 
-  Candidate --> Compare["visual comparison"]
-  Baseline["approved visual reference"] --> Compare
-  Snapshot --> Observation["attributed observation"]
-  SourceIndex --> Observation
+  Baseline["approved baseline<br/>directory, LFS, or remote"] --> Compare["comparison"]
+  Candidate --> Compare
+  Snapshot --> Observation["observation"]
   Compare --> Observation
 
-  Observation --> Report["run report"]
-  Report --> Review["review / acceptance"]
-  Review --> Baseline
+  Observation --> Report[".variance/report.json"]
+  Observation --> RunImages[".variance/images"]
+  Report --> Accept["variance accept"]
+  Accept --> Baseline
 
-  Runtime --> Coverage["runtime coverage store"]
-  Frame --> ScenarioArchive["opt-in scenario archive"]
-  Observation --> History["history store"]
-  Observation --> RunImages["run images"]
-  Candidate --> RenderCache["render cache"]
-
-  Coverage -. "select later tests" .-> Plan
-  SourceStore -. "reuse validated generation" .-> Scan
-  RenderCache -. "reuse exact paint" .-> Candidate
-  History -. "current and bounded answers" .-> Report
-  Baseline -. "compare next candidate" .-> Compare
+  Observation --> History["history service"]
+  History -. "recurrence, churn, drift" .-> Report
+  Coverage -. "variance select" .-> Plan
 ```
 
-The solid arrows are production or exchange. The dotted arrows are reuse or
-[attribution](attribution.md). Runtime execution is inside the SUT host and is broader than visual
-regression: an execution can produce crossings without a capture, and those
-crossings still power later test selection.
+Solid arrows are production. Dotted arrows are reuse or
+[attribution](attribution.md). Runtime execution is broader than visual
+regression: a test can produce crossings without any capture, and those
+crossings still select tests for a later source change.
 
-The dotted edge from a capture or a frame to runtime does not copy the execution
-record into every snapshot. Per-observation attribution requires the capture or
-frame and the runtime recorder to share an instrumentation generation and
-recorder-issued start and end markers. Without those markers, both records belong to the same SUT
-execution but cannot support a frame-level execution claim.
+The dotted edge from a capture to the execution record does not copy that
+record into every snapshot. Per-observation attribution needs the capture and
+the runtime recorder to share an instrumentation generation and
+recorder-issued start and end markers. Without them the two records belong to
+the same SUT execution and cannot support a frame-level execution claim.
 
 ## What exists while the SUT executes
 
 ### Runtime execution
 
-Instrumentation produces a block universe from source and increments probes as
-the SUT executes. The runner owns temporary per-worker journals and consolidates
-them into one run-wide coverage record. The stream includes setup, application
-work, tests, and paths that never arrive at a visual assertion.
-
-Runtime evidence is therefore not an attachment created after visual
-comparison. Captures and scenario frames are optional points inside the same
-execution. Their narrower scope comes from explicit interval markers, not from
-discarding everything that happened outside them.
+Instrumentation cuts the block universe from source and increments a probe per
+block as the SUT executes. The runner owns temporary per-worker journals and
+consolidates them into one run-wide coverage record. The stream includes setup,
+application work, tests, and paths that never arrive at a visual assertion.
+Captures and scenario frames are optional points inside that same execution;
+their narrower scope comes from explicit interval markers.
 
 ### Capture points
 
@@ -155,10 +211,10 @@ that last as long as the caller holds them. A reading is not addressed by
 subject and establishes nothing a later run is measured against.
 
 Two readings of the same locator produce relationship effects and a
-presentation-independent content identity. Only that projection reaches a
-durable record, as the presentation signal on the observation the caller aligned
-it with. An incomparable pair carries its reason and no effects, because
-inventing a transition from a single reading would turn absence into evidence.
+presentation-independent content identity. Those, and only those, reach
+`report.json`, as the presentation signal on the observation you aligned the
+reading with. A pair the tool cannot compare carries its reason and no
+effects: one reading is not a transition.
 
 ## What crosses process and service boundaries
 
@@ -195,26 +251,39 @@ Pixel bytes have three distinct homes:
   the image directory together.
 - **Approved visual reference:** the authoritative PNG plus readable sidecar at
   a baseline key and painter partition. It lives in a configured directory, in
-  Git LFS, or in an operator-controlled remote store.
+  Git LFS, or in a baseline service you deploy.
 
 An approved reference and a cache entry may contain the same bytes but have
-opposite loss rules. A missing cache entry is reconstructed. A failed baseline
-lookup is an operator error. History and scenario archives store no pixels.
+opposite loss rules. A missing cache entry is reconstructed. A store that answers "no baseline here" gives you `new`; a store that cannot
+answer at all stops the run. History and scenario archives store no pixels.
 
-A remote baseline service may hold the only durable copy. Its `describe` answer
-returns comparison metadata without raster bytes; a full lookup transfers pixels
-only when the run needs them. A history service likewise returns bounded text
-answers, while its ledger stays remote. The run report retains those answers and
-addresses, not local replicas of either store.
+### A baseline or renderer behind an HTTP hop
+
+Set `"baselines": { "kind": "remote", "endpoint": "…", "token": "…" }` to keep
+approved images in a service instead of the repository, and
+`"renderer": { "endpoint": "…" }` to paint on one machine that both your
+laptop and CI use. [`@variance-authority/remote`](../packages/remote) is the
+server: you give it a renderer or a store and it exposes that one over HTTP.
+See [baseline placement](placement.md) for which layout to choose.
+
+What crosses that hop is not an operator API. A store — local directory, LFS,
+or remote — answers three questions the run asks: look up a baseline for this
+key, describe the same lookup without moving the image, and store an accepted
+one. The describe path is why a remote store is affordable: most subjects
+settle on thirty-two hex characters read out of a few hundred bytes of
+sidecar, so no PNG moves. You configure the endpoint and the token; you do not
+call these yourself. A history service likewise returns bounded text answers
+while its ledger stays remote, and the report retains those answers and
+addresses rather than local replicas of either store.
 
 ### Sense source information
 
 [Sense](../packages/sense) source information is one versioned binary index, not a pair of serialized
 object documents. The index stores source identities and names once, then keeps
 requests, bindings, exports, declarations, resolved edges, and forward/reverse
-relations in aligned typed-array sections. Sparse graph relations use CSR
-offsets. Opening it creates graph and component/source query views over those
-sections; reach trails and query results remain run-wide in-process values.
+relations in aligned typed-array sections. Opening it creates graph and
+component/source query views over those sections; reach trails and query
+results remain run-wide in-process values.
 
 The index lives in the configured source-index root. The CLI's local namespace
 is `$XDG_CACHE_HOME/variance-authority/scans/<checkout-digest>`, falling back to
@@ -251,7 +320,7 @@ carriers for the runtime domain, not copies of the visual run report.
 
 ### The three kinds of journey
 
-“Execution [journey](journeys.md)” names three different values and they live differently:
+"Execution [journey](journeys.md)" names three different values and they live differently:
 
 1. A **source reach trail** explains how a changed file reaches a component. It
    is derived from query views over the binary [source index](source-index.md) and is not
@@ -264,29 +333,61 @@ carriers for the runtime domain, not copies of the visual run report.
    session by default or enters the opt-in scenario archive as one manifest plus
    content-addressed semantic snapshots.
 
-Keeping the three separate prevents a source dependency trail, a witnessed test
-crossing, and a user-visible golden path from being merged into one graph whose
-edges have incompatible meanings.
+They stay separate because their edges mean different things: a source
+dependency trail says *could reach*, a crossing record says *did enter*, and a
+scenario path says *a person can walk this*. Merged into one graph, none of the
+three questions has an answer any more.
 
-### MCP observability view
+## Joining two producers' records
+
+Nothing here has a global run object. Each producer writes its own file, and a
+view that shows two of them side by side joins on a value both producers
+actually wrote down. There are two joins you will meet, and each fails in a way
+you can check.
+
+**Images join on painter identity.** The producer is the renderer; the
+identity is the digest of renderer, engine, platform, device scale factor,
+fonts, and the two stabilization digests. When a run reports `incomparable`,
+that is this join failing: the baseline was written under one identity and this
+run painted under another. Run `variance doctor`. It prints your current
+identity, then every identity your baseline root holds and every identity in
+your render cache, with an arrow on yours. If the arrow points at an identity
+nobody else has, that is the whole diagnosis — pin one painter for laptop and
+CI, either the same container image or one `"renderer": { "endpoint": … }` both
+use, and re-approve under it. See [placement](placement.md).
+
+**Test evidence joins on test id.** Eyes writes a per-test archive; Sense
+writes the execution record. They relate only where both producers emitted the
+same test id — the runner's own identifier for the test. Titles and file paths
+are presentation and are never used as a fallback identity, so two records that
+disagree on the id do not join at all rather than joining wrongly.
+`variance distill --test <id> --eyes <path> --execution <path>` is where you
+check it: give it both files and one test id, and what comes back tells you
+which of the two answered. Supply only one of the two flags and it distills
+from that one; supply neither and it exits `2` saying so. If the id you have
+from one file returns nothing from the other, the runner that wrote the second
+file named the test differently, and the id in each file is what to compare.
+
+Within a joined test, three things stay distinct and are not read as each
+other: which DOM the test attended to, which React components re-rendered
+alongside, and which source executed. A re-rendering component counts as part
+of the element the test addressed only when its position in the React tree
+sits under that element's — sharing a component name is not enough, because
+one component name can appear in a dozen unrelated places. Source files the
+test entered that Eyes attributed to no addressed element are exactly that and
+nothing more: entered, unattributed. Neither record says they are safe to
+change.
+
+### MCP view
 
 An MCP connection can receive the run report, full presentation readings,
 execution index, live [Vantage](vantage.md) state, [Eyes](eyes.md) archive, and scenario manifests as
 optional fields of one subject. This is a view over separately supplied records,
-not a global run object. Tool discovery is shared; evidence identity, completeness, retention, and storage
-remain native to each domain.
-
-The inventory distinguishes an unavailable field from a present empty record.
-Native tools project into exactly one field and refuse a missing field rather
-than substituting an empty value. The testing-surface view is the one intentional
-join: it relates an Eyes journal to Sense crossings only when both producers
-emit the same test id. Titles and file paths are presentation, not fallback
-identity. Within each authored phase it keeps DOM attention, React update
-initiators, and executed source distinct. An updater is inside an addressed
-target only when their name-and-props structural suffixes overlap; matching a
-component name alone is insufficient. Files entered by that test but carrying no
-Eyes-attributed target are replay candidates; neither record establishes that
-they are safe to replace.
+not a global run object. Tool discovery is shared; evidence identity,
+completeness, retention, and storage remain native to each domain. The
+inventory distinguishes a field nothing supplied from a field holding a record
+that is present and empty, and a tool asked for a field nothing supplied
+refuses rather than answering from an empty value.
 
 ## What can produce a useful report
 
@@ -304,22 +405,21 @@ discarded. At that boundary it can consume:
 - current and bounded answers returned by history after this run is recorded.
 
 The canonical `RunReport` persists the resulting observations, subject-coverage
-ledger, warnings, run/painter identity, image references, variation and
+ledger, warnings, run and painter identity, image references, variation and
 composition readings, presentation signals, and bounded history answers.
 `variance report`, its HTML form, and MCP tools over the report read that
 artifact; they do not reopen a browser or query the history service again.
 
 Full HTML, semantic trees, masks, baseline bytes, the source graph, runtime
 coverage, scenario executions, and whole presentation readings do not enter
-`RunReport`. They remain behind their own artifact or store boundary. A
+`RunReport`. They stay behind their own artifact or store boundary. A
 presentation signal is the exception that is not a reference: its effects,
 content identity, and information deltas are copied into the observation, while
 the graph and paint geometry they were measured from stay with the caller. A
 view that shows source-to-test evidence or scenario paths beside the visual
-report must be given the separate coverage or scenario artifact and may join it
-only through shared identities. Relative image paths are the one exception the
-report carries directly, because the page must know where its review pixels
-live.
+report must be given the separate coverage or scenario artifact and joins it on
+a shared identity. Relative image paths are the one address the report carries
+directly, because the page must know where its review pixels live.
 
 Test results contribute at two levels. Runner completion, preconditions, and
 probe hits form runtime coverage even when no visual subject is captured.
@@ -328,20 +428,53 @@ must not infer one from the other: a passing test does not prove its visual
 subject was observed, and an observed visual subject does not make the whole
 test execution complete.
 
-### Read one observed result
+### Reading a missing section in your own report
 
-These terms carry a rendered observation from the state that was read to the
-decision it supports.
+Beside `observations` and `notObserved`, a report carries up to five optional
+semantic sections — `composition`, `lexicon`, `variations`, `reach` and
+`journeys` — plus `flakiness` and `drift`. Each needs an input, and when that
+input was not there the section is not an empty object: **the key is absent
+from `report.json` entirely.** Open the file and look for the key before
+concluding a section found nothing.
 
-| Term | Meaning |
-| --- | --- |
-| **subject** | One UI state the run addresses — a story, route, fixture, or value — under an id that survives a rename. |
-| **band** | The kind of visible difference: `geometry`, `token`, `content`, `texture`, loudest first. |
-| **digest** | One hashed dimension of a component instance. Equal digests are a match, never a resemblance. |
-| **root** | The stable cause attributed to a change, such as a component or token. |
-| **cluster** | Regions with one semantic fingerprint, so one decision can cover all of them and nothing else. |
-| **docket** | The causes a run leaves for a person or system to decide. |
-| **verdict** | The decision for one subject: `unchanged`, `inherited`, `authorized`, `needs-review`, `violation`, or `unexplained`. `unobserved` is reported beside the verdicts when the profile did not make the required observation. |
+Within a section, missing takes two further shapes, and they are different
+answers:
+
+- **Nothing read it.** `lexicon.fields` is the run's own list of what it
+  looked at. A field missing from `fields` means no producer supplied it, so a
+  search that misses on that field has not missed — nothing searched.
+- **It was read, and had nothing to say about this subject.** A field listed in
+  `fields` can still be absent on an individual subject's `terms`. Read an
+  execution journal, and `regions` joins `fields`; a subject that entered no
+  instrumented region still has no `terms.regions`. The run looked, the subject
+  was outside the answer.
+
+One missing input can produce both shapes in one report, so do not read them
+as the same word. On a production React build there is no owner information at
+all: `composition.components[].createdBy` comes back as `[]`, while the
+corresponding `structure` row simply has no `createdBy` key. The empty array
+there does not mean nothing mounted the component — it means the build could
+not say.
+
+Two more distinctions worth holding while you read the file. `regions` names
+two unrelated things: the [lexicon](lexicon.md) field above, and the required per-observation
+array of attributed boxes. The per-observation one is always written; it is
+empty on a subject settled without a comparison, and its boxes carry no
+component or `file:line` when the run had no snapshot or could not resolve call
+sites — a box with coordinates and no name is a degraded answer, not a nameless
+component. And `composition.structure` keeps a record for every composed
+subject whether or not anything was attributed to it, so `rows: []` there is a
+subject that was looked at.
+
+Finally, one input gates two sections. The `journeys` section and the
+lexicon's `regions` field are both filled from the same execution journal, so a
+build with no probes in it loses both at once. Getting that journal needs the
+application under test built with `testSelectionProbes()` from
+`@variance-authority/sense/journal` and the collector asked to record — `tests:
+true` on the Storybook or Playwright integration. Without a collector in the
+page the run says so on stderr and records nothing. See the
+[Storybook](../packages/storybook-collector) and
+[Playwright](../packages/playwright-test) collector references.
 
 ## Full, partial, and lifecycle rules
 
@@ -356,7 +489,7 @@ The states remain distinct: **absent** means no producer established a value;
 covers the declared scope; **expired** reached its retention boundary; and
 **deleted** was deliberately removed.
 
-There are exactly five lifecycle operations:
+Five operations change a stored record, and nothing else does:
 
 - **Create** establishes a new immutable capture, snapshot, raster, report,
   scenario path, review decision, or history fact under its complete identity.
@@ -365,8 +498,7 @@ There are exactly five lifecycle operations:
   not rewrite the evidence or decision behind that state.
 - **Merge** applies only where a domain declares compatibility and an algebra:
   equal content deduplicates; compatible runtime crossings union; shard reports
-  combine non-overlapping subjects under one run basis. Whole-suite relations
-  are recomputed after merge or omitted, never guessed from shard-local graphs.
+  combine non-overlapping subjects. See below.
 - **Delete** removes one addressed retained copy or evicts a cache entry. Readers
   receive unavailable, expired, or cache miss rather than an empty measurement.
   Append-only history and approval records refuse ordinary deletion.
@@ -375,9 +507,52 @@ There are exactly five lifecycle operations:
   grammar, or retention scope while retiring the values governed by the old
   definition. Old evidence is never reinterpreted under the new basis.
 
+## Merging a sharded suite
+
+A suite big enough to split runs `variance run --subjects <glob>` once per CI
+job and ends with N artifacts. Merge them by naming them:
+
+```bash
+variance report shard-1.json shard-2.json shard-3.json
+```
+
+`variance ask`, `variance push` and `variance comment` take the same list, so a
+sharded suite still produces one answer, one build and one pull-request
+comment.
+
+Four fields are singular in a run report and must agree across every shard or
+the merge is refused by name: painter identity, retention, run version, and
+`--intent`. Absent counts as a value — one shard run with `--intent` and one
+without were asked different questions. Refusing is the point: picking one
+would attribute half the observations to a machine that never saw them.
+
+`--subjects` records every subject outside the slice as `excluded`, so a
+subject observed by one shard is excluded by the others; the merge resolves
+that in the shard's favour. A subject **no** shard claimed is a hole in your
+split — nobody looked at that component — so it is promoted to `failed` and the
+merged run exits `1`. A correct split never produces one.
+
+The composition section is dropped from a merged report, and the report says
+so. It compares the run's subjects to *each other*, and a split is exactly what
+destroys that: two subjects sharing a rendering are the finding, and a pair
+that landed in different shards is in neither shard's report. A union of the
+shard graphs would be a graph missing every cross-shard edge with nothing
+marking where. Per-subject sections survive, including the lexicon, because a
+subject is in exactly one shard. See [composition](composition.md).
+
+Execution records fold the same way, from the command line:
+
+```bash
+variance journeys shard-1.bin shard-2.bin --into .variance/journeys
+```
+
+The fold unions the records in any order and refuses shards with differing
+instrumentation or commit, a test present in two shards, and a module one shard
+could instrument and another could not.
+
 ## Where the run ends and the next one begins
 
-The durable outputs are deliberately separate:
+Each durable output is kept, shared and reused on its own terms:
 
 | Result | Persisted at | Shared by | Feeds the next run |
 |---|---|---|---|
@@ -396,6 +571,5 @@ The durable outputs are deliberately separate:
 The feedback stores answer different questions. Runtime coverage selects tests;
 baseline component names select visual subjects; the source index reduces
 source-work cost; render caches reduce painting cost; history qualifies the
-current result; approved references supply the next comparison. None can
-silently stand in for another, and losing a disposable cache must never look
-like losing evidence.
+current result; approved references supply the next comparison. None stands in
+for another, and losing a disposable cache never looks like losing evidence.

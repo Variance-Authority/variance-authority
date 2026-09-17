@@ -26,12 +26,22 @@ is affordable at all.
 
 There is one move underneath all of them: **hold everything still, vary exactly
 one thing, and read a representation cheap enough to read again.** A semantic
-snapshot is text. In the todomvc Chromium benchmark,
-`yarn workspace @variance-authority/example-todomvc pixel`, reading the document
-takes 3.0 ms and painting the same page in the same process takes 54.0 ms:
-**roughly eighteen times as much**. Both the timings and their ratio describe
-that workload and measurement environment. They support repeated semantic
-readings on this fixture, not a machine-independent performance guarantee.
+snapshot is text. In the todomvc Chromium benchmark, reading the document takes
+3.0 ms and painting the same page in the same process takes 54.0 ms: **roughly
+eighteen times as much**. Each figure is a per-story mean over one pass of that
+suite's eighteen stories, on one machine and one Chromium. Both the timings and
+their ratio describe that workload and measurement environment. They support
+repeated semantic readings on this fixture, not a machine-independent
+performance guarantee.
+
+Two words below carry most of the report's meaning. A **band** is a category of
+visual difference — `a11y`, `geometry`, `token`, `content`, `texture` — so
+`Clock (content)` says a string moved inside `Clock` and nothing else did. A
+**tier** is a level of observation: the structure-and-style reading of a
+document, which any DOM host produces without a browser, and the painted image,
+which only a browser can. A tier declares the dimensions it cannot see instead
+of answering anyway — jsdom reads structure, roles and names, text and declared
+style, and Chromium adds geometry and the raster.
 
 | instrument                                                              | varies                  | holds                  | names                                                                         |
 | ----------------------------------------------------------------------- | ----------------------- | ---------------------- | ----------------------------------------------------------------------------- |
@@ -98,14 +108,14 @@ invisible to every comparison, because it compares equal to itself on every run
 forever — and these fire on a first run, on a green run, and on a suite with no
 baselines:
 
-| what it finds                                                                                                                   | why no comparison reaches it                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **[inspection findings](../packages/core)** — a control with no accessible name, a string nobody translated                     | it has always been wrong, so it never _changes_                                                                                |
-| **[remounts](framework-reference.md#markrender-and-remountedsince)** — an instance destroyed and rebuilt rather than updated | identical `outerHTML`, identical `rendering`, identical `wiring`. What differs is the state, the focus and what the user typed |
-| **[wiring](framework-reference.md#wiringof)** — a lost `memo`, an unkeyed list, a context subscription                       | two byte-identical documents that are two different components                                                                 |
-| **[a Suspense boundary still open](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)**               | a component that suspends renders no markup for a marker to attach to, and both runs agree on a skeleton                       |
-| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)**                 | no markup and no computed style can see a re-exported logo                                                                     |
-| **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)**                                                        | two runs of the substitution compare `unchanged` — true, and worthless                                                         |
+| what it finds | why no comparison reaches it | what has been read |
+| --- | --- | --- |
+| **inspection findings** — a control with no accessible name, a string nobody translated | it has always been wrong, so it never _changes_ | **measured** — nine rule families (unnamed control, image without alt, skipped heading level, nested interactive, dangling reference, label mismatch, duplicate landmark, table without headers, positive `tabindex`), each with a case that reports and a case that holds, so a rule that fires on a correct page fails the suite |
+| **[remounts](framework-reference.md#markrender-and-remountedsince)** — an instance destroyed and rebuilt rather than updated | identical `outerHTML`, identical `rendering`, identical `wiring`. What differs is the state, the focus and what the user typed | **measured** — the remount row in the table below, plus a first mount, a freshly mounted page and a subtree that bailed out without committing, none of which is reported as a remount |
+| **[wiring](framework-reference.md#wiringof)** — a lost `memo`, an unkeyed list, a context subscription | two byte-identical documents that are two different components | **measured** — the wiring row in the table below |
+| **[a Suspense boundary still open](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)** | a component that suspends renders no markup for a marker to attach to, and both runs agree on a skeleton | **measured** — a waiting boundary reads `pending`, names the components above it and the one that created it, counts how many boundaries enclose a nested one, carries the author's key, and reads `resolved` from the same walk once the promise settles. A boundary outside the subject is not reported, and a node React never rendered returns nothing rather than a guess |
+| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)** | no markup and no computed style can see a re-exported logo | **measured in Chromium** — an image changing behind an unchanged URL moves the environment key; the digests cover only the assets the subject itself references, reach the document as well as the capture, and are visibly empty rather than absent when the watch is off |
+| **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)** | two runs of the substitution compare `unchanged` — true, and worthless | **measured** — the probe reports a family it could not resolve and refuses to call it absent; with no browser, fonts read as `unprobed` rather than as none missing, and neither outcome fails the exit code |
 
 The last row of that table is the one worth stating separately, because it is
 about the instrument, not the page: **reading a subject twice catches
@@ -120,7 +130,7 @@ that recorded the baseline
 
 Those rows are about defects a comparison cannot reach. These are readings that
 do not attempt one: each answers _what happened in this run_, which is a
-different question from _is this different from what we agreed_, a shift set out
+different question from _is this different from what you agreed_, a shift set out
 in [ask a question the test did not ask](observability.md). Each is installable
 on its own.
 
@@ -155,16 +165,17 @@ than three tools stapled together.
 
 ## Where each claim is measured
 
-| claim                                                                       | where                                                                                                                             |
-| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| A diff names a cause, a place and a file, against a real incumbent's runner | `cases/incumbent-case` — **6 hit, 1 false alarm, 1 deferral** against 3 hit, 3 miss                                               |
-| Both tiers agree on the dimensions both can observe                         | 38/38 under jsdom, 39/39 under Chromium, on `examples/kitchen-sink`                                                               |
-| A component's hash covers its own nodes, so one edit changes one component    | `examples/todomvc/src/closure.test.tsx`                                                                                         |
-| The suite shares renderings, and which examples watch the same bytes        | `examples/todomvc/src/composition.test.tsx` — 26 shared renderings, 0 divergences                                                 |
-| Wiring separates two byte-identical documents                               | `examples/todomvc/src/fiber.test.tsx`                                                                                             |
-| A remount is invisible to the document                                      | `packages/react/src/identity.test.tsx` — the two renders serialize identically, while the UI reads `1 of 1` against `0 of 1`      |
-| Detecting cross-pollution beats rinsing it away                             | `packages/session/src/cost.measure.ts` — 3–4× faster, probe overhead ~2% of session time; re-measured every run, asserted as a floor |
-| Which bands a single prop reaches                                           | `examples/todomvc/src/contrast.test.tsx` — seven props, five distinct sets                                                        |
+| claim | what was measured |
+| --- | --- |
+| A diff names a cause, a place and a file, against a real incumbent's runner | Eight edits to one component tree, declared in a file owned by neither arm before either arm ran, and graded on _must a reviewer be told?_ rather than on _did the image change_: **6 hit, 1 false alarm, 1 deferral** against 3 hit, 3 miss. The incumbent is Playwright's own `toHaveScreenshot`, executed by `playwright test` in its own process on the same page; its comparator is `pixelmatch`, the one behind most of the market. One Mac, one Chromium, eight scenarios — a scoreboard, not a win rate |
+| Both tiers agree on the dimensions both can observe | Forty declared cases, scored in one run so it compares two observers rather than two runs: 38/38 agreed under jsdom, 39/39 under Chromium, no real change reported as unchanged on either. The totals differ by one case whose wrapper dimension the jsdom profile declares it cannot see, which is scored under Chromium and left undecidable under jsdom; a fortieth case is held out ungraded because the two defensible readings of portalled content give opposite verdicts |
+| A component's hash covers its own nodes, so one edit changes one component | Two edits across a twelve-component design system, each read over the whole suite rather than one story, because a containment failure shows up where the component is nested deepest. A padding change to `Button` moves `Button` and no ancestor of any `Button`; a border-radius token change moves the five components that resolve through the token and leaves the other seven unmoved, including five that enclose the ones that moved |
+| The suite shares renderings, and which examples watch the same bytes | 26 echoes, every one of them crossing a subject boundary, with one chip story matching four pages byte for byte, and 0 divergences. Three button stories report no echo at all, which is the finding rather than a gap |
+| Wiring separates two byte-identical documents | Two components emitting identical HTML agree on every hash the collector records for them — `rendering`, `structure`, `semantics`, `text`, `style` — and differ in the wiring band: `useState` and `useContext`, a `memo` wrapper and a theme context on one, an empty wiring on the other. Empty, not absent: a page no adapter could read must not compare equal to one read and found to declare nothing. Read again after a re-render, the wiring holds while text and rendering move, which is what qualifies it as a band rather than a flake generator |
+| A remount is invisible to the document | The two renders serialize identically while the UI reads `1 of 1` against `0 of 1` — one page kept the click, the other threw it away. The finding names the rebuilt component and the owner that rebuilt it, and reports the author's `key` where there was one instead of filtering itself away |
+| A subject already settled by its digest is not painted | On a document digest equal to the one the baseline was painted from, the verdict is `unchanged` with no render. A moved document renders, an absent baseline renders so the subject can be accepted at all, and a baseline another machine painted refuses the shortcut rather than reusing it |
+| Detecting cross-pollution beats rinsing it away | Thirty subjects through one jsdom world against thirty rebuilt worlds, 300 CSS rules apiece: one world built against thirty, ~68% of the rebuild regime's clock spent building worlds, ~2% of the session's own clock spent on the probes that replace the rinse. Those three are re-measured every run and bounded away from the current reading — exactly one world, over half, under 15% — so none can rot silently. The end-to-end speedup that follows is printed and gated by nothing: it divides two separately-timed runs, and load alone moves it from 3.2× on an idle machine to ~1.1× under a parallel suite |
+| Which bands a single prop reaches | Seven props of one small design system reach five distinct sets of bands, from one band to three, asserted as a single shape because the shape is the finding. Under jsdom the reading reports geometry as unavailable rather than as unmoved |
 
 ## What none of this establishes
 
@@ -181,9 +192,16 @@ differently one time in fifty passes this forty-nine runs out of fifty, and an
 absent finding means _this run's two readings agreed_ — never _this subject is
 stable_.
 
-**Four causes of variance are absorbed by nothing**, and they are named in
-[`flakiness.md`](flakiness.md#the-causes-and-who-deals-with-each) rather than left
-for a reader to discover.
+**Four causes of variance are absorbed by nothing.** A framework still
+committing after the wire has gone quiet — reported by name, because the tap has
+to be installed before `react-dom` loads and a collector arriving at someone
+else's page cannot guarantee that. Random seeds and unsorted data — a real
+change, where the fixture is the bug. Cross-origin stylesheets and third-party
+iframes — a sheet nobody can read fingerprints as `unreadable` and compares
+equal, so a change inside one is invisible. And JSX reindented inside a block,
+which renders identically and moves this tool's hash, where a pixel differ gets
+it right. [`flakiness.md`](flakiness.md#the-causes-and-who-deals-with-each)
+carries the full taxonomy and what each of the other causes is absorbed by.
 
 ---
 
