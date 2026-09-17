@@ -99,7 +99,10 @@ export const uses: Tool<Help> = {
         type: 'string',
         description:
           'The file you are working in, relative to the workspace root. Sites written near it ' +
-          'are listed first. Optional.',
+          'are listed first. This orders the sites and never removes one — every site of the ' +
+          'name still comes back. Unlike `from` on docs_search, it is not a start point and no ' +
+          'import graph is walked: nearness here is how many leading path segments two files ' +
+          'share. Optional.',
       },
     },
     required: ['name'],

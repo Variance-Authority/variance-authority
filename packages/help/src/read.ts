@@ -32,6 +32,7 @@
  */
 
 import { resolve } from 'node:path';
+import type { FileRecord } from '@variance-authority/mcp/tools';
 import { openSourceIndex, scanRelations, sourceIndexPath, type Parsed } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
@@ -54,6 +55,23 @@ export interface IndexedUsageOptions {
   readonly index?: string;
   /** Whether to publish what this scan learned. On, because the next question is the point. */
   readonly save?: boolean;
+  /**
+   * Handed the arrows the scan drew, for a caller that needs the graph as well
+   * as the names.
+   *
+   * The scan walks the whole checkout and returns the import graph whichever
+   * question asked for it; this reading wanted only the half that says which
+   * names each file takes and hands out, and threw the other half away. A
+   * caller that has to answer *which files does this path reach* would then
+   * scan the repository a second time to learn something the first scan had
+   * already worked out and dropped on the floor.
+   *
+   * So it is a door rather than a return value, for the same reason
+   * `ScanOptions.parsed` is one: the reading that wants it is not the reading
+   * this function performs, and a caller that does not want it should not be
+   * handed a graph it has to ignore.
+   */
+  readonly records?: (records: readonly FileRecord[]) => void;
 }
 
 /**
@@ -113,7 +131,7 @@ export async function readIndexedUsage(
   const owner = ownership(where);
   const files: Recorded[] = [];
 
-  await scanRelations({
+  const records = await scanRelations({
     // The whole checkout, not the workspace members. A repository holds source
     // that no `workspaces` entry claims — `tools/`, a scripts directory, a
     // config that imports from a package — and that source imports these
@@ -129,6 +147,7 @@ export async function readIndexedUsage(
   });
 
   if (options.save !== false) await index.save();
+  options.records?.(records);
 
   return usageFrom(opened, files);
 }

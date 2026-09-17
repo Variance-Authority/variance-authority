@@ -103,6 +103,22 @@ export type { Served, Tool, ToolInvocation } from './tools/tool.js';
 // The tree a start point is resolved against, exported for the hosts that have
 // a repository to read: a tool cannot walk one, so somebody outside has to.
 export { readTree, treeOf, type Tree, type TreeOptions } from './tools/tree.js';
+// `treeOf` takes these, so a host that builds a tree out of a scan it already
+// ran has to be able to name them. Exporting the function without its argument
+// type left that host reaching into `core` for one word.
+export type { FileRecord } from '@variance-authority/core/relate';
+// Turning what a caller wrote into files the tree holds, for every tool that
+// takes a path. The rule about what a path means is one rule and belongs in one
+// place; a second server inventing its own would make `src/billing/` mean two
+// things in one agent's afternoon.
+export {
+  entryPoints,
+  pathsOf,
+  refusalFor,
+  startPointArg,
+  START_POINT_SCHEMA,
+  type EntryPoints,
+} from './tools/start-point.js';
 export type { StateDifference };
 
 // The tool-authoring contract, not an implementation detail of this set. A

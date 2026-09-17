@@ -1,5 +1,5 @@
 import { HELP_TOOLS } from './tools.js';
-import type { Tool } from '@variance-authority/mcp/tools';
+import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 
 /**
@@ -78,10 +78,27 @@ export function inputFrom(tool: Tool<Help>, args: readonly string[]): Record<str
   return input;
 }
 
-/** One answer, as the text the same tool would have sent over the wire. */
-export function ask(help: Help, verb: string, args: readonly string[]): string {
+/**
+ * One answer, as the text the same tool would have sent over the wire.
+ *
+ * `walk` is how a verb that takes a path gets one. A tool cannot read a
+ * repository — that is the whole reason the set is pure — so the source tree
+ * arrives from out here, exactly as it does over MCP, and `search --from` would
+ * otherwise be a flag this file accepts and the answer refuses. It is a
+ * function rather than a tree because the verbs that name no path are most of
+ * them, and folding a graph for `symbol` would charge every question for the
+ * one feature it did not use.
+ */
+export function ask(
+  help: Help,
+  verb: string,
+  args: readonly string[],
+  walk?: () => Tree | undefined,
+): string {
   const tool = toolNamed(verb);
-  return tool.run(help, inputFrom(tool, args));
+  const input = inputFrom(tool, args);
+  const tree = tool.wants?.(input) === true ? walk?.() : undefined;
+  return tool.run(help, input, tree === undefined ? undefined : { tree });
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { relative } from 'node:path';
+import { relative, resolve } from 'node:path';
+import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { ask, toolNamed, verbs } from './ask.js';
 import { readWorkspace } from './read.js';
 import { serveWorkspace } from './server.js';
@@ -86,7 +87,20 @@ const [verb, ...rest] = args;
 if (asking(verb) && verb !== undefined) {
   const root = flag(args, 'root') ?? '.';
   try {
-    process.stdout.write(`${ask(await readWorkspace(root), verb, withoutRoot(rest))}\n`);
+    // The arrows the reading already drew, kept for a verb that names a path.
+    // The scan behind every reading works out which file reaches which; taking
+    // them here is what lets `search --from` mean the same thing from a shell
+    // as it does over MCP, without walking the repository a second time.
+    let records: readonly FileRecord[] | undefined;
+    const help = await readWorkspace(root, {
+      records: (drawn) => {
+        records = drawn;
+      },
+    });
+    const walk = (): ReturnType<typeof treeOf> | undefined =>
+      records === undefined ? undefined : treeOf(records, resolve(root));
+
+    process.stdout.write(`${ask(help, verb, withoutRoot(rest), walk)}\n`);
   } catch (failure) {
     // A refusal is the answer here, not a crash: every one of them names what is
     // there instead, and a stack trace above it buries the only useful line.

@@ -55,6 +55,37 @@ case-insensitive substring match over names and documentation, not semantic
 ranking. The package reference owns the remaining maintenance and generated-page
 questions; they are not prerequisites for inspecting one public symbol.
 
+## Bound a search to where you are working
+
+A substring matches everywhere a large repository writes a common word. Pass a
+start point and `docs_search` answers only from one part of the checkout:
+
+```text
+docs_search  query: order  from: src/fulfilment/
+```
+
+`from` answers from the files that path reaches along the imports, at any depth.
+`to` answers from the files that reach it — use it when you hold a helper and
+want the screens or callers behind it. Pass both and you get both areas
+together; they are combined, not intersected, because two entry points of one
+application usually share no file.
+
+A start point is a path in the source tree, at one of three widths:
+`src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is
+everything under it. The path is compared from the repository root down, segment
+for whole segment, case included. A path the checkout does not hold is refused
+by name; you never receive an unscoped answer under a scoped heading.
+
+Scoping removes names rather than ranking them down. An empty answer with a
+start point is a fact about that area, and the answer reports how many files it
+searched. Ask again without `from` and `to` to search the whole workspace.
+
+The same start points are available from the shell:
+
+```bash
+variance-authority-help search order --from src/fulfilment/
+```
+
 ## Interpret the answer at its boundary
 
 The server reads manifests and TypeScript module records, not `dist`. A types
@@ -71,9 +102,14 @@ Where nothing is written above a declaration, the server may quote the nearest
 Read it as prose written about a package, not as a description of the signature
 above it: the name still counts as undocumented in `docs_gaps`.
 
-Proximity in `docs_uses` is shared path segments, a fact about the filesystem.
-Import distance through the module graph is
-[`@variance-authority/sense`](distance.md).
+`from` means two different things across the two tools, so read each one for
+what it does. On `docs_uses` it orders and never removes: every site of the name
+still comes back, and proximity there is shared path segments, a fact about the
+filesystem. On `docs_search` it is a start point: the import graph is walked and
+names outside the closure are removed.
+
+Neither is a distance. How many hops separate two modules, and what selecting on
+that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 

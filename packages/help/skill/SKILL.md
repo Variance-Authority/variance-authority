@@ -60,16 +60,45 @@ somebody else's repository.
 3. **`symbol <name>`** — the line you would write to import it, where it is
    declared, its signature, and what the source says above it.
 4. **`uses <name> [--from <file>]`** — where the repository already writes it.
-5. **`search <substring>`** — case-insensitive, over names and over docs, for a
-   name you can only describe. It answers in two sections: published names
-   first, each with the specifier to pass to `symbol`, then the names the
-   repository exports somewhere without publishing them, each with a file and a
-   line to open. The second section is much the larger one — most code here was
-   never something to publish — so a thing you cannot find on the surface is
-   usually in it. Nothing back means nothing matched, not that a ranking
-   disagreed; `entrypoint` is the cheap next move.
+5. **`search <substring> [--from <path>] [--to <path>]`** — case-insensitive,
+   over names and over docs, for a name you can only describe. It answers in two
+   sections: published names first, each with the specifier to pass to `symbol`,
+   then the names the repository exports somewhere without publishing them, each
+   with a file and a line to open. The second section is much the larger one —
+   most code here was never something to publish — so a thing you cannot find on
+   the surface is usually in it. Nothing back means nothing matched, not that a
+   ranking disagreed; `entrypoint` is the cheap next move.
 6. **`gaps`** — names other packages import with nothing written above the
    declaration. A work queue, not an answer about one symbol.
+
+## Say where you are standing
+
+On a large repository the substring is not enough by itself. A common word is
+written into hundreds of names and the text cannot tell them apart, because the
+text is the same. What separates them is something you know and the query never
+carried — which part of the repository you are in:
+
+```bash
+variance-authority-help search order --from src/fulfilment/
+```
+
+`--from` answers only from the files that path reaches along the imports, at any
+depth. `--to` is the other direction and answers only from the files that reach
+it — reach for it when you hold the helper and want its callers. Give both and
+you get both areas together, combined rather than intersected: two entry points
+of one application usually share no file.
+
+A start point is a path in the checkout, at three widths and no others:
+`src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is
+everything under it. It is read from the root down, segment for whole segment,
+case included — no stemming, no dropped extension, no matching tail. A path the
+checkout does not hold is refused by name, so you are never quietly answered
+about the whole repository.
+
+This removes names rather than ranking them down. An empty answer under a start
+point is a fact about that area; ask again without `--from` and `--to` when you
+want the whole workspace. The answer says how many files it looked in, so you
+can place the count it gives you.
 
 ## Two different questions about one name
 
@@ -85,8 +114,15 @@ variance-authority-help uses digestValue --from packages/cli/src/run.ts
 
 Pass `--from` — the file you are editing — and the sites come back ordered by how
 many leading path segments they share with it, nearest first. That is proximity
-on the filesystem. How far one module sits from another through the import graph
-is a different reading, and it belongs to `variance-test-selection`.
+on the filesystem, and it only orders: every site of the name still comes back.
+
+`--from` on `search` is the other kind of argument. It is a start point, the
+import graph is walked, and names outside the closure are removed. The flag is
+spelled the same because the value you pass is the same — the file you are
+working in — but one narrows and one sorts.
+
+Neither is a distance. How many hops separate two modules belongs to
+`variance-test-selection`.
 
 The answer separates the files written to *show* the name — stories and tests —
 from the source that depends on it. Read the stories first: a story is somebody's
@@ -113,7 +149,8 @@ file as it is, rather than a copy taken when the reading was.
 
 A client that holds a connection open all session can list the same six as
 tools — `docs_packages`, `docs_entrypoint`, `docs_symbol`, `docs_uses`,
-`docs_search`, `docs_gaps` — taking the same arguments.
+`docs_search`, `docs_gaps` — taking the same arguments, `from` and `to` among
+them.
 
 ```json
 {

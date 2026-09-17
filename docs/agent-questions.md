@@ -19,8 +19,9 @@ unavailable, never an empty measurement.
 | completed visual report | What changed? | `variance ask summary` | `variance_summary` |
 | live watcher | Is this the watcher the suite reached? | `variance ask self` | `variance_self` |
 | [Eyes](eyes.md) archive and/or [execution index](execution-record.md) | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
-| current workspace source | What does this package publish? | — | `docs_packages` on the workspace API server |
-| current workspace source | Where is this symbol already used, and what shows how to call it? | — | `docs_uses` on the workspace API server |
+| current workspace source | What does this package publish? | `variance-authority-help packages` | `docs_packages` on the workspace API server |
+| current workspace source | Where is this symbol already used, and what shows how to call it? | `variance-authority-help uses <name>` | `docs_uses` on the workspace API server |
+| current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance-authority-help search <word> --from <path>` | `docs_search` on the workspace API server |
 
 `variance ask` with no question lists every report or watcher question and its
 arguments. `variance_observability` inventories the domains supplied to a

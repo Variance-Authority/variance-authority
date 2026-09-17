@@ -292,6 +292,52 @@ describe('the server', () => {
 
     expect(JSON.parse(String(line)).result.content[0].text).toContain("import { measure } from 'alpha';");
   });
+
+  it('reads the source tree for a question that names a path', async () => {
+    // The tools are pure and cannot walk a repository, so a start point is only
+    // answerable if the host handed one down. Asserted through the transport
+    // because that is the only place the wiring exists: the reading and the
+    // tree are settled by two different suppliers on the way to one call.
+    const input = new PassThrough();
+    const output = new PassThrough();
+
+    const stop = serveWorkspace(WORKSPACE, { input, output });
+    input.write(
+      `${JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'docs_search', arguments: { query: 'e', from: 'packages/beta/src/again.ts' } },
+      })}\n`,
+    );
+
+    const line = await new Promise<string>((resolve) => output.once('data', resolve));
+    stop();
+
+    const text = JSON.parse(String(line)).result.content[0].text as string;
+    expect(text).toContain('reachable from `packages/beta/src/again.ts`');
+    expect(text).not.toContain('no source tree was read');
+  });
+
+  it('refuses a path the checkout does not hold, rather than answering unscoped', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+
+    const stop = serveWorkspace(WORKSPACE, { input, output });
+    input.write(
+      `${JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'docs_search', arguments: { query: 'measure', from: 'packages/gamma/' } },
+      })}\n`,
+    );
+
+    const line = await new Promise<string>((resolve) => output.once('data', resolve));
+    stop();
+
+    expect(JSON.parse(String(line)).result.content[0].text).toContain('not found');
+  });
 });
 
 describe('the same answers as files', () => {

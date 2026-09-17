@@ -54,8 +54,13 @@ on bytes the caller can read in one cheap operation.
 
 Pass `from` — the file you are working in — and the sites come back ordered by
 how many leading path segments they share with it. That is a claim about the
-filesystem, not about the import graph: `@variance-authority/sense` owns import
-distance, and it needs an index this server deliberately does not keep.
+filesystem rather than the import graph, and it orders the sites without
+removing one: every place that imports the name still comes back. The `from` on
+`docs_search` is a different argument doing a different job — it is a start
+point, it walks the imports, and it removes. Two arguments spelled the same way
+is a real cost, and the alternative was worse: the file you are working in is
+what you pass in both cases, and a reader who had to remember which tool called
+it `near` would guess.
 
 ### The work queue
 
@@ -147,7 +152,7 @@ Six tools, in the order they are meant to be asked in:
 | `docs_entrypoint` | a package, optionally a subpath | the names one specifier opens, most-imported first |
 | `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `docs_search` | a string | published names whose name or doc contains it, ranked the same way, then the names the repository exports without publishing, with a file and a line |
+| `docs_search` | a string, optionally a path to start from | published names whose name or doc contains it, ranked the same way, then the names the repository exports without publishing, with a file and a line |
 | `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `docs_packages` takes no argument and returns the import specifiers every
@@ -245,3 +250,33 @@ to publish — a few hundred names are published here and five thousand are
 exported — so `docs_search` answers in two sections and says which is which. A
 published name is API and carries its specifier; an exported one carries a file
 and a line, because nothing else was read for it.
+
+### Say where you are standing
+
+On a few thousand names a substring is enough. On a large repository it is not,
+and no ranking rescues it: `order` really is written into four hundred names,
+you wanted the nine in one service, and the text cannot tell those apart because
+the text is the same.
+
+What separates them is something you know and the query never carried — which
+part of the repository you are in. So `docs_search` takes it as a path:
+
+```
+docs_search  query: order  from: src/fulfilment/
+```
+
+`from` answers only from the files that path reaches along the imports, at any
+depth. `to` is the other direction, and answers only from the files that reach
+it — the one to reach for when you have the helper and want its callers. Give
+both and you get both areas, unioned: two entry points of one application share
+almost no file, so intersecting them would answer nothing about a question that
+named two places.
+
+A path is a path, at three widths and no others — `src/a/File.ts` is that file,
+`src/a/*` is that folder's own files, `src/a/` is everything under it. A path
+the checkout does not hold is refused by name. You are never quietly answered
+about the whole repository under a heading you would read as *your area*.
+
+This removes names rather than ranking them down, which is the point: an empty
+answer is then a fact about the area, and the answer says how many files it
+looked in so you can place the count it gives you.

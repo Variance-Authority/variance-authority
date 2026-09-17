@@ -1,6 +1,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { ask, inputFrom, toolNamed, verbOf, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
@@ -62,5 +63,45 @@ describe('arguments, read off the schema the tool already publishes', () => {
 
   it('refuses an argument to a verb that takes none', () => {
     expect(() => inputFrom(toolNamed('gaps'), ['alpha'])).toThrow(/takes no argument `alpha`/);
+  });
+});
+
+describe('a verb that names a path', () => {
+  const SOURCE: readonly FileRecord[] = [
+    { file: 'packages/alpha/src/values.ts' },
+    { file: 'packages/alpha/src/deep.ts' },
+    {
+      file: 'packages/alpha/src/index.ts',
+      edges: [{ to: 'packages/alpha/src/values.ts', kind: 'imports' }],
+    },
+    {
+      file: 'packages/beta/src/again.ts',
+      edges: [{ to: 'packages/alpha/src/index.ts', kind: 'imports' }],
+    },
+  ];
+
+  const walk = () => treeOf(SOURCE, WORKSPACE);
+
+  it('is handed the source tree, so `--from` means the same from a shell as over the wire', () => {
+    const text = ask(READING, 'search', ['e', '--from', 'packages/beta/src/again.ts'], walk);
+    expect(text).toContain('reachable from `packages/beta/src/again.ts`');
+    expect(text).toContain('measure');
+    expect(text).not.toContain('behind');
+  });
+
+  it('asks for no tree when the verb named no path', () => {
+    let asked = 0;
+    ask(READING, 'search', ['measure'], () => {
+      asked += 1;
+      return treeOf(SOURCE, WORKSPACE);
+    });
+    // Folding a graph for a question that named no path would charge every verb
+    // for the one feature it did not use.
+    expect(asked).toBe(0);
+  });
+
+  it('refuses the path rather than answering unscoped, when there is no tree to read', () => {
+    const text = ask(READING, 'search', ['measure', '--from', 'packages/beta/src/again.ts']);
+    expect(text).toContain('no source tree was read');
   });
 });

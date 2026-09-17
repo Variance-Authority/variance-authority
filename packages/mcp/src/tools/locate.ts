@@ -6,6 +6,7 @@ import { askedFor, STOPLIST } from './question.js';
 import { renderOrientation } from './place.js';
 import { render } from './locate-print.js';
 import { scopeOf, type Scope } from './scope.js';
+import { startPointArg, START_POINT_SCHEMA } from './start-point.js';
 import type { Tree } from './tree.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
@@ -137,37 +138,17 @@ export const locate: Tool = {
           'is refused rather than read as more words for `query`.',
       },
       from: {
-        oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        ...START_POINT_SCHEMA.from,
         description:
-          'Optional. Where to start, as a real path in the source tree and only a real path: ' +
-          '`app/dispatch/page.tsx` is that file, `app/dispatch/*` that folder\'s own files, ' +
-          '`app/dispatch/` everything under it. Those three forms and no others — a `*` ' +
-          'anywhere but the last segment is a pattern, not a path. A path exists or it does ' +
-          'not: read from the root down, segment for whole segment, case included, against the ' +
-          'files the repository actually holds. Nothing is looked for inside a path, so ' +
-          '`Badge.tsx` is not the file under `apps/web` — it is a file at the root, and where ' +
-          'none is there the start point is rejected as not found. Say `apps/web/Badge.tsx`. ' +
-          'One string is one path, spaces and all; several paths are said as an array, and are ' +
-          'several entry points taken together. The path names the entry points and the import ' +
-          'graph decides the scope: every file reachable from them along the imports, at any ' +
-          'depth. One way only — what an entry point imports is in, what imports it is not; ' +
-          'say `to` for the other direction. Nothing outside that is ever answered from. ' +
-          'Narrows the suite before ranking and recounts rarity inside what remains, so the ' +
-          'area\'s own vocabulary stops distinguishing anything.',
+          `${START_POINT_SCHEMA.from.description} Narrows the suite before ranking and ` +
+          "recounts rarity inside what remains, so the area's own vocabulary stops " +
+          'distinguishing anything.',
       },
       to: {
-        oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        ...START_POINT_SCHEMA.to,
         description:
-          'Optional. Where to arrive, as a real path in the source tree and only a real path, ' +
-          'read under the same rules as `from`: `components/user-select.tsx` is that file, ' +
-          '`components/*` that folder\'s own files, `components/` everything under it, and a ' +
-          'path the repository does not hold is rejected as not found. The path names the ' +
-          'destination and the import graph decides the scope: every file that reaches it ' +
-          'along the imports, at any depth. One way only, against the arrows — what imports ' +
-          'the destination is in, what the destination imports is not. This is the direction ' +
-          'that finds the screen behind a component: `to` the user select, `query` the ' +
-          'settings page. Said together with `from`, the two closures are answered side by ' +
-          'side, not crossed.',
+          `${START_POINT_SCHEMA.to.description} This is the direction that finds the screen ` +
+          'behind a component: `to` the user select, `query` the settings page.',
       },
       limit: {
         type: 'integer',
@@ -178,12 +159,12 @@ export const locate: Tool = {
     additionalProperties: false,
   },
 
-  wants: (input) => startPoint(input, 'from') !== undefined || startPoint(input, 'to') !== undefined,
+  wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
   run(report, input, invocation) {
     const query = stringArg(input, 'query');
-    const from = startPoint(input, 'from');
-    const to = startPoint(input, 'to');
+    const from = startPointArg(input, 'from');
+    const to = startPointArg(input, 'to');
     const tree = invocation?.tree;
     const limit = typeof input['limit'] === 'number' && input['limit'] > 0 ? Math.floor(input['limit']) : DEFAULT_LIMIT;
 
@@ -201,24 +182,6 @@ export const locate: Tool = {
     return render(report, locateSubjects(report, query, from, tree, to), query, limit);
   },
 };
-
-/**
- * The start point as it was said, or nothing.
- *
- * A string is one path and an array is several, and neither is read any further
- * here: a path with a space in it is a path, so nothing is split, and an empty
- * one is nothing said rather than a path that failed.
- */
-function startPoint(
-  input: Readonly<Record<string, unknown>>,
-  which: 'from' | 'to',
-): string | readonly string[] | undefined {
-  const said = input[which];
-  if (typeof said === 'string') return said.trim() === '' ? undefined : said;
-  if (!Array.isArray(said)) return undefined;
-  const paths = said.filter((term): term is string => typeof term === 'string' && term.trim() !== '');
-  return paths.length === 0 ? undefined : paths;
-}
 
 const DEFAULT_LIMIT = 8;
 
