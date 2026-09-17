@@ -35,7 +35,7 @@ This is the Storybook adapter, not the `variance` binary. The binary lives in
 | Node | 22.15 or newer. |
 | Module format | ESM only. Every `@variance-authority/*` package sets `"type": "module"`; `require()` will not load them. |
 | Browser | Chromium, installed through Playwright. The binaries do not arrive with an `npm install`. |
-| Storybook | Exercised against Storybook 9 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
+| Storybook | Exercised against Storybook 10 with `@storybook/react-vite`. Index versions `3`, `4` and `5` are read, and the story root is looked for at `#storybook-root` (Storybook 7 and later) and then `#root` (before it). Storybook 8.3 and later emit `storyFinished`, which this package waits for; it falls back to `storyRendered` when the event is absent. |
 | Builder | Collection reads `index.json` and drives the preview channel, so it does not know or care whether Vite or Webpack 5 built the Storybook. Two optional precision features are Vite plugins with no Webpack equivalent, and are named as such where they appear below: `@variance-authority/jsx-source` and the `tests` option. |
 | React | Required for component attribution, the `wiring` band and the Suspense wait. The reading is of the expando `react-dom` writes on host nodes — `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16 — so there is no React version to match and none is imported. The suite runs against React 19. |
 
@@ -289,9 +289,7 @@ Storybook, where names and lines survive by default.
 display name off the function, and a run then reports the cause as `Ce` rather
 than `Button` — a complete, confident answer naming something that appears
 nowhere in your source. Keep function names in whatever your builder spells that
-setting. Vite 8 spells it `build.rolldownOptions.output.keepNames`; Vite 7 and
-below spell it `esbuild.keepNames`. A config carrying the other major's key is
-read by nothing and warns about nothing.
+setting.
 
 **Element lines.** With names alone, a changed element resolves to the line its
 component is *declared* on — one line however many times that component is
@@ -302,7 +300,9 @@ element itself is written on. It is a Vite plugin.
 npm install --save-dev @variance-authority/jsx-source
 ```
 
-Added to an existing Vite config rather than replacing one:
+Added to an existing Vite config rather than replacing one. On Vite 8 the two
+settings sit in two different sections — the JSX transform under `oxc`, keeping
+names under `build.rolldownOptions.output`:
 
 ```js
 // .storybook/main.js
@@ -314,21 +314,30 @@ export default {
   viteFinal: async (config) => ({
     ...config,
     plugins: [...(config.plugins ?? []), jsxSource()],
-    esbuild: {
-      ...config.esbuild,
-      jsx: 'automatic',
-      jsxDev: true,
-      keepNames: true,
+    oxc: { ...config.oxc, jsx: { runtime: 'automatic', development: true } },
+    build: {
+      ...config.build,
+      rolldownOptions: {
+        ...config.build?.rolldownOptions,
+        output: { ...config.build?.rolldownOptions?.output, keepNames: true },
+      },
     },
   }),
 };
 ```
 
-`jsxDev` is what makes the transform emit each element's file, line and column at
-all; without it there is no location for the plugin to keep. See
+`development: true` is what makes the transform emit each element's file, line
+and column at all; without it there is no location for the plugin to keep, and a
+changed element reports the line its component is declared on. `keepNames` is a
+Rolldown output option and does nothing inside the `oxc` block — it belongs in
+the `build` section, not beside the JSX keys.
+
+Vite 7 and below spell all three under `esbuild` — `jsx: 'automatic'`,
+`jsxDev: true` and `keepNames: true` — in place of both sections above. A config
+carrying the other major's key is read by nothing and warns about nothing: the
+build succeeds, and the report names `Ce`. See
 [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source)
-for builds that already use Emotion, theme-ui or another custom JSX runtime, and
-for the Vite 8 spelling of these keys.
+for builds that already use Emotion, theme-ui or another custom JSX runtime.
 
 ## Skipping stories nothing touched
 

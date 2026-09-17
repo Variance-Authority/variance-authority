@@ -156,6 +156,11 @@ hold, and open it:
 npx variance report --config variance.config.json --format html > .variance/report.html
 ```
 
+`report` carries the same exit codes as `run`: it writes the whole report and
+then exits `1` when the report holds something to review. Under `set -e` that
+ends the script, so allow it — `|| true` in a shell recipe, `continue-on-error`
+in a CI step — and read the code from `run` instead.
+
 ### 7. Approve what you meant
 
 ```bash
@@ -268,7 +273,13 @@ export default routeCollector({
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
 resolved. For static output, replace `sitemap` with `directory: './build'`; the
-collector serves it locally and creates one subject per `.html` file.
+collector serves it locally and creates one subject per `.html` file. Ids carry
+no extension and `index.html` resolves to its directory, so `cart/empty.html` is
+the subject `cart/empty` and `about/index.html` is `about` — the name you type
+back at `--subjects` and `variance accept`. The root `index.html` has no
+directory above it to be named after, so its id is `/`. Two files that would
+answer to one id — `cart/empty.html` beside `cart/empty/index.html` — are
+refused by name rather than resolved.
 
 A page dropped from the sitemap or the build stops being watched with no config
 diff to approve. The run still reports it by id — the baseline store holds an

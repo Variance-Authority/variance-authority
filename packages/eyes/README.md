@@ -84,12 +84,20 @@ Skip this step and everything below still works — every journal then carries a
 rendered nothing.
 
 **3. Watch `screen` for the span of each test and publish the journal.**
-`watchTest` pairs one log with the runner's test identity; its `close` returns
-the journal that `recordEyesTest` writes to disk.
+`watchTest` pairs one log with the test identity you give it; its `close`
+returns the journal that `recordEyesTest` writes to disk.
+
+The id below is the test's **coordinate** — its project-relative file, then its
+describe path and name, joined by ` > `. That is the id
+[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
+gives the same case in its execution index, and `variance distill` joins the two
+recordings on exact id and guesses nothing. Use the runner's own `task.id` and
+the journal still archives, but nothing will join to it.
 
 ```ts
 // vitest.setup.eyes.ts
 import { screen } from '@testing-library/react';
+import { getNames } from '@vitest/runner/utils';
 import { recordEyesTest } from '@variance-authority/eyes/collect';
 import { watchTest } from '@variance-authority/eyes/rtl';
 import { afterEach, beforeEach } from 'vitest';
@@ -97,13 +105,19 @@ import { afterEach, beforeEach } from 'vitest';
 let attention: ReturnType<typeof watchTest>;
 
 beforeEach(({ task }) => {
-  attention = watchTest(screen, { id: task.id, title: task.name, file: task.file?.name });
+  const file = task.file?.name ?? '';              // project-relative, as Sense records it
+  const name = getNames(task).slice(1).join(' > '); // describe path, then the test name
+  attention = watchTest(screen, { id: `${file} > ${name}`, title: task.name, file });
 });
 
 afterEach(async () => {
   await recordEyesTest('.variance/eyes', attention.close());
 });
 ```
+
+Two cases in one file may carry the same coordinate. Sense numbers the repeat —
+the second is `<coordinate>#1` — so give a deliberate duplicate a name of its
+own rather than matching that suffix by hand.
 
 **4. Clear the directory when the run starts, fold it when the run ends.** A run
 spreads tests over worker processes, so no object in memory holds what the run
@@ -313,10 +327,14 @@ reads and installs that same bundle.
 throws rather than replacing the first — a duplicate id makes the earlier test
 invisible to the archive while every process reports success.
 
-The consequence to plan for: runner test ids are stable across retries, so a
-retried test throws in its own teardown when it tries to publish a second time.
-Run with retries disabled, or give `recordEyesTest` an id that includes the
-attempt.
+The consequence to plan for: a test id is stable across retries, so a retried
+test throws in its own teardown when it tries to publish a second time. Run with
+retries disabled, or give `recordEyesTest` an id that includes the attempt.
+
+An id has two jobs, and the second is easy to miss: it must be unique within one
+run, and — where the journal will be read beside a Sense execution index — it
+must be the coordinate Sense keys the same case by. Adding an attempt number
+satisfies the first and breaks the second.
 
 `EYES_JOURNAL_SUFFIX` (`.va-eyes.json`) is what tells a journal apart from
 anything else in the directory; `resetEyesJournals` deletes only files carrying

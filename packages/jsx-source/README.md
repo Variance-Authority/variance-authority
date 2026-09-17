@@ -139,7 +139,7 @@ Vite is three build tools at once: the same plugin serves a Vite application,
 Storybook's React builder, and Vitest.
 
 For a built Storybook, that goes in `viteFinal`. This is the configuration this
-repository's own Storybook case is built with, on Vite 7 and below:
+repository's own Storybook case is built with, on Vite 8:
 
 ```js
 // .storybook/main.js
@@ -151,20 +151,28 @@ export default {
   viteFinal: async (config) => ({
     ...config,
     plugins: [...(config.plugins ?? []), jsxSource()],
-    esbuild: {
-      ...config.esbuild,
-      jsx: 'automatic',
-      jsxDev: true,
-      // Minification renames functions, and React reads a component's display
-      // name off the function — without this a report names `a`, not `Button`.
-      keepNames: true,
+    // Automatic development JSX is what carries each element's file and line.
+    oxc: { ...config.oxc, jsx: { runtime: 'automatic', development: true } },
+    build: {
+      ...config.build,
+      rolldownOptions: {
+        ...config.build?.rolldownOptions,
+        // Minification renames functions, and React reads a component's display
+        // name off the function — without this a report names `a`, not `Button`.
+        output: { ...config.build?.rolldownOptions?.output, keepNames: true },
+      },
     },
   }),
 };
 ```
 
-On Vite 8 the same three go in an `oxc` block, as `jsx: { runtime: 'automatic',
-development: true }` and `keepNames: true`.
+The two settings sit in two sections because they belong to two tools: `oxc`
+configures the transform, `keepNames` is a Rolldown output option and has no
+effect inside the `oxc` block. On Vite 7 and below all three go under `esbuild`
+instead, as `jsx: 'automatic'`, `jsxDev: true` and `keepNames: true`. Either
+major accepts the other's key in silence and builds without it taking effect, so
+a report that names `a` rather than `Button` is the first sign the config landed
+in the wrong section.
 
 Jest has no plugin hook that can answer a module request, so it gets a resolver
 instead. Its transformer must also emit automatic development JSX; the resolver

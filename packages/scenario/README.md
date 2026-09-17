@@ -37,9 +37,10 @@ Two terms this project uses throughout:
 
 ## Requirements
 
-Node 22 or newer, and an ESM project — this package ships ESM only and has no
-CommonJS build. It has no framework, runner or browser peer: it never touches
-the DOM.
+Node 22 or newer, and an ESM project: set `"type": "module"` in your
+package.json, because this package ships ESM only and has no CommonJS build.
+`npm init -y` will not do that for you. The package has no framework, runner or
+browser peer: it never touches the DOM.
 
 Its one dependency is `@variance-authority/core`, which supplies the
 `SemanticSnapshot` type and the comparison. The example below imports from it
@@ -51,7 +52,9 @@ directly, so install both.
 npm install --save-dev @variance-authority/scenario @variance-authority/core
 ```
 
-The file below is complete — save it as `scenario-demo.ts` and run it. The
+The file below is complete. Save it as `scenario-demo.ts` and run
+`node scenario-demo.ts` — Node 22.18 and newer strip the type annotations
+themselves, so no `tsx` or `ts-node` loader is involved. The
 `snapshot` helper stands in for your collector: in a real suite each
 `SemanticSnapshot` is a normalized capture of a rendered subject that a collector
 takes and `@variance-authority/core` normalizes. This package never produces one.
@@ -254,7 +257,8 @@ frames you already recorded into a graph.
 The root entrypoint holds everything in memory and performs no I/O, so dropping
 the value drops the recording. Import `createScenarioArchive` from
 `@variance-authority/scenario/archive` when the evidence has to survive the
-process. Continuing `scenario-demo.ts` again:
+process. Continuing `scenario-demo.ts` again — `await` at the top level needs no
+wrapper, since the file is a module:
 
 ```ts
 import { createScenarioArchive } from '@variance-authority/scenario/archive';

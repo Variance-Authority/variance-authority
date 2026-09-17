@@ -44,6 +44,7 @@ implementations this repository ships:
 | A durable `RasterStore` | `@variance-authority/store` | `createDurableStore` from `@variance-authority/store/durable` |
 | An in-memory `RasterStore` | `@variance-authority/raster` | `createEphemeralStore` |
 | A `RenderDocument` | `@variance-authority/dom` | `acquireDocument`, run inside the page |
+| The digest of a `RenderDocument` | `@variance-authority/core` | `documentDigest` from `@variance-authority/core/format` |
 | A `SemanticSnapshot` | `@variance-authority/core` | `normalize` from `@variance-authority/core/rules`, over `collect` from `@variance-authority/dom` |
 
 Any object satisfying the `Renderer` or `RasterStore` interface works; none of
@@ -184,9 +185,21 @@ render identity — promoting it means reading it back and calling
 `store.put(key, raster)`. The `Observation` does not hand you that raster; it
 reports, it does not carry the image.
 
-The lookup asks under `renderer.identityFor(document)`. A baseline found under
-any other identity comes back `incomparable`; it is never diffed and blamed on
-the subject.
+Both halves of that key are functions over the same `RenderDocument`. The
+digest is `documentDigest`, from `@variance-authority/core/format`:
+
+```js
+import { documentDigest } from '@variance-authority/core/format';
+
+const candidate = await store.renderCache.get(
+  documentDigest(document),
+  renderer.identityFor(document),
+);
+```
+
+The baseline lookup asks under `renderer.identityFor(document)`. A baseline
+found under any other identity comes back `incomparable`; it is never diffed and
+blamed on the subject.
 
 ## Choose the entrypoint
 

@@ -77,8 +77,8 @@ test('the cart survives an empty basket', async ({ page }, testInfo) => {
 and can ask for again — one Storybook story, one route at one viewport, one
 component mounted in a test — captured and compared under an id you choose. The
 first run reports `new`, because no baseline has been approved for that id yet;
-promote that image and the next run reports `unchanged`. Nothing accepts a first
-baseline on your behalf.
+promote that image with `npx playwright test --update-snapshots=all` and the next
+run reports `unchanged`. Nothing accepts a first baseline on your behalf.
 
 The test keeps its own runner, navigation, fixtures, and existing assertions.
 [`@variance-authority/playwright-test`](packages/playwright-test/README.md)
@@ -100,6 +100,10 @@ replace its test runner, fixtures, routing, or mounting.
 
 To drive the whole loop from a config file instead of from inside a test, use
 [`@variance-authority/cli`](packages/cli):
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
 
 ```bash
 npx variance run --config variance.config.json

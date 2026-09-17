@@ -45,9 +45,7 @@ needs, and a component can influence the result without being directly used.
 Distill identifies candidates; the confirming run establishes which ones can go.
 
 Replace `<recorded-test-id>` below with the `id` of an entry in the evidence
-file's `tests` array. With both files supplied, Eyes and execution evidence must
-use the same ID for Distill to connect them. A test file path works only when
-the recording uses that path as its ID.
+file's `tests` array.
 
 ```bash
 variance distill \
@@ -63,6 +61,65 @@ With execution evidence alone, supply the recorded ID.
 
 The command is deterministic. The same inputs produce the same ordering and
 the same answer; it does not open a browser, run a test, or edit source.
+
+## Both recordings must key the test the same way
+
+With both files supplied, Distill joins them on **exact id**. It does not fall
+back to a title or a file, because a title is not unique and a file holds many
+cases, and a guessed join would put one test's attention beside another's
+execution.
+
+[Sense](../packages/sense/README.md) keys a case by its coordinate: the
+project-relative test file, then the describe path and the test name, joined by
+` > `.
+
+```text
+test/checkout.test.tsx > checkout > submits
+```
+
+So that is the id to give [Eyes](eyes.md) when you open each test's journal. The
+per-test hook in the
+[distill README](../packages/distill/README.md#both-halves-must-use-the-same-test-id)
+builds it. A runner's own positional id — `875862714_0` — is unique within the
+run and archives without complaint, but matches nothing in the execution index:
+
+```text
+Runtime journey: supplied, but it contains no test with exact id 875862714_0.
+No title or file join was guessed.
+```
+
+The refusal goes on to list a few of the ids the index does hold, so the two
+shapes can be compared where the failure appears. Two cases in one file that
+share a coordinate are numbered, the second as `<coordinate>#1`.
+
+## Both recordings must name source from the same root
+
+Eyes names a component's source with the path the bundler handed over, which is
+absolute. Sense names an entered module relative to the project root. Distill
+brings the two to one shape against `--root`, which defaults to the directory
+you run it in. Pass `--root <path>` when you run it from somewhere else:
+
+```bash
+variance distill --test '<recorded-test-id>' \
+  --eyes .variance/eyes.json \
+  --execution .variance/execution.json \
+  --root /path/to/project
+```
+
+When the root cannot reconcile the two — no addressed source file matches any
+entered module — you get no opportunity list at all:
+
+```text
+Distillation opportunities: unavailable; none of the 1 addressed source file(s)
+matched any of the 12 entered module(s) under root /path/to/project.
+```
+
+Comparing paths that disagree in shape would report every entered file as an
+opportunity, including the component the test addressed, so the reading names
+what it could not establish instead. Where only some addressed files fail to
+match, the list stands and the leftovers are printed under **Addressed source
+this run never entered** — usually a module nothing instrumented, and otherwise
+the same root mismatch showing in part.
 
 ## The three readings
 

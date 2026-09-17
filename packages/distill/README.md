@@ -83,6 +83,27 @@ npm install --save-dev @variance-authority/eyes @variance-authority/react @testi
 ```
 
 ```ts
+// vitest.setup.eyes.ts
+import { screen } from '@testing-library/react';
+import { getNames } from '@vitest/runner/utils';
+import { recordEyesTest } from '@variance-authority/eyes/collect';
+import { watchTest } from '@variance-authority/eyes/rtl';
+import { afterEach, beforeEach } from 'vitest';
+
+let attention: ReturnType<typeof watchTest>;
+
+beforeEach(({ task }) => {
+  const file = task.file?.name ?? '';              // project-relative, as Sense records it
+  const name = getNames(task).slice(1).join(' > '); // describe path, then the test name
+  attention = watchTest(screen, { id: `${file} > ${name}`, title: task.name, file });
+});
+
+afterEach(async () => {
+  await recordEyesTest('.variance/eyes', attention.close());
+});
+```
+
+```ts
 // vitest.globalSetup.eyes.ts
 import { gatherEyesArchive, resetEyesJournals, writeEyesArchive }
   from '@variance-authority/eyes/collect';
@@ -96,9 +117,34 @@ export async function teardown(): Promise<void> {
 }
 ```
 
-That is two of the four pieces Eyes needs; the per-test hook and the runner
+That is three of the four pieces Eyes needs; the React commit tap and the runner
 wiring are in the
 [Eyes README](https://variance-authority.dev/reference/packages/eyes).
+
+### Both halves must use the same test id
+
+`distill` joins the two files on **exact id** and guesses nothing — not by
+title, not by file. So the id you hand `watchTest` is the one decision that
+makes the two recordings one reading.
+
+Sense keys a case by its coordinate: the project-relative test file, then the
+describe path and the test name, joined by ` > `.
+
+```text
+test/checkout.test.tsx > checkout > submits
+```
+
+The `beforeEach` above builds that string, which is why it uses `getNames`
+rather than the runner's `task.id`. A positional id such as `875862714_0` is
+unique and archives fine; it simply matches nothing in the execution index, and
+you get:
+
+```text
+Runtime journey: supplied, but it contains no test with exact id 875862714_0.
+```
+
+The refusal lists a few of the ids the index does hold, so the mismatch is
+visible in the output rather than something to go and reconstruct.
 
 ### Arrange, Act and Assert are read, not guessed
 
@@ -164,7 +210,7 @@ text also closes with a substitution rule and an opportunity rule restating that
 neither finding is permission to delete anything:
 
 ```text
-checkout submits — test/checkout.test.tsx [checkout-submits]
+checkout submits — test/checkout.test.tsx [test/checkout.test.tsx > checkout submits]
 Eyes journal: complete.
 2 target snapshot(s); 0 had no live React Fiber.
 

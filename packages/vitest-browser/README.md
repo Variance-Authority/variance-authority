@@ -21,7 +21,7 @@ the last image of it that a person approved.
 
 ```tsx
 test('save button, disabled', async () => {
-  const screen = render(<SaveButton disabled />);
+  const screen = await render(<SaveButton disabled />);
   await expect.element(screen.getByRole('button')).toBeVisible();
 
   assertUnchanged(await variance(screen.container, { subjectId: 'save-button/disabled' }));
@@ -31,21 +31,11 @@ test('save button, disabled', async () => {
 Your existing `toHaveScreenshot` assertions keep working. This does not replace
 them and does not read their baselines.
 
-## Where the package comes from
-
-It is not on the npm registry. Every package it depends on is published;
-this one is not, so `npm install @variance-authority/vitest-browser` fails. Use
-it from a clone of the repository, where it builds and resolves as a workspace
-package:
+## Install
 
 ```bash
-git clone https://github.com/Variance-Authority/variance-authority.git
-cd variance-authority
-yarn install
-yarn build
+npm install --save-dev @variance-authority/vitest-browser
 ```
-
-Everything below describes the package as it behaves once resolved.
 
 ## What you need in place
 
@@ -57,6 +47,24 @@ package install:
 
 ```bash
 npx playwright install chromium
+```
+
+Vitest 4 and newer take their browser provider as a value, from a package of its
+own:
+
+```bash
+npm install --save-dev @vitest/browser-playwright
+```
+
+On Vitest 3 the provider is the string `'playwright'` and comes from
+`@vitest/browser`; both are inside this package's peer range.
+
+The line each changed region is reported at is carried by a second plugin, which
+makes `react/jsx-dev-runtime` resolve to a runtime that keeps the location the
+JSX transform already computed:
+
+```bash
+npm install --save-dev @variance-authority/jsx-source
 ```
 
 The example below also uses `vitest-browser-react` to mount
@@ -75,27 +83,37 @@ Vitest's command protocol carries the reading out to the Vitest process, and
 the plugin you have to add.
 
 ```ts
-// vitest.config.ts
+// vitest.config.mts
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { playwright } from '@vitest/browser-playwright';
+import { jsxSource } from '@variance-authority/jsx-source/vite';
 import { variancePlugin } from '@variance-authority/vitest-browser/node';
 
 export default defineConfig({
-  plugins: [react(), variancePlugin({ baselines: '.variance/baselines' })],
+  plugins: [jsxSource(), react(), variancePlugin({ baselines: '.variance/baselines' })],
   test: {
     browser: {
       enabled: true,
-      provider: 'playwright',
+      provider: playwright(),
       instances: [{ browser: 'chromium' }],
     },
   },
 });
 ```
 
+The `.mts` extension is what lets a config that is ESM load in a package that is
+not `"type": "module"`; a package that is may spell the file `vitest.config.ts`.
+
 `baselines` defaults to `.variance/baselines`; the line above is the default
 written out. The plugin contributes only the command registration and a hook
 that closes the browser at the end of the run, so its position in `plugins` does
-not matter.
+not matter, and neither does `jsxSource()`'s — it declares itself a `pre` plugin,
+which is what puts it ahead of Vite's own resolver for `react/jsx-dev-runtime`.
+
+Browser mode serves your components through the dev server, unminified and with
+the development JSX transform already on, so nothing else has to be configured
+for a region to name a component and a line.
 
 | option | default | what it decides |
 |---|---|---|
@@ -116,12 +134,16 @@ import { assertUnchanged, variance } from '@variance-authority/vitest-browser';
 import { SaveButton } from './SaveButton';
 
 test('save button, disabled', async () => {
-  const screen = render(<SaveButton disabled />);
+  const screen = await render(<SaveButton disabled />);
   await expect.element(screen.getByRole('button')).toBeVisible();
 
   assertUnchanged(await variance(screen.container, { subjectId: 'save-button/disabled' }));
 });
 ```
+
+`render` resolves to the mount rather than returning it, so the `await` is load
+bearing: without it `screen` is a promise and `screen.getByRole` is not a
+function.
 
 `screen.container` is `vitest-browser-react`'s root element for the mount. If
 your binding does not expose one, pass a locator: `variance` accepts any DOM
@@ -154,16 +176,19 @@ The first run has nothing to compare against, so the assertion fails with:
 save-button/disabled: new — no baseline for `save-button/disabled` under this renderer; nothing to compare against
 ```
 
-Approving is the same gesture as approving the snapshots in the same suite:
+Approve with the flag you already type for the snapshots in the same suite:
 
 ```bash
 npx vitest run -u
 ```
 
 That promotes the image this run already painted rather than painting a second
-one, so the bytes that became the baseline are the bytes the run produced. Open
-the PNG it wrote under `.variance/baselines` before you commit it — that review
-is the approval. Run the suite again and the subject reports `unchanged`.
+one, so the bytes that became the baseline are the bytes the run produced. The
+run it wrote during still fails and still exits non-zero: the assertion had
+already reached its verdict on a subject with no baseline, and writing one
+afterwards does not turn that verdict into a pass. Open the PNG it wrote under
+`.variance/baselines` before you commit it — that review is the approval. Run the
+suite again and the subject reports `unchanged`.
 
 Set `accept: false` on the plugin to hold baselines out of `--update`
 altogether, or `accept: true` for a job whose whole purpose is to write them.
@@ -189,22 +214,27 @@ every edit and is worth nothing after the next one.
 
 There is no HTML report on this path — the message is the report. It opens with
 the subject, the verdict and the sentence explaining it, then lists each changed
-region with the component that drew it and the `file:line` it was written at:
+region with the component that drew it, the element it landed in, and the
+`file:line` that element was written at:
 
 ```
 save-button/disabled: changed — 612 pixels differ across 2 regions in Stack, Toggle
 2 region(s), ordered by area — no causes were supplied, so this
 ordering measures displacement rather than blame:
   511px — Stack
+      in button "Save"
       src/app/cart.tsx:18
   101px — Toggle
+      in checkbox "Gift wrap"
       src/app/cart.tsx:42
 ```
 
 The ordering caveat is printed because it is true: area measures displacement,
 so a container pushed by an edit can outrank the edit itself. Regions with no
-component behind them are printed as coordinates and marked unattributed. Paths
-are made relative to `sourceRoot` when you pass one.
+component behind them are printed as coordinates and marked unattributed. The
+`file:line` row is what `@variance-authority/jsx-source` buys; without that
+plugin the component and the element are still named and the row is absent.
+Paths are absolute, and are made relative to `sourceRoot` when you pass one.
 
 The images are files. The approved baseline is the `.png` under the baseline
 directory, beside a `.json` recording what painted it; the candidate this run
@@ -242,7 +272,7 @@ The observation carries these fields:
 | `verdict` | one of the five above |
 | `because` | one sentence saying what happened and why it has that verdict |
 | `message` | the whole formatted failure, regions included — what `assertUnchanged` throws |
-| `regions` | changed regions, each with its component, `file:line`, box, pixel count and fingerprint where it has one |
+| `regions` | changed regions, each with its component, the element it landed in, `file:line`, box, pixel count and fingerprint where it has one |
 | `rendered` | `false` when the image came from the cache rather than from a paint |
 | `missingFonts` | families the document declared that the renderer did not have |
 | `signals` | the document and the pixels as separately observed boundaries, plus the accessibility diff when one was read |

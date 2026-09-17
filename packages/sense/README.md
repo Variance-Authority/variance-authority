@@ -1104,6 +1104,21 @@ const index = JSON.parse(await readFile('.variance-authority/cases.json', 'utf8'
 const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
 ```
 
+Each entry in `index.tests` is keyed by the case's **coordinate**: the
+project-relative test file, then the describe path and the test name, joined by
+` > `.
+
+```text
+test/checkout.test.tsx > checkout > submits
+```
+
+A name is the coordinate, so the identity is the name and not the runner's
+positional id, which moves the moment a case is inserted above it. Two cases in
+one file may share a coordinate; the repeat is numbered, so the second reads
+`<coordinate>#1`. Any other producer of an `ExecutionIndex` — and anything
+joining against one, such as an Eyes journal read by `variance distill` — has to
+key the same test by the same string.
+
 A case owns a crossing when the probe fired inside that case's asynchronous
 scope, not inside a start-and-stop bracket around it. That is what makes the
 answer usable under `test.concurrent` and `describe.concurrent`, where several
