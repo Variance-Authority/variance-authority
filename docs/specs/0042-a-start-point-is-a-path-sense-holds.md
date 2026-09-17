@@ -103,6 +103,10 @@ counts them. Unresolved is widened toward, never dropped on.
   question.** Under the root it becomes the repo-relative path sense holds;
   outside it, it is not found. Matching an absolute path because the run
   recorded it absolutely is a coincidence, and it goes.
+- **A space is a character in a name.** Start points are split on whitespace
+  today, so a real file whose path contains a space is unsayable and comes back
+  *not found* — a false negative about a file that exists, which is the failure
+  this whole rule is against. Say several paths some other way.
 - **`/` is the separator.** Sense's coordinates are repo-relative with forward
   slashes; a backslash is a character in a name, not a separator. Reading
   `src\billing\Card.tsx` as a path is one more inference.
