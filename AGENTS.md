@@ -1,5 +1,26 @@
 # Working on this repository
 
+## Before the first command
+
+Node 22 or newer, and Yarn 4 through Corepack — the root `package.json` pins the
+exact version in `packageManager`. Every command in this file is run from the
+repository root, in a git checkout that has its history: the checks read the
+**index** with `git ls-files`, so a file that is not tracked is a file they
+cannot see.
+
+```bash
+yarn install && yarn build
+```
+
+`build` first, and again after pulling. Nothing here imports another package by
+relative path, so a check asking the CLI what a setting means resolves through
+the manifest's `exports` into `dist/` — the same path a consumer takes. A stale
+`dist/` answers wrongly rather than not at all, which is the expensive failure
+described under **Verifying**.
+
+`yarn test:since` needs one more thing: a recording. `yarn test` writes it, and
+until `yarn test` has run in this checkout there is nothing for it to read.
+
 ## Where writing goes
 
 Each kind of writing has one home and one job. A file that does two jobs is
@@ -46,10 +67,28 @@ written for us, and it is the only place that shape is welcome.
 
 ## Who the reader is, and what they already know
 
-**Read `docs/context/` before writing anything.** The checkpoint says where the
-project stands, the ADRs hold the decisions and what each one cost, the journal
-holds what was tried. A page written without them re-derives a settled decision,
-re-argues one, or contradicts it. They are the first source, not the last resort.
+**Read `docs/context/` before writing anything** — in this order, and stop where
+it says to stop. A page written without it re-derives a settled decision,
+re-argues one, or contradicts it; a page written after sweeping the whole
+directory is a page nobody wrote.
+
+1. [`docs/context/checkpoint.md`](docs/context/checkpoint.md) — where the
+   project stands. One read. It states its own budget: verdicts only, no
+   deliberation.
+2. [`docs/context/README.md`](docs/context/README.md) — what the three
+   directories hold, and the rules they are written under. One read.
+3. Then only the entries your task names or your terms match. There are dozens
+   of ADRs and dozens of journal entries, numbered in the order they were
+   written and in no reading order at all, so search them rather than sweep
+   them:
+
+   ```bash
+   grep -ril "<task terms>" docs/context/adr docs/context/journal
+   ```
+
+   Read matching ADRs before matching journal entries: an ADR constrains the
+   code and a journal entry records one attempt at it. Stop when a match stops
+   changing what you were about to write.
 
 **Write from a senior engineer's baseline.** The reader has shipped software, has
 opinions about build tools, and has been bitten by most of what this project is
@@ -91,11 +130,25 @@ to the project.
   `docs/context/`, name an ADR or journal entry, or depend on private project
   history. State any reasoning the reader needs in the public page itself.
 
+**Public documentation** is an enforced set, not a judgment call:
+`tools/docs-links.check.ts` holds the root `README.md`, every `docs/*.md`, and
+the `README.md` of every package, example and case to the rule above. It refuses
+a link that resolves inside `docs/context/` or `docs/specs/`, and it refuses the
+strings `ADR-0000`, `journal 0000`, `spec 0000` and any bare `docs/context/…`
+path anywhere in one of those files.
+
+Everything else is outside that set and may cite whatever it needs: this file,
+`CONTRIBUTING.md`, `docs/context/**` itself, and `docs/specs/**`. That is why
+the rules below name a journal entry by number and a `docs/` page may not.
+
 Welcome the reader from the system and constraints they already have. Seek to
 understand those choices before presenting another one. Build shared ground,
 state tradeoffs fairly, and show how existing tools can remain in place. A strong
 position should clarify a decision, not manufacture an opponent. Readability is
 better expression of the ideas, not simplification of them.
+
+Apart from the scoping rule above, nothing in this section is checked. It is
+held by review, which is why it reads as direction rather than as rules.
 
 ## The project reports on itself in code
 
@@ -116,12 +169,39 @@ So a status claim is written at the line that owns it:
 | `// FIXME:` | A defect in code that ships and works. |
 | `// TODO:` | A limb that is not written. |
 
+The boundary between `it.todo` and `// TODO:` is mechanical, not a matter of
+taste. An `it.todo` may only live in a file a runner collects — `*.test.*`,
+`*.check.*`, `*.measure.*` — because a todo anywhere else is a function call
+nothing ever makes. So: a gap a runner could state as a sentence goes in the
+collected file that would own it; a gap in a module, a tool or a config is
+`// TODO:` at the line. A todo title is `<the sentence that becomes true> —
+needs <what would make it run>`; the em dash and the word `needs` are the
+checked shape, and a title like "not implemented" fails.
+
 ```bash
 yarn unrun
 ```
 
 prints every marker, grouped, with `file:line` — the self-report, generated from
-source, so it cannot disagree with the code. `tools/unrun.check.ts` keeps the
+source, so it cannot disagree with the code:
+
+```
+unrun: 57 gaps in 46 files
+
+  todo   a claim that would hold if something ran
+  TODO   a limb that is not written
+  FIXME  a defect in code that ships
+
+@variance-authority/case-storybook
+  cases/storybook-case/src/cli.chromium.test.js:409  todo
+      a `run` over an unmodified build records a quiet run, so `Button`'s churn over the
+      window divides by every run recorded rather than only by the runs it moved in — spec
+      0002 acceptance 3, needs this case pointed at a running
+      `@variance-authority/server`
+```
+
+It has no build step and no dependency, so it reports on a project that does not
+compile. `tools/unrun.check.ts` keeps the
 markers well-formed and the discovery non-vacuous. `yarn test` reports the todo
 count in its own summary line; vitest's default reporter prints no titles for
 todo or skipped tests, which is why the printer exists.
@@ -151,11 +231,34 @@ capability — search the chart first:
 python3 ~/.agents/skills/compass/scripts/compass_search.py --chart-root .compass "<task terms>"
 ```
 
+It prints the matched sections with their heading, file and line range, and says
+which of your terms the chart names:
+
+```
+Found 10 section(s): 1 direct, 9 BM25-related. BM25 is a lexical ranking signal, not confidence or semantic proof.
+Named by a chart heading, slug, or identifier: flake. Named nowhere in the chart: detection.
+[1] variance-authority/GLOSSARY.md:562-572
+    kind=glossary signal=exact term='flake' bm25=8.1512
+    heading=Glossary — variance-authority > Flake
+```
+
 Consult the matched owning sections, then follow the skill's Consume route
 through every chart level present; BM25-related results are leads, not semantic
 proof. For a one-file fix, a rename, or a bug with a stack trace pointing at the
-line, read the code. Consume never authorizes a chart edit: changing the chart,
-a coordinate, or this section is a Create task with its own authority.
+line, read the code.
+
+The skill's two routes are exclusive. **Consume** reads an existing chart and
+applies it to work done elsewhere. **Create** establishes or changes
+chart-owned state — a chart file, a coordinate, a boundary, this section. Never
+drift from one into the other: Consume never authorizes a chart edit, and a
+Consume task that finds the chart missing, stale or disputed records the finding
+and stops there.
+
+If `~/.agents/skills/compass` is not installed, the chart is still readable
+without it and the work is Consume-only until it is: [`.compass/COMPASS.md`](.compass/COMPASS.md)
+is the registry, [`.compass/README.md`](.compass/README.md) states the scope, and
+every architectural directory's own `README.md` is its identity document. Replace
+the search with `grep -ril "<task terms>" .compass`.
 
 - A source file carries `// compass: <address>` at its top. The address resolves
   in the chart and locates the implementation; it does not define the boundary.
@@ -182,8 +285,10 @@ a coordinate, or this section is a Create task with its own authority.
   `tools/docs-exercised.check.ts`. Documented and unexercised is how a second
   implementation of a shipped behaviour survives — `summarizeObservation` was
   exported, documented, called by nothing, and drifting from the private copy
-  `playwright-test` had grown for the same job. `EXERCISE_DEBT` is a per-package
-  budget that may only shrink, on the same terms as `OPTION_DEBT`.
+  `playwright-test` had grown for the same job. The rule is deliberately
+  shallow — it asks whether a test *names* the export, not whether the test is
+  about it — and it has no budget and no exemption list: a documented export
+  nothing names is answered with a test or with a deletion.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a
@@ -212,7 +317,9 @@ a coordinate, or this section is a Create task with its own authority.
 yarn build && yarn verify
 ```
 
-`verify` includes the documentation checks in `tools/`: every link resolves,
+`verify` is `yarn lint && yarn check && yarn measure && yarn test`, in that
+order. `check` is the `tools/*.check.ts` suite, which includes the documentation
+checks: every link resolves,
 every path named in prose exists, every `file:line` lands where it says, stated
 counts are the counts, and the CLI command lists match the binary's own table.
 It also runs `yarn measure`, the `*.measure.ts` files that gate on what the
@@ -232,9 +339,25 @@ yarn test:since --help             # every flag, and the loop below
 
 It narrows only where it has a measurement. A changed path the snapshot holds no
 row for — an untracked file, a fixture, a page-side module that cannot carry a
-probe — runs everything and names the path that caused it. So a green
-`test:since` is a smaller claim than a green `verify`: use it in the loop, and
-report against the gate.
+probe — runs everything and names the path that caused it:
+
+```
+test:since: running the whole suite — the snapshot has no measurement of packages/core/README.md and 30 other path(s), so it cannot say who entered it.
+  429 files
+```
+
+So a green `test:since` is a smaller claim than a green `verify`: use it in the
+loop, and report against the gate.
+
+The recording is not in the checkout and is not in git. It sits under
+`$XDG_CACHE_HOME`, or `~/.cache` when that is unset, in
+`variance-authority/test-selection/`, in a directory keyed by a digest of this
+checkout's absolute path — a worktree's own under `.work/`, layered over the
+primary checkout's, which it reads and never writes. Every `yarn test` folds its
+run into it; that is the whole of the invalidation. Nothing expires and nothing
+is checked for age, so an answer the snapshot gets wrong stays wrong until a run
+replaces it. To force a cold recording, delete that directory and run
+`yarn test`.
 
 **Run the near end first.** Every selected test also carries its distance from
 the change — the number of imports between them, counted through the modules
@@ -251,9 +374,20 @@ yarn verify                         # the gate, and the only green that counts
 whose nearest test is five hops out answers it with nothing, which is the true
 answer. Start at `0` — that is a test whose own source you just edited. The
 overlap at two hops is deliberate: it reconnects the wider run to the boundary
-the edit loop already exercised. Tests with no measurable distance run with the
-leg that reaches the end, so `0-2` then `3-` runs every selected file exactly
-once, and every run prints the files a leg left behind.
+the edit loop already exercised.
+
+**That loop is not a partition, and does not try to be.** `2-4` leaves anything
+five hops or further out, and every test the reading could not place, to
+`yarn verify` — which is the gate, and runs them. When you do want a partition,
+it is `0-2` then `3-`: a leg whose range is open at the top carries the tests
+with no measurable distance, so those two legs together run every selected file
+exactly once. Either way, every run prints the files the leg it took left
+behind.
+
+`--at-distance` narrows a reading; it cannot narrow a widening. When a changed
+path has no measurement the run is the whole suite and the flag is never
+consulted — the message above is the whole output, and no leg of the loop is a
+shorter run than `yarn test` until the recording covers what you changed.
 
 Two findings arrive whether or not anything failed: an import that reached past
 a directory's own entry point, and a test the change entered by no route it

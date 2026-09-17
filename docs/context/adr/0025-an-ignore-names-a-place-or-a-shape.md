@@ -46,7 +46,7 @@ shape-scoped rule is copying a digest out of a report rather than deriving one.
 **A rectangle is refused.** It is the form every competing product offers and the
 one that stops covering the thing it was drawn around the first time the layout
 moves. The case that would justify one — an imported foreign PNG with no document
-behind it — is [not something this project accepts](../../../README.md#scope-and-non-goals),
+behind it — is [not something this project accepts](../../../README.md#where-it-fits),
 and a field with no correct use is a field that gets used.
 
 **A band on its own is refused.** `bands` narrows a rule that already names a

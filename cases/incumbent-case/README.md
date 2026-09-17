@@ -1,11 +1,13 @@
 # incumbent-case
 
-**Showcase:** advanced replacement comparison, not ordinary visual regression.
-It exercises a real screenshot incumbent and the semantic questions a PNG
-cannot answer.
+**[Variance Authority](../../README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source — the component that
+drew the pixels and the `file:line` it was written at.
 
-**A real `toHaveScreenshot`, run by a real `playwright test`, on the same page we
-read.**
+This case puts it head to head with the screenshot tool most teams already have:
+a real `toHaveScreenshot`, run by a real `playwright test`, on the same page
+Variance Authority reads.
 
 Not our model of a competitor. `@playwright/test` is installed here, its runner
 executes [`src/incumbent.spec.ts`](src/incumbent.spec.ts) in its own process, and
@@ -19,13 +21,24 @@ measures the reimplementation — the same objection
 the only arrangement in which we can be **wrong** is the one where the other side
 is real.
 
-**What it proves:** the comparison scoreboard, render-only inspection, baseline
-migration, and locale layout results come from the incumbent's runner and from
-the same page our arm reads.
+Run it and you see four things printed: a scoreboard over eight declared edits, a
+render-only inspection, a migration read straight off the baselines Playwright
+recorded, and a locale layout comparison. Every number in them comes from the
+incumbent's own runner and from the same page Variance Authority reads.
 
-**Boundary:** eight declared scenarios on one Mac and one Chromium. It says
-nothing about a hosted review product, a browser fleet, or a representative
-win rate.
+The scope is eight declared scenarios on one Mac and one Chromium. It says
+nothing about a hosted review product, a browser fleet, or a representative win
+rate.
+
+### The two sides, and what they are called here
+
+- **the incumbent** — `@playwright/test`'s `toHaveScreenshot`, run in two
+  configurations: `defaults` (shipped settings, any differing pixel fails) and
+  `tolerant` (`maxDiffPixelRatio: 0.01`).
+- **ours** — Variance Authority, reading the same page in the same browser.
+
+A **subject** is one named UI state you asked for and can ask for again — here,
+one panel at one 420×312 clip — captured and compared under an id you choose.
 
 ## Why this incumbent
 
@@ -42,15 +55,17 @@ about them, and [`../README.md`](../README.md) says so plainly.
 
 ## Running it
 
-```bash
-npx playwright install chromium
-```
+You need a checkout of this repository, `yarn install`, and Chromium. Everything
+below is run **from the repository root**. The package is `private`, part of the
+workspace, and not published.
 
 ```bash
+npx playwright install chromium
 yarn workspace @variance-authority/case-incumbent incumbent
 ```
 
-That builds the page bundle and runs the incumbent in the two phases a team runs
+The `incumbent` script ([`scripts/incumbent.mjs`](scripts/incumbent.mjs)) builds
+the page bundle with esbuild and runs the incumbent in the two phases a team runs
 it in — record on the trunk, compare on the branch:
 
 ```
@@ -58,19 +73,37 @@ CASE_VARIANT=before playwright test --update-snapshots
 CASE_VARIANT=after  playwright test
 ```
 
-The second phase **exits non-zero, and is supposed to**. Then:
+The second phase **exits non-zero, and is supposed to**: seven of the sixteen
+runs (eight scenarios × two configurations) are meant to fail. It leaves its
+report at `incumbent/results.json` and its baselines under `incumbent/baselines/`,
+neither of which is committed. Then, still from the repository root:
 
 ```bash
 yarn vitest run cases/incumbent-case/src/replacement.chromium.test.ts
+yarn vitest run cases/incumbent-case/src/migration.chromium.test.ts
+yarn vitest run cases/incumbent-case/src/locale.chromium.test.ts
 ```
 
-Both arms are skipped loudly, with the command attached, when the browser or the
-incumbent's report is missing. A silently skipped head-to-head reads in a summary
-exactly like one that ran and agreed.
+The first two read that report; the third asks a question of one render and needs
+only the bundle and the browser. All three skip loudly, with the command
+attached, when the browser, the bundle or the incumbent's report is missing, or
+when the bundle is older than its sources. A silently skipped head-to-head reads
+in a summary exactly like one that ran and agreed.
+
+The other files in this directory: [`src/scenarios.ts`](src/scenarios.ts) (the
+corpus, declared before either side ran), [`src/surface.tsx`](src/surface.tsx)
+(the one component tree every variant is a prop on),
+[`src/incumbent.spec.ts`](src/incumbent.spec.ts) (what Playwright's runner
+executes), [`src/incumbent-report.ts`](src/incumbent-report.ts) (the reader for
+`results.json`), [`src/replacement-arm.ts`](src/replacement-arm.ts) and
+[`src/page-agent.ts`](src/page-agent.ts) (our side of the run),
+[`page/case.html`](page/case.html), and
+[`playwright.config.ts`](playwright.config.ts), which declares the two
+configurations as two Playwright projects.
 
 ## One page, one clip, one mount
 
-Both arms navigate to [`page/case.html`](page/case.html) over `file://` and
+Both sides navigate to [`page/case.html`](page/case.html) over `file://` and
 observe `#subject`. The incumbent screenshots it; we screenshot it too, and then
 keep reading.
 
@@ -89,8 +122,8 @@ they ship.
 
 Ground truth is **not** *"did the image change"*. It is *must a reviewer be
 told?*, declared with its argument in [`src/scenarios.ts`](src/scenarios.ts)
-before either arm ran. Those two questions come apart in both directions, and
-every row where they do is a row where one arm is wrong.
+before either side ran. Those two questions come apart in both directions, and
+every row where they do is a row where one of the two tools is wrong.
 
 | scenario | the edit | must a reviewer be told? |
 |---|---|---|
@@ -105,7 +138,8 @@ every row where they do is a row where one arm is wrong.
 
 ## The scoreboard
 
-Measured on one Mac, one Chromium, at a 420×312 clip.
+Printed by `replacement.chromium.test.ts`, verbatim, on one Mac and one Chromium
+at a 420×312 clip:
 
 ```
 scenario            ground truth  incumbent (defaults)  incumbent (tolerant)  ours         and we name
@@ -119,10 +153,36 @@ row-added           regression    hit                   hit                   hi
 unseen-subject      no defect     deferral              deferral              deferral     no baseline
 note-reindented     no defect     hold                  hold                  false alarm  Note
 
-  incumbent (defaults)  3 hit, 3 miss, 1 hold, 1 deferral
-  incumbent (tolerant)  2 hit, 4 miss, 1 hold, 1 deferral
-  ours                  6 hit, 1 false alarm, 1 deferral
+  incumbent (defaults)  1 deferral, 3 hit, 1 hold, 3 miss
+  incumbent (tolerant)  1 deferral, 2 hit, 1 hold, 4 miss
+  ours                  1 deferral, 1 false alarm, 6 hit
+
+--- and what an editor can open
+  IconButton src/surface.tsx:163
+  Heading src/surface.tsx:153
+  RowAction src/surface.tsx:237
+  Indicator src/surface.tsx:192
+  Panel src/surface.tsx:339
+  Toolbar src/surface.tsx:219
+  Total src/surface.tsx:323
+  Note src/surface.tsx:307
+  Row src/surface.tsx:249
 ```
+
+The five marks are scored from the ground truth and what the tool said, never
+declared:
+
+| mark | ground truth | what it said |
+|---|---|---|
+| `hit` | regression | told the reviewer — correctly red |
+| `miss` | regression | said nothing — the build is green and the defect ships |
+| `hold` | no defect | said nothing — correctly quiet |
+| `false alarm` | no defect | told the reviewer anyway |
+| `deferral` | either | no baseline existed, and it said so instead of answering |
+
+`deferral` is a third outcome rather than a pass or a fail: a tool that says
+*there is no baseline for this* has done something a tool reporting a pass has
+not.
 
 Two configurations, because running one would be a straw man whichever it was.
 `defaults` is what `@playwright/test` ships — no tolerance at all, so a single
@@ -143,6 +203,14 @@ We answer all three **without consulting an image on either side** — asserted 
 `pixels: 0, semanticOnly: true`, not claimed. That is the economic argument in its
 honest form: not *"we are faster"*, but *nothing these edits changed was ever
 visible, so no screenshot was needed to decide them.*
+
+One of the three is also reachable with no baseline at all — the same run prints
+what a single render says on its own:
+
+```
+--- inspection, no baseline consulted
+  label-dropped        [control-without-name] <button> is a button with no accessible name — IconButton
+```
 
 The fair objection is that a team would catch these with `jest-axe` or a DOM
 snapshot. True — and that is a second tool, a second suite and a second baseline
@@ -171,19 +239,19 @@ real regression can be.
 ### 3. A number is terminal; a mask is not
 
 `space-token-nudged` and `row-added` are caught by everything. They are in the
-corpus for what happens next.
-
-Verbatim from the incumbent's own report:
+corpus for what happens next. Both make the panel taller — 312px to 338px and to
+359px — so both are size mismatches, and the incumbent answers each of them with
+two dimensions and one count:
 
 ```
 space-token-nudged   Expected an image 420px by 312px, received 420px by 338px.
-                     5446 pixels (ratio 0.04 of all image pixels) are different.
+                     5466 pixels (ratio 0.04 of all image pixels) are different.
 ```
 
-5446 is Playwright's count over its own padded canvas; §"What the import costs"
-below reports 5864 for the same pair, which is *our* count under our policy over
+5466 is Playwright's count over its own padded canvas; §"What the import costs"
+below reports 5908 for the same pair, which is *our* count under our policy over
 the same baseline. Neither number is wrong and the gap is not the point — the
-point is that either of them cannot be assigned to anyone, so the only available
+point is that neither of them can be assigned to anyone, so the only available
 response is to open the
 image and look — which is the expensive act the tool was meant to replace, and
 where review blindness comes from. A mask clusters into regions, the regions join
@@ -213,7 +281,7 @@ advertisement.
 
 ### 5. The row where both are right
 
-`unseen-subject` has no baseline, and neither arm calls it a pass. Playwright says
+`unseen-subject` has no baseline, and neither tool calls it a pass. Playwright says
 *"A snapshot doesn't exist … writing actual"* and fails; we say `new`. Both are
 correct, and it is in the corpus because a comparison that lists only
 disagreements is not a comparison.
@@ -233,6 +301,8 @@ nobody can migrate *to* has replaced nothing.
 It starts from the artifact a team already has — the PNGs
 `playwright test --update-snapshots` wrote — and does not re-record anything.
 
+From the repository root, after the incumbent run above:
+
 ```bash
 yarn vitest run cases/incumbent-case/src/migration.chromium.test.ts
 ```
@@ -242,19 +312,20 @@ end takes one as it is and produces what the count could not, on the first run:
 
 ```
 --- space-token-nudged, read from a baseline Playwright recorded
-  their baseline      incumbent/baselines/strict/space-token-nudged.png (22818 bytes)
-  what it says        5864 pixels changed          (our count, their baseline)
-  what we add         17 region(s), 0 of them off-tree
-  — regions, names and files below are what the import gives you.
-  — the cause-first *order* is not: producing it needed a live `before`
-    capture, which a migrating subject does not have. See below.
-  cause        1124px — Heading        src/surface.tsx:153
-  cause         215px — Total          src/surface.tsx:323
-  cause          45px — IconButton     src/surface.tsx:163
-  cause          44px — Indicator      src/surface.tsx:192
-  cause          21px — IconButton     src/surface.tsx:163
-  collateral   1149px — «no component»
+  their baseline      incumbent/baselines/strict/space-token-nudged.png (22933 bytes)
+  what it says        5908 pixels changed
+  what we add         16 region(s), 0 of them off-tree
+  cause        1151px — Panel          src/surface.tsx:339
+  cause        1128px — Heading        src/surface.tsx:153
+  cause         463px — Panel          src/surface.tsx:339
+  cause         438px — Panel          src/surface.tsx:339
+  cause         212px — Total          src/surface.tsx:323
+  cause          54px — IconButton     src/surface.tsx:163
 ```
+
+The regions, the names and the files are what the import gives you. The
+cause-first *order* is not: producing that needed a live `before` capture, which
+a migrating subject does not have — see below.
 
 That format is not a format, and that is the point. A tool whose baselines are a
 proprietary blob, or live only behind an API, is a tool whose exit cost is a
@@ -267,7 +338,17 @@ identity so a run on a different machine is `incomparable` — one sentence —
 rather than every subject failing for reasons nobody can attribute. An
 imported baseline states no engine, no scale factor, no fonts and no platform, so
 it can only be compared *by assumption*, and the verdict that guards a wrong
-assumption is unavailable for as long as the import lasts.
+assumption is unavailable for as long as the import lasts. The same run prints
+the absences:
+
+```
+--- what an imported baseline cannot say
+  engine             (absent) — which chromium painted it
+  deviceScaleFactor  (absent) — 1x and 2x are different baselines
+  fonts              (absent) — a substituted font compares unchanged,
+  platform           (absent)   which is true and worthless
+  the document       (absent) — so no cheap tier, and no ordering
+```
 
 That is not a defect in their design. A screenshot assertion has no identity to
 record because it never compares across machines by construction — the baseline
@@ -279,12 +360,14 @@ Attribution needs one snapshot, of the *current* state, so region names and file
 survive the import intact. **Ranking** needs a baseline document, because cause
 and collateral are decided by what two documents say and not by where pixels are.
 So an imported subject can only be ordered by area — and area is the ordering
-[`examples/todomvc`](../../examples/todomvc) measured as backwards. The same 17
+[`examples/todomvc`](../../examples/todomvc) measured as backwards. The same 16
 regions, ordered both ways:
 
 ```
-by area   «no component» > Heading > Row > Row > «no component» > … > IconButton
-by cause  Heading > Total > IconButton > Indicator > «no component» > Row > …
+--- the same regions, ordered two ways
+  by area (what an import can do)      Panel > Heading > Row > Row > Panel > Panel > Row > … > IconButton
+  by cause (needs a semantic baseline) Panel > Heading > Panel > Panel > Total > IconButton > Indicator > …
+  same order?                          no
 ```
 
 So the honest migration story is a generation, not a switch: **import to get
@@ -306,7 +389,7 @@ quietly edited to match its result is not a prediction.
 **`row-added` was declared as a refusal to measure.** Older write-ups of
 `toHaveScreenshot` describe a hard failure on a size mismatch with no comparison
 performed. What 1.62 actually does is print both dimensions *and* a count over the
-padded canvas — `Expected an image 420px by 312px, received 420px by 359px. 1967
+padded canvas — `Expected an image 420px by 312px, received 420px by 359px. 1965
 pixels … are different.` So the scenario does not carry the property it was
 declared for, and sits alongside `space-token-nudged` as a row about
 interpretability rather than refusal.

@@ -8,48 +8,13 @@
 
 **Find what varied, what caused it, and what it reached.**
 
-Variance Authority is a set of composable evidence tools for software that
-changes. Some compare rendered UI. Others inspect one live interface, record
-runtime paths, trace an edit through source and tests, read a workspace's public
-API, or carry evidence to a person or coding agent. Visual regression is one
-composition, not the product boundary.
+Variance Authority is a visual regression system you run yourself: it renders a
+UI state, compares it against the baseline you approved, and reports what
+changed in the vocabulary of your source — the component that drew the pixels
+and the `file:line` it was written at. Nothing is hosted; compute, storage,
+browser capacity, credentials, and deployment stay yours.
 
-The tools share the same discipline: record the conditions behind an answer,
-keep missing evidence distinct from an empty result, and return a cause or a
-boundary instead of a confident guess. There is no mandatory pipeline; use the
-part that answers your question.
-
-## Start with the question
-
-| What do you need to know? | Start here |
-| --- | --- |
-| Did rendered UI change, and which component or source line caused it? | The [`@variance-authority/cli`](packages/cli) or one of the host integrations below. |
-| How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) senses presentation relationships without a baseline or design score. |
-| At which authored action did two runtime paths stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records witnessed Arrange–Act–Assert paths as a state machine. |
-| Which components and tests could—or did—a source change reach? | [`@variance-authority/sense`](packages/sense) joins static source reach with recorded execution. |
-| What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads package surfaces; [`@variance-authority/help`](packages/help) answers about their names and consumers over MCP. |
-| What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) announces decisions, [`@variance-authority/wire`](packages/wire) carries one execution identity across realms, and [`@variance-authority/vantage`](packages/vantage) exposes the run while it is still running. |
-| How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines the answers; [`@variance-authority/server`](packages/server) is the service an operator can run to retain them. |
-| How does a person or agent inspect and decide on the evidence? | [`@variance-authority/mcp`](packages/mcp) exposes retained evidence to an agent; [`@variance-authority/tribunal`](packages/tribunal) is the self-hosted review and approval service. |
-
-## Add UI observation where the state already lives
-
-Visual and semantic observation is one family of tools. Start with the host that
-already knows how to reach the UI state:
-
-| Your UI is already ready in | Integration recipe |
-| --- | --- |
-| A Playwright test | [`@variance-authority/playwright-test`: add an observation](packages/playwright-test/README.md#add-an-observation-to-a-test) |
-| A Jest or Vitest jsdom test | [`@variance-authority/unit-test`: capture now, render later](packages/unit-test/README.md) |
-| A Vitest browser-mode component test | [`@variance-authority/vitest-browser`: observe without leaving the test body](packages/vitest-browser/README.md#register-the-command) |
-| A built or served Storybook | [`@variance-authority/storybook-collector`: integrate a Storybook](packages/storybook-collector/README.md#run-the-first-loop) |
-| A running application or static build | [`@variance-authority/route-collector`: integrate a route list](packages/route-collector/README.md#put-one-route-through-review) |
-| A custom renderer, store, or pipeline | [`@variance-authority/observe`: choose the entrypoint](packages/observe/README.md#choose-the-entrypoint) |
-
-These packages add observation to the environment you already own. They do not
-replace its test runner, fixtures, routing, or mounting.
-
-## One visual result
+## One result, end to end
 
 This example changes only the `background-color` of one `Button`:
 
@@ -66,30 +31,120 @@ The report names the cause and the source location:
       examples/readme-case/src/Button.js:9
 ```
 
-[`examples/readme-case`](examples/readme-case) generates the images and report.
+That is not a hand-written sample. It is
+[`examples/readme-case/artifacts/report.txt`](examples/readme-case/artifacts/report.txt),
+committed beside the three PNGs above, and
+[`examples/readme-case`](examples/readme-case) regenerates all four. From a
+checkout of this repository, after `yarn install`:
+
+```bash
+yarn workspace @variance-authority/example-readme-case generate
+```
+
 Other examples cover [source selection](examples/selection-reuse),
 [structural changes](examples/structural-change), and
 [flake diagnosis](examples/dynamic-route-flake). The
 [external cases](cases/README.md) exercise the packages against real hosts and
 runners.
 
-## Why there are many packages
+## Add it to a Playwright test
 
-A package is cut around what its consumer must supply. A browser, a live DOM, a
-filesystem, a socket, and a readable checkout are different requirements, so
-they do not arrive as one mandatory dependency graph.
+The fastest way in is a test that already reaches the UI state you care about.
+Two installs, one call, one assertion:
 
-The reader-facing packages above compose public building blocks:
+```bash
+npm install --save-dev @variance-authority/playwright-test @playwright/test
+npx playwright install chromium
+```
+
+```ts
+import { test } from '@playwright/test';
+import { assertUnchanged, observe } from '@variance-authority/playwright-test';
+
+test('the cart survives an empty basket', async ({ page }, testInfo) => {
+  await page.goto('https://example.test/cart');
+  await page.getByRole('button', { name: 'Clear' }).click();
+
+  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
+    subjectId: 'cart/empty',
+  });
+
+  assertUnchanged(observation);
+});
+```
+
+`cart/empty` is a **subject id**. A subject is one named UI state you asked for
+and can ask for again — one Storybook story, one route at one viewport, one
+component mounted in a test — captured and compared under an id you choose. The
+first run reports `new`, because no baseline has been approved for that id yet;
+promote that image and the next run reports `unchanged`. Nothing accepts a first
+baseline on your behalf.
+
+The test keeps its own runner, navigation, fixtures, and existing assertions.
+[`@variance-authority/playwright-test`](packages/playwright-test/README.md)
+has the rest.
+
+### Or from the host you already have
+
+| Your UI is already ready in | Integration recipe |
+| --- | --- |
+| A Playwright test | [`@variance-authority/playwright-test`: add an observation](packages/playwright-test/README.md#add-an-observation-to-a-test) |
+| A Jest or Vitest jsdom test | [`@variance-authority/unit-test`: capture now, render later](packages/unit-test/README.md) |
+| A Vitest browser-mode component test | [`@variance-authority/vitest-browser`: observe without leaving the test body](packages/vitest-browser/README.md#register-the-command) |
+| A built or served Storybook | [`@variance-authority/storybook-collector`: integrate a Storybook](packages/storybook-collector/README.md#run-the-first-loop) |
+| A running application or static build | [`@variance-authority/route-collector`: integrate a route list](packages/route-collector/README.md#put-one-route-through-review) |
+| A custom renderer, store, or pipeline | [`@variance-authority/observe`: choose the entrypoint](packages/observe/README.md#choose-the-entrypoint) |
+
+These packages add observation to the environment you already own. They do not
+replace its test runner, fixtures, routing, or mounting.
+
+To drive the whole loop from a config file instead of from inside a test, use
+[`@variance-authority/cli`](packages/cli):
+
+```bash
+npx variance run --config variance.config.json
+npx variance accept --config variance.config.json cart/empty
+npx variance run --config variance.config.json
+```
+
+The first durable run exits `1` because its subjects are `new`. Accept the
+subject ids you meant, then rerun; an unchanged run exits `0`.
+
+## Other questions the same evidence answers
+
+Once a run records what it rendered, what it executed, and what the source says,
+a few neighbouring questions become answerable from the same material. None of
+these is required to compare UI; use the one that answers your question.
+
+| What do you need to know? | Start here |
+| --- | --- |
+| How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) measures the rendered boxes — spacing, alignment, prominence, repetition — and hands back numbers you assert on. It has no baseline and gives no design score. |
+| At which step of a test did two runs stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records the Arrange–Act–Assert steps a run actually took as a state machine, then compares two of them. |
+| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source says can be reached with what a recorded run actually executed, and selects tests from it. |
+| What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads every entrypoint a manifest opens and what it exports; [`@variance-authority/help`](packages/help) answers questions about those names and their call sites over MCP. |
+| What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) lets code announce a decision so a test waits for it instead of guessing; [`@variance-authority/wire`](packages/wire) keeps one execution identity attached across processes; [`@variance-authority/vantage`](packages/vantage) makes a suite in flight something you can query rather than wait for. |
+| How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines those answers over retained observations; [`@variance-authority/server`](packages/server) is the self-hosted HTTP service that retains them. |
+| How does a person or agent inspect and decide on the evidence? | [`@variance-authority/mcp`](packages/mcp) exposes retained evidence to an MCP client; [`@variance-authority/tribunal`](packages/tribunal) is the self-hosted service where baselines and per-subject decisions are reviewed and approved. |
+
+Each row has its own requirements — a browser, a live DOM, a filesystem, a
+socket, a readable checkout — and none of them is imposed on the others.
+
+## How the packages are cut
+
+A package is cut around what its consumer must supply, which is why there are
+many of them rather than one dependency graph you take whole.
+
+The packages above are built from smaller ones you can also use directly:
 `@variance-authority/core`, `@variance-authority/dom`,
 `@variance-authority/react`, `@variance-authority/jsx-source`,
 `@variance-authority/raster`, `@variance-authority/png`,
 `@variance-authority/png-sharp`, `@variance-authority/session`,
 `@variance-authority/playwright`, `@variance-authority/storybook`,
 `@variance-authority/store`, `@variance-authority/report`, and
-`@variance-authority/remote`. They are public seams, not private stages: a
-custom integration can acquire a document without rendering it, compare
-existing rasters without a browser, or consume a report without reopening the
-system under test.
+`@variance-authority/remote`. These are supported entrypoints, not internals: a
+custom integration can acquire a document without rendering it, compare existing
+rasters without a browser, or consume a report without reopening the system
+under test.
 
 The [architecture package map](docs/architecture.md#packages) names what every
 package requires and what contract it owns. The
@@ -97,23 +152,21 @@ package requires and what contract it owns. The
 scenario, presentation, history, and review evidence remain separate and meet
 only on identities their producers emitted.
 
-## Scope and non-goals
+## Where it fits
 
-Variance Authority ships libraries, command-line tools, agent surfaces, and
-services that run in infrastructure you control. It is not a hosted product:
-compute, storage, browser capacity, credentials, and deployment remain yours.
-
-For visual-review adoption, the [adoption gates](docs/gates.md) state where the
-tool fits Playwright, Storybook, Jest, and Vitest — under jsdom and in
-browser mode. The
+The [adoption gates](docs/gates.md) state where the tool fits Playwright,
+Storybook, Jest, and Vitest — under jsdom and in browser mode. The
 [product comparison](docs/comparison.md) states what Percy, Chromatic, Argos,
 and Applitools provide that this project does not.
 
 ## Documentation
 
-The [documentation index](docs/README.md) routes by question rather than by
-package. Use it to find the contract, measurement, or limitation behind any of
-the paths above.
+The full documentation is published at
+[variance-authority.dev](https://variance-authority.dev), and its source is the
+[`docs/`](docs/README.md) directory of this repository. The
+[documentation index](docs/README.md) routes by question rather than by package;
+use it to find the contract, measurement, or limitation behind any of the paths
+above.
 
 ## Licence
 

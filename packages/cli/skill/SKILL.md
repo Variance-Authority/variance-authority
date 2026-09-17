@@ -6,8 +6,15 @@ description: Use when asked to inspect, explain, distill, or verify a Variance A
 # Variance Authority
 
 Read the product's retained evidence to answer what a visual run observed, what a
-test addressed, what React updated, and what source executed. Do not control the
-test runner or mutate the page from this skill.
+test addressed, what React updated, and what source executed.
+
+**No question here drives a browser or a runner.** Every command below reads a
+file or asks a listening process; none renders, navigates, clicks, replays an
+event, or starts a suite. When an answer is missing, the move is to arrange the
+producer and re-run the suite with your ordinary tools — never to drive the page
+from here in order to manufacture the reading. The distillation loop below does
+rerun tests: that is an experiment you run, and its evidence comes back through
+the same read-only commands.
 
 Choosing which tests to run after an edit, and which of them to run first, is a
 different question with its own skill: `variance-test-selection`, shipped at
@@ -16,51 +23,206 @@ declared and which story already calls it is a third: `variance-workspace-api`,
 shipped at `packages/help/skill/SKILL.md`. Neither reads a run, and neither of
 those questions is answered from evidence.
 
+## Before the first command
+
+The `variance` binary is `bin` of **`@variance-authority/cli`**, and it is a
+devDependency, never a global. So every invocation is `npx variance <command>`;
+a bare `variance` is only on `PATH` inside a package script.
+
+```bash
+npm  install --save-dev @variance-authority/cli    # or: yarn add -D / pnpm add -D
+npx variance ask                                   # prints every question and what each needs
+```
+
+Check each of these before spending a question:
+
+1. **The CLI is installed in this checkout.** `npx variance ask` printing the
+   question list is the whole test. It answers with no config and no run.
+2. **The working directory holds `variance.config.json`**, or you pass
+   `--config <path>`. There is no search of parent directories and no defaulting:
+   a missing file is exit `2` with `cannot read the config file
+   variance.config.json`. This is true of the live questions too — `ask self
+   --at <address>` loads a config it never reads. Every command below except
+   `watch` and `distill` needs one.
+3. **A run has finished.** `variance ask` reads the file the run left at the
+   config's `report` path, which defaults to `.variance/report.json`. No question
+   re-runs anything, so an absent report is an absent answer, not a stale one.
+4. **The checkout is at the revision the run was made at.** `--from` and `--to`
+   on `locate` are facts about the source tree and are read from this working
+   directory, not from the report. `summary` names the commit the run's index
+   stands at and how many files differ from it.
+5. **The build kept `file:line`.** A production build strips the line, and a
+   build with owner links stripped has an empty `createdBy` everywhere; both
+   degrade `locate` and `describe` without failing.
+6. **Retention is not `ephemeral`** if you need the run to be answerable after
+   the process that made it. An ephemeral run answers while its report file is
+   still there and keeps no images.
+7. **The suite is React**, for update initiators and `createdBy`. Search is
+   absent altogether on a raster-only capture and on a suite that is not React.
+
+`watch`, `distill` and `select` are the exceptions: they read no project
+configuration at all.
+
+`locate --from` and `locate --to` additionally need **`@variance-authority/sense`**
+installed — a start point is a path in the source tree, and that is the package
+that reads the tree. Without it the question is refused in that sentence; asking
+without a start point is unaffected.
+
+**On the caches.** `~/.cache/variance-authority/renders` and
+`~/.cache/variance-authority/scans` hold rendered images and the scan's memory of
+the repository. Nothing has to be invalidated by hand: both are
+content-addressed — a parse under the digest of the bytes it came from, a record
+under that digest and a digest of the tree shape — so a stale entry, a cache from
+another branch, or no cache at all costs a slower run and can never produce a
+different graph or a different image. Runs prune the render cache themselves. To
+force a cold read anyway, delete the directory; `git clean` does not reach it.
+
 ## Ask the run, from the shell
 
-`variance ask` answers from the report the last run wrote. It needs the CLI and
-nothing else — no server, no client configuration, no connection:
+`variance ask` answers from the report the last run wrote. It needs no server, no
+MCP client configuration and no connection — only the config file and the report
+named in points 2 and 3 above:
+
+```bash
+npx variance ask                          # the questions, and what each one answers
+npx variance ask summary                  # start here; every other question takes an id it prints
+npx variance ask changes                  # the distinct changes behind the changed subjects
+npx variance ask composition              # what explains each movement; flake vs suspect
+npx variance ask describe --subject <id>  # one subject: regions, components, files, fingerprints
+npx variance ask locate --query "<words>" # the subject you can only describe, by the names the run saw
+```
+
+`summary` is the shape of every answer — counts, then the subjects that need
+attention, then what was not observed:
 
 ```
-variance ask                          # the questions, and what each one answers
-variance ask summary                  # start here; every other question takes an id it prints
-variance ask changes                  # the distinct changes behind the changed subjects
-variance ask describe --subject <id>  # one subject: regions, components, files, fingerprints
-variance ask locate --query "<words>" # the subject you can only describe, by the names the run saw
+3 subject(s) observed, ephemeral run at 2026-09-17T21:23:34.804Z
+rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
+3 changed
+observed everything — the execution index stands at 30783c2f…, 7 file(s) differ from it
+
+[changed] card/summary — Button: 3,402 pixels differ across 2 regions in Button, Avatar
+[changed] badge/standalone — Badge: 1,017 pixels differ across 1 region in Badge
+
+coverage: every planned subject was observed.
+findings: none in 3 inspected subject(s).
 ```
 
 Each answer is text, produced by the same function an MCP client would call, so
 nothing is lost by asking this way. `variance ask` exits `0` for every answer,
 including one that describes changes; the verdict belongs to `variance run` and
 `variance report`, which exit `1` when something needs review. Do not read a `1`
-from those as a crash — a crash is `2`.
+from those as a crash — a crash is `2`, and so is a missing config file.
 
 ## Ask in order
+
+Two questions are unconditional, and in this order:
 
 1. **`summary`** — verdict counts, the subjects needing attention, and the
    subjects that were not observed at all. Unobserved is not unchanged.
 2. **`changes`** — a token edit touching forty stories is one change, not forty.
    Ask this before asking about any individual subject; it decides how many of
-   the remaining questions are worth spending.
-3. **`adjudicate --claims <path>`** — only if you made the edit. Declare what you
-   meant to change *before* reading the diff. Its third answer — declared, and
-   did not happen — is how you learn an edit never landed, which no comparison of
-   images can tell you. Claims copied out of `changes` score the run against
-   itself and are worthless.
-4. **`composition`** before calling anything flaky: it names what explains a
-   movement, and separates `flake` (read twice, differed) from `suspect` (never
-   read twice).
-5. **`locate --query <words>`** when you can describe the subject but do not
-   hold its id. It matches over every name the run wrote down and each hit
-   prints the field it matched; `composition --subject <id>` then says what that
-   subject is made of. **Locate in full** is below.
-6. **`describe`, `explain-verdict`, `trace-component`, `findings`** — narrow, one
-   subject or one component at a time, once you know which one matters.
-7. **`changelog`** before proposing an accept, and never after: it previews what
-   acceptance would write down.
+   the remaining questions are worth spending. It prints the component, its
+   `file:line`, its reach, and the `variance accept --shape` digest that settles
+   it:
 
-`variance ask diff` compares the run against whatever the previous question was
-answered from. Use it to see what a re-run moved.
+   ```
+   3 subject(s) changed, and they are 3 distinct change(s) — 2 of which can be decided in one action
+
+   Button
+     examples/agent-claim/src/system.js:28
+     reaches 2 subject(s); it is the whole change in 1
+     in the other 1, something else also moved, so accepting this shape there would
+     promote a difference nobody reviewed
+     5650 pixel(s): card/summary, card/compact
+     variance accept --shape v1:203640236f6a486afeca1e45f656e4dd
+   ```
+
+The rest are conditional. Ask each only when its condition holds:
+
+- **`adjudicate --claims <path>` — if you made the edit**, and before you read
+  the diff. Declare what you meant to change. Its third answer — declared, and
+  did not happen — is how you learn an edit never landed, which no comparison of
+  images can tell you. Claims copied out of `changes` score the run against
+  itself and are worthless. Adjudication is *not* a `variance ask` question in
+  this position: `npx variance adjudicate --claims <path>` is its own command and
+  exits `1` when a claim is unmet. **The file format is below.**
+- **`composition` — before calling anything flaky.** It names what explains a
+  movement, and separates `flake` (read twice, differed) from `suspect` (never
+  read twice). Also ask it when a change has no obvious author.
+- **`locate --query <words>` — when you can describe the subject but do not hold
+  its id.** It matches over every name the run wrote down and each hit prints the
+  field it matched; `composition --subject <id>` then says what that subject is
+  made of. **Locate in full** is below.
+- **`describe`, `explain-verdict`, `trace-component`, `findings` — once you know
+  which subject or component matters.** Narrow, one at a time. Reach for
+  `explain-verdict` when a subject was not compared at all; it separates
+  `incomparable` (a baseline exists, another machine rendered it) from `new` (no
+  baseline) from never observed.
+- **`changelog` — before proposing an accept, and never after.** It previews what
+  acceptance would write down.
+
+`variance ask diff` has two subjects and the flag decides which. With `--at
+<address>` it asks a watcher what moved since the last reading that watcher
+handed out — the progress question. Without it, it compares the report against
+the state recorded beside it by the previous successful `ask` (in `asked.json`,
+in the report's directory) — the re-run question. The first invocation of either
+records state and has nothing to compare:
+
+```
+The current state matches the previous invocation.
+```
+
+## Declare before you read: the claims file
+
+`--claims <path>` is JSON, and it is the one argument with no default — it holds
+what you meant to change, and nothing can infer that. Accepted as a bare array or
+as `{"claims": [...]}`. Each claim is a `root` (`component:Button`,
+`shape:<fingerprint>`, or a bare component name), a `reason` in your own words —
+required, because it is carried into the answer a reviewer reads — and an
+optional `maxSubjects` bound:
+
+```json
+{
+  "claims": [
+    { "root": "component:Button", "reason": "new brand accent on the primary action", "maxSubjects": 1 },
+    { "root": "component:Badge", "reason": "new brand accent on the status pill" },
+    { "root": "component:Card", "reason": "tighten the gap between the avatar and the action" }
+  ]
+}
+```
+
+An empty array is refused rather than adjudicated: "0 claims, 0 undelivered"
+reads as reassurance. A file it cannot parse is refused for the same reason.
+
+```bash
+npx variance adjudicate --claims claims.json
+```
+
+```
+An edit you declared did not take. Fix that before reading anything else.
+4 claim(s): 1 delivered, 1 undelivered, 1 over-reaching, 1 unchecked. 1 unclaimed change(s).
+
+  [undelivered] component:Card
+      declared (tighten the gap between the avatar and the action) and `Card` rendered in
+      2 subject(s) — card/summary, card/compact — and did not change. The edit did not take:
+      wrong file, a dead branch, a rule something else overrides, or a stale build.
+
+  [unobservable] component:Tooltip
+      declared (arrow follows the new accent) and this run never rendered `Tooltip` in any
+      subject, so nothing here is evidence about it either way.
+
+  [overreached] component:Button
+      declared (new brand accent on the primary action) and delivered, but reached
+      2 subject(s) against the 1 declared — the change is the intended one, its reach is not.
+      examples/agent-claim/src/system.js:28
+
+  [unclaimed] Avatar
+      Avatar moved and no claim covers it — 1 subject(s), 577 pixel(s), nothing it can settle
+```
+
+Five verdicts, and `unobservable` is not `undelivered`: the first says the run
+never looked, the second says it looked and nothing moved.
 
 ## Locate a subject you can only describe
 
@@ -75,7 +237,21 @@ syntax, so a product that says *Under review*, *Show more* or *Inside sales* is
 searched for those words:
 
 ```bash
-variance ask locate --query "footer filter chips"
+npx variance ask locate --query "footer filter chips"
+```
+
+Every answer opens with what was searched and what was not, then the hits, then
+where to take the id:
+
+```
+1 of 3 subject(s) match `badge`.
+Read: id, example, names, text, components, createdBy, files, roles, tokens.
+Not read: regions (no execution journal was read).
+
+badge/standalone · 1 boundary · example of Badge
+  badge: id `badge/standalone`; example `Badge`; components `Badge`
+
+next: variance_composition {subject: "badge/standalone"} · variance_describe {subject: "badge/standalone"}
 ```
 
 **Say where you are standing when the suite is large.** On a few hundred
@@ -86,7 +262,7 @@ what your words are worth: rarity is counted inside the scope, so a word common
 to that area is worth nothing there.
 
 ```bash
-variance ask locate --query "contract warning" --from "app/dispatch/page.tsx"
+npx variance ask locate --query "contract warning" --from "app/dispatch/page.tsx"
 ```
 
 A path is a fact about the source tree, so ask from a checkout of the repository
@@ -101,15 +277,21 @@ sits *above* the field says the same words. Name the three parts separately —
 the relation is the name of the flag:
 
 ```bash
-variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
+npx variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
 ```
 
 `--under`, `--above`, `--inside`, `--beside`, `--left-of` and `--right-of` take
 the anchor, the thing it sits by. `--on` takes the surface, and is worth saying:
-without it the anchor has to pick the surface as well. One relation per
-question; two is refused. `--under` and the rest are decided from the rectangles
-the run resolved, so a run with no layout refuses them rather than answering
-from document order — `--inside` still answers, because containment needs none.
+without it the anchor has to pick the surface as well. One relation per question;
+two is refused.
+
+**`--inside` is the only relation a run without layout can answer.** The other
+five are decided from the rectangles the run resolved, so a run that resolved no
+layout refuses them outright rather than falling back to document order, and says
+so: *"This run did not resolve layout, so no landmark carries a rectangle and
+nothing here knows what sits beneath what."* Containment needs no rectangle, so
+`--inside` answers either way. Check the run's layout before reaching for the
+other five.
 
 **Every hit is already a place.** `where:` carries the thing on that surface
 saying your words, the file and line it is declared at, and what encloses it. A
@@ -145,23 +327,56 @@ to `composition`, `describe` or `explain-verdict`.
 
 A finished run left a file. A suite in flight has not, and what it says exists
 only in whatever was listening at the time — so start the listener first, in its
-own shell:
+own shell.
+
+That listener is a **vantage**: one process, holding one run in memory, reachable
+at the address it prints. `VARIANCE_AUTHORITY_VANTAGE` carries that address into
+the suite's environment, and it is both the opt-in and the collision-free name of
+*this* watcher — which is why there is no constant port to hard-code.
+
+```bash
+npx variance watch                     # prints VARIANCE_AUTHORITY_VANTAGE=…, stays up
+```
 
 ```
-variance watch                         # prints VARIANCE_AUTHORITY_VANTAGE=…, stays up
+variance-authority is watching. Start the suite with this in its environment:
+
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:64655
+
+Ask it, from any other shell, with the same address:
+
+  variance ask self --at http://127.0.0.1:64655
+
+It holds the run in memory and writes nothing down. Stop it and the run is gone.
 ```
 
-Start the suite with that exact assignment in its environment. An address added
-afterwards belongs to the next run. Then, from anywhere that can reach it:
+`watch` reads no config and can be started in any directory. Start the suite with
+that exact assignment in its environment. An address added afterwards belongs to
+the next run. Then, from any shell that can reach it **and that has a
+`variance.config.json` or a `--config <path>`** — `ask` loads a config even for
+the live questions, which never read it:
 
-```
-variance ask self                      # where it listens, and what it is holding
-variance ask run-signals               # tests in opening order; the one still going is marked
-variance ask test-signals --test <id>  # one test's announcements, and work that never ended
-variance ask diff                      # what moved since the last reading it handed out
+```bash
+npx variance ask self         --at "$VARIANCE_AUTHORITY_VANTAGE"  # where it listens, what it holds
+npx variance ask run-signals  --at "$VARIANCE_AUTHORITY_VANTAGE"  # tests in opening order
+npx variance ask waiting      --at "$VARIANCE_AUTHORITY_VANTAGE"  # tests stopped at variance.observe()
+npx variance ask test-signals --at "$VARIANCE_AUTHORITY_VANTAGE" --test <id>
+npx variance ask diff         --at "$VARIANCE_AUTHORITY_VANTAGE"  # what moved since the last reading
 ```
 
 `--at <address>` names the watcher and defaults to `VARIANCE_AUTHORITY_VANTAGE`.
+`self` answers before any run has arrived, which is the point of asking it first:
+
+```
+Nothing has reported to this vantage yet.
+
+A run reports here when it is started with this in its environment:
+
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:64672
+
+That is the same env block `VARIANCE_AUTHORITY_EVENTS` goes in. The suite needs
+`varianceFixtures` from `@variance-authority/playwright-test` and nothing else.
+```
 
 Ask `self` first. A suite reporting to a different address and a suite that
 never started are indistinguishable from every other question, and both look
@@ -169,13 +384,32 @@ like a quiet run. An empty announcement list for a listed test is a wiring or
 application signal — it is not permission to reconstruct a trace from source.
 
 None of this is written down. Stop the watcher and the run is gone; the suite
-must extend `varianceFixtures` for any of it to arrive.
+must extend `varianceFixtures` from `@variance-authority/playwright-test` for any
+of it to arrive.
 
 ## When there is an MCP connection
 
 The same questions arrive as `variance_*` tools — the report ones, and the live
-ones from `variance-authority-mcp --watch`. The routing above is unchanged. A
-connection additionally serves subjects the CLI does not read:
+ones from `variance-authority-mcp --watch`. The routing above is unchanged.
+
+Two binaries serve the same protocol over stdio, and they take no flags beyond
+one argument:
+
+```bash
+npx variance serve                                # from @variance-authority/cli; reads the config's report
+npx variance-authority-mcp <run-report.json>      # from @variance-authority/mcp; the report is the argument
+npx variance-authority-mcp --watch                # the live subject; prints its address to stderr
+```
+
+`variance-authority-mcp` is `bin` of **`@variance-authority/mcp`**. It is a
+transitive dependency of the CLI, so its binary is only on `npx`'s path when that
+package is a direct devDependency — `npm install --save-dev
+@variance-authority/mcp`. Where it is not, `variance serve` is the same server
+over the same functions and needs no extra install. In an MCP client's `command`
+field, write the resolved path or the package script; `npx` there costs a
+registry check on every client start.
+
+A connection additionally serves subjects the CLI does not read:
 
 - Test distillation: `variance_distill`, then `variance_test_attention` for the
   chronology or `variance_source_tests` for an exact source point. Read React
@@ -191,10 +425,14 @@ reconstruct runtime evidence from repository files.
 Connect the producer that owns the missing fact; MCP reads evidence and creates
 none of it:
 
-- **Eyes attention:** with Playwright, compose `eyesFixtures` into the suite's
-  existing extension and retain each test's journal under `testInfo.testId`.
-  With RTL, start `watchTest` in per-test setup, publish its closed journal, and
-  fold the run directory once in global teardown. In either host, declare
+- **Eyes attention:** with Playwright, compose `eyesFixtures` from
+  `@variance-authority/eyes/playwright` into the suite's existing extension and
+  retain each test's journal under `testInfo.testId`. With RTL, start `watchTest`
+  from `@variance-authority/eyes/rtl` in per-test setup, publish its closed
+  journal with `recordEyesTest` from `@variance-authority/eyes/collect`, and fold
+  the run directory once in global teardown with `gatherEyesArchive` +
+  `writeEyesArchive` from the same entrypoint — that pair is what writes the
+  `eyes.json` the next section reads. In either host, declare
   `arrange`, `act`, and `assert` with the adapter log's `phase(...)`; do not
   infer them from query or click names. The Playwright fixture installs the React commit tap
   before navigation. RTL needs the tap installed before `react-dom` loads. Read
@@ -205,13 +443,19 @@ none of it:
   per test file and cannot substitute. Supply the index from a runner, debugger,
   editor integration, or another collector that already owns per-test
   crossings.
-- **Live journey/events:** compose `varianceFixtures`, start `variance watch` or
-  `variance-authority-mcp --watch` first, then start the suite with the exact
+- **Live journey/events:** compose `varianceFixtures` from
+  `@variance-authority/playwright-test`, start `npx variance watch` or
+  `npx variance-authority-mcp --watch` first, then start the suite with the exact
   `VARIANCE_AUTHORITY_VANTAGE` assignment it prints. The address belongs to that
   watcher and that run.
-- **Visual report:** set the CLI configuration's `report` path and run
-  `variance run`; supply the resulting `RunReport`, not the configuration or a
-  reconstructed comparison.
+- **Visual report:** run `npx variance run`. It writes the `RunReport` to the
+  `report` path in `variance.config.json`, which defaults to
+  `.variance/report.json` and resolves relative to the config file's own
+  directory. Supply that file, not the configuration and not a reconstructed
+  comparison. The config itself is a JSON file named `variance.config.json` in
+  the directory you invoke from (or `--config <path>`); its required keys are
+  `project`, `profile`, `viewport`, `retention` and `subjects`, and its schema
+  ships at `@variance-authority/cli/schema`.
 - **Presentation reading:** call `sensePresentation` from
   `@variance-authority/presentation/playwright` on a live subject and supply the
   returned `PresentationReport`. A durable presentation signal embedded in a
@@ -226,10 +470,89 @@ is at `https://variance-authority.dev/agents/questions`.
 
 ## Distill, then verify
 
-When portable Eyes and execution files are available without MCP, start with:
+`variance distill` reads no config and no report — the two paths are its whole
+input, so it answers in a checkout that has never configured this tool. At least
+one of `--eyes` and `--execution` is required; `--format json` returns the same
+reading as data.
+
+```bash
+npx variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+```
+
+**`eyes.json`** is what `writeEyesArchive` wrote (previous section). Version `1`,
+one entry per test, `complete` a boolean the producer set, `attention` a sequence
+of `eyes-phase`, `react-commit`, `react-tap-refused` and `document-event`
+entries:
+
+```json
+{
+  "eyesVersion": 1,
+  "tests": [
+    {
+      "id": "checkout-submits",
+      "title": "checkout submits",
+      "file": "src/checkout.test.tsx",
+      "complete": true,
+      "attention": [{ "kind": "eyes-phase", "phase": "act", "sequence": 1 }]
+    }
+  ]
+}
+```
+
+`complete` is that field and nothing else: it is the producer's own statement
+that the journal closed cleanly, and `complete: false` requires a `because`
+string saying why it did not. It is **not** a judgement about whether the
+`attention` array has anything in it.
+
+**`execution.json`** is an `ExecutionIndex`: a `tests` array the crossings index
+into by position, and a `modules` array of files with lexical blocks. Every block
+needs `kind`, `name` (empty for a module root), `path`, `startLine`, `endLine`,
+`source`, and `crossings` of `{test, distance}`:
+
+```json
+{
+  "tests": [{ "id": "checkout-submits", "file": "src/checkout.test.tsx", "name": "checkout submits" }],
+  "modules": [
+    {
+      "file": "src/checkout.ts",
+      "blocks": [
+        {
+          "kind": "function", "name": "submitOrder", "path": "submitOrder",
+          "startLine": 10, "endLine": 24, "source": true,
+          "crossings": [{ "test": 0, "distance": 0 }]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Nothing in this repository produces `execution.json`.** See the *Runtime
+journey* bullet above: the query contract ships and the per-test producer does
+not. You supply it from a runner, debugger, editor integration or collector that
+already owns per-test crossings, or you run `distill` with `--eyes` alone.
+
+The two files above, run through the command above, answer:
 
 ```
-variance distill --test checkout-submits --eyes eyes.json --execution execution.json
+checkout submits — src/checkout.test.tsx [checkout-submits]
+Eyes journal: complete.
+0 target snapshot(s); 0 had no live React Fiber.
+
+act:
+  components: none attributed by Eyes
+  source: none attributed by Eyes
+
+React update initiators: unavailable; no commit evidence was recorded.
+
+Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
+Runtime journey: 1 source file(s) entered by exact test id.
+  depth 0 — src/checkout.ts
+Entered with no addressed target attributed to the same file: 1.
+  distillation opportunity at depth 0 — src/checkout.ts
+
+Loaded but not entered: 0 module(s).
+  measured empty
 ```
 
 The CLI and `variance_distill` MCP tool return the same deterministic reading.
@@ -237,10 +560,30 @@ For each distillation opportunity:
 
 1. Preserve the original output as the witness.
 2. Identify the narrowest reversible substitution at one dependency boundary.
-3. Change only that boundary and rerun the exact test.
+3. Change only that boundary and rerun the exact test — with the project's own
+   runner, from your shell. This is the one place the loop leaves the evidence
+   and edits the tree; the read-only rule at the top of this file governs how
+   questions are answered, not whether you may run a test.
 4. Collect the same evidence and distill it again.
 5. Keep the edit only when the assertion's causal path and addressed targets
    remain, and no outside update initiator newly reaches the retained surface.
+
+All three conditions in step 5 are read off the second distillation, from three
+named lines — compare them against the witness reading, line for line:
+
+- **Addressed targets** — the per-phase `components:` and `source:` lines under
+  `assert:`. They must still name what they named before. `Addressed surface:
+  measured empty` on the second run and not the first is a loss, not a pass.
+- **The assertion's causal path** — the `assert:` phase's `source:` list, which
+  is the set of files Eyes attributed to the assertion's targets.
+- **No outside initiator newly reaching it** — `React update initiators:` prints
+  `inside addressed component paths:` and `outside addressed component paths:`
+  per phase. A path that appears under `outside` on the second reading and not
+  the first is the condition failing.
+
+`React update initiators: unavailable; no commit evidence was recorded` means
+none of the three is decidable. Discard the edit rather than keeping it on an
+unavailable reading.
 
 Never batch opportunities into one experiment: a passing test would not say
 which substitution was justified. An entered file without addressed attribution
@@ -248,8 +591,10 @@ is a queue for counterfactual checks, not permission to mock it.
 
 A plain test or fake component is valid input. With execution evidence and no
 Eyes archive, report entered source but call the opportunity comparison and
-attention unavailable. A complete empty Eyes journal licenses the comparison.
-Do not invent a Fiber denominator.
+attention unavailable. An Eyes journal whose test carries `complete: true` and an
+empty `attention` array licenses the comparison — the producer closed cleanly and
+measured nothing, which is a reading. `complete: false` does not, whatever
+`attention` holds. Do not invent a Fiber denominator.
 
 ## Read the evidence literally
 
