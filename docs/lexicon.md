@@ -342,64 +342,45 @@ somewhere else.
 
 ### What a starting point is worth
 
-The same questions, answered inside the directory the answer lives in rather
-than across the whole suite:
-
-| | material-ui | a product web app |
-|---|---|---|
-| how much narrower the field is | 39x | 11x |
-| first hit, whole suite | 7 of 25 | 3 of 20 |
-| first hit, within the scope | 10 of 25 | 9 of 20 |
-| within three, whole suite | 9 of 25 | 7 of 20 |
-| within three, within the scope | 12 of 25 | 14 of 20 |
-
-A scope roughly triples the product app's first-hit count. It is the largest
-single effect measured here, and it is larger on the suite whose vocabulary is
-saturated — which is the case for scoping: a scope restores the distinctions a
-shared vocabulary has spent.
-
-### The rank is not what you came for
-
 Every count above asks whether the top hit is the reader's *subject*. That is
-the wrong target for the question this answers. You are not looking for a
-story; you are looking for the place the thing is written, and one file is
-usually shown by several stories. Picking a different story that opens the same
-file is not a miss.
+the wrong target for the question this answers. You are not looking for a story;
+you are looking for the place the thing is written, and one file is usually
+shown by several stories. Picking a different story that opens the same file is
+not a miss.
 
-So the same questions were asked again mechanically — three hundred of them,
-seeded and re-runnable, each one a landmark's own words with the folder of its
-file, said as a path, as the starting point — and scored on the file the answer
-prints rather than the id:
+So the questions were asked again mechanically — three hundred of them, seeded
+and re-runnable, each one a landmark's own words with the folder of the file
+that landmark was written in, said as a path, as the starting point — and scored
+on the file the answer prints rather than on the id:
 
-| | a 2019 application | a component library |
-|---|---|---|
-| subjects | 166 | 4,705 |
-| lines kept by the build | 91.7% of landmarks | none |
-| the top hit is the reader's subject | 24.0% | — |
-| **the top hit names the right place** | **71.3%** | **—** |
-| the right place is within three | 78.0% | — |
-| the top hit names it without a starting point | 55.7% | 46.0% |
+| a 2019 application · 165 subjects | within the scope | whole suite |
+|---|---:|---:|
+| subjects the question is put to, mean | 107 | 165 |
+| **the top hit names the right place** | **62.5%** | **55.7%** |
+| the right place is within three | 75.8% | 75.7% |
+| the top hit is the reader's subject | 20.4% | 18.7% |
+| no hits at all | 2.2% | 2.3% |
 
-The library column is empty on purpose. A production build records no file
-anywhere, so there is no coordinate to start from and no start point is
-accepted — and the row that matters there is the last one, which is the suite
-answered whole. The application column is the same measurement it was when the
-start point could also be a name, minus the questions where the build kept no
-line: those used to be answered by a component name standing in for a place,
-and a component name is not a place.
+Read the last two rows against the two above them. The top hit is the reader's
+own story one time in five and names the right file three times in five, and
+the gap between those two numbers is entirely stories that show the same file. A
+measure that counts only the id reports a tool three times worse than the one
+you are using.
 
-Read the second and third rows together. On the library the top hit is the
-reader's own story one time in eight and the right place two times in three,
-and the gap between those two numbers is entirely stories that show the same
-component. A measure that counts only the id reports a tool five times worse
-than the one you are using.
+A start point is worth about seven points of first place, and nothing at all by
+the third answer. What it does on this suite is order the same few files better,
+not put a file on the page that was not already there — which is the shape to
+expect wherever a scope is wide, and this one is: naming a folder of four files
+puts the question to two subjects in three, because the imports run from those
+four files into a provider every screen is built on.
 
-The library row is the harder case in every respect: twenty-eight times the
-subjects, and a production build that kept no line anywhere, so there is no
-file to print and the answer falls back to the component that owns the landmark
-and the files declaring it. It is a place to open rather than a coordinate,
-which is why it is said differently, and it still answers two questions in
-three.
+The other two suites are absent because no start point is accepted for either.
+Both were built for production, a production build records no file anywhere, so
+there is no coordinate to start from and the whole-suite row is the only one
+there is. On the component library it is 46.0%, against 4,705 subjects and with
+no line to print: the place an answer hands over there is the component that
+owns the landmark and the files declaring it, which is somewhere to open rather
+than a coordinate, and it is said differently for that reason.
 
 Whether the scope is applied before the rank or after it is very nearly not a
 question. Asked across every query the suites' own names produce against every

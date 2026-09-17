@@ -210,9 +210,12 @@ describe('the path is the entrance, not the room', () => {
 
   it('holds a file both areas import, and what that file produced elsewhere', () => {
     // A subject is in scope when a file in scope produced it, and a shared leaf
-    // is in every scope that reaches it. So asking from billing returns the
-    // shipping screen too — not because anything matched a word, but because
-    // the run recorded both screens as having been seen in `Badge.tsx`.
+    // is produced by everything that renders it. The walk from billing reaches
+    // `Badge.tsx` and stops there — a leaf imports nothing and nothing is
+    // reachable through one — but the run recorded the shipping screen as having
+    // been seen in that same leaf, so the shipping screen is in scope. What
+    // widens the answer here is the run's record of what each subject rendered,
+    // not the import graph.
     const shared = treeOf(
       [
         reads('app/billing/Page.tsx', 'src/shared/Badge.tsx'),
