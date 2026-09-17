@@ -93,6 +93,15 @@ export interface AskRequest {
   readonly state?: string;
   readonly file?: string;
   readonly query?: string;
+  /** The relation flags: the words naming what the thing sits by. At most one. */
+  readonly under?: string;
+  readonly above?: string;
+  readonly inside?: string;
+  readonly beside?: string;
+  readonly leftOf?: string;
+  readonly rightOf?: string;
+  /** `--on <words>`: the surface a relation question is asked on. */
+  readonly on?: string;
   /** `--from <path>`: a path to start at. Answers from what it reaches, before any ranking. */
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers from what reaches it, the other way along the imports. */
@@ -222,6 +231,13 @@ async function inputFrom(
     state: request.state,
     file: request.file,
     query: request.query,
+    under: request.under,
+    above: request.above,
+    inside: request.inside,
+    beside: request.beside,
+    leftOf: request.leftOf,
+    rightOf: request.rightOf,
+    on: request.on,
     from: request.from,
     to: request.to,
     limit: request.limit,

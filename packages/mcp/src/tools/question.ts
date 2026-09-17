@@ -1,47 +1,50 @@
 import { lower } from './locate-index.js';
 
 /**
- * A question read as what it asks for, what it asks near, and where.
+ * What a question asks for, what it asks near, and where.
  *
- * Splitting at the relation word is the whole of it: everything in front names
- * the thing wanted, everything behind names what it sits by and the surface it
- * sits on. There is no grammar here and deliberately none — a reader that
- * parsed English would be right more often and wrong in ways nobody could
- * predict, and this one is wrong in exactly one way, which the answer prints.
+ * Read off named arguments and never out of a sentence. An earlier version of
+ * this file split a free-text query at the first spatial word it recognised —
+ * `under`, `above`, `inside` — which is a grammar, and a grammar is wrong in
+ * ways the caller cannot predict: a suite with an *Under review* badge, a *Show
+ * more* link or an *Inside sales* tab had those words taken off it as syntax.
+ *
+ * Marking the word instead — `$under` — moves the failure rather than removing
+ * it: it is still one string carrying structure, still positional, and still
+ * something the caller has to escape around. The reader here is an agent
+ * filling in fields, and a field is the form it already has. So the relation is
+ * the name of the argument, which is why there are six of them: an argument
+ * whose name is the relation cannot be paired with the wrong one.
  */
-/** A spatial relation, and the words that mean it. Closed, and printed when used. */
+
+/** A spatial relation, and the argument that names it. Closed. */
 export type Relation = 'beneath' | 'above' | 'right of' | 'left of' | 'inside' | 'beside';
 
 const RELATIONS: ReadonlyMap<string, Relation> = new Map([
   ['under', 'beneath'],
-  ['underneath', 'beneath'],
-  ['beneath', 'beneath'],
-  ['below', 'beneath'],
   ['above', 'above'],
-  ['over', 'above'],
-  ['atop', 'above'],
+  ['leftOf', 'left of'],
+  ['rightOf', 'right of'],
   ['inside', 'inside'],
-  ['within', 'inside'],
   ['beside', 'beside'],
-  ['near', 'beside'],
-  ['next', 'beside'],
 ]);
+
+/** The argument names, for a schema to declare and a refusal to list. */
+export const RELATION_ARGUMENTS: readonly string[] = [...RELATIONS.keys()];
+
+/** Where the surface is named. Its own argument, because it is its own fact. */
+export const SURFACE_ARGUMENT = 'on';
 
 /**
- * Words that say what somebody means to *do*, not what they mean to find.
+ * Ten function words and nothing else. Closed, in code, because a stoplist is a
+ * rule about the query and a rule is printed, not tuned.
  *
- * A question arrives as an instruction — *change the warning underneath …* —
- * and the verb at the front names no landmark on any screen. Closed and short:
- * a longer list starts deciding what counts as a noun, which is a grammar, and
- * a grammar is the thing this file is built to avoid.
+ * Function words only, and that is the whole test for admitting one: `the` is
+ * never the name of anything, and every word that could be — a verb, or a
+ * preposition a product uses as a label — stays in, whatever it costs a rank.
  */
-const INTENT: ReadonlySet<string> = new Set([
-  'change', 'fix', 'update', 'edit', 'move', 'remove', 'delete', 'add', 'adjust',
-  'tweak', 'rename', 'restyle', 'reword', 'show', 'hide', 'find', 'where', 'is',
-]);
-
-const FILLER: ReadonlySet<string> = new Set([
-  'the', 'a', 'an', 'on', 'in', 'of', 'to', 'at', 'for', 'and', 'with', 'that', 'it', 'its',
+export const STOPLIST: ReadonlySet<string> = new Set([
+  'the', 'a', 'an', 'in', 'on', 'of', 'with', 'and', 'for', 'to',
 ]);
 
 /** What a question was read as, so an answer can be checked against it. */
@@ -49,40 +52,77 @@ export interface Asked {
   readonly relation?: Relation;
   /** Words naming the thing being looked for. */
   readonly target: readonly string[];
-  /** Words naming what it sits by, and the surface it sits on. Used for both. */
+  /** Words naming what it sits by. */
   readonly anchor: readonly string[];
+  /** Words naming the surface the two are on. Empty when the caller named none. */
+  readonly surface: readonly string[];
+}
+
+/** One phrase as words: lowercased, stripped of surrounding punctuation, stoplist gone. */
+export function wordsOf(phrase: string | undefined): readonly string[] {
+  if (phrase === undefined) return [];
+  return phrase
+    .split(/\s+/)
+    .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''))
+    .filter((word) => word !== '' && !STOPLIST.has(word));
+}
+
+/** The one argument of a set that was said, or nothing. A blank is nothing said. */
+function said(
+  input: Readonly<Record<string, unknown>>,
+  names: readonly string[],
+): { readonly name: string; readonly phrase: string } | undefined {
+  const given = names
+    .map((name) => ({ name, value: input[name] }))
+    .filter(
+      (entry): entry is { name: string; value: string } =>
+        typeof entry.value === 'string' && entry.value.trim() !== '',
+    );
+
+  // Two relations is a question with two answers, and picking one of them would
+  // be the guessing the argument names exist to remove.
+  if (given.length > 1) {
+    throw new Error(
+      `\`${given.map((entry) => entry.name).join('` and `')}\` were both said, and a thing sits ` +
+        'in one relation to one anchor. Say one, and ask again for the other.',
+    );
+  }
+
+  const one = given[0];
+  return one === undefined ? undefined : { name: one.name, phrase: one.value };
 }
 
 /**
- * A question split at its relation.
+ * The arguments as one question.
  *
- * Everything before the relation word names the target; everything after it
- * names the anchor *and* the surface, and is deliberately not split further.
- * "the carrier field on the dispatch drawer" is one phrase used twice: all of
- * it chooses which surface, and the part of it that matches a landmark chooses
- * which landmark. Separating them would need a grammar, and the phrase is
- * already doing both jobs correctly without one.
+ * The anchor and the surface are separate because they are different facts and
+ * only the caller knows both. The drawer and the field on it are each a
+ * landmark; which of them the relation is measured from decides the answer, and
+ * a reader given one phrase for both had to work that out from which reading
+ * came out answerable. Named apart, there is nothing to work out.
  */
-export function readQuestion(question: string): Asked {
-  const words = question
-    .split(/\s+/)
-    .map((word) => lower(word).replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ''))
-    .filter((word) => word !== '');
+export function askedFor(query: string, input: Readonly<Record<string, unknown>>): Asked {
+  const near = said(input, RELATION_ARGUMENTS);
+  const surface = wordsOf(said(input, [SURFACE_ARGUMENT])?.phrase);
 
-  let at = -1;
-  let relation: Relation | undefined;
-  for (let index = 0; index < words.length; index += 1) {
-    const found = RELATIONS.get(words[index]!);
-    if (found !== undefined) {
-      at = index;
-      relation = found;
-      break;
+  if (near === undefined) {
+    if (surface.length > 0) {
+      throw new Error(
+        `\`${SURFACE_ARGUMENT}\` names the surface a relation question is asked on, and no ` +
+          `relation was said. Add one of \`${RELATION_ARGUMENTS.join('`, `')}\`, or ask for the ` +
+          'words alone with `query`.',
+      );
     }
+    return { target: [], anchor: wordsOf(query), surface };
   }
 
-  const keep = (list: readonly string[]) =>
-    list.filter((word) => !INTENT.has(word) && !FILLER.has(word));
+  const anchor = wordsOf(near.phrase);
+  if (anchor.length === 0) {
+    throw new Error(
+      `\`${near.name}\` names what the thing sits by, and nothing in it is a word to look for. ` +
+        `Say what is there: \`{query: "warning", ${near.name}: "Carrier"}\`.`,
+    );
+  }
 
-  if (relation === undefined) return { target: [], anchor: keep(words) };
-  return { relation, target: keep(words.slice(0, at)), anchor: keep(words.slice(at + 1)) };
+  return { relation: RELATIONS.get(near.name)!, target: wordsOf(query), anchor, surface };
 }

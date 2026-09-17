@@ -3,11 +3,13 @@ import { countOf, noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
-import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand } from './usage.js';
+import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand, synopsisFor } from './usage.js';
+import { didYouMean } from './nearest.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
+import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -94,48 +96,7 @@ export type Parsed =
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
-  | {
-      readonly command: 'ask';
-      readonly config: string;
-      /**
-       * The question, as the first positional. Absent lists the questions.
-       *
-       * A positional rather than `--question`, because the whole point of this
-       * command is that an agent with a shell can reach the answers an MCP client
-       * reaches, and `variance ask describe --subject story:card` is the shape
-       * that reads like the sentence somebody meant.
-       */
-      readonly question?: string;
-      readonly subject?: string;
-      /** `--subjects <id>[,...]`: the plural argument `changelog` takes, not `--subject`. */
-      readonly subjects?: readonly string[];
-      readonly component?: string;
-      readonly rule?: string;
-      readonly shape?: string;
-      /** `--claims <path>`: the declaration `adjudicate` reads, for the question of the same name. */
-      readonly claims?: string;
-      /** `--test <id>`: which test, for the questions about a suite still running. */
-      readonly test?: string;
-      readonly state?: string;
-      readonly file?: string;
-      /** `--query <words>`: a description, for the questions that search names. */
-      readonly query?: string;
-      /** `--from <path>`: a path to start at, for the questions that search names. Answers what it reaches. */
-      readonly from?: string;
-      /** `--to <path>`: a path to arrive at. Answers what reaches it, the other way along the imports. */
-      readonly to?: string;
-      readonly limit?: number;
-      /**
-       * `--at <address>`: a running watcher to ask, instead of the last report.
-       *
-       * Not resolved here. The default is an environment variable, and reading
-       * the environment is `dispatch`'s job — this file turns argv into a shape
-       * and would otherwise be the second place a default lives.
-       */
-      readonly at?: string;
-      /** Reports to read instead of the configured one. More than one is merged. */
-      readonly reports: readonly string[];
-    }
+  | ParsedAsk
   | ParsedDistill | ParsedSelect | ParsedShare
   | {
       readonly command: 'accept';
@@ -227,11 +188,12 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
   if (!isCommand(first)) {
     throw new OperatorError(
-      `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}\n\n${USAGE}`,
+      `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}.` +
+        `${didYouMean(first, COMMANDS)}\n\n${USAGE}`,
     );
   }
 
-  const flags = readFlags(argv.slice(1), first, flagsFor(first), USAGE);
+  const flags = readFlags(argv.slice(1), first, flagsFor(first), synopsisFor(first));
   const config = resolve(flags.values.get('--config') ?? DEFAULT_CONFIG);
 
   switch (first) {
@@ -284,51 +246,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       };
     }
 
-    case 'ask': {
-      // The first positional is the question and the rest are reports, which is
-      // the same shape `report` already has with one word in front of it. A
-      // `--question` flag would read as though the question were an option on
-      // something else, and there is nothing else here.
-      const [question, ...reports] = flags.positionals;
-      const subjects = (flags.values.get('--subjects') ?? '')
-        .split(',')
-        .map((value) => value.trim())
-        .filter((value) => value !== '');
-      const subject = flags.values.get('--subject');
-      const component = flags.values.get('--component');
-      const rule = flags.values.get('--rule');
-      const shape = flags.values.get('--shape');
-      const claims = flags.values.get('--claims');
-      const test = flags.values.get('--test');
-      const state = flags.values.get('--state');
-      const file = flags.values.get('--file');
-      const query = flags.values.get('--query');
-      const from = flags.values.get('--from');
-      const to = flags.values.get('--to');
-      const limit = countOf(flags.values.get('--limit'), 'tests to list');
-      const at = flags.values.get('--at');
-
-      return {
-        command: 'ask',
-        config,
-        ...(question !== undefined ? { question } : {}),
-        ...(subject !== undefined ? { subject } : {}),
-        ...(subjects.length > 0 ? { subjects } : {}),
-        ...(component !== undefined ? { component } : {}),
-        ...(rule !== undefined ? { rule } : {}),
-        ...(shape !== undefined ? { shape } : {}),
-        ...(claims !== undefined ? { claims: resolve(claims) } : {}),
-        ...(test !== undefined ? { test } : {}),
-        ...(state !== undefined ? { state } : {}),
-        ...(file !== undefined ? { file } : {}),
-        ...(query !== undefined ? { query } : {}),
-        ...(from !== undefined ? { from } : {}),
-        ...(to !== undefined ? { to } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-        ...(at !== undefined ? { at } : {}),
-        reports: reports.map((path) => resolve(path)),
-      };
-    }
+    case 'ask': return parseAskArgs(flags, config);
 
     case 'distill': return parseDistill(flags);
     case 'select': return parseSelectArgs(flags);

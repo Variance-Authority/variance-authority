@@ -1,6 +1,6 @@
 import type { Landmark, RunReport } from '@variance-authority/report';
 import { codeUnit, partsOf, tokensOf } from './locate-index.js';
-import { readQuestion, type Asked, type Relation } from './question.js';
+import type { Asked, Relation } from './question.js';
 import { holdersAmong, orientIndexOf } from './holds.js';
 import { deepestUnder, enclosedBy, enclosing } from './containment.js';
 import { scopeOf, type Scope } from './scope.js';
@@ -10,11 +10,13 @@ import type { Tree } from './tree.js';
  * Where on a screen, rather than which screen.
  *
  * `variance_locate` answers *which subject do I mean* from a description. The
- * question that arrives before it is usually one step longer than that — **the
- * warning underneath the carrier field on the dispatch drawer** — and it names
- * three things and one relation between two of them. Nothing in a bag of words
- * can answer it: a bag holds `carrier` and holds `contract` and cannot hold the
- * fact that the second sits beneath the first.
+ * question that arrives before it is usually one step longer than that —
+ * `{query: "warning", relation: "beneath", anchor: "Carrier", surface: "dispatch
+ * drawer"}` — three things and one relation between two of them. Nothing in a
+ * bag of words can answer it: a bag holds `carrier` and holds `contract` and
+ * cannot hold the fact that the second sits beneath the first. Each of the
+ * three arrives in its own argument, so none of them has to be recovered from
+ * the shape of a sentence.
  *
  * The lexicon's landmarks can, so this reads them. Three steps, and each is
  * cheap for a different reason:
@@ -94,7 +96,7 @@ export interface Orientation {
  */
 export function orient(
   report: RunReport,
-  question: string,
+  asked: Asked,
   from?: string | readonly string[],
   tree?: Tree,
   to?: string | readonly string[],
@@ -105,10 +107,10 @@ export function orient(
   // A boundary, not a preference: an empty scope is read empty rather than
   // widened back to the suite the caller narrowed away from.
   const within = scope === undefined ? undefined : scope.subjects;
-  const asked = readQuestion(question);
 
   const anchorParts = asked.anchor.flatMap((word) => partsOf(word));
   const targetParts = asked.target.flatMap((word) => partsOf(word));
+  const surfaceParts = asked.surface.flatMap((word) => partsOf(word));
 
   const spatial = asked.relation !== undefined && asked.relation !== 'inside';
   if (spatial && !index.laidOut && index.surfaces > 0) {
@@ -139,6 +141,10 @@ export function orient(
     // anchor's words cannot be the surface meant; a surface that never says
     // `warning` is most surfaces with a warning on them.
     if (anchorParts.length > 0 && !anchorParts.some((part) => filter.maybe(part))) continue;
+    // A surface, when one was named, gates the same way and for the same
+    // reason: it is the caller saying which screen, and a screen that says none
+    // of its words is not that screen.
+    if (surfaceParts.length > 0 && !surfaceParts.some((part) => filter.maybe(part))) continue;
     survivors.push(at);
   }
 
@@ -162,12 +168,12 @@ export function orient(
     const candidates = anchors(landmarks, anchorParts, rarity);
     if (candidates.length === 0) continue;
 
-    // The tail of a question names the anchor *and* the surface — "the carrier
-    // field on the dispatch drawer" — and the surface's own container scores
-    // just as well as the field does. Nothing but the relation separates them:
-    // the drawer has nothing beneath it, because everything is inside it. So
-    // the anchor is whichever candidate makes the question answerable, which
-    // needs no grammar and no guess about which noun was the place.
+    // An anchor phrase can still name two landmarks — `Carrier` is the field
+    // and the fieldset around it — and the container scores as well as the
+    // thing does. Nothing but the relation separates them: a container has
+    // nothing beneath it, because everything is inside it. So the anchor is
+    // whichever candidate makes the question answerable. A caller who knows
+    // which surface they mean says `surface` and never reaches this at all.
     let anchor = candidates[0]!;
     let standing: readonly { at: number; score: number; apart?: number }[] = [];
     if (asked.relation !== undefined) {

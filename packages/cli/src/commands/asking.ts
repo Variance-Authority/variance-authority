@@ -1,5 +1,6 @@
 import { TOOLS, VANTAGE_TOOLS, type Tool } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
+import { didYouMean } from '../nearest.js';
 
 /**
  * The catalogue behind `variance ask`: which questions exist, what each takes,
@@ -78,10 +79,11 @@ export function questionFor(asked: string): Question {
   const found = QUESTIONS.find((question) => questionOf(question.tool) === asked);
   if (found !== undefined) return found;
 
+  const names = QUESTIONS.map((question) => questionOf(question.tool));
   throw new OperatorError(
-    `\`${asked}\` is not a question; there is ` +
-      `${QUESTIONS.map((question) => questionOf(question.tool)).join(', ')}. Run \`variance ask\` ` +
-      'with no question for what each one answers.',
+    `\`${asked}\` is not a question; there is ${names.join(', ')}. ` +
+      'Run `variance ask` with no question for what each one answers.' +
+      didYouMean(asked, names),
   );
 }
 
@@ -115,6 +117,13 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   state: '<state>',
   file: '<text>',
   query: '<words>',
+  under: '<words>',
+  above: '<words>',
+  inside: '<words>',
+  beside: '<words>',
+  leftOf: '<words>',
+  rightOf: '<words>',
+  on: '<words>',
   from: '<path>',
   to: '<path>',
   limit: '<n>',
@@ -191,9 +200,11 @@ export function inputFor(
     if (value === undefined) continue;
     const argument = accepted.find((entry) => entry.property === property);
     if (argument === undefined) {
+      const flags = accepted.map((entry) => entry.flag);
       throw new OperatorError(
         `\`--${property}\` is not an argument \`variance ask ${questionOf(tool)}\` takes; it ` +
-          `takes ${accepted.length === 0 ? 'none' : accepted.map((entry) => entry.flag).join(', ')}`,
+          `takes ${flags.length === 0 ? 'none' : flags.join(', ')}` +
+          `${didYouMean(`--${property}`, flags)}`,
       );
     }
     input[property] = value;

@@ -62,6 +62,13 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--state',
     '--file',
     '--query',
+    '--under',
+    '--above',
+    '--inside',
+    '--beside',
+    '--left-of',
+    '--right-of',
+    '--on',
     '--from',
     '--to',
     '--limit',
@@ -84,7 +91,7 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance select  [--since <ref>] [--format plain|json|vitest|jest]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
-  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--from <path>] [--to <path>] [--limit <n>] [--at <address>] [<report>...]',
+  'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--limit <n>] [--at <address>] [<report>...]',
   'variance distill --test <id> [--eyes <path>] [--execution <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
@@ -116,6 +123,22 @@ export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] 
   return CONFIGLESS.includes(command)
     ? PER_COMMAND[command]
     : [...GLOBAL, ...PER_COMMAND[command]];
+}
+
+/**
+ * The one synopsis line for a command, as `USAGE` prints it.
+ *
+ * What a refusal about a command shows instead of the whole table. A reader who
+ * typed `variance ask --quer` is not choosing a command — they have chosen it,
+ * and the other fourteen lines are fourteen things to read past. That matters
+ * most to the reader who cannot skim: an agent recovering from a typo should get
+ * back the shape of the command it is already running and nothing else.
+ *
+ * Read out of `USAGE` rather than kept beside it, so there is still exactly one
+ * place a synopsis is written.
+ */
+export function synopsisFor(command: (typeof COMMANDS)[number]): string {
+  return USAGE.split('\n').find((line) => line.startsWith(`variance ${command} `)) ?? USAGE;
 }
 
 /** Whether a word is one of the commands above, narrowed for the parser. */

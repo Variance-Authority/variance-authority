@@ -51,11 +51,9 @@ from those as a crash — a crash is `2`.
    movement, and separates `flake` (read twice, differed) from `suspect` (never
    read twice).
 5. **`locate --query <words>`** when you can describe the subject but do not
-   hold its id: it matches over every name the run wrote down — ids, examples,
-   accessible names, text, components, creators, files, roles, tokens, and the
-   regions a journey entered — and each hit prints the field it matched. The
-   order is orientation; a wrong first hit costs one more question, never a
-   finding. `composition --subject <id>` then says what that subject is made of.
+   hold its id. It matches over every name the run wrote down and each hit
+   prints the field it matched; `composition --subject <id>` then says what that
+   subject is made of. **Locate in full** is below.
 6. **`describe`, `explain-verdict`, `trace-component`, `findings`** — narrow, one
    subject or one component at a time, once you know which one matters.
 7. **`changelog`** before proposing an accept, and never after: it previews what
@@ -63,6 +61,85 @@ from those as a crash — a crash is `2`.
 
 `variance ask diff` compares the run against whatever the previous question was
 answered from. Use it to see what a re-run moved.
+
+## Locate a subject you can only describe
+
+Every narrow question takes an id. You hold a description. `locate` is the one
+question that goes the other way, and it searches the names the run wrote
+down while comparing subjects: ids, examples, accessible names, visible text,
+components, creators, declaring files, roles, custom properties, and the regions
+a journey entered. It does not read the repository, and it is not code search.
+
+**Hand the description over as words.** No word in `--query` is ever read as
+syntax, so a product that says *Under review*, *Show more* or *Inside sales* is
+searched for those words:
+
+```bash
+variance ask locate --query "footer filter chips"
+```
+
+**Say where you are standing when the suite is large.** On a few hundred
+subjects the description carries it; on a few thousand the missing word is the
+place, not a better adjective. `--from <path>` answers from what that path
+reaches along the imports, `--to <path>` from what reaches it. Both also change
+what your words are worth: rarity is counted inside the scope, so a word common
+to that area is worth nothing there.
+
+```bash
+variance ask locate --query "contract warning" --from "app/dispatch/page.tsx"
+```
+
+A path is a fact about the source tree, so ask from a checkout of the repository
+the run was made in. Say the parent along with the file name — `Provider.tsx` is
+not unique. `app/dispatch/*` is that folder's files; `app/dispatch/` is
+everything under it at any depth.
+
+**Say the arrangement when your description is a relation.** *The warning under
+the Carrier field, on the dispatch drawer* names two things and how they sit;
+counting matched words cannot answer it, because the surface where the warning
+sits *above* the field says the same words. Name the three parts separately —
+the relation is the name of the flag:
+
+```bash
+variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
+```
+
+`--under`, `--above`, `--inside`, `--beside`, `--left-of` and `--right-of` take
+the anchor, the thing it sits by. `--on` takes the surface, and is worth saying:
+without it the anchor has to pick the surface as well. One relation per
+question; two is refused. `--under` and the rest are decided from the rectangles
+the run resolved, so a run with no layout refuses them rather than answering
+from document order — `--inside` still answers, because containment needs none.
+
+**Every hit is already a place.** `where:` carries the thing on that surface
+saying your words, the file and line it is declared at, and what encloses it. A
+production build strips the line, so the place reads `in CarrierPicker ·
+src/dispatch/CarrierPicker.tsx` — a source to open rather than a coordinate. Do
+not spend a second question asking where something lives.
+
+On a relation answer, read three things before acting:
+
+- `matched on place` — nothing on the screen says your word; the landmark was
+  found by where it is, not by what it is called. When your word is on it, the
+  answer says so instead.
+- `also beneath` (and the other relations) — everything else in that relation,
+  nearest first. The one you meant is sometimes the second.
+- `4px away` — measured between resolved rectangles. Absent when the run
+  resolved no layout.
+
+**Read the header before reading a nil answer.** Three different states look
+alike and the header separates them per field: *read, and nothing matched* — the
+names exist and your word is not among them, so ask again in the suite's
+vocabulary; *not read* — no journal means no regions, no snapshot means no
+names, text or roles, no source index means no files, so nothing was searched;
+*read, and genuinely empty* — a build with the owner links stripped has an empty
+`createdBy` everywhere. Search is absent altogether, and says so, on a
+raster-only capture, a run under ephemeral retention, and a suite that is not
+React.
+
+The order of hits is orientation, not evidence. Nothing in it carries a verdict
+or a pixel count. Read the field each term matched on, narrow, then take the id
+to `composition`, `describe` or `explain-verdict`.
 
 ## Ask a suite that is still running
 

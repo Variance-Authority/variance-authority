@@ -2,10 +2,10 @@ import type { LexiconField, RunReport } from '@variance-authority/report';
 import { stringArg, type Tool } from './tool.js';
 import { codeUnit, entriesMatching, indexOf, lower, partsOf, type LocateField } from './locate-index.js';
 import { orient } from './orient.js';
-import { readQuestion } from './question.js';
+import { askedFor, STOPLIST } from './question.js';
 import { renderOrientation } from './place.js';
 import { render } from './locate-print.js';
-import { scopeLine, scopeOf, type Scope } from './scope.js';
+import { scopeOf, type Scope } from './scope.js';
 import type { Tree } from './tree.js';
 
 export { tokensOf, type LocateField } from './locate-index.js';
@@ -71,6 +71,28 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * The place is an orientation and not a finding, the same as the order above
  * it: it says where to start reading.
  */
+/**
+ * One relation argument, described the same way six times.
+ *
+ * The relation is the argument's name rather than a value in an enum beside it,
+ * so there is no pair to get wrong and no spelling to validate: an agent either
+ * named `under` or it did not. What each holds is identical — the words naming
+ * the anchor — which is why this is one function and not six paragraphs that
+ * drift apart.
+ */
+function relationArgument(relation: string, extra?: string): Readonly<Record<string, unknown>> {
+  return {
+    type: 'string',
+    description:
+      `Optional. Words naming what the thing sits ${relation} — \`Carrier\`, \`Pickup window\`. ` +
+      'Saying this asks where on a surface something sits rather than which surface it is: the ' +
+      'anchor is found first, then what stands in the relation to it, measured off the ' +
+      'rectangles the run resolved. At most one relation argument per question. A spatial ' +
+      'relation is refused on a run that resolved no layout rather than guessed from document ' +
+      `order.${extra === undefined ? '' : ` ${extra}`}`,
+  };
+}
+
 export const locate: Tool = {
   name: 'variance_locate',
   description:
@@ -83,17 +105,36 @@ export const locate: Tool = {
     'before `variance_describe` or `variance_composition {subject}`. A word no subject holds ' +
     'is answered with the names the suite does use. Each hit carries the place behind it — the ' +
     'landmark saying those words, the file and the line it is declared at — so the answer ends ' +
-    'where the work starts. A `query` carrying a relation — *the warning under the Carrier ' +
-    'field on the dispatch drawer* — is answered by the arrangement the same run recorded.',
+    'where the work starts. To ask where on a surface something sits rather than which surface ' +
+    'it is, name what it sits by in one of `under`, `above`, `inside`, `beside`, `leftOf` or ' +
+    '`rightOf`, and the surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch ' +
+    'drawer"}` is answered by the arrangement the same run recorded. The words in `query` are ' +
+    'only ever words — nothing in them is read as syntax.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
         description:
-          'Words naming the subject: a story id fragment, a component, a label, visible text. ' +
-          'Say `under`, `above`, `inside`, `left of`, `right of` or `beside` to ask where on a ' +
-          'surface something sits rather than which surface it is.',
+          'Words naming the thing wanted: a story id fragment, a component, a label, visible ' +
+          'text. Matched as words and nothing else — no word in it is read as syntax, so a ' +
+          'product that says `Under review` or `Inside sales` is searched for those words. ' +
+          'Where on a surface the thing sits is said in the arguments below, never in here.',
+      },
+      under: relationArgument('beneath'),
+      above: relationArgument('above'),
+      inside: relationArgument('inside', 'Answered without layout, because containment needs no rectangles.'),
+      beside: relationArgument('beside'),
+      leftOf: relationArgument('left of'),
+      rightOf: relationArgument('right of'),
+      on: {
+        type: 'string',
+        description:
+          'Optional. Words naming the surface the question is asked on — `dispatch drawer` — ' +
+          'when the anchor alone could be on several. Its own argument because it is its own ' +
+          'fact: the surface says which screen, the anchor says which landmark on it, and the ' +
+          'relation is measured from the anchor. Needs one of the relation arguments; alone it ' +
+          'is refused rather than read as more words for `query`.',
       },
       from: {
         oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
@@ -149,9 +190,11 @@ export const locate: Tool = {
     // One door. The lexicon holds the words and the arrangement, written by one
     // walk of one run, so a question about where something sits is not another
     // tool — it is this one reading the other half of the record it already has.
-    // The relation word in the question is what says which half to read.
-    if (readQuestion(query).relation !== undefined) {
-      const answer = orient(report, query, from, tree, to);
+    // Which half is read is decided by whether a relation was named, and a
+    // relation is only ever named: nothing in `query` chooses it.
+    const asked = askedFor(query, input);
+    if (asked.relation !== undefined) {
+      const answer = orient(report, asked, from, tree, to);
       if (answer.surfaces > 0) return renderOrientation(answer, limit);
     }
 
@@ -263,12 +306,6 @@ export interface Located {
   /** The start point, when one was given, resolved. */
   readonly scope?: Scope;
 }
-
-/**
- * Ten function words and nothing else. Closed, in code, because a stoplist is a
- * rule about the query and a rule is printed, not tuned.
- */
-const STOPLIST: ReadonlySet<string> = new Set(['the', 'a', 'an', 'in', 'on', 'of', 'with', 'and', 'for', 'to']);
 
 /**
  * The lookup, as a value: the tool prints this and a measurement reads it.

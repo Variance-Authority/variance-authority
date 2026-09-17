@@ -4,6 +4,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { LexiconReport, RunReport, SubjectLexicon } from '@variance-authority/report';
 import { locate, locateSubjects } from './locate.js';
 import { orient } from './orient.js';
+import { askedFor } from './question.js';
 import { scopeLine, scopeOf } from './scope.js';
 import { treeOf } from './tree.js';
 
@@ -382,19 +383,19 @@ describe('a start point reaches the arrangement too', () => {
     // Both surfaces put the same warning under the same field, and only one of
     // them is in the area. A scope that stopped at the word search would narrow
     // the ids and leave the places alone.
-    const everywhere = orient(REPORT, 'the contract warning under Carrier');
+    const everywhere = orient(REPORT, askedFor('contract warning', { under: 'Carrier' }));
     expect(everywhere.hits.map((hit) => hit.subject).sort()).toEqual([
       'billing/invoice-table--overdue',
       'shipping/dispatch-drawer--overdue',
     ]);
 
-    const scoped = orient(REPORT, 'the contract warning under Carrier', 'src/billing/', TREE);
+    const scoped = orient(REPORT, askedFor('contract warning', { under: 'Carrier' }), 'src/billing/', TREE);
     expect(scoped.hits.map((hit) => hit.subject)).toEqual(['billing/invoice-table--overdue']);
     expect(scoped.scope?.entries).toBe(4);
   });
 
   it('refuses the arrangement question too when the path names nowhere', () => {
-    const scoped = orient(REPORT, 'the contract warning under Carrier', 'src/warehousing/', TREE);
+    const scoped = orient(REPORT, askedFor('contract warning', { under: 'Carrier' }), 'src/warehousing/', TREE);
     expect(scoped.hits).toEqual([]);
     expect(scoped.scope?.refused).toContain('not found');
   });

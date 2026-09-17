@@ -1,11 +1,11 @@
 import type { Landmark, RunReport } from '@variance-authority/report';
 import { partsOf } from './locate-index.js';
-import { readQuestion } from './question.js';
+import { wordsOf } from './question.js';
 import { orientIndexOf } from './holds.js';
 import { deepestUnder, enclosing } from './containment.js';
 import { anchors } from './orient.js';
 import { scopeLine } from './scope.js';
-import type { Orientation, Oriented } from './orient.js';
+import type { Orientation } from './orient.js';
 
 /**
  * A landmark as somewhere to go.
@@ -68,7 +68,8 @@ export function renderOrientation(answer: Orientation, limit: number): string {
   const { asked } = answer;
   const declaredIn = answer.declaredIn ?? {};
   const relation = asked.relation ?? 'inside';
-  const said = `\`${asked.target.join(' ')}\` ${relation} \`${asked.anchor.join(' ')}\``;
+  const on = asked.surface.length === 0 ? '' : ` on \`${asked.surface.join(' ')}\``;
+  const said = `\`${asked.target.join(' ')}\` ${relation} \`${asked.anchor.join(' ')}\`${on}`;
 
   if (answer.refused !== undefined) return `Cannot answer ${said}: ${answer.refused}`;
 
@@ -146,8 +147,7 @@ export function placesOn(
   const index = orientIndexOf(report);
   if (index.surfaces === 0) return new Map();
 
-  const asked = readQuestion(query);
-  const parts = [...asked.target, ...asked.anchor].flatMap((word) => partsOf(word));
+  const parts = wordsOf(query).flatMap((word) => partsOf(word));
   if (parts.length === 0) return new Map();
 
   const rarity = (part: string): number =>

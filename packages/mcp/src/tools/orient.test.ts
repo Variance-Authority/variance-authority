@@ -3,7 +3,7 @@ import type { RenderIdentity } from '@variance-authority/core/format';
 import type { Landmark, LexiconReport, RunReport, SubjectLexicon } from '@variance-authority/report';
 import { locate } from './locate.js';
 import { orient } from './orient.js';
-import { readQuestion } from './question.js';
+import { askedFor } from './question.js';
 import { Holds } from './holds.js';
 
 /**
@@ -111,18 +111,31 @@ const reportOf = (raw: readonly SubjectLexicon[]): RunReport => {
 const REPORT = reportOf([DISPATCH, SETTINGS, UNRELATED]);
 
 describe('reading the question', () => {
-  it('splits at the relation, target in front, anchor and surface behind', () => {
-    expect(readQuestion('Change the warning underneath the Carrier field on the dispatch drawer')).toEqual({
+  it('takes the target, the anchor and the surface as three arguments', () => {
+    expect(askedFor('warning', { under: 'the Carrier field', on: 'the dispatch drawer' })).toEqual({
       relation: 'beneath',
       target: ['warning'],
-      anchor: ['carrier', 'field', 'dispatch', 'drawer'],
+      anchor: ['carrier', 'field'],
+      surface: ['dispatch', 'drawer'],
     });
   });
 
-  it('keeps a question with no relation as one phrase', () => {
-    // Still orientation — *which surfaces hold these things* — and the answer
-    // says so by carrying no target rather than by inventing a relation.
-    expect(readQuestion('the carrier field')).toEqual({ target: [], anchor: ['carrier', 'field'] });
+  it('reads no word of the query as syntax', () => {
+    // The whole of the change. A product with an `Under review` badge asks for
+    // it by its words, and nothing splits the phrase at `under`.
+    expect(askedFor('under review badge', {})).toEqual({
+      target: [],
+      anchor: ['under', 'review', 'badge'],
+      surface: [],
+    });
+  });
+
+  it('refuses two relations rather than picking one', () => {
+    expect(() => askedFor('warning', { under: 'Carrier', above: 'Pickup' })).toThrow(/were both said/);
+  });
+
+  it('refuses a surface with no relation to ask it on', () => {
+    expect(() => askedFor('warning', { on: 'dispatch drawer' })).toThrow(/no relation was said/);
   });
 });
 
@@ -135,7 +148,7 @@ describe('the filter that decides what is walked', () => {
   });
 
   it('drops the surfaces that hold neither word before reading their landmarks', () => {
-    const { considered, surfaces } = orient(REPORT, 'the warning under the Carrier field');
+    const { considered, surfaces } = orient(REPORT, askedFor('warning', { under: 'the Carrier field' }));
     expect(surfaces).toBe(3);
     // The invoice table says neither `carrier` nor `warning`, so it never
     // reaches the exact walk. This is the step that has to hold at scale.
@@ -146,7 +159,7 @@ describe('the filter that decides what is walked', () => {
 describe('answering where a thing is', () => {
   const { hits } = orient(
     REPORT,
-    'Change the warning underneath the Carrier field on the dispatch drawer',
+    askedFor('warning', { under: 'the Carrier field', on: 'the dispatch drawer' }),
   );
 
   it('answers with a file and a line, not another id to look up', () => {
@@ -182,7 +195,11 @@ describe('the one door', () => {
   // and a suite that recorded no arrangement falls back to the words rather
   // than answering that it cannot.
   it('answers a relation question through `variance_locate`, with the place on it', () => {
-    const printed = locate.run(REPORT, { query: 'the warning under the Carrier field on the dispatch drawer' });
+    const printed = locate.run(REPORT, {
+      query: 'warning',
+      under: 'the Carrier field',
+      on: 'the dispatch drawer',
+    });
 
     expect(printed).toContain('src/dispatch/CarrierPicker.tsx:78');
     expect(printed).toContain('No active contract on file');
@@ -245,7 +262,7 @@ describe('a run off a production build', () => {
   };
 
   it('still ends at a file, through the component that owns the thing', () => {
-    const printed = locate.run(withJoin, { query: 'the warning under the Carrier field' });
+    const printed = locate.run(withJoin, { query: 'warning', under: 'the Carrier field' });
 
     expect(printed).toContain('in `CarrierPicker` · src/dispatch/CarrierPicker.tsx');
     expect(printed).toContain('No active contract on file');
@@ -255,7 +272,7 @@ describe('a run off a production build', () => {
     // A run with no source index knows which component owns the thing and not
     // which file declares it. A component name is still a place to open; a
     // line number invented for it would not be.
-    const printed = locate.run(built, { query: 'the warning under the Carrier field' });
+    const printed = locate.run(built, { query: 'warning', under: 'the Carrier field' });
 
     expect(printed).toContain('in `CarrierPicker`');
     expect(printed).not.toContain('.tsx');
@@ -274,7 +291,7 @@ describe('the relation the reading cannot support', () => {
     // Document order agrees with the screen often enough to be dangerous and
     // not often enough to be relied on, so the answer is a sentence about the
     // run rather than a guess with a file and a line on it.
-    const answer = orient(flat, 'the warning under the Carrier field');
+    const answer = orient(flat, askedFor('warning', { under: 'the Carrier field' }));
     expect(answer.hits).toEqual([]);
     expect(answer.laidOut).toBe(false);
     expect(answer.refused).toContain('did not resolve layout');
@@ -287,7 +304,7 @@ describe('the relation the reading cannot support', () => {
     // rectangles there is no distance to separate the six things inside the
     // dialog. So the answer is everything inside it, flagged as matched on
     // place, with the sentence among them — and the reader picks.
-    const answer = orient(flat, 'the warning inside the Dispatch shipment dialog');
+    const answer = orient(flat, askedFor('warning', { inside: 'the Dispatch shipment dialog' }));
     expect(answer.refused).toBeUndefined();
 
     const hit = answer.hits[0];

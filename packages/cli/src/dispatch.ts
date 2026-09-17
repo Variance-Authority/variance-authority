@@ -32,6 +32,7 @@ import {
   type Plan,
 } from './commands/run.js';
 import { ask } from './commands/ask.js';
+import { questionFor } from './commands/asking.js';
 import { formatReport } from './commands/report.js';
 import {
   adjudicateReport,
@@ -77,6 +78,12 @@ export async function dispatch(
   const constant = constantAnswer(parsed, streams);
   if (constant !== undefined) return constant;
   if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
+
+  // A question nobody asks is refused before a file is opened. The name is a
+  // fact about this tool and not about the project, so a mistyped one answered
+  // with "cannot read the config" sends the reader to fix the wrong thing —
+  // and sends the reader who cannot see the two are unrelated a long way.
+  if (parsed.command === 'ask' && parsed.question !== undefined) questionFor(parsed.question);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {

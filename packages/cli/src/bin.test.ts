@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BOOLEAN } from './args.js';
-import { USAGE, parseArgs } from './parse.js';
+import { USAGE, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
 import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
@@ -418,8 +418,9 @@ describe('opening a renderer', () => {
  *
  * The parser prints the accepted set when it rejects a flag, so this asks the
  * code path an operator actually hits rather than keeping a second copy of the
- * table. Only the sentence is read: the refusal appends the whole usage text,
- * and matching flags in that would make the assertion vacuous.
+ * table. Only that one sentence is read: the refusal also names a nearest match
+ * and prints the command's synopsis, and matching flags in either would make the
+ * assertion vacuous.
  */
 function flagsOf(command: string): readonly string[] {
   const sentence = /it takes ([^\n]+)/.exec(attempt([command, '--not-a-flag']).message)?.[1];

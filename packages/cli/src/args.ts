@@ -1,4 +1,5 @@
 import { OperatorError } from './exit.js';
+import { didYouMean } from './nearest.js';
 
 /**
  * The flag lexer: hyphens, `=`, `--`, and nothing about what any command means.
@@ -42,7 +43,13 @@ export function readFlags(
   command: string,
   /** Every flag this command takes, global ones included. Refusals print it. */
   accepted: readonly string[],
-  /** Appended to an unknown-flag refusal, so a typo answers with the whole synopsis. */
+  /**
+   * Appended to an unknown-flag refusal: the synopsis of *this* command.
+   *
+   * One line rather than the whole table, because the reader has already chosen
+   * the command — and the reader who cannot skim past the other fourteen is the
+   * one this tool is mostly read by.
+   */
   usage: string,
 ): Flags {
   const values = new Map<string, string>();
@@ -72,7 +79,8 @@ export function readFlags(
     if (!accepted.includes(name)) {
       throw new OperatorError(
         `\`${name}\` is not a flag \`variance ${command}\` accepts; it takes ` +
-          `${accepted.length === 0 ? 'none' : accepted.join(', ')}\n\n${usage}`,
+          `${accepted.length === 0 ? 'none' : accepted.join(', ')}` +
+          `${didYouMean(name, accepted)}\n\n${usage}`,
       );
     }
     if (present.has(name)) {

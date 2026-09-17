@@ -6,6 +6,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exi
 import { dispatch } from './dispatch.js';
 import { CLI_VERSION } from './version.js';
 import { USAGE, parseArgs, type Parsed } from './parse.js';
+import { skillLine } from './skill.js';
 
 /**
  * The program: one command in, one exit code out.
@@ -38,7 +39,7 @@ export async function main(
   try {
     parsed = parseArgs(argv);
   } catch (error) {
-    streams.err(`${messageOf(error)}\n`);
+    streams.err(`${messageOf(error)}\n${skillLine()}`);
     return EXIT_OPERATOR;
   }
 
@@ -56,7 +57,7 @@ export async function main(
     return await dispatch(parsed, streams);
   } catch (error) {
     if (isOperatorError(error)) {
-      streams.err(`${messageOf(error)}\n`);
+      streams.err(`${messageOf(error)}\n${skillLine()}`);
       return EXIT_OPERATOR;
     }
     streams.err(

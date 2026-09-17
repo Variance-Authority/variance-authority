@@ -252,27 +252,27 @@ A start point narrows a relation question the same way, where it is removing
 surfaces before any of them is read:
 
 ```bash
-variance ask locate --query "the warning under the Carrier field" --from "app/dispatch/"
+variance ask locate --query "warning" --under "Carrier field" --from "app/dispatch/"
 ```
 
-Over MCP both are `variance_locate {query, from, to}`.
+Over MCP all of it is one call: `variance_locate {query, under, on, from, to}`.
 
 ## Ask where something sits
 
-Half the descriptions you hold are one step longer than *which subject*: **the
-warning underneath the Carrier field on the dispatch drawer** names two things
-and the relation between them. No count of matched words answers it — a subject
-holding both words holds them whatever their order on the screen, and the
-surface where the warning sits *above* the field matches just as well.
+Half the descriptions you hold are one step longer than *which subject*: the
+warning underneath the Carrier field, on the dispatch drawer. That names two
+things and the relation between them. No count of matched words answers it — a
+subject holding both words holds them whatever their order on the screen, and
+the surface where the warning sits *above* the field matches just as well.
 
-Put the relation in the query and it is read off the arrangement instead:
+Name each of the three separately and the arrangement is read instead:
 
 ```bash
-variance ask locate --query "the warning under the Carrier field on the dispatch drawer"
+variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
 ```
 
 ```text
-1 surface(s) of 3 put `warning` beneath `carrier field dispatch drawer`, 2 read in full.
+1 surface(s) of 3 put `warning` beneath `carrier` on `dispatch drawer`, 2 read in full.
 
 shipping/dispatch-drawer--carrier-unverified · example of DispatchDrawer
   anchor: combobox `Carrier` · src/dispatch/CarrierPicker.tsx:64
@@ -281,9 +281,23 @@ shipping/dispatch-drawer--carrier-unverified · example of DispatchDrawer
   within: Dispatch shipment
 ```
 
-`under`, `above`, `inside`, `left of`, `right of` and `beside` are the words that
-switch it. Everything in front of one names what you are looking for; everything
-behind it names what it sits by, and the surface it sits on.
+**The relation is the name of the flag**, and there are six: `--under`,
+`--above`, `--inside`, `--beside`, `--left-of` and `--right-of`. What you pass to
+one is the anchor — what the thing sits by. `--query` stays what you are looking
+for, and `--on` is the surface the two are on.
+
+Nothing in `--query` is ever read as syntax. Your product is free to say *Under
+review*, *Show more* and *Inside sales*, and asking for those words gets you
+those words; a reader that took the relation out of the phrase would have taken
+them off you as grammar. Say one relation per question — two is a question with
+two answers, and it is refused rather than resolved.
+
+`--on` is optional and worth saying. Without it the anchor has to pick the
+surface as well as the landmark, and the drawer and the field on it both answer
+to the drawer's name: the answer then comes out of whichever reading the relation
+makes answerable, which is right nearly always and is a derivation rather than
+something you said. With it, you have said which screen, and only the anchor is
+looked for on it.
 
 **Here the place is the whole answer**, not a line beside the id. Order is still
 orientation and a wrong top hit costs you one more call; what the relation buys
