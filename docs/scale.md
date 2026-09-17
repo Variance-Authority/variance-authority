@@ -13,7 +13,7 @@ half the codebase on their own. That is the case the rest of this page is
 worked against, because it is the hard one. If the arithmetic holds there,
 your repository is the easy one.
 
-## Two things have to fit
+## Three files have to fit
 
 Selection starts with a [scan of the source](source.md). [Sense](../packages/sense)
 reads every file, resolves what it imports, and writes one record per file
@@ -26,11 +26,12 @@ test *actually* entered: for every test file, the
 ran. One test entering one region is a **crossing**, and the record is the
 whole set of crossings your suite produced, written to one binary file.
 
-So two things have to fit your repository, in that order: the index, and the
-record. Most of this page is the arithmetic on both. A third artifact — the
-[lexicon](lexicon.md), which is what lets you *find* a subject rather than
-decide whether to run one — is priced on a different axis entirely, and
-[has its own arithmetic](#the-lexicon-is-priced-in-subjects) at the end.
+The [lexicon](lexicon.md) answers a different question: not whether to run a
+subject, but how to *find* one. It is written per subject, which puts it on its
+own axis — the index and the record are priced in modules, and the lexicon is
+priced in subjects.
+
+This page is the arithmetic on all three, in that order.
 
 ## The source index
 
@@ -211,7 +212,7 @@ different one. The same holds for the scan caches, which are content-addressed
 for the same reason: nothing in the path is allowed to turn an absent cache into
 a wrong answer.
 
-## What both halves cost, at four sizes
+## What the index and the record cost, at four sizes
 
 Both files grow with modules and stay linear, so you can price your own
 repository before recording anything. The two middle rows are measured; the
@@ -235,6 +236,44 @@ and the record column by column, so the resident figure stays the one measured
 above: about 120 MB for a cold answer to a 100-file diff. What a repository
 that size changes is how long a first scan takes and how much storage you keep,
 not how much memory a run needs.
+
+## What decides the value is what changed, not how much
+
+The instinct is that cost tracks how many files changed. It tracks where they
+are, far better. Five changed files in Material UI's recorded suite, counted
+twice:
+
+| a diff of five files | tests run |
+|---|---|
+| adjacent, one feature in one subtree | 31 of 184 |
+| scattered across the repository | 155 of 184 |
+
+Adjacent files share most of their audience, so the fifth costs little more than
+the first. A dependency bump, a codemod or a formatting sweep is the other row,
+and there is no honest way to make it cheap: the tests really did enter all of
+that.
+
+Adjacency is not a guarantee, and the same recording says so: widen the
+clustered diff to ten files and the run jumps to 150 of 184, because the subtree
+has grown to include a file most of the library imports. Walk every file in the
+suite and ask what it would cost if only that file changed:
+
+- the median file costs **7%** of the suite;
+- the ninetieth percentile costs **84%**;
+- **a third of the files each cost half the suite or more**, because a utility
+  most of the library imports is entered by a test that renders almost
+  anything, and a change to it genuinely could break almost anything.
+
+One subtree shows the shape. Eleven adjacent files cost 17% of the suite between
+them. The twelfth, a class-names module, costs 78% on its own, and once it is in
+the diff the other eleven are free.
+
+So the question worth asking before adopting this is not *how big is my
+repository*. It is **how often do my pull requests touch a hub**, and your own
+recording answers it. Record your suite once, check out a recent pull request,
+and run
+[`variance select --format json`](../packages/cli#select-what-your-own-runner-may-skip):
+the counts it reports are the skip list that diff would have had.
 
 ## The lexicon is priced in subjects
 
@@ -369,44 +408,6 @@ entries, and no amount of index structure makes a word that fails to
 distinguish distinguish. That is a ranking problem rather than a storage one,
 and [what a starting point is worth](lexicon.md#what-a-starting-point-is-worth)
 is the measurement of the lever that moves it.
-
-## What decides the value is what changed, not how much
-
-The instinct is that cost tracks how many files changed. It tracks where they
-are, far better. Five changed files in Material UI's recorded suite, counted
-twice:
-
-| a diff of five files | tests run |
-|---|---|
-| adjacent, one feature in one subtree | 31 of 184 |
-| scattered across the repository | 155 of 184 |
-
-Adjacent files share most of their audience, so the fifth costs little more than
-the first. A dependency bump, a codemod or a formatting sweep is the other row,
-and there is no honest way to make it cheap: the tests really did enter all of
-that.
-
-Adjacency is not a guarantee, and the same recording says so: widen the
-clustered diff to ten files and the run jumps to 150 of 184, because the subtree
-has grown to include a file most of the library imports. Walk every file in the
-suite and ask what it would cost if only that file changed:
-
-- the median file costs **7%** of the suite;
-- the ninetieth percentile costs **84%**;
-- **a third of the files each cost half the suite or more**, because a utility
-  most of the library imports is entered by a test that renders almost
-  anything, and a change to it genuinely could break almost anything.
-
-One subtree shows the shape. Eleven adjacent files cost 17% of the suite between
-them. The twelfth, a class-names module, costs 78% on its own, and once it is in
-the diff the other eleven are free.
-
-So the question worth asking before adopting this is not *how big is my
-repository*. It is **how often do my pull requests touch a hub**, and your own
-recording answers it. Record your suite once, check out a recent pull request,
-and run
-[`variance select --format json`](../packages/cli#select-what-your-own-runner-may-skip):
-the counts it reports are the skip list that diff would have had.
 
 ## What these numbers are, and are not
 
