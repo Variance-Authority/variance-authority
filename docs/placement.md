@@ -1,19 +1,34 @@
 # Where baselines live
 
-A run compares the image it just rendered against a baseline under one of two
-retention modes, set as `"retention"` in the config: `ephemeral` renders both
-sides in the same run and keeps neither past it, so there is nothing to place;
-`durable` compares against an image a previous run wrote and stored, so
-somewhere has to hold it between runs. This page is about `durable` retention.
-Which of the two images wins, and whether they are even allowed to be compared,
-is decided by the **identity digest** — a hash of the renderer, browser engine,
-platform, device scale factor and fonts that produced the image, written into
-paths as the `v1:6c1f…` segment you will see throughout this page — and by
-nothing about the storage. What placement decides is **who is holding the
-bytes when the next run starts**, and what that costs.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
 
-Three answers, one config key, and no default — because the three fail in
-different directions and none of them is safe to guess.
+This page is the reference for where those approved images are kept between
+runs, one per **subject**: one named UI state you asked for and can ask for
+again, identified by a stable id such as `story:checkout--empty`. Read it when
+you are setting up a project and have to decide whether the images are
+committed, tracked through git-LFS, or held by a service. New here? Start with
+[your first run](start.md).
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
+
+Baselines outlive a run only under `"retention": "durable"` in the config. The
+other mode, `ephemeral`, renders both sides inside a single run and keeps
+neither past it, so there is nothing to place. Everything below is about
+`durable`.
+
+Whether two images may be compared at all is decided by the **identity
+digest** — a hash of the renderer, browser engine, platform, device scale
+factor and fonts that produced the image, written into paths as the
+`v1:6c1f…` segment you will see throughout this page. Storage has no say in
+it. What placement decides is **who is holding the bytes when the next run
+starts**, and what that costs.
+
+There are three answers and no default. Set `baselines.kind` explicitly.
 
 | `baselines.kind` | the bytes are | you set up | you pay |
 |---|---|---|---|
@@ -39,7 +54,7 @@ there, exclude the contents rather than the directory, so git still descends:
 !.variance/baselines/
 ```
 
-`variance doctor` is the readback. It lists each identity partition in the root
+`npx variance doctor` is the readback. It lists each identity partition in the root
 with a count, and says whether this machine's identity is one of them — an empty
 root on a clean checkout is a store nobody committed, and it reads exactly the
 same as a store nobody has written to yet.
@@ -82,6 +97,9 @@ ordered by URL escape rather than by anything a reviewer recognises.
 
 ## Beside the code
 
+An excerpt — this replaces the `baselines` key of the full
+`variance.config.json` above, and the rest of that file is unchanged:
+
 ```json
 {
   "baselines": { "kind": "lfs", "root": ".", "layout": "beside" }
@@ -100,8 +118,10 @@ src/ui/Button/v1:6c1f…/primary.png
 src/ui/Button/v1:6c1f…/primary.json
 ```
 
-The identity directory stays, because that partition is the only thing between a
-runner-image upgrade and a day of unattributable red.
+The identity directory stays in the path. An image painted under a different
+renderer, engine, platform, scale factor or font stack lands in its own
+partition, so upgrading a runner image does not put the new pixels up against
+the old ones.
 
 ### How a subject finds its directory
 
@@ -128,20 +148,22 @@ src/ui/shell/HatBar.stories.tsx
 src/ui/shell/v1:6c1f…/story%3Ahatbar--accepted-hats.png
 ```
 
-A story declared at the root of the repository places at the root, which is a
-place. A path climbing out of the project with `../` is refused by name, naming
-the subject that carried it — you chose the id, so a message quoting only the
-path would leave you grepping a built index for it.
+A story declared at the root of the repository places at the root. A path
+climbing out of the project with `../` is refused, and the message names the
+subject whose id carried it.
 
-`beside` is available to `directory` too. It is grouped with LFS because putting
-PNGs in the source tree is the case where the filter earns its setup: the files
-are next to code people edit, so they are in every diff and every clone.
+`beside` is available to `directory` too. Under either backend the images sit
+next to code people edit, so they turn up in every diff and every clone;
+`lfs` is what keeps the PNG bytes out of the git history.
 
 `createLfsStore` writes its own `.gitattributes` in the root, and the layout
 needs nothing added to it — attributes apply to the directory holding the file
 and to everything under it.
 
 ## Somewhere else entirely
+
+An excerpt of the same `baselines` key. `endpoint` is the deployment you run and
+`token` the credential it accepts:
 
 ```json
 {
@@ -152,21 +174,24 @@ and to everything under it.
 Nothing is committed and nothing is cloned, which is the point: unlike
 `directory` or `lfs`, there is no CI bot pushing updated baseline images back
 onto the pull-request branch, and no hosted-storage quota sized for a growing
-corpus — this store can outgrow what anyone wants in a work tree. `variance
+corpus — this store can outgrow what anyone wants in a work tree. `npx variance
 accept` writes through, so approval stops being a commit.
 
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
 characters, no image fetched — and across a network that saving is spent straight
 back on one request per subject. So the run declares its working set: after selection,
-`variance run` names the subjects it is going to ask about, and the store fetches
+`npx variance run` names the subjects it is going to ask about, and the store fetches
 their sidecars for this machine's identity in **one** request. Subjects a filter
 ruled out are not named, and a subject with no baseline comes back as an answer
 rather than as a miss, so a first run costs one request too.
 
-Declaring is a hint and never a question. A store that does not serve
-`/baseline/working-set` answers the run's declaration with a 404 and the client
-falls back to one request per key, which is what a deployment of
-[`tribunal`](../packages/tribunal) does. No verdict moves either way.
+The declaration is a hint, not a requirement. A store that does not serve
+`/baseline/working-set` answers it with a 404 and the client falls back to one
+request per key, which is what a deployment of
+[`tribunal`](../packages/tribunal/README.md) does. No **verdict** moves either
+way — the verdict is the one word a run carries per subject, `unchanged`,
+`changed`, `new`, `incomparable` or `ignored`, and it is decided by the
+comparison rather than by how many requests fetched the baseline.
 
 Anything else the store cannot answer — an unreachable endpoint, a refused token,
 a 500, a body that is not an answer — **throws**. It is never a miss, because
@@ -174,10 +199,10 @@ a 500, a body that is not an answer — **throws**. It is never a miss, because
 thing the check was against while reporting success.
 
 The serving half is `serveRasterStore` from
-[`@variance-authority/remote`](../packages/remote), which binds loopback; a
-deployment that CI can reach is either that behind a proxy you run, or the
-[`tribunal`](../packages/tribunal) Worker, which serves the same paths on D1 and
-R2.
+[`@variance-authority/remote`](../packages/remote/README.md), which binds
+loopback; a deployment CI can reach is either that behind a proxy you run, or
+the [`tribunal`](../packages/tribunal/README.md) Worker, which serves the same
+paths on D1 and R2.
 
 ## What does not belong in the tracked root
 
@@ -189,13 +214,13 @@ lands under the baseline root by default:
 baselines/v1:6c1f…/by-document/v1:a04e….png
 ```
 
-Commit that, and you have the whole reason a baseline repository gets its
-reputation.
-`variance run` therefore points it at `$XDG_CACHE_HOME/variance-authority/renders`
-and leaves the configured root holding baselines and nothing else — not a config
-field, because there is no answer an operator could give that is better than
-"outside the work tree". Building a store yourself, `createDurableStore` and
-`createLfsStore` both take `cacheRoot` and both default it to the baseline root.
+Commit that cache and the repository grows by a render on every edit.
+`npx variance run` therefore points it at
+`$XDG_CACHE_HOME/variance-authority/renders` and leaves the configured root
+holding baselines and nothing else. There is no config field for the location.
+Building a store yourself, `createDurableStore` and `createLfsStore` both take
+`cacheRoot`, and both default it to the baseline root — pass a path outside the
+work tree.
 
 ### The cache prunes itself
 
@@ -214,27 +239,22 @@ renders: 214.6 MiB cached in /home/you/.cache/variance-authority/renders, freed 
 An entry survives on two conditions. It must have been asked for in the last
 fortnight — a hit refreshes its timestamp, so this is time since something
 wanted the image and not time since it was painted — and what is left is cut
-oldest-first to 512 MiB across the whole cache. `variance doctor` prints the same
+oldest-first to 512 MiB across the whole cache. `npx variance doctor` prints the same
 size on demand, split by the renderer identity that painted each part, so a
 browser you upgraded away from shows up as the entries it left behind.
 
-Every run, not only the runs that fill it. A run against a tribunal, or with
-`"retention": "ephemeral"`, writes nothing here — and that is the arrangement
-this project is built for, so the machines carrying a cache are usually the ones
-that have already moved off it. Nothing refreshes an entry once you stop
-rendering locally, so the whole cache ages out over a fortnight and the directory
-goes with it.
+The sweep runs on every run, not only the runs that fill the cache. A run
+against a `remote` store, or one with `"retention": "ephemeral"`, writes nothing
+here and refreshes nothing, so once you stop rendering locally the whole cache
+ages out over a fortnight and the directory goes with it.
 
-Nothing here touches baselines: the sweep walks the cache root only, which is the
-reason `run` keeps the two apart. Deleting the whole directory costs you renders
-and nothing else.
+Nothing here touches baselines: the sweep walks the cache root only. Deleting
+the whole directory costs you renders and nothing else.
 
 ### The records, if the diffs are the problem
 
-Baseline images and their attribution records have **independent homes**: images
-stay reviewable beside code while records can be restored from CI cache, so
-document-only changes do not create tracked diffs. A missing record stops the
-run rather than quietly turning an existing baseline into `new`.
+An image and its record can be kept in separate places, which is what you reach
+for when the records are the thing putting noise in your diffs.
 
 Every baseline is an image and a `.json` record of how it was painted: the
 document digest, the identity, the fonts that did not resolve, the regions
@@ -243,7 +263,9 @@ changes whenever the *document* changes — a class name, a build id, a font tha
 resolved somewhere else — so a record committed beside its image puts a tracked
 diff on every edit you make, including the ones that moved nothing.
 
-Point the records somewhere version control is not looking, and that stops:
+Point the records somewhere version control is not looking, and that stops. An
+excerpt — the `baselines` key again, with the rest of `variance.config.json`
+unchanged:
 
 ```jsonc
 "baselines": {
@@ -267,18 +289,15 @@ let them travel with the images.
 ## Switching
 
 A baseline written under one placement is not portable to another — the paths
-differ, and `remote` has no paths at all. What is portable is every verdict: the
-four store implementations run the same scenarios in
-[`observe/parity.test.ts`](../packages/observe/src/parity.test.ts) with each
-expected verdict pinned, because four stores agreeing on a wrong answer is not a
-pass.
+differ, and `remote` has no paths at all. What is portable is the verdict: every
+placement answers the same comparison the same way, so moving changes where the
+bytes live and nothing about what a run reports.
 
-So switching is a re-record, and the honest way to do it is to run the suite once
-against the new placement on a commit you already trust, rather than to copy
-files between layouts.
+Switching is therefore a re-record. Run the suite once against the new placement
+on a commit you already trust, rather than copying files between layouts.
 
 ---
 
-**Further:** [`flows.md`](flows.md) for what each level of adoption buys ·
-[`@variance-authority/store`](../packages/store) for the two file-backed stores ·
-[`reasoning.md`](reasoning.md) for how evidence reaches a verdict.
+**Further:** [what each level of adoption buys](flows.md) ·
+[`@variance-authority/store`](../packages/store/README.md) for the two
+file-backed stores · [how evidence reaches a verdict](reasoning.md).

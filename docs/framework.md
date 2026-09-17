@@ -6,39 +6,55 @@ validation update discards what the user typed. Before that interaction, the
 stable and broken versions produce the same document. The capture describes
 what is on screen; it cannot say whether that component will survive.
 
-[Variance Authority](README.md) can read
-[React evidence](framework-reference.md) beside the document to answer that
-kind of question. This path is **React-only** and needs a live client tree
-mounted by `react-dom`. For Vue, Svelte, static HTML or server-rendered markup
-that was never hydrated, use the document and raster evidence instead; there is
-no React tree to inspect.
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source — the component that
+drew the pixels and the `file:line` it was written at. This page is the
+task-oriented path through the React evidence it can read beside the rendered
+document, for the failures above: the document is identical on both sides and
+the difference is in the component tree. Read it when a screenshot passes and
+the component still behaves wrongly.
+
+New here? Start with [your first run](start.md).
+
+A **subject** is one named UI state you asked for and can ask for again, under a
+stable id you choose such as `story:checkout--empty`. Everything on this page
+reads the React tree inside one subject.
+
+This path is **React-only** and needs a live client tree mounted by `react-dom`.
+For Vue, Svelte, static HTML or server-rendered markup that was never hydrated,
+use the document and raster evidence instead; there is no React tree to inspect.
+
+```bash
+npm install --save-dev @variance-authority/react
+```
 
 ## Choose the evidence for the failure
 
-Start with what you need to learn, not with the shape of React's internals.
+Pick the row that matches what happened in your test.
 
 | What happened in practice | Evidence to use | What it gives you |
 |---|---|---|
 | State, focus, scroll or an uncontrolled input resets during an interaction | [`markRender` before the action, then `remountedSince` afterwards](framework-reference.md#markrender-and-remountedsince) | The components rebuilt during that interval, their owners and any reconciliation key |
-| Two components render the same document but differ in hooks, wrappers, context subscriptions or keys | [`wiringOf`](framework-reference.md#wiringof) | Stable component wiring that can be digested and compared without treating hook values as identity |
-| Two renderings differ and you need to know which prop, context or hook cell parted first | [`holdingOf` and parting](parting.md) | One-way evidence about the inputs each component held, outside every baseline hash |
+| Two components render the same document but differ in hooks, wrappers, context subscriptions or keys | [`wiringOf`](framework-reference.md#wiringof) | The hooks, wrappers, context subscriptions and keys behind each node, in a form that compares across runs |
+| Two renderings differ and you need to know which prop, context or hook cell parted first | [`holdingOf` and parting](parting.md) | The first prop, context value or hook cell where the two readings differed, and what it changed downstream |
 | A capture may be a Suspense fallback rather than the intended state | [Suspense arrival checks](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name) | A wait followed by a refusal that names the unresolved boundary |
 | The page keeps committing and you need to know which components are active | [The commit tap](stabilization.md#tapcommits--which-components-rendered-and-when-they-stopped) | A component-level quiet check, provided the tap was installed before `react-dom` loaded |
 
-## Wiring: a sixth digest
+## Where wiring is read for you, and where you ask for it
 
-The shipped route, Storybook, Playwright and Vitest Browser integrations read
-wiring by default. Set `wiring: false` for a non-React surface where the walk can
-only produce an absent result. Lower-level `collect` and unit-capture calls do
+The route, Storybook, Playwright and Vitest Browser integrations read wiring by
+default. Set `wiring: false` when the page has no React tree, so the walk does
+not visit every node to report an absent result. Lower-level capture calls do
 not choose a framework for you; pass `wiringOf` explicitly.
 
-Wiring describes a revision, so it is safe to digest. A remount describes an
-interval, so it is a finding you ask for around an action. Keeping those paths
-separate prevents an ordinary second reading from reporting the act of
-measurement as a change.
+Wiring describes one state of a component, so it is recorded with the rest of
+the capture and compared against the baseline. A remount describes an interval
+between two points in a test, so you ask for it around an action instead and it
+enters no comparison.
 
 The [reference](framework-reference.md#wiringof) defines the recorded fields,
-absence rules and digest boundary.
+the absence rules, and what enters a comparison.
 
 ## Remounts: what the document cannot show you
 
@@ -49,7 +65,9 @@ instance to compare with.
 
 This complete Vitest example contains the defect deliberately: `InlineCounter`
 is declared inside `Screen`, so each render creates a new component type. The
-test reports both the rebuilt component and the consequence to the user.
+test reports both the rebuilt component and the consequence to the user. Save it
+as a `.ts` test file; besides `@variance-authority/react` it needs `vitest`,
+`jsdom`, and the `react` and `react-dom` your application already has.
 
 ```ts
 // @vitest-environment jsdom
@@ -120,10 +138,11 @@ change for this action before treating the remount as a defect.
 
 ## Continue from the result
 
-After the focused test passes, run the normal subject observation so the fix is
-also checked against its rendered and accessibility evidence. Use the
+After the focused test passes, capture and compare that subject the usual way,
+so the fix is also checked against its rendered and accessibility evidence — see
+[your first run](start.md). Use the
 [React evidence reference](framework-reference.md) when you need exact return
-shapes, collector defaults or the limits of fiber matching. Use
-[parting](parting.md) when the component survived but its inputs led to a
+shapes, the defaults each integration applies, or the limits of fiber matching.
+Use [parting](parting.md) when the component survived but its inputs led to a
 different rendering, and [stabilization](stabilization.md) when the state was
 read before it had finished arriving.

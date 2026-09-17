@@ -1,21 +1,54 @@
-# Subjects that are other subjects on purpose
+# Measure what a variant changes, not just that it changed
 
-A feature flag's second variant, the same page in the dark scheme, a story at a
-narrow viewport, a route whose backend answers with the empty state. Each of
-these is an ordinary subject here, with its own baseline, and every run compares
-it only to itself.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it renders a
+UI state, compares it against the baseline you approved, and reports what changed in
+the vocabulary of your source — the component that drew the pixels and the
+`file:line` it was written at.
 
-That means the difference the variant exists **for** is the one difference nothing
-measures. A story added behind `checkout-v2` is `new` on its first run: one
-baseline written, an empty diff, nothing said. From then on it is green until
-somebody edits it. What the flag *does to the page* is visible by opening two
-pictures and using your eyes, and is recorded nowhere.
+This page is for you if your suite has variants — a feature flag's second version,
+the same page in the dark scheme, a story at a narrow viewport, a route whose backend
+answers with the empty state — and you want a run to report the difference *between*
+a variant and the state it varies from. New here? Start with
+[your first run](start.md).
 
-**A subject is compared to the subject it is a variation of.** The two are read
-in the same run, and the difference between them is reported with an identity of
-its own. Which subject that is, this tool would rather work out than be told.
+A **subject** is one named UI state you asked for and can ask for again, identified
+by a stable id like `story:checkout--empty`. Each variant is an ordinary subject with
+its own baseline, and every run compares it only to itself. So the difference the
+variant exists **for** is the one difference nothing measures: a story added behind
+`checkout-v2` is `new` on its first run — one baseline written, an empty diff,
+nothing said — and green from then on until somebody edits it. What the flag *does to
+the page* is visible by opening two pictures and using your eyes, and is recorded
+nowhere.
 
-## The name already says it: the great green dragon
+Link the variant to the subject it varies and the run reads both, compares them to
+each other, and reports that difference with an identity of its own.
+
+## What a linked pair reports
+
+```text
+story:checkout--new-flow ← story:checkout--default (content, structure)
+  `story:checkout--new-flow` differs from `story:checkout--default` in content
+  and structure, led by `Checkout`. The difference is `v1:9f2a11c4e77b`, and it
+  is unchanged for as long as the two subjects keep moving together.
+  components: Checkout, Button
+```
+
+The digest is the part worth reading twice. It is taken over the difference
+itself, so it holds still when *both* sides move the same way — a token edit
+that turns the whole suite red leaves it exactly where it was — and it moves
+when the variation gains or loses something its parent does not have.
+
+That distinguishes two events a reviewer currently has to tell apart by hand:
+
+- **everything moved**, and the flag still does what it did — already approved,
+  nothing new to look at;
+- **the flag now does something else**, which is a review nobody has done.
+
+A variation that renders identically to its parent says so. It means the flag
+reached nothing this run could read, which is a finding when the flag was
+supposed to change something.
+
+## Link by name: the great green dragon
 
 Most suites have already written the link down. `checkout`, `checkout-dark`,
 `checkout-dark-narrow` — the name carries the axes, in order, and a declaration
@@ -39,19 +72,19 @@ Break the order and nothing errors, which is the thing to watch for.
 `checkout-dark-narrow` and `checkout-narrow-dark` are one render under two names:
 two baselines, two chains, and each reporting a two-axis difference where a
 one-axis difference was meant. It shows up as two subjects with one rendering in
-[`composition.md`](composition.md), which is a true report of the wrong problem.
+[suite composition](composition.md), which is a true report of the wrong problem.
 
-## Telling it what the words mean
+## Tell it what the words mean
 
-That rule reads a name with no help, so it can only walk outwards: a parent has
-to be a shorter name this one extends. Plenty of suites are not shaped like that.
-The baseline is spelled out — `checkout--default`, not `checkout` — the axes have
-vocabularies, and and the question worth asking is between two names of the
-same length: what is the difference between the green one and the glass one?
-Neither of those extends the other, so the rule above sees two unrelated
-subjects.
+The rule above reads a name with no help, so it can only walk outwards: a parent has
+to be a shorter name that this one extends. Plenty of suites are not shaped that way.
+If your baseline is spelled out — `checkout--default`, not `checkout` — then the
+comparison you want is between two names of the same length: what is the difference
+between the green one and the glass one? Neither of those extends the other, so the
+rule above sees two unrelated subjects.
 
-`names` says what the words are:
+Add a `names` section to `variance.config.json`, the file you pass to
+`npx variance run --config`, to say what the words are:
 
 ```json
 {
@@ -65,7 +98,11 @@ subjects.
 }
 ```
 
-Axes in the order your names write them — the same fixed adjective order as
+That is a fragment: `names` is one top-level key of `variance.config.json`, and every
+other key in the file — profile, viewport, subject source, baseline store, report
+location — stays exactly as it is. [Your first run](start.md) writes the rest.
+
+List the axes in the order your names write them — the same fixed adjective order as
 above, now somewhere a reader can check it. Values are a closed list rather than
 a pattern, so `ff-on` is one word and not `ff` plus `on`, and so a name can be
 walked *toward* its base: **the first value is the base**, and a name carrying it
@@ -91,23 +128,16 @@ every other axis is the same word in both — so what is measured above is that
 axis and nothing else.
 ```
 
-A grammar **replaces** the unconfigured rule rather than backing it up. A name it
-finds nothing in gets no parent, because falling through to longest-prefix would
-answer a configured question with an unconfigured guess and print the two the
-same way. Two subjects sitting at one coordinate are refused by name rather than
-resolved by order, as an ambiguous tag is.
+Two consequences to plan for. Once you configure `names`, the grammar replaces the
+rule above rather than backing it up: a name whose words are not in your vocabulary
+gets no parent at all. And two subjects that land on the same coordinate are refused
+by name, so you fix the names rather than find out which one the run picked.
 
-It is a grammar and not a function you write. The config is JSON and stays JSON —
-a `.js` config means executing code found on disk in order to decide what to
-observe — and the trade is smaller than it looks: a function mapping a name to
-its axes could not be asked which *other* name sits one step away, and that is
-the half this needed.
-
-## Declaring it, where a name will not carry it
+## Declare the link where a name will not carry it
 
 A name carries an axis somebody chose to spell out. When there is no such name —
 an id from a route list, a subject whose parent lives under another namespace, a
-convention this suite is not going to change — the link is stated outright, with
+convention this suite is not going to change — state the link outright, with
 one tag on the subject that is the variation:
 
 ```text
@@ -115,21 +145,21 @@ variance-parent:<subject id>
 ```
 
 Tags rather than a configuration block, because there is no way to express a
-variation that works for more than one collector: a story sets args, a route
-sets a query, a Playwright fixture sets a cookie or routes a request. Whatever
-produces the variation is the collector's business and stays there. The only
-thing this tool needs is the *link*, and every collector here already carries
-tags.
+variation that works for more than one collector — the adapter that produces the
+run's subjects, such as Storybook, a route list or a Playwright fixture. A story
+sets args, a route sets a query, a fixture sets a cookie or routes a request.
+Whatever produces the variation stays with the collector. The only thing this tool
+needs is the *link*, and every collector here already carries tags.
 
 In Storybook that is the story's own `tags` array:
 
-```text
+```ts
 export const FlaggedCheckout = {
   tags: ['variance-parent:checkout--default'],
 };
 ```
 
-The id may be written in full — `story:components-button--primary` — or as the
+Write the id in full — `story:components-button--primary` — or as the
 part after the namespace, which is what a story knows about itself. A short form
 matching more than one subject in the run is refused by name rather than
 resolved by order: a difference attached to the wrong parent, printed with full
@@ -145,31 +175,6 @@ rather than quietly answered with a guess. And a link read off a name says so �
 in the record, in the sentence, and in its own group in the answer — because
 *somebody said so* and *a name implied it* are not the same evidence.
 
-## What it reports
-
-```text
-story:checkout--new-flow ← story:checkout--default (content, structure)
-  `story:checkout--new-flow` differs from `story:checkout--default` in content
-  and structure, led by `Checkout`. The difference is `v1:9f2a11c4e77b`, and it
-  is unchanged for as long as the two subjects keep moving together.
-  components: Checkout, Button
-```
-
-The digest is the part worth reading twice. It is taken over the difference
-itself, so it holds still when *both* sides move the same way — a token edit
-that turns the whole suite red leaves it exactly where it was — and it moves
-when the variation gains or loses something its parent does not have.
-
-That distinguishes two events a reviewer currently has to tell apart by hand:
-
-- **everything moved**, and the flag still does what it did — already approved,
-  nothing new to look at;
-- **the flag now does something else**, which is a review nobody has done.
-
-A variation that renders identically to its parent says so. It means the flag
-reached nothing this run could read, which is a finding when the flag was
-supposed to change something.
-
 ## What it is not
 
 **It is not a verdict.** A dark story is darker than its light parent; a narrow
@@ -179,33 +184,28 @@ store — a run whose only news is a variation is a green run.
 
 **It is not a variant language.** There is no viewport list, no scheme list, no
 flag list. This tool cannot produce a variation and does not try to name one; it
-compares two subjects because somebody said they were related. An axis nobody
-here thought of needs nothing from this project.
+compares two subjects because somebody said they were related.
 
 **It does not infer an undeclared variant.** A subject whose page chooses its
 own variant — a percentage rollout drawing per browser context — still has one
 subject id. If two readings land in different variants, ordinary stability
 analysis reports the subject as unstable; it does not invent a variation
-relationship. To compare them as variations, the collector plans each as a
-separate subject and the name grammar or a `variance-parent:` tag links them.
+relationship. To compare them as variations, have the collector plan each as a
+separate subject and link them with the name grammar or a `variance-parent:` tag.
 
 **It does not compare two subjects on request.** The pair has to be declared
 before the run, by whoever writes the subjects. An ad hoc comparison requested
 after the run is outside this surface.
 
-## Reading it
+## Read it
 
-It is in the run artifact, and an agent asks for it by name:
+`npx variance report --config variance.config.json` prints the section above when a
+run has one.
+
+The same content is in the run artifact — the machine-readable record a run writes —
+and an agent asks for it by name:
 
 ```text
 variance_variations                            # every variation, declared or read
 variance_variations { "subject": "story:…" }   # one of them
 ```
-
-`variance report` prints the same section when a run has one, from the same
-code — there is no second formatter.
-
-**Further:** [`composition.md`](composition.md) for the other comparison with no
-baseline in it. A variation link is a tag because it contributes context rather
-than a verdict. Its name uses a declared grammar so the interpretation remains
-serializable and inspectable without running adopter code.

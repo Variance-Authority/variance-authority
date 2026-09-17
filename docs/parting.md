@@ -1,10 +1,22 @@
-# Where two readings parted
+# Which input changed, not just which pixels
+
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is about the step after that report. Given two readings of one UI
+state, `partingOf` names the input behind the difference — a prop, a context
+value, an external store, or a hook cell — and the component that changed it.
+Read it when you have a difference in hand and want its cause rather than its
+coordinates. New here? Start with [your first run](start.md).
 
 A diff says a `<div>` rendered a `<p>` on one side and a `<span>` on the other.
 That is a symptom. Acting on it means opening the component, guessing which
 branch ran, and guessing why.
 
-`partingOf` takes the same two snapshots and says something else:
+`partingOf` takes the same two readings and returns a **parting** — the account
+of where the two readings diverged and which input sent them there:
 
 ```text
 variation — an input changed and the page followed
@@ -17,19 +29,84 @@ The same evidence connects the output to its inputs. The first line classifies
 the difference. The second names the changed input at its origin; the remaining
 lines show its effects.
 
+## Run it
+
+`partingOf` ships in `@variance-authority/core`. Reading a React component's
+inputs needs `@variance-authority/react`, and this example mounts the component
+in jsdom with `@variance-authority/unit-test`:
+
+```bash
+npm install --save-dev @variance-authority/core @variance-authority/react \
+  @variance-authority/unit-test jsdom
+```
+
+```tsx
+// parting.test.tsx — Vitest, jsdom environment
+import { explainParting, partingOf } from '@variance-authority/core/compare';
+import { holdingOf, provenanceOf, wiringOf } from '@variance-authority/react';
+import { capture } from '@variance-authority/unit-test';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, test } from 'vitest';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const viewport = { width: 320, height: 200, deviceScaleFactor: 1, colorScheme: 'light' } as const;
+
+function Summary({ total, expanded }: { total: number; expanded: boolean }) {
+  return expanded ? <p>{total} items in your cart</p> : <span>{total}</span>;
+}
+
+test('which input changed', async () => {
+  const container = document.createElement('div');
+  document.body.appendChild(container);
+  const root = createRoot(container);
+
+  const read = async () => {
+    const artifact = await capture(container.firstElementChild!, {
+      subject: 'cart/empty',
+      viewport,
+      provenanceOf,
+      wiringOf,
+      holdingOf,
+    });
+    return artifact.snapshot;
+  };
+
+  await act(async () => {
+    root.render(<Summary total={2} expanded={false} />);
+  });
+  const before = await read();
+
+  await act(async () => {
+    root.render(<Summary total={2} expanded />);
+  });
+  const after = await read();
+
+  const parting = partingOf(before, after);
+  expect(parting.deltas.length).toBeGreaterThan(0);
+  console.log(explainParting(parting).join('\n'));
+});
+```
+
+`partingOf` takes the two readings and returns the structured result;
+`explainParting` turns that result into the lines printed above.
+
 The two readings need not be two revisions. Two variants of an experiment, two
-breakpoints, or **the same subject read twice** are all pairs, and the last one
-connects directly to [`flakiness.md`](flakiness.md): a flake is the case where
-every input agreed and the output changed anyway, the same question asked of one
-page instead of two.
+breakpoints, or the same **subject** read twice — one named UI state you asked
+for and can ask for again, identified by a stable id like
+`story:checkout--empty` — are all pairs. The last of those is the case
+[flakiness](flakiness.md) covers: a flake is where every input agreed and the
+output changed anyway, the same question asked of one page instead of two.
 
 ---
 
-## The slice: what kind of parting this is
+## What kind of difference this is
 
-Before *which input changed* comes *whether anybody should look*. Eight answers,
-decided from three facts — did the component tree hold, did any input change, did
-the output change — and a fourth that splits one of them:
+Before *which input changed* comes *whether anybody should look*. Every parting
+opens with a **slice** — the one word that classifies the whole difference.
+There are eight, decided from three facts — did the component tree hold, did any
+input change, did the output change — and a fourth that splits one of them:
 
 | slice | reading |
 |---|---|
@@ -43,8 +120,10 @@ the output change — and a fourth that splits one of them:
 | `unread` | the output changed and what would explain it was not read |
 
 `refactor` is the slice a pixel diff cannot reach at all, because there is
-nothing to diff: component identity is outside `renderHash` and outside every
-band, so wrapping a subtree in a new `Panel` produces zero deltas. The tree
+nothing to diff: component identity enters neither the render hash nor any
+**band** — the category a visual difference is sorted into, one of `a11y`,
+`geometry`, `token`, `content` and `texture` — so wrapping a subtree in a new
+`Panel` produces zero deltas. The tree
 signature — owner chains and wiring, read directly rather than through a hash —
 is what notices.
 
@@ -61,22 +140,22 @@ Two instances lifted out of two subjects at one commit are `elsewhere`, and ther
 the same evidence means something else. Where a component sits is decided by the
 boxes around it, and no component receives its own position as a prop: two
 instances that agreed on every input and landed at different coordinates have
-contradicted nothing. Position is a function of context, not of props, so that
-reading gets a word that says so and the accusation is kept for the case it was
-named for.
+contradicted nothing, so they are never reported as a flake.
 
-`unread` is why `flake` is safe to say. Nondeterminism is an accusation, and a
-run that read no boundaries has not found the inputs agreeing — it has not asked
-them. The two are separate
-slices so silence can never be reported as agreement.
+`unread` is what makes `flake` safe to say. **Unread** means the evidence was
+never collected: a run that read no component boundaries has not found the
+inputs agreeing, it has not asked them. Because that is a slice of its own,
+silence is never reported to you as agreement.
 
 ---
 
 ## Attribution categories and their evidence
 
-At every component boundary, one rule: *a component whose inputs agreed and
-whose output changed decided differently.* Walking up to the shallowest boundary
-where that holds is what turns a page of deltas into one sentence.
+A **boundary** is one component instance in the rendered tree, together with
+what it received and what it retained. At every boundary, one rule applies: *a
+component whose inputs agreed and whose output changed decided differently.*
+Walking up to the shallowest boundary where that holds is what turns a page of
+deltas into one sentence.
 
 | category | evidence | where to look |
 |---|---|---|
@@ -125,9 +204,9 @@ churn a component library emits is not what lands here. The resolved style is �
 which is the half a picture would have shown, now with the hook cell at the top
 of it.
 
-Four properties, then a count. `padding` expands to four longhands and a reader
-who has seen the first learns nothing from the rest; what was dropped is counted
-rather than elided, because a list that quietly ends reads as the whole list.
+Four properties, then a count. `padding` expands to four longhands, so the list
+is cut at four and the remainder is counted — the line always tells you how many
+properties it did not name.
 
 ---
 
@@ -150,37 +229,41 @@ caller that wants them. What collapses is the sentence, not the evidence.
 
 ## What it reads
 
-```ts
-capture(root, { …, provenanceOf, wiringOf, holdingOf })
-```
+`partingOf` reads **holdings** — the record, made at capture time, of what each
+component was handed and what it retained. A holding is attached to each
+component's root host node by `holdingOf`: props as one digest per key, context
+values by display name, and hook cells in authored call order.
 
-`holdingOf` attaches, to each component's root host node, what that component
-was handed and what it retained: props one digest per key, context values by
-display name, and hook cells in authored call order.
+Holdings exist only if the capture asked for them. That is the
+`provenanceOf`, `wiringOf` and `holdingOf` triple in the
+[Run it](#run-it) example — an excerpt of that call:
+
+```ts
+// excerpt — `root`, `subject` and `viewport` come from the full example above
+capture(root, { subject, viewport, provenanceOf, wiringOf, holdingOf });
+```
 
 **Digests, never values.** A prop can be a customer record and a `useState` cell
 can hold the same record with a session token beside it, so what travels is a
-digest — enough for an equality comparison, and not reversible into what a user
-was looking at. The cost is the one `propsDigest` already accepts: shape rather
-than identity, so a re-created inline closure does not register as changed. That
-is tolerable here for the same reason it is tolerable there: this decides *who is
-responsible* for a difference the semantic diff already found, never *whether*
-there is one.
+digest: enough to compare two readings for equality, and not reversible into
+what a user was looking at. The comparison is therefore by shape rather than by
+identity — a re-created inline closure is not reported as changed.
 
-**Nothing here reaches a hash.** A hook's value is precisely the thing that
-legitimately differs between two readings of an unchanged page, so a band
-carrying it would be a flake generator wearing a band's name. The holding rides
-beside the snapshot exactly as `styleProvenance` does, and this reader is what
-it was kept for.
+**A holding never decides a pass or a fail.** It enters no hash and no band, so
+it can never turn a run red on its own. It rides beside the snapshot and is read
+only to explain a difference the comparison already found.
 
 The cell list is sparse and says so. A hook that retains nothing a later reading
 could disagree about contributes no cell, and each cell carries the position a
 person arrives at by counting hook calls down the component — not an index into
 React's cell chain, where `useContext` builds none and `useTransition` builds
-two. Meeting a hook name it has no arity for, the reader stops and records where
-([`holding.ts`](../packages/core/src/format/holding.ts)), because a full list
-silently mislabelled from the fourth entry on is the failure this project exists
-to refuse.
+two. Converting between those two numberings needs the cell count of every hook
+by name. Meeting a hook name it has no count for — a hook a later React release
+adds, for instance — the reader stops there and records the name that stopped
+it, so the cells you get are a prefix that says where it ends rather than a full
+list mislabelled from that point on. `holdingOf`, which carries that table, is
+documented in the
+[`@variance-authority/react` reference](https://variance-authority.dev/reference/packages/react).
 
 ---
 
@@ -189,11 +272,12 @@ to refuse.
 - **It does not locate the hook in your source.** `useState #0` is a call
   position, not a `file:line`. Naming the fork is the job. A tool that then reads
   the component to work out which state that is has been told where to start.
-- **It gives no verdict.** `compare` says what changed and `judge` says whether
-  anyone should mind; a parting is an explanation and joins neither. It takes
-  two snapshots without refusing a subject mismatch, because two variants of an
-  experiment are two subjects on purpose — and a caller that knows it is holding
-  two subjects says so, which is what keeps `flake` off them.
+- **It gives no verdict.** A **verdict** is the pass-or-fail a run reports:
+  `compare` says what changed and `judge` decides whether anyone should mind. A
+  parting is an explanation and joins neither. It also accepts two readings of
+  two different subjects, because two variants of an experiment are two subjects
+  on purpose — tell it so by passing `'elsewhere'` as its third argument, and it
+  will not call the difference a flake.
 - **Its reach is what was read.** Boundaries come back absent — never `[]` —
   when no node on either side started a component, which puts the parting in the
   `unread` slice rather than in `settled` or `flake`. Boundaries present and

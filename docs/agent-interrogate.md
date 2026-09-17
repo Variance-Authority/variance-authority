@@ -1,18 +1,54 @@
 # Interrogate a test where it stands
 
-A test that has stopped is a page still up, a network still in whatever state
-the test put it in, and a suite that will go on when you say so. Two calls in
-the spec put it there:
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page covers a different half of the same toolkit: holding a running
+Playwright test still, with its page up and its network in whatever state the
+test left it, so you can look at that moment rather than at a screenshot of it.
+Read it when a failure does not reproduce by hand, or when you want to see what
+the UI does with a reply that has not come.
+
+New here? Start with [your first run](start.md).
+
+Two calls in the spec stop a test there:
 
 ```ts
+// excerpt — the spec these two lines sit in is below
 variance.snapshot(); // send what is here now, keep going
 await variance.observe(); // send it, and stand still until an agent says continue
 ```
 
-`snapshot` is `console.log` for a reader that is not a person. `observe` is
-`debugger;` for one. Both arrive at the watcher a
-[live run](agent-live-run.md) already reports to, and neither takes a line
-number — each reads its own.
+`snapshot` behaves like `console.log` for a reader that is not a person;
+`observe` behaves like `debugger;` for one. Both report to a **watcher** — a
+process that outlives your tests, which you read from another shell while the
+suite is still in flight. Neither call takes a line number; each reads its own.
+
+## Start the watcher, then the suite
+
+Something has to be listening before the suite starts: a run in flight leaves no
+file behind. Start the watcher in its own terminal:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/playwright-test
+npx variance watch
+```
+
+It takes an ephemeral loopback port and prints the one line the suite needs:
+
+```
+variance-authority is watching. Start the suite with this in its environment:
+
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321
+```
+
+An MCP client starts the same watcher over stdio with
+`variance-authority-mcp --watch`, from `@variance-authority/mcp`, and it prints
+the same assignment with its own address in it. [Inspect a suite while it is
+running](agent-live-run.md) sets up both entrances, and [watch a run that has
+not finished](vantage.md) covers the watcher on its own.
 
 ## Put the calls in the spec
 
@@ -41,7 +77,8 @@ test('the cart settles after a second item', async ({ page, variance }) => {
 });
 ```
 
-Run it with the watcher's address in the environment, as any live run is run:
+Run it with the address the watcher printed in its environment. An address added
+after the workers start belongs to the next run:
 
 ```bash
 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test cart.spec.ts
@@ -49,10 +86,9 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test cart.spec.
 
 ## Find the test that is holding still
 
-`variance_waiting` is the only question about a live run whose answer is an
-invitation. It is separate from `variance_run_signals` because a stopped test is
-not a sixth state — it is running, and standing still — and forty rows of a
-listing is where that gets missed.
+Ask the watcher which tests are holding still. Under MCP that is
+`variance_waiting`, which lists the stopped tests only, so a test standing still
+is not lost among the rows of a full run listing:
 
 ```text
 1 test(s) are waiting to be told to continue.
@@ -67,11 +103,13 @@ Look at whatever you need to — the page is held where it is — then call
 `variance_continue` with one of these ids, or with none to release all of them.
 ```
 
-`after N announcement(s)` places each note in the announcement stream the test
-was already producing, so you can read a note against the work either side of
-it: this one was sent after the second add had opened and before it closed. The
-run does not count its own announcements; the watcher stamps the count it had
-when the note arrived.
+An **announcement** is a call your application code made to
+[`@variance-authority/event`](https://variance-authority.dev/reference/packages/event),
+heard by a test that destructures the `events` fixture. `after N
+announcement(s)` places each note in that stream, so you can read a note against
+the work either side of it: this one was sent after the second add had opened
+and before it closed. The watcher stamps the count it held when the note
+arrived; the run does not count its own.
 
 ## Ask the questions the stop was for
 
@@ -99,8 +137,8 @@ variance_continue { "test": "t-1f4c" }
 ```
 
 Call it with no argument to release everything that is waiting. Only MCP offers
-it: `variance ask` runs in a process that holds no run, so there would be
-nothing in it to release.
+it: `npx variance ask` runs in a process that holds no run, so there is nothing
+in it to release.
 
 ## Stop somewhere other than the test body
 
@@ -108,8 +146,10 @@ nothing in it to release.
 awaits stops the test:
 
 ```ts
-import type { Page } from '@playwright/test';
-import type { VarianceDesk } from '@variance-authority/playwright-test';
+import { test as base, type Page } from '@playwright/test';
+import { varianceFixtures, type VarianceDesk } from '@variance-authority/playwright-test';
+
+const test = base.extend(varianceFixtures);
 
 async function checkout(page: Page, variance: VarianceDesk) {
   await page.getByRole('button', { name: 'Checkout' }).click();
@@ -126,7 +166,8 @@ test('checkout takes a card', async ({ page, variance }) => {
 ```
 
 So does a route handler the page is waiting on, which is how you hold a request
-open and look at what the UI does with a reply that has not come:
+open and look at what the UI does with a reply that has not come. This one and
+the next use the `test` extended with `varianceFixtures` above:
 
 ```ts
 test('the totals spinner outlives a slow price call', async ({ page, variance }) => {
@@ -170,10 +211,8 @@ test('the filter narrows the list', async ({ page, variance }) => {
 });
 ```
 
-A watcher keeps the most recent hundred notes per test and says how many it
-dropped, for the same reason it bounds announcements: a reader who cannot tell
-*nothing was sent* from *the beginning was forgotten* draws the first
-conclusion.
+A watcher keeps the hundred most recent notes per test and reports how many it
+dropped, so you can tell *nothing was sent* from *the beginning was forgotten*.
 
 ## What holds while the test stands still
 
@@ -198,21 +237,19 @@ endings is a test failure:
 | `released` | the watcher went away mid-wait |
 | `expired` | nobody came inside the bound |
 
-Every way of losing the watcher ends the wait rather than extending it. The run
-asks and the watcher answers, so a dead watcher is a test that goes on.
+Every way of losing the watcher ends the wait rather than extending it: a test
+nobody is watching goes on.
 
 ## Leave the calls in
 
 With `VARIANCE_AUTHORITY_VANTAGE` unset, `observe` returns `unwatched`
 immediately and `snapshot` sends nothing, at the cost of one environment read
-per worker. That is what separates the pair from the `debugger;` and `.only`
-they stand in for — a spec carrying them runs straight through in CI — and it is
-why the call can stay in the test that needed it instead of being written again
-by the next person who does.
+per worker. A spec carrying both runs straight through in CI, which is what
+separates the pair from the `debugger;` and `.only` they stand in for.
 
-The producing side is documented in
-[`@variance-authority/playwright-test`](../packages/playwright-test/README.md#stop-a-test-where-you-want-to-look-at-it),
-the watcher's side in
-[`@variance-authority/vantage`](../packages/vantage/README.md), and the two
-tools in the
-[`@variance-authority/mcp` watch reference](../packages/mcp/README.md#watch-a-suite-that-has-not-finished).
+The producing side is in the [`@variance-authority/playwright-test`
+reference](https://variance-authority.dev/reference/packages/playwright-test),
+the watcher's side in the [`@variance-authority/vantage`
+reference](https://variance-authority.dev/reference/packages/vantage), and the
+two tools in the [`@variance-authority/mcp`
+reference](https://variance-authority.dev/reference/packages/mcp).

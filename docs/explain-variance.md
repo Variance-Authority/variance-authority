@@ -1,45 +1,64 @@
 # Explain variance
 
-A difference becomes useful when you can locate it, understand the conditions
-around it, and bring it to the team best placed to respond. The tools here help
-build that explanation while leaving approval and product judgment with their
-existing owners.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is the router for the question after that report: a run says a
+subject changed, and you have to decide what to do about it. Each row below
+names one kind of explanation and the page that produces it. New here? Start
+with [your first run](start.md).
+
+A **subject** is one named UI state you asked for and can ask for again,
+identified by a stable id like `story:checkout--empty`. Every question here is
+asked about one.
 
 ## Ask what kind of explanation is missing
 
 | Question | Route |
 | --- | --- |
-| Which element, component, and source location own a visible region? | [Attribute the change](attribution.md) |
-| Where did two readings begin to diverge? | [Find where they part](parting.md) |
-| Is the variance unstable, and who can remove its cause? | [Classify flakiness](flakiness.md) |
-| What must be held still before the subject is read? | [Stabilize acquisition](stabilization.md) |
-| Do several subjects express one cause? | [Compose repeated evidence](composition.md) |
-| Are these subjects intentional forms of one state? | [Declare variations](variations.md) |
-| Which observed changes matter to this decision? | [Set sensitivity](sensitivity.md) |
-| Which place or shape is intentionally outside the decision? | [Define an ignore](ignores.md) |
+| Which component and source line own a changed region? | [Attribute the change](attribution.md) |
+| Where did two readings of the same page start to differ? | [Find where they part](parting.md) |
+| Did the subject disagree with itself, and who can remove the cause? | [Classify a flake](flakiness.md) |
+| Could the page still have been moving when it was captured? | [Hold the page still](stabilization.md) |
+| Did one edit change forty subjects that share a component? | [Compose repeated evidence](composition.md) |
+| Is this subject a deliberate variant of another — a flag, a scheme, a breakpoint? | [Declare a variation](variations.md) |
+| Which kinds of change should this subject assert on at all? | [Set sensitivity](sensitivity.md) |
+| Which region is deliberately outside the decision — a clock, an embed? | [Declare an ignore](ignores.md) |
 
-These are not stages. A source-attributed region may need no flake analysis. An
-unstable execution may need no baseline. A variation can explain a difference
-without authorizing it.
+The rows are not steps and none is a prerequisite for another. A region already
+attributed to a component needs no flake analysis, and a variation can explain a
+difference without authorizing it.
 
-## Preserve the chain of evidence
+## Ask the report from a shell
 
-[Attribution](attribution.md) runs from source to semantics to raster; it does not infer source
-from a coincident pixel. Parting compares witnessed inputs and states at the
-point they diverge. [Composition](composition.md) groups evidence on stable causes rather than
-visual proximity. Flakiness connects each known source of variance to the tool,
-environment, or decision that can address it, and keeps the unresolved
-remainder visible.
+A completed run writes a report, and the CLI answers these questions from it
+without an MCP client or a browser:
 
-Each explanation keeps the evidence that earned it and names the hop it could
-not complete.
+```bash
+npx variance ask summary
+npx variance ask changes --component Toggle
+npx variance ask describe --subject story:checkout--empty
+npx variance ask explain-verdict --subject story:checkout--empty
+```
 
-## Explanation informs the decision
+Start at `summary`: it accounts for the subjects that were planned and never
+observed as well as the ones that produced a verdict, and every other question
+takes an identifier it prints. `ask` reads and never decides — every answer
+exits `0`, and the verdict stays with `run`, `report` and `adjudicate`.
+[Asking from the command line](agent-cli.md) covers the full set of questions.
 
-A cause can be known and still require review. A difference can be intentional
-without matching an existing rule. A stable result can still be wrong for the
-product.
+## What an explanation does not do
 
-Rules, approvals, and the consuming workflow decide what may happen next. When
-[provenance](attribution.md), comparability, or an observation band is missing, the explanation
-stops there rather than borrowing confidence from the evidence beside it.
+An explanation does not approve anything. Nothing accepts a baseline on your
+behalf, so a cause you understand still reaches review as a change to accept or
+reject.
+
+Two verdicts are not code problems at all, and `explain-verdict` is there to say
+so before you go looking for an edit: `new` means no baseline has been approved
+for that subject yet, and `incomparable` means a baseline exists but another
+browser, platform, scale factor or font stack rendered it. Where the evidence
+for a hop is missing — no component name on an element, no second reading to
+part against — the answer stops at the last hop it could complete and names the
+one it could not.

@@ -1,19 +1,33 @@
 # Run relevant work
 
-[Variance Authority](README.md) renders **subjects** — stories, routes,
-fixtures, or values — compares each against its baseline, and records what
-changed and why. `variance run --since origin/main` narrows a **run** to the
-subjects a source change could plausibly reach, instead of capturing and
-comparing every subject in the suite. Source and prior execution can show what
-the change might reach, what has exercised that code before, and which useful
-answer is nearest.
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source — the component that
+drew the pixels and the `file:line` it was written at.
 
-That command belongs to rendered subjects the Variance Authority CLI owns. For
-an existing test suite, `@variance-authority/sense` exports recording and
-selection APIs instead: it does not install a command that inventories every
-test host or runs the selected files. The repository integrating those APIs
-keeps the current inventory, runner identity and invocation for each kind of
-test.
+This page is for deciding how much of that work one source change has to pay
+for. It lays out the four readings a narrowed run draws on and points at the
+page that owns each. New here? Start with [your first run](start.md).
+
+A **subject** is one named UI state you asked for and can ask for again,
+identified by a stable id like `story:checkout--empty`.
+`npx variance run --since origin/main` narrows a run to the subjects a source
+change could plausibly reach, instead of capturing and comparing every subject
+in the suite. The CLI is a devDependency:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/storybook-collector
+npx playwright install chromium
+```
+
+[Your first run](start.md) has the config and the collector that command reads.
+
+That command covers the subjects the CLI renders. For an existing test suite,
+[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
+exports recording and selection APIs and installs no command: it does not
+inventory your test hosts or execute the files it selects, so the current test
+inventory, runner identity and invocation for each kind of test stay with your
+repository.
 
 ## One decision, four readings
 
@@ -27,10 +41,11 @@ history, each answering a different part of the decision:
 | Which tests have actually crossed that code? | The [execution index](execution-record.md) retained from previous runs | [Select the tests that matter](selecting.md) |
 | Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Measure test distance](distance.md) |
 
-Source reach supplies possibility. The baseline record and the execution index
-supply experience, of two different kinds and at two different grains. Distance
-supplies order. None is substituted for another, and a use may need only one of
-them.
+The **execution index** is what a run keeps about itself: which regions of which
+modules each test file actually entered, retained so a later change can be asked
+who has been there. Source reach supplies possibility, the baseline record and
+the execution index supply experience at two different grains, and distance
+supplies order. A given question may need only one of them.
 
 ## How far down you have to read
 
@@ -50,8 +65,19 @@ there. What says it is the page having been seen rendering them — so the join 
 empirical, and it is exactly as current as the last render you approved.
 
 Together the two answer at the grain of a file: this change is inside
-`Button.tsx`, and these subjects were last seen rendering `Button`. For a large
-suite that is usually the saving you came for.
+`Button.tsx`, and these subjects were last seen rendering `Button`.
+
+What that is worth depends on where your change landed, not on how many files it
+touched. On [Material UI](https://github.com/mui/material-ui)'s recorded Vitest
+suite of 184 test files, a five-file diff confined to one subtree selects 31 of
+the 184; the same five files scattered across the repository select 155. Walk
+every file in that suite one at a time and the median file selects 7% of the
+suite, while the ninetieth percentile selects 84% — a utility most of the
+library imports genuinely could break most of it. The
+[scale reference](scale.md#what-decides-the-value-is-what-changed-not-how-much)
+carries those counts and how they were taken, and
+[how the test-to-code map stays small](how-selection-scales.md) prices the
+evidence they are read from.
 
 The execution index answers below that grain, at the region. Three stories mount
 the same component and one of them clicks Remove; the body of that handler is a
@@ -67,6 +93,21 @@ For rendered subjects, use [test selection](selecting.md) when the outcome is a
 smaller run. It owns `--since`, the conservative rules that widen the set, and
 the report of what was excluded.
 
+To find out what your own runner could have skipped on a recent change, record
+one run with the Vitest or Jest integration installed, then ask:
+
+```bash
+npx vitest run
+npx variance select --format json
+```
+
+`select` prints a **skip** list, never a run list: stdout carries paths and
+nothing else, and an empty answer runs your whole suite rather than none of it.
+It reads no `variance.config.json`, so a repository that uses Variance Authority
+for nothing else can still ask. The
+[CLI reference](https://variance-authority.dev/reference/packages/cli) has the
+other output formats and the conditions under which it declines to narrow.
+
 Use [distance](distance.md) when an integration already owns the current test
 inventory and runner dispatch, but feedback order matters. Distance orders the
 measured part of a selection; it does not discover or execute the suite.
@@ -78,14 +119,14 @@ retained format and invalidation reference beneath those readings.
 
 ## The boundary is conservative
 
-Skipping a subject changes how much of the run executes; it is not a claim
-that the change left that subject unaffected. A skipped test contributes no
-observation and no verdict. Missing coverage, an unreadable edge, an unknown
+Skipping a subject changes how much of the run executes; it is not a claim that
+the change left that subject unaffected. A skipped subject produces no image and
+no **verdict** — the one word a result carries, from `unchanged` through
+`needs-review` to `violation`. Missing coverage, an unreadable edge, an unknown
 changed file, or incompatible recorded evidence widens the run or refuses the
-selection; it never becomes proof that nothing is affected.
-
-The result supports choosing a workload under named conditions. It does not
-describe the unrun surface as unchanged.
+selection; it never becomes proof that nothing is affected. A narrowed run
+reports what it did not render; it does not report the unrendered subjects as
+unchanged.
 
 ## Running fewer is not owning fewer
 

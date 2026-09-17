@@ -1,37 +1,50 @@
-# Question retained evidence over MCP
+# Ask an agent about a finished run over MCP
 
-Connect an MCP client after the evidence exists. The server turns a supplied
-run report or evidence held by its producing integration into answers; it does
-not collect the evidence, rerender a subject, or approve a result.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
 
-## Start from the evidence owner
+This page connects an MCP client to a run that has already finished, so an agent
+can ask what changed without you pasting a report into it. Read it if you have a
+report on disk and an agent in the loop that speaks MCP. The server answers from
+evidence it is handed; it never runs a test, re-renders a state, or promotes a
+baseline.
 
-A run report has a standalone server. Other retained domains, including source
-execution indexes, test-attention archives, presentation reports, and scenario
-archives, remain with the integration that produced them. That integration can
-serve one domain or combine independently supplied domains through the MCP
-package's observability surface.
+New here? Start with [your first run](start.md).
 
-The standalone `variance-authority-mcp` executable reads the report file it is
-given and nothing else; it does not go looking for those other artifacts beside
-it. Use it for a run report, and the producer's own MCP connection for evidence
-the producer holds.
+## Produce a report first
 
-The report tools are also questions on the command line, where they need no
-client and no server: [ask a run from the command line](agent-cli.md). Connect a
-client when the evidence is held by a producer, or when the agent in the loop
-speaks MCP already.
-
-## Serve a completed run report
-
-Use Node 22.15 or newer. From the directory in which the MCP client will launch the
-server, install the package and make the report path available:
+Every tool on this page answers from one file, `.variance/report.json` by
+default, and nothing in the MCP package writes it. The CLI does:
 
 ```bash
-npm install @variance-authority/mcp
+npm install --save-dev @variance-authority/cli
+npx playwright install chromium
+npx variance run --config variance.config.json
 ```
 
-For the default CLI report location, configure the client with:
+`variance run` writes the report at the path your config's `report` key names,
+`.variance/report.json` unless you change it. Writing that config, and the
+collector that mounts each UI state, is
+[run visual review from the command line](start-cli.md).
+
+The report holds one record per **subject** — one named UI state you asked for
+and can ask for again, identified by a stable id such as `checkout/empty` or
+`story:checkout--empty`.
+
+## Serve the report to a client
+
+Use Node 22.15 or newer. From the directory in which the MCP client will launch
+the server, install the package:
+
+```bash
+npm install --save-dev @variance-authority/mcp
+```
+
+Then add the server to the file your client keeps its server list in —
+`claude_desktop_config.json` for Claude Desktop, the equivalent file for any
+other client:
 
 ```json
 {
@@ -45,15 +58,19 @@ For the default CLI report location, configure the client with:
 ```
 
 The relative report path is resolved from the server process's working
-directory. Use the actual report path, or an absolute path, when the client
-starts elsewhere. The server validates the report at startup and re-reads it
-before each request, so a completed rerun is visible without reconnecting.
+directory. Use an absolute path when the client starts elsewhere. The server
+validates the report at startup and re-reads it before each request, so a
+completed rerun is answered from the new report without reconnecting.
+
+The same questions are available on the command line, where they need no client
+and no server: [ask a run from the command line](agent-cli.md).
 
 ## Ask from the run outward
 
 Begin a report-file session with `variance_summary`. It accounts for planned
-subjects that were not observed as well as the observations that produced a
-verdict, so silence cannot be mistaken for a clean run.
+subjects that were not observed as well as for the observations that produced a
+**verdict** — the one word carried per subject: `unchanged`, `changed`, `new`,
+`incomparable` or `ignored` — so silence cannot be mistaken for a clean run.
 
 If the summary names changes, ask `variance_changes` before opening an
 individual subject. It groups shared causes across subjects. Narrow to a
@@ -67,14 +84,23 @@ A question that names a thing rather than a subject id goes to
 name the run wrote down — component, role, accessible name, visible text, file,
 region, token — and each hit prints the field it matched on, so the order is
 checkable and a wrong first hit costs one more call. `variance_composition`
-with a `subject` then prints what that subject is made of. Both are absent on a
-tier that composed nothing, and both say so rather than matching nothing.
+with a `subject` then prints what that subject is made of. When the run recorded
+no composition, both say so rather than matching nothing.
 
-On a connection that serves several observability domains, begin instead with
-`variance_observability`. Its inventory distinguishes an unavailable domain
-from one that was supplied and measured zero members. Then ask the native tool
-for the domain that can answer the question; cross-domain answers join only on
-exact identities emitted by both producers.
+## Evidence other integrations hold
+
+The standalone `variance-authority-mcp` executable reads the report file it is
+given and nothing else; it does not go looking for other artifacts beside it.
+Evidence another integration produced — a [source execution
+index](source-index.md), a [presentation report](presentation.md), a [scenario
+archive](scenarios.md) — is served by the connection that integration sets up,
+and one connection can serve several kinds supplied independently.
+
+On such a connection, begin instead with `variance_observability`. Its inventory
+distinguishes evidence that was never supplied from evidence that was supplied
+and measured zero members. Then ask the tool belonging to the evidence that can
+answer the question; an answer that crosses two kinds joins only on exact
+identities both producers emitted.
 
 ## Keep approval outside MCP
 
@@ -84,8 +110,8 @@ Baseline promotion remains an explicit action by the owner of the review loop,
 and evidence the connection was never supplied with stays absent.
 
 The complete server and tool contracts live in the
-[`@variance-authority/mcp` package reference](../packages/mcp/README.md).
+[`@variance-authority/mcp` package
+reference](https://variance-authority.dev/reference/packages/mcp).
 Continue from a report finding with [pixel-to-source
 attribution](attribution.md), [suite composition](composition.md), or the
-producer's deeper [presentation](presentation.md) and [scenario](scenarios.md)
-evidence models.
+deeper [presentation](presentation.md) and [scenario](scenarios.md) evidence.

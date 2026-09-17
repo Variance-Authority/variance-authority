@@ -1,34 +1,68 @@
 # Holding a page still
 
-**Stabilization is on by default and there is nothing to set up.** Variance
-Authority is visual and execution regression tooling: a run — one execution of
-`variance run` — plans a set of subjects, captures each one, and compares it
-against its own baseline. A subject is one named thing a run observes this way:
-a story, a route, a fixture, or a value such as a JSON body, each carrying a
-stable id like `story:components-button--primary`. Before that capture, on
-every run, whether or not you knew it was a problem: animations are pinned,
-GIFs are frozen, fonts and images are waited for, scrollbars are hidden.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
 
-Three reliability questions meet here, and none of them is configuration:
+This page covers the layer underneath that comparison: what a run does to your
+page before it reads it, so that two readings of an unchanged UI agree. Read it
+when a subject reports a change your code did not make, when you want to know
+what was done to your page before it was captured, or when you are deciding
+whether to trust a system that reaches into the page at all.
 
-- **Something still changed.** Go to [what stabilization does not
-  cover](#what-stabilization-does-not-cover).
-- **You want to know what was done to your page.** The run tells you — see [the
-  run says what it did](#the-run-says-what-it-did) — and the table below is the
-  reference.
-- **You are deciding whether to trust this.** Then the two sections worth your
-  time are [what the baseline remembers](#the-baseline-remembers), which is the
-  thing nobody else in the category does, and [what it
-  costs](#what-holding-a-page-still-costs), which is measured.
+New here? Start with [your first run](start.md).
+
+**Stabilization is on by default and needs no setup.** Before every capture,
+whether or not you knew it was a problem: animations are pinned, GIFs are
+frozen, fonts and images are waited for, scrollbars are hidden. Everything you
+can change is optional and indexed under [what you can
+configure](#what-you-can-configure).
+
+Two terms this page uses throughout:
+
+- A **subject** is one named UI state you asked for and can ask for again — a
+  story, a route, a fixture, or a value such as a JSON body — identified by a
+  stable id like `story:components-button--primary`.
+- A **run** is one execution of `npx variance run`: it plans a set of subjects,
+  captures each one, and compares it against that subject's baseline.
+
+If you have not installed the CLI yet:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/route-collector
+npx variance doctor --config variance.config.json
+npx variance run --config variance.config.json
+```
+
+`npx variance doctor` prints which **tier** the run will reach before the first
+expensive run. A tier is a level of observation: the structure-and-style reading
+of a document, which any DOM host produces without a browser, and the painted
+image, which only a browser can produce. Stabilization is filtered by tier, so a
+jsdom run applies none of it — no layout engine and no animation clock means
+there is nothing to hold still.
 
 A subject that is still changing cannot be compared, so every tool in this
-category reaches into the page before it looks. The interesting questions are not
-*whether* to do that. They are **when**, **what it costs**, and **whether the
-baseline remembers it happened** — and the third is where the category stops
-answering.
+category reaches into the page before it looks. The questions worth asking are
+**when**, **what it costs**, and **whether the baseline remembers it happened**.
 
-[`flakiness.md`](flakiness.md) is the position — what kind of thing variance is,
-and the four ways a cause gets absorbed. This is the mechanism.
+[Flakiness](flakiness.md) is the position — what kind of thing variance is, and
+the four ways a cause gets absorbed. This page is the mechanism.
+
+## What you can configure
+
+Stabilization runs without any of this. Each entry below is a knob you can reach
+for once you need it.
+
+| you want to | set | where |
+| --- | --- | --- |
+| observe a subject untouched | `stabilize: []` | [observing a subject untouched](#observing-a-subject-untouched) |
+| choose the tricks yourself | `stabilize: ['pin-animations', …]` | [what runs, and what it absorbs](#what-runs-and-what-it-absorbs) |
+| hide decorative images | `stabilize: [… , 'hide-presentational-images']` | [the half the wire cannot decide](#and-the-half-the-wire-cannot-decide) |
+| serve some images as nothing | `blank` rules | [some images can be served as nothing](#some-images-can-be-served-as-nothing) |
+| stop hashing asset bytes | `network: false` / `hashAssets: false` | [what the wire costs](#what-the-wire-costs) |
+| record a loading state on purpose | `loading: ['subject-id']` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
+| skip the Suspense wait | `suspenseTimeoutMs: 0` | [the wait, and the decision it forces](#the-wait-and-the-decision-it-forces) |
 
 ---
 
@@ -44,6 +78,12 @@ CHANGED  story:card
   root:   Card  (src/components/Card.tsx:14)
   band:   texture — opacity 0.4 → 0.6
 ```
+
+`band` there is the kind of change, not its size. There are five, loudest
+first: `a11y` (a role, accessible name or ARIA state moved), `geometry` (boxes
+appeared, vanished, moved or resized), `token` (style values moved while
+structure held), `content` (text changed and nothing else did), `texture`
+(sub-pixel raster noise).
 
 That is a false alarm wearing a name badge. A plain pixel differ would have told
 you *1530 pixels moved* and you would have shrugged and hit re-run; this tells
@@ -62,6 +102,13 @@ The stabilization recipe meets that precondition before observation begins.
 
 ## Two recipes, and the wire
 
+A recipe is a named list of tricks applied at one moment. A **collector** is
+what does the reading — the Storybook, route, unit or custom adapter you point
+at your UI — and it carries the recipe. There are three moments:
+**collection**, when the live page is read; **render**, when the
+reading is reconstructed and painted; and **the wire**, where every response
+the page is served can be rewritten before the browser sees it.
+
 | | applied to | recipe |
 |---|---|---|
 | **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
@@ -71,11 +118,6 @@ The stabilization recipe meets that precondition before observation begins.
 The collection and render recipes differ in exactly one trick and it is not a
 preference: `hold-animations` is a *screenshot* option, and at collection nobody
 takes a screenshot, so it would be a trick that silently does nothing.
-
-Both recipes are filtered by tier, so a jsdom collection applies **nothing**. No
-layout engine and no animation clock means there is nothing to hold still, and a
-`fonts.ready` wait per subject on the tier that exists to be cheap is the trade
-that tier refuses.
 
 ## What runs, and what it absorbs
 
@@ -126,36 +168,29 @@ the page is yours and its JavaScript is the subject.
 
 </details>
 
-## Where the damage lands
+## How far an intervention reaches
 
-Ordered by cost, earliest sufficient option first. **Every trick shipped here is
-in the first band.**
+Holding a page still means changing it, and the three ways of doing that cost
+you different things. **Every trick shipped here stays in the first row.**
 
-| band | what it is | cost |
+| how far it reaches | what it is | what it costs you |
 |---|---|---|
 | **outside the subject** | injected CSS, screenshot options, a rewritten response | delete the tool and the intervention is gone |
 | **runtime substitution** | wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
 | **a contract the subject implements** | a readiness marker in your component | real design damage |
 
-The middle band is deliberately **not shipped** and deliberately **expressible**.
-A project that decides the trade is worth it writes an `Intervention` and composes
-it; that is what an open set is for.
+The middle row ships with nothing in it. A project that decides the trade is
+worth it can write its own intervention and compose it — see [composing an
+observation](compose-observation.md).
 
-### The one sheet, and why you cannot see it
-
-Collection injects exactly one `<style data-va-stabilize>`, and the collector's
-stylesheet index — the flattened, matchable list of a page's stylesheets that
-attribution reads rule by rule to charge each one to a component — **skips
-it**.
-
-Not tidiness. The recipe's rules are `*, *::before, *::after` by construction, so
-collecting them like any other sheet would attach a matched rule to every node in
-every subject, churn every hash, and put a declaration nobody wrote into the
-attribution of a component that did not write it. Skipping it is what makes the
-first band of the table literally true.
-
-What survives into your capture is the recipe's *effect* — `transform` reads its
-first frame instead of a frame off the clock — and never the recipe.
+The injected stylesheet stays outside the subject in your output too: collection
+injects exactly one `<style data-va-stabilize>` and attribution never charges a
+rule from it to one of your components. Its rules are `*, *::before, *::after` by
+construction, so counting them like any other stylesheet would attach a matched
+rule to every node in every subject and put a declaration nobody wrote into the
+attribution of a component that did not write it. What survives into your capture
+is the recipe's *effect* — `transform` reads its first frame instead of a frame
+off the clock — and never the recipe.
 
 ## The run says what it did
 
@@ -167,16 +202,15 @@ fonts, whose advances change every metric on the page; waited for images to
 decode, since their intrinsic size participates in layout
 ```
 
-Printed near the top of `variance report`, before the docket — the report's
+Printed near the top of `npx variance report`, before the docket — the report's
 list of root causes, one entry per cause even when it reached three hundred
 subjects — because it changes how every image below it should be read. A
 fade-in captured at its first frame is a correct observation of a page that was
 **altered to be observable**, and a reviewer who does not know that is looking
 at a component in a state no user ever sees and has not been told.
 
-Each clause comes from the trick's own `because`, so a project that writes its
-own gets a sentence here without editing anything, and a trick whose description
-is wrong is wrong in exactly one place.
+Each clause comes from the trick's own description, so a trick you write
+yourself gets a sentence here without editing anything.
 
 Absent means no collector reported stabilizing: a jsdom collection has nothing
 to hold still.
@@ -213,50 +247,47 @@ recipe instead of the machine.
 
 ---
 
-## Turning it down
+## Observing a subject untouched
 
-You almost certainly should not. Two callers legitimately want to:
+An empty `stabilize` turns the whole recipe off for that collector:
 
-```ts
-routeCollector({
-  routes: { … },
+```js
+// variance/routes.mjs
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { 'checkout/empty': 'http://localhost:3000/checkout' },
+  roots: ['#app'],
   // Observed untouched. The environment key records that, so these baselines
   // do not mix with stabilized ones.
   stabilize: [],
 });
 ```
 
-- A suite whose own determinism story is better than ours — it already freezes
-  its clock, its data and its animations — where a second `!important` sheet is
-  damage buying nothing.
-- This repository's own test for what happens *without* it, which has to be able
-  to ask for nothing and get nothing.
+Reach for it when your suite's own determinism story is already better than this
+one's — it freezes its clock, its data and its animations — and a second
+`!important` stylesheet would be damage buying nothing.
 
-Naming a trick that does not exist **throws, and names what it knows**. The quiet
-alternative — skip what cannot be resolved — turns a typo into a suite one trick
-less stable than its operator believes, discovered later as a flake they had
-already paid to prevent.
+Naming a trick that does not exist **throws, and names the tricks it knows**. A
+typo is refused rather than skipped, so you never end up with a suite one trick
+less stable than you believe it is.
 
 ---
 
 ## What is proven
 
-[`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
-against a real compositor, not a simulation of one: a page with a 4s
-linear infinite animation on `transform` and `opacity`, read twice about a second
-apart through the real collector.
+Each row below is checked against a real compositor, not a simulation of one: a
+page with a 4s linear infinite animation on `transform` and `opacity`, read
+twice about a second apart through the collector you would use.
 
 | | |
 |---|---|
 | observed untouched | the render hash **changes** |
-| under `COLLECT_RECIPE` | the render hash **holds** |
+| under the default recipe | the render hash **holds** |
 | the two together | different `semanticDigest`, so they are never compared |
 | the injected sheet | appears nowhere in the subject |
 
-And for the wire, in
-[`packages/playwright/src/network.chromium.test.ts`](../packages/playwright/src/network.chromium.test.ts)
-and
-[`packages/route-collector/src/network.chromium.test.ts`](../packages/route-collector/src/network.chromium.test.ts):
+And for the wire:
 
 | | |
 |---|---|
@@ -265,16 +296,10 @@ and
 | an image swapped behind its URL | the environment key **changes**, with no DOM change at all |
 | the same run with `network: false` | the asset map is empty, and visibly so |
 
-The GIF fixture is built byte by byte in the test, with real LZW, and every
-sampling run first asserts `naturalWidth === 8` — because a GIF that failed to
-decode paints nothing in *both* runs, and "held still" and "never arrived" would
-otherwise have the same signature.
-
-The first row is asserted as a *reproduction*: if the flake ever stops
-reproducing, that test goes red rather than quietly guarding nothing. Every other
-instability measurement in this repository simulates its cause — a smoothing mode
-standing in for a GPU driver, a second browser context for a second runner. This
-one does not.
+A GIF that failed to decode paints nothing in *both* runs, so "held still" and
+"never arrived" would otherwise have the same signature. Every sampling run
+therefore checks the image's intrinsic width before it believes a pair of
+identical frames.
 
 ---
 
@@ -414,12 +439,15 @@ A request carries no idea which element wanted it. `role="presentation"`,
 amount of care there will produce them. That is a fact about a document, so the
 trick that uses it is a stylesheet:
 
-```ts
-routeCollector({
-  routes: { … },
-  // The default recipe, plus one. Naming a recipe replaces it, so the tricks you
-  // still want are listed — a `stabilize` that only added would make "observed
-  // untouched" unsayable.
+```js
+// variance/routes.mjs
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  routes: { 'checkout/empty': 'http://localhost:3000/checkout' },
+  roots: ['#app'],
+  // `stabilize` replaces the recipe rather than adding to it, so list the tricks
+  // you still want alongside the one you are adding.
   stabilize: [
     'pin-animations',
     'hide-scrollbars',
@@ -447,8 +475,8 @@ green run.
 still invalidates the environment and costs a re-render before the run can
 discover the pixels were identical. That is the limit of what a stylesheet can
 do from inside a document that already made the request. An operator who wants
-the churn gone from the key as well has to name the URL or the size band, and
-blank it.
+the churn gone from the key as well has to name the URL or a pixel-size range,
+and blank it.
 
 So the two mechanisms split by what each layer can know, and neither is a
 degraded version of the other. The wire decides by URL and intrinsic size, and
@@ -478,7 +506,7 @@ rather than a run that had nothing.
 ### Which assets belong to which subject
 
 Wired into both collectors, and narrowed per subject on the way in.
-**The wire sees a page; a verdict is about a subject.** A request carries no idea
+**The wire sees a page; the result a run reports is about one subject.** A request carries no idea
 which story will end up using it, so a Storybook run — one navigation, three
 hundred subjects — would give story 200 the page's whole asset set, which depends on which stories ran before it. That is not
 over-invalidation, which would merely be noise. It is **order dependence in the
@@ -502,15 +530,16 @@ the browser's cache before the observation started has bytes nobody here saw, an
 an invented entry would be a claim about content that no later run could
 contradict.
 
-### The document carries them too, which is what `settle` reads
+### The document carries them too, which is what the render skip reads
 
 Putting the assets in the *capture* alone is not enough, and the shortfall has no
-symptom. `settle` skips a render when this run's document digest equals the digest
-the baseline was painted from — so a document that omits the assets produces the
-same digest after a logo's bytes change, the render is skipped, and the run reports
-`unchanged`. That is exactly the false verdict hashing the bytes exists to close,
-reappearing one layer in. Both keys carry the same scoped set, asserted in
-`packages/route-collector/src/network.chromium.test.ts`.
+symptom. The render skip — `settle()` from `@variance-authority/raster`, not the
+`network.settle()` above — skips a render when this run's document digest equals
+the digest the baseline was painted from. So a document that omits the assets
+produces the same digest after a logo's bytes change, the render is skipped, and
+the run reports `unchanged`. That is the false verdict hashing the bytes exists
+to close, reappearing one layer in. Both the document digest and the environment
+key carry the same per-subject asset set.
 
 ---
 
@@ -603,7 +632,8 @@ and pays nothing, which is almost every subject.
 **A boundary still pending when the wait runs out is refused, not captured.**
 Capturing it
 would put a skeleton in the baseline on a slow machine and the component on a
-fast one, with every band agreeing and both passes consistent. The refusal names
+fast one, with every band agreeing that nothing moved and both passes
+consistent. The refusal names
 the subject, the open boundaries, the component that wrote each one, and the two
 things a person can do:
 
@@ -622,9 +652,8 @@ collector's `loading: ['some-subject']` says the skeleton *is* what the baseline
 is over; a declared subject then waits for nothing, because paying the timeout to
 be told the boundary is open costs five seconds to learn what the declaration
 already said. `@variance-authority/playwright-test` takes the same declaration as
-`loading: true` on the fixture, and throws instead of refusing — that surface
-returns an `Observation`, and a failed assertion is what reaches the person who
-can decide.
+`loading: true` on the fixture, and throws instead of refusing: in a Playwright
+test a failed assertion is what reaches the person who can decide.
 
 **The declaration is checked in both directions.** A subject declared as a
 loading capture that turns out to have settled is refused too: a declaration
@@ -634,10 +663,9 @@ arriving from the other side.
 `suspenseTimeoutMs: 0` keeps the reading and skips the wait, for a suite whose
 own markers already cover its data.
 
-All three properties run against a real Storybook build in
-[`cases/storybook-case/src/suspense.chromium.test.js`](../cases/storybook-case/src/suspense.chromium.test.js)
-— a boundary that resolves, a boundary that only appears once the first one has,
-and a boundary that never resolves, refused and then declared.
+All three behaviours run against a real Storybook build: a boundary that
+resolves, a boundary that only appears once the first one has, and a boundary
+that never resolves — refused, and then declared.
 
 ---
 
@@ -652,20 +680,22 @@ the ones beneath it:
 | `pendingSuspense` | whether the subject has arrived at all | a fiber traversal |
 | `awaitQuiet` | whether the application has stopped working | a hook installed before React |
 | `documentDigest` | whether anything that reaches a renderer changed | a read of a page already mounted |
-| the image | whether the pixels moved | a raster, ~65ms against ~3.4ms |
+| the image | whether the pixels moved | a raster, the most expensive reading here by an order of magnitude |
 
 The implication runs one way. A component tree that did not re-render cannot
 have produced a different document, and a document that did not change cannot
 paint a different image — so the cheapest reading that answers ends the
-question. `settle()` is that early return at the third row: a document
-byte-identical to the one the baseline was painted from is not photographed
-again, and on a suite where nothing changed that is the whole value of a run.
+question. `settle()` from `@variance-authority/raster` — a different function
+from the `network.settle()` above, which waits for requests — is that early
+return at the third row: a document byte-identical to the one the baseline was
+painted from is not photographed again, and on a suite where nothing changed
+that is the whole value of a run.
 
 **The converse is where the findings are.** A row moving while the row above it
 holds is not a wasted check, it is the fact somebody wanted:
 
 - **The fiber moved and the document did not.** The components re-rendered and
-  the page did not follow — `refactor` in [`parting.md`](parting.md), read
+  the page did not follow — `refactor` in [parting](parting.md), read
   across a moment instead of across a commit. This is the receipt a refactor
   never gets, and no pixel differ can reach it.
 - **The document moved and the image did not.** Something reached the renderer
@@ -686,7 +716,8 @@ itself the reading.
 
 ## What holding a page still costs
 
-Measured, because stabilization is only free until somebody checks.
+The suite prints the figure on every run, so you can take it on your own
+hardware. On an Apple M4 Max (Mac16,9), 64 GB, macOS 27.0 on arm64, Node v26.7.0:
 
 ```
 STABILIZATION COST — 12 collections of one subject, warm
@@ -707,19 +738,11 @@ off the page rather than a counter somebody has to keep correct. The first
 subject still pays, and should: that is the one where the sheet arrives and
 something is genuinely moving.
 
-**What the skip saves is bounded, not measured.** Two animation frames on
-a 60Hz compositor is ~32 ms, so the regression that puts them back into every
-subject costs a third of a second on a ten-story Storybook and about six on two
-hundred — arithmetic, not a reading. There is no control to measure it against:
-`stabilize` is fixed when a collector is built and the sheet survives every
-collection after the first, so nothing the option can express reaches the
-unconditional path. The saving stays a bound, and is labelled as one.
-
-Produced by
-[`packages/route-collector/src/stabilization.chromium.test.ts`](../packages/route-collector/src/stabilization.chromium.test.ts),
-which holds the regression to under 20 ms — so putting the two frames back into
-every subject fails the suite rather than showing up as a slow CI job nobody
-attributes to anything.
+**What the skip saves is arithmetic, not a reading.** Two animation frames on a
+60Hz compositor is about 32 ms, so putting them back into every subject would
+cost roughly a third of a second on a ten-story Storybook and about six seconds
+on two hundred. The suite fails if that regression ever lands, so it reaches you
+as a red build rather than a slow CI job nobody attributes to anything.
 
 ---
 
@@ -739,17 +762,17 @@ Dates, clocks, randomized data, `requestAnimationFrame` mutations, hover state,
 sticky or fixed positioning during full-page capture, spellcheck decoration,
 and subpixel image sizing are not normalized by that path. Control them in the
 host's fixture, express deliberate volatile regions through
-[`ignores`](ignores.md), or provide a [custom composition](compose-observation.md) with its own
+[ignore rules](ignores.md), or provide a [custom composition](compose-observation.md) with its own
 intervention recipe.
 
 A subject reported `changed` is read again in the same world. Disagreement is
-reported as `unstable`, with the component and frequency band when those signals
-are available. [`flakiness.md`](flakiness.md#what-still-gets-through-and-how-it-is-found)
+reported as `unstable`, with the component and the frequency band of the
+disagreement when those signals are available. [Flakiness](flakiness.md#what-still-gets-through-and-how-it-is-found)
 continues from that result. The second readings vary one input at a time so a
 timing change cannot be mistaken for an isolation change.
 
 ---
 
-**See also.** [`flakiness.md`](flakiness.md) — what kind of thing variance is ·
-[`ignores.md`](ignores.md) — absorbing what cannot be stabilized ·
-[`comparison.md`](comparison.md) — where each operating model fits
+**See also.** [Flakiness](flakiness.md) — what kind of thing variance is ·
+[Ignore rules](ignores.md) — absorbing what cannot be stabilized ·
+[Comparison](comparison.md) — where each operating model fits

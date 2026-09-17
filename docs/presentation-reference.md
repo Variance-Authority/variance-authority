@@ -1,22 +1,43 @@
 # Presentation evidence reference
 
-Presentation evidence describes how information is grouped, separated, aligned,
-repeated, surfaced, and emphasized in one rendered interface. It gives a person
-or coding agent measurements they can inspect and challenge. It never supplies a
-global score, a preferred density, or a design verdict.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is the field reference for its **presentation evidence**: measurements
+of how one rendered interface groups, separates, aligns, repeats, paints and
+emphasizes its content. Read it when you are choosing an entry point, reading a
+field of a report, or working out which rule fired and on what measurement. The
+evidence gives a person or a coding agent numbers they can inspect and
+challenge; it never supplies a global score, a preferred density, or a design
+verdict.
+
+New here? Start with [your first run](start.md).
+
+```bash
+npm install --save-dev @variance-authority/presentation @playwright/test
+npx playwright install chromium
+```
 
 For the live before-and-after workflow, start with
 [Inspect presentation relationships during a UI edit](presentation.md). The
-[`@variance-authority/presentation` package reference](../packages/presentation/README.md)
-owns installation and complete TypeScript signatures; this page owns the
-meaning, presence rules, and selection boundaries of the evidence they return.
+[`@variance-authority/presentation` package reference](https://variance-authority.dev/reference/packages/presentation)
+carries the complete TypeScript signatures; this page carries the meaning,
+presence rules, and selection rules of the evidence they return.
 
 ## Choose an entry point
+
+Each entry point reads one **subject** — one named UI state you asked for and
+can ask for again, identified by a stable id like `orders:list`. Several of them
+also take an **owner**: the element whose immediate arrangement produced a
+measurement, meaning the box that arranges the children involved rather than the
+children themselves.
 
 | Starting point | Use | What it answers |
 |---|---|---|
 | Live Playwright `Page` and subject `Locator` | `sensePresentation` from `@variance-authority/presentation/playwright` | Acquires browser layout and Playwright ARIA evidence, then returns one presentation report. |
-| Existing `RawCapture` | `analyzePresentation` from `@variance-authority/presentation` | Derives the same report without browser or filesystem access; browser accessibility evidence is optional. |
+| Existing `RawCapture`, a normalized serializable snapshot of one rendered DOM subject | `analyzePresentation` from `@variance-authority/presentation` | Derives the same report without browser or filesystem access; browser accessibility evidence is optional. |
 | Existing report and one structural owner | `focusPresentation` | Returns evidence owned at that level without re-sensing the page. |
 | Product-known peers across wrappers | `inspectPresentationAlignment` | Measures their selected alignment coordinate, spread, and member deviations. |
 | Consecutive regions arranged by one owner | `inspectPresentationSpacing` | Measures every adjacent gap, boundary strength, and spacing cluster in the run. |
@@ -24,37 +45,31 @@ meaning, presence rules, and selection boundaries of the evidence they return.
 | Two reports | `comparePresentation` | Compares finding counts and information identity as separate dimensions. |
 | Two reports whose consequence must survive the browser session | `presentationSignal` | Produces introduced, resolved, or measurement-changing persisted effects for a general run report. |
 
-Choose the narrowest reading that matches the product question. A broader
-reading does not make the evidence more authoritative; it can instead flatten
-correctly nested relationships into apparent peers.
+Choose the narrowest reading that matches your question: a broader reading can
+flatten correctly nested relationships into apparent peers.
 
 ## Sense one subject
 
 `sensePresentation(page, locator, options)` reads a locator in an existing
-Playwright page. The locator defines the semantic and geometric boundary. Capture
-root `0` is that locator; later roots are React portal content in capture order.
+Playwright page. The locator bounds what is read, semantically and
+geometrically. Capture root `0` is that locator; later roots are React portal
+content in capture order.
 
 The available options are:
 
 | Option | Meaning |
 |---|---|
-| `subjectId` | Stable identity for the sensed boundary. Defaults to `presentation`. |
+| `subjectId` | Stable identity for the subject you sensed. Defaults to `presentation`. |
 | `title` | Optional human-facing title for the subject. |
 | `fonts` | Font identities established by the caller. They affect the report digest, not content identity. |
 | `suspense.timeoutMs` | Settlement bound for React Suspense before sensing. |
 | `stabilize` | Replaces the default stabilization recipe by intervention id. `[]` is only for a caller-owned static document whose page clock cannot advance. |
-| `paint` | `true` paints every diagnostic layer; a layer list paints only those layers; omission leaves the page unpainted. |
+| `paint` | Paint means drawing an SVG overlay of the measurements onto the page you just read. `true` paints every diagnostic layer; a layer list paints only those layers; omission leaves the page unpainted. |
 
 Readiness follows the chosen subject. Images inside the locator and its portals
 settle before geometry is read, while an unrelated incomplete image elsewhere in
 the document does not hold the reading open. Font settlement remains
 document-wide because substitution can move geometry inside the subject.
-Presentation sensing does not collect React source provenance because the report
-does not consume it.
-
-The default recipe belongs on live pages. Passing `stabilize: []` is not a faster
-mode; it is a declaration that the document is static and has no page clock that
-needs settling.
 
 ## Read a report
 
@@ -67,7 +82,7 @@ collapsing them into a score.
 | `semantic.browserAccessibility` | The Playwright ARIA snapshot observed beside the capture. | Absent means browser ARIA was not observed. Empty or partial roots remain present. |
 | `telemetry` | Content counts and, when layout exists, dimensions, utilization, occupied area, and density. | Content telemetry remains available without layout. Layout-derived telemetry is absent without layout. |
 | `graph` | Rendered nodes and their containment, separation, alignment, baseline, and peer relations. | Without layout, `nodes` and `relations` are empty. |
-| `spacing`, `axes`, `baselines`, `prominence`, `surfaces`, `patterns` | Structures derived from measured layout. | Absent when the capture profile cannot observe layout. |
+| `spacing`, `axes`, `baselines`, `prominence`, `surfaces`, `patterns` | Structures derived from measured layout. | Absent when the capture **profile** — the declaration, made by whatever produced the capture, of what it was able to observe at all, from ARIA tree to pixels — cannot observe layout. |
 | `findings` | Named relationship failures with their owner, involved nodes, and measurements. | Absent means layout was unobserved. Empty means layout was measured and no rule fired. |
 | `paint` | Located instructions for diagnostic overlays. | Absent without layout. |
 
@@ -77,9 +92,9 @@ box.
 
 ### Graph identity and relations
 
-A graph node is a rendered element with a stable boundary-relative id, semantic
-class, geometry, typography, surface evidence, state signature, and relative
-prominence. Text nodes occupy path positions but are not invented as rendered
+A graph node is a rendered element with an id relative to the sensed locator,
+plus semantic class, geometry, typography, painted-surface evidence, state
+signature, and relative prominence. Text nodes occupy path positions but are not invented as rendered
 objects.
 
 Relations retain containment, measured sibling separation, discovered
@@ -98,8 +113,8 @@ a finding by itself.
 
 ## Choose a reading
 
-The acquisition boundary answers what was read. Structural ownership answers
-which elements may be interpreted together.
+What you sensed answers what was read. Structural ownership answers which
+elements may be interpreted together.
 
 ### Focus one owner
 
@@ -109,9 +124,9 @@ paint for the same evidence. Deeper evidence stays separate in the `nested`
 counts.
 
 Use `depth: 'subtree'` only when the product question deliberately treats the
-complete composition as one reading. It folds descendant owners into the result;
-it is not a convenience for “show everything.” A requested finding id must
-belong to the selected owner and depth.
+complete composition as one reading: it folds descendant owners into the result,
+so a problem inside one card reads as a problem with the list. A requested
+finding id must belong to the selected owner and depth.
 
 ### Inspect an alignment across wrappers
 
@@ -135,7 +150,7 @@ composition whose adjacent gaps matter together.
 The result retains every distance, boundary strength, and spacing cluster plus
 min/median/max summaries. Descendants, skipped siblings, or an axis that does
 not describe the owned separations are refused. The sequence remains the useful
-evidence; its maximum or median alone can conceal one abrupt boundary.
+evidence; its maximum or median alone can conceal one abrupt gap.
 
 ### Declare product-known relationship roles
 
@@ -176,15 +191,15 @@ Every finding carries a stable report-local id, the graph node that owns the
 relationship, the involved nodes, and its measurements. Pattern- and
 contract-based findings carry those correlation ids as well.
 
-Thresholds calibrate when measured evidence supports a rule. They are pinned by
-firing and non-firing cases and are not exposed as preferred margins, density,
-page dimensions, or spacing values.
+Thresholds decide when measured evidence supports a rule. They are not exposed
+as preferred margins, density, page dimensions, or spacing values, so no rule
+hands you a number to copy into a stylesheet.
 
-## Paint evidence without re-sensing
+## Draw the evidence on the live page
 
-Paint instructions come from the same report as the measurements. Painting a
-focus, alignment, spacing run, or hierarchy reading therefore does not acquire
-the page again.
+Overlay instructions come from the same report as the measurements, so drawing a
+focus, alignment, spacing run, or hierarchy reading does not acquire the page
+again.
 
 The available layers are `semantic`, `spacing`, `axes`, `baselines`, `surfaces`,
 `prominence`, `repetition`, and `findings`. Each instruction carries its owner
@@ -194,8 +209,10 @@ corresponding report-local id.
 The overlay is a non-interactive SVG. It takes no pointer events, exposes
 nothing to assistive technology, and does not change the application's styles.
 Its conspicuous colors identify diagnostic groups, not judgments about the
-product's colors. A later acquisition removes an earlier overlay before reading
-the page, and `clearPresentationPaint(page)` removes it explicitly.
+product's colors. It is a real element in the document, so a screenshot taken
+while it is up contains it: call `clearPresentationPaint(page)` before any
+screenshot or visual-regression assertion that follows. A later acquisition also
+removes an earlier overlay before reading the page.
 
 ## Compare two readings
 
@@ -230,17 +247,18 @@ Presence remains meaningful:
   `incomparable` with the missing side named and no effects.
 - A present empty effects list means both sides were measured and no
   relationship consequence changed.
-- An absent presentation signal means no producer measured that boundary.
+- An absent presentation signal means no producer measured that subject.
 
-Presentation consequence, renderer impact, and the visual-regression verdict
-remain separate axes. Storing a signal applies no policy and never changes the
-observation verdict.
+Presentation consequence, renderer impact, and the visual-regression **verdict**
+— the run's answer for one subject, such as `unchanged`, `changed` or
+`incomparable` — remain separate axes. Storing a signal applies no policy and
+never changes that verdict.
 
 ## Authority and limits
 
-The useful boundary is simple: preserve information and expose relationships.
-The evidence may show that two declared meanings are rendered alike or that one
-peer departs from its group. It cannot decide how much information the product
+The evidence answers two things: whether the interface preserved its
+information, and how its relationships are rendered. It may show that two
+declared meanings are rendered alike or that one peer departs from its group. It cannot decide how much information the product
 should contain or whether the response should be a table, cards, typography,
 spacing, a denser layout, a sparser layout, or no edit.
 

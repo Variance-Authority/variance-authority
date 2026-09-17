@@ -1,39 +1,61 @@
 # Compose an observation
 
-Start with the process that already knows how to reach the state. Then choose
-the evidence your question needs, where pixels should be made, and where the
-answer should live. These choices can be combined without rebuilding the
-working parts of your test or review setup.
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source — the component that
+drew the pixels and the `file:line` it was written at.
 
-## Four choices remain independent
+Wiring it into a suite you already have is four separate decisions: which of
+your harnesses reaches the state, what gets captured and where the pixels are
+painted, where the answer is consumed and how long it is kept, and who holds the
+baseline between runs. This page is the index to those four, for when you have
+decided you want the tool and are deciding how it should sit in your suite.
 
-| Decision | What it changes | Route |
+New here? Start with [your first run](start.md), which takes one UI state
+through capture, review and acceptance end to end.
+
+## The four decisions
+
+A **subject** is one named UI state you asked for and can ask for again,
+identified by a stable id such as `story:checkout--empty`. Each row below is one
+decision about how subjects get observed, and the page that makes it.
+
+| Decision | What it changes | Where it is made |
 | --- | --- | --- |
-| Which process reaches the state and declares it ready? | Lifecycle, discovery, and subject naming | [Choose a composition](cases.md) |
-| What is acquired, and where are pixels made? | Portability, privacy, semantic evidence, latency, and renderer identity | [Choose the surface](surface.md) |
-| Where is the answer consumed and retained? | Infrastructure, review, and how long evidence remains available | [Choose an operating flow](flows.md) |
-| Is comparison ephemeral or durable, and who owns the baseline? | Lookup, promotion, and storage responsibility | [Place the baseline](placement.md) |
+| Which harness reaches the state and declares it ready | Lifecycle, subject discovery, the ids your baselines are named by | [Choose from the state you already have](cases.md) |
+| What is captured, and where pixels are painted | Portability, what leaves your network, which evidence travels, latency, renderer identity | [Connect your suite](surface.md) |
+| Where the answer is consumed and how long it is kept | Infrastructure you operate, where review happens, how far back you can ask | [Choose an operating flow](flows.md) |
+| Who holds the baseline between runs | Baseline lookup, acceptance, storage cost | [Where baselines live](placement.md) |
 
-A Storybook host does not imply local rendering. A Playwright host does not
-imply in-place pixels. A remote store does not make a verdict more correct.
-Changing one choice must not silently choose the others.
+The four are independent, and answering one does not answer another. A Storybook
+host does not require local rendering, and a Playwright host does not require
+pixels taken in place. Where baselines are stored does not change the verdict a
+run reports — `unchanged`, `changed`, `new` or `incomparable`; what decides
+whether two captures may be compared at all is the renderer that painted them.
 
-## Start from what already owns the state
+## Start from the harness that already reaches the state
 
-Use the host that already knows how to reach the subject and when it is ready.
-Then choose the smallest acquisition material and evidence flow that can answer
-the outcome. Existing collectors, rasters, stores, and review systems may fill
-those roles when they preserve the observation contract.
+Pick the first decision by asking which of your existing harnesses already
+navigates, logs in, seeds fixtures and decides the UI is ready. Navigation,
+fixtures, authentication and readiness stay there. Then take the smallest answer
+to the other three that still answers your question.
 
-The paths meet at shared observation, comparison, retention, and reporting
-interfaces. They need not produce identical evidence.
+Every combination reaches the same comparison and the same report. What differs
+between them is what each one was able to see.
 
-## The composition sets the evidence boundary
+## What you capture decides what the report can say
 
-Browser accessibility, component [provenance](attribution.md), resource closure, live
-announcements, and in-place paint are available only when the selected surface
-and [vantage](vantage.md) supply them. Their absence reduces what the observation can support;
-it does not become an empty reading.
+Component [attribution](attribution.md) — the chain from a changed region to the
+component that drew it and the `file:line` it was written at — browser
+accessibility results, real geometry, and pixels painted in place by your own
+test are each available only from some captures, and [Connect your
+suite](surface.md) says which.
 
-The result is one composition suited to the question. Add another host,
-instrument, renderer, store, or consumer only when another decision needs it.
+What a capture could not see is never reported as `unchanged`. Both sides of a
+comparison must share one **observation profile** — what the capture was able to
+see at all, independent of what it found. `jsdom` resolves roles, accessible
+names and author-declared style but has no layout engine; `chromium` adds the
+resolved cascade, real geometry and pixels.
+
+Add another host, renderer, store or consumer only when a decision you have
+already made cannot be served without it.

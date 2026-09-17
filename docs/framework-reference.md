@@ -92,7 +92,7 @@ which property moved:
 So a wiring-only edit hands you `refactor`: the screenshots match, which is all
 a pixel differ can tell you, and the components underneath are confirmed
 rewritten. Wrap a subtree in a new `Panel` and the tree signature is what
-notices. [Parting](parting.md#the-slice-what-kind-of-parting-this-is) lists all
+notices. [Parting](parting.md#what-kind-of-difference-this-is) lists all
 eight slices and what decides between them.
 
 Two things stay out of that signature on purpose. Hook *values* — a timer, an

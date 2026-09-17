@@ -1,51 +1,74 @@
 # Find the subject you mean
 
-**This is how you search a suite.** You know which thing you want to look at.
-You do not know what it is called.
+You know which thing you want to look at. You do not know what it is called.
 
-Every tool that narrows to one subject takes an id —
-[`variance_composition`](composition.md), [`variance_describe`,
-`explain-verdict`, `trace-component`](agent-questions.md). On a suite of fifteen
-that costs nothing, because the summary printed all fifteen ids and you read
-them. Once the ids stop fitting in a summary you read, what you hold instead is
-a description: *the footer with the filter chips*, *the toggle that marks a todo
-done*, *the thing that uses the accent token*.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at. Each comparison is keyed by a
+**subject**: one named UI state you asked for and can ask for again, under an id
+you choose, such as `cart/empty`.
 
-This page is the whole of search: what you need for it to work, how to ask, and
-how to read what comes back. It finds subjects and hands you ids. It does not
-grep your source, and it is not a code search tool.
+This page is search. Read it when you can describe a subject but cannot name it.
+Every tool that narrows to one subject takes its id, and on a suite of fifteen
+that costs nothing, because the summary printed all fifteen ids. Once the ids
+stop fitting in a summary you read end to end, what you hold instead is a
+description: *the footer with the filter chips*, *the toggle that marks a todo
+done*, *the thing that uses the accent token*. Search turns that description
+into ids. It does not grep your source, and it is not a code search tool.
+
+New here? Start with [your first run](start.md). The CLI is a devDependency, so
+every invocation below runs through `npx`:
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
+
+## Three more words this page uses
+
+- A **boundary** is one React component enclosing an element on the screen, read
+  off React's owner chain while the page was captured. Boundaries are where the
+  searchable words come from, which is why a suite built on something other than
+  React has none of them.
+- A subject's **example** is the component that subject is the clearest single
+  rendering of — the shallowest boundary that is not layout structure.
+  `createdBy` is the component that mounted a boundary, which is usually one
+  step further out than the component enclosing it.
+- A **surface** is one captured screen: a subject's reading, together with every
+  element the run recorded on it and where each one sits.
 
 ## What you need
 
-**Nothing you have to switch on.** Search rides on `variance run`. Any run whose
-collector captured a full reading — markup, the CSS that applied, and the
-component boundaries React's owner chain produced — writes the record that
-search reads, and every later question is asked against the report that run
-left behind.
+**One run, with nothing extra switched on.** `npx variance run` renders your
+subjects and compares them against their baselines; a run that read the markup,
+the CSS that applied and the component boundaries writes the record search
+reads. Every question below is asked against the report that run left behind —
+there is no index to build and no service to start.
 
-Which words you can search in is decided by which readings that run took, and
-the answer always tells you which it had:
+Which words you can search in is decided by which readings that run took. Every
+answer lists the fields it read and the fields it did not:
 
 | you get these words | when the run took |
 |---|---|
-| ids, components, creators, the example | any composing run — always there |
-| accessible names, visible text, roles | a semantic snapshot |
-| the regions a subject entered | an [execution journal](journeys.md) |
-| declaring files | a [source index](source-index.md) |
-| custom properties | the cascade the boundaries resolved through |
+| ids, components, creators, the example | any run that read boundaries — always there |
+| accessible names, visible text, roles | a reading of the accessibility tree and the text on the page |
+| the regions a subject entered | an [execution journal](journeys.md) — a record of which source regions each test ran through |
+| declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
+| custom properties | the CSS cascade those boundaries resolved through |
 
 **Search is absent, and says so, on three kinds of run:** a raster-only capture,
-which is an image with no markup behind it; a run under ephemeral retention; and
-a suite built on something other than React, where there are no boundaries to
-read. Absent is not empty — see [three answers that look
-alike](#three-answers-that-look-alike).
+which is an image with no markup behind it; a run under ephemeral retention,
+which renders the baseline inside the run and keeps nothing once the run ends;
+and a suite built on something other than React, which leaves no boundaries to
+read and so no words beyond the ids you chose. Absent is not empty — see [three
+answers that look alike](#three-answers-that-look-alike).
 
 ## Ask it
 
 Hand the description over as it stands:
 
 ```bash
-variance ask locate --query "footer chips"
+npx variance ask locate --query "footer chips"
 ```
 
 ```text
@@ -72,16 +95,18 @@ Over MCP the same question is `variance_locate {query: "footer chips"}`.
 
 **`where:` is the place behind the id.** An id is where the other tools start;
 it is not where your question ends. The same run that wrote the words down
-wrote where each of them was on the screen, so every hit carries the thing on
-that surface saying your words, the file and line it is declared at, and what
-it sits in. You asked *where does this live* and the answer is a file — no
-second call to find that out.
+wrote where each of them was on the screen, so every hit carries the element on
+that surface saying your words, the file and line it is declared at, and what it
+sits in. A place reads as the element's role, its name, then where it was
+written: `group \`Filters\` · src/todo/TodoFooter.tsx:41`. You asked *where does
+this live* and the answer is a file — no second call to find that out.
 
 **You get a file from a production build too.** The line an element sits on
 comes from the JSX-source plugin and a build strips it, so on a built Storybook
-no landmark carries one. What survives is the component that owns the thing, and
-the run knows which files declare it — so the place reads `in \`CarrierPicker\` ·
-src/dispatch/CarrierPicker.tsx` instead of a file and a line. That is a source
+no recorded element carries one. What survives is the component that owns the
+thing, and the run knows which files declare it — so the place reads
+`in \`CarrierPicker\` · src/dispatch/CarrierPicker.tsx` instead of a file and a
+line. That is a source
 to open rather than a coordinate, and the answer prints it as one. With no
 source index read, you get the component name alone, which is still somewhere to
 start.
@@ -97,10 +122,10 @@ whether or not the run resolved layout.
 vocabularies to compare it and kept all of them: `checkbox` finds the toggle
 because the run recorded its role, `--va-space-2` finds every subject that
 resolved through the token, and a filename finds whatever that file declares.
-None of it was written to be searched. So the word you happen to be holding is
-often one the suite already holds — and when it is not, the answer says which
-fields it looked in rather than guessing at a synonym. That record is the
-[lexicon](lexicon.md), and it is where the how and the why are.
+So the word you happen to be holding is often one the suite already holds; when
+it is not, the answer says which fields it looked in rather than guessing at a
+synonym. That record is the [lexicon](lexicon.md) — the names the run wrote
+down, field by field — and that page has the how and the why.
 
 ## Say where to look
 
@@ -114,7 +139,7 @@ Most of the time you have one: it is open in front of you, or the ticket names
 it, or a stack trace just handed it to you. Paste it.
 
 ```bash
-variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
+npx variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
 ```
 
 ```text
@@ -158,7 +183,7 @@ The absolute path your editor hands you is the same question asked from the
 root: under the repository it is that file, and outside the repository there is
 nothing there.
 
-### The path is the entrance, not the room
+### Naming one file names its imports
 
 What you name is the way in. The imports decide the rest: a file is in the scope
 when it is reachable from one of your entry points, along the imports, at any
@@ -176,11 +201,10 @@ screen that uses it. You still see those screens when they belong: a subject is
 in the scope because a file in the scope was seen producing it, so naming the
 button hands you every subject the run recorded it in.
 
-The walk is never shortened to save time, because a cut-off drops a file that is
-genuinely reachable and you would never see it go. Where the scan could not read
-some file's own imports, the answer counts those files and says so: what lies
-behind them is not enumerated, so the scope is not a proof about what it left
-out.
+The walk runs to any depth; nothing is cut off to save time. Where the scan
+could not read some file's own imports, the answer counts those files and says
+so: what lies behind them is not enumerated, so the scope is not a proof about
+what it left out.
 
 ### Say `--to` for the other way
 
@@ -190,7 +214,7 @@ the screens that show it. Name it as `--to` and the walk runs against the
 imports.
 
 ```bash
-variance ask locate --query "settings page" --to "components/user-select.tsx"
+npx variance ask locate --query "settings page" --to "components/user-select.tsx"
 ```
 
 A file is in that scope when it *reaches* what you named, at any depth — the
@@ -206,19 +230,18 @@ file in common, so crossing them would answer nothing. Saying one path both ways
 is how you ask for everything above and everything below it — available, and
 never given to you by accident.
 
-### It is a boundary, not a preference
+### A start point is read exactly
 
 What you are looking for may be approximate — you half remember the badge, and
 the ranking is built to reward a near miss. Where to look is the opposite kind of
-thing. It is a coordinate you already have, so it is read exactly:
+thing. It is a coordinate you already have, so it is matched literally:
 
 - Segments are compared whole and literally. `page` is not `pages`, and
   `Activity.ts` is not `Activity.tsx`.
 - **A path exists or it does not, and that is the whole test.** `Badge.tsx`
   does not name the file under `apps/web` — it names a file at the root, and
   where no file is at the root, nothing is there and the answer is not found.
-  Not *found under apps/web*, and not *two candidates, pick one*: handing back
-  candidates is the same fragment rule wearing a politer face. Say
+  Not *found under apps/web*, and not *two candidates, pick one*. Say
   `apps/web/Badge.tsx` or say `apps/web/`.
 - **Nothing is looked for inside a path.** No matching tail, no run of segments
   found somewhere in the middle, no case folding, and no reading one path as
@@ -241,18 +264,18 @@ specific. The CLI takes one `--from` and one `--to`; over MCP each also takes a
 list, as in `variance_locate {query: "the contract warning", from:
 ["app/dispatch/", "src/shared/"]}`.
 
-**It does two things, and the second is the one worth having.** Removing
-subjects is the obvious half. The other is that rarity is a count over subjects,
-so counting it inside the scope changes what your words are worth: a word every
-screen in the application says is worth nothing, and a word every screen *in
-this area* says is worth nothing here. Those are different statements, and
-inside an area the second is the useful one.
+**A start point also changes what your words are worth.** Removing subjects is
+one half. The other is that rarity is a count over subjects, so counting it
+inside the scope changes the ranking: a word every screen in the application
+says is worth nothing, and a word every screen *in this area* says is worth
+nothing here. Those are different statements, and inside an area the second is
+the useful one.
 
 A start point narrows a relation question the same way, where it is removing
 surfaces before any of them is read:
 
 ```bash
-variance ask locate --query "warning" --under "Carrier field" --from "app/dispatch/"
+npx variance ask locate --query "warning" --under "Carrier field" --from "app/dispatch/"
 ```
 
 Over MCP all of it is one call: `variance_locate {query, under, on, from, to}`.
@@ -268,7 +291,7 @@ the surface where the warning sits *above* the field matches just as well.
 Name each of the three separately and the arrangement is read instead:
 
 ```bash
-variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
+npx variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
 ```
 
 ```text
@@ -288,15 +311,14 @@ for, and `--on` is the surface the two are on.
 
 Nothing in `--query` is ever read as syntax. Your product is free to say *Under
 review*, *Show more* and *Inside sales*, and asking for those words gets you
-those words; a reader that took the relation out of the phrase would have taken
-them off you as grammar. Say one relation per question — two is a question with
-two answers, and it is refused rather than resolved.
+those words. Say one relation per question — two is a question with two answers,
+and it is refused rather than resolved.
 
 `--on` is optional and worth saying. Without it the anchor has to pick the
-surface as well as the landmark, and the drawer and the field on it both answer
-to the drawer's name: the answer then comes out of whichever reading the relation
-makes answerable, which is right nearly always and is a derivation rather than
-something you said. With it, you have said which screen, and only the anchor is
+surface as well as the element on it, and the drawer and the field on it both
+answer to the drawer's name: the answer then comes out of whichever reading the
+relation makes answerable, which is a derivation rather than something you
+said. With it, you have said which screen, and only the anchor is
 looked for on it.
 
 **Here the place is the whole answer**, not a line beside the id. Order is still
@@ -307,11 +329,9 @@ at all.
 Three things in that answer are worth reading before you act on it:
 
 - **`matched on place`.** You said `warning`; the screen says `role=status` and a
-  sentence about a contract. No table joins those — a table is declared rather
-  than derived and rots with the first refactor, and you already know what a
-  warning looks like. So the answer shows what is actually in the relation and
-  says it matched on where it is, not on what it is called. When your word *is*
-  on the screen it says so instead.
+  sentence about a contract. Nothing maps one onto the other, so the answer
+  shows what is actually in the relation and says it matched on where it is, not
+  on what it is called. When your word *is* on the screen it says so instead.
 - **`also beneath`.** Everything else standing in the same relation, nearest
   first. The one you meant is sometimes the second.
 - **`4px away`.** Measured between the rectangles the run resolved. Absent when
@@ -328,9 +348,10 @@ last matched `chips` on a component alone. That is the difference between a
 subject named for the thing and a subject that merely contains one, and you can
 see which one you have before you open it.
 
-The order is orientation, not evidence: nothing in the answer carries a verdict,
-a pixel count or a file to open, only ids and the tools that take them. Read the
-field you matched on, then narrow.
+The order is orientation, not evidence: nothing in the answer says whether a
+subject passed or failed, and none of it carries a pixel count or a diff to
+open — only ids and the tools that take them. Read the field you matched on,
+then narrow.
 
 ## Three answers that look alike
 
@@ -340,23 +361,26 @@ The header separates them before the hits, per field:
   Ask again in the suite's vocabulary — a term no subject holds is named as
   such, beside the accessible names the run did record, so the answer tells you
   what to try.
-- **Not read.** No execution journal means no `regions`; no snapshot means no
-  `names`, `text` or `roles`; no [source index](source-index.md) means no `files`. Nothing was
-  searched, so nothing could match. Supply the reading and ask again.
+- **Not read.** No execution journal means no `regions`; no reading of the
+  accessibility tree means no `names`, `text` or `roles`; no [source
+  index](source-index.md) means no `files`. Nothing was searched, so nothing
+  could match. Take the missing reading on the next run and ask again.
 - **Read, and genuinely empty.** A production build with the owner links
   stripped has an empty `createdBy` on every subject. It was read. There is
   nothing there.
 
-A subject whose values were capped says how many it lost, so a short answer is
-never mistaken for an exhaustive one.
+A subject whose values were capped says how many it lost.
 
 ## Then narrow
 
-An id is the door into everything else. `variance_composition {subject}` prints
-what the subject is made of; `variance_describe {subject}` prints what was
-observed; `explain-verdict` says why it passed or failed. The answer names two
-of them under `next:` with the id already filled in.
+An id is the door into everything else. Over MCP,
+[`variance_composition {subject}`](composition.md) prints what the subject is
+made of, [`variance_describe {subject}`](agent-questions.md) prints what was
+observed, and [`variance_explain_verdict {subject}`](agent-questions.md) says
+why a subject was not compared. The answer names two of them under `next:` with
+the id already filled in.
 
-On a [tier](composition.md) that composed nothing there is no census, so both
-`locate` and `composition` are absent and say so, rather than being present and
-matching nothing.
+A run that read no component boundaries — a raster-only capture, or a suite that
+is not React — has nothing to search and nothing to compose, so `locate` and
+`composition` are both absent and say so, rather than being present and matching
+nothing.

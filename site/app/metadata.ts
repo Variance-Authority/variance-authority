@@ -6,7 +6,7 @@ export const SITE =
 export const SITE_NAME = "Variance Authority";
 export const ROOT_TITLE = "Variance Authority — Find what varied, what caused it, and what it reached.";
 export const ROOT_DESCRIPTION =
-  "Composable evidence tools for software that changes: connect source, execution, rendered interfaces, public APIs, and review decisions in infrastructure you control.";
+  "Visual regression you run yourself: compare a UI state against the baseline you approved, and get back the component and file:line behind every changed region.";
 
 /** Metadata for a page in the public reading order. */
 export function pageMetadata(

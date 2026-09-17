@@ -1,5 +1,29 @@
 # Choose from the state you already have
 
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at. A **subject** — one named UI state
+you asked for and can ask for again, under an id you choose such as
+`cart/empty` — that comes back changed is read a second time before the result
+is reported, so a change somebody authored arrives separately from a subject
+that disagrees with itself.
+
+This page is for deciding how that loop attaches to a project you already have:
+which harness supplies the state, what travels from it into the run, where the
+pixels are painted, and where baselines live. New here? Start with
+[your first run](start.md), which takes one subject through capture, review and
+acceptance end to end.
+
+Every path below shares one CLI, installed as a devDependency and invoked
+through `npx`:
+
+```bash
+npm install --save-dev @variance-authority/cli
+npx variance run --config variance.config.json
+npx variance accept --config variance.config.json cart/empty
+```
+
 Start with the harness that already knows how to reach the state and declare it
 ready. Keep that lifecycle where it works, then choose what to capture and
 where to render it. A Storybook or route host does not require local rendering,
@@ -10,19 +34,24 @@ and a Playwright host does not require in-place pixels.
 | Question | Choices | Consequence |
 | --- | --- | --- |
 | Where is the UI already ready? | Storybook, served routes or static output, Playwright Test, browserless unit DOM, custom host | Selects the lifecycle, the discovery mechanism, and the naming adapter |
-| What crosses the acquisition boundary? | RenderDocument — environment-dependent or resource-closed — or already-painted Raster | Selects portability, disclosure, and which semantic evidence can travel |
+| What travels from your test into the run? | A document — the serialized DOM with the styles and resources it needs, either pointing at your server or carrying the bytes — or a PNG the test already painted | Selects portability, what leaves the test environment, and how much source evidence survives the trip |
 | Where are pixels made? | Caller browser, local renderer, operator-owned remote renderer | Selects latency, reproducibility, infrastructure, and renderer identity |
 
-Observation, baseline lookup, comparison, [attribution](attribution.md), acceptance, and reporting
-remain the same downstream contracts.
+Whatever you answer, the rest of the loop is the same: the image is looked up
+against the baseline you approved, what moved is
+[attributed to a component and a `file:line`](attribution.md), and you accept or
+reject the result.
 
 ## Built or served Storybook
 
-Use `@variance-authority/storybook-collector` when stories are the canonical
-subject catalog. The collector operates beside Storybook, reads its index, reuses
-one preview, applies story viewports before mount, waits for the rendered state,
-and emits documents. External resource hashes enter identity, but the collector
-does not archive the bytes.
+Use `@variance-authority/storybook-collector` when your stories are already the
+catalogue of states worth reviewing. A **collector** is the package that knows
+one host: it finds the subjects there, drives the host to each one, and hands
+the run what it captured. This one runs beside Storybook, reads its index,
+reuses a single preview, applies each story's viewport before mount, waits for
+the rendered state, and emits documents. Fonts, images and stylesheets the
+story loads from elsewhere are identified by hash rather than copied, so the
+renderer has to be able to reach them too.
 
 Choose it when:
 
@@ -32,7 +61,8 @@ Choose it when:
 - a local renderer, or a remote renderer with equivalent resource access, owns
   pixels.
 
-If the served route is the product state under review, use the route composition.
+If the state you review is a served route rather than an isolated story, use
+the route collector below instead.
 
 ## Served routes or static output
 
@@ -47,11 +77,11 @@ Choose it when:
 - the route list is an owned contract.
 
 The collector is not a crawler: it never follows a link from one page to reach
-another. A sitemap or a built directory may supply the route list, and what you
-give up is the config diff, not the notice: a page the sitemap stops listing
-stops being watched, and the run names it as a subject the baseline store holds
-and the plan did not contain. Name the routes explicitly when the removal itself
-should be a reviewable change.
+another. A sitemap or a built directory may supply the route list instead of an
+explicit map. You still get told when a page drops out — the run names it as a
+subject the baseline store holds and this run did not plan — but the removal
+itself never shows up in a diff you review. List the routes explicitly when
+dropping one should be a reviewable change.
 
 ## Existing Playwright Test
 
@@ -59,7 +89,8 @@ Use `@variance-authority/playwright-test` when the suite already owns the page,
 fixtures, navigation, and ready state. The package exports observation and
 assertion helpers; `test` and `expect` remain imports from `@playwright/test`.
 
-Choose deferred materialization when:
+Choose deferred rendering — the test hands over the document and a later
+process paints it — when:
 
 - a pinned local renderer, or a remote renderer with equivalent resource access,
   should own pixels;
@@ -67,7 +98,8 @@ Choose deferred materialization when:
 - disclosing the DOM and its resources across that renderer boundary is
   acceptable.
 
-Choose in-place materialization when:
+Choose in-place rendering — the browser running the test takes the screenshot
+itself — when:
 
 - the exact caller browser paint is the evidence;
 - a second browser would duplicate expensive state;
@@ -76,48 +108,60 @@ Choose in-place materialization when:
 In-place capture requires an explicit browser launch recipe, captures at least
 twice, and refuses disagreement before baseline comparison.
 
-## Browserless Jest or Vitest
+## Browserless Vitest in jsdom
 
-Use `@variance-authority/unit-test` when the test process owns a mounted DOM but
-must not own a browser. `capture` writes the semantic and document evidence,
-`writeCapture` persists it, and a later CLI process loads it through
-`captureCollector` and renders locally or remotely.
+Use [`@variance-authority/unit-test`](start-unit.md) when the test process owns
+a mounted DOM but must not own a browser. `capture` serializes the mounted
+subtree with the CSS that applies to it and the bytes of the resources it
+references, `writeCapture` persists that to a directory, and a later
+`npx variance run` loads it through `captureCollector` and paints it locally or
+remotely.
 
 Choose it when:
 
-- the ordinary Jest or Vitest lifecycle must remain unchanged;
+- the ordinary Vitest lifecycle must remain unchanged;
 - browser startup does not belong in unit workers;
-- resource bytes can be closed during capture;
-- acquiring in one process and rendering in another is acceptable.
+- the resource bytes can be copied into the capture, so the renderer needs
+  nothing from your machine;
+- capturing in one process and painting in another is acceptable.
 
-There is no visual verdict inside jsdom. Vitest Browser Mode with the Playwright
-provider is the Playwright composition.
+Nothing inside jsdom reaches a verdict — the run's answer for a subject, such as
+`new`, `unchanged`, `changed` or `incomparable`. The verdict comes from the
+later run that paints the capture. jsdom also has no layout engine, so a changed
+pixel region on this path is reported without the component that drew it. To
+keep a real engine inside the test instead, use
+[`@variance-authority/vitest-browser`](start-vitest-browser.md).
 
 ## Existing rasters
 
-Use `observeRasters` to compare two rasters already in hand, or a raster
-`CaptureArtifact` with `observeCaptureAgainstBaseline` for durable lookup. No
-renderer is constructed or called on that path.
+Use `observeRasters` from
+[`@variance-authority/observe`](https://variance-authority.dev/reference/packages/observe)
+to compare two PNGs you already hold, or `observeCaptureAgainstBaseline` to
+compare one against the baseline a store holds for that subject id. No browser
+is started on this path.
 
-Choose it when another trusted system owns capture and can declare the painter
-identity. Without a matching semantic snapshot, the result has pixel regions but
-no component, band, exclusion, or source evidence. The CLI has no arbitrary-PNG
-ingest workflow.
+Choose it when another system you trust already paints the images and can say
+what painted them. Without a matching capture of the DOM, you get changed pixel
+regions and nothing else: no component, no ignored regions and no `file:line`.
+This is a library path — the CLI will not ingest loose PNGs.
 
 ## Local or remote deferred rendering
 
-Both implement the same Renderer contract. Local rendering owns a browser in the
-current process. Remote rendering sends a document to an operator endpoint and
-returns the raster plus identity. A resource-closed document carries its bytes;
-an environment-dependent document requires the endpoint to reach equivalent
-resources through its preserved base URL.
+Local rendering starts a browser in the process running the CLI. Remote
+rendering sends the document to an endpoint you operate and gets back the image
+and the identity of what painted it. Either way the subject id, the baseline
+lookup and the verdict are the same.
 
-Choose local when setup and transport cost dominate. Choose remote when a shared
-pinned machine, data-center placement, or renderer fan-out is worth the network
-boundary. Resource closure is required for deterministic cross-environment
-painting without shared resource access.
+Choose local when the setup and transport cost of an endpoint outweighs what it
+buys. Choose remote when one pinned machine, placement next to your data, or
+several renderers in parallel is worth the network hop. A document that carries
+its own resource bytes paints identically anywhere; one that still points at
+your server needs the endpoint to reach that server.
 
-## Retention choices
+## Where the baseline lives between runs
+
+**Retention** is where the image you approved is kept, and how long it survives.
+Every path above works with every row here.
 
 | Retention | Baseline owner | Fit |
 | --- | --- | --- |
@@ -126,16 +170,20 @@ painting without shared resource access.
 | Git LFS | repository plus LFS service | Baselines travel with source workflow while large bytes stay out of ordinary blobs |
 | Remote store | operator service | Shared baselines across workers or repositories |
 
-Changing the store backend must not change verdict semantics. A store failure is
-an operator error, never a missing baseline.
+Moving between these stores changes nothing about the verdicts you get. A store
+that cannot be reached fails the run as a store error; it is never reported as a
+subject with no baseline.
 
 ## When the answer is a managed product
 
-Choose Percy, Chromatic, Argos, or Applitools when the required outcome is a
-vendor-operated review surface, browser and device fleet, support contract,
-branch baseline workflow, perceptual differ, or compliance commitment.
-Self-operation is a product boundary, not a feature-equivalent substitute for
-those services.
+Choose Percy, Chromatic, Argos, or Applitools when what you need is a hosted
+review UI for the whole team, a browser and device fleet you do not maintain, a
+support contract, a branch-and-merge baseline workflow, a perceptual differ, or
+a compliance commitment. Variance Authority gives you the component and
+`file:line` behind a changed region and a second read before a change is
+reported; it does not give you any of those six.
 
-See [comparison.md](comparison.md#5-choose-the-ownership-model-you-want) for the vendor
-models and [surface.md](surface.md) for exact package APIs.
+To weigh those trade-offs side by side, read
+[how the operating models compare](comparison.md#5-choose-the-ownership-model-you-want).
+For the exact API each package exports, read
+[the surface reference](surface.md).

@@ -45,9 +45,9 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Composable evidence tools that connect source, execution, rendered
-            interfaces, public APIs, and decisions. Runs in your own
-            infrastructure.
+            Visual regression you run yourself. A changed region arrives with
+            the component that drew it and the <code>file:line</code> it was
+            written at.
           </p>
         </div>
         {FOOTER.map((col) => (

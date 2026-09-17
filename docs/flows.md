@@ -1,46 +1,68 @@
 # Choose an operating flow
 
-Start with the least infrastructure that answers the question your team needs.
-A run renders each subject, captures a **reading** — the markup, the CSS that
-applied, the boxes it produced, and where available the image — and compares
-that reading against the subject's stored baseline to produce a verdict such as
-`unchanged`, `changed`, `new`, or `incomparable`. Storage location does not make
-that verdict more correct: what decides whether two readings are comparable is
-**renderer identity** — the engine, platform, scale, font declarations, and
-rasterization inputs that painted them, detailed under [the renderer
-question](#the-other-machine-question-where-the-renderer-runs) below — and the
-evidence each reading actually captured. Deployment decides who retains the
-baseline, where review happens, and whether that comparison stays available
-long enough to answer questions across runs.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is for whoever decides how that comparison is deployed: where approved
+baselines are kept, who reviews a change, and which machine paints the images.
+New here? Start with [your first run](start.md).
+
+```bash
+npm install --save-dev @variance-authority/cli
+npx variance run --config variance.config.json
+```
+
+A **subject** is one named UI state you asked for and can ask for again,
+identified by a stable id such as `checkout/empty`. A run renders each subject,
+captures a **reading** — the markup, the CSS that applied, the boxes it
+produced, and where available the image — and compares that reading against the
+subject's stored baseline to produce a verdict: `unchanged`, `changed`, `new`,
+or `incomparable`.
+
+Where you keep the baseline does not make that verdict more correct. What
+decides whether two readings are comparable is **renderer identity** — the
+engine, platform, scale, font declarations, and rasterization inputs that
+painted them, covered under [where the renderer
+runs](#the-other-machine-question-where-the-renderer-runs) below — and the
+evidence each reading actually captured. Deployment decides who keeps the
+baseline, where review happens, and whether the comparison stays available long
+enough to answer questions across runs.
 
 The first four levels below are alternative choices about **retention** — where
-approved baselines live and how long they last, set with the `retention` field
-in each example. **Placement** — where the renderer that paints each reading
-runs — is a separate axis, covered later on this page. [Tribunal](../packages/tribunal)
-and history are services that a durable run can add; one Tribunal deployment can
-also supply the remote-baseline and history protocols. Subject acquisition is a
-separate choice described in [surface](surface.md), and the renderer may remain
-with the run or move to an operator-owned service.
+approved baselines live and how long they last, set by the `retention` field and
+the `baselines` section in each example. **Placement** — which machine runs the
+browser that paints each reading — is a separate axis, covered later on this
+page. [Tribunal](../packages/tribunal) and
+history are services a durable run can add; one Tribunal deployment can supply
+both the remote-baseline and the history protocol. How each subject is reached
+in the first place is a separate choice, described in [how subjects are
+acquired](surface.md).
 
-| Level | You operate | Choose it when | Boundary |
+| Level | You operate | Choose it when | The constraint you accept |
 | --- | --- | --- | --- |
-| 0. Ephemeral | no baseline store | the collector can produce both revisions in one run | no approved baseline crosses runs |
+| 0. Ephemeral | no baseline store | one run can produce both revisions of the UI | no approved baseline crosses runs |
 | 1. Directory | a durable filesystem path | one machine or persistent workspace owns the baseline corpus | the path must reach the next run |
 | 2. Git LFS | Git LFS and a tracked baseline root | baseline updates should travel with the repository without ordinary PNG blobs in Git history | approval changes the repository |
-| 3. Remote baselines | a baseline endpoint, with a token when the service requires one | the corpus must stay out of the repository | an unavailable store stops the run |
-| 4. Tribunal | database, object storage, two tokens, and a review adapter | reviewers need a browser docket and recorded decisions | authentication remains the operator's responsibility |
+| 3. Remote baselines | a baseline endpoint, with a token when the service requires one | the baseline corpus must stay out of the repository | an unavailable store stops the run |
+| 4. Tribunal | database, object storage, two tokens, and a review adapter | reviewers need a browser page per build and a recorded decision on each subject | authentication remains the operator's responsibility |
 | 5. History | a history endpoint and token | recurrence, churn, or accumulated token drift changes the decision | a run must carry a stable run id and commit |
 
 ## Level 0 — ephemeral: compare two revisions now
 
 Ephemeral retention is a complete comparison with no durable baseline. Its
-collector supplies the current document and a `before` document for every
+**collector** — the module that reaches each UI state and says when it is ready
+to be captured — supplies the current document and a `before` document for every
 subject; the renderer paints both under one identity during the run.
 
 ```jsonc
 // variance.config.json
 {
   "project": "checkout-ui",
+  // The observation profile: what the capture can see at all. "chromium"
+  // resolves computed style, layout boxes and pixels; "jsdom" sees structure
+  // and declared style only, and produces no image.
   "profile": "chromium",
   "viewport": { "width": 1280, "height": 800 },
   "retention": "ephemeral",
@@ -72,13 +94,13 @@ Directory retention keeps approved baselines in an ordinary writable path:
 ```
 
 Choose it for a persistent worker, a single-machine workflow, or a repository
-that accepts ordinary image blobs. `variance accept` writes the approved
-candidate to the configured root. That root must be present for the next run;
-an empty or discarded path means the next run correctly sees no approved
-baseline and reports `new`.
+that accepts ordinary image blobs. `npx variance accept` writes the approved
+candidate to the configured root. That root must be present for the next run; an
+empty or discarded path means the next run sees no approved baseline and reports
+`new`.
 
-[Baseline placement](placement.md) owns the tracking, layout, and render-cache
-details for directory and Git-backed roots.
+[Baseline placement](placement.md) carries the tracking, layout, and
+render-cache details for directory and Git-backed roots.
 
 ## Level 2 — Git LFS: baselines travel with the repository
 
@@ -92,13 +114,13 @@ Git LFS uses the same durable layout while its filter carries the image bytes:
 ```
 
 Install Git LFS on every machine that checks out or accepts baselines. The store
-maintains the tracking declaration beneath its root. If a checkout still holds
-LFS pointer text where an image belongs, the store refuses that pointer by name
-instead of handing it to the PNG decoder and blaming the renderer.
+maintains the `.gitattributes` tracking declaration beneath its root. A checkout
+that still holds LFS pointer text where an image belongs is refused by name, so
+an unfetched pointer reads as a setup failure rather than as a changed image.
 
 Choose this when the baseline and its reason should move in the same repository
-change as the code. Acceptance writes files that still need an ordinary review
-and commit; the tool does not turn a CI credential into permission to push.
+change as the code. Acceptance writes files into your working tree; reviewing and
+committing them is yours, and no CI credential does it for you.
 
 ## Level 3 — remote baselines: one shared corpus
 
@@ -118,36 +140,39 @@ subject and identity, and to save an approved one:
 ```
 
 Choose it when bot commits, LFS bandwidth, or repository size make a tracked
-corpus the wrong operational boundary. `variance accept` writes through the
-same endpoint, so approval no longer requires a baseline commit.
+corpus the wrong place to keep the images. `npx variance accept` writes through
+the same endpoint, so approval no longer requires a baseline commit.
 
-The remote client never translates an unreachable endpoint, refused token, or
-invalid response into a missing baseline. Those are operator failures and stop
-the run; reporting `new` would replace a baseline because the network failed.
-Run `serveRasterStore` from
-[`@variance-authority/remote`](../packages/remote/README.md) behind infrastructure
-you operate, or use the compatible baseline surface supplied by
-[`@variance-authority/tribunal`](../packages/tribunal/README.md).
+An unreachable endpoint, a refused token, or an invalid response stops the run.
+None of them is reported as a missing baseline, so a network failure can never
+lead the next `accept` to overwrite the only approved copy. Run
+`serveRasterStore` from
+[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+behind infrastructure you operate, or point the endpoint at the compatible
+baseline API of
+[`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal).
 
 ## Level 4 — tribunal: review outside the CI log
 
 Tribunal owns review and retention, not rendering: `push` uploads the report and
-candidate images the run already produced, and approval promotes those artifacts
-**without another browser render**.
+candidate images the run already produced, and approval promotes those exact
+images **without another browser render**.
 
-Tribunal combines a baseline store, history store, build docket, candidate
+Tribunal combines a baseline store, a history store, a **build docket** — the
+browser page listing each build's subjects awaiting a decision — candidate
 images, region overlays, recorded decisions, and retention sweeps. A deployment
 uses a database and object storage, plus two different secrets:
 
 - the ingest token lets CI post builds, baselines, and history rows;
-- the review token lets a person read the review surface and decide.
+- the review token lets a person read the review pages and decide.
 
-The values must differ. Anything that can read an ordinary build log may be able
-to read the ingest token, and that capability must not approve a regression. The
-review token also stays server-side: the operator's mounting adapter authenticates
-the person and attaches the appropriate capability to each request.
+The two values must differ, and Tribunal refuses a deployment that gives one
+string both capabilities. Anything that can read an ordinary build log may be
+able to read the ingest token, and that capability must not be able to approve a
+regression. The review token stays server-side: your mounting adapter
+authenticates the person and attaches the capability to each request.
 
-Point `variance push` at the deployment with the ingest token:
+Point `npx variance push` at the deployment with the ingest token:
 
 ```json
 {
@@ -159,14 +184,15 @@ Point `variance push` at the deployment with the ingest token:
 ```
 
 ```bash
-variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
+npx variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
 ```
 
 `push` stays separate from `run`, so several shard reports can become one build
 and an upload can retry without rerunning the browser.
 
-The [`@variance-authority/tribunal` reference](../packages/tribunal/README.md)
-owns the Worker, Node, and Next.js deployment paths and their authorization
+The [`@variance-authority/tribunal`
+reference](https://variance-authority.dev/reference/packages/tribunal) carries
+the Worker, Node, and Next.js deployment paths and their authorization
 contracts.
 
 ## Level 5 — history: recurrence, and drift across runs
@@ -199,26 +225,29 @@ produced them. Supported CI environments provide that pair; elsewhere pass it
 explicitly:
 
 ```bash
-variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
+npx variance run --config variance.config.json --run "$RUN_ID" --commit "$COMMIT_SHA"
 ```
 
-Quiet runs are recorded because churn and flake rates need a denominator.
-`variance accept` records approval separately, so rejected changes do not become
-product churn. The answers are written into the run report for the summary,
-review comment, and agent tools to read without reopening the history service.
+Runs in which nothing changed are recorded too, because churn and flake rates
+need a denominator. `npx variance accept` records approval separately, so a
+change you rejected does not count as product churn. The answers are written
+into the run report, so the summary, the review comment, and the agent tools read
+them without reopening the history service.
 
 Run the Node service from
-[`@variance-authority/server`](../packages/server/README.md), use Tribunal's
-compatible history surface, or implement the
-[`@variance-authority/history` contract](../packages/history/README.md) against
-another backend. [What accumulates](history.md) explains the resulting measures.
+[`@variance-authority/server`](https://variance-authority.dev/reference/packages/server),
+point the endpoint at Tribunal's compatible history API, or implement the
+[`@variance-authority/history`
+contract](https://variance-authority.dev/reference/packages/history) against
+another backend. [What accumulates](history.md) explains the resulting
+measures.
 
 ## The other machine question: where the renderer runs
 
 Baseline placement and renderer placement are independent. Keep rendering in the
 CI job unless another machine owns a requirement the job cannot meet.
 
-| Placement | You operate | Choose it when | Boundary |
+| Placement | You operate | Choose it when | The constraint you accept |
 | --- | --- | --- | --- |
 | Inside the run | the browser already installed for the CLI or Playwright test | one job has the required engine, fonts, and capacity | the job pays the browser time |
 | Remote renderer | a long-lived `serveRenderer` process | a pinned machine or separately scaled render pool must own the pixels | the service has no built-in authentication |
@@ -232,16 +261,17 @@ A remote renderer is selected independently of baseline storage:
 ```
 
 `serveRenderer` from
-[`@variance-authority/remote`](../packages/remote/README.md) exposes no token
-setting, so keep it on a trusted network or put authentication in a proxy you
-operate. The remote machine must also be able to resolve the resources carried or
-referenced by the captured document. A resource the renderer cannot reach is a
-collection or render failure, not an empty image.
+[`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
+exposes no token setting, so keep it on a trusted network or put authentication
+in a proxy you operate. The remote machine must also be able to resolve the
+resources the captured document carries or references. A resource the renderer
+cannot reach is a collection or render failure, not an empty image.
 
-Renderer identity, not locality by itself, governs comparability. Engine,
-platform, scale, font declarations, and rasterization inputs partition durable
-baselines; a run that finds a baseline under an incompatible identity reports
-`incomparable` rather than blaming the subject.
+Moving the renderer to another machine does not by itself make readings
+incomparable — a different engine, platform, scale factor, font declaration, or
+rasterization input does. A run that finds a baseline under an incompatible
+identity reports `incomparable` and names what differs, rather than reporting a
+change in the subject.
 
 ## Choose the smallest complete flow
 
@@ -256,7 +286,7 @@ baselines; a run that finds a baseline under an incompatible identity reports
 - Keep the **renderer inside the run** until a pinned or separately scaled
   machine is an actual requirement.
 
-The [first-observation guide](start.md) begins with the host that already owns
-the state. [Baseline placement](placement.md) carries the complete storage
-trade-offs, and [surface](surface.md) carries acquisition and materialization
-choices.
+[Your first run](start.md) begins from the harness that already reaches the
+state. [Baseline placement](placement.md) carries the complete storage
+trade-offs, and [how subjects are acquired](surface.md) carries the
+collection and materialization choices.

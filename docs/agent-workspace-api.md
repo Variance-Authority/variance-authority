@@ -1,9 +1,17 @@
 # Inspect the workspace public API
 
-Use the workspace API server when an agent needs the name, import path,
-signature, documentation, package consumers, or call sites of an exported
-TypeScript symbol. It reads the current checkout on every request; no build or
-generated API site stands between the question and the source.
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is for the engineer wiring up an agent that has to read a TypeScript
+workspace: the name, import path, signature, documentation, package consumers,
+or call sites of an exported symbol. A separate server answers those questions
+from the current checkout on every request; no build and no generated API site
+stands between the question and the source.
+
+New here? Start with [your first run](start.md).
 
 ## Point the server at the workspace
 
@@ -12,6 +20,17 @@ Use Node 22 or newer. Install the package in the TypeScript workspace:
 ```bash
 npm install --save-dev @variance-authority/help
 ```
+
+The package installs a `variance-authority-help` binary, which answers the same
+questions on the command line, with no client and no server:
+
+```bash
+npx @variance-authority/help search viewport --root .
+```
+
+Pass the package name to `npx`, not the binary name: `variance-authority-help`
+is not a package name and the registry will report it missing. `--root` is the
+workspace to read; omit it when you are standing in that workspace.
 
 Configure the MCP client to launch the server with the workspace root:
 
@@ -52,8 +71,7 @@ serve the text, so what you read is the file as it is now.
 
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
-ranking. The package reference owns the remaining maintenance and generated-page
-questions; they are not prerequisites for inspecting one public symbol.
+ranking.
 
 ## Bound a search to where you are working
 
@@ -86,12 +104,15 @@ The same start points are available from the shell:
 variance-authority-help search order --from src/fulfilment/
 ```
 
-## Interpret the answer at its boundary
+## What the answer claims, and what it does not
 
-The server reads manifests and TypeScript module records, not `dist`. A types
-target under an output directory is mapped back to that package's source. A
-consumer is a workspace package whose source imports the symbol; it is not a
-claim about runtime execution or external adoption.
+The server reads manifests and TypeScript source, not `dist`. It parses with
+`oxc-parser` and resolves with `oxc-resolver`; no TypeScript language service
+runs behind it. A types target under an output directory is mapped back to that
+package's source. A consumer is a workspace package whose source imports the
+symbol; it is not a claim about runtime execution or external adoption. A site
+is an import of the name, not a call to it — where the name is used inside that
+file is a question for your editor's language server.
 
 Missing documentation remains missing, and a search with no exact substring
 match returns no substitute. Those absences are source facts, not prompts for
@@ -100,7 +121,9 @@ the server to infer an answer.
 Where nothing is written above a declaration, the server may quote the nearest
 `README.md` that names the symbol, labelled with the file and line it came from.
 Read it as prose written about a package, not as a description of the signature
-above it: the name still counts as undocumented in `docs_gaps`.
+above it: the name still counts as undocumented by `docs_gaps`, the
+call that lists names other packages import with nothing written above the
+declaration.
 
 `from` means two different things across the two tools, so read each one for
 what it does. On `docs_uses` it orders and never removes: every site of the name
@@ -113,19 +136,24 @@ that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 
-For Codex, install the `variance-workspace-api` skill from this repository:
+The skill that drives these calls ships inside the package. After
+`npm install --save-dev @variance-authority/help`, its source is on disk at
+`node_modules/@variance-authority/help/skill`, and the same directory is
+published at
+<https://github.com/Variance-Authority/variance-authority/tree/main/packages/help/skill>.
+
+Installing the package supplies the server. Registering the skill with your
+agent is a separate step. For Codex:
 
 ```text
 $skill-installer install https://github.com/Variance-Authority/variance-authority/tree/main/packages/help/skill as variance-workspace-api
 ```
 
 Invoke it as `$variance-workspace-api`, or let Codex select it when a question
-is about what this workspace publishes. Installing `@variance-authority/help`
-supplies the server and the same skill source; registering the skill is a
-separate step.
+is about what a workspace publishes.
 
 The full tool and source-reading contract lives in the
-[`@variance-authority/help` package reference](../packages/help/README.md).
-Continue with the repository's [package boundaries and public
-contracts](architecture.md#packages) when the answer raises an ownership or
-entrypoint question.
+[`@variance-authority/help` package
+reference](https://variance-authority.dev/reference/packages/help). When the
+answer raises an ownership or entrypoint question, continue with [package
+boundaries and public contracts](architecture.md#packages).

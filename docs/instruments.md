@@ -60,7 +60,7 @@ subject partitions three causes that arrive identically.
 
 History is the one instrument whose evidence crosses runs. It contributes
 recurrence and drift only when configuration names an endpoint and token and
-the run has an identity ([`history.md`](history.md#turning-it-on)); otherwise
+the run has an identity ([how to turn it on](history.md#start-the-service-and-point-your-config-at-it)); otherwise
 those fields are absent.
 
 ### The pair that decides whether a change is real

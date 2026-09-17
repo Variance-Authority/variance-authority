@@ -1,5 +1,22 @@
 # Why a baseline is what it is
 
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source — the component that
+drew the pixels and the `file:line` it was written at.
+
+This page is about the record written when you approve a change: where the
+explanation of a baseline is kept, what it carries, and how to read it back
+later. Read it if you own baseline updates and somebody will eventually ask why
+an image looks the way it does.
+
+New here? Start with [your first run](start.md).
+
+```bash
+npm install --save-dev @variance-authority/cli
+npx variance changelog --limit 20
+```
+
 Baselines are updated in a run of their own — a separate job, usually a separate
 pull request, so that the promotion of new images is reviewable as its own act.
 What that run produces is a set of PNGs, and a PNG says what the new baseline
@@ -25,22 +42,23 @@ baseline is a record that survives the baseline being replaced.
 
 | Baselines live in | The explanation lives in | Read back with |
 |---|---|---|
-| the repository, plain or git-LFS | the commit message that carried them | `variance changelog` |
-| the [review service](../packages/tribunal) | its own append-only table | `GET /review/changelog` |
+| the repository, plain or git-LFS | the commit message that carried them | `npx variance changelog` |
+| the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `GET /review/changelog` |
 
-Under `ephemeral` retention there are no baselines, so there is nothing to
-explain, and both surfaces say so in a sentence rather than answering with an
-empty list.
+Retention is the config key `"retention"`, and it has two values: `durable`
+compares against an image an earlier run stored, and `ephemeral` renders both
+sides inside one run and keeps neither. Under `ephemeral` there are no
+baselines, so there is nothing to explain, and both surfaces say so in a
+sentence rather than answering with an empty list. [Where baselines
+live](placement.md) covers the choice.
 
 ## In a repository: the commit message
 
-`accept` writes the message; the workflow commits it. The split is deliberate —
-`accept` promotes images and owns no branch policy, and a command that decided
-who commits, as whom and onto what, would be making a decision the workflow has
-already made.
+`accept` writes the message and commits nothing. Committing, to which branch
+and as whom, stays with your workflow.
 
 ```bash
-variance accept --all --message-file .variance/commit-message.txt
+npx variance accept --all --message-file .variance/commit-message.txt
 git add -- .variance/baselines
 git commit -F .variance/commit-message.txt
 ```
@@ -48,9 +66,10 @@ git commit -F .variance/commit-message.txt
 The file has two audiences and satisfies them separately. The prose is for
 whoever scrolls `git log`. Below it, one trailer per change carries a versioned,
 base64url-encoded record for a parser — the run, the commit it compared, the
-intent, and one entry per **cluster**, which is the same unit the docket reviews
-in: a token edit that reached forty stories is one change with forty subjects,
-not forty changes.
+intent, and one entry per change. A change is grouped the way review groups it,
+so a token edit that reached forty **subjects** — one subject being a named UI
+state you asked for and can ask for again, under a stable id such as
+`story:checkout--empty` — is one entry with forty subjects, not forty entries.
 
 ```
 chore(variance): regenerate baselines
@@ -66,27 +85,28 @@ Variance-Run: v1 eyJjaGFuZ2Vsb2dWZXJzaW9uIjoxLCJydW4iOiI0MjQyIiw…
 Variance-Change: v1 eyJmaW5nZXJwcmludCI6InYxOjJjNGY5YTFlMGI3ZDM4…
 ```
 
-This is what every baseline update will look like forever, so it is priced as a
-block rather than a sentence: an operator's line if they wrote one, one line per
-change, one line per drift, and one line for the run.
+The block holds the operator's line if one was written, one line per change,
+one line per **drift** — a design token and the two values it moved between,
+summed over every approval that moved it — and one line for the run.
 
 **A change line leads with the fingerprint** because that string is the argument
-`accept --shape` takes. The line is something to copy, not something to read and
-then translate. After it comes where the change was — the component, and the file
-if the run could attribute one — and then `11/14`: promoted in eleven of the
-fourteen subjects the shape reached. A bare `11` means it reached exactly those.
+`accept --shape` takes. A **shape** is a fingerprint computed from the diff
+itself; it identifies one category of visual difference so the same difference
+can be matched across subjects, and `accept --shape` promotes a subject wherever
+that shape accounts for the whole change. The line is something to copy, not
+something to read and then translate. After it comes where the change was — the
+component, and the file if the run could attribute one — and then `11/14`:
+promoted in eleven of the fourteen subjects the shape reached. A bare `11` means it reached exactly those.
 An entry the run could not attribute to an edit is marked ` collateral`, and the
 prose names the first twenty changes; past that it says how many more are in the
 trailers, which carry all of them.
 
 **The run line is last and always present.** `--shape`, `--subject` and `--all`
-are different amounts of review, and a regeneration must not read like one. That
-distinction is what an auditor is looking for, so it is a column rather than a
-sentence — and it is the same four facts the reader below prints, in the same
-order.
+are different amounts of review, and the run line names which one this update
+was. The reader prints the same four facts in the same order.
 
 ```bash
-variance changelog --component Card --limit 50
+npx variance changelog --component Card --limit 50
 ```
 
 ```
@@ -101,10 +121,10 @@ The reading is over the whole message rather than a trailer block at the end, so
 a squash merge that folds three commits into one still yields three records
 instead of none.
 
-The two extra lines here are the same facts spelled out. A terminal has room for
-a sentence that a commit written on every update does not, and both are rendered
-from the record rather than stored in it — which is the rule that makes them
-rewritable in a later release without going back to rewrite history.
+The two extra lines are the same facts spelled out; a terminal has room for a
+sentence that a commit written on every update does not. Both are rendered from
+the record rather than stored in it, so a later release can reword them without
+rewriting history.
 
 **A partial promotion is the finding.** A shape that reached fourteen subjects
 and was promoted in eleven means three were left changed — either the promotion
@@ -113,8 +133,8 @@ knowing long after the run that produced them.
 
 ## What a record carries, and what it deliberately does not
 
-A record is written once and read for as long as the baseline exists, so what it
-refuses to carry matters as much as what it holds. Three things are kept out.
+A record is written once and read for as long as the baseline exists. Three
+things are kept out of it.
 
 **No measurement bound to the machine that took it.** A changed-pixel count is a
 number two readers will compare, and one of them will be wrong: it measures
@@ -138,17 +158,16 @@ tool does not lose whichever half the older one did not understand.
 
 ## In the review service: a row per approval
 
-Approval there is per subject: a reviewer clicks through a docket rather than
-running one command over a report. So a row is written the moment a subject is
-approved, and shapes are grouped **when somebody reads** — which means a change
-approved across three sessions still reads as one change.
+Approval there is per subject: a reviewer clicks through the build's docket —
+its list of causes, one entry per component — rather than running one command
+over a report. A row is written the moment a subject is approved, and shapes are
+grouped **when somebody reads**, so a change approved across three sessions
+still reads as one change.
 
-The columns are copies, not a join. Everything in them also sits in the build the
-approval came from, and a view over that would be shorter — and empty as soon as
-retention swept the build away. Builds expire; the explanation of a baseline has
-to last exactly as long as the baseline, which is forever. The changelog is
-excluded from sweeps for that reason, and the database refuses `UPDATE` and
-`DELETE` on it.
+Each row carries its own copy of what it needs. Builds expire, and the
+explanation of a baseline has to last as long as the baseline does, so the
+changelog is excluded from retention sweeps and the database refuses `UPDATE`
+and `DELETE` on it.
 
 Nothing is written for a **rejection**. It is a decision, and it is recorded as
 one, but no baseline changed — and a changelog carrying rejections answers *why
@@ -181,7 +200,9 @@ halves of the same complaint: no single review ever sees the total.
 
 ---
 
-**Further:** [`packages/cli`](../packages/cli) for the command and its refusals ·
-[`packages/tribunal`](../packages/tribunal) for the route and the table ·
+**Further:** [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
+for the command and its refusals ·
+[`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal)
+for the route and the table ·
 [`history.md`](history.md) for what accumulates across runs ·
 [`flows.md`](flows.md) for where baseline updates sit in the adoption ladder.

@@ -1,74 +1,111 @@
-# Not deriving what another machine already derived
+# Reuse what mainline already worked out
+
+**[Variance Authority](README.md)** is a visual regression system you run yourself: it
+renders a UI state, compares it against the baseline you approved, and reports
+what changed in the vocabulary of your source — the component that drew the
+pixels and the `file:line` it was written at.
+
+This page is for whoever owns the pipeline. It sets up a **share**: a place one
+run leaves what it derived about the suite, so the next machine reads it instead
+of deriving it again. New here? Start with [your first run](start.md).
 
 A run that compares a branch against mainline needs two different things about
 mainline. One is the baselines: the images, which only a baseline store can
 answer for and which nothing here touches. The other is everything the run
 *derived* about the suite itself — which components exist, which subjects hold
-them, which subject is the narrow example of each, and every name the run wrote
-down for all of it. That second half is a fact about a commit, not about a run.
-It costs a source scan, a browser and a [composition](composition.md) pass, and it is identical on
-every machine that starts from the same tree.
+them, and every name the run wrote down for all of it. A **subject** is one
+named UI state you asked for and can ask for again, under an id you choose such
+as `cart/empty`. That second half is a fact about a
+commit, not about a run: it costs a source scan, a browser and a
+[composition](composition.md) pass, and it is identical on every machine that
+starts from the same tree.
 
 So the second machine should not pay for it again. Mainline computed it an hour
-ago, on a runner that no longer exists. A **share** is where those bytes were
-left on the way out.
+ago, on a runner that no longer exists. A share is where those bytes were left
+on the way out.
+
+The CLI is a devDependency, and every command below is run through it:
+
+```bash
+npm install --save-dev @variance-authority/cli
+```
 
 ## What travels
 
-The [suite index](lexicon.md#where-it-is-kept): the census, the subject
-denominator it is counted against, the [lexicon](lexicon.md), and the commit
-they were read at. Binary, interned, and stable — two machines composing the
-same suite write the same file, byte for byte, which is what lets a content-
-addressed transport skip the upload and a reader recognise what it already has.
+One binary file per commit, the [suite index](lexicon.md#where-it-is-kept),
+holding four things:
 
-Nothing that is a finding about one run is in it. `movements`, `divergences`,
-`echoes` and every verdict stay in the report, because a reading of one commit's
-snapshots is not true anywhere else and a shared one would be a lie in the shape
-of a baseline.
+| In the file | What it is |
+| --- | --- |
+| the census | which component was mounted in how many subjects, and which subject shows each one with the fewest other components around it |
+| the subject denominator | the ids of the subjects that contributed a capture, which the census's shares are counted against |
+| the [lexicon](lexicon.md) | per subject, the names that subject answered to: component names, ARIA roles, accessible names, visible text, declaring files, and the CSS custom properties it resolved through |
+| the commit | the revision all of the above was read at |
+
+Equal facts encode to equal bytes, so two machines composing the same suite
+write the same file byte for byte — which is what lets a content-addressed
+transport skip the upload and a reader recognise what it already has.
+
+No images are in it, and nothing a single run decided is: what moved, what each
+comparison concluded, and what a person still has to review all stay in that
+run's report, because a reading of one commit's captures is not true anywhere
+else.
+
+### What it exposes
+
+Read the third row before you choose a bucket. The lexicon holds accessible
+names and visible text as the run read them off your rendered UI — `Clear
+completed`, `--va-space-2`, `src/todo/TodoFooter.tsx` — alongside your component
+names and file paths. A share is therefore as sensitive as your source plus
+whatever your test states put on screen. Give it the audience you give the
+repository, not a wider one.
+
+Text an [ignore](ignores.md) declared volatile — a clock, a feed, an order
+number — is the exception: it is digested before the lexicon is written, so it
+never reaches the file as words.
 
 ## The rule that makes it safe
 
 > **A share never fails a run.**
 
 A miss, an outage, an expired token, a bucket nobody has permission for, bytes
-from a writer this version does not understand — every one of them is the same
-outcome as having configured no share at all, which is the outcome the product
-had before shares existed and is still a correct one. The run derives its own
-index and carries on.
+from a writer this version does not understand — every one of them lands as the
+same outcome as having configured no share at all. The run derives its own index
+and carries on.
 
-What that costs, stated rather than hidden: a broken share looks exactly like a
-cold one. CI gets slow and never gets red. The signal is the number `variance
-share` prints — *how far behind* the hit was — because a share answering from
-forty commits back is a share nothing has written to since.
+The cost of that is on you to watch: a broken share looks exactly like a cold
+one, so CI gets slow and never gets red. The signal is the number
+`npx variance share` prints — *how far behind* the hit was. A share answering
+from forty commits back is a share nothing has written to since.
 
-This is why a share is configured separately from `baselines` and why it has no
-default. Losing a baseline loses the comparison; losing a share costs a rebuild.
-Two things that fail that differently do not belong behind one setting.
+A share is configured separately from `baselines`, and it has no default. Losing
+a baseline loses the comparison; losing a share costs a rebuild.
 
 ## Publishing
 
-Every `variance run` writes its suite index to this machine, under the commit
-the report names, and offers it to the share when one is configured:
+Every `npx variance run` writes its suite index to this machine, under the
+commit the report names, and offers it to the share when one is configured:
 
 ```text
 report: .variance/report.json
 suite index: ~/.cache/variance-authority/suite/web/3f1c…bd.bin (published)
 ```
 
-A run whose report names no commit publishes nothing. A laptop mid-edit is such
-a run, and there is nothing wrong with it — but an evaluation addressed by a
-guess is worse than no evaluation, because the next machine believes it.
+A run whose report names no commit publishes nothing — a laptop mid-edit is such
+a run. Pass `--commit <sha>` to `npx variance run` when you want the run to
+publish; without it the index is still written to this machine, just not
+addressed to anything the next machine could ask for.
 
 To publish from a report that is already on disk, or to check the wiring:
 
 ```bash
-variance share --publish
+npx variance share --publish
 ```
 
 ## Looking up
 
 ```bash
-variance share
+npx variance share
 ```
 
 walks the commits this checkout descends from, newest first, from the merge base
@@ -86,14 +123,39 @@ twice — and because the address is a commit rather than a branch, a checkout
 that moves between branches accumulates both evaluations instead of overwriting
 one with the other.
 
-The lineage walk is bounded (`depth`, fifty by default). A branch open long
-enough to exhaust it is a branch whose mainline evaluation is wrong in every
-interesting way, and three hundred round trips to discover that is worse than
-deriving it.
+The lineage walk is bounded by `depth`, fifty commits by default. A branch that
+has fallen further behind mainline than that gets no hit and derives its own
+index, which is the right answer: mainline's names have moved on.
 
 ## Configuring one
 
-Two kinds, because every transport is one of two things.
+A share is one `share` section in `variance.config.json`, beside the keys that
+file already carries. The blocks below show that section on its own; drop it
+into the config you already have:
+
+```jsonc
+// variance.config.json
+{
+  "project": "checkout-ui",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/storybook.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "fonts": [],
+  "report": ".variance/report.json",
+  "share": { "kind": "directory", "root": ".variance-share" }
+}
+```
+
+Paths resolve against this file's own directory, and unknown keys are refused by
+name.
+
+There are two kinds, because every transport is one of two things.
 
 **A directory** — which is what `actions/cache` restores, what `aws s3 sync`
 mirrors, what an NFS mount is, and what a laptop has:
@@ -110,7 +172,7 @@ mirrors, what an NFS mount is, and what a laptop has:
 ```
 
 **A base URL** — which is what a bucket with object access is, what a presigned
-base is, and what a [tribunal](../packages/tribunal/README.md) deployment is:
+base is, and what a review deployment is:
 
 ```json
 {
@@ -126,13 +188,13 @@ base is, and what a [tribunal](../packages/tribunal/README.md) deployment is:
 `token` is read from the environment and sent as `Authorization: Bearer …`;
 `method` is the verb a write uses — `PUT` for a bucket, `POST` for a deployment
 that routes on it. A presigned base needs neither. Nothing here signs a request,
-which is deliberate: request signing belongs to whatever holds the credentials,
-and what reaches this is a URL that already works.
+so `endpoint` must be a URL that already works as given: sign it, or presign it,
+wherever the credentials live.
 
-`mainline` is a ref rather than a branch name, because a runner's checkout often
-has no local branches at all. What is actually asked for is the commits, so a
-ref that moves between two runs costs nothing — the lookup names the commit it
-found.
+`mainline` takes a ref rather than a branch name, since a runner's checkout
+often has no local branches at all. A ref that moves between two runs costs
+nothing: the lookup reports the commit it found. Override it for one command
+with `npx variance share --ref <ref>`.
 
 ## GitHub Actions
 
@@ -147,7 +209,7 @@ the directory the index is kept in, before the run.
           key: variance-suite-${{ github.sha }}
           restore-keys: |
             variance-suite-
-      - run: variance run --commit ${{ github.sha }} --run ${{ github.run_id }}
+      - run: npx variance run --commit ${{ github.sha }} --run ${{ github.run_id }}
 ```
 
 No `share` section is needed for this. The run writes its index into that
@@ -177,7 +239,7 @@ credentials: sync a directory before and after the run.
 
 ```yaml
       - run: aws s3 sync s3://example-variance/suite ~/.cache/variance-authority/suite
-      - run: variance run --commit ${{ github.sha }}
+      - run: npx variance run --commit ${{ github.sha }}
       - run: aws s3 sync ~/.cache/variance-authority/suite s3://example-variance/suite
 ```
 
@@ -185,15 +247,30 @@ Nothing is configured in `variance.config.json` for this, and the credentials
 never enter it. The bucket is a directory as far as the run is concerned.
 
 With `kind: "http"`, when the runner has no AWS tooling: point `endpoint` at a
-bucket that accepts `PUT` under a token, or at a presigned base. One object per
-commit, under `<project>/suite-index-v1/<commit>.bin`, which is a prefix a
-lifecycle rule can expire on its own terms.
+bucket that accepts `PUT` under a token, or at a presigned base. It writes one
+object per commit, at this key under the endpoint:
 
-## Tribunal
+```text
+<project>/suite-index-v1/<commit>.bin
+```
 
-A [tribunal](../packages/tribunal/README.md) deployment is already the place a
-team's runs are sent for review, and a share over it is `kind: "http"` against a
-route that stores what it is given:
+`<project>` is the `project` name from your `variance.config.json` — the
+required top-level key shown in the complete config above, which also names this
+suite everywhere else. It is a namespace rather than a secret, and it is what keeps two suites in one
+monorepo from writing over each other in one bucket. Anything outside
+`A-Za-z0-9._-` is replaced with `-` before the key is built, so pick a name that
+already reads as one path segment. `suite-index-v1` carries the file format's
+version, so a reader that does not understand a later format asks for a key that
+format was never written to rather than parsing bytes it would reject. Both
+segments are stable prefixes an S3 lifecycle rule can expire on its own terms.
+
+## A review deployment
+
+If your team already sends its runs to a
+[`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal)
+deployment — the hosted service that holds runs for review — that deployment can
+hold the shares too. It is `kind: "http"` against a route that stores what it is
+given:
 
 ```json
 {
@@ -207,8 +284,8 @@ route that stores what it is given:
 ```
 
 `POST` rather than `PUT` because a deployment usually routes on the verb. The
-same never-fails rule applies, and it applies most usefully here: a review
-surface that is down must slow a pipeline and never stop one.
+same never-fails rule applies, and it matters most here: a review service that
+is down slows the pipeline and never stops it.
 
 ## Locally
 
