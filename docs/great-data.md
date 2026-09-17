@@ -36,7 +36,7 @@ enter.
 | [Test selection](selecting.md) | Source reach, prior per-test execution, and rendered component identities | Which tests and rendered subjects can this change affect? |
 | [Distill](distill.md) | Files loaded and entered by one test, joined to the elements and components it deliberately addressed | What can this test shed without losing the behavior it witnesses? |
 | [Own fewer tests](own-fewer-tests.md) | Distinct risks, decisions, boundaries, and confirmed distillation findings | Which tests still contribute a decision worth paying to retain? |
-| [Sense](source.md) | Imports, exports, declarations, content identities, and incomplete edges read from the checkout | What can this source change reach, and what rests on this file? |
+| [Sense](../packages/sense/README.md) and the [source scan](source.md) | Imports, exports, declarations, content identities, and incomplete edges read from the checkout | What can this source change reach, and what rests on this file? |
 | [Lexicon](lexicon.md) and [subject search](locate.md) | Ids, component names, accessible names, visible text, roles, files, tokens, and entered regions already observed per subject | Which subject does this description mean, and where does it live? |
 | [Presentation](presentation.md) | Geometry, semantic structure, browser accessibility, grouping, alignment, repetition, and prominence from one live state | What relationships does this interface communicate right now? |
 | [Journeys](journeys.md) | The source regions one execution entered, joined across the processes it touched | Where did this execution travel, and where did two subjects part? |
@@ -51,8 +51,8 @@ produce some of their evidence. A runner may be the process that reaches the
 state, just as Storybook, a route collector, an editor, or a live browser may be.
 The producer supplies an observation; the consumer decides which question to
 ask of it. Selection also closes a loop: the next selected run refreshes the
-execution record that future selections, distillation, and test-retention
-decisions read.
+[execution record](execution-record.md) that future selections, distillation,
+and test-retention decisions read.
 
 ## What this has to do with visual regression
 
@@ -63,7 +63,7 @@ finished arriving, what semantic and accessibility information moved, which
 component owned the changed region, which source could have reached it, and
 whether several diffs are echoes of one cause.
 
-That is the same evidence field the other tools read:
+That is the same [evidence field](evidence-field.md) the other tools read:
 
 - Sense can narrow the states worth rendering before a browser does any work.
 - Provenance and composition can turn many changed images into one cause and a
