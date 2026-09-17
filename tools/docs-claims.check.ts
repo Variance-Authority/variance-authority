@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseConfig } from "@variance-authority/cli";
-import { FENCES, MARKDOWN, ROOT, lineOf } from "./markdown.js";
+import { FENCES, MARKDOWN, ROOT, lineOf, prose } from "./markdown.js";
 
 /**
  * Claims the documentation makes about the repository.
@@ -464,14 +464,14 @@ describe("the comparison tables quote the compared document", () => {
 /**
  * Every relative link goes somewhere.
  *
- * The cheapest rule here and the one with the widest reach: documentation that
- * cross-references itself is documentation that can be moved out from under its
- * own references. Absolute links are left alone — an external URL that rots is
- * the other end's decision, and checking it would make this suite need a network.
+ * The cheapest rule here, and the widest: documentation that cross-references
+ * itself can be moved out from under its own references. Absolute links are left
+ * alone; checking them would make this suite need a network. A fence is shown,
+ * not followed, so sample markdown carries the links of what it depicts.
  */
 describe("every relative link resolves", () => {
   const LINKS = MARKDOWN.flatMap((file) => {
-    const text = readFileSync(join(ROOT, file), "utf8");
+    const text = prose(file);
     return [...text.matchAll(/\]\(([^)\s]+)\)/g)]
       .map(
         (match) => [`${file}:${lineOf(text, match.index)}`, match[1]!] as const,

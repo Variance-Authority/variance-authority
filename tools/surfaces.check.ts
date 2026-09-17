@@ -71,6 +71,18 @@ const REACH_THROUGH_DEBT: Readonly<Record<string, readonly string[]>> = {
   // instead. The fix is a surface that pairs a capture with a framework reader,
   // not a dependency added to keep one import out of a page.
   '@variance-authority/unit-test README': ['@variance-authority/react'],
+  // Both are build-tool plugins a reader puts in `.storybook/main.js`, not code
+  // the collector could import on their behalf: `jsx-source/vite` is what keeps
+  // component names and source lines through a production Storybook build, and
+  // `testSelectionProbes()` is what lets a run skip stories nothing touched.
+  // The page used to name them in prose and show no config, which left the
+  // reader assembling the plugin array from a description. The fix is a
+  // `@variance-authority/storybook-collector/vite` that composes both behind
+  // one import, not a page that goes back to describing them.
+  '@variance-authority/storybook-collector README': [
+    '@variance-authority/jsx-source',
+    '@variance-authority/sense',
+  ],
 };
 
 describe('adopter-facing code knows one package', () => {

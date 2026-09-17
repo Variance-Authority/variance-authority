@@ -8,15 +8,18 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-Most projects do not need this package. Variance Authority reads exact JSX call
-sites from React development builds without a plugin, a custom JSX runtime or a
-build change.
+## What this is for
 
-Install this package only when a production-built React artifact must identify
+Variance Authority reports what changed in a **subject** — one named UI state you
+asked for and can ask for again — and names the source behind each change. It
+reads exact JSX call sites out of React development builds by itself: no plugin,
+no custom JSX runtime, no build change.
+
+Install this package only when a *production*-built React artifact has to name
 the JSX expression that wrote each changed element. A built Storybook or a
-statically served application is the common case. Observation, comparison and
-component attribution work without it; when the collector has a source index, a
-production report can instead point to the line where the component is declared.
+statically served application is the common case. Rendering, comparison and
+component attribution all work without it — what a report loses is the element's
+own line, falling back to the line where its component is declared.
 
 This is build instrumentation, not an application dependency. Application code
 never imports it.
@@ -33,7 +36,8 @@ never imports it.
 The package is useful only when all of these are true:
 
 - the rendered subject uses React;
-- the fiber metadata path has no call site;
+- React's own development record on the fiber carries no call site — the first
+  two rows above are the builds where it does;
 - the report must distinguish element instances, not merely find the component
   declaration;
 - the build that compiles the relevant JSX is under your control; and
@@ -43,6 +47,28 @@ If any one is false, do not install it.
 
 ```bash
 npm install --save-dev @variance-authority/jsx-source
+```
+
+## Requirements
+
+Node 22 or newer. This package is ES modules only (`"type": "module"`), which is
+why a `vite.config.ts` or `vitest.config.ts` inside a package that is not
+`"type": "module"` has to be renamed `.mts` before it can load the plugin.
+
+| Peer | Range |
+| --- | --- |
+| `react` | `>=17` |
+
+Its own suite runs against React 19.
+
+Reading the recorded location back is `@variance-authority/react`'s job. You do
+not install that to make this package work: a **collector** — the module
+`npx variance run` loads to plan subjects and render them, such as
+`@variance-authority/storybook-collector` — already depends on it. Install it
+directly only to run the check below yourself:
+
+```bash
+npm install --save-dev @variance-authority/react
 ```
 
 ## Package boundary
@@ -56,7 +82,8 @@ recovered.
 This package supplies that last hop. Its `jsxDEV` wrapper writes the transform's
 location onto props under a symbol, then hands the element to React. The symbol
 arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
-survives minification and does not enter the document or any compared digest.
+survives minification, never reaches the document, and is not digested, so it
+moves nothing a baseline compares.
 
 It does not intercept `React.createElement`. React 18 with an unchanged classic
 transform therefore remains uninstrumented: development emission alone does not
@@ -76,19 +103,31 @@ Then `jsxImportSource` is spent: it is one setting for a whole build, so
 pointing it here would mean giving up the runtime you chose. Install
 underneath instead. Every custom JSX runtime is a wrapper that ends up
 calling `react/jsx-dev-runtime` and forwards the transform's call site on the
-way, so one runtime installed at the bottom of that chain serves all of them:
+way, so one runtime installed at the bottom of that chain serves all of them.
+
+Add `jsxSource()` to the plugin array you already have; it replaces nothing in
+it:
 
 ```js
-// vite.config.js — or Storybook's `viteFinal`, or vitest.config.mts
+// vite.config.js
+import react from '@vitejs/plugin-react';
 import { jsxSource } from '@variance-authority/jsx-source/vite';
 
 export default {
-  plugins: [jsxSource()],
+  plugins: [react(), jsxSource()],
   oxc: { jsx: { runtime: 'automatic', development: true, refresh: false } },
 };
 ```
 
-That is Vite 8, which transforms with oxc. On Vite 7 and below the same two
+Its position in the array does not matter: the plugin carries `enforce: 'pre'`,
+which is what puts it ahead of Vite's own resolver, and that ordering is not
+something the array can express. It answers one module request and transforms
+nothing, so whichever tool actually compiles your JSX is where the development
+setting has to live — the `oxc` block above when Vite's own transform does it,
+a plugin's Babel options when that plugin does. The check at the end of this
+section is how you find out which one you got.
+
+That block is Vite 8, which transforms with oxc. On Vite 7 and below the same two
 settings are spelled `esbuild: { jsx: 'automatic', jsxDev: true }`. Check which
 major you are on before copying either — see
 [the transform must emit `jsxDEV`](#either-way-the-transform-must-emit-jsxdev)
@@ -96,8 +135,36 @@ for what the wrong one costs. `refresh: false` keeps Fast Refresh out of a build
 that is not a dev server.
 
 `jsxImportSource` is not mentioned here — leave it wherever it already is.
-Vite is three build tools at once here: the same plugin serves a Vite
-application, Storybook's React builder, and Vitest.
+Vite is three build tools at once: the same plugin serves a Vite application,
+Storybook's React builder, and Vitest.
+
+For a built Storybook, that goes in `viteFinal`. This is the configuration this
+repository's own Storybook case is built with, on Vite 7 and below:
+
+```js
+// .storybook/main.js
+import { jsxSource } from '@variance-authority/jsx-source/vite';
+
+export default {
+  stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
+  framework: { name: '@storybook/react-vite', options: {} },
+  viteFinal: async (config) => ({
+    ...config,
+    plugins: [...(config.plugins ?? []), jsxSource()],
+    esbuild: {
+      ...config.esbuild,
+      jsx: 'automatic',
+      jsxDev: true,
+      // Minification renames functions, and React reads a component's display
+      // name off the function — without this a report names `a`, not `Button`.
+      keepNames: true,
+    },
+  }),
+};
+```
+
+On Vite 8 the same three go in an `oxc` block, as `jsx: { runtime: 'automatic',
+development: true }` and `keepNames: true`.
 
 Jest has no plugin hook that can answer a module request, so it gets a resolver
 instead. Its transformer must also emit automatic development JSX; the resolver
@@ -139,9 +206,35 @@ export default {
 Vite 7 and below spell the same three under `esbuild`, as `jsx: 'automatic'`,
 `jsxDev: true` and `jsxImportSource`.
 
-For Babel, set `runtime: 'automatic'`, `development: true` and `importSource` on
-`@babel/preset-react`. For TypeScript's own emit, use `"jsx": "react-jsxdev"`
-with `"jsxImportSource": "@variance-authority/jsx-source"`.
+For Babel, the same three go on `@babel/preset-react`:
+
+```js
+// babel.config.js
+export default {
+  presets: [
+    [
+      '@babel/preset-react',
+      {
+        runtime: 'automatic',
+        development: true,
+        importSource: '@variance-authority/jsx-source',
+      },
+    ],
+  ],
+};
+```
+
+For TypeScript's own emit:
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "jsx": "react-jsxdev",
+    "jsxImportSource": "@variance-authority/jsx-source"
+  }
+}
+```
 
 ### Either way, the transform must emit `jsxDEV`
 
@@ -167,11 +260,112 @@ the bundle still runs, every subject still renders, and every report names the
 line a component is declared on rather than the line that wrote the element. It
 fails in the direction that looks like it worked.
 
-So read the result rather than the config. After the build runs, render an
-element and inspect it through `@variance-authority/react`'s `provenanceOf`: it
-should carry a resolved source location. If it does not, check the emitted
-bundle's runtime request and the transform's development setting before changing
-application code.
+So read the result rather than the config.
+
+## Check that it worked
+
+Two checks. Run whichever matches the artifact you instrumented.
+
+**In a test that your instrumented config compiles**, ask
+`@variance-authority/react` what the rendered node carries. Paste this whole
+file:
+
+```tsx
+// @vitest-environment jsdom
+// jsx-source-check.test.tsx
+import { provenanceOf } from '@variance-authority/react';
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
+import { expect, it } from 'vitest';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+function Badge() {
+  return <span data-check="badge">n</span>;
+}
+
+it('records the line that wrote the element', async () => {
+  const container = document.body.appendChild(document.createElement('div'));
+  await act(async () => {
+    createRoot(container).render(<Badge />);
+  });
+
+  const node = container.querySelector('[data-check="badge"]')!;
+  console.log(provenanceOf(node)?.source);
+
+  expect(provenanceOf(node)?.source).toMatchObject({ line: 11, column: 10 });
+});
+```
+
+Installed, the log line is a resolved location — the line the `<span>` is
+written on, not the line `Badge` is declared on:
+
+```js
+{ file: '/repo/src/jsx-source-check.test.tsx', line: 11, column: 10 }
+```
+
+Not installed, `source` is `undefined`. In a development build
+`provenanceOf(node)?.stack` then holds React's own frames instead — a URL the
+browser fetched, awaiting a source map — and in a production build it holds
+nothing at all.
+
+**In an artifact you have already built**, read the symbol straight off the
+fiber in the browser console. The key is registered with `Symbol.for`, so no
+import and no install are involved:
+
+```js
+const node = document.querySelector('button');
+const fiber = node[Object.keys(node).find((key) => key.startsWith('__reactFiber$'))];
+fiber.memoizedProps[Symbol.for('@variance-authority/jsx-source')];
+// → { file: '/repo/src/Button.jsx', line: 41, column: 6 }
+```
+
+`undefined` there means the transform passed no source, or the runtime swap did
+not reach this module. Check the emitted bundle's runtime request and the
+transform's development setting before changing application code.
+
+### What you get
+
+One `{ file, line, column }` per element, written on the props object React
+commits. Rendering the three elements of a `<Catalogue>` — a `<ul>`, a keyed
+`<li>` per id, and a `<Badge>` inside each — records this. `ul`, `li` and
+`badge` are the rendered DOM nodes, found the way the check above finds one:
+
+```js
+provenanceOf(ul).source      // { file: 'src/catalogue.jsx', line: 21, column: 5 }
+provenanceOf(li).source      // { file: 'src/catalogue.jsx', line: 23, column: 9 }
+provenanceOf(badge).source   // { file: 'src/catalogue.jsx', line: 12, column: 4 }
+provenanceOf(badge).owners   // [{ name: 'Badge', … }, { name: 'Catalogue', … }]
+provenanceOf(badge).createdBy // 'Badge'
+badge.attributes             // class — the symbol is not among them
+```
+
+The owners and `createdBy` are React's own bookkeeping and are there with or
+without this package. What it adds is `source`, and the difference it makes to a
+run is per-element granularity: every finding carries the same
+`{ file, line, column }` as its `source`, and every entry in the run's lexicon
+carries that `file` and `line`. Without it, both fall back to naming the
+component and the file it is declared in — one answer for every element the
+component renders.
+
+The path is absolute here because that is what the transform wrote. The
+collector knows the repository root and makes it relative on the way into a
+report, so a location is repository-relative by the time you read it — and
+absolute only when it was compiled from outside that root.
+
+## `jsxSource()`
+
+```js
+import { jsxSource } from '@variance-authority/jsx-source/vite';
+```
+
+Takes no options. It returns a plugin object — `name`, `enforce: 'pre'`, and a
+`resolveId` hook — that answers requests for `react/jsx-dev-runtime` with this
+package's runtime, and answers nothing else. It declines to answer the recording
+runtime's own import of React, which would otherwise hand that module itself.
+
+The one setting that decides whether any of this produces a location is not the
+plugin's, and the plugin cannot supply it: that is the `jsxDEV` emission above.
 
 ## Entrypoints
 
@@ -185,10 +379,28 @@ application code.
   target, a pass-through to React's own. It has to exist because
   `jsxImportSource` is one setting for both runtimes, and it records nothing
   because the production transform computes no call site to record.
-- `@variance-authority/jsx-source/under` — the wrapper the other two are
-  built from, for an integration neither covers. It takes React's runtimes as
-  arguments rather than importing them, since only the code installing it in
-  React's place has already resolved the real thing.
+- `@variance-authority/jsx-source/under` — for a build whose resolver you write
+  yourself, because it is neither Vite nor Jest: a webpack alias, an esbuild
+  plugin, a loader. Write the module the swap points at, and hand `under` the
+  real runtimes — it takes them as arguments rather than importing them,
+  because an import of `react/jsx-dev-runtime` from a module standing in that
+  specifier's place resolves back into itself:
+
+  ```js
+  // tools/recording-jsx-runtime.js — resolved in place of `react/jsx-dev-runtime`
+  import * as development from 'react/jsx-dev-runtime';
+  import * as production from 'react/jsx-runtime';
+  import { under } from '@variance-authority/jsx-source/under';
+
+  const runtime = under(development, production);
+
+  export const Fragment = runtime.Fragment;
+  export const jsxDEV = runtime.jsxDEV;
+  ```
+
+  Exempt this module's own import of `react/jsx-dev-runtime` from the swap, or
+  it resolves back here. That exemption is what the Vite plugin does by
+  checking the importer.
 
 There is no default entrypoint. Importing this package from application code
 is a mistake; the only correct callers are a compiler and a bundler.
@@ -197,6 +409,31 @@ This package does not render components, collect a DOM, or resolve source
 maps. It only supplies the JSX runtime module the build already requests;
 `@variance-authority/react` reads the resulting metadata, and the collector
 decides how to use it.
+
+## Source paths in a shipped bundle
+
+They ship, and this package is not what puts them there. Development emission is
+a compiler setting: with it on, every JSX element in the output carries a literal
+object holding the file the compiler was given, which for every bundler in
+ordinary use is an absolute path on the machine that ran the build.
+
+```js
+const a = jsxDEV("div", { className: "x" }, void 0, false, {
+  fileName: "/Users/someone/proj/src/App.jsx",
+  lineNumber: 1,
+  columnNumber: 11
+}, this);
+```
+
+That is the transform's output before this package sees it, and it is present in
+any build with the setting on, installed or not. What this package adds is that
+location on the props object — the same strings the compiler already wrote, no
+new ones, and nothing that reaches the document.
+
+So instrument the artifact you compare, not the artifact you serve to the
+public. A built Storybook or a preview build is the subject either way; a
+public-facing bundle built with development emission on carries your build
+machine's directory layout to everyone who loads it.
 
 ## Runtime cost
 
@@ -235,13 +472,6 @@ happens.
   untouched, so what gets recorded is still that element's own line — but it
   is recorded on the wrapper, and `@variance-authority/react` finds it by
   climbing composite ancestors until it reaches a host element.
-- **The file names are absolute:** that is the transform's own `fileName`,
-  which for most bundlers is the absolute path its module graph holds. This
-  package passes it through unchanged, because a page has no idea what the
-  repository root is. The collector does, and makes it relative during
-  normalization — so a call site recorded here is repository-relative by the
-  time it reaches a report, and absolute only if it was compiled from
-  outside the root.
 - **A component renders elements it received as props:** the call site is
   the place the element was *written*, which is the caller, not the
   component that rendered it. That is the correct answer, and it is the

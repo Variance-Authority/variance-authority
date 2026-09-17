@@ -8,253 +8,119 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-It reads TypeScript source across a workspace and answers what a name is, where
-it is declared, who imports it, and where the repository already writes it.
-Nothing has to have been built first, and nothing is generated ahead of time.
+## What this is for
 
-Use this package when a person or coding agent needs the public name,
-signature, documentation, consumers, or call sites of an exported symbol: a
-function, class, interface, type, or constant a package makes public. A consumer
-is any package in the workspace whose source imports that symbol. This package
-re-reads the checkout on every MCP request, ranks names by how many consumers
-they have, and reports undocumented names separately.
+Install this if you maintain a TypeScript repository and want a person or a
+coding agent to be able to ask what a name in it is, where it is declared, who
+imports it, and where the repository already writes it.
 
-It answers two questions about a symbol, and they are different questions. What
-a name is supposed to be comes off the declaration: its signature and the block
-comment above it. How the name is actually written here comes off the call
-sites, and that is the answer a stale doc comment cannot spoil.
+It reads TypeScript source off disk and answers six questions about exported
+names. Nothing has to be built first, no documentation is generated ahead of
+time, and the repository does not have to be one of yours: point it at any
+checkout with `--root`.
 
-## What it provides
+It answers two different questions about a name. What the name is supposed to be
+comes off the declaration — its signature and the block comment above it. How
+the name is actually written here comes off the call sites, and that is the
+answer a stale doc comment cannot spoil.
 
-A reader does not need every name in a package's surface — the exports its
-manifest opens — weighted equally. The useful first answer is which names
-exist, which packages reach them, what their signatures are, and what the
-source says above each declaration. All four are read from the same checkout,
-without a build or a generated documentation site.
+This package has nothing to do with taking or comparing screenshots. If you came
+here looking for the visual regression runner, that is
+[`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli);
+nothing on this page is a step in that workflow.
 
-The ranking counts how many packages in the repository import each name. A
-frequently imported symbol becomes a front door; a symbol with no external use
-stays available without taking space from the first answer.
+## Requirements
 
-### Where the declaration says nothing
-
-A name with no block comment above it is reported as undocumented, and before
-reporting it the server looks in one more place: the nearest `README.md` above
-the declaring file. Where that prose names the symbol as a whole word, the
-passage comes back labelled with the file and line it was read from.
-
-The passage is never presented as the symbol's documentation, and it never
-removes the name from `docs_gaps`. A paragraph written about a package is
-written for a different reader than a comment written above a function, and
-counting the first as the second would empty the work queue without closing it.
-
-### Where the workspace already writes it
-
-`docs_uses` answers with the file and line of every import, and it separates the
-files written to *show* a name in use — stories and tests — from the ones that
-depend on it. Both are pointed at rather than quoted: the path and the line are
-what an editor opens, and re-serving a file's text would spend a context window
-on bytes the caller can read in one cheap operation.
-
-Pass `from` — the file you are working in — and the sites come back ordered by
-how many leading path segments they share with it. That is a claim about the
-filesystem rather than the import graph, and it orders the sites without
-removing one: every place that imports the name still comes back. The `from` on
-`docs_search` is a different argument doing a different job — it is a start
-point, it walks the imports, and it removes. Two arguments spelled the same way
-is a real cost, and the alternative was worse: the file you are working in is
-what you pass in both cases, and a reader who had to remember which tool called
-it `near` would guess.
-
-### The work queue
-
-The same ranking turns undocumented names into a concrete work queue:
-
-```
-Names that cross a package boundary with nothing written above the declaration:
-
-Viewport [interface] packages/core/src/format/environment.ts:73 — used by 15 packages: …
-normalize [function] packages/core/src/rules/normalize/index.ts:58 — used by 14 packages: …
-collect [function] packages/dom/src/collect.ts:183 — used by 13 packages: …
-```
-
-## Entrypoints
-
-| entrypoint | requires | holds |
-|---|---|---|
-| `.` | stdio, to serve | `serveWorkspace` and `writePages` |
-| `@variance-authority/help/tools` | nothing | the six answers, as pure functions from a reading to text |
-
-The tools in `@variance-authority/help/tools` are plain functions with no MCP
-dependency, so they can be called directly, tested in isolation, or embedded
-in another interface without speaking the protocol.
+Node 22 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
+project reaches it through `import()`. There are no peer dependencies and no
+configuration file. It works on a checkout that is not a git repository, is not
+a workspace, and has no `package.json` at all — with no manifest there is
+nothing published, so every answer comes from what the source exports.
 
 ## Ask one question
 
-In a repository that depends on this package, the binary is on the path:
-
-```bash
-yarn add -D @variance-authority/help
-yarn exec variance-authority-help search viewport
-```
-
-Six verbs, taking the same arguments as the six tools below and answering in the
-same words: `packages`, `entrypoint`, `symbol`, `uses`, `search`, `gaps`. Add
-`--root <dir>` when you are not standing in the workspace.
-
-### On a repository that has never heard of this
-
-```bash
-npx @variance-authority/help search session --root ../shadow
-```
-
-Install it where you will ask more than once, and reach for `npx` where you will
-not: a checkout you are passing through, a colleague's repository, a tree you are
-reading to decide whether to work in it. The index survives either way — it is
-kept per checkout under `~/.cache/variance-authority/`, not inside the tree being
-read — so a second `npx` run answers out of what the first one learned.
-
-Ask `npx` for the package, not for the binary. `@variance-authority/help` is the
-name on the registry; `variance-authority-help` is the name of the command it
-installs, and passing a command name where a package name goes is how `npx`
-ends up reporting that a package does not exist.
-
-Nothing has to be published, or be a workspace, or be an npm project at all.
-A repository with no manifest at its root publishes nothing, so the published
-half of every answer is empty and the exported half carries it — which is the
-half that matters in a tree whose TypeScript sits in a subdirectory beside
-something else entirely.
-
-They exist because a client that holds a connection open all session is one of
-three callers and not the common one. An agent with a shell, or a person with a
-question, wants one answer now and should not have to edit a config file to get
-it.
-
-## Serve it
+The binary is `variance-authority-help`. Installed as a devDependency it is on
+the path under `npx`:
 
 ```bash
 npm install --save-dev @variance-authority/help
-variance-authority-help .
+npx variance-authority-help search viewport
 ```
 
-```json
-{
-  "mcpServers": {
-    "workspace-api": {
-      "command": "variance-authority-help",
-      "args": ["."]
-    }
-  }
-}
+Six verbs, each taking the same arguments as the tool of the same name below:
+`packages`, `entrypoint`, `symbol`, `uses`, `search`, `gaps`. An entrypoint is
+one import specifier a package's `exports` map opens — `@scope/pkg` and
+`@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
+in the repository you are asking about.
+
+### What you get
+
+Text, on stdout. `search` answers in two sections — the names a manifest
+publishes, ranked by how many packages import them, then the names the source
+exports without publishing. Run against this repository, abridged to the first
+few lines of each section:
+
+```
+12 published matches for `viewport`
+
+@variance-authority/core/format · Viewport [interface] 17 packages, 60 imports — UNDOCUMENTED
+@variance-authority/core/format · documentDigest [function] 12 packages, 27 imports — Content address of a document: *what is to be painted*.
+@variance-authority/dom · conditionsFor [function] 1 packages, 1 imports — The condition environment a capture of this document would be flattened against.
+@variance-authority/storybook · harnessPage [function] 1 packages, 1 imports — Drive the page a harness already owns.
+@variance-authority/cli · ConfigError [class] 0 packages, 0 imports — A refusal that names the field.
+
+4 more names are exported somewhere in the repository without being published:
+
+CORPUS_VIEWPORT — @variance-authority/example-kitchen-sink · examples/kitchen-sink/src/jsdom-profile.ts:21
+VIEWPORT — @variance-authority/cli · packages/cli/src/commands/run-fixture.ts:48
+parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:241
 ```
 
-Six tools, in the order they are meant to be asked in:
+A published name is API and carries the specifier you would import it from. An
+exported name carries a file and a line, because nothing else was read for it.
 
-| tool | takes | answers |
+`symbol` answers with the one thing you asked about, in full.
+Run `npx variance-authority-help symbol Viewport`:
+
+```
+Viewport [interface]
+import { Viewport } from '@variance-authority/core/format';
+declared at packages/core/src/format/environment.ts:73
+used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, and 13 more — 60 imports
+
+interface Viewport
+
+Nothing is written above this declaration.
+
+docs_uses names the 60 places this is imported, nearest to a file you name first.
+```
+
+## The six questions
+
+Ranking is one number: how many packages in the repository import the name. A
+frequently imported name leads; a name nothing outside its own package reaches
+stays available without taking space from the first answer.
+
+| verb / tool | takes | answers |
 |---|---|---|
-| `docs_packages` | nothing | every import specifier the workspace publishes, and how heavily used and how well documented each is |
-| `docs_entrypoint` | a package, optionally a subpath | the names one specifier opens, most-imported first |
-| `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
-| `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `docs_search` | a string, optionally a path to start from | published names whose name or doc contains it, ranked the same way, then the names the repository exports without publishing, with a file and a line |
-| `docs_gaps` | nothing | names other packages import that say nothing about themselves |
+| `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is |
+| `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first |
+| `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published |
+| `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
-`docs_packages` takes no argument and returns the import specifiers every
-other tool takes as input, so it is the natural first call.
+`packages` takes no argument and returns the import specifiers every other
+question takes as input, so it is the natural first call.
 
-Every request re-reads the workspace, so an answer always reflects the files on
-disk right now, not the ones read at boot. The read is manifests and module
+Every request re-reads the repository, so an answer reflects the files on disk
+now rather than the ones read at startup. The read is manifests and module
 records, not a compilation, and the module records come from the source index
-`@variance-authority/sense` keeps: git names each file's content without opening
-it, the digest names what parsing that content produced, and a file that did not
-change is never opened twice. A repository where nothing moved answers out of
-that index; one where ten files moved parses ten files.
-
-## Write it
-
-For the readers that cannot call a tool — a chat window with a URL box, a
-crawler, a person:
-
-```bash
-variance-authority-help write . --out docs/api
-```
-
-| file | is |
-|---|---|
-| `llms.txt` | the [convention](https://llmstxt.org): a title, a summary, and one link per entrypoint |
-| `help-index.md` | every name, its signature, its doc and its audience |
-| `help-gaps.md` | the undocumented ones anybody imports |
-| `help.json` | the reading itself |
-
-`--base https://github.com/you/repo/blob/main/` puts a prefix in front of every
-path, for pages that will be read away from the checkout.
-
-From a program, `writePages` takes that same prefix as `base`, plus a `page` —
-the title and summary for the generated files above, overriding what they would
-otherwise take from the root manifest:
-
-```ts
-import { writePages } from '@variance-authority/help';
-
-writePages('.', 'docs/api', {
-  base: 'https://github.com/you/repo/blob/main/',
-  page: { title: 'Our API', summary: 'What every package here publishes.' },
-});
-```
-
-`help.json` holds the same reading the other three files render. Parsing it
-lets a caller build a different rendering without re-reading the workspace.
-
-## Serve it from a program
-
-```ts
-import { serveWorkspace } from '@variance-authority/help';
-
-const stop = serveWorkspace('.', { input: process.stdin, output: process.stdout });
-```
-
-`input` and `output` are the two streams the protocol is spoken over, and they
-default to this process's own. Override them when embedding the server in a host
-that owns the transport or process streams.
-
-## What it is made of
-
-Three parts, and none of them is new here:
-
-- The reading is `@variance-authority/package`, which owns every
-  decision about what a workspace publishes and what reaches for it.
-- The framing is `@variance-authority/mcp`, whose protocol half is
-  generic in what it serves — a JSON-RPC line is a JSON-RPC line whether the
-  subject is a visual-difference report or an API.
-- What is left, and what is in this package, is the six questions and the words
-  the answers are written in.
-
-## What it does not do
-
-It does not read `dist`. A `types` target of `./dist/index.d.ts` is mapped back
-through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
-reports is what somebody wrote.
-
-It does not infer. A name with no block comment above it is reported as having
-none, and a search that matches nothing says so rather than returning the nearest
-thing — a caller that gets nothing back has learned something true. A README
-passage is returned only where the prose writes the name as a whole word, and it
-arrives labelled with the file it came from.
-
-It does not serve source. `docs_uses` names the story, the test and the file, with
-the line to open; reading them is the caller's move, against the file as it is
-rather than as it was when the reading was taken.
-
-It does not rank on prose. `docs_search` is a case-insensitive substring match
-over names and docs, so a match is a fact about the text rather than an opinion
-about the query.
-
-It does not stop at the surface. Most code in any checkout was never something
-to publish — a few hundred names are published here and five thousand are
-exported — so `docs_search` answers in two sections and says which is which. A
-published name is API and carries its specifier; an exported one carries a file
-and a line, because nothing else was read for it.
-
+[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
+keeps: git names each file's content without opening it, the digest names what
+parsing that content produced, and a file that did not change is never opened
+twice. A repository where nothing moved answers out of that index; one where ten
+files moved parses ten files.
 
 ### Say where you are standing
 
@@ -285,6 +151,212 @@ about the whole repository under a heading you would read as *your area*.
 This removes names rather than ranking them down, which is the point: an empty
 answer is then a fact about the area, and the answer says how many files it
 looked in so you can place the count it gives you.
+
+### Where the declaration says nothing
+
+A name with no block comment above it is reported as undocumented. Before
+reporting it, the nearest `README.md` above the declaring file is searched, and
+where that prose names the symbol as a whole word the passage comes back
+labelled with the file and line it was read from. The passage is never presented
+as the symbol's documentation, and it never removes the name from `gaps`.
+
+`gaps` turns the same ranking into a work queue.
+Run `npx variance-authority-help gaps`, abridged to the first three lines:
+
+```
+111 names cross a package boundary with nothing written above the declaration:
+
+Viewport [interface] packages/core/src/format/environment.ts:73 — used by 17 packages: @variance-authority/example-kitchen-sink, @variance-authority/example-todomvc, @variance-authority/cli, @variance-authority/dom, @variance-authority/observe, and 12 more
+collect [function] packages/dom/src/collect.ts:197 — used by 14 packages: @variance-authority/case-incumbent, @variance-authority/example-agent-claim, @variance-authority/example-dynamic-route-flake, @variance-authority/example-kitchen-sink, @variance-authority/example-layout-impact, and 9 more
+normalize [function] packages/core/src/rules/normalize/index.ts:59 — used by 14 packages: @variance-authority/case-incumbent, @variance-authority/example-agent-claim, @variance-authority/example-dynamic-route-flake, @variance-authority/example-kitchen-sink, @variance-authority/example-layout-impact, and 9 more
+```
+
+### Where the repository already writes it
+
+`uses` answers with the file and line of every import, and it separates the
+files written to *show* a name in use — stories and tests — from the ones that
+depend on it. Both are pointed at rather than quoted: the path and the line are
+what an editor opens.
+
+Pass `--from` — the file you are working in — and the sites come back ordered by
+how many leading path segments they share with it:
+
+```bash
+npx variance-authority-help uses collect --from packages/cli/src/index.ts
+```
+
+```
+`collect` is imported in 24 places.
+Nearest first, by how much of the path each shares with packages/cli/src/index.ts.
+
+Tests — written to pin what it does:
+
+examples/todomvc/src/changeset.test.tsx:13 — @variance-authority/example-todomvc
+examples/todomvc/src/closure.test.tsx:6 — @variance-authority/example-todomvc
+
+Source:
+
+packages/playwright-test/src/page-agent.ts:1 — @variance-authority/playwright-test
+packages/presentation/src/browser-agent.ts:3 — @variance-authority/presentation
+```
+
+That ordering is a claim about the filesystem, not about the import graph.
+Import distance is owned by
+[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense),
+and it needs an index this server does not keep.
+
+## On a repository you are passing through
+
+```bash
+npx @variance-authority/help search session --root ../shadow
+```
+
+Install it where you will ask more than once, and reach for `npx` where you will
+not: a checkout you are passing through, a colleague's repository, a tree you
+are reading to decide whether to work in it. The index survives either way — it
+is kept per checkout under `~/.cache/variance-authority/`, honouring
+`XDG_CACHE_HOME`, not inside the tree being read — so a second `npx` run answers
+out of what the first one learned.
+
+Ask `npx` for the package, not for the binary. `@variance-authority/help` is the
+name on the registry; `variance-authority-help` is the name of the command it
+installs, and passing a command name where a package name goes is how `npx`
+ends up reporting that a package does not exist.
+
+## Serve it to an MCP client
+
+With no verb, the binary speaks the protocol on stdio:
+
+```bash
+npm install --save-dev @variance-authority/help
+npx variance-authority-help .
+```
+
+```json
+{
+  "mcpServers": {
+    "workspace-api": {
+      "command": "npx",
+      "args": ["variance-authority-help", "."]
+    }
+  }
+}
+```
+
+The six tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
+`docs_uses`, `docs_search` and `docs_gaps`, and they answer in the same words as
+the six verbs above.
+
+## Write the answers to files
+
+For readers that cannot call a tool — a chat window with a URL box, a crawler, a
+person:
+
+```bash
+npm install --save-dev @variance-authority/help
+npx variance-authority-help write . --out docs/api
+```
+
+Four files, and the command prints each with its size:
+
+| file | is |
+|---|---|
+| `llms.txt` | the [convention](https://llmstxt.org): a title, a summary, and one link per import specifier |
+| `help-index.md` | every name, its signature, its doc and who imports it |
+| `help-gaps.md` | the undocumented ones anybody imports |
+| `help.json` | the reading itself |
+
+The head of a generated `llms.txt`, run against this repository:
+
+```
+# variance-authority
+
+> Composable evidence tools for software that changes.
+
+## @variance-authority/cli
+
+- [@variance-authority/cli](packages/cli/src/index.ts): 103 names, 1 used across a package boundary, 69 documented
+
+## @variance-authority/core
+
+- [@variance-authority/core](packages/core/src/index.ts): 2 names, 1 used across a package boundary, 2 documented
+- [@variance-authority/core/format](packages/core/src/format/index.ts): 102 names, 73 used across a package boundary, 70 documented
+```
+
+`--base https://github.com/you/repo/blob/main/` puts a prefix in front of every
+path, for pages that will be read away from the checkout.
+
+`help.json` holds the same reading the other three files render, so a caller can
+build a different rendering without re-reading the repository.
+
+## From a program
+
+Two import specifiers:
+
+| specifier | needs | holds |
+|---|---|---|
+| `@variance-authority/help` | a stdio pair, to serve | `serveWorkspace` and `writePages` |
+| `@variance-authority/help/tools` | nothing | the six answers, as pure functions from a reading to text |
+
+The functions in `@variance-authority/help/tools` carry no MCP dependency, so
+you can call them directly, test them in isolation, or embed them in another
+interface without speaking the protocol.
+
+```bash
+npm install --save-dev @variance-authority/help
+```
+
+`writePages` takes the root, the output directory, and options: `base`, the path
+prefix above, and `page`, the title and summary for the generated files,
+overriding what they would otherwise take from the root manifest. It returns
+what it wrote.
+
+```ts
+import { writePages } from '@variance-authority/help';
+
+for (const file of writePages('.', 'docs/api', {
+  base: 'https://github.com/you/repo/blob/main/',
+  page: { title: 'Our API', summary: 'What every package here publishes.' },
+})) {
+  console.log(`${file.at} — ${file.bytes} bytes`);
+}
+```
+
+`serveWorkspace` starts the stdio server and returns a function that stops it.
+`input` and `output` are the two streams the protocol is spoken over and default
+to this process's own; override them when the host owns the transport.
+
+```ts
+import { serveWorkspace } from '@variance-authority/help';
+
+const stop = serveWorkspace('.', { input: process.stdin, output: process.stdout });
+
+process.on('SIGINT', stop);
+```
+
+## What it does not do
+
+It does not read `dist`. A `types` target of `./dist/index.d.ts` is mapped back
+through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
+reports is what somebody wrote.
+
+It does not infer. A name with no block comment above it is reported as having
+none, and a search that matches nothing says so rather than returning the
+nearest thing. A README passage is returned only where the prose writes the name
+as a whole word, and it arrives labelled with the file it came from.
+
+It does not serve source. `uses` names the story, the test and the file, with
+the line to open; reading them is your move, against the file as it is rather
+than as it was when the reading was taken.
+
+It does not rank on prose. `search` is a case-insensitive substring match over
+names and docs, so a match is a fact about the text rather than an opinion about
+the query.
+
+It does not stop at what a manifest publishes. Most code in any checkout was
+never meant to be published — 1,826 names are published in this repository and
+5,540 more are exported without being published — so `search` answers in two
+sections and says which is which.
 
 ---
 

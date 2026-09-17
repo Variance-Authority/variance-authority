@@ -8,50 +8,66 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-An **announcement** is three coordinates — `location`, `subject`, `action` — sent
-from the point in the code where something was decided. A test names the same
-three back and waits for them. That is the whole of the interface: an
-announcement says **when**, never **what**, because what is on the screen already
-and the ordinary assertion reads it one line later.
+This package compares no images and needs none of the rest of that system. It
+gives your application source one call that says *the code has just decided
+something*, and gives your test one wait that settles on that call. Use it
+wherever a test has to assert the branch in which nothing is drawn: *the modal is
+not shown* and *the modal is not shown yet* look the same on screen, so that
+branch is usually asserted after an arbitrary sleep, or not asserted. An
+**announcement** carries the decision out of the code, and your ordinary
+assertion reads the screen one line later, once the decision has arrived.
+
+An announcement is three coordinates — `location`, `subject`, `action` — and no
+payload. It says **when**, never **what**. (In Variance Authority a *subject* is
+one named UI state you asked for and can ask for again; in these three
+coordinates, `subject` is simply what the announcement is about.)
+
+## Requirements
+
+Node 22 or newer, and an ESM project: this package is `"type": "module"` and
+ships no CommonJS build. Its only dependency is
+[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire), which arrives with it.
+
+The examples below drive the waiting half with
+`@variance-authority/playwright-test`, which needs Node 22.15 and takes one peer:
+
+| Peer | Range |
+| --- | --- |
+| `@playwright/test` | `>=1.49 <2` |
+
+Two packages, installed in different places:
 
 ```bash
 npm install @variance-authority/event
+npm install --save-dev @variance-authority/playwright-test @playwright/test
 ```
 
-The calls go in application source, and stay there. Nothing is announced where
-no listener is installed, so a production bundle carries them and says nothing.
+The announcing half is a plain dependency because the calls live in application
+source and ship with it. The driver half is a devDependency, and nothing that
+reaches a user imports it.
 
-## The assertion a screen cannot answer
+## Announce at the decision
 
-A test that looks at the screen can only ask *is it there now*. For anything that
-appears, that question is answerable by waiting — badly, but answerable. For
-anything that **does not** appear, it is not answerable at all: *the modal is not
-shown* and *the modal is not shown yet* look identical, and waiting longer makes
-the test slower without ever making it true.
-
-So the branch where nothing happens is either asserted after an arbitrary sleep,
-or not asserted. It is usually the branch that matters.
-
-What is missing is not evidence on the screen. The screen is the same in both
-cases. It is that the code knows it decided, and nothing carries that outward.
+`vae(location, subject, action)` is the announcing call, and it is the only
+function your product source needs. Put it where the **decision** is made, not
+where the consequence renders: announced from the render it repeats what the
+screen already says, and the branch that draws nothing announces nothing.
 
 ```ts
 import { vae } from '@variance-authority/event';
 
-declare function shouldUpsell(): Promise<boolean>;
-declare function setUpsell(open: boolean): void;
-
-export async function decideUpsell(): Promise<void> {
-  const show = await shouldUpsell();
-  // At the decision, not at the render: announced from the render it repeats
-  // what the screen already says, and the branch that draws nothing announces
-  // nothing.
+export async function decideUpsell(setUpsell: (open: boolean) => void): Promise<void> {
+  const response = await fetch('/api/upsell');
+  const { show } = (await response.json()) as { show: boolean };
   vae('checkout', 'upsell-modal', 'decided');
   if (show) setUpsell(true);
 }
 ```
 
-Both branches are now assertable, on the first run, with no duration anywhere:
+## Wait for it in a test
+
+`varianceFixtures` adds an `events` fixture — the log of everything this test
+heard. Name the same three coordinates back, then assert the screen:
 
 ```ts
 import { expect, test as base } from '@playwright/test';
@@ -66,16 +82,64 @@ test('the upsell stays away', async ({ page, events }) => {
 });
 ```
 
-`vaStart` and `vaEnd` bound something that takes time on one set of coordinates.
-They are a pair rather than two separate moments because *started and never
-ended* is a fact a run can report, and *no end arrived* on its own is not.
+Both branches are now assertable, on the first run, with no duration anywhere.
+
+No `playwright.config.ts` change is needed for this. The fixture evaluates the
+listener in the page before navigation, and a test that never destructures
+`events` sets none of it up. Configuration enters only when a service announces
+too — see [A service that announces](#a-service-that-announces-too) below.
+
+A wait also settles against announcements **already heard** before it subscribes,
+so `await events.happened(...)` written one line too late still resolves.
+
+### What you get
+
+When a wait does not settle, it prints what the run did announce, in order.
+Announcements that never came are the point, so read the list for a coordinate
+that drifted — here, a mistyped `action`:
+
+```
+`checkout / upsell-modal / decided` was never announced within 5000ms
+Announced in this execution, in order:
+  page  checkout / upsell-modal / deciding (start)
+  api  pricing / upsell / quoted
+  page  checkout / upsell-modal / decidd
+```
+
+The first column is the **realm** that spoke: `page` for the browser document, or
+the name a service reports under. An **execution** is one run of one test — the
+fixture mints an opaque id for it, and everything announced while it runs answers
+to that id and to no other test.
+
+Heard nothing at all, the same failure says so in different words, because that
+is a setup fact rather than a product defect:
+
+```
+`checkout / upsell-modal / decided` was never announced within 5000ms
+Nothing was announced at all, by any realm. Either no listener is installed for this execution, or the code that decides does not call `vae` yet — a wait cannot tell those apart and neither can a timeout.
+```
+
+### Assert that something was never announced
+
+There is no negative wait, because a negative has no moment to wait for. Wait for
+the announcement **both** branches make, then ask about the branch-specific one
+without waiting:
+
+```ts
+await events.happened('checkout', 'upsell-modal', 'decided');
+expect(events.saw('checkout', 'upsell-modal', 'shown')).toBe(false);
+```
+
+## Bound something that takes time
+
+`vaStart` and `vaEnd` put a start and an end on one set of coordinates. A run
+that ends with a start unanswered can name the work that never finished, which is
+a better failure than a timeout.
 
 ```ts
 import { vaEnd, vaStart } from '@variance-authority/event';
 
-declare function authorize(): Promise<void>;
-
-export async function pay(): Promise<void> {
+export async function pay(authorize: () => Promise<void>): Promise<void> {
   vaStart('checkout', 'payment', 'authorizing');
   try {
     await authorize();
@@ -85,138 +149,169 @@ export async function pay(): Promise<void> {
 }
 ```
 
+`events.finished(...)` settles only on the `end`; `events.happened(...)` settles
+on either phase. `events.pending` is everything that started and has not ended.
+
 ## What it costs where nobody is listening
 
-One property read and a return. `vae` looks for a sink under `EVENT_SINK` on
-`globalThis`, finds nothing in production, and returns — which is why these calls
-belong in product source rather than in a wrapper a test build swaps in. An
-announcement that only exists under test announces the test harness.
+One property read, a `typeof` check and a return. `vae` looks for a **sink** — the
+function a listener installs on `globalThis` under `EVENT_SINK` (`__VAE__`) — and
+finds nothing in production. That is why these calls belong in product source
+rather than in a wrapper a test build swaps in: an announcement that only exists
+under test tells you about the test harness.
 
-Nothing a listener does reaches the code that announced: a sink that throws is
-swallowed at the call. The failure that produces is a wait that times out in the
-driver, which names what it wanted and everything it did hear.
+Nothing a listener does reaches the code that announced. A sink that throws is
+swallowed at the call, and the failure that produces is a wait that times out in
+the driver, printing what it did hear.
 
-## Listening, from `@variance-authority/event/collect`
+## Listen without Playwright, from `@variance-authority/event/collect`
 
-The listening half is a separate entrypoint because it ships somewhere else. A
-product bundle imports the announcing half; a driver and a service under test
-import `@variance-authority/event/collect`, and nothing that reaches a user does.
+The listening half is a separate entrypoint because it ships somewhere else: a
+product bundle imports the announcing half, and a driver or a service under test
+imports this one. Under Playwright the `events` fixture is this, already wired.
+For any other driver, build the log yourself:
 
-Under Playwright, none of this is written by hand —
-`@variance-authority/playwright-test` exposes the log as an `events` fixture. What follows is what that fixture does,
-for a driver that is not Playwright.
+```ts
+import { createEventLog } from '@variance-authority/event/collect';
 
-`createEventLog()` returns an `EventLog`:
+const events = createEventLog();
+events.record('page', {
+  phase: 'once',
+  location: 'checkout',
+  subject: 'upsell-modal',
+  action: 'decided',
+});
 
-| member | what it is for |
-|---|---|
-| `seen` | everything recorded, in arrival order |
-| `pending` | processes that started and have not ended |
-| `saw` | ask without waiting |
-| `happened`, `finished` | wait |
-| `record` | feed the log |
-| `remark` | add a sentence the log's failures should carry |
-| `close` | fail every outstanding wait at once |
+console.log(events.saw('checkout', 'upsell-modal', 'decided')); // true
+console.log(await events.happened('checkout', 'upsell-modal', 'decided'));
+// { phase: 'once', location: 'checkout', subject: 'upsell-modal',
+//   action: 'decided', realm: 'page', ordinal: 0 }
+```
 
-`WaitOptions` takes `timeoutMs`, defaulting to 5000.
+`createEventLog(options?)` returns an `EventLog`:
 
-`EventLogOptions` takes `onRecord` and `onRemark`, called as each one arrives.
-They exist for a second reader — something watching the run from outside the
-worker, such as [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage). They fire
-at the moment of recording rather than at teardown: the question worth asking of
-a running suite is what the test hanging *right now* has heard, and an answer
-that arrives once it finishes answers a different question. A watcher that
-throws is swallowed, for the reason a sink that throws is: an observer may not
-break its subject.
+| member | signature | what it does |
+| --- | --- | --- |
+| `seen` | `readonly RecordedEvent[]` | everything heard, in arrival order |
+| `pending` | `readonly RecordedEvent[]` | what `vaStart` opened and `vaEnd` has not closed |
+| `saw` | `(location, subject, action) => boolean` | whether these coordinates have been announced, asked without waiting |
+| `happened` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles when these coordinates are announced in **any** phase, past or future |
+| `finished` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles only when an `end` closes these coordinates, past or future |
+| `record` | `(realm, event) => RecordedEvent` | feed the log one announcement, from a named realm |
+| `remark` | `(about, sentence) => void` | a keyed sentence every failure from this log carries; last write for a key wins |
+| `close` | `(because?) => void` | fail every outstanding wait at once, and every later one |
 
-A wait resolves against announcements **already heard** before it subscribes, so
-`await events.happened(...)` written one line too late still settles. Anything
-else would be a race with a stopwatch in it.
+`WaitOptions` takes `timeoutMs`, defaulting to 5000. `RecordedEvent` is the
+announcement plus `realm` and `ordinal`, its arrival index from 0.
 
-`eventCollectorSource()` returns the source a driver evaluates in the page before
-navigation; it reports through the carrier
-[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) puts in the same page, in either
-evaluation order. Neither needs a build step: the page's sink appears underneath
-an application that already announces, and it holds what it hears until the
-carrier exists.
+`EventLogOptions` takes `onRecord` and `onRemark`, called as each one arrives
+rather than at teardown, so a process watching the run from outside the worker
+can ask what a test hanging *right now* has heard. A watcher that throws is
+swallowed, as a sink is.
+
+`eventCollectorSource()` returns source for a driver to evaluate in the page
+before navigation — source rather than a module, because it has to run before the
+application does. It needs no build step and touches nothing in the page: the
+sink appears underneath an application that already announces.
 
 ## A service that announces too
 
-A process behind the page is not a realm. It outlives every test in the run and
-answers several at once, so an announcement leaving it has to name the execution
-it belonged to — otherwise one test's wait is settled by another test's decision
-and both pass for the wrong reason.
+A process behind the page outlives every test in the run and answers several at
+once, so an announcement leaving it has to name the execution it belonged to.
+Otherwise one test's wait is settled by another test's decision and both pass for
+the wrong reason.
 
-`collectEvents()` installs the process's sink. `enter` runs a request inside the
-execution that sent it, and everything it announces — including across an
-`await` — answers to that execution's driver and no other.
+Such a process is a **head**: a realm that is not the browser, announcing under a
+name. `collectEvents()` installs its sink, and `enter` runs a request inside the
+execution that sent it, so everything that request announces — including across an
+`await` — answers to that execution's driver.
 
 ```ts
 import { collectEvents } from '@variance-authority/event/collect';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 
-declare function handle(request: IncomingMessage, response: ServerResponse): void;
-
 const events = collectEvents();
+
+function handle(request: IncomingMessage, response: ServerResponse): void {
+  response.writeHead(200, { 'content-type': 'application/json' }).end('{"show":false}');
+}
+
 createServer((request, response) =>
   events.enter(request.headers.cookie, () => handle(request, response)),
 ).listen(3000);
 ```
 
-### Nothing is written down
+Nothing is installed unless `VARIANCE_AUTHORITY_EVENTS` is set. Set it, and the
+service's name, in the `webServer` block that starts the process — the driver
+reads the same variable to decide whether heads are in play, so one environment
+block configures both ends:
 
-An announcement is a message and not a record. A test **waits** on it, so it is
-worth something for the length of one execution and nothing afterwards: there is
-no report directory, no file to clean up, and no artifact to mistake for evidence
-later.
+```ts
+// playwright.config.ts
+export default {
+  use: { baseURL: 'http://localhost:3000' },
+  webServer: {
+    command: 'node ./server.js',
+    url: 'http://localhost:3000',
+    env: {
+      VARIANCE_AUTHORITY_EVENTS: '1',
+      VARIANCE_AUTHORITY_HEAD: 'api',
+    },
+  },
+};
+```
 
-The channel is the cookie the driver already sets, and it is not this package's:
-[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) carries announcements and
-coverage accounts on one medium under one execution id, and only reports which of
-the two was speaking. `enter` takes the request's `Cookie` header, or the pairs a
-service's own cookie accessor holds, joined the same way; a request the run did not drive
-carries neither, and announces to nobody.
+Any value will do for `VARIANCE_AUTHORITY_EVENTS`; it is a fact about the
+environment, not a location. `VARIANCE_AUTHORITY_HEAD` is the name the service
+announces under, defaulting to `head`, and it is the same variable
+[`@variance-authority/sense/journey`](https://variance-authority.dev/reference/packages/sense) reads, so one block names a
+service once.
 
-That the address is a cookie is why the wire refuses everything but loopback
-`http`, and none of it is installed unless `VARIANCE_AUTHORITY_EVENTS` says this
-process is under a run. Every send that fails is swallowed, for the reason the
-sink swallows a throw: that failure belongs to the driver, where it reads as a
-wait that times out and prints what it did hear.
+`EventCollectorOptions` overrides both in code, as `head` and `enabled`. Where the
+process is not under a run, `collecting` is false, nothing is installed, and the
+call costs an `if`. `close()` gives the global back.
 
-`EventCollectorOptions` takes `head`, the name this service announces under, and
-`enabled`, whether to install a sink at all. They default to
-`VARIANCE_AUTHORITY_HEAD` and to whether `VARIANCE_AUTHORITY_EVENTS` is set — the
-first is the variable the journey collector reads, and the second is read by the
-driver too, so one environment block configures both ends. When the process is not under a run,
-`collecting` is false, nothing is installed, and the call costs an `if`. `close`
-gives the global back.
+### How an announcement gets home
 
-`listen()`, from `@variance-authority/wire/listen`, is the other end. It hands
-out one address per execution and calls back with the execution and the
-`HeadEventReport`, in the order a head said them, for whoever asked to hear
-`'events'`. The execution is in the address rather than in the body, so a head
-repeats nothing it was told and a report cannot claim an execution by writing one
-down.
+Nothing is written down. A test **waits** on an announcement, so it is worth
+something for the length of one execution and nothing afterwards: no report
+directory, no file to clean up, no artifact to mistake for evidence later.
 
-An announcement that arrives for an execution nobody here owns is counted and
-named in the failure rather than handed to whichever test was nearby, because a
-person reading *nothing was announced* while the service is plainly announcing
-needs to be told where it was answering instead.
+The channel is the cookie the driver already set, and it is not this package's.
+[`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) carries announcements and coverage
+accounts — which regions of source an execution entered — on one medium under one
+execution id, and reports only which of the two was speaking. `enter` takes the
+request's `Cookie` header, or the pairs a service's own cookie accessor holds,
+joined the same way. A request the run did not drive carries neither, and
+announces to nobody.
+
+Because the address travels on a cookie, the wire accepts only loopback `http`.
+Every send that fails is swallowed, and reads in the driver as a wait that times
+out and prints what it did hear.
+
+`listen()`, from `@variance-authority/wire/listen`, is the other end for a driver
+that is not Playwright. It hands out one address per execution and calls back with
+the execution and a `HeadEventReport` — the three coordinates plus `phase`,
+`head`, and `version: 1` — in the order a head said them.
+
+An announcement arriving for an execution no test here owns is counted and named
+in the failure rather than handed to whichever test was nearby, so a person
+reading *nothing was announced* while the service is plainly announcing is told
+where it was answering instead.
 
 ## Read and act on failures
 
-- **"Nothing was announced at all, by any realm."** A setup fact, not a product
-  defect: either no listener is installed for this execution, or the code that
-  decides does not call `vae` yet.
-- **A list of announcements that does not include the one you wanted.** The
-  coordinates drifted. The list prints in order, so a mistyped `action` is
-  visible at a glance.
+- **"Nothing was announced at all, by any realm."** A setup fact: either no
+  listener is installed for this execution, or the code that decides does not call
+  `vae` yet.
+- **A list of announcements without the one you wanted.** The coordinates drifted.
+  The list prints in order, so a mistyped `action` is visible at a glance.
 - **A head answered for an execution no test here owns.** Its requests are
   carrying a cookie some other execution left. Same-origin is the filter, and a
   second hop must pass the incoming cookie on rather than one it kept.
-- **A wait that hangs where the announcement plainly happened.** Something is
-  listening in a realm the log is not reading, or the process announcing was
-  started without `VARIANCE_AUTHORITY_EVENTS`.
+- **A wait hangs where the announcement plainly happened.** Something is listening
+  in a realm the log is not reading, or the process announcing was started without
+  `VARIANCE_AUTHORITY_EVENTS`.
 
 ---
 

@@ -4,7 +4,7 @@ import {
   type Raster,
   type RenderIdentity,
 } from '@variance-authority/core/format';
-import { identityFrom, neverFails } from './store.js';
+import { identityFrom, neverFails, recordFrom } from './store.js';
 import { createEphemeralStore } from './ephemeral.js';
 import { rasterFrom } from './codec.js';
 
@@ -220,5 +220,20 @@ describe('a render cache never throws', () => {
     await renderCache.put(rasterOf(MAC, 'v1:x'));
 
     expect(await neverFails(renderCache).get('v1:x', MAC)).toEqual(rasterOf(MAC, 'v1:x'));
+  });
+});
+
+describe('recordFrom', () => {
+  it('takes a plain object and hands it back', () => {
+    const value = { engine: 'chromium', width: 1280 };
+    expect(recordFrom(value)).toBe(value);
+  });
+
+  it('refuses everything a stored record must not be', () => {
+    // An array and `null` are both `typeof 'object'`, and a sidecar that parsed
+    // to either would otherwise be read as a record with no keys.
+    for (const value of [null, undefined, [], ['a'], 'a', 7, true]) {
+      expect(recordFrom(value)).toBeNull();
+    }
   });
 });

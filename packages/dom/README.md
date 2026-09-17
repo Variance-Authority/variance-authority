@@ -8,51 +8,57 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-Extract a `RawCapture` — a serializable snapshot of an element's tree, ARIA, and
-applicable styles — from a mounted element. One implementation covers both
-**observation profiles** — what a document can be asked for: jsdom in a unit
-test, Chromium in a page, same code, same ruleset.
+Point this package at an element that is already mounted and it reads back two
+things: a **capture** — the element's tree, its ARIA, and the CSS declarations
+that actually reach it, as serializable data — and a **render document**, the
+same subtree as markup plus the frame it was mounted in and only the CSS that
+applies to it, which another process can paint. It does not mount anything,
+launch a browser, or take a screenshot; it reads a DOM you already have.
 
 ```bash
 npm install --save-dev @variance-authority/dom
 ```
-## Use this package when
 
-Install `@variance-authority/dom` when your code — the **host** — already owns a
-live `Element` and the `document` it belongs to; a collector or a test is a
-host. The host supplies that document, the **subject** (a stable id naming the
-story, route, fixture, or value under test, independent of which element
-renders it), viewport conditions, and any font or asset hashes it can verify.
-This package does not mount React, launch a browser, decode images, or
-normalize the capture; pass its result to `@variance-authority/core`. React
-attribution is optional and is injected by `@variance-authority/react`.
+## Requirements
 
-Skip this package if nothing has mounted an element yet: a collector such as
-`@variance-authority/storybook-collector` or `@variance-authority/route-collector`
-owns the browser and the mounting for you.
+ESM only, Node 22 or newer. Nothing here imports a DOM implementation, so it
+runs in whichever one your test already has:
 
-## Applicability pruning
+| Environment | What you get |
+| --- | --- |
+| jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS |
+| a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles and element geometry |
 
-**CSS applicability pruning** discards every stylesheet rule that cannot reach
-the mounted subject, keeping only what could actually style it. It happens in
-this package, not in `@variance-authority/core`, because deciding whether a rule
-applies needs a live document; every other normalization rule stays versioned by
-the ruleset instead of the collector.
+`@variance-authority/core` installs with it and carries the capture types. The
+examples below also use `jsdom`:
 
-On a single-button subject mounted under Storybook chrome — a preview reset,
-dead utility classes, CSS-in-JS accretion — applicability pruning reduced 1,010
-parsed rules to the one that could reach the subject. A design system's
-stylesheet is almost entirely irrelevant to any one subject, and a comparison
-that carries it is comparing the document a subject happened to be mounted in.
+```bash
+npm install --save-dev jsdom
+```
 
 ## Smallest working path
 
+Save this as `capture.ts` and run it with `node capture.ts` (Node 24 and
+newer) or `node --experimental-strip-types capture.ts` (Node 22):
+
 ```ts
+import { JSDOM } from 'jsdom';
 import { acquireDocument, collect } from '@variance-authority/dom';
 
-const root = document.querySelector('[data-variance-subject]');
-if (root === null) throw new Error('subject is not mounted');
+const dom = new JSDOM(`<!doctype html>
+<html><head><style>
+  .sb-show-main { padding: 1rem; background: #fff; }
+  .u-mt-2 { margin-top: 8px; }
+  :root { --brand: #0000ff; }
+  .btn { color: var(--brand); padding-top: 8px; }
+</style></head>
+<body><div id="canvas"><button class="btn">Save</button></div></body></html>`);
 
+const root = dom.window.document.getElementById('canvas')!;
+
+// A subject is one named UI state you asked for and can ask for again — a
+// story, a route, a fixture, a value. The id is yours and stays stable when
+// the element that renders it changes.
 const subject = { id: 'story:button--primary', kind: 'story' as const };
 const viewport = {
   width: 1280,
@@ -60,80 +66,162 @@ const viewport = {
   deviceScaleFactor: 1,
   colorScheme: 'light' as const,
 };
+const fonts = ['Inter/400/normal/9f2c1ab4'];
+
+const capture = collect(root, { subject, viewport, engine: 'jsdom@30.0.1', fonts });
+const renderDocument = acquireDocument(root, { subject, viewport, fonts });
+
+console.log(JSON.stringify(capture.root.children[0], null, 2));
+console.log(renderDocument.css);
+```
+
+`collect` is synchronous and returns data ready for `normalize` in
+`@variance-authority/core`. `acquireDocument` returns markup, frame context, and
+applicable CSS, ready for a renderer in another package or on another machine —
+a document acquired in a jsdom unit test can be painted by a pinned host
+elsewhere.
+
+### What you get
+
+The first `console.log` — the captured button, one child of the captured root:
+
+```json
+{
+  "tag": "button",
+  "attributes": { "class": "btn" },
+  "aria": { "role": "button", "name": "Save", "state": {} },
+  "matchedRules": [
+    {
+      "sheet": "<style:0>",
+      "selector": ".btn",
+      "specificity": [0, 1, 0],
+      "order": 4,
+      "declarations": [
+        { "property": "color", "value": "var(--brand)", "important": false, "references": ["--brand"] },
+        { "property": "padding-top", "value": "8px", "important": false }
+      ]
+    }
+  ],
+  "children": [
+    { "tag": "#text", "attributes": {}, "matchedRules": [], "text": "Save", "children": [] }
+  ]
+}
+```
+
+Values leave as authored — generated ids intact, hashed class names intact,
+shorthands unexpanded, cascade losers retained. `normalize` decides what to do
+with them, so the rules that settle a comparison are versioned in one place.
+
+Around that node the capture also carries `subject`, an `environment` block
+(engine, viewport, fonts, resolved conditions, assets), `inheritedSeed` —
+`{"--brand": "#0000ff"}` here, the custom properties in force at the root — and
+`diagnostics`. The run above reports one:
+
+```json
+{
+  "severity": "warn",
+  "code": "portals-not-resolved",
+  "message": "no portal provider supplied; content rendered through createPortal is outside this capture, and a subject that portals will report unchanged when that content changes"
+}
+```
+
+Diagnostics are never hashed. Omit `fonts` as well and you get a second one,
+`unverified-fonts`: a page can see that `Inter` is in use and cannot read the
+bytes it was handed, so a font substitution moves geometry with no change to
+your code.
+
+The second `console.log` — the CSS the render document ships:
+
+```
+[ ':root {--brand:#0000ff}\n.btn {color:var(--brand);padding-top:8px}' ]
+```
+
+Two of the four rules in that page are gone. `.sb-show-main` and `.u-mt-2`
+cannot reach anything in the subtree, so they are not in the payload and not in
+the comparison.
+
+## What applicability pruning removes
+
+`collect` and `acquireDocument` both discard every stylesheet rule that cannot
+reach the mounted element, keeping only what could style it.
+
+On a single-button subject mounted under Storybook chrome — a preview reset,
+dead utility classes, CSS-in-JS accretion — pruning reduced 1,010 parsed rules
+to the one that could reach the subject. Without it, a baseline moves when a
+stylesheet the subject never touched does.
+
+## Use this package when
+
+Use `@variance-authority/dom` when your code already owns a live `Element` and
+the `document` it belongs to — a collector, or a test that has rendered
+something. You supply that element, the subject, the viewport, and any font or
+asset hashes you can verify.
+
+Skip it when nothing has mounted an element yet:
+`@variance-authority/storybook-collector` and
+`@variance-authority/route-collector` own the browser and the mounting for you,
+and call this underneath.
+
+## Controls
+
+| Call | Useful options |
+| --- | --- |
+| `collect` / `acquireDocument` | `subject`, `viewport` and `engine` name what was read; `features` supplies media conditions such as `prefers-reduced-motion`; `index` reuses a stylesheet index across subjects sharing one document, and is refused if it was built for a different viewport or colour scheme |
+| `acquireDocument` | `inherited` overrides the values and custom properties resolved from ancestors outside the subject; design tokens live on `:root`, which pruning correctly drops, so this is what keeps `var(--brand)` resolving |
+| `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, and `stabilization` records the digest of whatever held the page still; none of these is inferred from markup |
+| `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises how much the run is claiming about: declarations, geometry, or pixels. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed |
+| `resolveIgnores` | `selectors` names the excluded places, `markers` controls handling of the `data-variance-ignore` attribute |
+| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. What they carry is declared by whatever rendered the element, never guessed from a tag name |
+
+## What is in here
+
+| Module | Answers |
+| --- | --- |
+| `collect` | the tree, its ARIA, and the declarations that reached each node |
+| `document` | markup plus applicable CSS, ready to be assembled and painted |
+| `css` | which rules match — `css-index` flattens the sheets once per document, `css-match` answers once per element |
+| `media` / `specificity` | `@media` and `@supports` evaluation, and cascade order |
+| `aria` | role, accessible name, and state, computed rather than read off attributes |
+| `ignore` | which subtrees you excluded, from selectors and from `data-variance-ignore`. An excluded node is marked, never deleted: "absorbed by the `carousel` rule" and "was never there" are different answers downstream |
+| `profile` | whether this DOM has a layout engine, probed rather than declared, and therefore whether geometry and computed styles are in the capture |
+| `assets` | the external URLs a document refers to, so hashes fetched over the wire have somewhere to land |
+| `stabilize` | the interventions applied to a live page, and which ones reported applying |
+| `attributed` | component names, creators, and props written onto the nodes that carry them, from values you declare rather than guesses from a tag name |
+
+## Component names are optional
+
+`provenanceOf`, `wiringOf` and `holdingOf` are parameters, not imports. This
+package knows nothing about React. For React, pass the providers from
+`@variance-authority/react`:
+
+```bash
+npm install --save-dev @variance-authority/react
+```
+
+Continuing the file above:
+
+```ts
+import { provenanceOf, portalContentOf } from '@variance-authority/react';
 
 const capture = collect(root, {
   subject,
   viewport,
-  engine: 'chromium@131.0.6778.33',
+  engine: 'jsdom@30.0.1',
+  fonts,
+  provenanceOf,
+  portalsOf: portalContentOf,
 });
-
-const renderDocument = acquireDocument(root, { subject, viewport });
-console.log(capture.root.tag, renderDocument.html.length);
 ```
 
-The mounted element is the same value for both paths. `collect` is synchronous
-and returns serializable data for `normalize`. `acquireDocument` returns serializable markup, frame context, and
-only the CSS that applies to the subject, ready for a renderer owned by another
-package or process.
+Both read the fiber React attaches to the DOM node, so they report names only
+where React rendered the subject. Pass none of the providers and attribution stops at the
+node rather than the component; a project on another framework supplies its
+own.
 
-The profile is not an argument here. It is **detected** from the document —
-jsdom has no layout engine and a browser does — and passing one is the override,
-not the normal case. `fonts` is a caller's job for the reason stated in the type:
-a page can see that `Inter` is in use and cannot read the bytes it was given, so
-a substituted font changes geometry without changing a line of code. Omit it and
-the collector says so in a diagnostic rather than putting a confident value in
-the environment key.
-
-`acquireDocument` produces something **serializable**, which is what lets the
-next hop be a network hop: a document acquired in a jsdom unit test can be
-painted by a pinned machine two networks away, and nothing above or below has to
-know that happened.
-
-The example prints the captured root tag and the acquired document size. A
-consumer that needs component names adds `provenanceOf` to `collect`; a consumer
-that needs pixels sends `renderDocument` to a renderer. Neither operation is
-implicit.
-
-The options that make a capture applicable are supplied by the host:
-
-| call | useful controls |
-|---|---|
-| `collect` / `acquireDocument` | `subject`, `viewport`, and `engine` identify the reading; `features` supplies media conditions, `inherited` supplies declarations from ancestors outside the root, and `index` reuses a stylesheet index for a standing document |
-| `collect` | `wiringOf` adds framework wiring and `holdingOf` adds what each component was handed and what it retained, while `stabilization` records the intervention recipe already applied; none of the three is inferred from markup |
-| `stabilizeForObservation` | `recipe` selects the intervention list; the default is profile-specific `COLLECT_RECIPE`, and the returned digest records what was applied. `tier` is for the one caller that screenshots the document it just read — it installs the raster-tier holds, such as the caret, that a reading alone is not charged for |
-| `attributeProvenance` | `component`, `createdBy`, and `props` are caller-declared metadata written to a node, not guesses from a tag name |
-| `resolveIgnores` | `selectors` names the excluded places and `markers` controls `data-variance-ignore` handling |
-
-## What is in here
-
-| module | answers |
-|---|---|
-| `collect` | the tree, its ARIA, and the declarations that reached each node |
-| `document` | markup plus applicable CSS, ready to be assembled and painted |
-| `css` | which rules match, indexed rather than re-queried per node — `css-index` flattens the sheets once per document, `css-match` answers once per element |
-| `media` / `specificity` | `@media`/`@supports` evaluation, and cascade order |
-| `aria` | role, accessible name, and state — computed, not read off attributes |
-| `ignore` | which subtrees the operator excluded, from selectors and from `data-variance-ignore` — resolved here because that is the only step needing a document, and recorded as a **mark** rather than a deletion |
-| `profile` | which tier this DOM can actually answer for, detected rather than declared |
-| `assets` | the external URLs a document refers to, so the wire's hashes have somewhere to land |
-| `stabilize` | the collection recipe applied to a live page, and what it reports having applied |
-| `attributed` | provenance and state written onto the nodes that carry them |
-
-`inherit` is used by `collect` and is not part of the export surface: what the
-ancestors outside the subject contribute is decided during collection, not by a
-caller.
-
-## Owner chains are optional and injected
-
-`provenanceOf` is a parameter, not an import, and so are `wiringOf` and
-`holdingOf`. This package knows nothing about React, and a project using
-something else supplies its own — or none, and gets attribution down to the node
-rather than the component.
-
-`collect` cannot infer fonts, external asset contents, or portal ownership. Omit
-one only when the missing fact is genuinely outside the assertion; otherwise pass
-`fonts`, `assets`, or `portalsOf` so the resulting identity does not claim more
-than the page established.
+`collect` cannot infer fonts, the contents of external assets, or portal
+ownership. Omit one only when the missing fact is outside what you are
+asserting: without `portalsOf`, a subject's container is byte-identical whether
+a modal is open or closed, and an opening dialog reads as unchanged.
 
 ---
 

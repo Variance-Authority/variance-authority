@@ -8,83 +8,112 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-A run compares one or more **subjects** — the pages,
-routes, or components under test — and produces its answers in memory before the
-process ends. A **`RunReport`** is the shape those answers take, so they can be
-read afterwards: from a different process, on a different machine, by whoever or
-whatever is asking. The format itself is plain data; only `report/file` touches a
-disk, and it needs a path this process can read and write.
+## What this is for
+
+A run compares a list of **subjects** — a subject is one named UI state you
+asked for and can ask for again, such as a component story or a route at a fixed
+viewport — and produces its answers in memory. Then the process ends. The file
+this package describes is how those answers survive it: written by the run on a
+pinned CI machine, read back on your laptop, in a pull request comment, or by an
+agent asked to fix what moved.
+
+That file is a `RunReport`. This package gives you its TypeScript types, a reader
+that validates rather than casts, and three derivations that turn a list of
+changed screenshots into something you can act on:
+
+- **`clusterChanges`** groups the run's changes by the shape that caused them, so
+  a token edit landing in forty stories is one decision instead of forty.
+- **`adjudicateRun`** checks the run against what you said you were changing, and
+  reports the edit that silently did not take.
+- **`changelogOf`** folds what a reviewer accepted into a record of *why* a
+  baseline is what it is, ready to go into the commit message that carries it.
+
+This package compares nothing itself. It has no browser, no renderer and no
+baseline store. Something else produces a `RunReport` — the `variance` CLI does,
+and so can your own runner — and this reads it.
+
+## Requirements
+
+- Node 22 or newer.
+- ESM only. This package is `"type": "module"` and ships no CommonJS build.
+- No peer dependencies, and no browser. The root entrypoint is plain data
+  handling; only `@variance-authority/report/file` touches a disk.
+
+## Install
 
 ```bash
-npm install --save-dev @variance-authority/report
+npm install --save-dev @variance-authority/report @variance-authority/cli
 ```
-## Use this package when
 
-Install `@variance-authority/report` when a producer and its readers need a
-versioned run artifact without sharing a runner, browser, or transport. Use the
-root entrypoint for in-memory report types and derivations. Use
-`@variance-authority/report/file` only when this process should read or write a
-local path; an object store, PR comment, or socket should carry the same
-`RunReport` value without importing the file entrypoint.
+The CLI is here because it is what writes the report the examples below read.
+It is a devDependency, so every command on this page is run as
+`npx variance <command>`.
 
-This package does not compare anything itself. It has no browser, no renderer,
-and no baseline store — pair it with whatever produces a `RunReport` (the
-`variance` CLI, or a custom runner) and, on the reading side, with something
-like `@variance-authority/mcp` or `@variance-authority/store`.
+## Turn a run into a review plan
 
-## Package boundary
-
-The format has several readers. The CLI writes it, a PR comment renders it, the
-MCP tools read it, and none of those is its home — a format owned by one reader
-bends towards that reader.
-
-What that would cost is concrete: with these types living in
-`@variance-authority/mcp`, the CLI would depend on an agent protocol to describe
-its own output.
-
-## Entrypoints
-
-| entrypoint | requires | holds |
-|---|---|---|
-| `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun` |
-| `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
-| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex` |
-
-The split exists because a run happening on a pinned machine in CI and the
-questions being asked on a laptop is exactly why this artifact exists — and a
-consumer who carries it some other way (an object store, a PR comment, a socket)
-wants the shapes and not the disk.
-
-`./suite-index` is the part of a report that is not about the run. What the
-suite is made of — its subjects, its components, every name each one carries —
-is a fact about the commit the run was at, it changes only when the suite does,
-and it is asked for far more often than a run happens. So it is taken out of a
-report as bytes (`suiteIndexOf`), addressed by that commit, small enough for a
-cache to carry and stable enough that two machines composing the same suite
-write the same file. `decodeSuiteIndex` refuses anything else.
-
-## Smallest working path
+`npx variance run` writes its report to `.variance/report.json` unless your
+`variance.config.json` names another path. This reads that file and prints what
+one reviewer actually has to decide:
 
 ```ts
-import { readRunReport, writeRunReport } from '@variance-authority/report/file';
+// review-plan.ts — node --experimental-strip-types review-plan.ts
+import { clusterChanges, describeClustering } from '@variance-authority/report';
+import { readRunReport } from '@variance-authority/report/file';
 
-// Throws on an unknown runVersion or malformed notObserved entry.
-const report = await readRunReport('.variance/run.json');
-console.log(report.runVersion, report.observations.length);
+const report = await readRunReport('.variance/report.json');
+const changed = report.observations.filter(
+  (observation) => observation.verdict === 'changed',
+).length;
+const clustering = clusterChanges(report.observations);
 
-// A producer can write the same validated shape to a new path.
-await writeRunReport('.variance/checked.json', report);
+console.log(describeClustering(clustering, changed));
+
+for (const change of clustering.changes) {
+  const where = change.component ?? change.fingerprint;
+  console.log(
+    `${where}: ${change.subjects.length} subject(s) touched, ` +
+      `${change.settles.length} settled by one decision`,
+  );
+  // `settles` is the set where this shape is the *whole* difference, so one
+  // approval promotes nothing unreviewed alongside it.
+  if (change.settles.length > 0) {
+    console.log(`  npx variance accept --shape ${change.fingerprint}`);
+  }
+}
+
+for (const subject of clustering.ungrouped) {
+  console.log(`${subject}: changed with no shape to group it by`);
+}
 ```
 
-The read returns a validated `RunReport`; the file entrypoint does not rerun a
-browser or recompute observations. A report from a future format is refused,
-and an absent `notObserved` field remains absent rather than being treated as an
-empty coverage list.
+Each **change** in `clustering.changes` is one fingerprint — a digest of the
+shape of the difference, carried on every region of the diff and built from the
+component responsible, so the same-looking change in `Avatar` and in `Badge`
+stays two changes. `ungrouped` holds subjects that changed and produced no
+fingerprint at all; they are never folded into a catch-all.
+
+### What you get
+
+For a run where a brand accent moved `Button` in two stories and on the checkout
+route, and spacing moved `Card` on that same route:
+
+```
+3 subject(s) changed, and they are 2 distinct change(s) — 1 of which can be decided in one action
+Button: 3 subject(s) touched, 2 settled by one decision
+  npx variance accept --shape v1:9f2c41ab8d0e5573
+Card: 1 subject(s) touched, 0 settled by one decision
+```
+
+`npx variance accept` promotes the images that run already produced; it never
+re-renders. It takes subject ids, `--all`, or `--shape <fingerprint>` as printed
+above, and it refuses by name any subject where something the shape does not
+account for also moved — which is why the checkout route is in `subjects` and
+not in `settles`.
 
 ## The shape
 
-A `RunReport` is one JSON value: run metadata plus one **`ObservationRecord`**
-per subject. Trimmed to the fields most reports use:
+A `RunReport` is one JSON value: run metadata plus one `ObservationRecord` per
+subject. Abridged to the fields most reports use:
 
 ```json
 {
@@ -98,130 +127,193 @@ per subject. Trimmed to the fields most reports use:
     "fonts": ["Inter"]
   },
   "retention": "durable",
+  "run": { "id": "ci-4821", "commit": "a1b2c3d" },
   "observations": [
     {
-      "subject": "component:Button",
+      "subject": "component:Button/primary",
       "verdict": "changed",
-      "because": "12 pixels differ inside the label",
-      "changedPixels": 12,
+      "because": "180 pixels differ inside the label",
+      "changedPixels": 180,
       "regions": [
-        { "x": 4, "y": 8, "width": 60, "height": 18, "pixels": 12, "component": "Button", "cause": true }
+        {
+          "x": 4,
+          "y": 8,
+          "width": 60,
+          "height": 18,
+          "pixels": 180,
+          "component": "Button",
+          "file": "src/ui/Button.tsx",
+          "fingerprint": "v1:9f2c41ab8d0e5573",
+          "cause": true
+        }
       ]
     }
+  ],
+  "notObserved": [
+    { "subject": "route:/settings", "kind": "failed", "because": "navigation timed out" }
   ]
 }
 ```
 
-Each `ObservationRecord` holds one subject's **verdict** — `unchanged`,
-`changed`, `new`, `incomparable`, or `ignored` — and, when it changed, the
-**region**s responsible: attributed rectangles of the diff, each with the
-component and pixel count that explain it.
+`identity` is the machine and renderer the pixels came from — what a baseline is
+only comparable within. Each observation's `verdict` is the run's answer for that
+one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
+`regions` are the rectangles of the diff, each carrying the component and pixel
+count that explain it.
 
-A report also carries **`narrowing`**: the ref a run was told to observe from,
-and where the recorded execution index stands — the commit it was written at,
-and how many files the working tree differs from it by. A run that observed
-everything carries the second half alone, which is what makes a narrowing option
-visible to a reader who never passed one. Absent `index` means there is nothing
-to diff from, either because no index was recorded or because the one on disk has
-no position; it never means the index is current, which is `changed: 0`.
+`notObserved` lists subjects the run planned and has no answer for, each
+`excluded`, `failed` or `unreached`. **Absent is not empty**: a report written by
+something other than `variance run` may never say what it skipped, and that is a
+different claim from "it skipped nothing". Read it before you print "nothing to
+review" — a run that planned 300 subjects, failed on 50 and found 250 unchanged
+has an all-clean observation list.
 
-A build instrumented with `testSelectionProbes()` writes a journal — which
-regions of source each subject entered while it was painted — and its report
-carries **`journeys`**: the modules where the run's subjects entered different
-regions, and the pool that finding is drawn from, as three lists of subjects:
-the ones with a complete journal, the ones whose journal was cut short, and the
-ones the journal has no row for. Absent is *no journal*, never *nobody parted*;
-`found` empty is the pool agreeing everywhere. The terms are in
-[journeys](https://variance-authority.dev/docs/journeys).
+Three further fields are present only when the run had something to put in them:
 
-## Presentation consequence is a signal, not a verdict
+- `narrowing` — the ref the run was told to observe from (`--since`), and where
+  the recorded execution index stands: the commit it was written at, and how many
+  files the working tree differs from it by. A run that observed everything
+  carries the second half alone, which is what makes the option visible to a
+  reader who never passed one. Absent `index` means there is nothing to diff
+  from; it never means the index is current, which is `changed: 0`.
+- `drift` — design tokens whose value moved in this run, each with what it moved
+  from, what it moved to, and how many approved steps it took to get there. This
+  is what a single comparison structurally cannot reach: eleven correct 2px
+  approvals sum to a 22px move nobody reviewed.
+- `journeys` — for a build instrumented with `testSelectionProbes()` from
+  `@variance-authority/sense`, the modules where the run's subjects entered
+  different regions of the source, plus the pool of subjects that answer is drawn
+  from. Absent means no execution journal was written — most builds carry no
+  probes — and never that every subject took the same path through the source.
+  The terms are in [journeys](https://variance-authority.dev/docs/journeys).
 
-An `ObservationRecord` can carry one or more **signals** —
-`ObservationRecord.signals`, each an independently measured boundary
-(`document`, `pixels`, `accessibility`, `presentation`); a missing member means
+### Signals beside the verdict
+
+An `ObservationRecord` can carry `signals`: independently measured boundaries —
+`document`, `pixels`, `accessibility` and `presentation`. A missing member means
 that boundary was never measured, not that it was clean.
-`ObservationRecord.signals.presentation` retains what changed in rendered
-relationships beside the document, pixel, and accessibility boundaries. It is
-orthogonal to the renderer's layout, paint and composite impact, and does not
-change the observation verdict.
 
-A comparable signal carries the two presentation-report digests, information
-counts, and `introduced`, `resolved`, or `persisted` relationship effects. An
-empty `effects` list means both sides were measured and no relationship
-consequence changed. An `incomparable` signal carries a reason and no effects;
-an absent `presentation` member means nothing measured that boundary.
+`signals.presentation` retains what changed in the rendered relationships between
+elements, beside the document, pixel and accessibility boundaries. It does not
+change the verdict. A comparable presentation signal carries the two digests,
+information counts, and `introduced`, `resolved` or `persisted` effects; an empty
+`effects` list means both sides were measured and no relationship changed. An
+`incomparable` one carries a reason and no effects.
 
-Product-aware collectors return the signal with their collected subject. The
-CLI carries it through both a pixel-compared path and a **digest-settled**
-one — a subject whose document digest matched the baseline's, so it was
-declared unchanged without ever being repainted — and the JSON file, HTML
-report, text report, MCP description, and Tribunal record read the same stored
-value without re-running presentation analysis. The producing API and a complete
-example live with `@variance-authority/presentation`.
+The CLI carries the signal through both the pixel-compared path and the path
+where a subject's document digest matched the baseline's, so it was declared
+unchanged without being repainted at all. The JSON file, HTML report, text
+report, MCP description and Tribunal record all read that stored value rather
+than re-running the analysis. The producing API is in
+`@variance-authority/presentation`.
 
-## Format derivations
+## Entrypoints
 
-None of these has a home in a reader. `clusterChanges` groups a run's changed subjects
-by fingerprint — the shape digest carried on each region — into a **cluster**:
-the set of subjects a single accept-or-reject decision covers. A token edit
-across forty stories becomes one cluster, so it is **one decision presented
-once** rather than forty. `adjudicateRun` reads those changes back against what
-the author said they were doing:
+| entrypoint | requires | holds |
+|---|---|---|
+| `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun`, `changelogOf` |
+| `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
+| `./suite-index` | nothing | `suiteIndexOf`, `encodeSuiteIndex`, `decodeSuiteIndex`, `SuiteIndex` |
+
+Import `./file` only when this process should read or write a local path. An
+object store, a pull request comment or a socket carries the same `RunReport`
+value without it.
+
+`./suite-index` is the part of a report that is not about the run: what the suite
+is made of — its subjects, its components, every name each one carries. That is a
+fact about the commit, it changes only when the suite does, and it is asked for
+far more often than a run happens. `suiteIndexOf` takes it out of a report as
+bytes, addressed by that commit, small enough for a cache to carry and stable
+enough that two machines composing the same suite write the same file.
+`decodeSuiteIndex` refuses anything else.
+
+## Check a run against what you said you were doing
+
+`adjudicateRun` reads the run's changes back against your declared claims. Each
+claim names a root — `component:Button`, `shape:<fingerprint>`, or a bare name
+read as a component — matched exactly, with an optional cap on how many subjects
+it may reach:
 
 ```ts
-import { readRunReport } from '@variance-authority/report/file';
+// adjudicate.ts — node --experimental-strip-types adjudicate.ts
 import { adjudicateRun, describeAdjudication } from '@variance-authority/report';
+import { readRunReport } from '@variance-authority/report/file';
 
-const report = await readRunReport('.variance/run.json');
+const report = await readRunReport('.variance/report.json');
 const answer = adjudicateRun(
   report,
   [{ root: 'component:Button', reason: 'new brand accent', maxSubjects: 3 }],
-  { unchecked: ['bands'] },
+  // Claim fields this resolution does not read, named so the answer can say so.
+  { unchecked: ['viewport'] },
 );
 
 console.log(describeAdjudication(answer));
 ```
 
-Each claim comes back `delivered`, `overreached`, `undelivered` or
-`unobservable`, alongside the changes no claim covered. `undelivered` is the one
-no diff can produce on its own — a component that **rendered and held still**,
-which means the edit did not take. Telling that apart from *never rendered, so
-nothing here is evidence* is what the composition census is for, and why the
-adjudication lives beside the format rather than inside a reader.
+### What you get
 
-`unchecked` is how a boundary keeps a claim it could not verify. A caller that
-parses agent-supplied claims — the MCP tool, the CLI — passes the field names
-this resolution does not read, and the answer ends `Not checked here: bands`
-instead of reporting `delivered` about something nothing looked at. Dropping
-them silently would be the more comfortable default and the worse one: the agent
-would be told its band claim held.
+On the same run:
 
-## Changelog derivation
+```
+Every declared edit landed; something you did not declare also moved.
+1 claim(s): 1 delivered, 0 undelivered, 0 over-reaching, 0 unchecked. 1 unclaimed change(s).
 
-A baseline update lands in a run of its own — `variance accept` promotes what a
-reviewer looked at — and the artifact that lands says *what* the new baseline is
-and nothing about **what the change was**. A month later, at the twelfth 2px
-approval, the report that could have said so is gone with the CI job.
+  [delivered] component:Button
+      declared (new brand accent) and delivered: component:Button changed in 3 subject(s): component:Button/primary, component:Button/disabled, route:/checkout. Not checked here: viewport.
+      src/ui/Button.tsx
 
-`changelogOf` folds a report and the subjects that were actually accepted into
-one record, and `renderCommitMessage` puts it where the baseline is: in the
-commit message, as prose a reviewer reads and trailers a parser reads.
+  [unclaimed] Card
+      Card moved and no claim covers it — 1 subject(s), 240 pixel(s), nothing it can settle on its own
+      src/ui/Card.tsx
+
+  [not observed] 1 subject(s) were not looked at, so every line above is bounded by what this run saw: route:/settings
+```
+
+Lower `maxSubjects` to 2 and the same claim comes back `[overreached]` —
+"the change is the intended one, its reach is not". A claim comes back
+`delivered`, `overreached`, `undelivered` or `unobservable`.
+
+`undelivered` is the one no diff produces on its own: a component that rendered
+and held still, which means your edit did not take. Telling that apart from
+*never rendered here, so nothing in this run is evidence either way* needs the
+report's `composition.components` — which components the run's subjects rendered
+at all. With it, the two cases separate into `undelivered` and `unobservable`;
+without it, `adjudicateRun` cannot make the distinction and says so rather than
+guessing.
+
+`unchecked` is how a caller keeps a claim it could not verify. A boundary that
+parses claims from an agent — the MCP tool, the CLI — passes through the field
+names this resolution does not read, and the answer ends `Not checked here:
+viewport` instead of reporting `delivered` about something nothing looked at.
+
+## Record why a baseline is what it is
+
+A baseline update lands in a run of its own, and the artifact that lands says
+*what* the new baseline is and nothing about what the change was. A month later,
+at the twelfth 2px approval, the report that could have said so left with the CI
+job.
+
+`changelogOf` folds a report and the subjects actually accepted into one record,
+and `renderCommitMessage` puts it where the baseline is — in the commit message,
+as prose a reviewer reads plus trailers a parser reads:
 
 ```ts
-import { readRunReport } from '@variance-authority/report/file';
+// changelog.ts — node --experimental-strip-types changelog.ts
 import {
   changelogOf,
+  clusterChanges,
   isRecorded,
-  renderCommitMessage,
   parseCommitMessage,
+  renderCommitMessage,
 } from '@variance-authority/report';
+import { readRunReport } from '@variance-authority/report/file';
 
-const report = await readRunReport('.variance/run.json');
-const accepted = report.observations
-  .filter((observation) => observation.verdict === 'changed')
-  .slice(0, 2)
-  .map((observation) => observation.subject);
-if (accepted.length === 0) throw new Error('the report has no changed subject to promote');
+const report = await readRunReport('.variance/report.json');
+// What `npx variance accept --shape <fingerprint>` would have promoted for every
+// shape in the run: the subjects each shape settles on its own.
+const accepted = clusterChanges(report.observations).changes.flatMap(
+  (change) => change.settles,
+);
 
 const record = changelogOf({
   report,
@@ -232,52 +324,79 @@ const record = changelogOf({
   by: 'marina',
 });
 
-if (isRecorded(record)) {
-  const text = renderCommitMessage({ message: 'chore(variance): regenerate baselines', record });
-  parseCommitMessage(text); // the same record, out of a commit somebody squash-merged
-}
+if (!isRecorded(record)) throw new Error(record.because);
+
+const text = renderCommitMessage({
+  message: 'chore(variance): regenerate baselines',
+  record,
+});
+console.log(text);
+// The same record, back out of a commit somebody squash-merged:
+console.log(parseCommitMessage(text));
 ```
+
+### What you get
+
+```
+chore(variance): regenerate baselines
+
+v1:9f2c41ab8d0e5573 Button src/ui/Button.tsx 2/3
+
+run ci-4821 @ a1b2c3d --shape marina
+
+Variance-Run: v1 eyJjaGFuZ2Vsb2dWZXJzaW9uIjoxLCJydW4iOiJjaS00ODIxIiwiY29tbWl0Ijoi…
+Variance-Change: v1 eyJmaW5nZXJwcmludCI6InYxOjlmMmM0MWFiOGQwZTU1NzMiLCJjb21wb25l…
+```
+
+The two trailers are one base64 line each, truncated above. `2/3` in the prose
+is the count that makes the record honest: two subjects promoted, out of the
+three this shape reached. The `Card` shape settles nothing on its own, so it
+contributes no entry. `parseCommitMessage` gives back the full record —
+`fingerprint`, `component`, `file`, `subjects`, `reached`, `cause` — and scans
+the whole message for trailers rather than only the last paragraph, since a
+squash merge moves them out of it.
+
+`renderCommitMessage` takes exactly two things: `message`, the subject line in
+your words, and `record`, what `changelogOf` returned. It writes no subject line
+of its own, so a commit says what you meant it to say and the trailers say what
+was promoted.
 
 `changelogOf` takes:
 
 | option | what it decides |
 |---|---|
-| `report` | the run the reviewer read. Nothing is re-derived from bytes; the entry is evidence about a decision rather than a second opinion about an image |
-| `accepted` | the subjects actually promoted. The entries are the **intersection** with each cluster, never the cluster's own list — `accept --shape` refuses by name any subject where something else also changed, and an entry that copied the cluster would claim those too |
-| `selection` | `named`, `shape` or `all`. Recorded rather than inferred: a regeneration under `--all` and a reviewed subject are different amounts of review, and a record that flattened them would let one read as the other |
-| `at` | ISO 8601, injected. Nothing written into a record may come from a hidden clock |
+| `report` | the run the reviewer read. Nothing is re-derived from bytes; the entry is evidence about a decision, not a second opinion about an image |
+| `accepted` | the subjects actually promoted. Entries are the intersection with each cluster, never the cluster's own list — `accept --shape` refuses by name any subject where something else also changed, and an entry copying the cluster would claim those too |
+| `selection` | `named`, `shape` or `all`. Recorded rather than inferred: a regeneration under `--all` and a reviewed subject are different amounts of review |
+| `at` | ISO 8601, injected. Nothing written into a record comes from a hidden clock |
 | `project` | optional; the name the run is scoped by |
 | `by` | optional; who accepted |
-| `entries` | optional; entries a caller already formed, appended after the clustered ones. Region clustering is one producer of entries, not the definition of one — a change to an interface is the same kind of fact and has no rectangle, and the alternative was fabricating four numbers into a `RegionRecord` to get through the region path. `ungrouped` is untouched by them, and an entry with no fingerprint, no subjects, or fewer reached than promoted is refused rather than written |
+| `entries` | optional; entries you already formed, appended after the clustered ones. A change to an interface is the same kind of fact and has no rectangle. An entry with no fingerprint, no subjects, or fewer reached than promoted is refused rather than written |
 
-It refuses, with a message rather than an empty record, when nothing was
-accepted or when the report has no run id to attribute the baseline to.
+It returns an `Unrecordable` with a `because` — never an empty record, which
+would read as "nothing changed" — when nothing was accepted, or when the report
+carries no run id to attribute the baseline to. `isRecorded` narrows between the
+two.
 
-The record omits a changed-pixel count (the regions already say where the
-change was), rendered prose (drift is a token and two values instead), and any
-derived total. `changelogVersion` changes only when an existing field's meaning
-changes — a reader keeps keys it does not recognize, so adding a new field does
-not need one.
+The record omits a changed-pixel count (the regions already say where the change
+was), rendered prose, and any derived total. `changelogVersion` changes only when
+an existing field's meaning changes; a reader keeps keys it does not recognise,
+so a new field does not need one.
 
-`renderCommitMessage` takes `message` (the operator's subject line, emitted
-unchanged) and `record`, and emits one versioned, opaque trailer per change.
-`parseCommitMessage` scans the whole message for them rather than just the last
-paragraph, since a squash merge can move them out of it.
+Reading it back where baselines are commits is `@variance-authority/store`'s
+`readChangelog`; where they are rows it is `@variance-authority/tribunal`'s.
 
-Reading it back where baselines are commits is
-`@variance-authority/store`'s `readChangelog`; where they are rows it
-is `@variance-authority/tribunal`'s.
+## What the reader refuses
 
-## Validation boundaries
-
-`readRunReport` validates rather than casts. It refuses:
+`readRunReport` validates rather than casts. It throws on:
 
 - an unknown `runVersion`, including one from a future writer
 - a malformed `notObserved` entry
 - a presentation transition missing the before/after evidence it requires
 
-A caller gets a fully-typed `RunReport` back, or a thrown error — never a
-partially-parsed value with some fields silently absent.
+You get a fully-typed `RunReport` back, or an error — never a partially-parsed
+value with fields silently absent. An absent `notObserved` stays absent rather
+than becoming an empty list.
 
 ---
 

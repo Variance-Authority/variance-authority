@@ -36,6 +36,10 @@ const REPO_DIRS = ['packages/', 'examples/', 'cases/', 'docs/', 'tools/', 'docke
 const FOREIGN: Readonly<Record<string, string>> = {
   'tests/home.spec.ts': "an incumbent's spec file, quoted from its output",
   'cart.spec.ts': "a reader's own spec file, quoted from a transcript about it",
+  'tests/checkout.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
+  'tests/cart.spec.ts': "a reader's own spec file, quoted from a watcher transcript",
+  'src/checkout/CartSummary.tsx': "a reader's own component, quoted from a sample report",
+  'src/ds.tsx': "a reader's own design-system module, quoted from a sample answer",
   'packages/core/dist/hash.js': 'a build artifact named in a quoted bundler error',
   'src/todo/TodoFooter.tsx': "a reader's own component, quoted from a sample answer",
   'src/ds/ChipGroup.tsx': "a reader's own component, quoted from a sample answer",
@@ -70,7 +74,9 @@ describe('every link resolves', () => {
   };
 
   it.each(MARKDOWN)('%s', (file) => {
-    const text = readFileSync(join(ROOT, file), 'utf8');
+    // A fenced block is shown, not followed: a sample of generated markdown
+    // carries the links of the artifact it depicts, not of this document.
+    const text = prose(file);
     const broken: string[] = [];
 
     for (const match of text.matchAll(/\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {

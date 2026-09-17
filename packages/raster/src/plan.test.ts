@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LAYOUT_RECIPE } from '@variance-authority/core/format';
 import { validatePlan, planForTier } from '@variance-authority/core/plan';
-import { DEFAULT_PLAN, defaultPlan, defaultPlanIdentity } from './plan.js';
+import { DEFAULT_CELL, DEFAULT_PLAN, defaultPlan, defaultPlanIdentity } from './plan.js';
 
 /**
  * The shipped composition, checked for the property that makes declaring it
@@ -45,5 +45,15 @@ describe('changing the system changes the address', () => {
   it('holds for an unchanged composition', () => {
     expect(defaultPlanIdentity()).toBe(defaultPlanIdentity());
     expect(defaultPlan()).toEqual(DEFAULT_PLAN);
+  });
+});
+
+describe('the default clustering grid', () => {
+  it('is what `cell` falls back to, so naming it changes nothing', () => {
+    expect(defaultPlan({ cell: DEFAULT_CELL })).toEqual(defaultPlan());
+  });
+
+  it('enters the identity, so a suite that clusters differently addresses differently', () => {
+    expect(defaultPlanIdentity({ cell: DEFAULT_CELL + 1 })).not.toEqual(defaultPlanIdentity());
   });
 });

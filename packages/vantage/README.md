@@ -10,188 +10,480 @@ Part of [Variance Authority](https://variance-authority.dev), a visual regressio
 yourself: it renders a UI state, compares it against the baseline you approved,
 and reports what changed in the vocabulary of your source.
 
-A suite already knows a great deal that nothing outside it can see. Which realms
-answered and in what order. Which work began and never finished. That a service
-is plainly talking while the test hearing it hears nothing. All of it exists for
-the length of one execution, is spent settling waits, and is then discarded —
-which is right for a wait, and wrong for anybody trying to understand the suite
-from outside it.
-
-```bash
-npm install @variance-authority/vantage
-```
-
-You do not install it on purpose either. It arrives under
-[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test), and the
-whole of its configuration is one environment variable.
-
-## The question a timeout cannot answer
+## What this is for
 
 A test that hangs reports what it *wanted*. Thirty seconds later, in a process
-that has already torn down the page, a runner prints the assertion that did not
+that has already torn down the page, the runner prints the assertion that did not
 settle. That is the last thing the failure knows and the first thing you already
 knew.
 
-What is missing is the other side: what the execution actually heard before it
-stopped, and from whom. Nothing at all is a wiring fact — no listener, or code
-that does not announce. A page that spoke while a service did not is a request
-that never arrived or never came back. Three announcements and then silence,
-with one `vaStart` still open, names the call that is hanging.
+This package gives you the other side, while the test is still stuck there. You
+start a small watching process; your suite is told its address through one
+environment variable and reports to it as it goes; you `GET` that same address
+from any other shell and read a JSON snapshot of what every test has done so
+far. Nothing is written to disk, and stopping the watcher loses the run.
 
-None of that survives the test, so nobody can ask it while it is true. This
-package is the second reader: a watching process listens, the run reports, and
-the signals are held in memory that ends with the watcher instead of memory that
-ends with the test.
+You can also stop a test on purpose — `await variance.observe()` in a spec holds
+the page exactly where it is until you say go on — and look at the live browser
+before releasing it.
 
-## Two ends
+## Requirements
 
-`openVantage()` is the run's end and reads `VARIANCE_AUTHORITY_VANTAGE`. When it
-is unset, `openVantage` returns `undefined` and the suite pays one environment read per worker —
-the same bargain heads make, because an instrument nobody asked for must not be
-a cost anybody pays.
+Node 22 or newer, and 22.15 for the CLI and the Playwright fixtures below. ESM
+only (`"type": "module"`); there is no CommonJS build.
+This package has no peer dependencies and imports nothing from any test runner —
+it is two ends of an HTTP conversation, and Playwright is only the runner the
+ready-made reporting fixtures happen to be written for.
+
+**You normally do not install this package.** It arrives as a dependency of
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test),
+[`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli) and
+[`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp). For the workflow
+below, install those:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/playwright-test @playwright/test
+```
+
+| Package | Why it is here |
+| --- | --- |
+| `@variance-authority/cli` | `npx variance watch` starts a watcher; `npx variance ask` reads one |
+| `@variance-authority/playwright-test` | `varianceFixtures`, which report your run to the watcher |
+| `@playwright/test` | the runner those fixtures extend (`>=1.49 <2`) |
+| `@variance-authority/event` | only if your application code announces — see *Announcements*, below |
+
+Install `@variance-authority/vantage` directly when you are writing your own
+watcher, or reporting from a runner that is not Playwright:
+
+```bash
+npm install --save-dev @variance-authority/vantage
+```
+
+## Watch a run, start to finish
+
+Three steps, in two shells. No port is agreed in advance: the watcher takes an
+ephemeral one and prints the address, and that printed string is the only thing
+you carry.
+
+**1. Start the watcher and leave it up.**
+
+```bash
+npx variance watch
+```
+
+```
+variance-authority is watching. Start the suite with this in its environment:
+
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393
+
+Ask it, from any other shell, with the same address:
+
+  variance ask self --at http://127.0.0.1:53393
+
+It holds the run in memory and writes nothing down. Stop it and the run is gone.
+```
+
+**2. Start the suite with the line it printed**, in a second shell, using that
+address rather than the one above:
+
+```bash
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 npx playwright test
+```
+
+The suite needs `varianceFixtures`, and nothing else:
+
+```ts
+// tests/fixtures.ts
+import { test as base, expect } from '@playwright/test';
+import { varianceFixtures } from '@variance-authority/playwright-test';
+
+export const test = base.extend(varianceFixtures);
+export { expect };
+```
+
+Every test in the run appears, including tests that destructure nothing, so the
+listing has no holes. With `VARIANCE_AUTHORITY_VANTAGE` unset, `varianceFixtures`
+costs one environment read per worker and reports nothing.
+
+**3. Ask, from a third shell or the second one**, with that same address:
+
+```bash
+npx variance ask run-signals --at http://127.0.0.1:53393
+```
+
+`npx variance ask` reads `variance.config.json` from the working directory before
+it answers anything, live questions included, so run it from your project root.
+
+### What you get
+
+`npx variance ask run-signals --at <address>`, against a run in flight:
+
+```
+2 test(s) at http://127.0.0.1:53393 — 1 running, 1 passed.
+
+▸ waiting     checkout › pays with a saved card — tests/checkout.spec.ts — project chromium — worker 2 — heard 3, pending 1
+      stopped at tests/checkout.spec.ts:41:11
+  passed      cart › adds an item — tests/cart.spec.ts — project chromium — worker 0 — heard 0
+```
+
+`npx variance ask test-signals --test f8a1c2d3e4b5 --at <address>`, for the one
+that is stuck:
+
+```
+checkout › pays with a saved card — tests/checkout.spec.ts — project chromium — worker 2 — running
+
+Heard, in order:
+     0  page  checkout / card-form / shown
+     1  page  checkout / payment / authorising (start)
+     2  payments-service  payments / charge / received
+
+Started and never ended:
+  page  checkout / payment / authorising
+
+The listener also knows:
+  payments-service has announced 1 time(s) in this execution
+
+The test itself sent:
+    tests/checkout.spec.ts:41:11  after 3 announcement(s)  before the card form appears
+
+Stopped at tests/checkout.spec.ts:41:11, waiting to be told to continue. Release it with `variance_continue`.
+```
+
+Both are printed from the same JSON a plain `GET` returns, so a reader that is
+not the CLI gets the whole thing:
+
+```bash
+curl "$VARIANCE_AUTHORITY_VANTAGE/"
+```
+
+```json
+{
+  "state": {
+    "address": "http://127.0.0.1:53393",
+    "tests": [
+      {
+        "id": "f8a1c2d3e4b5",
+        "title": "checkout › pays with a saved card",
+        "file": "tests/checkout.spec.ts",
+        "project": "chromium",
+        "worker": 2,
+        "ordinal": 0,
+        "state": "running",
+        "heard": [
+          { "phase": "once", "location": "checkout", "subject": "card-form", "action": "shown", "ordinal": 0, "realm": "page" },
+          { "phase": "start", "location": "checkout", "subject": "payment", "action": "authorising", "ordinal": 1, "realm": "page" },
+          { "phase": "once", "location": "payments", "subject": "charge", "action": "received", "ordinal": 2, "realm": "payments-service" }
+        ],
+        "forgotten": 0,
+        "pending": [
+          { "phase": "start", "location": "checkout", "subject": "payment", "action": "authorising", "ordinal": 1, "realm": "page" }
+        ],
+        "remarks": ["payments-service has announced 1 time(s) in this execution"],
+        "notes": [
+          { "at": "tests/checkout.spec.ts:41:11", "note": "before the card form appears", "ordinal": 0, "after": 3 }
+        ],
+        "forgottenNotes": 0,
+        "waitingAt": "tests/checkout.spec.ts:41:11"
+      },
+      {
+        "id": "a1b2",
+        "title": "cart › adds an item",
+        "file": "tests/cart.spec.ts",
+        "project": "chromium",
+        "worker": 0,
+        "ordinal": 1,
+        "state": "passed",
+        "heard": [],
+        "forgotten": 0,
+        "pending": [],
+        "remarks": [],
+        "notes": [],
+        "forgottenNotes": 0
+      }
+    ],
+    "forgotten": 0
+  },
+  "previous": { "address": "http://127.0.0.1:53393", "tests": [], "forgotten": 0 }
+}
+```
+
+`previous` is the snapshot handed to whoever read last, so a one-shot command can
+answer *what has happened since somebody looked* without holding anything between
+invocations. It is one value shared by every reader of that watcher, not one per
+reader.
+
+### The fields
+
+| Field | What it is |
+| --- | --- |
+| `id` | the runner's test id — a retry arrives as a different id |
+| `state` | `running`, or the runner's own word for how it ended: `passed`, `failed`, `timedOut`, `skipped`, `interrupted` |
+| `heard` | every announcement in this execution, oldest first |
+| `pending` | work that started and never ended, exact whatever was dropped |
+| `remarks` | what the listener worked out and a wait could not see, keyed and last-write-wins |
+| `notes` | what the spec itself sent, from `variance.snapshot()` and `variance.observe()` calls its author placed |
+| `waitingAt` | `file:line:column` where this test has stopped, present only while it is stopped |
+| `error` | the first four lines of the failure, when there was one |
+| `forgotten`, `forgottenNotes` | how many entries were dropped from the front to stay bounded |
+
+Inside `heard` and `pending`:
+
+| Field | What it is |
+| --- | --- |
+| `realm` | who announced it: `page`, or the name a service reports under |
+| `location`, `subject`, `action` | the three coordinates the announcing call used, in the code's own words. Not a Variance Authority subject — one named UI state you asked for and can ask for again; this package never sees one |
+| `phase` | `once`, or `start`/`end` for work with a duration |
+| `ordinal` | arrival order in this execution, from 0 |
+
+`waitingAt` is not a sixth `state`. A test standing still is running.
+
+### Announcements
+
+`heard`, `pending` and `realm` are empty until your application code announces.
+Announcing is `@variance-authority/event`: `vae(location, subject, action)` for a
+thing that happened, and `vaStart` / `vaEnd` on the same three coordinates for
+work with a duration — anything `vaStart` opened and `vaEnd` never closed is what
+lands in `pending`.
+
+```ts
+import { vae, vaStart, vaEnd } from '@variance-authority/event';
+
+vaStart('checkout', 'payment', 'authorising');
+await authorise();
+vaEnd('checkout', 'payment', 'authorising');
+vae('checkout', 'card-form', 'shown');
+```
+
+A test hears those only if it destructures the `events` fixture, which is what
+installs the listener:
+
+```ts
+import { expect, test } from './fixtures';
+
+test('pays with a saved card', async ({ page, events }) => {
+  await page.goto('/checkout');
+  await events.happened('checkout', 'card-form', 'shown');
+  await expect(page.getByRole('dialog')).toBeHidden({ timeout: 0 });
+});
+```
+
+A test that takes no `events` fixture still appears in the listing, with `heard`
+empty. That distinction is the diagnosis: nothing at all is a wiring fact — no
+listener, or code that does not announce — while a page that spoke while a
+service did not is a request that never arrived or never came back.
+
+## Stop a test where you want to look at it
+
+```ts
+import { expect, test } from './fixtures';
+
+test('the cart settles', async ({ page, variance }) => {
+  await page.getByRole('button', { name: 'Add' }).click();
+  variance.snapshot('one item in');
+
+  await page.getByRole('button', { name: 'Checkout' }).click();
+  await variance.observe('before the card form appears');
+
+  await expect(page.getByTestId('cart')).toBeVisible();
+});
+```
+
+`snapshot(note?)` sends what is here now and keeps going. `observe(note?, options?)`
+sends it and then holds the test — the page still up, the network still whatever
+it was — until somebody releases it. Neither takes a line number; both read their
+own from the stack. While a test stands still the runner's clock is stopped, and
+when it goes on it has exactly the time it had before.
+
+Find and release stopped tests:
+
+```bash
+npx variance ask waiting --at http://127.0.0.1:53393
+```
+
+```
+1 test(s) are waiting to be told to continue.
+
+  checkout › pays with a saved card — tests/checkout.spec.ts — project chromium — worker 2 [f8a1c2d3e4b5]
+    stopped at tests/checkout.spec.ts:41:11
+    sent:
+      tests/checkout.spec.ts:41:11  after 3 announcement(s)  before the card form appears
+```
+
+Releasing is the one thing a one-shot shell command cannot do, because the run is
+held in the watcher's memory and a CLI process holds no run. Release from the
+process that is watching: over MCP with `variance_continue`, or in your own
+watcher with `release` (below).
+
+Leave both calls in the spec. With `VARIANCE_AUTHORITY_VANTAGE` unset, `observe`
+returns `'unwatched'` immediately and `snapshot` sends nothing, so a spec that
+has them runs straight through in CI — which is what separates them from the
+`debugger;` and `.only` they stand in for. If you do run a watcher in CI and
+nobody ever releases, `observe` returns `'expired'` after ten minutes by default
+and the test carries on.
+
+## Write your own watcher
+
+`attachVantage()`, from `@variance-authority/vantage/attach`, is the watching
+end and the only half that opens a socket. It returns the address to start a run
+with, so you never type a port:
+
+```ts
+// watch.ts — run with `node watch.ts`
+import { spawn } from 'node:child_process';
+import { attachVantage } from '@variance-authority/vantage/attach';
+
+const watching = await attachVantage();
+
+const suite = spawn('npx', ['playwright', 'test'], {
+  env: { ...process.env, VARIANCE_AUTHORITY_VANTAGE: watching.address },
+  stdio: 'inherit',
+});
+
+const every = setInterval(() => {
+  const now = watching.observatory.snapshot();
+  for (const test of now.tests) {
+    if (test.waitingAt === undefined) continue;
+    console.log(`${test.title} stopped at ${test.waitingAt}; letting it go`);
+    watching.observatory.release(test.id);
+  }
+}, 500);
+
+suite.on('exit', async () => {
+  clearInterval(every);
+  await watching.close();
+});
+```
+
+| On `attachVantage()`'s result | |
+| --- | --- |
+| `address: string` | the origin a run is started with, and the origin a reader `GET`s |
+| `observatory.snapshot(): VantageState` | plain values that will not change again — the shape printed above |
+| `observatory.release(test: string): boolean` | let one stopped test go on; `false` if it was not stopped, or was already released |
+| `observatory.releaseAll(): readonly string[]` | let everything stopped go on, and answer which tests those were |
+| `close(): Promise<void>` | stop listening; the run it held is gone |
+
+A release is spent exactly once, by the run's next poll. Two readers cannot
+release one test twice, and a second release cannot land on whatever that test
+stops at next.
+
+`AttachOptions` takes `host` (the interface to listen on, default `127.0.0.1`)
+and the three bounds below.
+
+## Report from your own runner
+
+`openVantage()` is the run's end. It reads `VARIANCE_AUTHORITY_VANTAGE` and
+returns `undefined` when that is unset, or names anything that is not `http:` on
+loopback:
 
 ```ts
 import { openVantage } from '@variance-authority/vantage';
 
 const vantage = openVantage();
-vantage?.opened('t-1', { title: 'cart adds an item', file: 'cart.spec.ts', worker: 0 });
+
+vantage?.opened('t-1', {
+  title: 'cart adds an item',
+  file: 'tests/cart.spec.ts',
+  project: 'chromium',
+  worker: 0,
+});
+vantage?.heard('t-1', {
+  phase: 'once',
+  location: 'cart',
+  subject: 'line-item',
+  action: 'added',
+  ordinal: 0,
+  realm: 'page',
+});
+vantage?.noted('t-1', 'tests/cart.spec.ts:12:5', 'one item in');
+
+const ending = await vantage?.waits('t-1', 'tests/cart.spec.ts:12:5', {
+  timeoutMs: 60_000,
+  pollMs: 50,
+});
+// 'continued' | 'unwatched' | 'released' | 'expired'
+
+vantage?.closed('t-1', 'passed');
 ```
 
-`opened`, `heard`, `remarked`, `noted` and `closed` are the five sentences a run
-says on its own account, and every one of them is fire-and-forget. A watcher is an observer and may not
-break its subject: a run that failed because the thing looking at it went away
-would be worse than no watcher at all.
+Under `varianceFixtures` all of this is already done for you: the lifecycle half
+is automatic, and `variance.snapshot` / `variance.observe` are `noted` and
+`waits` with the call site filled in. Call `openVantage()` once per worker
+process, not once per test — the Playwright fixture that wraps it is
+worker-scoped. Nothing about the id is inspected: it is the string every report
+about that test travels under, so give it whatever your runner calls a test.
 
-`attachVantage()`, from `@variance-authority/vantage/attach`, is the watcher's
-end and the only half that opens a socket. It is a separate entrypoint for the
-reason `@variance-authority/event/collect` is: the two halves ship to different
-places.
+`opened`, `heard`, `remarked`, `noted` and `closed` are fire-and-forget: each
+queues one loopback `POST` behind whatever that endpoint is still sending, and
+nothing in your test awaits it or sees it fail. A watcher that went away cannot
+break the run it was watching.
 
-```ts
-import { attachVantage } from '@variance-authority/vantage/attach';
+`waits(test, at, options?)` is the only call that returns a promise you wait on.
+It says where the test stopped, then polls the watcher every `pollMs` (50 by
+default, a loopback round trip) until it is told to go on or `timeoutMs` (ten
+minutes by default) runs out. It answers in one of four words rather than
+throwing, because none of them is a test failure:
 
-const watching = await attachVantage();
-console.error(`VARIANCE_AUTHORITY_VANTAGE=${watching.address}`);
+| | |
+| --- | --- |
+| `continued` | a reader released it |
+| `unwatched` | nothing was watching, so there was never anything to wait for |
+| `released` | the watcher went away mid-wait |
+| `expired` | nobody came within `timeoutMs` |
 
-const now = watching.observatory.snapshot();
-```
+Pass `Infinity` as `timeoutMs` only if you have also lifted your runner's own
+timeout.
 
-`address` is derived rather than agreed. The port is ephemeral, so a second
-watcher on the same machine coordinates with nothing, and the one string
-`attachVantage` returns is everything a run needs to be started with.
+## Bounds, and what the watcher will not do
 
-That same string is also where the watcher answers. A `GET` on it returns the
-snapshot as JSON, together with the snapshot handed to the previous reader, so a
-process that is not this one can ask what the run is doing:
+`ObservatoryOptions` — passed through `attachVantage` — bounds what one watcher
+holds:
 
-```bash
-curl http://127.0.0.1:54321/
-```
+| Option | Default | |
+| --- | --- | --- |
+| `tests` | 200 | tests kept, newest |
+| `heard` | 500 | announcements kept per test, newest |
+| `notes` | 100 | notes kept per test, newest |
+| `address` | the one it is listening on | carried into every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
 
-One address rather than two. A reader asks on the string it already had to
-export for the suite, and there is no second port to keep in step with the
-first. Reading and reporting are separated by method rather than by path,
-because a participant reports under an execution id it chose and `/` is a
-perfectly good one.
+Past those, entries drop from the front and are counted: `forgotten` on the run,
+`forgotten` and `forgottenNotes` on each test. Every printed answer says how many
+were dropped, so an empty list is never mistaken for a beginning that was
+forgotten. `pending` is exact regardless — what is bounded is the list of
+announcements, not the tally of work that opened and never closed.
 
-The previous snapshot travels with the reading because the reader is a process
-that exits. It cannot hold the state a *what changed since I last asked* answer
-compares against, and it cannot come back to say it succeeded — so the watcher
-rotates as it hands a reading over. One `previous` is shared by every reader,
-which is the bargain one MCP connection already makes for its one client.
+There is no authentication. The listener answers anyone who can reach the port,
+and loopback is the whole of the access control: `openVantage` refuses any
+address that is not `http:` on `127.0.0.1`, `localhost` or `::1`, so a watcher
+started with `host` set to a public interface will listen there and no run will
+report to it.
 
-The medium is [`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire): one id per
-execution, one address to answer on, and the execution in the address rather
-than in the body. A run is simply another participant with something to say. The
-only difference from a head is which end is the subject — and that this is the
-one listener that also answers, which the medium takes as an option so a head or
-an event collector stays write-only.
+Nothing is written down. There is no report directory, no file to clean up and no
+artifact to mistake for evidence later; what changes is only how long one
+execution lasts while somebody is watching. Stop the watcher and the run is gone.
 
-## Reading it
+None of this is about visual regression, and none of it touches a baseline, a
+verdict or an exit code. A suite that never takes a screenshot reports exactly
+the same sentences as one that does.
 
-`snapshot()` hands back plain values that will not change again — an observatory
-is a mutable thing a socket writes into, and a question about a run must not be
-answered from a value that moves while the answer is being written.
+## Over MCP
 
-Each `WatchedTest` carries its `id`, `title`, `file`, `project`, `worker` and
-`state`; everything the execution `heard`, in order, each announcement naming the
-realm that made it; what is `pending`, meaning work `vaStart` opened and `vaEnd`
-never closed; the listener's `remarks`; what the test itself sent as `notes`; and
-the `error`, when there was one.
-
-A test that has stopped to be looked at also carries `waitingAt` — where in the
-spec it stopped. That is not a sixth `TestState`: the runner's five words are how
-a test *ended*, and a test waiting there has not ended. It is running, and
-standing still.
-
-`pending` is exact no matter what was dropped. What is bounded is the list of
-announcements, not the tally of work that opened and never closed, and the tally
-is the one an unfinished run is actually asked about.
-
-`ObservatoryOptions` takes `tests`, how many tests to keep, defaulting to 200,
-`heard`, how many announcements to keep per test, defaulting to 500, and
-`notes`, how many of a test's own sends to keep, defaulting to 100. Both
-drop from the front and both are counted, because a reader who cannot tell
-*nothing was announced* from *the beginning was forgotten* draws the first
-conclusion — the one that sends somebody looking for a call that is right there.
-`address` is carried into every answer so a reader with nothing to show can name
-what to set. `AttachOptions` adds `host`, the interface to listen on, defaulting
-to `127.0.0.1`, which is the only kind of address a run will report to.
-
-## Still nothing written down
-
-`@variance-authority/event` takes the position that an announcement is a message
-and not a record, and nothing here changes it. There is no report directory, no
-file to clean up and no artifact to mistake for evidence later. What changes is
-only how long one execution lasts when somebody is watching: the memory holding
-it belongs to a process that outlives the test rather than to the test. Stop
-that process and the evidence is gone, which is the same bargain at a different
-scale.
-
-## Under Playwright, and under an agent
-
-`varianceFixtures` reports for every test in the run. The lifecycle half is
-automatic, so a listing has no holes — a test that destructures nothing still
-appears — and the announcements arrive from whichever tests took the `events`
-fixture.
-
-```bash
-VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test
-```
-
-Two things start a watcher, and they hold the run identically. `variance watch`,
-from [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli), prints that line and stays
-up; `variance ask --at <address>` reads it from any other shell.
 `variance-authority-mcp --watch`, from
-[`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), does the same over stdio for a
-client that speaks it. Both answer `variance_self`, `variance_run_signals`, `variance_waiting` and
-`variance_test_signals` about a suite that is still going, from the same
-functions over the same snapshot.
+[`@variance-authority/mcp`](https://variance-authority.dev/reference/packages/mcp), is the same watcher
+over stdio for an agent, and answers from the same snapshot:
 
-## Stopping a run, and letting it go
+| Tool | Answers |
+| --- | --- |
+| `variance_self` | where this watcher is listening, whether anything has reported, and what to start a suite with |
+| `variance_run_signals` | every test that has reported, its state, and how much each has announced |
+| `variance_test_signals` | one test's announcements in order, the realm that sent each, and its unclosed work |
+| `variance_waiting` | which tests have stopped, where, and what they sent from there |
+| `variance_diff` | what changed between this reading and the one before it |
+| `variance_continue` | let one stopped test go on, or all of them |
 
-`waits` is the sixth call, and the one that asks. It says where the test stopped
-and then polls this watcher — every `pollMs`, fifty by default, which is a
-loopback round trip — until it is told to go on. The run asks and the watcher
-answers, so the socket direction never reverses and the rule above survives
-intact.
-
-Every way of losing the watcher ends the wait rather than extending it, and each
-says which it was: `unwatched` before the first ask, `released` when one that was
-there has gone, `expired` when nobody came inside `timeoutMs` — ten minutes by
-default — and `continued` when a reader actually said go on. The
-failure mode of the thing that stops a test is that the test continues, which is
-what makes a call to it safe to commit.
-
-`release(test)` tells one stopped test to go on and `releaseAll()` tells all of
-them; each answers what it actually released. The run collects that release
-exactly once, however many readers asked for one — the answer to its poll *is*
-the release, so a second reader cannot spend the same one on whatever that test
-stops at next.
-
-Nothing here knows what a subject is, and none of it is about visual regression.
-A suite that never takes a screenshot reports exactly the same sentences as one
-that does.
+`npx variance ask` answers all but the last from a shell — `self`,
+`run-signals`, `test-signals`, `waiting`, `diff` — against a watcher named with
+`--at <address>`. `variance_continue` has no `ask` equivalent, for the reason
+above.
 
 ---
 

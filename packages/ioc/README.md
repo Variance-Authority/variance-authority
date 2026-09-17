@@ -26,6 +26,11 @@ and the runner says when.
 npm install --save-dev @variance-authority/ioc
 ```
 
+## Requirements
+
+Node 22 or newer, and an ESM project. The package declares no dependencies and
+no peers.
+
 ## Declare the reset where the state lives
 
 `registerResetHandler` goes beside the state, at module scope, in the module
@@ -55,15 +60,31 @@ the package honour a second setup instead of guessing that it is a duplicate.
 
 ## Install the driver in the test setup
 
+```bash
+npm install --save-dev @variance-authority/ioc vitest
+```
+
 ```ts
+// vitest.setup.reset.ts
 import { beforeEach } from 'vitest';
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
 configureResetHandler(beforeEach);
 ```
 
-Hand it the runner's own per-test hook — Vitest, Jest, Mocha and Playwright all
-fit, because it takes the shape those hooks share and imports none of them.
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: { setupFiles: ['./vitest.setup.reset.ts'] },
+});
+```
+
+Hand it the runner's own per-test hook. `configureResetHandler` types that
+argument as the shape Vitest, Jest, Mocha and Playwright hooks share and imports
+none of them, so Jest and Mocha take the same call from their own setup file.
+Playwright is the one that needs a different shape around it, below.
 
 `beforeEach`, not `afterEach`. A failing test does run its `afterEach`; that is
 the hook's contract. Resetting on the way in instead keeps the state a failure
@@ -76,13 +97,82 @@ registers when its module is imported. Make it the first entry in `setupFiles`,
 or the first import of a Playwright fixture. Get it wrong and you are told:
 
 ```
-@variance-authority/ioc/reset: 3 handler(s) registered before this setup ran,
-and they are not installed. The first was — resetTheCounter: () => { counter = 0; }
+@variance-authority/ioc/reset: 1 handler(s) registered before this setup ran,
+and they are not installed. The first was — () => { counter = 0; }
+
+A handler registers when its module is imported, so a module imported before
+this call has already asked and been refused. Move the import of this setup file
+above every application module: in Vitest and Jest, make it the first entry in
+setupFiles; in Playwright, the first import of the fixture file.
 ```
+
+The count is how many asked early; the text after the dash is the first of them,
+so you can find the module. It is the handler's source, with the handler's name
+in front of it when it has one — a `function resetCounter() {}` declaration, or
+an arrow assigned to a `const`. The arrow above was passed straight into the
+call, so it has no name and only its source is printed. Name the handler if you
+want the message to name it.
 
 That check is unconditional and has no opt-out. A handler that registered early
 is not installed, and a suite that silently does not reset is the failure this
 package removes.
+
+### Playwright
+
+Playwright has no `setupFiles`, and a `test.beforeEach` call attaches to the
+spec file that is loading when it runs — so a module that calls it is imported
+once and covers only the first spec file. Install the driver on an automatic
+fixture instead, and export the `test` your specs import:
+
+```bash
+npm install --save-dev @variance-authority/ioc @playwright/test
+```
+
+```ts
+// reset.fixture.ts
+import { test as base } from '@playwright/test';
+import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
+
+let resetModules = (): void => {};
+
+configureResetHandler((run) => {
+  resetModules = run;
+});
+
+export const test = base.extend<{ moduleState: void }>({
+  moduleState: [
+    async ({}, use) => {
+      resetModules();
+      await use();
+    },
+    { auto: true },
+  ],
+});
+
+export { expect } from '@playwright/test';
+```
+
+`configureResetHandler` hands the driver to whatever you pass; keeping it in a
+variable and calling it from an automatic fixture runs it before every test in
+every spec file, which is what the runner's own hook cannot do from here.
+
+```ts
+// tests/counter.spec.ts
+import { expect, test } from '../reset.fixture.js';
+import { next } from '../counter.js';
+
+test('leaves the counter at two', () => {
+  expect(next()).toBe(1);
+  expect(next()).toBe(2);
+});
+
+test('starts from zero again', () => {
+  expect(next()).toBe(1);
+});
+```
+
+The fixture import goes above the import of any application module: `counter.ts`
+registers its handler when it is imported, and imports run in source order.
 
 ## What it does not reach
 
@@ -91,8 +181,10 @@ runs before any hook and sees whatever the previous file left.
 
 Into somebody else's package, nothing. A memoized value inside a dependency you
 do not author has no place to put a handler, and the answer there is to observe
-the coupling rather than to clear it — `variance run` reads a changed subject
-twice and names the component and the band that moved.
+the coupling rather than to clear it — `npx variance run` reads a changed
+subject (one named UI state you asked for and can ask for again) twice and names
+both the component that moved and the band it moved in: the kind of thing that
+changed, such as text, geometry or accessible name.
 
 ## Why the gate is the driver and not the build mode
 
