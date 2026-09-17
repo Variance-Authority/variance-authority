@@ -130,7 +130,7 @@ Storybook-built artifact: new → accept → unchanged → a
 | `suspenseTimeoutMs` | A story legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 | `source` | Reports should resolve component names to `file:line`. | Omitted; component names remain available. An empty or mistyped scan is refused. |
 | `baseUrl` | Storybook is already running. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
-| `headless` | You need to watch collection while debugging. | `true`; set `false` locally. |
+| `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
 | `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
 | `wiring` | Your preview's renderer is not React, so the fiber walk buys an absent band. | `true`. A band of its own; turning it off changes no stored digest. |
