@@ -132,10 +132,19 @@ sorted order          id column
 A new path takes the next unused number and is written into its own sorted
 place. Both facts hold at once because they are held in different places.
 
-The failure this prevents is not a crash. A record is a set of crossings between
-test identities and module numbers, and nothing in it restates the path. If a
-number silently changed hands, the record would still load, still answer, and
-answer about the wrong module — selecting the tests that entered `cart.ts`
+Only one direction is asked of the table. A build has a path and needs the
+number to emit, which is the binary search above. Going back — number to path —
+does not go through the table at all: the module record a build writes as it
+instruments a module carries the path and the number together, so whatever reads
+that record already holds both. The one caller that does walk numbers back
+through the table is compaction, and it visits every entry anyway, so it decodes
+the sorted run forwards once rather than carrying a number-to-offset column that
+would cost bytes at every entry to save nothing.
+
+The failure this prevents is not a crash. The coverage file is a set of
+crossings between test identities and module numbers, and nothing in it restates
+a path. If a number silently changed hands, it would still load, still answer,
+and answer about the wrong module — selecting the tests that entered `cart.ts`
 for a change in `checkout.ts`, and skipping the ones that matter. A stable
 number is what makes evidence from an earlier run usable by a later one.
 
