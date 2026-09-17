@@ -3,11 +3,17 @@ name: check
 # This repository's own gate. Everything in it that is a decision is commented as
 # one.
 #
-# `.github/workflows/variance.yml` is a different thing entirely: an *example* of
-# wiring the tool into somebody's project, which happens to live here. Until this
-# file existed, nothing ran `yarn build`, `yarn check` or `yarn test` anywhere but
-# a laptop — so `tools/boundaries.check.ts` and the `tools/docs-*.check.ts` rules
-# were enforcing themselves only against whoever happened to type the command.
+# This job runs the suite and the repository's own rules, and it launches no
+# browser — see the note at the bottom of the steps. Until it existed, nothing ran
+# `yarn build`, `yarn check` or `yarn test` anywhere but a laptop, so
+# `tools/boundaries.check.ts` and the `tools/docs-*.check.ts` rules were enforcing
+# themselves only against whoever happened to type the command.
+#
+# `.github/workflows/variance.yml` answers the other half: it observes
+# `cases/storybook-case` in a pinned container and gates on what moved. Both are
+# this repository's gates. A green check here is still not a green suite, and a
+# green variance run is about twelve stories in a fixture rather than about this
+# project's own interface.
 
 on:
   push:

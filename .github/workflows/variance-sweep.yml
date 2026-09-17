@@ -89,36 +89,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - id: config
-        name: is there anything to observe
-        shell: bash
-        run: |
-          # This repository does not commit a variance config yet, and a nightly
-          # job that fails every night because a file it needs was never written
-          # is a job people mute.
-          #
-          # TODO: point this and the --config below at
-          # cases/storybook-case/variance.config.json, which is tracked, and add
-          # the Storybook build it reads; then delete this gate. While it looks at
-          # the repository root, every step below is skipped and no sweep has ever
-          # collected anything.
-          if [ -f variance.config.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::no variance.config.json in this repository, so nothing was swept."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: yarn build
 
-      - if: steps.config.outputs.present == 'true'
-        id: sweep
+      # The subject has to exist before it can be collected twice. Storybook's own
+      # build produces the `index.json` the collector reads, and `storybook-static/`
+      # is ignored, so there is no committed copy this could be stale against.
+      - name: build the Storybook this sweep collects
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      # A sweep re-collects rather than paints, so this is not where its baselines
+      # come from — `variance.yml` paints them on every push to `main`, and this
+      # restores what that left.
+      #
+      # Without it every subject here would be `new` every night, the run would
+      # exit 1 on all twelve, and a nightly job that is red whatever happened is a
+      # nightly job people mute. The flake finding would still be in the report;
+      # nobody would be reading it.
+      #
+      # The key carries the image tag because the image is the renderer, and it
+      # has to name the same image as `container.image` above. Nothing checks that
+      # it does: a mismatch restores baselines painted by a different Chromium,
+      # which the run reports `incomparable` rather than diffing (ADR-0011).
+      - name: restore the baselines main last painted
+        uses: actions/cache/restore@v4
+        with:
+          path: cases/storybook-case/.variance/baselines
+          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
+          restore-keys: |
+            variance-baselines-playwright-v1.62.1-noble-
+
+      - id: sweep
         name: variance run --flakes
         shell: bash
         run: |
@@ -128,7 +133,7 @@ jobs:
           # errexit, so the code is captured without disarming the shell for the
           # lines after it.
           if node packages/cli/dist/bin.js run \
-               --config variance.config.json \
+               --config cases/storybook-case/variance.config.json \
                --profile chromium \
                --flakes \
                --intent 'nightly stability sweep'; then
@@ -158,15 +163,15 @@ jobs:
       # or it gets nothing, and "one page, no service behind it" is what the HTML
       # renderer is for. Image paths in it are relative to the report, which is why
       # the whole directory is uploaded rather than the page alone.
-      - if: ${{ always() && steps.config.outputs.present == 'true' && steps.sweep.outputs.exit-code != '2' }}
+      - if: ${{ always() && steps.sweep.outputs.exit-code != '2' }}
         name: render the sweep as one page
         shell: bash
         run: |
           set -euo pipefail
           node packages/cli/dist/bin.js report \
-            --config variance.config.json \
+            --config cases/storybook-case/variance.config.json \
             --format html \
-            --exit-zero-on-changes > .variance/sweep.html
+            --exit-zero-on-changes > cases/storybook-case/.variance/sweep.html
 
           # `--exit-zero-on-changes` *is* right here, and for the opposite reason
           # to the step above: this step renders, it does not adjudicate. The
@@ -174,11 +179,15 @@ jobs:
           # code; a renderer that could also fail the build would give the sweep
           # two places to be red and no way to tell which one spoke.
 
-      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: variance-sweep
-          path: .variance/
+          path: cases/storybook-case/.variance/
+          # Without this the artifact is empty and nothing says so. `.variance` is
+          # a dotted directory, and this action skips hidden files by default —
+          # so the upload would succeed and the zip would hold nothing.
+          include-hidden-files: true
           if-no-files-found: warn
 
           # Longer than the 90-day default would be the wrong instinct. A sweep is
@@ -189,7 +198,7 @@ jobs:
           # hoard is a worse version of that question with no way to ask it.
           retention-days: 14
 
-      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+      - if: always()
         name: verdict
         shell: bash
         env:

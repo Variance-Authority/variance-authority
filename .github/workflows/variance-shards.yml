@@ -32,8 +32,18 @@ name: variance shards
 # partition before they are written. What is *not* caught is a shard that never
 # ran at all — see the guard in the merge job.
 
+# ## Why this one is not on `pull_request` here, and would be in your repository
+#
+# It observes the same twelve subjects `variance.yml` does, and the two render
+# their dockets with the same marker — so run on the same event they would fight
+# over one comment, each rewriting the other. A repository picks one gate. This
+# one is kept on demand because the suite it would shard is a fixture with twelve
+# subjects, where sharding costs three installs to save nothing.
+#
+# Add `pull_request:` below and delete the gate workflow to swap them. Nothing
+# else in this file changes: the docket steps in the merge job already ask what
+# event they are on, and post only when there is a pull request to post to.
 on:
-  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -111,35 +121,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - id: config
-        name: is there anything to observe
-        shell: bash
-        run: |
-          # TODO: point this and the `config:` input below at
-          # cases/storybook-case/variance.config.json, which is tracked, and add
-          # the Storybook build it reads; then delete this gate. While it looks at
-          # the repository root, every step below is skipped — no shard here has
-          # ever observed a subject.
-          if [ -f variance.config.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::no variance.config.json in this repository, so nothing was observed."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: yarn build
 
-      - if: steps.config.outputs.present == 'true'
-        id: variance
+      # The subject has to exist before a shard can slice it. Every shard builds
+      # its own copy: `storybook-static/` is ignored and a build artifact passed
+      # between jobs would be one more thing that can be stale in one shard and
+      # not another.
+      - name: build the Storybook this shard slices
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      # The same store every other workflow here reads, painted by `variance.yml`
+      # on each push to `main`. Restored per shard because a shard is a whole run
+      # of a slice: it compares, and it has nothing to compare against otherwise.
+      #
+      # The key names the image because the image is the renderer, and it has to
+      # name the same one as `container.image` above. Nothing checks that it does;
+      # a mismatch is reported `incomparable` rather than diffed (ADR-0011).
+      - name: restore the baselines main last painted
+        uses: actions/cache/restore@v4
+        with:
+          path: cases/storybook-case/.variance/baselines
+          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
+          restore-keys: |
+            variance-baselines-playwright-v1.62.1-noble-
+
+      - id: variance
         uses: ./.github/actions/variance
         with:
-          config: variance.config.json
+          config: cases/storybook-case/variance.config.json
           profile: chromium
           command: node packages/cli/dist/bin.js
           subjects: ${{ matrix.shard.subjects }}
@@ -148,7 +162,7 @@ jobs:
           # whose `--intent` differs, because a run's intent is what lets the
           # verdict say *this is the change you said you were making*, and three
           # shards claiming three intents were three runs.
-          intent: ${{ github.event.pull_request.title }}
+          intent: ${{ github.event.pull_request.title || format('sharded run of {0}', github.sha) }}
 
           # OFF, once per shard, and the reason is not the same as the gate's.
           # There, one comment per run is what the marker keeps in place. Here,
@@ -166,11 +180,15 @@ jobs:
       # The report, kept whole. `--format html` is not rendered per shard: image
       # paths in it are relative to the report, and a page describing a third of
       # the suite would look like a complete run with most of it missing.
-      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: variance-shard-${{ matrix.shard.name }}
-          path: .variance/
+          path: cases/storybook-case/.variance/
+          # Without this every shard uploads nothing and the merge below refuses
+          # for the right reason with the wrong cause: `.variance` is a dotted
+          # directory and this action skips hidden files by default.
+          include-hidden-files: true
           # `error`, not `warn`. An absent report from a shard is the one hole the
           # merge cannot reason about: a subject nobody observed is *missing* from
           # every file rather than excluded in all of them, so the merged suite
@@ -200,26 +218,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - id: config
-        shell: bash
-        run: |
-          if [ -f variance.config.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::no variance.config.json in this repository, so there is nothing to merge."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: yarn build
 
-      - if: steps.config.outputs.present == 'true'
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           pattern: variance-shard-*
           path: shards
@@ -230,8 +235,7 @@ jobs:
           # about the suite.
           merge-multiple: false
 
-      - if: steps.config.outputs.present == 'true'
-        id: collect
+      - id: collect
         name: every shard reported, or none of this is about the suite
         shell: bash
         env:
@@ -243,7 +247,7 @@ jobs:
           # the action uses, rather than being guessed or re-declared here. A
           # config that moved `report` would otherwise make this find nothing and
           # report it as a missing shard.
-          report_path="$(node .github/actions/variance/locate-artifacts.mjs variance.config.json \
+          report_path="$(node .github/actions/variance/locate-artifacts.mjs cases/storybook-case/variance.config.json \
             | sed -n 's/^report=//p')"
           name="$(basename "$report_path")"
 
@@ -279,8 +283,7 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
-      - if: steps.config.outputs.present == 'true'
-        id: report
+      - id: report
         name: variance report — the suite, not a slice
         shell: bash
         env:
@@ -298,7 +301,7 @@ jobs:
           # the promotion of an everywhere-excluded subject to `failed` happens
           # here or nowhere.
           if node packages/cli/dist/bin.js report \
-               --config variance.config.json "${reports[@]}"; then
+               --config cases/storybook-case/variance.config.json "${reports[@]}"; then
             code=0
           else
             code=$?
@@ -307,7 +310,7 @@ jobs:
           echo "exit-code=$code" >> "$GITHUB_OUTPUT"
           echo "variance report exited $code"
 
-      - if: ${{ steps.config.outputs.present == 'true' && steps.report.outputs.exit-code != '2' }}
+      - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         id: render
         name: render one docket
         shell: bash
@@ -316,7 +319,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          marker=$(node packages/cli/dist/bin.js comment --config variance.config.json --marker)
+          marker=$(node packages/cli/dist/bin.js comment --config cases/storybook-case/variance.config.json --marker)
           echo "marker=$marker" >> "$GITHUB_OUTPUT"
 
           reports=()
@@ -330,12 +333,12 @@ jobs:
           # review" — which may clear a previous docket — from "the render never
           # happened", which may not.
           node packages/cli/dist/bin.js comment \
-            --config variance.config.json \
+            --config cases/storybook-case/variance.config.json \
             --body-file "$RUNNER_TEMP/variance-comment.md" \
             --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             "${reports[@]}"
 
-      - if: ${{ steps.config.outputs.present == 'true' && steps.report.outputs.exit-code != '2' }}
+      - if: ${{ github.event_name == 'pull_request' && steps.report.outputs.exit-code != '2' }}
         name: post the docket
         shell: bash
         env:
@@ -346,7 +349,7 @@ jobs:
             --body-file "$RUNNER_TEMP/variance-comment.md" \
             --marker "$VARIANCE_MARKER"
 
-      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+      - if: always()
         name: verdict
         shell: bash
         env:

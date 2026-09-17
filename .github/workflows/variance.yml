@@ -1,7 +1,51 @@
 name: variance
 
-# An example workflow, meant to be copied and edited rather than read as the only
-# way to wire this up. Everything in it that is a decision is commented as one.
+# Two things at once, and it is worth knowing which half you are reading.
+#
+# It is **an example workflow**, meant to be copied and edited rather than read as
+# the only way to wire this up. Everything in it that is a decision is commented
+# as one.
+#
+# It is also **the only thing in this repository that observes a subject**. Until
+# it did, every step here was skipped behind a check for a `variance.config.json`
+# that was never written: three workflows shaped like a gate, none of which had
+# ever launched a browser. The subject is `cases/storybook-case` — twelve stories
+# and a Storybook this job builds — which is a fixture and not this project's own
+# interface. That is the gap it closes and the gap it does not:
+# [`site/`](../../site) still has no subject of any kind.
+#
+# ## Where the baselines come from, since nothing here is committed
+#
+# `.variance/` is ignored, on purpose: a record changes whenever the document
+# does, so records beside their images would make a diff out of every edit that
+# moved no pixel. So the store is the runner's cache, and three events read it
+# while exactly one writes it.
+#
+# - **`pull_request`** and **`push` to `main`** compare. Both restore the newest
+#   store and gate on the CLI's exit code. Both are red when pixels moved, and
+#   neither promotes anything.
+# - **`workflow_dispatch` with `accept: true`** promotes. It runs with
+#   `--exit-zero-on-changes`, accepts what that run proposed, and saves the store.
+#
+# That third one is a person clicking a button, and it is a person on purpose.
+# `accept --all` cannot yet tell a subject nobody has ever reviewed from a subject
+# whose component just changed (spec 0023), so a job that ran it on its own would
+# promote the regression it was added to catch and go green on the next run —
+# which is the tool becoming a recorder, the failure the exit codes exist to
+# prevent. Spec 0016 says it does not belong in an unattended job, and this is
+# what not-unattended looks like.
+#
+# It also has to be a separate act *here* specifically: work in this repository
+# lands on `main` directly, so "the pull request already reviewed it" is not a
+# thing that can be assumed.
+#
+# The bootstrap is honest rather than hidden: before anybody has dispatched an
+# accept, every subject is `new`, every run is red, and the first dispatch ends
+# that permanently.
+#
+# A cache that does not match the renderer cannot produce a wrong diff. A baseline
+# whose identity differs from the run's is reported `incomparable` and no image is
+# produced (ADR-0011), so the worst a stale key can do is make the check loud.
 #
 # ## Why this runs in a pinned container
 #
@@ -26,8 +70,18 @@ name: variance
 # check's verdict still arrives as the exit code, which no token can change.
 
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      accept:
+        description: >-
+          Promote what this run proposes to the baseline store, and keep it for
+          every run after. Off by default: this is the only switch in this
+          repository that decides what a future regression is measured against.
+        type: boolean
+        default: false
 
 # Read the code, write one comment. `contents: write` is deliberately absent: see
 # the commit-baselines note on the action step below.
@@ -39,6 +93,10 @@ permissions:
 # and those two steps are not atomic — two runs racing on the same branch can both
 # conclude there is no previous comment and both create one, which is exactly the
 # duplication the marker exists to prevent.
+#
+# `cancel-in-progress` on `main` as well, and that is safe here: a cancelled paint
+# saves no cache, so the previous store stays the newest one and the next push
+# repaints from the same place.
 concurrency:
   group: variance-${{ github.ref }}
   cancel-in-progress: true
@@ -55,49 +113,60 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Only needed with commit-baselines on: without it the workspace
-          # sits on a detached merge commit, and the action refuses to push from
-          # there rather than rewriting the branch with the merge.
-          ref: ${{ github.head_ref }}
 
-      - id: config
-        name: is there anything to observe
-        shell: bash
-        run: |
-          # This repository does not commit a variance config yet, and a workflow
-          # that fails on every pull request because a file it needs was never
-          # written teaches people to ignore the check before it has ever run.
-          # Delete this step once the config exists.
-          #
-          # TODO: point this and the `config:` input below at
-          # cases/storybook-case/variance.config.json, which is tracked, and add the
-          # Storybook build it reads; then delete this gate. While it looks at the
-          # repository root, every step below is skipped — no job here has ever
-          # launched a browser, uploaded an artifact, or commented on a pull request.
-          if [ -f variance.config.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::no variance.config.json in this repository, so nothing was observed."
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: corepack enable && yarn install --immutable
 
-      - if: steps.config.outputs.present == 'true'
-        shell: bash
+      - shell: bash
         run: yarn build
 
-      - if: steps.config.outputs.present == 'true'
+      # The subject has to exist before it can be observed, and Storybook's own
+      # build is what produces the `index.json` the collector reads. `yarn build`
+      # above builds this repository's packages and knows nothing about it.
+      #
+      # `storybook-static/` is ignored, so this is not a cache miss to optimise
+      # away: there is no committed copy for it to be stale against.
+      - name: build the Storybook this run observes
+        shell: bash
+        run: yarn workspace @variance-authority/case-storybook build-storybook
+
+      # The store, and the one place in this file that names a path the config
+      # also names. `baselines.root` in `cases/storybook-case/variance.config.json`
+      # has to agree with it and nothing checks that it does — a config that moved
+      # the root would restore into a directory the run never reads, and every
+      # subject would come back `new` with no error anywhere.
+      #
+      # The key carries the image tag because the image is the renderer. Bumping
+      # `container.image` above without bumping it here would restore baselines
+      # painted by the old Chromium; they would be reported `incomparable` rather
+      # than diffed, which is the safety net and not a reason to skip the edit.
+      - name: restore the baselines main last painted
+        uses: actions/cache/restore@v4
+        with:
+          path: cases/storybook-case/.variance/baselines
+          # Exact on a repaint of this very commit; otherwise the newest prefix
+          # match, which on a pull request is whatever main painted last.
+          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
+          restore-keys: |
+            variance-baselines-playwright-v1.62.1-noble-
+
+      # The gate, on both events that are not an acceptance. It exits 1 when a
+      # subject moved and nothing here suppresses that, on `main` as much as on a
+      # branch: a red `main` is the tool saying the pixels are not the ones
+      # anybody approved, and the way to answer it is to look and then dispatch an
+      # accept — not to make the check quieter.
+      #
+      # `comment` is on only where there is a pull request to comment on. On a
+      # push the action would render a docket, find no issue number, and warn.
+      - if: ${{ !inputs.accept }}
         id: variance
         uses: ./.github/actions/variance
         with:
-          config: variance.config.json
+          config: cases/storybook-case/variance.config.json
           profile: chromium
           command: node packages/cli/dist/bin.js
-          intent: ${{ github.event.pull_request.title }}
+          comment: ${{ github.event_name == 'pull_request' }}
+          intent: ${{ github.event.pull_request.title || format('main at {0}', github.sha) }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # The comment counts collateral instead of listing it, so the reader
@@ -120,22 +189,73 @@ jobs:
           # by the same run that found it, and the next run is green. Turned on,
           # this check has stopped being a gate and has become a recorder.
           #
-          # It also needs `permissions: contents: write` above, and the
-          # `ref: ${{ github.head_ref }}` on the checkout step.
+          # It also needs `permissions: contents: write` above, and a checkout
+          # given `ref: ${{ github.head_ref }}` — without which the action refuses
+          # rather than pushing the merge commit onto somebody's branch.
+          #
+          # This repository does not need it. Baselines here live in the cache
+          # below, which no contributor has checked out and nobody has to review.
           commit-baselines: 'false'
+
+      # The acceptance, and the only step in this repository that writes a
+      # baseline. Reached only when somebody dispatched this workflow and ticked
+      # the box.
+      #
+      # `--exit-zero-on-changes` because this run is not asking: the person who
+      # started it has already decided. It suppresses 1 and never 2, so a run
+      # whose browser did not launch still fails here rather than accepting an
+      # empty report.
+      #
+      # `accept --all` promotes both the new and the changed, which is what spec
+      # 0023 is about and why this is behind a human. Read the docket from the
+      # run that went red before ticking it.
+      - if: ${{ inputs.accept }}
+        name: promote what this run proposes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node packages/cli/dist/bin.js run \
+            --config cases/storybook-case/variance.config.json \
+            --profile chromium \
+            --exit-zero-on-changes \
+            --intent "accepted at ${{ github.sha }} by ${{ github.actor }}"
+
+          node packages/cli/dist/bin.js accept \
+            --config cases/storybook-case/variance.config.json \
+            --all
+
+      # Saved under this commit's sha, so the next pull request restores this run
+      # and not an older one. A key that already exists is not overwritten, which
+      # is why the key is the sha and not a constant — a constant would pin the
+      # store to the first paint that ever happened and never move again.
+      - if: ${{ inputs.accept && success() }}
+        name: keep it for every run after this one
+        uses: actions/cache/save@v4
+        with:
+          path: cases/storybook-case/.variance/baselines
+          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
 
       # The operator's decision, and the only thing this workflow sends anywhere.
       # GitHub's own artifact store, on the instance already running the job.
       # Delete it and the run-url line above together, or keep both — a link to
       # artifacts that were never uploaded is worse than no link.
       #
-      # The path is the CLI's default report directory. It has to match the
-      # `report` and `images` paths in variance.config.json, and nothing checks
-      # that it does: a config that moved them would upload an empty artifact
-      # behind a link the comment still prints.
-      - if: ${{ always() && steps.config.outputs.present == 'true' }}
+      # The path is the case's report directory. It has to match the `report` and
+      # `images` paths in its config, and nothing checks that it does: a config
+      # that moved them would upload an empty artifact behind a link the comment
+      # still prints.
+      - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: variance-report
-          path: .variance/
+          path: cases/storybook-case/.variance/
+          # Without this the artifact is empty and nothing says so. `.variance` is
+          # a dotted directory, and this action skips hidden files by default —
+          # so the upload would succeed, the comment would still print its link,
+          # and the reviewer would download a zip with nothing in it.
+          include-hidden-files: true
+          # The baselines are in here too, and that is deliberate: an artifact a
+          # reviewer downloads should contain what the comparison was made
+          # against, not only its result.
           if-no-files-found: warn
