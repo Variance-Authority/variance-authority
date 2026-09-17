@@ -1,6 +1,57 @@
 import { describe, expect, it } from 'vitest';
+import {
+  environmentKey,
+  profileById,
+  type SemanticSnapshot,
+  type SubjectComposition,
+} from '@variance-authority/core/format';
 import { compositionOf, lexiconReportOf } from './compose.js';
 import { SOURCE, SUITE, instance } from './compose-fixture.js';
+
+/**
+ * A subject that carries a whole tree, and carries a call site only if asked.
+ *
+ * The distinction the `files` field turns on: a production build renders and
+ * snapshots exactly as a development one does, and throws every call site away
+ * on the way.
+ */
+function snapshotOf(id: string, file: string | undefined): SemanticSnapshot {
+  return {
+    formatVersion: 1,
+    subject: { id, kind: 'story' },
+    profile: profileById('chromium'),
+    environment: environmentKey({
+      profile: 'chromium',
+      engine: 'chromium@131',
+      ruleset: 'test',
+      allowlist: 'test',
+      viewport: { width: 1280, height: 720, deviceScaleFactor: 1, colorScheme: 'light' },
+      fonts: [],
+      conditions: {},
+      assets: {},
+    }),
+    renderHash: 'v1:r',
+    structureHash: 'v1:s',
+    styleHash: 'v1:y',
+    root: {
+      path: '0',
+      tag: 'div',
+      attributes: {},
+      style: {},
+      text: 'Clear',
+      provenance: {
+        owners: [{ name: 'Footer', propsDigest: 'v1:f' }],
+        ...(file === undefined ? {} : { source: { file, line: 12, column: 3 } }),
+      },
+      children: [],
+    },
+    styleProvenance: [],
+    diagnostics: [],
+  };
+}
+
+const rendering = (file: string | undefined): readonly SubjectComposition[] =>
+  SUITE.map((subject) => ({ ...subject, snapshot: snapshotOf(subject.subject, file) }));
 
 /**
  * The subject-first readers, on the same suite `compose.test.ts` reads
@@ -92,6 +143,28 @@ describe('lexiconReportOf — the names the run wrote down', () => {
       ['App'],
       ['App'],
     ]);
+  });
+
+  it('lists files among the fields only when a run could have read one', () => {
+    // A built bundle carries no call sites, so a subject can hold a whole tree
+    // and not one location. Declaring the field read on the tree alone says a
+    // run looked where it did not, and a locator that trusts the list reports a
+    // miss on a field nobody could have filled as a miss about the application.
+    const blind = lexiconReportOf({ subjects: rendering(undefined), observations: [] });
+    const located = lexiconReportOf({ subjects: rendering('src/Footer.tsx'), observations: [] });
+
+    expect(blind?.fields).not.toContain('files');
+    expect(located?.fields).toContain('files');
+    expect(located?.subjects[0]?.terms.files).toEqual(['src/Footer.tsx']);
+  });
+
+  it('lists files on a source index alone, which was read whatever it held', () => {
+    // The other direction: an index that declared nothing for these components
+    // is still an index that was consulted, and an empty answer from it is an
+    // answer.
+    const indexed = lexiconReportOf({ subjects: rendering(undefined), observations: [], source: {} });
+
+    expect(indexed?.fields).toContain('files');
   });
 
   it('lists regions among the fields only when a journal was read', () => {

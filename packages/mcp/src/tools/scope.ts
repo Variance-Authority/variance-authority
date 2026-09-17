@@ -178,6 +178,23 @@ export interface Scope {
   /** Files in scope whose own imports the scan could not enumerate. */
   readonly unresolved: readonly string[];
   /**
+   * Distinct files the run recorded, and how many of those the tree never heard
+   * of — not *outside the scope*, absent from the source tree entirely.
+   *
+   * The two sides of the join are spelled by different authorities. The tree
+   * writes paths from the repository root; a recorded path is whatever a source
+   * map said, resolved against the module the browser was served. Those agree
+   * when the server's root is the repository's and can disagree when it is not:
+   * a bundle under `storybook-static/assets/` resolves `../../src/Button.tsx`
+   * to `src/Button.tsx` whatever package it really lives in.
+   *
+   * Kept as a count so a scope that found nothing can say which nothing it is.
+   * Some strangers are ordinary — a run records files a checkout has since
+   * deleted. All of them, with subjects to spare, is not a narrow scope.
+   */
+  readonly recorded: number;
+  readonly strangers: number;
+  /**
    * Subject → the cheapest way in to any file it was recorded in, in half-hops.
    *
    * Recorded, and read by nothing: the order an answer comes back in is decided
@@ -275,6 +292,8 @@ export function scopeOf(
     entries: 0,
     reachable: 0,
     unresolved: [] as readonly string[],
+    recorded: 0,
+    strangers: 0,
     hops: new Map<string, number>() as ReadonlyMap<string, number>,
   };
 
@@ -328,8 +347,18 @@ export function scopeOf(
 
   const subjects = new Set<string>();
   const hops = new Map<string, number>();
+  const recorded = new Set<string>();
+  const strangers = new Set<string>();
   for (const entry of indexOf(report).entries) {
-    if (entry.field !== 'files' || !reachable.has(entry.value)) continue;
+    if (entry.field !== 'files') continue;
+
+    // Asked of the whole tree, not of the closure. Whether a recorded path is
+    // in scope is the question being answered; whether it is on disk at all is
+    // the question of whether the answer means anything.
+    recorded.add(entry.value);
+    if (!tree.files.has(entry.value)) strangers.add(entry.value);
+
+    if (!reachable.has(entry.value)) continue;
     subjects.add(entry.subject);
     const paid = cost.get(entry.value);
     if (paid !== undefined && paid < (hops.get(entry.subject) ?? Infinity)) {
@@ -346,6 +375,8 @@ export function scopeOf(
     entries: entries.size,
     reachable: reachable.size,
     unresolved: tree.unknownAmong(reachable),
+    recorded: recorded.size,
+    strangers: strangers.size,
     hops,
   };
 }
@@ -378,6 +409,21 @@ export function scopeLine(scope: Scope, indexed: number): string {
       ? ''
       : ` ${scope.unresolved.length} file(s) in it import something the scan could not resolve, ` +
         'so what lies behind those is not enumerated.';
+
+  // Nothing in scope, and nothing the run recorded is on disk under the name it
+  // was recorded under. That is not a narrow scope, it is two authorities
+  // spelling the same file differently, and answering `0 of 312` would report
+  // it as a fact about the application. The numbers are kept beside the
+  // sentence so a reader can see it is the whole set and not a stale entry.
+  if (scope.subjects.size === 0 && scope.recorded > 0 && scope.strangers === scope.recorded) {
+    return (
+      `No subject could be placed: the run recorded ${scope.recorded} file(s) and the source ` +
+      'tree holds none of them, so nothing here can be matched to a place. The two are spelled by ' +
+      'different authorities — the tree from the repository root, the run from whatever its ' +
+      'source maps resolved against — and they agree only when the server\'s root was the ' +
+      'repository\'s. Ask from the root the run was served from, or ask without a start point.'
+    );
+  }
 
   // The direction is said, not implied by the number. *Reachable from the
   // settings page* and *reaching the user-select* are different questions with

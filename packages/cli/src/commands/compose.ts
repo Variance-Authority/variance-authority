@@ -171,21 +171,33 @@ export function lexiconReportOf(input: ComposeInput): LexiconReport | undefined 
     declaredIn.set(component, [...new Set(refs.map((ref) => ref.file))]);
   }
 
+  const subjects = lexiconOf(present, {
+    examples,
+    ...(input.source === undefined ? {} : { declaredIn }),
+    ...(input.regions === undefined ? {} : { regions: input.regions }),
+  });
+
+  // Carrying a snapshot is evidence for `names`, `text` and `roles`, because
+  // every node has a role and most have a name. It is not evidence for `files`:
+  // a production build throws its call sites away, so a subject can hold a
+  // whole tree and not one source location. Declaring the field read on the
+  // snapshot alone says a run looked where it did not, and switches off the one
+  // sentence a locator has for it — `Not read: files (no source index and no
+  // provenance)` — on exactly the runs that needed it. So the index answers for
+  // itself: with no source index, `files` was read if the fold produced one.
   const withSnapshot = present.some((subject) => subject.snapshot !== undefined);
+  const located = subjects.some((subject) => subject.terms.files !== undefined);
+
   const fields: LexiconField[] = ['example', 'components', 'createdBy', 'tokens'];
   if (withSnapshot) fields.push('names', 'text', 'roles');
-  if (withSnapshot || input.source !== undefined) fields.push('files');
+  if (input.source !== undefined || located) fields.push('files');
   if (input.regions !== undefined) fields.push('regions');
 
   return {
     version: 1,
     fields: FIELD_ORDER.filter((field) => fields.includes(field)),
     ...(input.source === undefined ? {} : { declaredIn: Object.fromEntries(declaredIn) }),
-    subjects: lexiconOf(present, {
-      examples,
-      ...(input.source === undefined ? {} : { declaredIn }),
-      ...(input.regions === undefined ? {} : { regions: input.regions }),
-    }),
+    subjects,
   };
 }
 

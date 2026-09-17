@@ -139,6 +139,44 @@ describe('the tree says what exists, and the run says what it produced', () => {
     expect(scope.subjects.size).toBe(0);
   });
 
+  it('says the two sides spell paths differently, rather than answering nothing', () => {
+    // A bundle served from `storybook-static/assets/` resolves its map's
+    // `../../src/InvoiceTable.tsx` against the module it was served as, and the
+    // `..` clamps at the origin: the run writes down `src/InvoiceTable.tsx` for
+    // a file the tree holds at `src/billing/InvoiceTable.tsx`. Every value is a
+    // real source path and not one of them is a path in this repository, which
+    // is a fact about the two spellings and not about the application.
+    const served = reportOf([
+      {
+        subject: 'billing/invoice-table--overdue',
+        boundaries: 4,
+        terms: { files: ['src/InvoiceTable.tsx'] },
+      },
+      { subject: 'billing/statement--paid', boundaries: 2, terms: { files: ['src/Statement.tsx'] } },
+    ]);
+    const scope = scopeOf(served, 'src/billing/', TREE);
+
+    expect(scope.subjects.size).toBe(0);
+    expect(scope.recorded).toBe(2);
+    expect(scope.strangers).toBe(2);
+    expect(scopeLine(scope, 2)).toContain('the source tree holds none of them');
+  });
+
+  it('keeps answering when only some recorded paths are strangers', () => {
+    // A run records a file the checkout has since deleted. That is ordinary and
+    // says nothing about how either side spells a path, so the diagnosis above
+    // must not fire on it.
+    const mixed = reportOf([
+      INVOICE,
+      { subject: 'story:gone', boundaries: 1, terms: { files: ['src/billing/Removed.tsx'] } },
+    ]);
+    const scope = scopeOf(mixed, 'src/billing/', TREE);
+
+    expect([...scope.subjects]).toEqual(['billing/invoice-table--overdue']);
+    expect(scope.strangers).toBe(1);
+    expect(scopeLine(scope, 2)).toContain('Searched 1 of 2');
+  });
+
   it('refuses when no tree was read, instead of falling back to the run', () => {
     // And says so in different words: nothing is wrong with the path, the
     // question was asked somewhere the source is not.
