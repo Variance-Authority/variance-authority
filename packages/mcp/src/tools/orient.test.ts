@@ -246,7 +246,7 @@ describe('a run off a production build', () => {
     ...reportOf([
       {
         ...DISPATCH,
-        landmarks: DISPATCH.landmarks?.map(({ file, line, ...rest }, index) => ({
+        landmarks: DISPATCH.landmarks?.map(({ file: _file, line: _line, ...rest }, index) => ({
           ...rest,
           component: index === 2 ? 'CarrierPicker' : 'DispatchDrawer',
         })) as Landmark[],
@@ -283,7 +283,7 @@ describe('the relation the reading cannot support', () => {
   const flat = reportOf([
     {
       ...DISPATCH,
-      landmarks: DISPATCH.landmarks?.map(({ box, ...rest }) => rest as Landmark),
+      landmarks: DISPATCH.landmarks?.map(({ box: _box, ...rest }) => rest as Landmark),
     },
   ]);
 

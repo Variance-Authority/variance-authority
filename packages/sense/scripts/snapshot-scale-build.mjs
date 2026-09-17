@@ -11,7 +11,7 @@
  * It is its own module because it is half the script and it is called once.
  */
 
-import { writeFileSync, statSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { CrossingSets } from '../dist/test-selection/crossing-sets.js';
 import { blob, column, sections, NO_OWNER } from '../dist/test-selection/format-layout.js';
 import {

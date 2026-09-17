@@ -1,5 +1,4 @@
 import {
-  identityDigest,
   type AccessibilitySnapshot,
   type Digest,
   type Raster,

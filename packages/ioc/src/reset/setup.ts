@@ -38,7 +38,7 @@ const misordered = (state: ResetRealm): Error =>
 const runAll = (state: ResetRealm): void => {
   const failures: unknown[] = [];
 
-  for (const handler of [...state.handlers]) {
+  for (const handler of Array.from(state.handlers)) {
     try {
       handler();
     } catch (failure) {

@@ -173,7 +173,7 @@ export function scopeOf(
   // each file produced. The other place-shaped fields — the id, the component a
   // subject is an example of, the components it holds, who mounted them, the
   // regions it entered — are names, and a name is not a location.
-  const cost = new Map<string, number>([...tree.hopsFrom(down.files)]);
+  const cost = new Map<string, number>(tree.hopsFrom(down.files));
   for (const [file, paid] of tree.hopsTo(up.files)) {
     if (paid < (cost.get(file) ?? Infinity)) cost.set(file, paid);
   }

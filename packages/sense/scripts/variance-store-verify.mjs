@@ -24,7 +24,6 @@ import {
   stream,
   mix,
   variantAt,
-  popular,
   importGraph,
   reachMatrix,
   callGraph,
