@@ -1,73 +1,72 @@
 # Choose the operating model that fits
 
-**[Variance Authority](README.md)** is a set of MIT-licensed npm packages and a
-`variance` command you install into a test suite you already have and run on your
-own machines. It renders a UI state, compares it against its approved baseline,
-and resolves a changed region to the component that drew it and the `file:line`
-it was written at. There is no hosted service, no account, and no per-screenshot
-bill; you operate it. This page sets that arrangement beside Percy, Chromatic,
-Argos, and Applitools, and [§6](#6-start-beside-the-tool-you-have) is where you
-install it.
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source. It arrives as
+MIT-licensed npm packages and a `variance` command you install into a test suite
+you already have. This page sets it beside Playwright's built-in
+`toHaveScreenshot`, Percy, Chromatic, Argos and Applitools, and
+[§6](#6-start-beside-the-tool-you-have) is where you install it.
 
-Visual-regression systems differ first in what they capture, where pixels are
-made, and who decides whether a diff is approved. Those decisions determine
-privacy, browser coverage, reproducibility, latency, and price more directly than
-the name of the test runner adapter.
+**Decide first whether you want to operate it.** There is no hosted service, no
+account, and no per-screenshot bill, and the price of that absent meter is that
+you run the thing: compute, storage, renderer capacity, retention, upgrades and
+the pager are yours. “No per-shot bill” is not the same claim as “free.” If you
+want visual review delivered as a managed product — browser fleet, reviewer
+seats, support contract — buy one of the four hosted products below, and §2 says
+what each of them leads on.
 
-Two words carry the table below. A **render document** is a subject's DOM with
-its styles, its resources, and its component provenance, kept so that pixels can
-be painted from it later and elsewhere. A **raster** is a screenshot: pixels
-somebody has already painted. Every product here keeps one or the other, and the
-choice decides where rendering can happen.
+Each comparison here is keyed by a **subject** — one named UI state you asked for
+and can ask for again, such as `cart/empty`. Systems of this kind differ first in
+what they capture for a subject, where its pixels are made, and who decides
+whether a diff is approved. Those decisions determine privacy, browser coverage,
+reproducibility, latency, and price more directly than the name of the test
+runner adapter.
 
-Most teams are not choosing from an empty workspace. They already have a runner,
-a way to reach important states, and some form of review. Start by keeping the
-parts that work, then compare the responsibilities that remain.
+Two materials run through the table below. A **render document** is a subject's
+DOM with its styles, its resources, and its component provenance, kept so that
+pixels can be painted from it later and elsewhere. A **raster** is a screenshot:
+pixels somebody has already painted. Every product here keeps one or the other,
+and the choice decides where rendering can happen.
 
-They also decide what the practice costs. Visual review is paid for twice: once
-in the meter, and once in the hours somebody spends deciding whether a diff
-mattered. Both bills are driven by one quantity — how many comparisons reach a
-person — and an architecture fixes that quantity long before a report does.
+You are probably not choosing from an empty workspace. You already have a runner,
+a way to reach important states, and some form of review. Keep the parts that
+work, then compare the responsibilities that remain.
+
+Those responsibilities decide what the practice costs. Visual review is paid for
+twice: once in the meter, and once in the hours somebody spends deciding whether
+a diff mattered. Both bills are driven by one quantity — how many comparisons
+reach a person — and an architecture fixes that quantity long before a report
+does.
 
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
 
 ## 1. Compare the responsibilities that matter
 
-| Dimension | Percy | Chromatic | Argos | Applitools | Variance Authority |
-| --- | --- | --- | --- | --- | --- |
-| Acquisition | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
-| Pixel placement | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
-| Review | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
-| Browser breadth | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs |
-| Existing PNG input | Product-specific SDK paths | No general PNG intake | CLI upload | SDK checkpoints | Library seam only — `observeRasters` in `@variance-authority/observe`, or a raster handed to the capture path; no CLI ingest command |
-| Source [attribution](attribution.md) | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
-| Compared against | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
-| Change-driven selection | No documented equivalent | TurboSnap uses the module graph to avoid snapshots a change cannot reach | No documented equivalent | No documented equivalent | `--since` skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
-| Operations | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
+| Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
+| --- | --- | --- | --- | --- | --- | --- |
+| Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
+| Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
+| Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
+| Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
+| Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
+| Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
+| What a run captures | The assertions the tests you ran reached | The states your test code calls `percySnapshot` on | Stories and archived runs; TurboSnap uses the module graph to avoid snapshots a change cannot reach | The screenshots your suite takes | The checkpoints your SDK calls reach | `--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
+| Operations | Adopter | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
 
-**Percy** and **Argos** leave selection to you: you shard the suite yourself.
-That is a deliberate design choice, not a missing feature, and it keeps a run's
-coverage independent of how well a graph was read.
-
-The selection row divides on one axis: what a change imports versus what its
-tests executed. TurboSnap reads the static module graph, and Variance Authority's
+The capture row divides on one axis: what a change imports versus what its tests
+executed. TurboSnap reads the static module graph, and Variance Authority's
 optional file graph is the same family of thing — a specifier scan over `import`,
 `require`, `@use` and `url()` — which answers only the file-to-component half.
 What decides a skip is the other half, and it is not a prediction: a stored
 baseline records the components the document that painted it actually rendered,
-so a subject is skipped because the last run established what it is made of, and
-never because a graph said so.
-[Wallaby.js](https://wallabyjs.com/) holds the execution-side index, and takes it
-further than Variance Authority. Its Test Story Viewer shows one test's full
-execution history in a single view: executed lines highlighted, context faded,
-file names shown where execution crosses files, with a time-travel debugger
-attached. Variance Authority exposes the underlying index through a function
-called `coveringTests`, not a time-travel viewer. Given a source line or
-function, it returns the individual tests that executed it, nearest call stack
-first, from an [execution index](execution-record.md) supplied by any collector.
-The shipped integration records one entry per test file and stores no call-stack
-depth, so per-test answers require a collector that already records them.
+so a subject is skipped because the last run established what it is made of.
+The same [execution index](execution-record.md) answers the inverse question
+through a function called `coveringTests`: given a source line or function, it
+returns the individual tests that executed it, nearest call stack first.
+[Wallaby.js](https://wallabyjs.com/) keeps an execution index of this kind for
+its own editor tooling; here the index decides which subjects a run skips.
 
 Variance Authority works beside an existing Playwright Test suite, a built or
 served Storybook, served routes or a static directory, Jest or Vitest under
@@ -92,36 +91,50 @@ a person is a decision somebody makes, and a suite that surfaces more than it
 should is a standing assignment rather than a test run.
 
 What separates the products is where intelligence sits relative to the spend.
-Perceptual match levels, hosted review queues, and classifiers that read a
-produced result all run after a comparison has been captured, rendered, and
-metered: they can reduce the review bill and not the meter. TurboSnap is the
-exception in this set, and the honest peer — it prunes before the capture, from
-the static module graph.
+Perceptual match levels and hosted review queues read a comparison that has
+already been captured, rendered, and metered, so they move the review bill rather
+than the meter. TurboSnap prunes earlier — before the capture, from the static
+module graph.
 
 This project prunes twice, and neither prune is a prediction. `--since` skips a
 subject when its stored baseline lists none of the components the change reached,
 so the skip rests on what the last run recorded the subject to be made of. What
 survives is then decided at the cheapest representation that can decide it (§3.3):
 structure, semantics, authored CSS, and provenance settle a question without a
-raster, and raster comparison runs for the questions that need pixels.
-
-None of that is a universal speed claim, and one path deliberately spends more.
-In-place capture takes repeated agreeing screenshots to classify same-run
-instability: it buys an answer rather than a saving.
+raster, and raster comparison runs for the questions that need pixels. One path
+deliberately spends more: in-place capture takes repeated agreeing screenshots to
+classify same-run instability, which buys an answer rather than a saving.
 
 Variance Authority has no vendor meter. Compute, storage, renderer capacity,
-retention, upgrades, and operational labour belong to the adopter. “No per-shot
-bill” is not the same claim as “free.” The software itself is free of charge and
-MIT-licensed: every package publishes to npm under that licence, and the licence
-grants use, modification and redistribution, including commercially. What you pay
-is the machines and the hours in §4.
+retention, upgrades, and operational labour belong to the adopter. The software
+itself is free of charge and MIT-licensed: every package publishes to npm under
+that licence, and the licence grants use, modification and redistribution,
+including commercially. What you pay is the machines and the hours in §4.
 
 Sources: [Percy plans and billing](https://www.browserstack.com/docs/percy/overview/plans-and-billing),
 [Chromatic billing](https://www.chromatic.com/docs/billing/),
 [Argos pricing](https://argos-ci.com/pricing), and
 [Applitools terms](https://applitools.com/terms-of-use/).
 
-## 2. Where the managed products lead
+## 2. Where the other products lead
+
+### Playwright's `toHaveScreenshot`
+
+You may already have it, and it costs nothing to keep. Baselines are PNG files in
+a `<test-file>-snapshots` directory beside the test; `npx playwright test
+--update-snapshots` rewrites them; the filename carries the browser and platform
+(`example-test-1-chromium-darwin.png`), so a Linux CI image and a macOS laptop do
+not fight over one file. Tolerance is a number — `maxDiffPixels` and its
+neighbours, set per assertion or once under `expect.toHaveScreenshot` in the
+config.
+
+Choose it when "these pixels moved" is the answer you want, reviewed in the same
+pull request as the code, with no service to run and nothing new to learn.
+Variance Authority's Playwright package sits beside it rather than replacing it:
+`test` and `expect` stay Playwright's, and the two assertions can run in the same
+test while you compare the answers.
+
+Sources: [visual comparisons](https://playwright.dev/docs/test-snapshots).
 
 ### Percy
 
@@ -144,15 +157,14 @@ Chromatic makes Capture Cloud the product boundary. Stories are one subject
 catalog and Playwright or Cypress runs are another, contributing full-page
 archives of DOM, styling, and assets taken from a real application; Capture Cloud
 owns rendering, and the review system connects tests, branches, baselines, and
-reviewers. TurboSnap uses the module graph to avoid snapshots a
-change cannot reach. SteadySnap adds render stabilization and repeated-capture
-techniques within the managed service.
+reviewers. TurboSnap uses the module graph to avoid snapshots a change cannot
+reach. SteadySnap adds render stabilization and repeated-capture techniques
+within the managed service.
 
-Component isolation is therefore a choice an adopter makes rather than a limit
-the product imposes: a page-level story and an archived end-to-end flow both
-reach the same review surface. An archive is repainted after the run that
-recorded it has ended, so what it can answer later is fixed at the moment of
-capture.
+Component isolation is therefore a choice you make rather than a limit the
+product imposes: a page-level story and an archived end-to-end flow both reach
+the same review surface. An archive is repainted after the run that recorded it
+has ended, so what it can answer later is fixed at the moment of capture.
 
 Choose Chromatic when review should be a product — Storybook inventory, E2E
 archives, or both — and non-engineer review, branch semantics, and managed
@@ -166,9 +178,8 @@ Sources: [Storybook workflow](https://www.chromatic.com/docs/storybook/),
 ### Argos
 
 Argos keeps rendering in the caller's browser. Its Playwright primitive captures
-in place; the Vitest and Storybook quickstarts are thin host compositions over
-that browser capture, followed by upload. This is not a browserless HTML archive
-that a remote browser later paints.
+in place, and the Vitest and Storybook quickstarts are thin host compositions
+over that browser capture, followed by upload.
 
 Argos also supplies the mature review half: per-test history, recurrence-based
 flake information, ignored-difference management, comments, and reviewer state.
@@ -220,7 +231,7 @@ capability, not something a differ can recover from image bytes.
 See [from a pixel to a line](attribution.md) and [the source
 scan](source.md).
 
-### 3.2 Capture material and rendering placement
+### 3.2 Capture material, rendering placement, and which engine paints
 
 A run keeps one of the two materials named at the top of this page, and both
 reach the same comparison.
@@ -234,10 +245,27 @@ the paint happens locally or across a renderer you host.
 A **raster** is already painted. It skips rendering entirely and joins the same
 durable comparison path.
 
+**Chromium, Firefox and WebKit all paint.** A subject's `browser` key is one of
+the three and defaults to `chromium`; `npx playwright install <engine>` is what
+adds one. The engine is part of the renderer identity a baseline is filed under,
+so approving a Chromium baseline does not approve the WebKit one — a run that
+meets a baseline painted by another engine reports the pair `incomparable` and
+names both engines instead of diffing them.
+
+Two capabilities are Chromium's alone, and that is a position rather than a gap
+to be closed. Text rasterization is pinnable on Chromium only:
+`--disable-lcd-text` and `--font-render-hinting=none` are flags no other engine
+accepts, so Firefox and WebKit paint text the way the host does and their rasters
+belong to the host that made them — give them one host, or a container image, and
+keep it. And the engine-located half of source attribution reads
+`[[FunctionLocation]]` over the Chrome DevTools Protocol, which Chromium alone
+provides; under the other two engines the source scan answers on its own, with
+its candidates unnarrowed, and the run claims nothing it could not see. The
+stabilization recipe is likewise written against Chromium's behaviour.
+
 Renderer identity covers engine, platform, scale, fonts, stabilization, and the
-rasterization recipe. When a baseline was painted under one identity and the
-candidate under another, the run reports the pair `incomparable` and names both,
-rather than diffing them and blaming the difference on the subject.
+rasterization recipe, which is why the pair above is reported rather than
+compared.
 
 The resulting adopter surfaces are compositions rather than separate products:
 
@@ -265,10 +293,10 @@ The band is what a report names when it says which *kind* of thing moved, and
 on. A band the run could not observe is reported `unobserved`; it is not
 converted into an empty result or a pass.
 
-This is a cost structure, not a universal speed claim. In-place capture avoids a
-second browser but takes repeated screenshots to classify same-run instability.
-Deferred capture pays archive and rendering costs but gains placement freedom and
-cache reuse.
+The two capture paths trade against each other. In-place capture avoids a second
+browser but takes repeated screenshots to classify same-run instability. Deferred
+capture pays archive and rendering costs but gains placement freedom and cache
+reuse.
 
 See [how the pieces fit together](architecture.md), [the evidence
 instruments](instruments.md), and [how an unstable subject is
@@ -331,11 +359,18 @@ two things nobody is asked to look at twice.
 ## 4. Operational boundaries
 
 Adopter operation is what the absent meter is bought with. Variance Authority
-provides libraries and a CLI for infrastructure the adopter operates, and the
-arrangement that removes the per-shot bill is the same one that puts compute,
-storage, renderer capacity, and the pager on the team. It does not provide a
-managed browser fleet, hosted reviewer accounts, support SLA, contractual data
+provides libraries and a CLI for infrastructure you operate, and the arrangement
+that removes the per-shot bill is the same one that puts compute, storage,
+renderer capacity, and the pager on your team. It does not provide a managed
+browser fleet, hosted reviewer accounts, a support SLA, contractual data
 residency, or vendor-operated retention.
+
+**What you are installing.** Every package is MIT-licensed, published to npm
+under the `@variance-authority` scope, and the licence grants use, modification
+and redistribution, including commercially. They share a single version line —
+`0.2.0` across the CLI, the collectors, the Playwright package and the review
+service — so the pieces move together and a half-upgraded install is not a state
+you can arrive in. The repository and these pages are the support.
 
 That ownership is also where data placement is decided. Remote rendering and
 storage use operator-supplied endpoints. Portable documents may cross that
@@ -345,14 +380,15 @@ environment and move only pixels to later systems.
 The CLI supports Storybook, explicit routes and static directories, artifact-backed
 unit capture, and custom collectors. The additive Playwright package operates
 inside the suite and leaves `test` and `expect` with Playwright. Raster input is a
-library seam; the CLI has no arbitrary-PNG ingest workflow.
+library seam — `observeRasters` in `@variance-authority/observe`, or a raster
+handed to the capture path.
 
 **The baseline store is a directory.** Approved images and their per-component
 sidecars are written to a filesystem path, either plain or with the images
-tracked by git-LFS so they arrive with a branch. A directory is also what every
-transport already is on the machine using it, so `actions/cache` restores one and
-`aws s3 sync` mirrors one. The other option is HTTP: point the run at a
-`tribunal` deployment and it reads and writes baselines there instead.
+tracked by git-LFS so they arrive with a branch. Because it is a directory,
+`actions/cache` restores one and `aws s3 sync` mirrors one. The other option is
+HTTP: point the run at a `tribunal` deployment and it reads and writes baselines
+there instead.
 
 **`tribunal` is a service you deploy, and it is optional.** It is a `fetch`
 handler with a database and an object store behind it: on Cloudflare that is a
@@ -379,24 +415,31 @@ approve is a deployment you configure, not a seat you buy.
 PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
 the renderer that painted it. Images approved in a hosted service carry neither.
 `observeRasters` will compare two foreign images that declare the same painter,
-but a foreign image against a locally rendered candidate is `incomparable`, and
-no CLI command ingests one. Your first run therefore reports `new` on every
-subject and you accept the candidates that run produced. The approval history you
-built elsewhere stays where it is.
+but a foreign image against a locally rendered candidate is `incomparable`.
+
+So your first run reports `new` on every subject, and that is the adoption moment
+rather than a failure: nothing has been compared yet. Open the report, check the
+candidates are the states you meant, and accept them — `variance accept
+<subject-id>` for one, `variance accept --all` to seed the whole suite in a
+single decision, or Playwright's snapshot update flag inside an existing
+Playwright suite. Acceptance promotes exactly the image that run produced and
+never renders a replacement, so what lands in the store is what you looked at.
+The next run reports `unchanged`, and from there `--all` stops being the right
+habit: name the subjects you decided on. The approval history you built elsewhere
+stays where it is.
 
 ## 5. Choose the ownership model you want
 
 Percy, Chromatic, Argos, and Applitools supply managed browser coverage, hosted
-review links, and vendor support. Choose one when the team wants visual review
-as a managed product and does not want to own renderer images, storage, upload
-paths, and their operational support.
+review links, and vendor support. Choose one when you want visual review as a
+managed product and do not want to own renderer images, storage, upload paths,
+and their operational support. Choose `toHaveScreenshot` when a pixel count in
+the pull request is the whole answer you need.
 
 Choose Variance Authority when a changed screenshot should arrive as one cause
-with its evidence, and be settled in one decision — and when
-component and source attribution, explicit evidence boundaries, and local or
-operator-controlled data placement are worth the operation they cost. It asks for
-more from the team and gives back a different kind of answer, which is a trade
-rather than an upgrade.
+with its evidence and be settled in one decision — and when component and source
+attribution, explicit evidence boundaries, and local or operator-controlled data
+placement are worth the operation they cost.
 
 ## 6. Start beside the tool you have
 

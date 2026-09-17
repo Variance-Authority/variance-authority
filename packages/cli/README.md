@@ -107,7 +107,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 
 | command | what it does |
 |---|---|
-| `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `needs-review`, and so on) that decides the exit code |
+| `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |

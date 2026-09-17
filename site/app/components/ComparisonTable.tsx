@@ -78,14 +78,14 @@ const ROWS = [
   {
     q: "change-driven selection",
     cells: [
-      doc("No documented equivalent"),
+      doc("The states your test code calls `percySnapshot` on"),
       doc(
         "TurboSnap uses the module graph to avoid snapshots a change cannot reach",
       ),
-      doc("No documented equivalent"),
-      doc("No documented equivalent"),
+      doc("The screenshots your suite takes"),
+      doc("The checkpoints your SDK calls reach"),
       doc(
-        "--since skips a subject when its baseline lists none of the components the change reached. This applies to stories, routes, and Playwright subjects alike. Instrumented test runs also select test files by what they executed",
+        "`--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed",
       ),
     ],
   },
@@ -127,7 +127,7 @@ const ROWS = [
         "managed cross-browser and mobile coverage, perceptual match levels, enterprise workflow, or an on-premise commercial deployment",
       ),
       doc(
-        "a changed screenshot should arrive as one cause with its evidence, and be settled in one decision",
+        "a changed screenshot should arrive as one cause with its evidence and be settled in one decision",
       ),
     ],
   },

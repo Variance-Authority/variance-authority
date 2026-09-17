@@ -1,9 +1,27 @@
 # Addressing scale
 
-[Variance Authority](README.md) records which tests entered which code, and uses that record
-to decide which of your tests a change can skip. This page keeps the
-measurements behind that and their boundaries: what the files cost, what a
-question costs, and where the answer stops being worth having.
+[Variance Authority](README.md) is a visual regression system you run yourself:
+it renders a UI state, compares it against the baseline you approved, and
+reports what changed in the vocabulary of your source. Along the way it records
+which tests entered which code, and uses that record to decide which of your
+tests a change can skip. This page keeps the measurements behind that and their
+boundaries: what the files cost, what a question costs, and where the answer
+stops being worth having.
+
+**Three files are priced here, and each is priced against a different count of
+your own.** Have these three numbers to hand before you read any table below:
+
+| to price | the count you need |
+|---|---|
+| the [source index](source-index.md) | the modules in your checkout — the source files `git ls-files` lists |
+| the [execution record](execution-record.md) | the modules your suite **enters**, which is a fraction of the first that only a recording knows |
+| the [lexicon](lexicon.md) | the **subjects** your suite captures — a subject is one named UI state you asked for and can ask for again |
+
+Nothing on this page converts one of those counts into another, because nothing
+in the three relates them. A component library's unit suite enters 3% of the
+repository's modules and captures thousands of subjects; an application's suite
+enters most of what it ships and captures hundreds. Both ratios are properties
+of the suite, so go and count all three.
 
 A tool that reads your whole codebase can run out of memory on a large one.
 There is a size past which dying is fair. A decades-old enterprise tree running
@@ -19,7 +37,8 @@ your repository is the easy one.
 **Every millisecond on this page was taken on one machine:** an Apple M4 Max
 (Mac16,9), 16 cores — 12 performance and 4 efficiency — 64 GB of memory, macOS
 27.0 on arm64, Node v26.7.0, Yarn 4.18.0. Bytes do not depend on that and
-transfer directly. The times do, and they are single-machine wall clock taken
+transfer directly, and every byte figure here is decimal: 1 KB is 1,000 bytes
+and 1 MB is 1,000,000. The times do, and they are single-machine wall clock taken
 with a warm filesystem cache, which makes them a floor rather than a budget —
 on shared CI vCPUs, which is the other end of the hardware range, expect
 worse.
@@ -45,8 +64,7 @@ region is a **crossing**. The record is the whole set of crossings your suite
 produced, written to one binary file.
 
 The [lexicon](lexicon.md) answers a different question: not whether to run a
-**subject** — one thing a run observes and compares, a story, a route, a
-fixture or a value — but how to *find* one. It is written per subject, which
+subject, but how to *find* one. It is written per subject, which
 puts it on its own axis — the index and the record are priced in modules, and
 the lexicon is priced in subjects.
 
@@ -62,7 +80,7 @@ your code.
 
 Measured on [Material UI](https://github.com/mui/material-ui), 41,165 tracked
 paths of which 24,519 are modules, the first scan is under three seconds and
-produces a 7.8 MB index. Every run after it reuses that index, so the figure
+produces an 8.0 MB index. Every run after it reuses that index, so the figure
 that matters is what a run pays before it selects anything, after an edit:
 
 | since the last run, the tree is | a run waits |
@@ -74,7 +92,7 @@ that matters is what a run pays before it selects anything, after an edit:
 
 An edit costs the records it touched and a fixed toll on top, which is why the
 last three rows sit together. Where those numbers come from, and what a file
-appearing or moving costs, is in [what a run costs](performance.md).
+appearing or moving costs, is in [what a source scan costs](performance.md).
 
 **The cold scan is about 0.12 ms per module** — 2,866 ms over 24,519. Carried
 forward linearly that is **roughly 24 seconds at 200,000 modules and about four
@@ -90,6 +108,13 @@ written and read back through the index's own code, measures **67.3 MB** as
 shared binary sections against 598 MB for the same records as JSON, because
 every name is interned once across the generation. That is a measurement of the
 format at that size, on generated paths rather than on a real tree.
+
+**Three counts of Material UI appear on this page and they are not the same
+count.** 41,165 is every path git tracks in the checkout. 24,519 is the module
+files among them, and it is what the timings above are charged per. 25,117 is
+the records the index wrote, because the walk also records the stylesheets and
+declaration files the module listing excludes, and it is what the byte rates
+below are charged per.
 
 Real trees give the rate to carry, and it is a range rather than one number:
 **318 B per file** over Material UI's 25,117 records, **411 B** over
@@ -146,9 +171,7 @@ below come from two recordings:
   it is the one that decides how *well* selection works: which test entered
   which module. So the large fixture answers how long, how many bytes and how
   much memory, and it is never allowed to answer how many tests you skip.
-  Every share-of-the-suite figure below comes from Material UI. The fixture is
-  written by a contributor benchmark kept in this repository; it is not part of
-  the published package.
+  Every share-of-the-suite figure below comes from Material UI.
 
 ### Why it is megabytes and not gigabytes
 
@@ -270,28 +293,38 @@ happened to measure it. The stitched record is the one you share.
 **A shared record is supported and never required.** Locally you can record one
 and use it, fetch the one CI stitched and layer today's run on top, or work from
 nothing at all. A missing or stale record costs a slower answer, never a
-different one. The same holds for the scan caches, which are content-addressed
-for the same reason: nothing in the path is allowed to turn an absent cache into
-a wrong answer.
+different one. The scan caches are content-addressed and behave the same way.
 
 ## What the index and the record cost, at four sizes
 
-Both files grow with modules and stay linear, so you can price your own
-repository before recording anything. Material UI's row is measured on a real
-repository. The 200,000 row is measured, at that size, on fixtures rather than
+Both files grow with modules and stay linear. The index column you can price
+before recording anything, from a count git already gives you; the record
+column is priced per module your suite enters, which only a recording tells
+you. Material UI's row is measured on a real repository. The 200,000 row is measured, at that size, on fixtures rather than
 on a real tree. The outer two rows are **extrapolation** — those figures
 carried linearly to a size no one has measured.
 
-| your repository | modules | source index | execution record |
-|---|---|---|---|
-| a medium app, ~200k lines | ~2,000 | ~0.7 MB | ~1 MB |
-| a large library — Material UI | 24,519 | 7.8 MB | 0.5 MB, over the 791 its Vitest suite enters |
-| a large monorepo | 200,000 | 67 MB | 77 MB |
-| a very large monorepo | 2,000,000 | ~670 MB | ~770 MB |
+| your repository | modules | modules its suite enters | source index | execution record |
+|---|---|---|---|---|
+| a medium app, ~200k lines | ~2,000 | ~1,400 | ~0.7 MB | ~1 MB |
+| a large library — Material UI | 24,519 | 791 | 8.0 MB | 0.5 MB |
+| a large monorepo | 200,000 | 200,000 | 60–110 MB | 77 MB, a floor |
+| a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.1 GB | ~770 MB, a floor |
 
-The index constant behind the outer rows is **0.33 KB per module**, which is
-Material UI's own rate; across the three real projects above it runs 318 B to
-556 B per file, and what moves it is edges per file.
+The index column is a range, not a point, because the rate is: across the three
+real projects above it runs 318 B to 556 B per file, and what moves it is edges
+per file. Carried to 200,000 files that is 60 MB to 110 MB, and to 2,000,000 it
+is ten times that. The 67.3 MB the synthetic shape measured sits inside the
+range, near its floor.
+
+**The two module columns are different counts, and the gap between them is
+yours to measure.** Material UI's Vitest suite is a unit suite over a component
+library: it enters 791 of 24,519 modules, about 3%, because most of what the
+repository tracks is documentation, examples and packages that suite never
+imports. An application's own suite enters most of the application, which is why
+the medium-app row assumes roughly 1,400 of 2,000. The 200,000 fixture enters
+every module it holds, by construction. What sets the rate is how much of the
+tree your test files import, and only a recording tells you.
 
 **The record needs a different constant from the one a per-module figure
 gives.** The fixture's 77 MB over 200,000 modules is 0.385 KB per module, and
@@ -306,7 +339,9 @@ are real paths rather than generated ones.
 Measured on the two real recordings there are, a record costs roughly **0.65 to
 0.77 KB per entered module**: 0.5 MB over Material UI's 791, and 0.7 MB over a
 429-file suite's 977. Carry that range. The 0.385 the fixture gives is a floor,
-which makes the 2,000,000 row a floor as well. Material UI's record is the small
+which is why the last two rows of the table are marked as floors: they are
+priced per module of the fixture, on generated names, against a test axis far
+sparser than a real suite's. Material UI's record is the small
 one in the table for a separate reason: a record is priced by the modules its
 suite actually enters, not by the modules the scan found.
 
@@ -350,10 +385,19 @@ the diff the other eleven are free.
 
 So the question worth asking before adopting this is not *how big is my
 repository*. It is **how often do my pull requests touch a hub**, and your own
-recording answers it. Record your suite once, check out a recent pull request,
-and run
-[`variance select --format json`](../packages/cli#select-what-your-own-runner-may-skip):
-the counts it reports are the skip list that diff would have had.
+recording answers it, and three commands get you there. Run your suite once
+with the Vitest or Jest integration installed — that run writes the record —
+then check out a recent pull request and ask
+[`variance select`](../packages/cli#select-what-your-own-runner-may-skip) what
+it would have skipped:
+
+```bash
+npx vitest run
+git switch <a recent pull-request branch>
+npx variance select --format json
+```
+
+The counts it reports are the skip list that diff would have had.
 
 ## The lexicon is priced in subjects
 
@@ -364,10 +408,10 @@ them is. Twenty million lines behind two hundred stories is a small lexicon.
 Two hundred thousand lines behind twenty thousand stories is a large one, and
 that is the case worth pricing.
 
-Two suites, measured. The second is one company's application rather than a
+Two suites, measured. The second is a product application rather than a
 library: 572 subjects read from a production Storybook build, in a browser with
 layout resolved, its component names minified by that build. It is not public,
-so unlike Material UI you cannot check it — what it is here for is that it is
+so unlike Material UI you cannot check it. It is here because it is
 product-shaped where the other is library-shaped, and that is the axis the
 table is about.
 
@@ -378,16 +422,17 @@ table is about.
 | values kept | 96,510 | 43,043 |
 | values per subject | 20.5 | 75.3 |
 | bytes per subject | 243 B | 1,627 B |
-| all of the terms, together | 1.09 MB | 0.89 MB |
+| all of the terms, together | 1.14 MB | 0.93 MB |
 
-That last row is the terms and nothing else. Landmarks are priced further down
-and cost about as much again, so budget from the sum rather than from this
-table alone.
+That last row is the terms and nothing else, and it is the per-subject figure
+above it multiplied out. Landmarks are priced further down and are the larger
+half on a product suite: 284 B per subject against 243 B of terms on Material
+UI, and 2,598 B against 1,627 B on the product app. Budget from the sum rather
+than from this table alone.
 
 The per-subject figure is the constant to apply to your own suite, and the two
-are further apart than they look. Material UI's run wrote no `files` at all —
-the field was read and is genuinely empty — while the product app's `files`
-is 58% of its lexicon on its own, because a production build names its modules
+are further apart than they look. Material UI's run wrote no `files` at all,
+while the product app's `files` is 58% of its lexicon on its own, because a production build names its modules
 `assets/Component-a1b2c3.js` and every subject holds a couple of dozen
 of them. Set that field aside and the figures are 243 B and 689 B per subject:
 a product suite costs about three times a library suite, because product
@@ -413,17 +458,17 @@ question:
 
 Those two rows are the measured constants applied to a size no one has
 measured, the way the rows above are. Both are an upper bound rather than a
-forecast, and in a direction you can name: the memory figure counts file
-provenance still carrying the dev server's origin, which it no longer does, so
-a run today holds less than the row says; and the disk figure is spending 58%
-of itself on content hashes.
+forecast, and in a direction you can name: the disk figure spends 58% of itself
+on content hashes.
 
 ### Where things were costs more than what they are called
 
 The [landmarks](lexicon.md) — one entry per node that bears a role, an
 accessible name or words of its own, each carrying what it says, where it sat
 and what encloses it, which is how the same walk writes down the arrangement —
-are priced per subject too, and they cost about as much again:
+are priced per subject too, and on a product suite they are the larger half:
+2,598 B per subject against the terms' 1,627 B, which is 1.6 times. On a
+library suite the two are close, 284 B against 243 B.
 
 | | material-ui | a product web app |
 |---|---|---|
@@ -472,9 +517,10 @@ it resolved through — and each field keeps at most two hundred distinct values
 so a subject's entry has a ceiling no tree depth can pass: eight fields at two
 hundred values of the median length each is **17 KB** on Material UI's
 vocabulary and **27 KB** on the product app's. Twenty thousand subjects all
-pinned at that ceiling is a third of a gigabyte — worth knowing, and roughly
-forty times what either suite actually spends, because no real subject fills
-every field.
+pinned at that ceiling is about **340 MB** on the library vocabulary and about
+**540 MB** on the product one — worth knowing, and 70 times what a library
+subject actually spends and 17 times what a product subject does, because no
+real subject fills every field.
 
 What makes the bounded version still worth keeping is [which two hundred it
 keeps](lexicon.md#what-a-deep-tree-does-to-it): the values the fewest other
@@ -526,7 +572,7 @@ is the measurement of the lever that moves it.
 
 ## What these numbers are, and are not
 
-**The benchmark's diffs are all modules the record has seen.** A real pull
+**The diffs measured above are all modules the record has seen.** A real pull
 request contains a config, a generated file, a module added since the recording,
 and a changed path the record cannot answer for retires the skip list for the
 **whole run**, not just for that file. That is the safe behaviour, and it is why

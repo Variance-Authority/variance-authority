@@ -60,8 +60,9 @@ The selector runs inside each subject, and the subtree it picks is excluded on
 difference under that node, and the pixel comparison subtracts the box that node
 occupied before counting anything. Two declarations would let the tiers disagree
 about what the subject is — and a region excluded semantically but still compared
-on pixels reports `unexplained`, the loudest verdict this system has, about
-something you already said was not the subject.
+on pixels reports the difference as `unexplained` — the finding class that
+names a change nothing in the run accounts for — about something you already
+said was not the subject.
 
 **Which tier your run reaches is worth knowing.** `variance run` compares images
 against a stored baseline, so the pixel half is the half that decides its

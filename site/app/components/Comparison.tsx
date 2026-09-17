@@ -48,29 +48,19 @@ export default function Comparison() {
             change-driven selection
           </dt>
           <dd className="text-xs leading-5 text-quiet">
-            {doc("Percy")} and {doc("Argos")}{" "}
+            {doc("Percy")} captures{" "}
+            {doc("The states your test code calls `percySnapshot` on")}, and{" "}
+            {doc("Argos")} {doc("The screenshots your suite takes")}.{" "}
             {doc(
-              "leave selection to you: you shard the suite yourself. That is a deliberate design choice, not a missing feature",
-            )}
-            .{" "}
-            {doc(
-              "The selection row divides on one axis: what a change imports versus what its tests executed",
+              "The capture row divides on one axis: what a change imports versus what its tests executed",
             )}
             . {doc("TurboSnap reads the static module graph")}.{" "}
             {doc(
-              "Wallaby.js holds the execution-side index, and takes it further than Variance Authority",
+              "Wallaby.js keeps an execution index of this kind for its own editor tooling; here the index decides which subjects a run skips",
             )}
             .{" "}
             {doc(
-              "Variance Authority exposes the underlying index through a function called `coveringTests`, not a time-travel viewer",
-            )}
-            .{" "}
-            {doc(
-              "Given a source line or function, it returns the individual tests that executed it, nearest call stack first, from an execution index supplied by any collector",
-            )}
-            .{" "}
-            {doc(
-              "The shipped integration records one entry per test file and stores no call-stack depth, so per-test answers require a collector that already records them",
+              "through a function called `coveringTests`: given a source line or function, it returns the individual tests that executed it, nearest call stack first",
             )}
             .
           </dd>

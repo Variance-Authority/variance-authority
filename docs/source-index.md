@@ -1,57 +1,120 @@
 # The source index format
 
-The [Sense](../packages/sense) source index is **optional cache state**. A
-missing or corrupt index is treated as absent, so it can save scan work but
-cannot change scan evidence. It holds the two things a repeated source scan
-would otherwise redo over a tree that did not move: one parse per set of file
-bytes, and one resolved record per file — that file's outgoing edges, the
+[**Variance Authority**](README.md) is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source. To decide which work
+a change can affect, it scans your checkout for the file graph. The **source
+index** is where that scan keeps what it learned, so the next scan over a tree
+that did not move does not read it again.
+
+The index is optional cache state. A missing, incomplete or corrupt index is
+treated as absent: it can save scan work and cannot change scan evidence. It
+holds the two things a repeated scan would otherwise redo — one parse per set of
+file bytes, and one resolved record per file: that file's outgoing edges, the
 declarations it publishes, and the directories its specifiers looked in. Both
 are published together, so no scan can read a parse state and a record state
 that never existed at the same time.
 
-## Where it goes
+Read this page to cache the index in CI, to predict what a change to your tree
+costs, or to read the bytes from another language.
 
-`openSourceIndex` takes the path you want it at. `sourceIndexPath(root)` gives
-the one every tool here agrees on, so two of them scanning the same checkout
-reuse each other's work rather than each paying for a cold start:
+## Building one
 
-```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-index.bin
+No command builds the index by itself. It is written and updated as a side
+effect of the commands that need the file graph:
+
+```bash
+# Requires `source: { dirs: ["src"], relations: true }` in variance.config.json.
+variance run --since <ref>
+variance run --against <ref>
+
+# Any question that names a start point in the tree.
+variance ask "<question>" --from src/billing/
+variance ask "<question>" --to src/lib/precision.ts
 ```
 
-`<checkout>` is a digest of the checkout's absolute path. A git worktree gets a
-directory of its own beneath the checkout it was cut from, reads both and writes
-only its own.
+Each of those opens the index, scans, and publishes what it learned before it
+exits. The first such command on a machine pays a cold scan; every later one
+pays for what moved.
+
+From your own tooling, `openSourceIndex` and `sourceIndexPath` in
+[`@variance-authority/sense`](../packages/sense/README.md) are the same two
+halves the commands use: open the index, hand `cache` and `reuse` to
+`scanRelations`, `save` when the scan returns.
+
+## Where it goes
+
+Under your cache root, in a directory named for a digest of the checkout's
+absolute path:
+
+```text
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<digest>/source-index.bin
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<digest>/source-index.bin.segments/
+```
+
+`<digest>` is the first 32 hexadecimal characters of the SHA-256 of that path,
+which you can compute without running anything:
+
+```bash
+printf %s "$PWD" | shasum -a 256 | cut -c1-32
+```
+
+`sourceIndexPath(root)` — the path the library picks when a caller names none —
+puts it under `variance-authority/test-selection/<digest>/source-index.bin`
+instead, with the same digest and no `v1-` prefix, and a git worktree gets
+`test-selection/<primary digest>/.work/<digest>/` beneath the checkout it was
+cut from, reading both layers and writing only its own. Cache
+`${XDG_CACHE_HOME:-~/.cache}/variance-authority` whole and you need not choose
+between them.
 
 **The index is two things on disk.** Beside `source-index.bin` is a directory
 `source-index.bin.segments/` holding the data; the file itself is only the
-pointer to which segments are current. Copy, restore or move the two together.
+pointer to which segments are current. Copy, restore and move the two together.
 The file alone names segments that are not there, and a chain whose members are
 missing is rejected whole — a cold scan, not a wrong answer.
 
-Put it outside the checkout: it is operational state, not source, and nothing
-about it belongs in a commit. At the path above, `git clean` will not take it
-either.
+To force a cold scan, delete the digest directory. That is the whole recovery
+procedure, for a stale index and a corrupt one alike.
+
+```bash
+rm -rf ~/.cache/variance-authority/scans/v1-$(printf %s "$PWD" | shasum -a 256 | cut -c1-32)
+```
 
 ## Caching it in CI
 
 Cache the directory the file and its segments sit in, and restore it before the
-scan. Four rules decide whether a restored index is worth anything:
+scan. Four rules decide whether a restored index is worth anything.
 
-- **Key it by the checkout path, not by the branch or the commit.** Both halves
-  are content-addressed, so a cache restored from another branch costs a slower
-  scan and cannot produce a different graph for the tracked tree. There is
-  nothing to invalidate on merge.
-- **Restore it to the same absolute path it was written from.** Records are
-  keyed by the repository root among other things, so an index restored under a
-  different checkout path keeps every parse and rebuilds every record. Runners
-  that check out at a fixed workspace path keep both halves; runners that use a
-  per-job directory keep the parses only.
-- **Do not move it between machines of different endianness.** Four-byte
-  sections are written in the writing host's native byte order, and nothing in
-  the file records which that was.
-- **Delete the directory to force a cold scan.** That is the whole recovery
-  procedure, for a stale index and a corrupt one alike.
+**Restore it to the same absolute path it was written from.** The checkout root
+is one of the inputs to the digest every record is keyed under, so an index
+restored under a different checkout path keeps every parse and rebuilds every
+record. Runners that check out at a fixed workspace path keep both halves;
+runners that use a per-job directory keep the parses only.
+
+**Nothing about the branch or the commit belongs in the key for correctness.**
+Parses are keyed by the digest of the file bytes they came from, records by that
+digest and a digest of the tree's shape, so an index restored from another
+branch costs a slower scan and cannot produce a different graph for the tracked
+tree. There is nothing to invalidate on merge.
+
+**Vary the key anyway, so the cache is written again.** A cache key that never
+changes is saved once and restored forever: every later job restores the index
+as it was on the day it was first written and re-scans everything that has moved
+since, which looks like a warm cache and costs a cold one. Put the commit in the
+key and the stable part in the restore prefix, so each job saves its own entry
+and starts from the newest one that exists:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/variance-authority
+    key: variance-index-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+    restore-keys: |
+      variance-index-${{ runner.os }}-${{ runner.arch }}-
+```
+
+**Do not move an index between hosts of different endianness.** See
+[the bytes](#the-bytes) for what the reader does with one that arrives anyway.
 
 ## How large it gets
 
@@ -63,24 +126,24 @@ Measured on public checkouts, as the bytes on disk after a full scan:
 | [Docusaurus](https://github.com/facebook/docusaurus) | 2,670 | 1,097,060 B | 411 B |
 | This repository | 1,236 | 687,539 B | 556 B |
 
-Size against the bytes per file record, which is a property of the repository
-rather than of the machine — but as a range of 318 to 556 B, not as a constant.
-It moves with how many edges and names each file carries, not with how large the
-repository is, which is why Material UI has twenty times the files of this
-repository and is the cheapest of the three per file.
+Size the index against the bytes per file record, as a range of 318 to 556 B
+rather than a constant. It moves with how many edges and names each file
+carries, not with how large the repository is, which is why Material UI has
+twenty times the files of this repository and is the cheapest of the three per
+file.
 
 A measured 200,000-file synthetic shape occupies 67.3 MB as shared binary
-sections versus 598 MB as JSON; the difference is names interned once rather
+sections against 598 MB as JSON; the difference is names interned once rather
 than repeated per row. Every figure here covers the serialized index on disk,
 not the memory used to build it.
 
 What it buys in time, on the same Material UI checkout: a first scan with no
-index costs 2,866 ms and the next unchanged run costs 357 ms. Those two are
-wall clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with
-a warm filesystem cache, so they are the fast end of the range: size a CI
-container above them rather than against them. [What a run
-costs](performance.md) carries the rest of the shapes, the machine in full, and
-what is left underneath both numbers.
+index costs 2,866 ms and the next unchanged run costs 357 ms. Those two are wall
+clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with a
+warm filesystem cache, so they are the fast end of the range: size a CI container
+above them rather than against them. [What a source scan costs](performance.md) carries
+the rest of the shapes, the machine in full, and what is left underneath both
+numbers.
 
 ## What a change costs you
 
@@ -98,37 +161,31 @@ and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`. A
 config it cannot follow — not valid JSON, or an `extends` naming a package
 rather than a relative path — leaves the whole tree unbounded, and then every
 record is rebuilt whenever any tracked file appears or disappears. The symptom
-is a warm run that costs what a cold one does.
-[Source index structures](source-structures.md) names that case and the two
-others like it, and what to change.
-
-A configuration change is published only after the scan has produced the
-complete next record map, so unchanged record values may be carried over
-physically without being reused during that validating scan.
+is a warm run that costs what a cold one does. [Source index
+structures](source-structures.md) names that case and the two others like it,
+and what to change.
 
 ## Reading it
 
-No command opens this file for you. It is a private cache rather than an
-interchange format: the layout below belongs to the version that wrote it, the
-reader refuses anything it does not recognise, and neither is a stable interface
-you can build against. To read the graph, scan for it —
+The index is a private cache, not an interchange format, and no command prints
+it: the layout belongs to the version that wrote it, and the reader refuses
+anything it does not recognise. To read the graph, scan for it —
 [`scanRelations`](source.md) answers from the index when one is there. To fix an
 index, delete it.
 
 `openSourceIndex` returns the parse cache, the record cache and a `save`
 operation together. Point reads ask segments newest to oldest and stop at the
 first value or tombstone; iteration materializes them oldest to newest. `save`
-keeps only the rows that scan used or wrote, compares them with what is
+keeps only the rows the scan used or wrote, compares them with what is
 committed, and writes the smallest segment that connects the two. Saves append,
 so a run that changed nothing writes nothing; once the chain has grown enough it
 compacts back to a single segment, and the segments it replaces are removed
-after the new pointer is in place. Write failures leave scanning correct and
-preserve the previous pointer when one exists.
+after the new pointer is in place. A write that fails leaves scanning correct
+and preserves the previous pointer when one exists.
 
 ## The bytes
 
-For reimplementers only, and only of the version that wrote the file in front of
-you.
+For reimplementers, and only of the version that wrote the file in front of you.
 
 `source-index.bin` is an atomic pointer: an eight-byte magic, a 32-bit
 little-endian length, and a UTF-8 JSON manifest naming the committed segments
@@ -143,15 +200,35 @@ boundary. The schema is columnar: one dictionary holding every string in that
 segment interned once, and integer columns over it — one row per parse, per
 record, and per child object such as an import request or an edge, with offset
 columns connecting a parent row to the range of children it owns. Sections are
-one or four bytes wide; the four-byte ones are native-endian, which is why the
-file does not travel between architectures. Optional lists carry a separate
-one-byte column, because an offset range cannot distinguish a fact that is
-absent from a list that is known to be empty.
+one or four bytes wide. Optional lists carry a separate one-byte column, because
+an offset range cannot distinguish a fact that is absent from a list that is
+known to be empty.
 
 Rows are sorted and the dictionary is sorted, so two logically equal segments
 encode to equal bytes. The reader rejects duplicate section names, overlapping
 or out-of-bounds sections, invalid widths, unaligned offsets, malformed column
 lengths and invalid references.
+
+### Byte order
+
+The two length prefixes above are written little-endian explicitly and parse the
+same way on any host. The four-byte data columns are not: they are written as
+the writing host's native words and read as the reading host's, and nothing in
+the file records which order that was. A byte-order mismatch is therefore not
+detected as such.
+
+What an index written on the other endianness meets instead is the validation
+every read performs before it believes a column. An offset column must begin at
+zero, end exactly at the length of the data it points into, and never run
+backwards; every string id must land inside the dictionary; every reference must
+name a row that exists. A byte-swapped column fails that on its first non-zero
+value, and the chain is rejected whole — the reader reports no index and the
+scan runs cold.
+
+That outcome is a consequence of bounds checking rather than a check for byte
+order, so treat an index as belonging to the architecture that wrote it. Where a
+cache is shared across runners, key it by the runner architecture along with the
+operating system.
 
 ---
 

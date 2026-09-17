@@ -20,7 +20,7 @@ and save cost.
 
 ## Scale
 
-Every figure on this page and on [what a run costs](performance.md) was measured
+Every figure on this page and on [what a source scan costs](performance.md) was measured
 on one checkout this project did not write: [Material UI](https://github.com/mui/material-ui)
 at `62a348bf47` — 41,165 tracked paths, 24,519 of them modules, 24.9 MB of
 source. Scanning it produces 24,909 records and a 7.8 MB index.
@@ -38,13 +38,13 @@ The index lives under your cache root, in a directory named for a digest of the
 checkout path:
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-index.bin
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<checkout>/source-index.bin
 ```
 
-Deleting that directory is how you force the first row deliberately. A git
-worktree gets a directory of its own beneath its primary checkout's, reads both
-and writes only its own, so a worktree cut this morning inherits the index of the
-checkout it came from.
+Deleting that directory is how you force the first row deliberately. The digest
+is taken over the absolute path, so a git worktree is a different checkout as far
+as the cache is concerned: it gets a directory of its own, inherits nothing from
+the checkout it was cut from, and pays the first row once.
 
 ## What a change rebuilds
 

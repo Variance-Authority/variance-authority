@@ -51,8 +51,10 @@ Three terms recur across those groups. A **profile** records what a collector
 was capable of observing — jsdom sees structure and declared style, chromium
 adds layout and pixels. An **identity** is the content hash that addresses a
 result; two runs are comparable only when their identities match. A
-**verdict** is one of six words this package will commit to: `unchanged`,
-`inherited`, `authorized`, `needs-review`, `violation`, `unexplained`.
+**verdict** is the one word a result carries. A compared subject gets
+`unchanged`, `changed`, `new`, `incomparable` or `ignored`; a run adjudicated
+against claims you declared gets `clean`, `review` or `unmet`, and each claim
+within it gets `delivered`, `overreached`, `undelivered` or `unobservable`.
 
 The groups exist for callers who genuinely want one. Somebody implementing the
 capture format for a renderer this project has never met needs `core/format` and

@@ -1,14 +1,16 @@
 # What every record means, and where it is kept
 
-Run `variance run` once and look at what it leaves on disk: a report at
-`.variance/report.json`, PNGs beside it, an approved baseline directory it
-only updates when you accept a change, and cache entries under
-`$XDG_CACHE_HOME/variance-authority`. **[Variance Authority](README.md)** is
-visual and execution regression tooling — it renders **subjects** (the
-stories, routes, fixtures, or values a run observes), compares each against
-its own baseline, and records what changed and why. A **run** is one
-execution of `variance run`: it plans the subjects, captures each one,
-compares it against its baseline, and writes a **report**.
+**[Variance Authority](README.md)** is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source. Run `variance run`
+once and look at what it leaves on disk: a report at `.variance/report.json`,
+PNGs beside it, an approved baseline directory it only updates when you accept
+a change, and cache entries under `$XDG_CACHE_HOME/variance-authority`.
+
+A **subject** is one named UI state you asked for and can ask for again — a
+story, a route, a fixture, or a value — under an id that survives a rename. A
+**run** is one execution of `variance run`: it plans the subjects, captures each
+one, compares each against its baseline, and writes a **report**.
 
 Each of those outputs is tracked separately, by its own producer: the report,
 review images, approved baselines, runtime coverage, scenario paths, history
@@ -16,8 +18,10 @@ facts, and disposable caches all keep their own identity, completeness,
 disclosure, retention, and merge rules.
 
 Read this page for the vocabulary the artifacts are written in, the verdict
-values, what each store holds, how two records from different producers join,
-and what survives to the next run.
+values, the keys you will meet in `report.json`, what each store holds, how two
+records from different producers join, and what survives to the next run. If
+you came here because a section of your report is missing, go straight to
+[reading a missing section](#reading-a-missing-section-in-your-own-report).
 
 ## The words
 
@@ -29,13 +33,10 @@ several sections.
 
 | Term | What it is |
 | --- | --- |
-| **subject** | One UI state the run addresses — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
+| **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
 | **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already hold. |
-| **band** | The kind of visible difference: `geometry`, `token`, `content`, `texture`, loudest first. `a11y` joins them where a profile resolves the ARIA tree. |
-| **root** | The stable cause attributed to a change, such as a component or token. |
-| **cluster** | Regions with one semantic fingerprint, so one decision can cover all of them and nothing else. |
-| **docket** | The causes a run leaves for a person or system to decide. |
+| **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never moves and is a defect when it does; anti-aliasing moves constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
 
@@ -47,7 +48,40 @@ several sections.
 | **crossing** | One test entering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
 | **verdict** | The one word an observation carries for its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
 | **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
-| **component digest** | One hashed dimension of a component instance — `structure`, `semantics`, `text`, `style`, `geometry` — one per band. Equal component digests are a match, never a resemblance. A baseline carries these so a later run can settle a subject on hashes instead of pixels. |
+| **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline carries these so a later run can settle a subject on hashes instead of pixels. |
+
+The digests are not the bands, and the two lists do not line up one for one.
+Each digest that moved contributes a band: `semantics` gives `a11y`, `text`
+gives `content`, `style` gives `token`, and `structure` and `geometry` both give
+`geometry`. Five digests, four bands — `texture` has no digest at all, because
+sub-pixel rendering variance is only visible in pixels. Because two digests
+share the `geometry` band, a component that edited its own tree and one that was
+merely pushed by a neighbour read the same after the mapping; that is why each
+moved component also records whether its **own** content moved, as against only
+its box.
+
+### Keys you will meet in `report.json`
+
+Beside `observations`, a report carries these. Each one needs an input, and each
+one is absent — not empty — when that input was not there.
+
+| Key | What it holds |
+| --- | --- |
+| `notObserved` | Subjects the run planned and has no observation for, each under one of three kinds: `excluded` by configuration, `failed` where the run meant to look and could not, or `unreached` by this change. |
+| `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
+| `lexicon` | Every name the run held for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
+| `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
+| `reach` | What the commit reaches: which components the changed files can possibly have moved, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject moved with nothing in the commit reaching it. |
+| `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
+| `flakiness` | How often each subject this run found unstable has read differently before, and whether it has happened in the last few sweeps. See [flakiness](flakiness.md). |
+| `churn` | How often each component this run named as a cause has changed before. A comparison answers *what moved*; this answers *how often this moves*. |
+| `drift` | Design tokens whose value moved in this run, and what they have drifted to across every approved change in the window. Eleven correct approvals of 2px each are a 22px no single review ever saw. |
+| `narrowing` | What this run narrowed by — the ref `--since` named — and what it could have narrowed by: where the recorded execution index stands and how many files the working tree differs from it by. |
+| `ignores`, `sensitivities` | What each declaration did, rule by rule: which regions an [ignore](ignores.md) removed and which assertions a [sensitivity](sensitivity.md) relaxed, so *has this mask grown over a regression?* is answerable months later. |
+
+`composition`, `lexicon`, `variations`, `reach` and `journeys` are the five
+semantic sections — the parts of the report that are not a subject against its
+own past.
 
 ### The named evidence producers
 
@@ -112,6 +146,39 @@ A run begins from four inputs:
    runtime coverage, render-cache entries, history facts, and any admitted
    scenario archive.
 
+The project definition is one file, and it is what decides where everything on
+this page is kept:
+
+```jsonc
+// variance.config.json
+{
+  "project": "checkout-ui",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": {
+    "kind": "storybook",
+    "index": "storybook-static/index.json",
+    "collector": "variance/storybook.mjs"
+  },
+  "baselines": { "kind": "directory", "root": ".variance/baselines" },
+  "report": ".variance/report.json",
+  "images": ".variance/images"
+}
+```
+
+`retention` is `durable` or `ephemeral`, and it decides whether anything is kept
+at all. `durable` requires `baselines` and the run refuses to start without it —
+there is nowhere to store the image it would compare against. `ephemeral` stores
+nothing, and a config that sets `baselines` anyway is refused too, so the file
+cannot say one thing while the run does another. `baselines` addresses the
+approved references: a directory, Git LFS, or `{ "kind": "remote", "endpoint":
+"…", "token": "…" }` for a store behind an HTTP hop. `report` is the path the
+run report is written to. `images` is the directory the candidate, baseline and
+diff PNGs land in, resolved beside the report when you leave it out — which is
+why a CI job uploads the two together. [Surface](surface.md) carries the rest of
+the file.
+
 Configuration and the subject plan define the work. Caches may reduce its cost;
 they cannot change which answer is correct. Baselines and history are evidence,
 not caches: losing them changes what later runs can know.
@@ -159,11 +226,11 @@ Solid arrows are production. Dotted arrows are reuse or
 regression: a test can produce crossings without any capture, and those
 crossings still select tests for a later source change.
 
-The dotted edge from a capture to the execution record does not copy that
-record into every snapshot. Per-observation attribution needs the capture and
-the runtime recorder to share an instrumentation generation and
-recorder-issued start and end markers. Without them the two records belong to
-the same SUT execution and cannot support a frame-level execution claim.
+The dotted edge from a capture to the execution record does not copy that record
+into every snapshot. Sharing one SUT execution is not enough to attribute
+particular crossings to a particular capture; that needs the capture and the
+recorder to agree on an instrumentation generation and on interval markers the
+recorder issued.
 
 ## What exists while the SUT executes
 
@@ -188,16 +255,14 @@ can produce:
 - a **captured value**, when the subject is not renderable.
 
 Semantic and source evidence travel beside the material when the host can
-observe them. Live pages, DOM nodes, framework handles, callbacks, and resource
-resolvers remain in the producing process.
+observe them.
 
 ### Scenario points
 
 A scenario begins at the named Arrange subject and adds one frame after each
 authored Act. Each observed frame references a semantic snapshot; an unobserved
-outcome carries diagnostics and terminates the witnessed prefix. Several
-executions fold into a partial state machine without inventing unwitnessed
-edges.
+outcome carries diagnostics and ends the witnessed prefix there. Several
+executions fold together, and the fold never invents an edge nobody walked.
 
 The scenario path is per SUT. Runtime coverage is run-wide. A shared host
 explains why the two arose in one execution; only a shared interval identity
@@ -205,10 +270,9 @@ attributes particular source crossings to one frame.
 
 ### Presentation readings
 
-A presentation reading is taken from one live page at one locator. The graph,
-telemetry, derived structures, findings, and paint geometry are process values
-that last as long as the caller holds them. A reading is not addressed by
-subject and establishes nothing a later run is measured against.
+A presentation reading is taken from one live page at one locator. It is not
+addressed by subject and establishes nothing a later run is measured against,
+and what it measured lasts only as long as the caller holds it.
 
 Two readings of the same locator produce relationship effects and a
 presentation-independent content identity. Those, and only those, reach
@@ -279,11 +343,10 @@ addresses rather than local replicas of either store.
 ### Sense source information
 
 [Sense](../packages/sense) source information is one versioned binary index, not a pair of serialized
-object documents. The index stores source identities and names once, then keeps
-requests, bindings, exports, declarations, resolved edges, and forward/reverse
-relations in aligned typed-array sections. Opening it creates graph and
-component/source query views over those sections; reach trails and query
-results remain run-wide in-process values.
+object documents. It stores source identities and names once and keeps requests,
+bindings, exports, declarations, resolved edges and relations beside them, so a
+reader opens only the sections its query needs. Reach trails and query results
+are computed per run and are not stored.
 
 The index lives in the configured source-index root. The CLI's local namespace
 is `$XDG_CACHE_HOME/variance-authority/scans/<checkout-digest>`, falling back to
@@ -391,18 +454,10 @@ refuses rather than answering from an empty value.
 
 ## What can produce a useful report
 
-Report assembly happens after subject observation and before the SUT process is
-discarded. At that boundary it can consume:
-
-- the resolved plan, including every planned, excluded, and failed subject;
-- per-subject acquisition diagnostics and stabilization declarations;
-- semantic snapshots and source [provenance](attribution.md) for findings and attribution;
-- the candidate-to-reference comparison, changed regions, ignores, and
-  [sensitivity](sensitivity.md);
-- paired presentation readings, when the caller supplied one for each side;
-- review-image addresses written beside the report;
-- same-run snapshots needed for suite composition and named variations; and
-- current and bounded answers returned by history after this run is recorded.
+The report is assembled once, while the run still holds the plan, the snapshots,
+the comparison, the [attribution](attribution.md) and the answers history
+returned — and it is read back later by tools that hold none of those. What it
+keeps is what a sentence needs.
 
 The canonical `RunReport` persists the resulting observations, subject-coverage
 ledger, warnings, run and painter identity, image references, variation and
@@ -428,14 +483,14 @@ must not infer one from the other: a passing test does not prove its visual
 subject was observed, and an observed visual subject does not make the whole
 test execution complete.
 
-### Reading a missing section in your own report
+## Reading a missing section in your own report
 
 Beside `observations` and `notObserved`, a report carries up to five optional
 semantic sections — `composition`, `lexicon`, `variations`, `reach` and
-`journeys` — plus `flakiness` and `drift`. Each needs an input, and when that
-input was not there the section is not an empty object: **the key is absent
-from `report.json` entirely.** Open the file and look for the key before
-concluding a section found nothing.
+`journeys` — plus `flakiness`, `churn` and `drift` ([what each one holds](#keys-you-will-meet-in-reportjson)).
+Each needs an input, and when that input was not there the section is not an
+empty object: **the key is absent from `report.json` entirely.** Open the file
+and look for the key before concluding a section found nothing.
 
 Within a section, missing takes two further shapes, and they are different
 answers:
@@ -489,23 +544,9 @@ The states remain distinct: **absent** means no producer established a value;
 covers the declared scope; **expired** reached its retention boundary; and
 **deleted** was deliberately removed.
 
-Five operations change a stored record, and nothing else does:
-
-- **Create** establishes a new immutable capture, snapshot, raster, report,
-  scenario path, review decision, or history fact under its complete identity.
-- **Update** changes only explicitly current state, such as configuration, a
-  baseline head after approval, a latest-view pointer, or a cache entry. It does
-  not rewrite the evidence or decision behind that state.
-- **Merge** applies only where a domain declares compatibility and an algebra:
-  equal content deduplicates; compatible runtime crossings union; shard reports
-  combine non-overlapping subjects. See below.
-- **Delete** removes one addressed retained copy or evicts a cache entry. Readers
-  receive unavailable, expired, or cache miss rather than an empty measurement.
-  Append-only history and approval records refuse ordinary deletion.
-- **Wipe and redefine** is one compound operation: establish the replacement
-  schema, identity basis, painter partition, instrumentation generation, name
-  grammar, or retention scope while retiring the values governed by the old
-  definition. Old evidence is never reinterpreted under the new basis.
+A record that was deleted or evicted never reads back as an empty measurement:
+you get unavailable, expired, or a cache miss. History rows and approval records
+refuse ordinary deletion outright.
 
 ## Merging a sharded suite
 

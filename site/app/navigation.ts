@@ -16,10 +16,10 @@ export const NAVIGATION = [
   {
     label: "Overview",
     items: [
-      { href: "/docs", label: "What tests are for" },
+      { href: "/docs", label: "See what changed in the UI" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
-      { href: "/docs/great-data", label: "With great data comes great…" },
+      { href: "/docs/great-data", label: "What one run leaves you" },
     ],
   },
   {
@@ -297,7 +297,7 @@ export const NAVIGATION = [
       { href: "/docs/source", label: "Source scan" },
       { href: "/docs/surface", label: "Connect a suite" },
       { href: "/docs/observability", label: "Observability contracts" },
-      { href: "/docs/lexicon", label: "How search works" },
+      { href: "/docs/lexicon", label: "How search finds a subject" },
       { href: "/docs/metrics", label: "Metric definitions" },
       { href: "/docs/source-index", label: "Source index" },
       { href: "/docs/source-structures", label: "Source structures" },

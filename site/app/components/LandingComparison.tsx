@@ -48,22 +48,17 @@ export default function LandingComparison() {
             change-driven selection
           </dt>
           <dd className="text-xs leading-5 text-quiet">
-            {doc("Percy")} and {doc("Argos")}{" "}
+            {doc("Percy")} captures{" "}
+            {doc("The states your test code calls `percySnapshot` on")}, and{" "}
+            {doc("Argos")} {doc("The screenshots your suite takes")}.{" "}
             {doc(
-              "leave selection to you: you shard the suite yourself. That is a deliberate design choice, not a missing feature",
+              "The capture row divides on one axis: what a change imports versus what its tests executed",
             )}
-            .{" "}
+            . {doc("TurboSnap reads the static module graph")}. Wallaby.js keeps
+            an execution index of this kind for its own editor tooling. This
+            project ships the index underneath:{" "}
             {doc(
-              "The selection row divides on one axis: what a change imports versus what its tests executed",
-            )}
-            . {doc("TurboSnap reads the static module graph")}. Wallaby.js holds
-            the execution-side index, and takes it further than this project
-            does. This project does not build that viewer. It ships the index
-            underneath it: give coveringTests a source line or function and it
-            returns the individual tests that executed it, nearest call stack
-            first.{" "}
-            {doc(
-              "The shipped integration records one entry per test file and stores no call-stack depth, so per-test answers require a collector that already records them",
+              "given a source line or function, it returns the individual tests that executed it, nearest call stack first",
             )}
             .
           </dd>

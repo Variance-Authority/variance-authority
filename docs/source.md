@@ -1,12 +1,22 @@
 # Source scan reference
 
-The **source scan** turns a checkout into one stable record per file: resolved
-outgoing edges, component declarations, content identity, and any reason the
-edge list is incomplete. This page defines that contract—what the scan reads,
-how to interpret its records, what makes an answer reusable, and where the
-answer stops. [Variance Authority](README.md) walks those records to decide which components,
-tests and visual subjects a change can reach, so a run covers the affected work
-rather than the whole suite.
+[**Variance Authority**](README.md) is a visual regression system you run
+yourself: it renders a UI state, compares it against the baseline you approved,
+and reports what changed in the vocabulary of your source. To decide which work
+a change can affect, it first has to know which files that change can reach.
+The **source scan** is the part that reads your checkout and answers.
+
+The scan turns a checkout into one stable record per file: resolved outgoing
+edges, component declarations, content identity, and any reason the edge list is
+incomplete. A run walks those records to decide which components, tests and
+**subjects** — a subject is one named UI state you asked for and can ask for
+again, such as `cart/empty` — a change can reach, so the run covers the affected
+work rather than the whole suite.
+
+Read this page when you are calling the scan from your own tooling, or when a
+report named a component you expected it to miss, or missed one you expected it
+to name. It defines what the scan reads, how to interpret its records, what
+makes an answer reusable, and where the answer stops.
 
 Selection is a separate decision. The scan can establish that a change reaches
 a component; it does not decide which subjects or tests may be skipped.
@@ -14,10 +24,41 @@ a component; it does not decide which subjects or tests may be skipped.
 [`execution-record.md`](execution-record.md) owns the coverage data showing which
 regions a test actually entered.
 
-The public scan is `scanRelations` from
-[`@variance-authority/sense`](../packages/sense). The graph built from its
-records belongs to [`@variance-authority/core`](../packages/core), which opens no
-files.
+## Install and call
+
+```bash
+npm install --save-dev @variance-authority/sense
+```
+
+`scanRelations` reads the checkout and returns the records;
+`relationsOfFiles` and `movedBy` from `@variance-authority/core` turn them into
+an answer about one change.
+
+```ts
+import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { scanRelations } from '@variance-authority/sense';
+
+const records = await scanRelations({ root: '.', dirs: ['src'] });
+// records[0] ->
+// {
+//   file: 'src/components/Button.tsx',
+//   digest: 'git:9f2c…',
+//   edges: [{ to: 'src/tokens.css', kind: 'asset' }, …],
+//   declares: ['Button'],
+// }
+
+const moved = movedBy(relationsOfFiles(records), ['src/tokens.css']);
+
+moved.files;      // files the change can reach, the changed file included
+moved.components; // component names declared in any of them
+moved.missing;    // changed paths the graph does not hold
+moved.opaque;     // files widened because their own edges are unknown
+```
+
+`scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
+`readModule(file, contents)` and `readStyle(file, contents)` are exported from
+`@variance-authority/sense/read` when you already hold the source text: they
+read requests and names without resolving anything or opening the checkout.
 
 ## Lookup map
 
@@ -27,7 +68,7 @@ files.
 | Check whether a file extension is read | [Extensions](#extensions) |
 | Reach a workspace package's source instead of its `dist` | [Workspace packages](#workspace-packages) |
 | Resolve a `@/…` alias | [Resolution](#resolution) |
-| Read source text already held by an editor, VFS or build | [`readModule` and `readStyle`](#requests-bindings-and-published-names) |
+| Read source text already held by an editor, VFS or build | [`readModule` and `readStyle`](#install-and-call) |
 | Interpret one returned file | [`FileRecord`](#file-records) |
 | Distinguish a missing package from an incomplete edge list | [Unresolved and unknown](#unresolved-and-unknown) |
 | Ask which edge kinds a runtime walk follows | [Graph handoff](#graph-handoff) |
@@ -37,15 +78,13 @@ files.
 
 ## Scan inputs
 
-`scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
-
 | Option | Default | Contract |
 |---|---|---|
 | `root` | required | Repository root. Every returned path is relative to its real path. |
 | `dirs` | required | Directories from which traversal starts. They are seeds, not a traversal boundary. |
 | `tsconfig` | `"auto"` | A specific configuration, or nearest-config discovery per importing file. |
 | `conditionNames` | `source, import, require, default` | Export conditions, in resolution order. |
-| `digests` | Git digests when available | A caller-supplied digest map; `false` reads and hashes files directly and disables record reuse. |
+| `digests` | Git digests when available | Your own digest map; `false` reads and hashes files directly and disables record reuse. |
 | `cache` | in memory | Parse cache, keyed by content and the way the filename says to read it. |
 | `reuse` | off | Record cache. It is consulted only when content digests are available. |
 | `largestFile` | 1 MiB | Maximum file size the scan opens. Larger files become unknown rather than being parsed. |
@@ -56,22 +95,21 @@ specifier resolution, and any path mappings the source relies on. Persistence
 is optional: without it the returned records are the same and the scan repeats
 more work.
 
-`readModule(file, contents)` and `readStyle(file, contents)` are exported from
-`@variance-authority/sense/read` for callers that already hold source text. They
-read requests and names without resolving anything or opening the checkout.
-
 ### Extensions
 
-The scan opens two sets of extensions and no others:
+The scan opens two sets of extensions and no others. Everything else on disk is
+a file it can point at but never reads:
 
-| Set | Extensions |
-|---|---|
-| Module dialects | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` |
-| Stylesheets | `.css`, `.scss`, `.sass`, `.less` |
+| Set | Extensions | Read for its own requests |
+|---|---|---|
+| Module dialects | `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs` | Yes |
+| Stylesheets | `.css`, `.scss`, `.sass`, `.less` | Yes |
+| Everything else | `.vue`, `.svelte`, `.astro`, `.mdx`, `.json`, `.md`, `.html`, images, fonts | No |
 
-A file under `dirs` with one of those extensions gets a record. A file with any
-other extension gets none and is never a traversal seed, so `.vue`, `.svelte`,
-`.json`, `.md`, images and fonts are not read for requests of their own.
+A file under `dirs` with one of the first two sets gets a record. A file with
+any other extension gets none and is never a traversal seed. If your components
+live in single-file `.vue` or `.svelte` modules, the scan never learns what they
+import, so a change to a file one of them uses does not reach it.
 
 Such a file can still be an edge target. The edge kind follows the target, not
 the syntax that asked for it, so `import './App.vue'`, `import './icon.svg'` and
@@ -111,7 +149,7 @@ of the retained result. Stylesheets use a conservative text reading instead:
 `@import`, `@use`, `@forward`, `url()` and CSS Modules `composes … from` become
 whole-file asset requests. A request found inside a CSS comment may therefore
 over-include. That costs work; missing a real request could skip work, so the
-reader favours the safe direction.
+reading errs towards over-including.
 
 The request set is explicitly incomplete when the parser reports an error, a
 dynamic import is not a literal, or a `require()` target cannot be read as a
@@ -242,16 +280,39 @@ both its size and the configured cap.
 
 ### Component declarations
 
-A **component** here is a React component as the source spells it: a top-level
-`function`, `const`, `let` or `class` declaration whose name begins with an
-uppercase letter, exported or not. Those names are what `declares` holds, and
-what a `declared-in` edge points from.
+**The scan recognises React components only.** It reads no other framework's
+component model, so on a Vue, Svelte, Angular or Solid codebase `declares` is
+empty, no `declared-in` edge exists, and `moved.components` comes back empty.
+File-level reach is unaffected: you still get which files a change can move.
 
-Recognition is by that shape and that name, so a component produced by a
-factory, assigned dynamically, or re-exported under a different name is missed,
-and a capitalised helper declared at top level can be listed as one. A miss
-leaves a report naming the component without a file; a false positive can only
-surface for an identifier something else already named.
+A component is one the source spells as a `function`, `const`, `let` or `class`
+declaration whose name begins with an uppercase letter, exported or not. Those
+names are what `declares` holds, and what a `declared-in` edge points from.
+Recognition reads the declaration line, not the value behind it, so these are
+all named:
+
+```tsx
+export const Row = memo(Inner);
+export const Card = forwardRef(Inner);
+export const Panel = styled.div`color: red`;
+export const Field = withTheme(Inner);
+```
+
+What is missed is a component that never gets a capitalised name at its
+declaration:
+
+```tsx
+export default memo(function Row() {});     // no name on the line
+export default forwardRef(Inner);           // no name on the line
+export { Inner as Row } from './inner';     // renamed by a re-export
+Widget.Row = Inner;                         // assigned after the fact
+```
+
+A missed component leaves a report naming the component without a file, which
+is what the report said before the index existed. The error runs the other way
+too: any capitalised `const` counts, including one that holds a hook, a schema
+or a constant, and including one declared inside another function. A false
+positive can only surface for an identifier something else already named.
 
 ### Unresolved and unknown
 
@@ -270,7 +331,7 @@ dependency widen every traversal.
 
 ## Graph handoff
 
-`relationsOfFiles` turns file records into an interned, bidirectional graph. The
+`relationsOfFiles` turns file records into a bidirectional graph. The
 edge convention is always `A → B` means **A depends on B**. A component therefore
 points to the file declaring it, and one walk against the arrows from a changed
 file reaches importers and components together.
@@ -286,9 +347,9 @@ file reaches importers and components together.
 
 Type-only edges remain in the graph because source-oriented questions need
 them. The default reach and closure use `RUNTIME_EDGES`, every kind except
-`type`: a type-only dependency runs no test and paints no pixel. A caller asking
-about source—for example a documentation generator reading prop types—passes
-`EDGE_KINDS` or another explicit set. `relationsOfFiles`, `movedBy`,
+`type`: a type-only dependency runs no test and paints no pixel. To ask about source instead — a
+documentation generator reading prop types, say — pass `EDGE_KINDS` or another
+explicit set. `relationsOfFiles`, `movedBy`,
 `RUNTIME_EDGES` and `EDGE_KINDS` are all exported from
 `@variance-authority/core/relate`.
 
@@ -321,7 +382,7 @@ files itself.
 A parse is keyed by content digest plus the way the filename says to read those
 bytes: its extensions select a source dialect or stylesheet reader, and names
 such as `.test.ts` change whether declarations count as components. Resolution
-is deliberately absent from this key. Two files with the same key contain the
+is absent from this key. Two files with the same key contain the
 same requests, bindings, exports and declarations wherever they sit.
 
 ### Record reuse
@@ -333,21 +394,17 @@ A resolved record depends on four things:
 | File bytes | Content digest. |
 | File position | Repository-relative path. |
 | Resolution configuration | Digest of manifests, lockfiles, `tsconfig` and `jsconfig` contents, requested `tsconfig`, and condition names. |
-| Paths that could have answered this file's requests | Witness directories. |
+| Paths that could have answered this file's requests | The directories a request looked in, answered or not. |
 
-Witnesses come from the request, not only the successful answer. A request for
-`./button` witnesses the importing directory and the possible `button`
-directory even when neither currently answers, because a new file can turn that
-absence into an edge without changing the importing file's bytes. A resolved
-target's directory is also witnessed for redirects such as `package.json`
-`main`.
+The fourth input counts directories a request looked in even when nothing
+answered. A request for `./button` counts the importing directory and a possible
+`button` directory while both are empty, because adding a file there turns that
+absence into an edge without changing the importing file's bytes.
 
-A resolution-configuration change invalidates all resolved records while
-leaving content-keyed parses reusable. A directory membership change
-invalidates only records that witnessed that directory. When configuration is
-unreadable and no honest bound for bare specifiers can be derived, the whole
-path set enters the configuration digest and any path move invalidates the
-record layer.
+So: change a `tsconfig`, a manifest or a lockfile and every resolved record is
+rebuilt, while the content-keyed parses stay reusable. Add or remove a file and
+only the records that looked in that directory are rebuilt. When the
+configuration cannot be read, every record is rebuilt on any path change.
 
 The configured seed directories are not part of either reuse key. They decide
 which records a scan asks for, not what any one record means, so a narrow scan
@@ -362,20 +419,19 @@ warm and changed-tree costs are kept in [`performance.md`](performance.md).
 
 ## Limits
 
-**The scan is not a build.** It follows syntax and configured resolution. A
-caller can layer declared taints over the returned records, but a bundler plugin
-that invents or rewrites requests can still create an edge the scan does not
-see. A missing relative target becomes unknown and widens; a missing bare target
+**The scan is not a build.** It follows syntax and configured resolution. You can layer declared taints over the returned records, but a bundler
+plugin that invents or rewrites requests can still create an edge the scan does
+not see. A missing relative target becomes unknown and widens; a missing bare target
 remains an unresolved package request. Supply the relationship through supported
 configuration, a project-graph seed, or a taint rather than treating a quiet
 record as build equivalence.
 
-**Generated files hidden from Git can shadow resolution.** The directory map is
-built from the digest map, and Git does not report ignored files. An ignored
-generated file can therefore appear or disappear without moving a witness
-directory even though it changes which path a request resolves to. Tracking the
-file closes the gap. `digests: false` disables content- and layout-based record
-reuse when the checkout must be read without that assumption.
+**A Git-ignored generated file can shadow resolution.** The scan learns the
+tree's layout from Git, and Git does not report ignored files. A generated file
+your `.gitignore` covers can therefore appear or disappear without the scan
+noticing, even though it changes which path a request resolves to, and a reused
+record then names the wrong target. Track the file, or pass `digests: false`,
+which reads and hashes the checkout directly and turns record reuse off.
 
 **Package edges are conditional.** A `source` export condition, a `source` main
 field or a path mapping keeps a workspace edge inside the repository; a manifest
@@ -385,7 +441,12 @@ affected-project answer supplies that boundary at project granularity. See
 
 **Large files become unknown.** The default one-megabyte cap prevents generated
 barrels and bundles from consuming a scan's memory budget. Raising
-`largestFile` accepts that cost for a file the caller intentionally wants read.
+`largestFile` accepts that cost for a file you want read anyway.
+
+**Components are React's, and only where the source names them.** On another
+framework `declares` is empty; on React, a component that never carries a
+capitalised name at its declaration is missed. See
+[Component declarations](#component-declarations).
 
 **Static reach is possibility, not execution.** The graph includes both sides
 of a branch. Execution recording supplies which regions a particular test or
