@@ -43,6 +43,17 @@ Storybook's own channel rather than navigating. The renderer keeps a pool of
 pages keyed by viewport, so 1x and 2x, or a phone width and a desktop one, come
 out of one browser in one run.
 
+That saving is available where the page is this side's to open. A shipped
+collector and the renderer decide when a browser starts, which page a subject is
+read in, and when either closes, so they can spend those decisions on speed. A
+host runner that drives its own browser has already made them. In [Vitest
+browser mode](start-vitest-browser.md) the tab, the tester iframe and the
+isolation between test files are the runner's, configured where the runner
+configures them, and observing a component it mounted changes none of it — the
+same is true of a page your own Playwright test navigated. What stays this
+side's in both is the deferred paint: one browser for the whole run, rendering
+every captured document, whatever the suite did to reach the state.
+
 Rendering an image is expensive, so a run avoids it when comparing the captured
 document is enough. If that document is identical to the one used for the
 baseline image, there is no need to take another screenshot.
@@ -168,8 +179,8 @@ suite gets better because you understand and improve the work it does.
 
 | Capability | Integration | Also needs |
 | --- | --- | --- |
-| One page across a run | the harness, or a shipped collector | nothing further |
-| Test-order checks | a collector that can create a clean environment | nothing further |
+| One page across a run | the harness, or a shipped collector | a page this side opens; a runner that drives its own browser keeps its own lifecycle |
+| Test-order checks | a collector that can create a clean environment | the ability to mount the subject again, which a runner-owned mount does not offer |
 | Selection and distance | `withTestSelection` in the Vitest or Jest config | a recorded run to select from |
 | Order-dependent module state | the same instrumentation | nothing further |
 | Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
