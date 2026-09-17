@@ -1,4 +1,6 @@
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { main, parseArgs } from './bin.js';
 import { EXIT_OPERATOR, OperatorError } from './exit.js';
@@ -21,21 +23,47 @@ import { SKILL_NAME, skillPath } from './skill.js';
  * ran. An agent cannot read a file nobody named, so every refusal names it.
  */
 describe('the skill, after a refusal', () => {
-  it('names the shipped skill by path, so an agent can open it', async () => {
-    const errors: string[] = [];
-    const code = await main(['ask', '--not-a-flag'], { out: () => {}, err: (text) => errors.push(text) });
-
-    expect(code).toBe(EXIT_OPERATOR);
-    expect(errors.join('')).toContain(skillPath());
-    expect(errors.join('')).toContain(SKILL_NAME);
+  it('names the shipped skill from where the command was run', async () => {
+    const said = await refusal();
+    // What an installed consumer sees is `node_modules/@variance-authority/…`,
+    // which is a path they can open and a path that still means something in a
+    // log. The absolute one names whose machine it was.
+    expect(said).toContain(relative(process.cwd(), skillPath()!));
+    expect(said).toContain(SKILL_NAME);
+    expect(said).not.toContain(skillPath());
   });
 
-  it('points at a file that is there', () => {
+  it('names it absolutely from somewhere the file is not under', async () => {
+    // A global install, or a caller standing outside the checkout. Counting
+    // `..` hops through directories nobody named is not an instruction.
+    const here = process.cwd();
+    try {
+      process.chdir(tmpdir());
+      expect(await refusal()).toContain(skillPath());
+    } finally {
+      process.chdir(here);
+    }
+  });
+
+  it('points at a file that is there, whichever way it is spelled', async () => {
     // A path printed for a file a consumer did not publish is worse than no
     // line: the reader spends a call on it and learns nothing.
+    const said = /skill at (.+)/.exec(await refusal())?.[1] ?? '';
+
+    expect(said).not.toBe('');
+    expect(isAbsolute(said) || existsSync(resolve(process.cwd(), said))).toBe(true);
     expect(existsSync(skillPath()!)).toBe(true);
   });
 });
+
+/** What a refused command writes to its error stream. */
+async function refusal(argv: readonly string[] = ['ask', '--not-a-flag']): Promise<string> {
+  const errors: string[] = [];
+  const code = await main(argv, { out: () => {}, err: (text) => errors.push(text) });
+
+  expect(code).toBe(EXIT_OPERATOR);
+  return errors.join('');
+}
 
 /**
  * What a refusal costs the reader who has to act on it.

@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { isAbsolute, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -36,6 +37,25 @@ export function skillPath(): string | undefined {
 }
 
 /**
+ * The skill, written the way the reader would type it from where they are.
+ *
+ * From the directory the command was run in, when it is under it — which is the
+ * usual case and the useful one: an installed consumer reads
+ * `node_modules/@variance-authority/cli/skill/SKILL.md`, a path they can open
+ * without knowing whose machine it is on, and one that means the same thing in a
+ * log, a transcript, or a note to somebody else.
+ *
+ * Absolute when it is not under the working directory, which a globally
+ * installed binary and a checkout the caller is standing outside of both are. A
+ * relative path there is a climb through directories the reader has no reason to
+ * know, and the absolute one is the only spelling that opens.
+ */
+function fromHere(at: string): string {
+  const near = relative(process.cwd(), at);
+  return near.startsWith('..') || isAbsolute(near) ? at : near;
+}
+
+/**
  * The line that follows a refusal, or nothing when the skill was not installed.
  *
  * Leading newline so the refusal keeps its own paragraph: what went wrong is the
@@ -46,6 +66,6 @@ export function skillLine(): string {
   if (at === undefined) return '';
   return (
     `\nWhich question answers what, and what each one needs before it can answer, ` +
-    `is in the \`${SKILL_NAME}\` skill at ${at}\n`
+    `is in the \`${SKILL_NAME}\` skill at ${fromHere(at)}\n`
   );
 }
