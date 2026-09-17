@@ -223,6 +223,16 @@ export async function createLfsStore(options: LfsStoreOptions): Promise<LfsStore
       return baselines.put(key, raster);
     },
 
+    /**
+     * Delegated whole: it reads directory entries and never opens a file, so the
+     * pointer problem cannot reach it. Spread rather than written out, so a
+     * delegate without the method leaves this store without it too — answering
+     * `[]` on its behalf would turn "cannot enumerate" into "holds nothing".
+     */
+    ...(baselines.unplanned === undefined
+      ? {}
+      : { unplanned: baselines.unplanned.bind(baselines) }),
+
     // The pointer refusal stays, and under the never-throws rule it now reads as
     // a miss rather than as an error — which is the right answer here and not a
     // weakening. A cached entry that is 130 bytes of LFS pointer is not an

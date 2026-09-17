@@ -50,8 +50,10 @@ import { widthsOf } from './widths.js';
  * application publishes about itself — declared discovery rather than inferred —
  * and it requires `subjects.kind: "collector"` because the subject list is then
  * discovered rather than written down. That trade is the operator's: a page
- * dropped from the sitemap stops being watched silently, which is why `routes`
- * stays the form that says who decides what is under test. A sitemap *index* is
+ * dropped from the sitemap stops being watched with nothing to approve, which is
+ * why `routes` stays the form that says who decides what is under test. The run
+ * names the baselines it holds and did not plan (ADR-0063), so the removal is
+ * reported — it is the *review* of it that discovery gives up. A sitemap *index* is
  * still not followed; fetching what a fetched document points at is the crawler
  * above.
  */
@@ -241,8 +243,10 @@ export function routeCollector(
               notObserved: [],
               warnings: [
                 `planned ${Object.keys(resolved).length} subject(s) from ${from}. ` +
-                  'A page this stops listing stops being watched, and nothing here will say so ' +
-                  '— declare the routes explicitly if that matters',
+                  'A page this stops listing stops being watched with no config diff to ' +
+                  'approve; the run names it as a subject the baseline store holds and the ' +
+                  'plan did not — declare the routes explicitly if the removal itself should ' +
+                  'be reviewed',
               ],
             },
             options.widths,

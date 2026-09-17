@@ -126,7 +126,8 @@ not their bytes.
 
 **What you pay.**
 
-- routes are explicit; the collector is not a crawler or sitemap product;
+- a sitemap or built directory supplies the route list, but nothing crawls: a
+  page reached only by a link on another page is never visited;
 - authentication and state setup belong to the host collector;
 - a managed browser and device fleet and a hosted reviewer surface are absent;
 - each viewport is a distinct planned subject and render.

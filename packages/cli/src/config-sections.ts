@@ -112,8 +112,10 @@ export interface ListSubjects {
  *
  * The trade is real and belongs to the operator. A discovered plan means the
  * suite's contents can change without a commit, so a page that stops being
- * published stops being watched, silently — which is exactly what `list` is for
- * when that matters.
+ * published stops being watched with nothing to approve — which is exactly what
+ * `list` is for when that matters. The removal is not unreported: a run names
+ * the approved subjects its plan did not contain (ADR-0063). What `list` buys is
+ * that the change arrives as a diff before it arrives as a warning.
  */
 export interface DiscoveredSubjects {
   readonly kind: 'collector';

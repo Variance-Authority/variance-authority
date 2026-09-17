@@ -20,6 +20,7 @@ import { decoderFor } from './resources.js';
 import { concurrencyOf, pool, serial } from './schedule.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
+import { unplannedNotes } from './unplanned.js';
 import { shardFilterBecause, type CliObservationRecord, type CliRunReport, type NotObserved } from './run-report.js';
 
 /**
@@ -182,35 +183,29 @@ async function observeAll(
   const { config, deps, renderer } = context;
   const { observations, notObserved, warnings } = accumulated;
 
-  // One slot per planned subject, filled out of order and read back in order.
+  /** One slot per planned subject, written by index so the pool needs no order. */
+  const perSubject = <T>(): (T | null)[] => plan.subjects.map(() => null);
+
+  // Filled out of order and read back in order.
   // The report has to be a function of the plan and nothing else: a run whose
   // observation order depended on which subject finished first would produce a
   // different file on every execution, and `variance run` writing a different
   // artifact from the same inputs would undo the whole determinism argument.
-  const slots: (Outcome | null)[] = Array.from(
-    { length: plan.subjects.length },
-    () => null,
-  );
+  const slots = perSubject<Outcome>();
 
   // Filled only when this run has both a store and an identity to write under.
   // The check is here rather than inside the recorder so that a run with no
   // history configured never hashes a snapshot it is not going to send.
   const recording = options.identity !== undefined && config.history !== undefined;
   let declared: SourceIndex | undefined; // the last carried; the engine's answers only grow
-  const readings: (SubjectHistory | null)[] = Array.from(
-    { length: plan.subjects.length },
-    () => null,
-  );
+  const readings = perSubject<SubjectHistory>();
 
   // Filled unconditionally, unlike `readings` above, and that is the whole point
   // of it being a second array. The cross-subject graph costs one walk of a tree
   // the run already holds and needs no store, no identity and no history — so
   // gating it on `recording` would make the suite's own composition invisible in
   // exactly the configuration developers use most.
-  const compositions: (SubjectComposition | null)[] = Array.from(
-    { length: plan.subjects.length },
-    () => null,
-  );
+  const compositions = perSubject<SubjectComposition>();
 
   // Subjects some other subject declared itself a variation of, plus the
   // variations themselves. Both halves are needed and neither is the whole run:
@@ -236,6 +231,12 @@ async function observeAll(
   // "nothing needed ruling out" produce the same run and mean opposite things
   // about the next one.
   const selection = selected?.notes ?? [];
+
+  // `plan.subjects`, never the narrowed list: `--since` decides what is worth
+  // observing now, and this decides whether a subject left the suite at all.
+  const orphaned = await unplannedNotes(deps.store, plan.subjects, (planned) =>
+    renderer.identityFor({ viewport: planned.viewport ?? config.viewport }),
+  );
 
   // After selection, because the saving is in not asking: a subject ruled out is
   // a subject nothing looks up. A store on a disk has no such method and this is
@@ -481,8 +482,8 @@ async function observeAll(
           },
         }
       : {}),
-    ...(warnings.length + selection.length + recorded.warnings.length > 0
-      ? { warnings: [...warnings, ...selection, ...recorded.warnings] }
+    ...(warnings.length + selection.length + orphaned.length + recorded.warnings.length > 0
+      ? { warnings: [...warnings, ...selection, ...orphaned, ...recorded.warnings] }
       : {}),
     ...(ignores !== undefined ? { ignores } : {}),
     ...(sensitivities !== undefined ? { sensitivities } : {}),

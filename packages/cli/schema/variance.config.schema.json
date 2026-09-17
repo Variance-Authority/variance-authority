@@ -202,7 +202,7 @@
     },
     "collectorSubjects": {
       "type": "object",
-      "description": "The collector says what the subjects are — a sitemap, a crawl, an inventory the application already publishes. The trade belongs to the operator: a page that stops being discovered stops being watched, silently.",
+      "description": "The collector says what the subjects are — a sitemap, a crawl, an inventory the application already publishes. The trade belongs to the operator: a page that stops being discovered stops being watched with no diff to approve; the run reports it afterwards as an approved subject the plan did not contain.",
       "additionalProperties": false,
       "required": ["kind", "collector"],
       "properties": {

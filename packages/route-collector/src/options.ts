@@ -26,7 +26,8 @@ export interface RouteCollectorOptions {
    * without a second commit. Requires `subjects.kind: "collector"`, because the
    * subject list is then discovered rather than declared — and that trade is the
    * operator's to make, since a page dropped from the sitemap stops being watched
-   * silently. Mutually exclusive with `routes`, `directory` and each other; a
+   * without a diff anybody approves. The run still names the baseline it is left
+   * holding (ADR-0063); what discovery gives up is the review, not the notice. Mutually exclusive with `routes`, `directory` and each other; a
    * config naming two is asking two lists to be one, and quietly merging them is
    * how a run watches a page nobody listed.
    *

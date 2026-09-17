@@ -20,6 +20,8 @@ import {
   type Found,
   type RasterStore,
 } from '@variance-authority/raster';
+import { orAbsent } from './absent.js';
+import { held } from './held.js';
 import { IDENTITY_DIRECTORY, holder, pathFor, type BaselineLayout } from './placement.js';
 
 /**
@@ -192,6 +194,20 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       );
     },
 
+    /**
+     * The plan's complement, taken over paths this store alone can compute.
+     *
+     * The enumeration is in `held.ts` for {@link placement}'s reason: it decides
+     * nothing about a verdict, and every line of it is about *which path*.
+     */
+    async unplanned(keys, identity): Promise<readonly string[]> {
+      const digest = identityDigest(identity);
+      const planned = new Set(
+        keys.map((key) => `${pathFor(holderFor(key), digest, key, layout)}.json`),
+      );
+      return held(recordRoot, digest, planned);
+    },
+
     // A durable store is also a render cache: an unchanged document under an
     // unchanged identity has an image already, and the cheapest render is the
     // one that does not happen.
@@ -353,35 +369,6 @@ async function readSidecar(places: Places): Promise<Omit<Raster, 'bytes'> | null
   if (image === null) throw halfAPair(places, true);
 
   return record;
-}
-
-/**
- * `null` for ENOENT, and for nothing else.
- *
- * The one errno that answers the question rather than failing to. Every other
- * one — a permission, a descriptor, an I/O error on a network mount — means this
- * process could not establish what is on disk, which is not the same fact and
- * must not be reported as it.
- */
-async function orAbsent<T>(read: () => Promise<T>, path: string): Promise<T | null> {
-  try {
-    return await read();
-  } catch (error) {
-    if (isMissing(error)) return null;
-    throw new RasterStoreError(
-      `the baseline store could not read ${path}: ${messageOf(error)}. ${REFUSAL}.`,
-      { cause: error },
-    );
-  }
-}
-
-function isMissing(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { readonly code?: unknown }).code === 'ENOENT'
-  );
 }
 
 /**

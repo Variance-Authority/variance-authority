@@ -51,6 +51,45 @@ silently absent route:
 }
 ```
 
+## Take the list from a sitemap instead
+
+When your build already publishes the inventory, let the collector plan the
+subjects rather than writing them out. Use exactly one of `routes`, `sitemap` or
+`directory`:
+
+```js
+// variance/routes.mjs
+import { routeCollector } from '@variance-authority/route-collector';
+
+export default routeCollector({
+  sitemap: 'http://localhost:3000/sitemap.xml',
+  roots: ['main'],
+  source: { dirs: ['src'] },
+});
+```
+
+The subject list is then discovered, so the config names no ids:
+
+```json
+{
+  "subjects": {
+    "kind": "collector",
+    "collector": "variance/routes.mjs"
+  }
+}
+```
+
+For static output, `directory: './build'` serves the build and creates one
+subject per `.html` file. Prefer a real server when you have one: a file server
+answers what is on disk, and what you deploy answers with its redirects, headers
+and rewrites.
+
+Discovery costs you the review, not the notice. A page dropped from the sitemap
+or the build stops being watched with no config diff to approve, and the run
+reports it by id: the baseline store holds an approved image the plan did not
+contain. Keep the explicit `routes` form for a suite where removing a subject
+should be a change somebody signs off.
+
 ## Run the first review loop
 
 With the application still running:

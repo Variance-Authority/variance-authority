@@ -77,6 +77,33 @@ describe('narrowing a run to what a diff could have changed', () => {
     expect(report.notObserved?.[0]?.because).toContain('not affected by the diff against origin/main');
   });
 
+  // The store is asked what it holds against the *plan*, never against what a
+  // narrowed run observed. Asked against the observed set, a run that correctly
+  // skipped two hundred subjects would report two hundred abandoned baselines —
+  // the saving described as damage, on every selective run.
+  it('asks the store about the whole plan even when it observed none of it', async () => {
+    const asked: string[] = [];
+    const store = stored(['Clock']);
+    const { report } = await runWith(
+      CONFIG,
+      COLLECTOR,
+      {
+        ...store,
+        async unplanned(keys) {
+          asked.push(...keys.map((key) => key.subject));
+          return [];
+        },
+      },
+      {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'] },
+        scanSource: async () => SOURCE,
+      },
+    );
+
+    expect(report.observations).toEqual([]);
+    expect(asked).toEqual(['fixture:a']);
+  });
+
   it('observes a subject whose baseline names a component the diff touched', async () => {
     const { report } = await runWith(CONFIG, COLLECTOR, stored(['Button']), {
       since: { ref: 'origin/main', changed: ['src/Button.tsx'] },

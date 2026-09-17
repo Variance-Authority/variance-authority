@@ -472,3 +472,12 @@ describe('the record location', () => {
     }
   });
 });
+
+/**
+ * The other half of the plan.
+ *
+ * A discovered subject list makes an addition loud and a removal silent: the
+ * new page is `new` and red, and the dropped page is simply never mentioned
+ * again while its approved image stays where it was. These are about the store
+ * being able to say which images those are.
+ */

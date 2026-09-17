@@ -885,7 +885,8 @@ need a collector**, and for Storybook that collector is
 mount, and the mounting half is code you write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
 `sitemap` or a `directory` route collector needs, and the trade is the operator's
-— a page that stops being discovered stops being watched. `baselines` is
+— a page that stops being discovered stops being watched with no diff to approve,
+and is reported after the fact as a baseline the run holds and did not plan. `baselines` is
 `directory`, `lfs` or `remote`.
 
 `source` is the only thing `--since` can narrow against, and it is five settings

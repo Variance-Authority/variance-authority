@@ -46,8 +46,12 @@ Choose it when:
 - the state can be reached by deterministic navigation and setup;
 - the route list is an owned contract.
 
-The collector is not a crawler. Link discovery and sitemap churn can silently
-change coverage, so they are not treated as subject selection.
+The collector is not a crawler: it never follows a link from one page to reach
+another. A sitemap or a built directory may supply the route list, and what you
+give up is the config diff, not the notice: a page the sitemap stops listing
+stops being watched, and the run names it as a subject the baseline store holds
+and the plan did not contain. Name the routes explicitly when the removal itself
+should be a reviewable change.
 
 ## Existing Playwright Test
 

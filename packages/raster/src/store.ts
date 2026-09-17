@@ -252,6 +252,42 @@ export interface RasterStore {
   expect?(keys: readonly BaselineKey[]): void;
 
   /**
+   * Baselines held under this identity that none of these keys addresses.
+   *
+   * The plan says what is watched. The store says what was approved. A subject
+   * that leaves the plan without leaving the store falls out of both lists at
+   * once: it is never collected, so it is never compared, so no verdict mentions
+   * it — and its approved image stays on disk looking exactly like a baseline
+   * somebody is still relying on. A discovered plan makes that the ordinary
+   * case rather than the exotic one: a page dropped from a sitemap or a story
+   * deleted from an index removes a subject with no config diff to review.
+   *
+   * This is the set difference nobody else can take. The run knows the ids it
+   * planned and the store knows the names it holds, and only the store knows
+   * where it puts them — so a caller could not compute it without learning a
+   * backend's placement rules.
+   *
+   * Names, not keys. A file-backed store recovers a name from a path, and a
+   * path is lossy: a long id is truncated and digested to fit a filename, and a
+   * `beside` layout spends the id's own slashes on directories. Answering with
+   * a `BaselineKey` would mean inventing the id that produced the file. A name
+   * an operator can find on disk is the honest answer, and is the one they act
+   * on.
+   *
+   * Optional, and calling it must change no verdict. A backend that cannot
+   * enumerate what it holds — one behind an API with no list call — omits it,
+   * and omitting it means *unknown*, never *nothing*.
+   *
+   * *What it costs.* One baseline root serving two suites reports each suite's
+   * subjects to the other, because from inside one run the other's approved
+   * images are exactly what this describes: held, and not planned here.
+   */
+  unplanned?(
+    keys: readonly BaselineKey[],
+    identity: RenderIdentity,
+  ): Promise<readonly string[]>;
+
+  /**
    * Images this machine has already painted. See {@link RenderCache}.
    *
    * A property rather than two methods, because it is a different object with a
