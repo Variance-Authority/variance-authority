@@ -25,6 +25,12 @@ physically reachable from that location. Exact and deterministic. No fluidity is
 accepted: a reader may search for *something that looks like a duck*, but when
 they say *only in this pond*, the pond is a hard rule.
 
+`to` takes the same kind of path and answers the other way: the files that
+reach it. Two start points, two directions, and the caller names which. *From
+the settings page, find the user select* and *to the user select, find the
+settings page* are both questions people have, and one path cannot answer both
+at once without meaning nothing.
+
 ## The rule, in full, because it keeps being loosened
 
 **A path exists or it does not.** Read from the root down, compared segment for
@@ -75,11 +81,29 @@ down is *found*.
 
 The path selects **entry points**. The module graph decides the scope.
 
-A file is in scope when it is connected to an entry point in the import graph:
-reachable from it along the arrows, or reaching it against them, **at any
-depth**. Ancestors and descendants, unioned. Anything in neither closure is
-hard rejected — not ranked low, not in the answer. A subject is in scope when a
-file in scope produced it.
+A file is in scope when it is reachable from an entry point in the import
+graph, along the arrows, **at any depth**. Descendants only. The walk runs one
+way: what an entry point rests on is its neighbourhood, and what happens to rest
+on the entry point is not, or one leaf of a design system would name the whole
+application. Anything outside that closure is hard rejected — not ranked low,
+not in the answer.
+
+A subject is in scope when a file in scope produced it. That is where the other
+direction lives, and it is the run's fact rather than the graph's: a leaf in
+scope carries in every subject the run recorded as having rendered it, which no
+import arrow could state.
+
+**The upward walk exists and is named `to`.** It is the same traversal against
+the arrows, under every rule above: a file is in scope when it reaches an entry
+point at any depth, the path is resolved by sense alone, a path that names
+nothing is refused, and the walk is never bounded. What it is not is a widening
+of `from` — a start point answers the direction it was said in and no other.
+Said together, `from` and `to` are two start points and their closures are
+taken together for the same reason several `from` paths are: what a page rests
+on and what rests on a helper share very nearly no file, so crossing them would
+answer nothing. The old both-ways behaviour is therefore still expressible, by
+naming one path in both, which is the only way it should ever be had — on
+purpose, and said out loud.
 
 **The walk is not allowed to be bounded for cost.** A depth cap makes the answer
 a lower bound, and a lower bound silently loses files that genuinely are

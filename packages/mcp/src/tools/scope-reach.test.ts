@@ -11,10 +11,10 @@ import { treeOf } from './tree.js';
  * The path is the entrance, not the room.
  *
  * A start point names entry points and the import graph decides the scope:
- * every file connected to those, along the arrows or against them, at any
- * depth. That is the half of the rule the path itself cannot state, and it is
- * the half the reader is actually buying — somebody who says *the checkout
- * page* means the page and its forty neighbours, not one file.
+ * every file reachable from those along the arrows, at any depth, and only
+ * along the arrows. That is the half of the rule the path itself cannot state,
+ * and it is the half the reader is actually buying — somebody who says *the
+ * checkout page* means the page and its forty neighbours, not one file.
  *
  * So every fixture here is a tree of edges, built out of file records and never
  * out of the paths a report wrote down. Whether a path *exists* is the other
@@ -143,7 +143,7 @@ const reportOf = (subjects: readonly SubjectLexicon[]): RunReport => {
 const REPORT = reportOf([INVOICE, DISPATCH, STATEMENT]);
 
 describe('the path is the entrance, not the room', () => {
-  it('counts the files named apart from the files connected to them', () => {
+  it('counts the files named apart from the files they reach', () => {
     // Four files are at `src/billing/`; six are in the scope. The difference is
     // the whole claim, and a caller who cannot see both numbers cannot tell a
     // narrow question from a wide one.
@@ -162,25 +162,26 @@ describe('the path is the entrance, not the room', () => {
     expect([...scope.subjects]).toEqual(['billing/invoice-table--overdue']);
   });
 
-  it('follows what rests on a file, however far up it goes', () => {
-    // From the leaf the arrows run the other way, three of them, and the two
-    // screens at the top are the answer. This is the shape of the question a
-    // person actually asks — *I am in this helper; what shows it?*
+  it('does not follow what rests on a file, because an import points one way', () => {
+    // Three arrows run into `precision.ts` and the walk takes none of them. A
+    // helper is not the neighbourhood of everything that happens to use it, or
+    // naming one leaf of a design system would name the whole application. The
+    // two screens above it are outside the scope and are not ranked low, they
+    // are not there.
     const scope = scopeOf(REPORT, 'src/lib/precision.ts', TREE);
     expect(scope.entries).toBe(1);
-    expect(scope.reachable).toBe(5);
-    expect([...scope.subjects].sort()).toEqual([
-      'billing/invoice-table--overdue',
-      'billing/statement--paid',
-    ]);
+    expect(scope.reachable).toBe(1);
+    expect([...scope.subjects]).toEqual([]);
   });
 
   it('walks a type-only import, because a type is a file in the neighbourhood', () => {
     // Nothing behind a type import can run, so the runtime traversal leaves it
     // out. A reader asking where something lives is asking about source.
-    const scope = scopeOf(REPORT, 'src/billing/amount.d.ts', TREE);
-    expect(scope.reachable).toBe(2);
-    expect([...scope.subjects]).toEqual(['billing/statement--paid']);
+    // `Statement.tsx` reaches everything `InvoiceTable.tsx` reaches and one
+    // file more, and that one file is behind the type edge.
+    const scope = scopeOf(REPORT, 'src/billing/Statement.tsx', TREE);
+    expect(scope.reachable).toBe(5);
+    expect(TREE.reachedFrom(['src/billing/Statement.tsx']).has('src/billing/amount.d.ts')).toBe(true);
   });
 
   it('does not reach an area nothing connects it to', () => {
@@ -259,6 +260,69 @@ describe('the path is the entrance, not the room', () => {
   });
 });
 
+/**
+ * The other direction, and it has to be named to be had.
+ *
+ * `from` answers what a file rests on. `to` answers what rests on it — the
+ * question a person standing in a helper actually has: *what shows this?* One
+ * path can never answer both, so the caller says which, and saying both is two
+ * start points rather than one walk that went both ways.
+ */
+describe('the other direction, said as `to`', () => {
+  it('reaches what rests on a file, at any depth', () => {
+    // The same three arrows `from` refused to take. Against them,
+    // `precision.ts` ← `round.ts` ← `total.ts` ← both billing screens: five
+    // files and the two subjects those screens produced.
+    const scope = scopeOf(REPORT, undefined, TREE, 'src/lib/precision.ts');
+    expect(scope.entries).toBe(1);
+    expect(scope.reachable).toBe(5);
+    expect([...scope.subjects].sort()).toEqual([
+      'billing/invoice-table--overdue',
+      'billing/statement--paid',
+    ]);
+  });
+
+  it('says which way it went, because the two questions print the same shape', () => {
+    const scope = scopeOf(REPORT, undefined, TREE, 'src/lib/precision.ts');
+    expect(scopeLine(scope, 3)).toContain('reaching `src/lib/precision.ts`');
+    expect(scopeLine(scope, 3)).toContain('1 file(s) named, 5 reaching them along the imports');
+  });
+
+  it('answers both closures side by side when both are said, and does not cross them', () => {
+    // Shipping rests on nothing billing touches, and nothing billing touches
+    // rests on shipping. Crossed, these two start points would be empty. Side by
+    // side they are the two neighbourhoods the caller named.
+    const scope = scopeOf(REPORT, 'src/shipping/DispatchDrawer.tsx', TREE, 'src/lib/precision.ts');
+    expect(scope.entries).toBe(2);
+    expect(scope.reachable).toBe(7);
+    expect([...scope.subjects].sort()).toEqual([
+      'billing/invoice-table--overdue',
+      'billing/statement--paid',
+      'shipping/dispatch-drawer--overdue',
+    ]);
+    expect(scopeLine(scope, 3)).toContain('7 in the two closures together');
+  });
+
+  it('walks both ways around one file only when the caller says it twice', () => {
+    // Everything above and everything below, which is a thing a caller may
+    // genuinely want and may never be given by accident.
+    const one = 'src/billing/total.ts';
+    expect(scopeOf(REPORT, one, TREE).reachable).toBe(3);
+    expect(scopeOf(REPORT, undefined, TREE, one).reachable).toBe(3);
+    expect(scopeOf(REPORT, one, TREE, one).reachable).toBe(5);
+  });
+
+  it('refuses when either direction names nowhere, whichever one it is', () => {
+    const down = scopeOf(REPORT, 'src/warehousing/', TREE, 'src/lib/precision.ts');
+    expect(down.refused).toContain('`src/warehousing/`');
+    expect(down.subjects.size).toBe(0);
+
+    const up = scopeOf(REPORT, 'src/billing/', TREE, 'src/warehousing/');
+    expect(up.refused).toContain('`src/warehousing/`');
+    expect(up.subjects.size).toBe(0);
+  });
+});
+
 describe('what a start point does to an answer', () => {
   it('removes the subjects outside it rather than ranking them lower', () => {
     // `Billing` is in the shipping subject's names and text, and `billing` is
@@ -280,8 +344,22 @@ describe('what a start point does to an answer', () => {
 
   it('prints what was searched and what it was reached from', () => {
     const text = locate.run(REPORT, { query: 'overdue', from: 'src/billing/' }, { tree: TREE });
-    expect(text).toContain('4 file(s) named, 6 connected to them');
+    expect(text).toContain('4 file(s) named, 6 reachable from them');
     expect(text).toContain('`src/billing/`');
+  });
+
+  it('finds the screen behind a helper, which is the whole of the other direction', () => {
+    // Nothing on the billing statement says `precision`, and the reader holding
+    // `precision.ts` has no name for the screen above it. The graph has, and it
+    // is the only thing that has.
+    const scoped = locateSubjects(REPORT, 'overdue', undefined, TREE, 'src/lib/precision.ts');
+    expect(scoped.hits.map((hit) => hit.subject)).toEqual(['billing/invoice-table--overdue']);
+  });
+
+  it('prints what was searched and what it reaches', () => {
+    const text = locate.run(REPORT, { query: 'overdue', to: 'src/lib/precision.ts' }, { tree: TREE });
+    expect(text).toContain('1 file(s) named, 5 reaching them along the imports');
+    expect(text).toContain('`src/lib/precision.ts`');
   });
 
   it('asks for the tree exactly when a start point was given', () => {
@@ -289,6 +367,7 @@ describe('what a start point does to an answer', () => {
     // call paid for one would tax every question to serve the few that take a
     // path.
     expect(locate.wants?.({ query: 'overdue', from: 'src/billing/' })).toBe(true);
+    expect(locate.wants?.({ query: 'overdue', to: 'src/lib/precision.ts' })).toBe(true);
     expect(locate.wants?.({ query: 'overdue' })).toBe(false);
   });
 

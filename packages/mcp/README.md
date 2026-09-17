@@ -441,8 +441,10 @@ a working tree that has not changed since.
 ## Answer from the source tree
 
 A question can say where to start — `variance_locate {query, from}` takes a path
-and answers only from the files connected to it. A path is a fact about a
-repository, and a report is a file that travels, so the repository has to be
+and answers only from the files reachable from it, along the imports. `to` is
+the same walk against them, answering from the files that reach the path
+instead: `from` the screen to find what it shows, `to` the component to find
+what shows it. A path is a fact about a repository, and a report is a file that travels, so the repository has to be
 named when the server is started. `serveReportFile(path, options)` takes it:
 
 | option | what it decides |

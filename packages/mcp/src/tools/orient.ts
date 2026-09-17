@@ -97,9 +97,11 @@ export function orient(
   question: string,
   from?: string | readonly string[],
   tree?: Tree,
+  to?: string | readonly string[],
 ): Orientation {
   const index = orientIndexOf(report);
-  const scope = from === undefined ? undefined : scopeOf(report, from, tree);
+  const scope =
+    from === undefined && to === undefined ? undefined : scopeOf(report, from, tree, to);
   // A boundary, not a preference: an empty scope is read empty rather than
   // widened back to the suite the caller narrowed away from.
   const within = scope === undefined ? undefined : scope.subjects;

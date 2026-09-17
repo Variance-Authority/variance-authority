@@ -3,7 +3,8 @@ import { stringArg, type Tool } from './tool.js';
 import { codeUnit, entriesMatching, indexOf, lower, partsOf, type LocateField } from './locate-index.js';
 import { orient } from './orient.js';
 import { readQuestion } from './question.js';
-import { placesOn, renderOrientation } from './place.js';
+import { renderOrientation } from './place.js';
+import { render } from './locate-print.js';
 import { scopeLine, scopeOf, type Scope } from './scope.js';
 import type { Tree } from './tree.js';
 
@@ -107,10 +108,25 @@ export const locate: Tool = {
           'none is there the start point is rejected as not found. Say `apps/web/Badge.tsx`. ' +
           'One string is one path, spaces and all; several paths are said as an array, and are ' +
           'several entry points taken together. The path names the entry points and the import ' +
-          'graph decides the scope: every file connected to them, along the imports or against ' +
-          'them, at any depth. Nothing outside that is ever answered from. Narrows the suite ' +
-          'before ranking and recounts rarity inside what remains, so the area\'s own ' +
-          'vocabulary stops distinguishing anything.',
+          'graph decides the scope: every file reachable from them along the imports, at any ' +
+          'depth. One way only — what an entry point imports is in, what imports it is not; ' +
+          'say `to` for the other direction. Nothing outside that is ever answered from. ' +
+          'Narrows the suite before ranking and recounts rarity inside what remains, so the ' +
+          'area\'s own vocabulary stops distinguishing anything.',
+      },
+      to: {
+        oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+        description:
+          'Optional. Where to arrive, as a real path in the source tree and only a real path, ' +
+          'read under the same rules as `from`: `components/user-select.tsx` is that file, ' +
+          '`components/*` that folder\'s own files, `components/` everything under it, and a ' +
+          'path the repository does not hold is rejected as not found. The path names the ' +
+          'destination and the import graph decides the scope: every file that reaches it ' +
+          'along the imports, at any depth. One way only, against the arrows — what imports ' +
+          'the destination is in, what the destination imports is not. This is the direction ' +
+          'that finds the screen behind a component: `to` the user select, `query` the ' +
+          'settings page. Said together with `from`, the two closures are answered side by ' +
+          'side, not crossed.',
       },
       limit: {
         type: 'integer',
@@ -121,11 +137,12 @@ export const locate: Tool = {
     additionalProperties: false,
   },
 
-  wants: (input) => startPoint(input) !== undefined,
+  wants: (input) => startPoint(input, 'from') !== undefined || startPoint(input, 'to') !== undefined,
 
   run(report, input, invocation) {
     const query = stringArg(input, 'query');
-    const from = startPoint(input);
+    const from = startPoint(input, 'from');
+    const to = startPoint(input, 'to');
     const tree = invocation?.tree;
     const limit = typeof input['limit'] === 'number' && input['limit'] > 0 ? Math.floor(input['limit']) : DEFAULT_LIMIT;
 
@@ -134,11 +151,11 @@ export const locate: Tool = {
     // tool — it is this one reading the other half of the record it already has.
     // The relation word in the question is what says which half to read.
     if (readQuestion(query).relation !== undefined) {
-      const answer = orient(report, query, from, tree);
+      const answer = orient(report, query, from, tree, to);
       if (answer.surfaces > 0) return renderOrientation(answer, limit);
     }
 
-    return render(report, locateSubjects(report, query, from, tree), query, limit);
+    return render(report, locateSubjects(report, query, from, tree, to), query, limit);
   },
 };
 
@@ -151,8 +168,9 @@ export const locate: Tool = {
  */
 function startPoint(
   input: Readonly<Record<string, unknown>>,
+  which: 'from' | 'to',
 ): string | readonly string[] | undefined {
-  const said = input['from'];
+  const said = input[which];
   if (typeof said === 'string') return said.trim() === '' ? undefined : said;
   if (!Array.isArray(said)) return undefined;
   const paths = said.filter((term): term is string => typeof term === 'string' && term.trim() !== '');
@@ -260,9 +278,11 @@ export function locateSubjects(
   query: string,
   from?: string | readonly string[],
   tree?: Tree,
+  to?: string | readonly string[],
 ): Located {
   const index = indexOf(report);
-  const scope = from === undefined ? undefined : scopeOf(report, from, tree);
+  const scope =
+    from === undefined && to === undefined ? undefined : scopeOf(report, from, tree, to);
   // A boundary, not a preference. A start point that named nowhere leaves an
   // empty scope and an empty scope is searched empty: answering out of the
   // files the caller ruled out would be answering a question nobody asked.
@@ -349,133 +369,4 @@ export function locateSubjects(
     names: index.names,
     ...(scope === undefined ? {} : { scope }),
   };
-}
-
-/** Why a field is absent from a report, said per field. */
-const WHY_UNREAD: Readonly<Record<LexiconField, string>> = {
-  example: 'no composition',
-  names: 'no semantic snapshot',
-  text: 'no semantic snapshot',
-  components: 'no boundaries',
-  createdBy: 'no boundaries',
-  regions: 'no execution journal was read',
-  files: 'no source index and no provenance',
-  roles: 'no semantic snapshot',
-  tokens: 'no boundaries',
-};
-
-const MAX_VALUES_SHOWN = 3;
-const MAX_NAMES_SHOWN = 24;
-
-function render(report: RunReport, located: Located, query: string, limit: number): string {
-  const sections: string[] = [headline(located, query)];
-
-  if (located.hits.length > 0) {
-    const shown = located.hits.slice(0, limit);
-    // Only the rows about to be printed are read for a place. The rest were
-    // ranked on their names and are counted, not shown, so reading their
-    // arrangement would be work nobody sees.
-    const places = placesOn(report, shown.map((hit) => hit.subject), query);
-    sections.push(shown.map((hit) => renderHit(hit, places.get(hit.subject))).join('\n'));
-    const rest = located.hits.slice(limit);
-    if (rest.length > 0) {
-      sections.push(`…and ${rest.length} more: ${preview(rest.map((hit) => hit.subject), 6)}`);
-    }
-  }
-
-  if (located.unmatched.length > 0) sections.push(unmatchedSection(located));
-
-  const top = located.hits[0];
-  if (top !== undefined) {
-    sections.push(
-      `next: variance_composition {subject: "${top.subject}"} · variance_describe {subject: "${top.subject}"}`,
-    );
-  }
-
-  return sections.join('\n\n');
-}
-
-function headline(located: Located, query: string): string {
-  const count = located.hits.length;
-  const asked = located.terms.length;
-  const best = located.cover;
-  const tail = located.dropped.length === 0 ? '.' : `; ${list(located.dropped)} not indexed.`;
-  const first =
-    asked === 0
-      ? `Nothing left of \`${query}\` after the stoplist dropped ${list(located.dropped)}.`
-      : count === 0
-        ? `No subject of ${located.indexed} matches \`${query}\`.`
-        : best < asked
-          ? // Partial cover is the answer a large suite gives to a question it
-            // cannot take. Saying *n subjects match* would be false: they match
-            // a word of it. On fifteen subjects there was nothing to half-match
-            // and the distinction never showed; on five thousand a question
-            // about something the suite does not have still draws hundreds.
-            `No subject of ${located.indexed} matches all ${asked} terms of \`${query}\`. ` +
-            `The best cover is ${best} of ${asked}, over ${count} subject(s)${tail}`
-          : `${count} of ${located.indexed} subject(s) match \`${query}\`${tail}`;
-
-  const scope = located.scope === undefined ? '' : `\n${scopeLine(located.scope, located.indexed)}`;
-  const read = `Read: ${located.read.join(', ')}.`;
-  const unread =
-    located.unread.length === 0
-      ? ''
-      : ` Not read: ${located.unread.map((field) => `${field} (${WHY_UNREAD[field]})`).join(', ')}.`;
-
-  const idOnly =
-    located.idOnly === 0
-      ? ''
-      : located.idOnly === located.indexed
-        ? '\nThis run indexed subject ids and nothing else — it carries no lexicon, which a ' +
-          'raster-only or ephemeral run does not write — so a miss below is not a miss on ' +
-          'text, names, components or regions; none was searched.'
-        : `\n${located.idOnly} subject(s) are indexed by id alone: the run composed nothing for them.`;
-
-  return `${first}${scope}\n${read}${unread}${idOnly}`;
-}
-
-function renderHit(hit: LocateHit, place: string | undefined): string {
-  const byTerm = new Map<string, LocateMatch[]>();
-  for (const match of hit.matches) {
-    let list = byTerm.get(match.term);
-    if (list === undefined) byTerm.set(match.term, (list = []));
-    list.push(match);
-  }
-
-  const head =
-    `${hit.subject} · ${hit.boundaries} boundar${hit.boundaries === 1 ? 'y' : 'ies'}` +
-    (hit.example.length === 0 ? '' : ` · example of ${hit.example.join(', ')}`);
-
-  return [
-    head,
-    ...(place === undefined ? [] : [`  where: ${place}`]),
-    ...[...byTerm].map(
-      ([term, matches]) =>
-        `  ${term}: ` +
-        matches
-          .map((match) => `${match.field} ${preview(match.values.map((value) => `\`${value}\``), MAX_VALUES_SHOWN)}`)
-          .join('; '),
-    ),
-  ].join('\n');
-}
-
-function unmatchedSection(located: Located): string {
-  const words = list(located.unmatched);
-  const verb = located.unmatched.length === 1 ? 'occurs' : 'occur';
-  if (located.names.length === 0) {
-    return `${words} ${verb} in no field that was read. This run recorded no accessible names to offer instead.`;
-  }
-  return (
-    `${words} ${verb} in no field that was read. The names this run did record:\n  ` +
-    preview(located.names, MAX_NAMES_SHOWN, ' · ')
-  );
-}
-
-function list(values: readonly string[]): string {
-  return values.map((value) => `\`${value}\``).join(', ');
-}
-
-function preview(values: readonly string[], limit: number, separator = ', '): string {
-  const shown = values.slice(0, limit).join(separator);
-  return values.length > limit ? `${shown}${separator}+${values.length - limit}` : shown;
 }

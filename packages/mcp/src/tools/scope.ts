@@ -61,11 +61,17 @@ import type { Tree } from './tree.js';
  * ## And the path is the entrance, not the room
  *
  * A start point selects **entry points**; the import graph decides the scope. A
- * file is in it when it is connected to an entry point — reachable along the
- * arrows or reaching it against them, at any depth — and a file in neither
- * closure is rejected outright rather than ranked low. That is the entire
- * reason a start point exists: *the checkout page* is one file and forty
- * neighbours, and a caller who names the page means the area.
+ * file is in it when it is reachable *from* an entry point, along the arrows,
+ * at any depth — and a file outside that closure is rejected outright rather
+ * than ranked low. The walk runs one way only. What an entry point rests on is
+ * its neighbourhood; what happens to import an entry point is not, or naming
+ * one leaf would name the application.
+ *
+ * Upward is the report's job, not the graph's: a subject is in scope when a
+ * file in scope produced it, so a leaf in scope carries in every subject the
+ * run recorded as having rendered it. That is the entire reason a start point
+ * exists: *the checkout page* is one file and forty neighbours, and a caller
+ * who names the page means the area.
  */
 
 /**
@@ -155,19 +161,19 @@ function underRoot(term: string, root: string): string | undefined {
 
 /** A start point, resolved. */
 export interface Scope {
-  /** As the caller said it, for printing. */
-  readonly from: string;
   /** Its paths as written, deduplicated. Empty when the start point was refused. */
   readonly terms: readonly string[];
   /** The subjects in it: those a file in scope produced. */
   readonly subjects: ReadonlySet<string>;
-  /** Where each path resolved to, in the order they were said. */
-  readonly at: readonly string[];
+  /** The paths answered along the imports, as said, in order. */
+  readonly from: readonly string[];
+  /** The paths answered against the imports, as said, in order. */
+  readonly to: readonly string[];
   /** Paths of it that resolved to nothing. */
   readonly unmatched: readonly string[];
   /** Files the paths themselves named. */
   readonly entries: number;
-  /** Files connected to them, entry points included. */
+  /** Files in the closure, entry points included. */
   readonly reachable: number;
   /** Files in scope whose own imports the scan could not enumerate. */
   readonly unresolved: readonly string[];
@@ -176,8 +182,58 @@ export interface Scope {
 }
 
 /**
- * The subjects a start point names: those produced by a file connected to
+ * One path as the paths it was said as.
+ *
+ * One string is one path, whole. Splitting it on spaces is how a file whose
+ * name has a space in it becomes unsayable and comes back *not found* — a
+ * false negative about a file that is plainly there, which is the failure this
+ * entire rule exists against. Several paths are said as several strings. The
+ * outer whitespace goes, and nothing else does: no quote stripping, no comma
+ * splitting, because both are guesses about typing that land on a real
+ * character in a real name.
+ */
+function pathsOf(said: string | readonly string[] | undefined): readonly string[] {
+  if (said === undefined) return [];
+  const many = typeof said === 'string' ? [said] : said;
+  return [...new Set(many.map((term) => term.trim()).filter((term) => term !== ''))];
+}
+
+/** The files a set of paths names, and the paths that named nothing. */
+function entryPoints(
+  terms: readonly string[],
+  tree: Tree,
+): { readonly found: readonly string[]; readonly unmatched: readonly string[]; readonly files: ReadonlySet<string> } {
+  const found: string[] = [];
+  const unmatched: string[] = [];
+  const files = new Set<string>();
+
+  for (const term of terms) {
+    const said = underRoot(term, tree.root);
+    const width = said === undefined ? undefined : widthOf(said);
+    let here = false;
+    if (said !== undefined && width !== undefined) {
+      for (const file of tree.files) {
+        if (!at(file, said, width)) continue;
+        files.add(file);
+        here = true;
+      }
+    }
+    if (here) found.push(term);
+    else unmatched.push(term);
+  }
+  return { found, unmatched, files };
+}
+
+/**
+ * The subjects a start point names: those produced by a file in the closure of
  * **any** one of its paths.
+ *
+ * Two directions, and the caller says which. `from` is answered along the
+ * imports — what that file rests on, its neighbourhood. `to` is answered
+ * against them — what rests on that file, which is the other question a person
+ * in a helper actually asks: *what shows this?* One walk each way, never both
+ * from one path, because a path that meant both would mean nothing: name a leaf
+ * of a design system and the answer is the application.
  *
  * Several paths are several start points, and a caller with two entry points
  * into the same investigation — the settings page and the invite modal — is
@@ -185,27 +241,22 @@ export interface Scope {
  * both. Common to both is very nearly always nothing: two different entry
  * points of one application share almost no file, so an intersection would
  * quietly answer nothing at exactly the moment the caller was most specific.
+ * `from` and `to` together are two start points for the same reason.
  */
 export function scopeOf(
   report: RunReport,
-  from: string | readonly string[],
+  from: string | readonly string[] | undefined,
   tree: Tree | undefined,
+  to?: string | readonly string[],
 ): Scope {
-  // One string is one path, whole. Splitting it on spaces is how a file whose
-  // name has a space in it becomes unsayable and comes back *not found* — a
-  // false negative about a file that is plainly there, which is the failure
-  // this entire rule exists against. Several paths are said as several
-  // strings. The outer whitespace goes, and nothing else does: no quote
-  // stripping, no comma splitting, because both are guesses about typing that
-  // land on a real character in a real name.
-  const said = (typeof from === 'string' ? [from] : from).map((term) => term.trim());
-  const raw = typeof from === 'string' ? from : from.join(', ');
-  const terms = [...new Set(said.filter((term) => term !== ''))];
+  const fromTerms = pathsOf(from);
+  const toTerms = pathsOf(to);
+  const terms = [...new Set([...fromTerms, ...toTerms])];
   const nowhere = {
-    from: raw,
     terms: [] as readonly string[],
     subjects: new Set<string>(),
-    at: [] as readonly string[],
+    from: [] as readonly string[],
+    to: [] as readonly string[],
     unmatched: [] as readonly string[],
     entries: 0,
     reachable: 0,
@@ -227,24 +278,9 @@ export function scopeOf(
     };
   }
 
-  const found: string[] = [];
-  const unmatched: string[] = [];
-  const entries = new Set<string>();
-
-  for (const term of terms) {
-    const said_ = underRoot(term, tree.root);
-    const width = said_ === undefined ? undefined : widthOf(said_);
-    let here = false;
-    if (said_ !== undefined && width !== undefined) {
-      for (const file of tree.files) {
-        if (!at(file, said_, width)) continue;
-        entries.add(file);
-        here = true;
-      }
-    }
-    if (here) found.push(term);
-    else unmatched.push(term);
-  }
+  const down = entryPoints(fromTerms, tree);
+  const up = entryPoints(toTerms, tree);
+  const unmatched = [...down.unmatched, ...up.unmatched];
 
   // Not found is a rejection, not an empty result, and it is the only failure
   // there is. The caller handed over a coordinate; the tree does not have it.
@@ -256,13 +292,15 @@ export function scopeOf(
     return {
       ...nowhere,
       terms,
-      at: found,
+      from: down.found,
+      to: up.found,
       unmatched,
       refused: `${named} ${unmatched.length === 1 ? 'is' : 'are'} not found — the source tree holds no file at that path`,
     };
   }
 
-  const reachable = tree.connected(entries);
+  const entries = new Set([...down.files, ...up.files]);
+  const reachable = new Set([...tree.reachedFrom(down.files), ...tree.reaching(up.files)]);
 
   // The report answers the second question and only the second: which subject
   // each file produced. The other place-shaped fields — the id, the component a
@@ -274,10 +312,10 @@ export function scopeOf(
   }
 
   return {
-    from: raw,
     terms,
     subjects,
-    at: found,
+    from: down.found,
+    to: up.found,
     unmatched,
     entries: entries.size,
     reachable: reachable.size,
@@ -314,11 +352,26 @@ export function scopeLine(scope: Scope, indexed: number): string {
       : ` ${scope.unresolved.length} file(s) in it import something the scan could not resolve, ` +
         'so what lies behind those is not enumerated.';
 
+  // The direction is said, not implied by the number. *Reachable from the
+  // settings page* and *reaching the user-select* are different questions with
+  // the same shape of answer, and a header that printed the same sentence for
+  // both would leave the reader unable to tell which one was asked.
+  const named = (places: readonly string[]): string =>
+    places.map((place) => `\`${place}\``).join(' and ');
+  const along = scope.from.length === 0 ? '' : `reachable from ${named(scope.from)}`;
+  const against = scope.to.length === 0 ? '' : `reaching ${named(scope.to)}`;
+  const closure =
+    scope.from.length === 0
+      ? `${scope.reachable} reaching them along the imports`
+      : scope.to.length === 0
+        ? `${scope.reachable} reachable from them along the imports`
+        : `${scope.reachable} in the two closures together`;
+
   return (
     `Searched ${scope.subjects.size} of ${indexed} subject(s), those produced by a file ` +
-    `connected to ${scope.at.map((place) => `\`${place}\``).join(' and ')} — ` +
-    `${scope.entries} file(s) named, ${scope.reachable} connected to them along the imports ` +
-    `and against them. Rarity is counted inside that scope, so a word common to this area is ` +
-    `worth nothing here even when the suite at large barely says it.${holes}`
+    `${[along, against].filter((half) => half !== '').join(' or ')} — ` +
+    `${scope.entries} file(s) named, ${closure}. Rarity is counted inside that scope, so a ` +
+    `word common to this area is worth nothing here even when the suite at large barely ` +
+    `says it.${holes}`
   );
 }

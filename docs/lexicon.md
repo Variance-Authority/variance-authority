@@ -321,14 +321,28 @@ where to look is a coordinate you already have, and every softening of it widens
 the pond you said to fish in.
 
 **The path is the entrance, not the room.** What you name is the way in, and the
-imports decide the rest: a file is in the scope when it is connected to an entry
-point — reached along the imports, or reaching one against them, at any depth —
-and a subject is in the scope when a file in the scope was seen producing it.
-That is why naming one file still hands you an area: a checkout page is one file
-and forty neighbours, and the reader who names the page means the neighbourhood.
+imports decide the rest: a file is in the scope when it is reachable from an
+entry point, along the imports, at any depth, and a subject is in the scope when
+a file in the scope was seen producing it. That is why naming one file still
+hands you an area: a checkout page is one file and forty neighbours, and the
+reader who names the page means the neighbourhood.
+
+The walk runs one way. What your entry point imports is in the scope; what
+imports it is not, or naming a single button would name every screen that uses
+it. Those screens still reach you through the run's own record, which says which
+files each subject was seen in.
+
+One walk each way, and the reader says which. `from` is answered along the
+imports — what the file you named rests on. `to` is answered against them — what
+rests on the file you named, which is the question somebody standing in a helper
+has: *what shows this?* Both said together are two places, each answered in its
+own direction and taken together; the two closures are never crossed, because
+what a page rests on and what rests on a helper share very nearly no file. One
+path said both ways is how everything above and everything below it is asked
+for, and it has to be said twice to be had.
 
 The walk is never shortened to save time. A cut-off would drop a file that is
-genuinely connected, and under-answering a place you named is the one failure a
+genuinely reachable, and under-answering a place you named is the one failure a
 coordinate may not have. Where the scan could not read some file's own imports,
 the answer says how many such files are in the scope, because what lies behind
 them is not enumerated.
@@ -355,24 +369,24 @@ on the file the answer prints rather than on the id:
 
 | a 2019 application · 165 subjects | within the scope | whole suite |
 |---|---:|---:|
-| subjects the question is put to, mean | 107 | 165 |
-| **the top hit names the right place** | **62.5%** | **55.7%** |
-| the right place is within three | 75.8% | 75.7% |
-| the top hit is the reader's subject | 20.4% | 18.7% |
-| no hits at all | 2.2% | 2.3% |
+| subjects the question is put to, mean | 72 | 165 |
+| **the top hit names the right place** | **68.0%** | **55.7%** |
+| the right place is within three | 81.4% | 75.7% |
+| the top hit is the reader's subject | 21.9% | 18.7% |
+| no hits at all | 3.0% | 2.3% |
 
 Read the last two rows against the two above them. The top hit is the reader's
-own story one time in five and names the right file three times in five, and
-the gap between those two numbers is entirely stories that show the same file. A
+own story one time in five and names the right file two times in three, and the
+gap between those two numbers is entirely stories that show the same file. A
 measure that counts only the id reports a tool three times worse than the one
 you are using.
 
-A start point is worth about seven points of first place, and nothing at all by
-the third answer. What it does on this suite is order the same few files better,
-not put a file on the page that was not already there — which is the shape to
-expect wherever a scope is wide, and this one is: naming a folder of four files
-puts the question to two subjects in three, because the imports run from those
-four files into a provider every screen is built on.
+A start point is worth about twelve points of first place and six by the third
+answer. Half of what it does on this suite is order the same few files better
+rather than put a file on the page that was not already there, which is the
+shape to expect wherever a scope stays wide, and this one does: naming a folder
+of four files still puts the question to two subjects in five, because the
+imports run from those four files into a provider every screen is built on.
 
 The other two suites are absent because no start point is accepted for either.
 Both were built for production, a production build records no file anywhere, so

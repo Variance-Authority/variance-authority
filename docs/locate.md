@@ -119,7 +119,7 @@ variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx
 
 ```text
 3 of 4,705 subject(s) match `the contract warning`.
-Searched 128 of 4,705 subject(s), those produced by a file connected to `app/dispatch/page.tsx` — 1 file(s) named, 41 connected to them along the imports and against them. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
+Searched 128 of 4,705 subject(s), those produced by a file reachable from `app/dispatch/page.tsx` — 1 file(s) named, 41 reachable from them along the imports. Rarity is counted inside that scope, so a word common to this area is worth nothing here even when the suite at large barely says it.
 Read: id, example, names, text, components, createdBy, files, roles, tokens. Not read: regions (no execution journal was read).
 …
 ```
@@ -161,20 +161,50 @@ nothing there.
 ### The path is the entrance, not the room
 
 What you name is the way in. The imports decide the rest: a file is in the scope
-when it is connected to one of your entry points — reached along the imports, or
-reaching one against them, at any depth — and a subject is in the scope when a
-file in the scope was seen producing it.
+when it is reachable from one of your entry points, along the imports, at any
+depth — and a subject is in the scope when a file in the scope was seen
+producing it.
 
 That is why naming one file still hands you an area. A checkout page is one file
 and forty neighbours: the hook it calls, the component three imports down that
-draws the badge, the layout above it that exists because the page does. Naming
-the page means the neighbourhood, and you should not have to list it.
+draws the badge, the formatter that component leans on. Naming the page means
+the neighbourhood, and you should not have to list it.
+
+The walk runs one way. What your entry point imports is in the scope; what
+imports your entry point is not, or naming a single button would name every
+screen that uses it. You still see those screens when they belong: a subject is
+in the scope because a file in the scope was seen producing it, so naming the
+button hands you every subject the run recorded it in.
 
 The walk is never shortened to save time, because a cut-off drops a file that is
-genuinely connected and you would never see it go. Where the scan could not read
+genuinely reachable and you would never see it go. Where the scan could not read
 some file's own imports, the answer counts those files and says so: what lies
 behind them is not enumerated, so the scope is not a proof about what it left
 out.
+
+### Say `--to` for the other way
+
+`--from` answers what your file rests on. Half the time the question is the
+other one: you are standing in `components/user-select.tsx` and what you want is
+the screens that show it. Name it as `--to` and the walk runs against the
+imports.
+
+```bash
+variance ask locate --query "settings page" --to "components/user-select.tsx"
+```
+
+A file is in that scope when it *reaches* what you named, at any depth — the
+page that imports the panel that imports the select. The path is read by the
+same rules and the three widths mean the same things; only the direction
+changes, and the header says which one it went: *reachable from* for one,
+*reaching* for the other.
+
+Say both and you have named two places, not one crossing. Each is answered in
+its own direction and the two are taken together, for the reason two `--from`
+paths are: what a page rests on and what rests on a helper have very nearly no
+file in common, so crossing them would answer nothing. Saying one path both ways
+is how you ask for everything above and everything below it — available, and
+never given to you by accident.
 
 ### It is a boundary, not a preference
 
@@ -207,8 +237,9 @@ thing. It is a coordinate you already have, so it is read exactly:
 Several paths are several entry points, and they are taken together rather than
 intersected: two areas of an application have very nearly no files in common, so
 keeping only what both hold would answer nothing exactly where you were most
-specific. The CLI takes one `--from`; over MCP `from` also takes a list, as in
-`variance_locate {query: "the contract warning", from: ["app/dispatch/", "src/shared/"]}`.
+specific. The CLI takes one `--from` and one `--to`; over MCP each also takes a
+list, as in `variance_locate {query: "the contract warning", from:
+["app/dispatch/", "src/shared/"]}`.
 
 **It does two things, and the second is the one worth having.** Removing
 subjects is the obvious half. The other is that rarity is a count over subjects,
@@ -224,7 +255,7 @@ surfaces before any of them is read:
 variance ask locate --query "the warning under the Carrier field" --from "app/dispatch/"
 ```
 
-Over MCP both are `variance_locate {query, from}`.
+Over MCP both are `variance_locate {query, from, to}`.
 
 ## Ask where something sits
 

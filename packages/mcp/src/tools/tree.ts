@@ -31,11 +31,18 @@ import {
  * **Does this path exist?** — answered against {@link Tree.files}, which is
  * every coordinate the scan has, compared whole.
  *
- * **What is connected to it?** — answered by walking the import graph both ways
- * from the files the path selected. Along the arrows is what those files rest
- * on; against them is what rests on those files. Both at any depth, because a
- * bound would make the answer a lower bound and a lower bound loses files that
- * genuinely are reachable.
+ * **What is reachable from it?** — answered by walking the import graph one
+ * way, from the files the path selected along their arrows, at any depth. What
+ * those files rest on is reachable from them. What rests on *them* is not: an
+ * import is a one-way arrow, and a file does not become part of a start point's
+ * neighbourhood by naming it. No depth bound, because a bound would make the
+ * answer a lower bound and a lower bound loses files that genuinely are
+ * reachable.
+ *
+ * The other direction is not missing, it is somewhere else. A subject is in
+ * scope when a file in scope produced it, and the run's own record of what each
+ * subject rendered carries the answer upward — a leaf in scope brings in every
+ * subject recorded as having rendered it, which no import arrow could say.
  *
  * Every edge kind is walked, `type` included. The default traversal leaves type
  * imports out because nothing behind one can *run* — but a reader asking where
@@ -50,11 +57,16 @@ export interface Tree {
   /** Every file the scan holds a coordinate for, repo-relative, forward slashes. */
   readonly files: ReadonlySet<string>;
   /**
-   * Every file connected to these, along the arrows and against them, at any
-   * depth. The seeds themselves are in it. Seeds the tree does not hold are not
-   * connected to anything and contribute nothing.
+   * Every file reachable from these along the imports, at any depth. The seeds
+   * themselves are in it. Seeds the tree does not hold reach nothing and
+   * contribute nothing.
    */
-  connected(seeds: Iterable<string>): ReadonlySet<string>;
+  reachedFrom(seeds: Iterable<string>): ReadonlySet<string>;
+  /**
+   * Every file that reaches these along the imports, at any depth. The same
+   * walk against the arrows, under the same rules.
+   */
+  reaching(seeds: Iterable<string>): ReadonlySet<string>;
   /**
    * Files whose imports could not be enumerated — an unreadable file, a
    * specifier nothing resolved.
@@ -83,7 +95,8 @@ export function treeOf(records: Iterable<FileRecord>, root = '.'): Tree {
   return {
     root,
     files,
-    connected: (seeds) => connected(relations, seeds),
+    reachedFrom: (seeds) => walk(relations, seeds, dependenciesOf),
+    reaching: (seeds) => walk(relations, seeds, dependentsOf),
     unknownAmong: (among) => unknownAmong(relations, among),
   };
 }
@@ -97,24 +110,23 @@ function idsOf(relations: Relations, seeds: Iterable<string>): readonly NodeId[]
   return ids;
 }
 
-function connected(relations: Relations, seeds: Iterable<string>): ReadonlySet<string> {
+/** One direction of the walk. Both directions are the same code and one call. */
+type Direction = typeof dependenciesOf;
+
+function walk(relations: Relations, seeds: Iterable<string>, direction: Direction): ReadonlySet<string> {
   const ids = idsOf(relations, seeds);
   const found = new Set<string>();
   if (ids.length === 0) return found;
 
-  // One breadth-first search each way over the whole seed set, not one per
-  // seed: a search from many sources costs what a search from one costs.
-  for (const reach of [
-    dependenciesOf(relations, ids, { through: EDGE_KINDS }),
-    dependentsOf(relations, ids, { through: EDGE_KINDS }),
-  ]) {
-    for (const id of reach.reached) {
-      // A component is a name, and a name is not a place. It arrives here
-      // because the graph carries the component that declares a file as a node
-      // of its own, and it leaves here for the same reason a component never
-      // resolved a path in the first place.
-      if (nodeAt(relations, id)?.kind === 'file') found.add(relations.names[id]!);
-    }
+  // One breadth-first search over the whole seed set, not one per seed: a
+  // search from many sources costs what a search from one costs.
+  const reach = direction(relations, ids, { through: EDGE_KINDS });
+  for (const id of reach.reached) {
+    // A component is a name, and a name is not a place. It arrives here
+    // because the graph carries the component that declares a file as a node
+    // of its own, and it leaves here for the same reason a component never
+    // resolved a path in the first place.
+    if (nodeAt(relations, id)?.kind === 'file') found.add(relations.names[id]!);
   }
   return found;
 }

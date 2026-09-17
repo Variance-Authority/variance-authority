@@ -93,8 +93,10 @@ export interface AskRequest {
   readonly state?: string;
   readonly file?: string;
   readonly query?: string;
-  /** `--from <words>`: where to look, narrowing the suite before any ranking. */
+  /** `--from <path>`: a path to start at. Answers from what it reaches, before any ranking. */
   readonly from?: string;
+  /** `--to <path>`: a path to arrive at. Answers from what reaches it, the other way along the imports. */
+  readonly to?: string;
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
@@ -221,6 +223,7 @@ async function inputFrom(
     file: request.file,
     query: request.query,
     from: request.from,
+    to: request.to,
     limit: request.limit,
     // The one argument that is a file rather than a word, read through the same
     // validation `variance adjudicate` reads it through — an agent that declared
