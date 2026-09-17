@@ -146,8 +146,14 @@ async function takeIndexLock(coverageFile: string): Promise<string | undefined> 
   return undefined;
 }
 
-const LOCK_WAIT_MS = 10_000;
-const LOCK_POLL_MS = 25;
+/**
+ * How long a waiter polls before it gives up, and how often. Exported because
+ * the window is what the give-up test drives a clock across, and a test that
+ * hard-codes ten seconds is a test that stops describing this file the day the
+ * number changes.
+ */
+export const LOCK_WAIT_MS = 10_000;
+export const LOCK_POLL_MS = 25;
 const LOCK_STALE_MS = 60_000;
 
 async function lockAge(lock: string): Promise<number | undefined> {

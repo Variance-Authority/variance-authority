@@ -4,6 +4,7 @@ import {
   isVendorPath,
   parseStackFrames,
   servedPath,
+  writtenPath,
   writerLocationOf,
   type StackFrame,
 } from './stack.js';
@@ -168,6 +169,32 @@ describe('choosing the frame that wrote the element', () => {
       line: 4,
       column: 1,
     });
+  });
+
+  it('keeps a file: frame whole, because an absolute path is not a relative one', () => {
+    const frames = parseStackFrames('    at Badge (file:///app/src/my%20probe.js:4:1)');
+
+    // An ESM frame is spelled as a URL and still names a file. Shedding the
+    // leading separator the way a served path does would turn `/app/src` into
+    // something that reads as repository-relative and resolves somewhere else.
+    expect(writerLocationOf(frames, () => null)).toEqual({
+      file: '/app/src/my probe.js',
+      line: 4,
+      column: 1,
+    });
+  });
+
+  it('keeps a Windows frame, whose drive letter parses as a URL scheme', () => {
+    // `new URL('C:\\app\\src\\probe.ts')` succeeds with protocol `c:`, so a test
+    // that asked only whether a frame parsed as a URL would call every frame on
+    // Windows served and attribute nothing on that platform at all.
+    expect(writtenPath('C:\\app\\src\\probe.ts')).toBe('C:\\app\\src\\probe.ts');
+    expect(writtenPath('file:///C:/app/src/probe.ts')).toBe('C:/app/src/probe.ts');
+  });
+
+  it('says nothing for a frame a server sent, whatever the scheme', () => {
+    expect(writtenPath('http://host/src/probe.js')).toBeUndefined();
+    expect(writtenPath('webpack-internal:///./src/probe.js')).toBeUndefined();
   });
 
   it('takes the origin and a cache-busting query off a served path', () => {

@@ -130,8 +130,7 @@ export function servedPath(url: string): string {
 }
 
 /**
- * Whether this frame names something a server sent rather than something on a
- * disk.
+ * The frame's own position on a disk, or `undefined` if a server sent it.
  *
  * The two arrive in the same field and mean different things when no map
  * answers for them. A browser frame is a position in whatever text the build
@@ -139,18 +138,43 @@ export function servedPath(url: string): string {
  * already a position in a file: Node applies maps to `Error.stack` itself, so a
  * Vitest or Jest frame has been resolved before anything here sees it.
  *
- * Decided by the frame's own shape — a bare path does not parse as a URL, and a
- * `file:` URL is a path spelled formally — because that is a property of the
- * value in hand. Nothing here asks a filesystem whether a path is real; a
- * coordinate is ours because of how it was obtained, and a disk cannot be asked
- * about how.
+ * Decided by the frame's own shape, because that is a property of the value in
+ * hand. Nothing here asks a filesystem whether a path is real; a coordinate is
+ * ours because of how it was obtained, and a disk cannot be asked about how.
+ *
+ * Three shapes are a disk. A bare path does not parse as a URL at all. A
+ * `file:` URL is a path spelled formally, so it is decoded back into one —
+ * whole, including the leading separator a served path sheds, because an
+ * absolute path that arrives looking repository-relative is a wrong answer that
+ * resolves. A Windows path is checked before either, because `C:\src\probe.ts`
+ * parses as a URL whose scheme is the drive letter: a test that asked only
+ * whether a frame parsed would call every frame on Windows served, and attribute
+ * nothing at all there.
  */
-export function wasServed(url: string): boolean {
-  if (URL_OF === undefined) return false;
+export function writtenPath(url: string): string | undefined {
+  if (DRIVE.test(url)) return url;
+  if (URL_OF === undefined) return url;
+
+  let parsed;
   try {
-    return new URL_OF(url).protocol !== 'file:';
+    parsed = new URL_OF(url);
   } catch {
-    return false;
+    return url;
+  }
+
+  if (parsed.protocol !== 'file:') return undefined;
+  const path = decoded(parsed.pathname);
+  return DRIVE.test(path.slice(1)) ? path.slice(1) : path;
+}
+
+/** `C:\src\probe.ts` and `C:/src/probe.ts`, and inside a `file:` URL's path. */
+const DRIVE = /^[A-Za-z]:[\\/]/;
+
+function decoded(pathname: string): string {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return pathname;
   }
 }
 
@@ -204,8 +228,9 @@ export function writerLocationOf(
     // to `Error.stack` before a runner ever sees it, so the position arrived
     // already resolved and the only thing left to take off it is the origin.
     if (original === null) {
-      if (wasServed(frame.url)) continue;
-      return { file: servedPath(frame.url), line: frame.line, column: frame.column };
+      const written = writtenPath(frame.url);
+      if (written === undefined) continue;
+      return { file: written, line: frame.line, column: frame.column };
     }
 
     if (isVendorPath(original.source)) continue;
