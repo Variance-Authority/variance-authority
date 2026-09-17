@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
-import { openCrossingSets, type CrossingSetsView } from './crossing-sets.js';
+import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { foldCrossings, scanJournal, type JournalVisitor } from './crossing-fold.js';
 import { codeUnitOrder, isMissing, type CapturedModule } from './instrumented-modules.js';
 

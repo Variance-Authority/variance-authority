@@ -43,7 +43,7 @@ spec rather than a task:
   story: `coverage-corpus.mjs:118-145` deliberately tails its crossing sets.
   The published numbers are real and they are not reproducible from this
   repository.
-- **One axis barely moves.** `snapshot-scale.mjs:533-546` sweeps the test-file
+- **One axis barely moves.** `snapshot-scale.mjs:196-209` sweeps the test-file
   count for the journals arm, and `shape-sweep.mjs` varies it. The snapshot and
   selection arms are 2,000 test files and nothing else — and those are the arms
   every published figure comes from. The axis this whole feature narrows along

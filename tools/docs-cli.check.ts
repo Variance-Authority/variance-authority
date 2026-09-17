@@ -17,6 +17,25 @@ import { FENCES, MARKDOWN, ROOT, fencesIn, type Fence } from './markdown.js';
  * inventory, the routes. Those read the repository; these read one source file.
  */
 
+/**
+ * Where a command that does not exist is the point rather than a mistake.
+ *
+ * A spec and an ADR are proposals. Naming the command a capability would be
+ * reached by is most of what a proposal *is*, and holding that name to the
+ * binary's table would mean no proposal could name one until after it shipped —
+ * at which point the document nobody could write has nothing left to decide.
+ * `docs-claims.check.ts` takes the same position on the same directories for the
+ * same reason: what a spec says has nothing to check it against, and that is
+ * what makes it a spec.
+ *
+ * Published documentation is not covered by this. A reader retypes what `docs/`
+ * shows them; nobody retypes a proposal.
+ */
+const PROPOSALS = ['docs/specs/', 'docs/context/adr/'];
+
+/** The documentation a reader is meant to type out of. */
+const DOCUMENTED = MARKDOWN.filter((file) => !PROPOSALS.some((dir) => file.startsWith(dir)));
+
 
 /**
  * The commands the documentation shows, and the commands the binary has.
@@ -55,7 +74,7 @@ describe('the documented command line is the real one', () => {
     expect(usage.filter((line) => !readme.includes(line))).toEqual([]);
   });
 
-  it.each(MARKDOWN)('%s names no command the binary refuses', (file) => {
+  it.each(DOCUMENTED)('%s names no command the binary refuses', (file) => {
     const text = readFileSync(join(ROOT, file), 'utf8');
     const fenced = fencesIn(file)
       .filter((fence) => fence.lang === 'bash')

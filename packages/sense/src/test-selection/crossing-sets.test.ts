@@ -1,15 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BITS,
-  CrossingSets,
-  LIST,
-  RUNS,
-  blocksCrossedBy,
-  containerSizes,
-  openCrossingSets,
-  openPackedCrossingSets,
-  packCrossingSets,
-} from './crossing-sets.js';
+import { BITS, CrossingSets, LIST, RUNS, containerSizes } from './crossing-sets.js';
+import { blocksCrossedBy, openCrossingSets, openPackedCrossingSets, packCrossingSets } from './crossing-sets-read.js';
 
 /** A deterministic stream, so a failing case is the same case next run. */
 const stream = (seed: number): (() => number) => {

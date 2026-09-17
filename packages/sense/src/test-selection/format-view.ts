@@ -20,11 +20,8 @@ import {
   presence,
   validateCoverageShape,
 } from './format-validation.js';
-import {
-  openCrossingSets,
-  type CrossingSetsPool,
-  type CrossingSetsView,
-} from './crossing-sets.js';
+import { type CrossingSetsPool } from './crossing-sets.js';
+import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import {
   FORMAT,
   KINDS,

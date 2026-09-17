@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import journals from './journal-format.cjs';
 import { crossingsOf, loadedOf } from './instrumented-modules.js';
 import { foldCrossings } from './crossing-fold.js';
-import { openCrossingSets } from './crossing-sets.js';
+import { openCrossingSets } from './crossing-sets-read.js';
 
 const EVALUATING = 0x80000000;
 

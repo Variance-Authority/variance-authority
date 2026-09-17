@@ -150,7 +150,7 @@ has a caller:
   owns a unit.
 - *What else does this test's crossing set contain?* — a test's blast radius,
   which is `blocksCrossedBy`
-  (`packages/sense/src/test-selection/crossing-sets.ts:576`), built, unexported
+  (`packages/sense/src/test-selection/crossing-sets-read.ts:188`), built, unexported
   and unused.
 - *Which two tests cross exactly the same regions?* — redundancy in a suite,
   which is a set-identity comparison the pool makes free: two regions with the

@@ -42,7 +42,7 @@ What follows from that is not stylistic:
 
 And the failure that matters most is the one nobody would notice. A silent
 corruption inside a crossing-set container — `format-view.ts:285-289` wires the
-pool with no validation callback, and `crossing-sets.ts:502-563` reads tag,
+pool with no validation callback, and `crossing-sets-read.ts:114-175` reads tag,
 members and counts raw — yields a set naming test ids past the end of the test
 table. The direction that fails is **narrowing**: a set that loses members
 produces a smaller run list. The record answers confidently and the suite skips

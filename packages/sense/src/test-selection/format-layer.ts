@@ -4,7 +4,8 @@ import { encodeTestCoverage, settledModule, settledTest } from './format.js';
 import { carriedSources } from './carried-sources.js';
 import { wholeCoverage } from './format-view.js';
 import { layeredDictionary, type LayeredRow } from './format-dictionary.js';
-import { CrossingSets, openCrossingSets } from './crossing-sets.js';
+import { CrossingSets } from './crossing-sets.js';
+import { openCrossingSets } from './crossing-sets-read.js';
 import {
   KINDS,
   NO_OWNER,
