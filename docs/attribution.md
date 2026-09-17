@@ -207,8 +207,11 @@ wrote.** Frame zero is always React, because React constructed the error. Frame
 one is the author in an ordinary build and a custom JSX runtime in a build that
 has one — and nothing needs to know which, because Emotion resolves into
 `node_modules` and the component does not. An application module with *no* map is
-not a vendor frame: a dev server serves plain `.js` as written, so the frame's own
-coordinates are already the answer.
+not a vendor frame, but it is not an answer either: a position in the text a
+server sent is a position in the repository only if a map says so, so a served
+frame with no map is refused. A frame that names a file on disk is kept as it
+stands, because a Node runner applies maps to `Error.stack` itself and its
+coordinates arrive already original.
 
 **The economics are what make this worth doing rather than clever.** Measured on
 a 4211-node document: every fiber carried a stack, and between them they held

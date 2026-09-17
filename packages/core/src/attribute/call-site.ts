@@ -100,10 +100,11 @@ export function createCallSiteResolver(fetchModule: FetchModule): CallSiteResolv
   async function locateFrame(frame: StackFrame): Promise<SourceLocation | null> {
     const parsed = await mapsFor(frame.url);
 
-    // No map is not failure. A dev server serving a plain `.js` as written, and a
-    // Node test runner — which applies source maps to `Error.stack` itself, so
-    // the frame arrives already original — both land here with the answer in
-    // hand. `writerLocationOf` keeps the frame's own coordinates in that case.
+    // No map is not failure, and it is not an answer either. A Node test runner
+    // applies source maps to `Error.stack` itself, so its frame arrives already
+    // original and there is nothing left to add. A served module carries no such
+    // guarantee: a position in the text a server sent is a position in the
+    // repository only if a map says so, so `writerLocationOf` refuses it.
     if (parsed === null || parsed.length === 0) return null;
 
     const original = originalPositionFor(parsed, frame.line, frame.column);
@@ -131,8 +132,8 @@ export function createCallSiteResolver(fetchModule: FetchModule): CallSiteResolv
 
       const located = await answer;
 
-      // The frame's own coordinates, for a module served as written. Delegated so
-      // there is one statement of the choosing rule rather than two.
+      // The frame's own coordinates, for a frame that names a file on disk.
+      // Delegated so there is one statement of the choosing rule rather than two.
       const chosen =
         located === null
           ? writerLocationOf([frame], () => null)
