@@ -21,6 +21,21 @@ export default {
      * Nothing else about the build changes and nothing above React notices.
      */
     plugins: [...(config.plugins ?? []), jsxSource()],
+    build: {
+      ...config.build,
+      /**
+       * **What the engine half of the source index costs.**
+       *
+       * Asking the browser where a component was compiled from answers with a
+       * position in a served bundle, and a served position is a position in this
+       * repository only if a map says so — an unmapped one is refused rather
+       * than reported as a file nobody can open. A production Storybook build
+       * emits no maps by default, so without this line the run's own page can
+       * name a component it has rendered and still not say where it came from,
+       * and the scan's guess is all that is left.
+       */
+      sourcemap: true,
+    },
     esbuild: {
       ...config.esbuild,
       // Stated rather than inherited. Without it the stories compile against the
