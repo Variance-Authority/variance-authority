@@ -94,7 +94,7 @@ extra instrumentation; resolving to the exact call site needs optional
 review. Chromatic remains the better fit when branch baselines, managed
 stability, and a maintained review surface are part of the service you want.
 
-## 4. Jest or Vitest workflow
+## 4. Jest or Vitest jsdom workflow
 
 **Job:** capture a mounted DOM in vanilla Jest or Vitest without running a browser
 inside the unit process, then render pixels later.
@@ -110,16 +110,38 @@ inside the unit process, then render pixels later.
 | Visual verdict inside jsdom | **no** — jsdom supplies no rasterizer |
 
 **Verdict:** Good fit when a browserless unit process can hand a document to a
-later browser. Vitest Browser Mode with a Playwright provider follows the
-Playwright route instead.
+later browser. Vitest browser mode has its own path below.
 
-## 5. Responsibilities to plan for
+## 5. Vitest browser-mode workflow
+
+**Job:** observe a component that a browser-mode test already mounted, inside
+the test that mounted it, without a second harness or a second run.
+
+| Requirement | Fit |
+| --- | --- |
+| Preserve runner primitives | **yes** — the surface exports no `test` or `expect`, and the provider, mount library and locators stay the suite's |
+| Verdict inside the test body | **yes** — the observation returns to the test over Vitest's command protocol |
+| Acquisition in the mounting realm | **yes** — markup, applicable CSS, provenance, wiring and resource bytes are read in the tester iframe |
+| Viewport the component was laid out in | **yes** — media conditions resolve against the tester iframe, not the browser tab |
+| Deferred, identified paint | **yes** — the Vitest process paints the captured document with a renderer that states its machine, scale and fonts |
+| Pixels taken live in the tab that mounted it | **no** — a live screenshot carries no render identity, so its baseline is reproducible on no other machine |
+| Approval from the runner's own flag | **yes** — `vitest -u` promotes the image the run already painted |
+| Portalled markup rendered outside the read element | **no** — a mount whose interesting half is in a portal is read without it |
+| The tab's own assistive tree | **no** — that band comes from the Playwright path |
+
+**Verdict:** Good fit when component tests already run in a browser and the team
+wants the verdict in the test body. The Playwright route remains the fit when
+the state needs navigation, authentication, or the accessibility reading only a
+driver-owned page supplies.
+
+## 6. Responsibilities to plan for
 
 - Capture material is a document or an already-painted raster. A document is
   portable only when its resources are closed.
 - The observation engine accepts both; the CLI currently collects documents.
 - Storybook and route adapters never modify the host build or renderer.
-- Playwright and unit adapters never replace the host's runner primitives.
+- Playwright, unit and browser-mode adapters never replace the host's runner
+  primitives.
 - Managed review, managed browser/device fleets, and vendor contracts are outside
   the offering.
 

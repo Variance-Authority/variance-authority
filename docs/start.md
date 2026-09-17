@@ -39,6 +39,7 @@ rebuild navigation or fixtures in a second harness.
 | A built or served Storybook | [Start with `@variance-authority/storybook-collector`](start-storybook.md) | Story catalog, decorators, play functions, build, and story readiness |
 | A served application, sitemap, or static build | [Start with `@variance-authority/route-collector`](start-routes.md) | Server, routes, application state, and application-owned readiness markers |
 | Jest or Vitest with a mounted jsdom tree | [Start with `@variance-authority/unit-test`](start-unit.md) | Unit runner and mount lifecycle; a later CLI process renders the captured document |
+| Vitest browser mode with a mounted component | [Start with `@variance-authority/vitest-browser`](start-vitest-browser.md) | Runner, provider, mount library, locators, and assertions; the Vitest process holds the baseline and paints |
 | Another harness or material already in hand | [Connect a custom collector or `@variance-authority/observe`](start-custom.md) | State lifecycle and the adapter that emits a document or raster |
 | A **collector** (the host-specific code that discovers and captures subjects) that already owns acquisition | [Run its review loop with `@variance-authority/cli`](start-cli.md) | Subject planning, acquisition, and readiness |
 

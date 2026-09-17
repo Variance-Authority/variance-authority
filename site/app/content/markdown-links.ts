@@ -36,6 +36,7 @@ const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   "start-routes": "/start/routes",
   "start-storybook": "/start/storybook",
   "start-unit": "/start/unit",
+  "start-vitest-browser": "/start/vitest-browser",
 };
 
 export function siteHref(href: string, sourcePath: string): string {

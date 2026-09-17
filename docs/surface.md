@@ -91,6 +91,7 @@ that package boundary.
 | Served routes or a static directory | `@variance-authority/route-collector` | Document rendered later, resource-closed on request so a remote renderer needs no access to the origin. |
 | Existing Playwright Test | `@variance-authority/playwright-test` | Deferred document by default, or explicit in-place raster from the caller-owned page. |
 | Jest or Vitest with jsdom | `@variance-authority/unit-test` | Resource-closed document archive written in the unit process and rendered by a later CLI process. |
+| Vitest browser mode | `@variance-authority/vitest-browser` | Document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Existing raster or document material through an injected store and, for documents, a renderer. |
 
 The CLI, renderer, and store packages remain available for operators composing

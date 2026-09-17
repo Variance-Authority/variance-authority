@@ -136,6 +136,7 @@ describe('the root README names every supported adoption path', () => {
   it('links each supported path to its integration recipe', () => {
     expect(links.map(([, label]) => label)).toEqual([
       '@variance-authority/playwright-test',
+      '@variance-authority/vitest-browser',
       '@variance-authority/storybook-collector',
       '@variance-authority/route-collector',
       '@variance-authority/observe',

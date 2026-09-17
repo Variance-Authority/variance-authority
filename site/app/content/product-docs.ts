@@ -59,6 +59,7 @@ import startPlaywright from "../../../docs/start-playwright.md?raw";
 import startRoutes from "../../../docs/start-routes.md?raw";
 import startStorybook from "../../../docs/start-storybook.md?raw";
 import startUnit from "../../../docs/start-unit.md?raw";
+import startVitestBrowser from "../../../docs/start-vitest-browser.md?raw";
 import surface from "../../../docs/surface.md?raw";
 import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
@@ -87,6 +88,7 @@ const documents = [
   ["start-storybook", startStorybook, "docs/start-storybook.md"],
   ["start-routes", startRoutes, "docs/start-routes.md"],
   ["start-unit", startUnit, "docs/start-unit.md"],
+  ["start-vitest-browser", startVitestBrowser, "docs/start-vitest-browser.md"],
   ["start-custom", startCustom, "docs/start-custom.md"],
   ["start-cli", startCli, "docs/start-cli.md"],
   ["agents", agents, "docs/agent-workflows.md"],

@@ -41,6 +41,7 @@ already knows how to reach the UI state:
 | --- | --- |
 | A Playwright test | [`@variance-authority/playwright-test`: add an observation](packages/playwright-test/README.md#add-an-observation-to-a-test) |
 | A Jest or Vitest jsdom test | [`@variance-authority/unit-test`: capture now, render later](packages/unit-test/README.md) |
+| A Vitest browser-mode component test | [`@variance-authority/vitest-browser`: observe without leaving the test body](packages/vitest-browser/README.md#register-the-command-then-observe) |
 | A built or served Storybook | [`@variance-authority/storybook-collector`: integrate a Storybook](packages/storybook-collector/README.md#integrate-a-storybook) |
 | A running application or static build | [`@variance-authority/route-collector`: integrate a route list](packages/route-collector/README.md#integrate-an-explicit-route-list) |
 | A custom renderer, store, or pipeline | [`@variance-authority/observe`: choose the entrypoint](packages/observe/README.md#choose-the-entrypoint) |
@@ -103,7 +104,8 @@ services that run in infrastructure you control. It is not a hosted product:
 compute, storage, browser capacity, credentials, and deployment remain yours.
 
 For visual-review adoption, the [adoption gates](docs/gates.md) state where the
-tool fits Playwright, Storybook, Jest, and Vitest. The
+tool fits Playwright, Storybook, Jest, and Vitest — under jsdom and in
+browser mode. The
 [product comparison](docs/comparison.md) states what Percy, Chromatic, Argos,
 and Applitools provide that this project does not.
 

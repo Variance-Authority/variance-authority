@@ -91,6 +91,11 @@ export const NAVIGATION = [
         alternative: true,
       },
       {
+        href: "/start/vitest-browser",
+        label: "Observe in Vitest browser mode",
+        alternative: true,
+      },
+      {
         href: "/start/custom",
         label: "Build a custom integration",
         alternative: true,

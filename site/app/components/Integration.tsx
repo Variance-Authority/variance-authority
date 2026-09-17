@@ -31,6 +31,16 @@ const RECIPES = [
     href: GITHUB + "/tree/main/packages/route-collector",
   },
   {
+    key: "vitest-browser",
+    title: "Vitest browser mode",
+    install:
+      "@variance-authority/vitest-browser vitest-browser-react · Chromium",
+    requires: "A component test that already mounts in a browser.",
+    result:
+      "The verdict returns to the test body; the Vitest process paints and keeps the baseline.",
+    href: GITHUB + "/tree/main/packages/vitest-browser",
+  },
+  {
     key: "jsdom",
     title: "Vitest or Jest under jsdom",
     install:
@@ -58,7 +68,7 @@ export default function Integration() {
         label="start here"
         title="Start where the UI already runs."
       >
-        All four paths share observation and reporting contracts. Available signals
+        All five paths share observation and reporting contracts. Available signals
         depend on the capture method and instrumentation. The paths also differ
         in which tool drives the run, what you have to stand up, and
         where baseline approval happens. Pick the one that matches the host your
@@ -98,7 +108,7 @@ export default function Integration() {
       </div>
 
       <p className="mt-6 font-mono text-xs text-quiet">
-        These four are the entry points. Every package behind them is listed
+        These five are the entry points. Every package behind them is listed
         in{" "}
         <a
           href="/docs/architecture"
