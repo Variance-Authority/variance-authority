@@ -49,6 +49,7 @@
     "@variance-authority/core": "workspace:^",
     "@variance-authority/distill": "workspace:^",
     "@variance-authority/eyes": "workspace:^",
+    "@variance-authority/help": "workspace:^",
     "@variance-authority/history": "workspace:^",
     "@variance-authority/mcp": "workspace:^",
     "@variance-authority/observe": "workspace:^",

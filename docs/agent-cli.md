@@ -1,8 +1,9 @@
 # Ask a run from the command line
 
-The CLI gives an agent a shell entrance to three evidence lifetimes: `variance
-ask` reads a completed visual report, `variance ask --at` reads a suite still
-executing from its watcher, and `variance distill` reads portable [Eyes](eyes.md) and [Sense](../packages/sense)
+The CLI gives an agent a shell entrance to four subjects: `variance ask` reads a
+completed visual report, `variance ask --at` reads a suite still executing from
+its watcher, `variance ask search` and its siblings read the source tree, and
+`variance distill` reads portable [Eyes](eyes.md) and [Sense](../packages/sense)
 evidence for one test. Each calls the same analyzer its MCP counterpart calls,
 but needs no client configuration.
 
@@ -48,7 +49,7 @@ correct and is not.
 ```bash
 variance ask describe --subject story:card
 variance ask changes --component Toggle
-variance ask findings --rule contrast
+variance ask findings --rule control-without-name
 variance ask changelog --shape v1:8f2c
 ```
 
@@ -118,6 +119,35 @@ the run lives in memory that ends with the watcher.
 The suite reaches the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
+
+## Ask the code, when the name is not in the run
+
+`locate` finds a subject by the names a run saw. When the thing you can only
+describe is a function, a type or a package rather than a rendered state, the
+names are in the source, and the same command reads them:
+
+```bash
+variance ask search --query viewport
+variance ask symbol --name Viewport
+variance ask uses --name collect --from packages/cli/src/index.ts
+variance ask packages
+```
+
+`search` answers in two sections: the names a manifest publishes, ranked by how
+many packages import them, then the names the source exports without
+publishing. Every question takes a question: a word, a name or a specifier.
+`packages` is the one that takes none, and it answers with the specifiers the
+others take, so it is where a reader who has none of those starts. `symbol` prints one name's import line, declaration, signature,
+documentation and consumers; `uses` prints every call site, ordered by how much
+path it shares with `--from`; `entrypoint` lists what one import specifier
+opens; `gaps` lists the published names anybody imports that nothing documents.
+
+These questions read the checkout under the working directory and nothing else:
+no report has to exist and `variance.config.json` is not opened. `--from` and
+`--to` mean what they mean on `locate` — a path in the source tree, answered
+from what it reaches or what reaches it. The reading, its caches and what an
+answer may be taken to claim are one boundary whichever transport asks:
+[inspect the workspace public API](agent-workspace-api.md).
 
 ## Distill one completed test
 

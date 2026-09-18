@@ -41,6 +41,7 @@ export const HELP: Served<Help> = {
 };
 
 export { entrypoint, gaps, packages, search, symbol, uses };
+export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
 export { sharedSegments } from './tools/uses.js';
-export { entriesNamed, openingOf, packageOf, specifierOf } from './tools/find.js';
+export { doorOf, entriesNamed, isPackage, openingOf, packageOf, specifierOf, unfound } from './tools/find.js';

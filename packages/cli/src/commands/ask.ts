@@ -15,7 +15,17 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { TOOLS, VANTAGE_TOOLS, readTree, type Tree } from '@variance-authority/mcp/tools';
+import { readWorkspace } from '@variance-authority/help';
+import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import {
+  TOOLS,
+  VANTAGE_TOOLS,
+  readTree,
+  treeOf,
+  type FileRecord,
+  type Tool,
+  type Tree,
+} from '@variance-authority/mcp/tools';
 import { scanCacheRoot } from './resources.js';
 import { readVantage } from './watch.js';
 
@@ -38,7 +48,7 @@ import { readVantage } from './watch.js';
  * named, so what an agent reads through a pipe and what an agent reads from a
  * terminal cannot disagree.
  *
- * ## Two subjects, one set of questions
+ * ## Three subjects, one set of questions
  *
  * A finished run is a file, so a question about it needs nothing arranged. A run
  * that is still going is memory in whatever was listening when it spoke, so a
@@ -46,6 +56,15 @@ import { readVantage } from './watch.js';
  * to reach it at. `--at` is that address, defaulting to the same
  * `VARIANCE_AUTHORITY_VANTAGE` the suite was started with — the reader asks on
  * the string it already had to set.
+ *
+ * The checkout is the third. `search`, `symbol`, `uses`, `entrypoint`,
+ * `packages` and `gaps` are the tools `@variance-authority/help` serves, and
+ * they read the source tree under the working directory: what each package
+ * publishes, who imports a name, where a thing somebody can only describe is
+ * declared. No run has to have happened and no config has to exist, which is
+ * why they answer before one is read. They are here because `locate` is here:
+ * a reader with a description and no name should not have to know whether the
+ * names live in a report or in the code before they can ask.
  *
  * `diff` is the one question in both sets, because it is the same function over
  * either subject: what changed since the last time anybody looked. Pointed at a
@@ -92,6 +111,10 @@ export interface AskRequest {
   readonly test?: string;
   readonly state?: string;
   readonly file?: string;
+  /** `--name <name>`, `--package <name>`, `--subpath <subpath>`: what the source questions take. */
+  readonly name?: string;
+  readonly package?: string;
+  readonly subpath?: string;
   readonly query?: string;
   /** The relation flags: the words naming what the thing sits by. At most one. */
   readonly under?: string;
@@ -115,6 +138,31 @@ export interface AskRequest {
   readonly read: () => Promise<RunReport>;
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
+  /** How the checkout is read. Injected so the source path is testable without a repository. */
+  readonly source?: (root: string) => Promise<Sourced>;
+}
+
+/** The flags every question is spelled with, whichever subject answers it. */
+type Flagged = Pick<
+  AskRequest,
+  | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'file'
+  | 'name' | 'package' | 'subpath' | 'query'
+  | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
+  | 'from' | 'to' | 'limit'
+>;
+
+/**
+ * What a question about the code takes: every flag `ask` accepts, and nothing
+ * about a run. Every flag rather than the six these tools take, so a
+ * `--subject` typed at `search` is refused by name like it is everywhere else,
+ * instead of being dropped on the way in and answered around.
+ */
+export type SourceRequest = Flagged & Pick<AskRequest, 'source'> & { readonly question: string };
+
+/** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
+export interface Sourced {
+  readonly help: Help;
+  readonly tree?: () => Tree | undefined;
 }
 
 /** One question, answered from the artifact or the watcher. Never re-runs and never renders. */
@@ -122,6 +170,8 @@ export async function ask(request: AskRequest): Promise<string> {
   if (request.question === undefined) return questions();
 
   const question = questionFor(request.question);
+  if (question.source !== undefined) return askSource({ ...request, question: request.question });
+
   const input = await inputFrom(question, request);
 
   const answer =
@@ -130,6 +180,52 @@ export async function ask(request: AskRequest): Promise<string> {
       : await finished(question, request, input);
 
   return `${answer}\n`;
+}
+
+/**
+ * One question about the code, answered from the checkout under the working
+ * directory. Its own entrance because `dispatch` reaches it before a config is
+ * read: a repository that has never configured a visual suite still has a
+ * source tree, and this is the one set of questions that is about nothing else.
+ */
+export async function askSource(request: SourceRequest): Promise<string> {
+  const tool = questionFor(request.question).source;
+  if (tool === undefined) {
+    throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
+  }
+
+  const input = inputFor(tool, flagged(request));
+  const sourced = await (request.source ?? readSource)(process.cwd());
+  const tree = tool.wants?.(input) === true ? sourced.tree?.() : undefined;
+  // A refusal is the answer here, not a crash. Every one of them names what is
+  // there instead — the packages, the doors, the name one letter away — and it
+  // is thrown because that is the contract the tool shares with the wire, where
+  // the protocol layer turns it into `isError`. Printed as a defect with a stack
+  // under it, the one useful line is the one a reader cannot find.
+  try {
+    return `${tool.run(sourced.help, input, tree === undefined ? undefined : { tree })}\n`;
+  } catch (refusal) {
+    throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
+  }
+}
+
+/**
+ * The workspace, through the same scan index a run's selection writes.
+ *
+ * The arrows the reading draws are kept for a question that names a path, so
+ * `search --from` folds a tree from what was already scanned rather than walking
+ * the repository a second time — the same arrangement the standalone
+ * `variance-authority-help` binary makes, from the same cache.
+ */
+async function readSource(root: string): Promise<Sourced> {
+  let records: readonly FileRecord[] | undefined;
+  const help = await readWorkspace(root, {
+    index: join(scanCacheRoot(root), 'source-index.bin'),
+    records: (drawn) => {
+      records = drawn;
+    },
+  });
+  return { help, tree: () => (records === undefined ? undefined : treeOf(records, root)) };
 }
 
 /** A question about a suite that is still going, asked of the process holding it. */
@@ -222,6 +318,23 @@ async function inputFrom(
   request: AskRequest,
 ): Promise<Readonly<Record<string, unknown>>> {
   return inputFor(question.tool, {
+    ...flagged(request),
+    // The one argument that is a file rather than a word, read through the same
+    // validation `variance adjudicate` reads it through — an agent that declared
+    // its intent badly is told so once, in one wording.
+    claims: request.claims === undefined ? undefined : await readClaims(request.claims),
+  });
+}
+
+/**
+ * The flags, and only the flags, off a request. Named one by one rather than
+ * spread, because a request also carries what it is *about* — a report path, a
+ * watcher address, a reader — and `inputFor` refuses every property it does
+ * not recognise, which is the right rule for a flag and the wrong one for a
+ * subject.
+ */
+function flagged(request: Flagged): Readonly<Record<string, unknown>> {
+  return {
     subject: request.subject,
     subjects: request.subjects,
     component: request.component,
@@ -230,6 +343,9 @@ async function inputFrom(
     test: request.test,
     state: request.state,
     file: request.file,
+    name: request.name,
+    package: request.package,
+    subpath: request.subpath,
     query: request.query,
     under: request.under,
     above: request.above,
@@ -241,11 +357,7 @@ async function inputFrom(
     from: request.from,
     to: request.to,
     limit: request.limit,
-    // The one argument that is a file rather than a word, read through the same
-    // validation `variance adjudicate` reads it through — an agent that declared
-    // its intent badly is told so once, in one wording.
-    claims: request.claims === undefined ? undefined : await readClaims(request.claims),
-  });
+  };
 }
 
 /**
@@ -255,11 +367,11 @@ async function inputFrom(
  * puts in front of a model at `tools/list`, and a shorter gloss written here for
  * a human would be a second opinion about when to reach for each one.
  *
- * Split by subject rather than listed flat, because the two halves are not
+ * Split by subject rather than listed flat, because the three parts are not
  * alternatives a reader chooses between on taste: one needs a file that already
- * exists and the other needs a process that has to have been started first, and
- * a reader who does not know which half they are in asks the right question of
- * the wrong thing.
+ * exists, one needs a process that has to have been started first, and one
+ * needs only a checkout, and a reader who does not know which part they are in
+ * asks the right question of the wrong thing.
  *
  * Each half is printed straight off the set it mirrors rather than off
  * {@link QUESTIONS}, so a section is in the order that set chose — `self` leads
@@ -268,8 +380,9 @@ async function inputFrom(
  */
 export function questions(): string {
   return [
-    'Ask a question about a visual run. Each answer is the answer `variance serve` gives',
-    'an MCP client for the same question, from the same function, without the client.',
+    'Ask a question about a visual run, or about the code. Each answer is the answer',
+    '`variance serve` or the workspace API server gives an MCP client for the same',
+    'question, from the same function, without the client.',
     '',
     'ABOUT THE LAST RUN',
     '',
@@ -277,10 +390,14 @@ export function questions(): string {
     'ABOUT A SUITE THAT IS STILL RUNNING',
     '',
     ...VANTAGE_TOOLS.flatMap(entry),
+    'ABOUT THE WORKSPACE SOURCE',
+    '',
+    ...(HELP_TOOLS as readonly Tool<Help>[]).flatMap(entry),
     'The report is the configured one unless report paths are named.',
     '`--config` and sharded reports work as they do on `variance report`.',
     `Live questions need \`--at <address>\`, which defaults to \`${VANTAGE_VARIABLE}\`;`,
     '`variance watch` starts a watcher and prints both.',
+    'Source questions read the checkout under the working directory and need no config.',
     '',
   ].join('\n');
 }

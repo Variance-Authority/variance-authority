@@ -113,6 +113,12 @@ describe('a start point', () => {
     expect(text).toContain('a fact about the area, not about the word');
   });
 
+  it('never answers a place without a word', () => {
+    // A place alone is a request to be shown everything in reach of it, and on
+    // a large repository that is not an answer, it is the repository.
+    expect(() => ask({ from: 'packages/beta/src/again.ts' })).toThrow('`query` is required');
+  });
+
   it('is unchanged when nothing was said', () => {
     const text = ask({ query: 'measure' }, NONE);
     expect(text).toContain('measure');

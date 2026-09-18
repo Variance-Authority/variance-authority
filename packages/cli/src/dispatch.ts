@@ -77,15 +77,15 @@ export async function dispatch(
   // `configless.ts`, which holds those reasons beside the `CONFIGLESS` list in
   // `usage.ts` that keeps `--config` off them. The guard also narrows: past it,
   // every command left in the union has a `--config` to load.
-  const constant = constantAnswer(parsed, streams);
-  if (constant !== undefined) return constant;
-  if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
-
   // A question nobody asks is refused before a file is opened. The name is a
   // fact about this tool and not about the project, so a mistyped one answered
   // with "cannot read the config" sends the reader to fix the wrong thing —
   // and sends the reader who cannot see the two are unrelated a long way.
   if (parsed.command === 'ask' && parsed.question !== undefined) questionFor(parsed.question);
+
+  const constant = await constantAnswer(parsed, streams);
+  if (constant !== undefined) return constant;
+  if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {

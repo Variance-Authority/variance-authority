@@ -93,6 +93,17 @@ function elsewhere(
     });
 }
 
+/**
+ * The search, as a tool: a `query` and an optional start point, answered in
+ * two halves — published names first, then the ones a file exports for its
+ * neighbours — as the header above sets out.
+ *
+ * The word is required and the place is not, never the other way round. A
+ * place without a word is not a question, it is a request to be shown
+ * everything in reach — and in reach of a folder on a large repository is
+ * fifty thousand files' worth of names. Nothing here answers without a
+ * question.
+ */
 export const search: Tool<Help> = {
   name: 'docs_search',
   description:

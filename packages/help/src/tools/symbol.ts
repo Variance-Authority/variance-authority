@@ -1,7 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { entriesNamed, specifierOf } from './find.js';
+import { entriesNamed, isPackage, specifierOf, unfound } from './find.js';
 import { block } from './format.js';
 
 /**
@@ -23,7 +23,7 @@ export const symbol: Tool<Help> = {
     type: 'object',
     properties: {
       name: { type: 'string', description: 'The exported name, matched exactly.' },
-      package: { type: 'string', description: 'Only answer from this package. Optional.' },
+      package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
     },
     required: ['name'],
     additionalProperties: false,
@@ -34,12 +34,11 @@ export const symbol: Tool<Help> = {
     const from = input['package'];
     const wanted = typeof from === 'string' && from !== '' ? from : undefined;
 
-    const found = entriesNamed(help, name).filter(([published]) => wanted === undefined || published.name === wanted);
+    const found = entriesNamed(help, name).filter(
+      ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
+    );
 
-    if (found.length === 0) {
-      const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
-      throw new Error(`\`${name}\` is not published by ${where}; ask \`search\` for a name like it`);
-    }
+    if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
     const [first] = found;
     if (first === undefined) throw new Error(`\`${name}\` was found and then was not`);

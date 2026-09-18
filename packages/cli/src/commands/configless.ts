@@ -8,18 +8,20 @@
  * together instead of accumulating at the top of `dispatch`.
  *
  * They arrive in two shapes and the split is a typing fact as much as a
- * narrative one. `constantAnswer` covers two *arguments* — `comment --marker`
- * and an `ask` with no question — whose commands otherwise go on to load a
- * config like any other. `withoutConfig` covers three whole commands, and
- * narrows them out of the union so that what is left in `dispatch` is exactly
- * the set that has a `--config` to read. `usage.ts` states the same fact from
+ * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
+ * an `ask` with no question, and an `ask` whose question is about the source —
+ * whose commands otherwise go on to load a config like any other.
+ * `withoutConfig` covers three whole commands, and narrows them out of the
+ * union so that what is left in `dispatch` is exactly the set that has a
+ * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
  * added to one list and not the other is offered a flag it will ignore.
  */
 
 import { EXIT_CLEAN, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
-import { questions } from './ask.js';
+import { askSource, questions } from './ask.js';
+import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { selectOutput } from './select-command.js';
@@ -33,25 +35,40 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
 }
 
 /**
- * What a build answers out of itself, for the two arguments that ask it to.
+ * What answers before the project is read, for the three arguments that ask it to.
  *
- * Constants this build carries rather than readings of anything. The poster
- * needs the marker in exactly the case where there is no body to find it in — a
- * clean run, where the previous docket has to be located and cleared; and an
- * agent finding out what it may ask has not reached a run to ask about, so
+ * Two are constants this build carries rather than readings of anything. The
+ * poster needs the marker in exactly the case where there is no body to find it
+ * in — a clean run, where the previous docket has to be located and cleared; and
+ * an agent finding out what it may ask has not reached a run to ask about, so
  * answering it with the config would be a refusal to hold a conversation on the
  * grounds that there is nothing to say yet.
+ *
+ * The third is a reading, of the one subject a config says nothing about. A
+ * question about the source — what a package publishes, who imports a name —
+ * is asked of the checkout under the working directory, and a checkout is
+ * there whether or not anybody configured a visual suite in it. Refusing it for
+ * want of `variance.config.json` would send a reader to write a file that has
+ * no bearing on the answer.
  */
-export function constantAnswer(
+export async function constantAnswer(
   parsed: Parsed,
   streams: { out(text: string): void },
-): ExitCode | undefined {
+): Promise<ExitCode | undefined> {
   if (parsed.command === 'comment' && parsed.marker) {
     streams.out(`${COMMENT_MARKER}\n`);
     return EXIT_CLEAN;
   }
   if (parsed.command === 'ask' && parsed.question === undefined) {
     streams.out(questions());
+    return EXIT_CLEAN;
+  }
+  if (
+    parsed.command === 'ask' &&
+    parsed.question !== undefined &&
+    questionFor(parsed.question).source !== undefined
+  ) {
+    streams.out(await askSource({ ...parsed, question: parsed.question }));
     return EXIT_CLEAN;
   }
   return undefined;

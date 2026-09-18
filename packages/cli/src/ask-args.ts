@@ -63,6 +63,12 @@ export interface ParsedAsk {
   readonly test?: string;
   readonly state?: string;
   readonly file?: string;
+  /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`. */
+  readonly name?: string;
+  /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
+  readonly package?: string;
+  /** `--subpath <subpath>`: one import specifier a package's `exports` map opens, for `entrypoint`. */
+  readonly subpath?: string;
   /** `--query <words>`: a description, for the questions that search names. */
   readonly query?: string;
   /**
@@ -117,6 +123,9 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const test = flags.values.get('--test');
   const state = flags.values.get('--state');
   const file = flags.values.get('--file');
+  const name = flags.values.get('--name');
+  const pkg = flags.values.get('--package');
+  const subpath = flags.values.get('--subpath');
   const query = flags.values.get('--query');
   const from = flags.values.get('--from');
   const to = flags.values.get('--to');
@@ -136,6 +145,9 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(test !== undefined ? { test } : {}),
     ...(state !== undefined ? { state } : {}),
     ...(file !== undefined ? { file } : {}),
+    ...(name !== undefined ? { name } : {}),
+    ...(pkg !== undefined ? { package: pkg } : {}),
+    ...(subpath !== undefined ? { subpath } : {}),
     ...(query !== undefined ? { query } : {}),
     ...placing(flags),
     ...(from !== undefined ? { from } : {}),

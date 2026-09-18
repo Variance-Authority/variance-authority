@@ -32,6 +32,19 @@ Pass the package name to `npx`, not the binary name: `variance-authority-help`
 is not a package name and the registry will report it missing. `--root` is the
 workspace to read; omit it when you are standing in that workspace.
 
+A workspace that already has `@variance-authority/cli` installed needs neither
+this package nor its binary. The six questions are on `variance ask`, beside
+the questions about a run, and read the checkout under the working directory:
+
+```bash
+npx variance ask search --query viewport
+npx variance ask symbol --name Viewport
+```
+
+The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
+`--query`, `--from` and `--to`. [Ask a run from the command
+line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
+
 Configure the MCP client to launch the server with the workspace root:
 
 ```json

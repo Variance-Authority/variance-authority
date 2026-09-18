@@ -5,8 +5,9 @@ import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
+import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
-import { ASKED, ask, questions } from './ask.js';
+import { ASKED, ask, askSource, questions, type Sourced } from './ask.js';
 import { questionOf } from './asking.js';
 import type { CliRunReport } from './run.js';
 
@@ -74,6 +75,7 @@ describe('the questions', () => {
     // list would make that false silently, in the one direction nobody checks.
     expect(listed('ABOUT THE LAST RUN')).toEqual(TOOLS.map(questionOf));
     expect(listed('ABOUT A SUITE THAT IS STILL RUNNING')).toEqual(VANTAGE_TOOLS.map(questionOf));
+    expect(listed('ABOUT THE WORKSPACE SOURCE')).toEqual(HELP_TOOLS.map(questionOf));
   });
 
   it('lists the question that is both under both, because it answers about both', () => {
@@ -89,6 +91,71 @@ describe('the questions', () => {
 
   it('answers without a report, because nothing about a run decides what may be asked', () => {
     expect(questions()).toContain('summary');
+  });
+});
+
+/** A workspace with one published name, read by nothing on disk. */
+const WORKSPACE: Help = {
+  packages: [
+    {
+      name: '@example/alpha',
+      declared: {},
+      openings: [
+        {
+          subpath: '.',
+          source: 'packages/alpha/src/index.ts',
+          entries: [
+            {
+              name: 'viewport',
+              kind: 'function',
+              at: 'packages/alpha/src/viewport.ts',
+              line: 7,
+              signature: 'function viewport(width: number): Viewport',
+              doc: 'The box a subject is rendered in.',
+              usedBy: ['@example/beta'],
+              uses: 1,
+              sites: [],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  deep: [],
+  exported: [],
+  unreadable: [],
+};
+
+describe('a question about the code', () => {
+  const sourced = (): Promise<Sourced> => Promise.resolve({ help: WORKSPACE });
+
+  it('is answered from the checkout, with no report read at all', async () => {
+    // The report reader is a trap here: a source question that touched it would
+    // be a question with two subjects, answering from whichever it read first.
+    const read = (): Promise<CliRunReport> => Promise.reject(new Error('read the report'));
+    const answer = await ask(asking('/nowhere/report.json', 'symbol', { name: 'viewport', read, source: sourced }));
+
+    expect(answer).toContain('viewport [function]');
+    expect(answer).toContain("import { viewport } from '@example/alpha'");
+  });
+
+  it('is reachable on its own, before any config, with only the flags it takes', async () => {
+    const answer = await askSource({ question: 'search', query: 'box', source: sourced });
+
+    expect(answer).toContain('viewport');
+  });
+
+  it('refuses the arguments of the other subjects by name', async () => {
+    await expect(askSource({ question: 'search', query: 'box', source: sourced, name: 'x' } as never)).rejects.toThrow(
+      '`--name` is not an argument `variance ask search` takes',
+    );
+    await expect(
+      ask(asking('/nowhere/report.json', 'search', { query: 'box', subject: 'story:toggle', source: sourced })),
+    ).rejects.toThrow('`--subject` is not an argument');
+  });
+
+  it('is not a run question, and says so when asked as one', async () => {
+    await expect(askSource({ question: 'summary', source: sourced })).rejects.toThrow('about a run');
   });
 });
 

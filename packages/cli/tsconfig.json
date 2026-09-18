@@ -13,6 +13,7 @@
     { "path": "../core" },
     { "path": "../distill" },
     { "path": "../eyes" },
+    { "path": "../help" },
     { "path": "../mcp" },
     { "path": "../observe" },
     { "path": "../sense" },

@@ -19,12 +19,14 @@ unavailable, never an empty measurement.
 | completed visual report | What changed? | `variance ask summary` | `variance_summary` |
 | live watcher | Is this the watcher the suite reached? | `variance ask self` | `variance_self` |
 | [Eyes](eyes.md) archive and/or [execution index](execution-record.md) | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
-| current workspace source | What does this package publish? | `variance-authority-help packages` | `docs_packages` on the workspace API server |
-| current workspace source | Where is this symbol already used, and what shows how to call it? | `variance-authority-help uses <name>` | `docs_uses` on the workspace API server |
-| current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance-authority-help search <word> --from <path>` | `docs_search` on the workspace API server |
+| current workspace source | What does this package publish? | `variance ask packages` | `docs_packages` on the workspace API server |
+| current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
+| current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 
-`variance ask` with no question lists every report or watcher question and its
-arguments. `variance_observability` inventories the domains supplied to a
+`variance ask` with no question lists every report, watcher and source question
+and its arguments. The source questions read the checkout under the working
+directory and need no `variance.config.json`; the same six are on the
+`variance-authority-help` binary for a workspace that installs nothing else. `variance_observability` inventories the domains supplied to a
 combined MCP connection before an agent asks from one of them. For every
 unavailable domain it also names the producer and integration guide.
 

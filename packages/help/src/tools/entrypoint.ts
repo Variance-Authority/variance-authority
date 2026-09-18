@@ -1,7 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { openingOf, packageOf, specifierOf } from './find.js';
+import { doorOf, specifierOf } from './find.js';
 import { line } from './format.js';
 
 /**
@@ -22,7 +22,12 @@ export const entrypoint: Tool<Help> = {
   inputSchema: {
     type: 'object',
     properties: {
-      package: { type: 'string', description: 'Package name, as docs_packages reports it.' },
+      package: {
+        type: 'string',
+        description:
+          'The specifier as docs_packages reports it, e.g. `@scope/name/file`, or the package ' +
+          'name alone with the subpath given separately.',
+      },
       subpath: {
         type: 'string',
         description: "Entrypoint subpath, e.g. './file'. Defaults to '.', the package's main entrypoint.",
@@ -33,9 +38,12 @@ export const entrypoint: Tool<Help> = {
   },
 
   run(help, input) {
-    const published = packageOf(help, stringArg(input, 'package'));
     const subpath = input['subpath'];
-    const held = openingOf(published, typeof subpath === 'string' && subpath !== '' ? subpath : undefined);
+    const [published, held] = doorOf(
+      help,
+      stringArg(input, 'package'),
+      typeof subpath === 'string' && subpath !== '' ? subpath : undefined,
+    );
 
     if (held.entries.length === 0) return `${specifierOf(published, held)} opens no names.`;
 

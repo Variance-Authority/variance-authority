@@ -1,3 +1,4 @@
+import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, type Tool } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import { didYouMean } from '../nearest.js';
@@ -9,9 +10,10 @@ import { didYouMean } from '../nearest.js';
  * Its own module because it is the half that must not be *written*. Every fact
  * here is read off the tools themselves — the set of questions, the flags each
  * accepts, which of them are required, whether a question is about a finished
- * run or a running one — so a tool added to `@variance-authority/mcp` arrives on
- * the command line already asked, already documented, and already refusing the
- * arguments it does not take.
+ * run, a running one or the source tree — so a tool added to
+ * `@variance-authority/mcp` or `@variance-authority/help` arrives on the command
+ * line already asked, already documented, and already refusing the arguments it
+ * does not take.
  *
  * The alternative was a table, and a table is short by one the day a tool is
  * added: the CLI would keep working and would quietly be a smaller product than
@@ -20,7 +22,12 @@ import { didYouMean } from '../nearest.js';
  * spelled yet prints `<value>` and still works.
  */
 
-const PREFIX = 'variance_';
+/**
+ * The wire namespaces, one per tool set. A namespace is a fact about the
+ * protocol — two servers on one client must not both offer `search` — and not a
+ * word anybody types at a shell, so it is the part the question drops.
+ */
+const PREFIXES = ['variance_', 'docs_'] as const;
 
 /** The part of a tool this module reads. Not `Tool`, which would drag a subject in. */
 export type Asked = Pick<Tool, 'name' | 'description' | 'inputSchema'>;
@@ -32,7 +39,8 @@ export type Asked = Pick<Tool, 'name' | 'description' | 'inputSchema'>;
  * arrives here already asked, and no second list can be short by one.
  */
 export function questionOf(tool: Asked): string {
-  return tool.name.slice(PREFIX.length).replace(/_/g, '-');
+  const prefix = PREFIXES.find((candidate) => tool.name.startsWith(candidate)) ?? '';
+  return tool.name.slice(prefix.length).replace(/_/g, '-');
 }
 
 /** A tool that answers about a suite still running, as `VANTAGE_TOOLS` types it. */
@@ -41,10 +49,16 @@ type LiveTool = (typeof VANTAGE_TOOLS)[number];
 /**
  * One question, and the tool that answers it about each subject.
  *
- * Two fields rather than one enum, because `diff` is genuinely both: the same
- * function compares a report with the last report read and a watcher with the
- * last reading taken, and which one a reader means is decided by whether they
- * pointed at a watcher. Every other question is one or the other.
+ * Three fields rather than one enum, because `diff` is genuinely two of them:
+ * the same function compares a report with the last report read and a watcher
+ * with the last reading taken, and which one a reader means is decided by
+ * whether they pointed at a watcher. Every other question is exactly one.
+ *
+ * The third subject is the checkout itself. `search`, `symbol` and the rest
+ * read what the workspace publishes and exports, which is a fact about the
+ * source tree and not about any run — so they need no report, no watcher and
+ * no config, and sit beside `locate` because a reader looking for a thing they
+ * can only describe should not have to know which binary holds the names.
  *
  * They hold the tools rather than flags saying a tool exists, so the check that
  * routes a question is the same check that produces its answer. A question with
@@ -57,6 +71,8 @@ export interface Question {
   readonly report?: Tool;
   /** Asked of a suite that is still running, or absent when it is not that kind of question. */
   readonly live?: LiveTool;
+  /** Asked of the workspace source, or absent when it is not a question about the code. */
+  readonly source?: Tool<Help>;
 }
 
 /** Every question, each knowing which subjects it answers about. */
@@ -70,6 +86,7 @@ function questionsOf(): readonly Question[] {
     const already = found.get(tool.name)?.report;
     found.set(tool.name, { tool, ...(already === undefined ? {} : { report: already }), live: tool });
   }
+  for (const tool of HELP_TOOLS) found.set(tool.name, { tool, source: tool });
 
   return [...found.values()];
 }
@@ -116,6 +133,9 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   test: '<id>',
   state: '<state>',
   file: '<text>',
+  name: '<name>',
+  package: '<name>',
+  subpath: '<subpath>',
   query: '<words>',
   under: '<words>',
   above: '<words>',
@@ -214,11 +234,17 @@ export function inputFor(
     (argument) => argument.required && input[argument.property] === undefined,
   );
   if (missing.length > 0) {
+    // Where the missing argument comes from depends on what the question is
+    // about: an id is printed by a run, a name or a specifier by the code.
+    const first = tool.name.startsWith('docs_')
+      ? 'Ask `packages` first; it prints the specifiers `entrypoint` takes, and `entrypoint` ' +
+        'prints the names `symbol` and `uses` take. `search --query <word>` finds a name you ' +
+        'can only describe.'
+      : 'Ask `summary` or `changes` first for a finished run, or `run-signals` for one still ' +
+        'going; each prints the ids the narrower questions take.';
     throw new OperatorError(
       `\`variance ask ${questionOf(tool)}\` needs ` +
-        `${missing.map((argument) => argument.flag).join(' and ')}. Ask \`summary\` or ` +
-        '`changes` first for a finished run, or `run-signals` for one still going; each prints ' +
-        'the ids the narrower questions take.',
+        `${missing.map((argument) => argument.flag).join(' and ')}. ${first}`,
     );
   }
 

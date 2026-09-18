@@ -53,6 +53,12 @@ one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
 
+The same six are questions on `variance ask` wherever
+[`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
+is installed — `npx variance ask search --query viewport` — so a workspace that
+runs the visual suite needs nothing from this package to ask them. This package
+is for the workspace that does not.
+
 ### What you get
 
 Text, on stdout. `search` answers in two sections — the names a manifest
@@ -320,6 +326,27 @@ for (const file of writePages('.', 'docs/api', {
 })) {
   console.log(`${file.at} — ${file.bytes} bytes`);
 }
+```
+
+`readWorkspace` is the reading the six answers are asked of, for a program that
+wants to ask more than one of them or to ask them through its own interface. It
+takes the root and returns the workspace: every package, what each publishes,
+and who imports it. Three options, all optional: `index`, the path of the source
+index the scan keeps its parses in, when you would rather it shared one you
+already have than kept its own under the checkout; `save`, whether to write what
+this reading learned back to that index for the next one, on unless you say
+otherwise; and `records`, a function handed the import graph the scan drew on
+the way, for a caller that needs the arrows between files as well as the names,
+so it does not scan the checkout a second time to get them.
+
+```ts
+import { readWorkspace } from '@variance-authority/help';
+import { search, symbol } from '@variance-authority/help/tools';
+
+const workspace = await readWorkspace('.', { save: false });
+
+console.log(search.run(workspace, { query: 'viewport' }));
+console.log(symbol.run(workspace, { name: 'Viewport' }));
 ```
 
 `serveWorkspace` starts the stdio server and returns a function that stops it.

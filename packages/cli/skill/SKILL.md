@@ -90,6 +90,7 @@ npx variance ask changes                  # the distinct changes behind the chan
 npx variance ask composition              # what explains each movement; flake vs suspect
 npx variance ask describe --subject <id>  # one subject: regions, components, files, fingerprints
 npx variance ask locate --query "<words>" # the subject you can only describe, by the names the run saw
+npx variance ask search --query "<word>"  # the exported name you can only describe, by the source; no run needed
 ```
 
 `summary` is the shape of every answer — counts, then the subjects that need

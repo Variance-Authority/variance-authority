@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { HELP_TOOLS, search, symbol } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName } from '@variance-authority/mcp/tools';
 import { QUESTIONS, argumentsOf, questionFor, questionOf, takes } from './asking.js';
 
@@ -15,10 +16,13 @@ describe('the question a tool answers', () => {
   it('is the tool’s name with the transport taken out of it', () => {
     expect(questionOf(toolByName('variance_trace_component')!)).toBe('trace-component');
     expect(questionOf(vantageToolByName('variance_run_signals')!)).toBe('run-signals');
+    // The workspace API server has its own namespace on the wire, and the
+    // question drops that one too: a reader types `search`, not `docs_search`.
+    expect(questionOf(search)).toBe('search');
   });
 
-  it('exists for every tool in both sets, and for nothing else', () => {
-    const named = new Set([...TOOLS, ...VANTAGE_TOOLS].map(questionOf));
+  it('exists for every tool in all three sets, and for nothing else', () => {
+    const named = new Set([...TOOLS, ...VANTAGE_TOOLS, ...HELP_TOOLS].map(questionOf));
 
     expect(new Set(QUESTIONS.map((question) => questionOf(question.tool)))).toEqual(named);
   });
@@ -30,6 +34,12 @@ describe('the question a tool answers', () => {
     expect(questionFor('run-signals').report).toBeUndefined();
     expect(questionFor('diff').report).toBeDefined();
     expect(questionFor('diff').live).toBeDefined();
+    // A source question is about the checkout and nothing else: no report to
+    // read it from, no watcher to reach, so neither arm can be handed it.
+    expect(questionFor('search').source).toBe(search);
+    expect(questionFor('search').report).toBeUndefined();
+    expect(questionFor('search').live).toBeUndefined();
+    expect(questionFor('locate').source).toBeUndefined();
   });
 
   it('refuses a name nobody has, by listing the names somebody does', () => {
@@ -47,6 +57,7 @@ describe('what a question takes', () => {
 
   it('marks a required argument required and an optional one optional', () => {
     expect(takes(toolByName('variance_describe')!)).toBe('  --subject <id>');
+    expect(takes(symbol)).toBe('  --name <name> [--package <name>]');
     expect(takes(vantageToolByName('variance_test_signals')!)).toBe('  --test <id>');
     expect(takes(vantageToolByName('variance_run_signals')!)).toContain('[--state <state>]');
   });

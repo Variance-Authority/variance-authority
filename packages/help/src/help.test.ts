@@ -76,6 +76,13 @@ describe('what one door opens', () => {
     expect(() => call('docs_entrypoint', { package: 'gamma' })).toThrow(/this workspace publishes: alpha, beta/);
   });
 
+  it('takes the specifier the first question printed, unsplit', () => {
+    expect(call('docs_entrypoint', { package: 'alpha/deep' })).toBe(
+      call('docs_entrypoint', { package: 'alpha', subpath: './deep' }),
+    );
+    expect(() => call('docs_entrypoint', { package: 'alpha/nope' })).toThrow(/it opens: \., \.\/deep/);
+  });
+
   it('names the doors that are there when a subpath is not', () => {
     expect(() => call('docs_entrypoint', { package: 'alpha', subpath: './nope' })).toThrow(/it opens: \., \.\/deep/);
   });
@@ -100,6 +107,20 @@ describe('one name in full', () => {
 
   it('says outright when a name is silent, rather than leaving a blank', () => {
     expect(call('docs_symbol', { name: 'Reading' })).toContain('Nothing is written above this declaration.');
+  });
+
+  it('names the one published name that differs only in case, rather than sending the caller to search for it', () => {
+    expect(() => call('docs_symbol', { name: 'MEASURE' })).toThrow(/`measure` is\. Names are matched exactly/);
+  });
+
+  it('answers from a specifier as well as from a package name', () => {
+    expect(call('docs_symbol', { name: 'behind', package: 'alpha/deep' })).toBe(
+      call('docs_symbol', { name: 'behind', package: 'alpha' }),
+    );
+  });
+
+  it('names the file when the name is exported and never published', () => {
+    expect(() => call('docs_symbol', { name: 'deeper' })).toThrow(/exported, without being published, at packages\/beta\/src\/inner\/deeper\.ts:3/);
   });
 
   it('refuses an unknown name by pointing at the question that finds one', () => {

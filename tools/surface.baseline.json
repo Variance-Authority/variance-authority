@@ -889,22 +889,27 @@
     "names": {
       ".": {
         "PagesOptions": "interface",
+        "ReadingOptions": "interface",
         "WorkspaceOptions": "interface",
         "Written": "interface",
+        "readWorkspace": "function",
         "serveWorkspace": "function",
         "writePages": "function"
       },
       "./tools": {
         "HELP": "const",
         "HELP_TOOLS": "const",
+        "Help": "interface",
         "SERVER_NAME": "const",
         "SERVER_VERSION": "const",
         "audience": "function",
         "block": "function",
+        "doorOf": "function",
         "entriesNamed": "function",
         "entrypoint": "const",
         "gaps": "const",
         "importing": "function",
+        "isPackage": "function",
         "line": "function",
         "openingOf": "function",
         "packageOf": "function",
@@ -915,6 +920,7 @@
         "sharedSegments": "function",
         "specifierOf": "function",
         "symbol": "const",
+        "unfound": "function",
         "uses": "const"
       }
     }

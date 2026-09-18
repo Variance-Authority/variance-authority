@@ -1,7 +1,7 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { stringArg } from '@variance-authority/mcp/tools';
 import type { Documented, Entry, Help, Opening, Use } from '@variance-authority/package/help';
-import { entriesNamed } from './find.js';
+import { entriesNamed, isPackage, unfound } from './find.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -94,7 +94,7 @@ export const uses: Tool<Help> = {
     type: 'object',
     properties: {
       name: { type: 'string', description: 'The exported name, matched exactly.' },
-      package: { type: 'string', description: 'Only answer from this package. Optional.' },
+      package: { type: 'string', description: 'Only answer from this package, by name or by specifier. Optional.' },
       from: {
         type: 'string',
         description:
@@ -114,11 +114,10 @@ export const uses: Tool<Help> = {
     const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
     const from = typeof input['from'] === 'string' && input['from'] !== '' ? input['from'] : undefined;
 
-    const found = entriesNamed(help, name).filter(([published]) => wanted === undefined || published.name === wanted);
-    if (found.length === 0) {
-      const where = wanted === undefined ? 'this workspace' : `\`${wanted}\``;
-      throw new Error(`\`${name}\` is not published by ${where}; ask \`search\` for a name like it`);
-    }
+    const found = entriesNamed(help, name).filter(
+      ([published, held]) => wanted === undefined || isPackage(published, held, wanted),
+    );
+    if (found.length === 0) throw new Error(unfound(help, name, wanted));
 
     const sites = sitesOf(found);
     if (sites.length === 0) {

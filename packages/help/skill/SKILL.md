@@ -127,10 +127,10 @@ $ variance-authority-help packages
 
 The names one specifier opens, most-imported first.
 
-`[subpath]` is the key of the package's `exports` map — `'.'` by default, which
-is the main entrypoint. Pass the part *after* the package name, `./` and all, as
-`packages` prints it: for `@variance-authority/core/format`, the package is
-`@variance-authority/core` and the subpath is `./format`.
+Pass the specifier exactly as `packages` prints it — `@variance-authority/core/format`
+— or the package name and the subpath apart, where `[subpath]` is the key of the
+package's `exports` map, `'.'` by default: `@variance-authority/core ./format`
+opens the same door.
 
 ```
 $ variance-authority-help entrypoint @variance-authority/core ./format
