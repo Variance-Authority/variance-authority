@@ -82,7 +82,7 @@ untracked files to hash, TypeScript then native
 ```
                             50,165 paths            200,427 paths
 git discovery              308.0    279.9 ms     1754.4   1934.6 ms
-paths, sorted                1.1      3.6 ms        4.4     19.3 ms
+paths, listed                1.1      3.6 ms        4.4     19.3 ms
 config files                 1.7      0.5 ms        6.6      2.7 ms
 directories                 24.3      5.7 ms      117.2     31.2 ms
 config digest, bounded       1.9      2.1 ms        8.6      9.9 ms
@@ -92,10 +92,17 @@ config digest, unbounded     5.4      4.3 ms       15.4     21.7 ms
 At the scale this decision exists for, **the entire phase is 1.9 seconds of
 256.8**, and 1.75 of those seconds are `git` itself — the same subprocess either
 way. The only fold that is meaningfully faster natively is `directories`, and it
-is 86 ms. Sorting two hundred thousand strings is *four times slower* in Rust,
-which is not a defect on either side: it is what a highly tuned sort over
-already-resident `string` objects costs against one that must cross a boundary to
-be built at all.
+is 86 ms.
+
+The `paths` row compares nothing, because neither side is sorting there. The
+native snapshot is ordered when it is built, so that call only constructs two
+hundred thousand JavaScript strings: `named` walks the same paths and returns a
+handful of them in 2.7 ms, and the 16.6 ms between the two rows is the boundary,
+at about 83 ns a string. On the JavaScript side `git ls-tree -r` emits tree
+order, which is byte order, so the sort is a near-linear merge over an array
+that already holds its answer — 3.7 ms, against 74.0 ms for the same paths
+shuffled. What the row measures is the cost of handing the path set *back*, and
+that cost is zero once nothing asks for it.
 
 So the suspicion that the path set's JavaScript materialization was the
 scalability defect is **withdrawn**, on measurement, before anything was built on

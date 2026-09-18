@@ -57,7 +57,7 @@ const held = nativeDiscovery.value;
 
 console.log(`paths ${js.size} / ${held.size}\n`);
 report('git discovery', jsDiscovery.ms, nativeDiscovery.ms);
-report('paths, sorted', (await timed(() => js.paths())).ms, (await timed(() => held.paths())).ms);
+report('paths, listed', (await timed(() => js.paths())).ms, (await timed(() => held.paths())).ms);
 report('config files', (await timed(() => js.named(LAYOUT))).ms, (await timed(() => held.named(LAYOUT))).ms);
 report('directories', (await timed(() => js.directories())).ms, (await timed(() => held.directories())).ms);
 report(
