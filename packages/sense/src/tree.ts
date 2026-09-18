@@ -189,10 +189,16 @@ function blob(object: string): Digest {
  * own digests gets. Both are the same answers — `tree.test.ts` compares them.
  */
 export interface Tree {
+  /** The native snapshot, when this tree did not cross into JavaScript. */
+  readonly native?: NativeGitTree;
+  /** Seed paths discovered alongside native repository identity. */
+  readonly seeds?: readonly string[];
   /** How many paths the tree holds. */
   readonly size: number;
   /** The digest of one path's bytes on disk. */
   get(path: string): Digest | undefined;
+  /** Digests for many paths, in their input order. */
+  getAll(paths: readonly string[]): readonly (Digest | undefined)[];
   /** Every path, sorted by code unit. The one answer that is repository-sized. */
   paths(): readonly string[];
   /** Every path whose basename is one of `names`, or is a `tsconfig*.json`. */
@@ -218,10 +224,13 @@ export interface Tree {
  * `undefined` for the same reason `gitDigests` returns it: this is not a
  * checkout, or git could not answer.
  */
-export async function gitTreeOf(root: string): Promise<Tree | undefined> {
+export async function gitTreeOf(
+  root: string,
+  dirs?: readonly string[],
+): Promise<Tree | undefined> {
   const addon = native();
   if (addon !== undefined) {
-    const held = addon.gitTree(root);
+    const held = dirs === undefined ? addon.gitTree(root) : addon.gitTreeFor(root, [...dirs]);
     if (held !== null) return nativeTree(held);
     return undefined;
   }
@@ -242,6 +251,7 @@ export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
       return digests.size;
     },
     get: (path) => digests.get(path),
+    getAll: (paths) => paths.map((path) => digests.get(path)),
     paths,
     named: (names) => paths().filter((path) => isNamed(path, names)),
     directories: () => directoriesOf(paths()),
@@ -259,11 +269,15 @@ export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
 }
 
 function nativeTree(held: NativeGitTree): Tree {
+  const seeds = held.seeds();
   return {
+    native: held,
+    ...(seeds.length === 0 ? {} : { seeds }),
     get size() {
       return held.size;
     },
     get: (path) => held.digest(path) ?? undefined,
+    getAll: (paths) => held.digestsFor([...paths]).map((digest) => digest || undefined),
     paths: () => held.paths(),
     named: (names) => held.named([...names]),
     directories: () => new Map(Object.entries(held.directories())),

@@ -33,23 +33,45 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    let listing = git(root, &["ls-tree", "-r", "-z", "HEAD"], None)?;
+    let (listing, status) = std::thread::scope(|scope| {
+        let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD"], None));
+        let status = scope.spawn(|| {
+            git(
+                root,
+                &[
+                    "-c",
+                    "core.fsmonitor=false",
+                    "status",
+                    "--porcelain=v1",
+                    "-z",
+                    "--untracked-files=all",
+                ],
+                None,
+            )
+        });
+        (listing.join().ok().flatten(), status.join().ok().flatten())
+    });
+    let listing = listing?;
 
     let mut held: HashMap<Vec<u8>, Oid> = HashMap::with_capacity(1 << 16);
     for entry in listing.split(|byte| *byte == 0) {
         // `<mode> <type> <object>\t<path>`, and only blobs are files.
-        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else { continue };
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
         let (head, path) = entry.split_at(tab);
         let mut fields = head.split(|byte| *byte == b' ');
         let (_mode, kind, object) = (fields.next(), fields.next(), fields.next());
         if kind != Some(b"blob".as_slice()) {
             continue;
         }
-        let Some(oid) = object.and_then(parse_oid) else { continue };
+        let Some(oid) = object.and_then(parse_oid) else {
+            continue;
+        };
         held.insert(path[1..].to_vec(), oid);
     }
 
-    overlay(root, &mut held)?;
+    overlay(root, &mut held, status)?;
 
     let mut paths: Vec<String> = Vec::with_capacity(held.len());
     let mut by_path: Vec<(String, Oid)> = held
@@ -72,12 +94,8 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, held: &mut HashMap<Vec<u8>, Oid>) -> Option<()> {
-    let Some(status) = git(
-        root,
-        &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        None,
-    ) else {
+fn overlay(root: &str, held: &mut HashMap<Vec<u8>, Oid>, status: Option<Vec<u8>>) -> Option<()> {
+    let Some(status) = status else {
         held.clear();
         return Some(());
     };
@@ -150,7 +168,10 @@ fn hash_on_disk(root: &str, paths: &[Vec<u8>]) -> Vec<(Vec<u8>, Oid)> {
         return Vec::new();
     };
 
-    let lines: Vec<&[u8]> = out.split(|byte| *byte == b'\n').filter(|line| !line.is_empty()).collect();
+    let lines: Vec<&[u8]> = out
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .collect();
     if lines.len() != paths.len() {
         return Vec::new();
     }
@@ -204,6 +225,11 @@ pub fn spell(oid: &Oid) -> String {
     out
 }
 
+/// A raw object name for `cat-file --batch`.
+pub fn hex(oid: &Oid) -> String {
+    spell(oid)[4..].to_owned()
+}
+
 const HEX: [char; 16] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
 ];
@@ -219,7 +245,11 @@ fn git(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Option<Vec<u8>> {
         .current_dir(root)
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .stdin(if stdin.is_some() { Stdio::piped() } else { Stdio::null() });
+        .stdin(if stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        });
 
     let mut child = command.spawn().ok()?;
 

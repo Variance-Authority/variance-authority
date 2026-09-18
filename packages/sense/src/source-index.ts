@@ -11,7 +11,19 @@ import { resolve } from 'node:path';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
-import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
+import {
+  openSourceIndexFile,
+  type EncodedParseLayer,
+  type IndexedRecord,
+} from './source-index-file.js';
+import { decodeSourceIndex } from './source-index-format.js';
+
+const nativeParses = new WeakMap<ParseCache, EncodedParseLayer>();
+
+/** Attach a native parse generation to the persistent cache that will publish it. */
+export function adoptNativeParses(cache: ParseCache, layer: EncodedParseLayer): void {
+  nativeParses.set(cache, layer);
+}
 
 export interface PersistentSourceIndex {
   /** Content-keyed facts passed to `scanRelations` as `cache`. */
@@ -49,12 +61,17 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     ? undefined
     : { config: stored.config, directories: stored.directories };
   const parses = new Map<ParseKey, Parsed>();
+  let decodedNative: ReadonlyMap<ParseKey, Parsed> | undefined;
   const records = new Map<string, IndexedRecord>();
   let adopted: TreeShape | undefined;
 
   const cache: ParseCache = {
     get(key) {
-      const parsed = parses.get(key) ?? stored.parses.get(key);
+      const layer = nativeParses.get(cache);
+      if (decodedNative === undefined && layer !== undefined) {
+        decodedNative = decodeSourceIndex(layer.bytes).parses;
+      }
+      const parsed = parses.get(key) ?? decodedNative?.get(key) ?? stored.parses.get(key);
       if (parsed !== undefined) parses.set(key, parsed);
       return parsed;
     },
@@ -62,7 +79,11 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       parses.set(key, parsed);
     },
     keep(key) {
-      const parsed = stored.parses.get(key);
+      const layer = nativeParses.get(cache);
+      if (decodedNative === undefined && layer !== undefined) {
+        decodedNative = decodeSourceIndex(layer.bytes).parses;
+      }
+      const parsed = decodedNative?.get(key) ?? stored.parses.get(key);
       if (parsed !== undefined) parses.set(key, parsed);
     },
   };
@@ -98,7 +119,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
           : { config: adopted.config }),
         directories: adopted?.directories ?? stored.directories,
         records: adopted === undefined ? stored.records : records,
-      });
+      }, nativeParses.get(cache));
     },
   };
 }

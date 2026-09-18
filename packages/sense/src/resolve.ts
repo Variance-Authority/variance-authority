@@ -43,7 +43,17 @@ export interface ResolveOptions {
 export const DEFAULT_CONDITIONS = ['source', 'import', 'require', 'default'] as const;
 
 /** Directories a scan never descends into, and never records a file inside. */
-export const EXCLUDE_DIRS = ['node_modules', 'dist', 'build', 'coverage', '.git', '.next', '.turbo'];
+export const EXCLUDE_DIRS = [
+  'node_modules',
+  'dist',
+  'tsDist',
+  'build',
+  'coverage',
+  'storybook-static',
+  '.git',
+  '.next',
+  '.turbo',
+];
 
 /**
  * The three resolvers a scan needs, plus the memo they share.

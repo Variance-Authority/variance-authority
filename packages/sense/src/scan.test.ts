@@ -47,6 +47,7 @@ describe('a file too large to be worth parsing', () => {
 
     expect(huge?.unknown).toMatch(/src\/huge\.ts is \d+ bytes, over the 1024 this scan opens/);
     expect(huge?.edges).toBeUndefined();
+    expect(huge).not.toHaveProperty('digest');
   });
 
   it('is unknown rather than empty, so what imports it widens instead of narrowing on a blank', async () => {

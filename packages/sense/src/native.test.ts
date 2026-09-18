@@ -130,7 +130,7 @@ describe('the native tree against the JavaScript one', () => {
     // Code units, not code points. The last two are the pair that separates the
     // two orders: a surrogate pair leads with 0xD83D and sorts under U+FF5E,
     // while its UTF-8 bytes lead with 0xF0 and sort above U+FF5E's 0xEF.
-    expect(tree.paths().filter((path) => /[^\u0000-\u007f]/u.test(path))).toEqual([
+    expect(tree.paths().filter((path) => /[^\p{ASCII}]/u.test(path))).toEqual([
       'src/caf\u00e9/\u00fcber.ts',
       'src/\u{1F600}.ts',
       'src/\uFF5E.ts',

@@ -3,8 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { indexSource } from '@variance-authority/core/attribute';
 import { native, nativeAvailable, type NativeReadBatch } from './native.js';
 import { MODULE_EXTENSIONS, readModule } from './read.js';
+import { parseWay } from './files.js';
+import { requestOf, resolveTo, resolversFor } from './resolve.js';
 
 /**
  * The native reader and the JavaScript one, over the same bytes.
@@ -43,6 +46,53 @@ describe('the native reader against the JavaScript one', () => {
       );
 
       if (String(answered) !== String(oracle)) disagreed.push({ file, oracle, answered });
+    }
+
+    expect(disagreed).toEqual([]);
+  }, 120_000);
+
+  it.runIf(available)('returns the complete cacheable parse for every module', async () => {
+    const files = await modules();
+    const batch = native()!.readBatch(root, files);
+    const disagreed: unknown[] = [];
+
+    for (const [index, file] of files.entries()) {
+      const contents = await readFile(join(root, file), 'utf8');
+      const read = readModule(file, contents);
+      const declares = parseWay(file).declaring ? Object.keys(indexSource(file, contents)).sort() : [];
+      const oracle = {
+        requests: read.requests,
+        ...(read.exports === undefined ? {} : { exports: read.exports }),
+        ...(declares.length === 0 ? {} : { declares }),
+        ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
+      };
+      const answered = JSON.parse(batch.parses[index] ?? 'null');
+      if (JSON.stringify(answered) !== JSON.stringify(oracle)) {
+        disagreed.push({ file, oracle, answered });
+      }
+    }
+
+    expect(disagreed).toEqual([]);
+  }, 120_000);
+
+  it.runIf(available)('resolves every repository request the way the oracle does', async () => {
+    const files = await modules();
+    const batch = native()!.scanBatch(root, files);
+    const resolvers = resolversFor({});
+    const disagreed: unknown[] = [];
+    let at = 0;
+
+    for (const [index, file] of files.entries()) {
+      for (let step = 0; step < batch.counts[index]!; step += 1) {
+        const value = batch.values[at] ?? '';
+        const request = requestOf(value);
+        const oracle = request === undefined
+          ? ''
+          : resolveTo({ resolvers, root, from: join(root, file), request, style: false }) ?? '';
+        const answered = batch.targets[at] ?? '';
+        if (answered !== oracle) disagreed.push({ file, value, oracle, answered });
+        at += 1;
+      }
     }
 
     expect(disagreed).toEqual([]);

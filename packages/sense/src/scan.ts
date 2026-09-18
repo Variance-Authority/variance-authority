@@ -39,26 +39,20 @@
  * costs two map lookups, and a scan costs the diff rather than the repository.
  */
 
-import { readFile, stat } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
-import { indexSource } from '@variance-authority/core/attribute';
-import { digestString, type Digest } from './digest.js';
-import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
-import { readModule, readStyle } from './read.js';
+import type { FileRecord } from '@variance-authority/core/relate';
+import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { witnessesOf, type Aliases } from './witness.js';
+import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
+import { adoptNativeParses } from './source-index.js';
 import { READABLE, isStyle, keyFor, parseWay, seedFiles, type ParseWay } from './files.js';
+import { recordFor } from './record.js';
 import {
-  isRelative,
-  kindFor,
   realPath,
-  requestOf,
-  resolveTo,
   resolversFor,
   type ResolveOptions,
-  type Resolvers,
 } from './resolve.js';
 
 export interface ScanOptions extends ResolveOptions {
@@ -142,34 +136,6 @@ export interface ScanOptions extends ResolveOptions {
 export const LARGEST_FILE = 1024 * 1024;
 
 /**
- * How many files a scan walks before it drops the resolver's filesystem cache.
- *
- * `oxc-resolver` remembers what it learned about the tree — which directories
- * exist, which `package.json` and `tsconfig` govern them, what each directory
- * holds. That cache is bounded by the tree rather than by the number of
- * resolutions (1.2 million requests from one file stay flat at 68 MB; the same
- * 1.2 million spread over 200,000 files plateau at ~318 MB and stop), so it does
- * not leak — it simply ends up holding the whole repository, natively, where no
- * heap limit can reach it. Measured on a 200,000-file tree under a 512 MB heap,
- * three runs each way: **732-738 MiB of peak resident memory with this, 796-816
- * MiB without**. It is the only lever left that reaches native memory, and it is
- * what puts the scan under 600 MiB rather than just over it.
- *
- * It is paid for in time, not saved: dropping the cache costs the `stat` calls
- * to learn the same directories again, and those runs take 41-51 seconds against
- * 31. Two thousand files is where that trade sits — five hundred costs another
- * hundred seconds and saves nothing further, five thousand is four seconds
- * quicker and gives back thirty-eight mebibytes.
- *
- * It cannot cost an answer. The loop below is strictly sequential and
- * `resolveFileSync` returns before the next file is read, so there is never a
- * resolution in flight when the cache goes — the case the library's own warning
- * is about. The scan draws the same 1,210,225 edges with the clearing on and
- * off.
- */
-const FILES_BETWEEN_CLEARS = 2_000;
-
-/**
  * Every file reachable from `dirs`, with its outgoing edges and declarations.
  *
  * Records come back sorted by path, compared by code unit, so two scans of the
@@ -184,6 +150,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // nothing while reporting success.
   const root = realPath(resolve(options.root));
   const resolvers = resolversFor(options);
+  const addon = native();
 
   const built = new Map<string, FileRecord>();
   const cache = options.cache ?? memoryParseCache();
@@ -191,7 +158,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     options.digests === false
       ? undefined
       : options.digests === undefined
-        ? await gitTreeOf(root)
+        ? await gitTreeOf(root, options.dirs)
         : treeOf(options.digests);
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
@@ -203,262 +170,146 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // The queue is repository-relative throughout. An edge already carries the
   // path this scan uses as a key, and the absolute form is wanted only where a
   // file is opened — which on a run that reuses everything is nowhere.
-  const queue = [...seedFiles(root, options.dirs)];
+  const queue = tree?.seeds !== undefined
+    ? [...tree.seeds]
+    : addon === undefined
+    ? [...seedFiles(root, options.dirs)]
+    : addon.seedFiles(root, [...options.dirs]);
+  let nativeGraphUsed = false;
 
-  // A queue with a moving head rather than `shift()`: the frontier of a monorepo
-  // scan is thousands of paths, and `shift()` is linear in that.
-  for (let head = 0; head < queue.length; head += 1) {
-    const file = queue[head]!;
-    if (built.has(file)) continue;
+  const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
+    built.set(file, fresh.record);
+    reuse?.set(fresh.record, fresh.witnesses);
+    const heldDigest = fresh.record.digest;
+    if (fresh.read !== undefined && heldDigest !== undefined) {
+      cache.set(keyFor(heldDigest, way), fresh.read);
+    }
+    if (fresh.read !== undefined) options.parsed?.(file, fresh.read);
+    for (const edge of fresh.record.edges ?? []) {
+      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
+    }
+  };
 
-    const digest = tree?.get(file);
-    const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
-
-    const way = parseWay(file);
-
-    const fresh =
-      remembered === undefined
-        ? await recordFor({
-          absolute: join(root, file),
-          file,
-          root,
-          resolvers,
-          cache,
-          aliases: shape?.aliases,
-          directories: shape?.shape.directories ?? new Map(),
-          largestFile: options.largestFile ?? LARGEST_FILE,
-          remembering: reuse !== undefined,
-          ...(digest === undefined ? {} : { digest }),
-        })
-        : undefined;
-    const record = remembered ?? fresh!.record;
-
+  const acceptRemembered = (
+    file: string,
+    digest: Digest,
+    way: ParseWay,
+    record: FileRecord,
+  ): void => {
     built.set(file, record);
-    // A reused record answered without opening the file, so the parse cache was
-    // never asked and would prune the entry for every unchanged blob in the
-    // repository — leaving the next run that has to rebuild records with nothing
-    // to rebuild them from. The blob is live; say so.
-    if (remembered === undefined) reuse?.set(record, fresh!.witnesses);
-    else if (digest !== undefined) cache.keep?.(keyFor(digest, way));
-
-    // A reused record never opened the file, so the parse it was built from is
-    // not in hand — but it is in the cache under the same digest, which is the
-    // whole reason the two are kept together. Missing is possible and not an
-    // error: a record can outlive the parse behind it when a cache was pruned
-    // more aggressively than the records were.
+    cache.keep?.(keyFor(digest, way));
     if (options.parsed !== undefined) {
-      const read =
-        fresh?.read ?? (digest === undefined ? undefined : cache.get(keyFor(digest, way)));
+      const read = cache.get(keyFor(digest, way));
       if (read !== undefined) options.parsed(file, read);
     }
-
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
     }
+  };
 
-    // The three resolvers are clones sharing one cache, so clearing the first
-    // clears the set.
-    if (head % FILES_BETWEEN_CLEARS === FILES_BETWEEN_CLEARS - 1) resolvers.modules.clearCache();
+  // One frontier per call: every file currently known is parsed and resolved on
+  // the native side, then newly reached files form the next frontier. A hot
+  // record still costs only its two lookups and never enters the batch.
+  for (let head = 0; head < queue.length;) {
+    const frontierStart = head;
+    const end = queue.length;
+    const frontierDigests = tree?.getAll(queue.slice(head, end));
+    const pending: string[] = [];
+    const pendingDigests: (Digest | undefined)[] = [];
+    const pendingSet = new Set<string>();
+    for (; head < end; head += 1) {
+      const file = queue[head]!;
+      if (built.has(file) || pendingSet.has(file)) continue;
+      const digest = frontierDigests?.[head - frontierStart];
+      const way = parseWay(file);
+      const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
+      if (remembered !== undefined && digest !== undefined) {
+        acceptRemembered(file, digest, way, remembered);
+        continue;
+      }
+      if (addon !== undefined && !isStyle(way)) {
+        pending.push(file);
+        pendingDigests.push(digest);
+        pendingSet.add(file);
+        continue;
+      }
+      const fresh = await recordFor({
+        absolute: join(root, file),
+        file,
+        root,
+        resolvers,
+        cache,
+        aliases: shape?.aliases,
+        directories: shape?.shape.directories ?? new Map(),
+        largestFile: options.largestFile ?? LARGEST_FILE,
+        remembering: reuse !== undefined,
+        ...(digest === undefined ? {} : { digest }),
+      });
+      accept(file, way, fresh);
+    }
+
+    if (pending.length > 0 && addon !== undefined) {
+      let answers: readonly NativeBuilt[] | undefined;
+      let answeredFiles: readonly string[] = pending;
+      try {
+        const useGraph = !nativeGraphUsed && tree?.native !== undefined && pending.length >= 10_000;
+        const nativeOptions = {
+          addon,
+          ...(tree?.native === undefined ? {} : { tree: tree.native }),
+          root,
+          files: pending,
+          largestFile: options.largestFile ?? LARGEST_FILE,
+          digests: pendingDigests,
+          aliases: shape?.aliases,
+          directories: shape?.shape.directories ?? new Map(),
+          remembering: reuse !== undefined,
+          ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
+          ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
+        };
+        if (useGraph) {
+          const graph = nativeGraph(nativeOptions, options.parsed !== undefined);
+          answers = graph.built;
+          if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
+          nativeGraphUsed = true;
+          answeredFiles = answers.map((answer) => answer.record.file);
+        } else {
+          answers = nativeFrontier(nativeOptions);
+        }
+      } catch {
+        // An acceleration is allowed to disappear and never to change the graph.
+        // The oracle remains the recovery path for an unavailable or mismatched addon.
+      }
+      if (answers !== undefined) {
+        for (const [index, file] of answeredFiles.entries()) {
+          accept(file, parseWay(file), answers[index]!);
+        }
+      } else {
+        for (const [index, file] of pending.entries()) {
+          const digest = pendingDigests[index];
+          const way = parseWay(file);
+          const fresh = await recordFor({
+            absolute: join(root, file),
+            file,
+            root,
+            resolvers,
+            cache,
+            aliases: shape?.aliases,
+            directories: shape?.shape.directories ?? new Map(),
+            largestFile: options.largestFile ?? LARGEST_FILE,
+            remembering: reuse !== undefined,
+            ...(digest === undefined ? {} : { digest }),
+          });
+          accept(file, way, fresh);
+        }
+      }
+    }
+
+    // The JavaScript resolvers are clones sharing one cache. Native batches own
+    // their resolver cache and drop it at the call boundary.
+    resolvers.modules.clearCache();
   }
 
   const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 
   return records;
-}
-
-interface Subject {
-  readonly absolute: string;
-  readonly file: string;
-  readonly root: string;
-  readonly resolvers: Resolvers;
-  readonly cache: ParseCache;
-
-  /** Where a bare specifier could land, when the tree bounds it. */
-  readonly aliases: Aliases | undefined;
-
-  /** Every directory the tree holds, which bounds where a lookup can land. */
-  readonly directories: ReadonlyMap<string, Digest>;
-
-  /** The largest file to open, in bytes. */
-  readonly largestFile: number;
-
-  /**
-   * Whether a record cache is going to remember these records.
-   *
-   * The only reader of a record's witnesses is `reuse.set`, and with nothing
-   * reusing, computing them is a directory lookup and two arrays per file that
-   * are allocated and dropped. Measured on a 200,000-file tree: **4.4 seconds of
-   * a 36-second scan**, spent to build something nothing receives.
-   */
-  readonly remembering: boolean;
-
-  /** This file's content digest, when it was known without opening the file. */
-  readonly digest?: Digest;
-}
-
-/**
- * A file's size, or nothing when it cannot be asked for.
- *
- * Nothing rather than a throw: a file that is gone or unreadable is the read
- * path's own answer to give, one `catch` below, where it already says so with
- * the error it got. Failing here would replace that with a worse message for
- * the same file.
- */
-async function sized(absolute: string): Promise<number | undefined> {
-  try {
-    return (await stat(absolute)).size;
-  } catch {
-    return undefined;
-  }
-}
-
-async function recordFor(
-  subject: Subject,
-): Promise<{
-  readonly record: FileRecord;
-  readonly witnesses: readonly string[];
-  /** What the bytes said, for a caller that asked to be handed it. Absent when the file could not be read. */
-  readonly read?: Parsed;
-}> {
-  const { absolute, file, root, resolvers, cache, largestFile } = subject;
-  const way = parseWay(file);
-  const style = isStyle(way);
-
-  // The order is the saving. A digest that arrived from git names a cache entry
-  // that can be answered before the file is opened, so an unchanged file costs a
-  // map lookup; only a miss falls through to a read.
-  let digest = subject.digest;
-  let read = digest === undefined ? undefined : cache.get(keyFor(digest, way));
-
-  if (read === undefined) {
-    // Asked before the file is opened, and only on a miss — a file the digest
-    // already answered for was never a candidate to read. One `stat` against a
-    // parse that cannot be given back: the arena `parseSync` allocates is native
-    // and freed when it decides to free it, so a file read and then regretted
-    // has already cost its fifty times.
-    const size = await sized(absolute);
-    if (size !== undefined && size > largestFile) {
-      return {
-        record: {
-          file,
-          unknown:
-            `${file} is ${size} bytes, over the ${largestFile} this scan opens: ` +
-            'parsing it costs about fifty times that in memory, and it is almost ' +
-            'certainly built output. Raise `largestFile` to read it anyway.',
-        },
-        witnesses: [],
-      };
-    }
-
-    let contents: string;
-    try {
-      contents = await readFile(absolute, 'utf8');
-    } catch (error) {
-      // Not an empty record. A file that is in the graph because something
-      // imports it and that cannot be read is the exact shape `unknown` exists
-      // for: its edges are not none, they are unavailable.
-      return {
-        record: { file, unknown: `${file} could not be read: ${messageOf(error)}` },
-        witnesses: [],
-      };
-    }
-
-    digest ??= digestString(contents);
-    read = parsedFrom(file, contents, way, style);
-    cache.set(keyFor(digest, way), read);
-  }
-
-  const edges: FileEdge[] = [];
-  const unresolved: string[] = [];
-  const holes: string[] = [];
-
-  for (const asked of read.requests) {
-    const request = requestOf(asked.value);
-    if (request === undefined) continue;
-
-    const target = resolveTo({ resolvers, root, from: absolute, request, style });
-    if (target === undefined) {
-      unresolved.push(asked.value);
-      // A bare specifier that does not resolve is a package this scan has no
-      // business finding. A *relative* one names a path inside this repository
-      // and could not be identified, which is a hole in the edge list rather
-      // than an absence of one — so the file widens instead of narrowing.
-      if (isRelative(request)) holes.push(asked.value);
-      continue;
-    }
-
-    edges.push({ to: target, kind: kindFor(asked.kind, target) });
-  }
-
-  // The file is named here and only here. What `read` came back with is cached
-  // against bytes rather than a path, so it cannot name the file it was about
-  // ([`read.ts`](./read.ts)); this is the caller that knows which file it asked.
-  const reasons = [
-    ...(read.unknown === undefined ? [] : [read.unknown]),
-    ...(holes.length === 0
-      ? []
-      : [`${holes.length} relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
-  ];
-
-  return {
-    record: {
-      file,
-      ...(digest === undefined ? {} : { digest }),
-      ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
-      ...(read.declares === undefined ? {} : { declares: read.declares }),
-      ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
-      ...(reasons.length > 0 ? { unknown: `${file} — ${reasons.join('; ')}` } : {}),
-    },
-    read,
-    witnesses: subject.remembering
-      ? witnessesOf({
-        file,
-        requests: read.requests.map((asked) => asked.value),
-        edges: edges.map((edge) => edge.to),
-        directories: subject.directories,
-        aliases: subject.aliases,
-      })
-      : [],
-  };
-}
-
-/**
- * Everything one file's bytes say, before anything about where it sits.
- *
- * Split out because this — and only this — is what the parse cache holds. The
- * specifiers are strings the file wrote down; what they point at is a question
- * about the directory, the `tsconfig` and what is installed, and none of that is
- * in the bytes ([`cache.ts`](./cache.ts)).
- */
-function parsedFrom(file: string, contents: string, way: ParseWay, style: boolean): Parsed {
-  const read = style ? readStyle(file, contents) : readModule(file, contents);
-  const declares = style || !way.declaring ? [] : Object.keys(indexSource(file, contents));
-
-  return {
-    requests: read.requests,
-    ...(read.exports === undefined ? {} : { exports: read.exports }),
-    ...(declares.length > 0 ? { declares: declares.sort(byCodeUnit) } : {}),
-    ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
-  };
-}
-
-function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {
-  const seen = new Set<string>();
-
-  return edges
-    .filter((edge) => {
-      const key = `${edge.kind} ${edge.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => byCodeUnit(a.to, b.to) || byCodeUnit(a.kind, b.kind));
-}
-
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

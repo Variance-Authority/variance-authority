@@ -44,6 +44,8 @@ export interface ImmutableLog {
    * publish in eight. Only this function knows which publish that is.
    */
   publish(delta: Uint8Array, compacted: () => Uint8Array): Promise<void>;
+  /** Publish several ordered layers under one atomic manifest commit. */
+  publishAll(deltas: readonly Uint8Array[], compacted: () => Uint8Array): Promise<void>;
 }
 
 /** Open the committed chain. Missing state is an empty chain; malformed state throws. */
@@ -114,31 +116,47 @@ function logAt(
   legacy: boolean,
   committed: boolean,
 ): ImmutableLog {
+  const publishAll = async (
+    deltas: readonly Uint8Array[],
+    compacted: () => Uint8Array,
+  ): Promise<void> => {
+    const compact = legacy || references.length + deltas.length > MAX_SEGMENTS;
+    const contents = (compact ? [compacted()] : deltas).map((value) => Buffer.from(value));
+    const additions = contents.map((content) => ({
+      digest: digestBytes(content),
+      length: content.length,
+    }));
+    const next = compact ? additions : [...references, ...additions];
+    const directory = segmentDirectory(path);
+    const scratch = `${path}.${process.pid}.${temporary++}.tmp`;
+    const segmentScratches = additions.map((reference) =>
+      join(directory, `${fileName(reference.digest)}.${process.pid}.${temporary++}.tmp`));
+    try {
+      await mkdir(directory, { recursive: true });
+      await Promise.all(contents.map(async (content, index) => {
+        const reference = additions[index]!;
+        const segmentScratch = segmentScratches[index]!;
+        await writeFile(segmentScratch, content);
+        await rename(segmentScratch, join(directory, fileName(reference.digest)));
+      }));
+      await writeFile(scratch, encodeManifest(next));
+      await rename(scratch, path);
+      if (compact) await discard(references, next, directory);
+    } catch (error) {
+      await Promise.all([
+        unlink(scratch).catch(() => {}),
+        ...segmentScratches.map((file) => unlink(file).catch(() => {})),
+      ]);
+      throw error;
+    }
+  };
   return {
     segments,
     digests: references.map((reference) => reference.digest),
     legacy,
     committed,
-    async publish(delta, compacted) {
-      const compact = legacy || references.length + 1 > MAX_SEGMENTS;
-      const content = Buffer.from(compact ? compacted() : delta);
-      const reference = { digest: digestBytes(content), length: content.length };
-      const next = compact ? [reference] : [...references, reference];
-      const directory = segmentDirectory(path);
-      const scratch = `${path}.${process.pid}.${temporary++}.tmp`;
-      const segmentScratch = join(directory, `${fileName(reference.digest)}.${process.pid}.tmp`);
-      try {
-        await mkdir(directory, { recursive: true });
-        await writeFile(segmentScratch, content);
-        await rename(segmentScratch, join(directory, fileName(reference.digest)));
-        await writeFile(scratch, encodeManifest(next));
-        await rename(scratch, path);
-        if (compact) await discard(references, next, directory);
-      } catch (error) {
-        await Promise.all([unlink(scratch).catch(() => {}), unlink(segmentScratch).catch(() => {})]);
-        throw error;
-      }
-    },
+    publish: (delta, compacted) => publishAll([delta], compacted),
+    publishAll,
   };
 }
 

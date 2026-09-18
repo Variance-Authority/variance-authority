@@ -237,6 +237,8 @@ describe('scanning a tree', () => {
     await write(root, 'src/Legacy.tsx', "import './legacy.js';\nexport function Legacy() { return null; }");
     await write(root, 'src/vendor.ts', "import { readFile } from 'node:fs/promises';\nimport React from 'react';\nexport { readFile, React };");
     await write(root, 'dist/Button.js', 'export function Button() { return null; }');
+    await write(root, 'tsDist/Button.js', 'export function Button() { return null; }');
+    await write(root, 'storybook-static/Button.js', 'export function Button() { return null; }');
   });
 
   afterAll(async () => {
@@ -253,6 +255,8 @@ describe('scanning a tree', () => {
     expect(files).toContain('design/button.css');
     expect(files).toContain('design/tokens.css');
     expect(files).not.toContain('dist/Button.js');
+    expect(files).not.toContain('tsDist/Button.js');
+    expect(files).not.toContain('storybook-static/Button.js');
   });
 
   it('calls a stylesheet an asset however it was imported', async () => {

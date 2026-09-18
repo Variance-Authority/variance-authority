@@ -17,12 +17,19 @@
 use napi_derive::napi;
 use std::collections::HashMap;
 
+mod acquire;
 mod batch;
 mod digest;
 mod git;
+mod index;
 mod order;
+mod path;
 mod read;
+mod resolve;
+mod seed;
 mod tree;
+
+pub use seed::seed_files;
 
 /// Every tracked path under a root, and the digest of the bytes on disk.
 ///
@@ -36,6 +43,7 @@ pub struct GitTree {
     paths: Vec<String>,
     oids: Vec<git::Oid>,
     at: HashMap<String, u32>,
+    seeds: Vec<String>,
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -46,17 +54,46 @@ pub struct GitTree {
 #[napi]
 pub fn git_tree(root: String) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
+    Some(tree_from_snapshot(snapshot, Vec::new()))
+}
 
+/// Build repository identity and discover configured roots concurrently.
+#[napi]
+pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
+    let (snapshot, seeds) = std::thread::scope(|scope| {
+        let tree_root = root.clone();
+        let seed_root = root.clone();
+        let snapshot = scope.spawn(move || git::snapshot(&tree_root));
+        let seeds = scope.spawn(move || seed::seed_files(seed_root, dirs));
+        (
+            snapshot.join().ok().flatten(),
+            seeds.join().unwrap_or_default(),
+        )
+    });
+    Some(tree_from_snapshot(snapshot?, seeds))
+}
+
+fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     let mut at = HashMap::with_capacity(snapshot.paths.len() * 2);
     for (index, path) in snapshot.paths.iter().enumerate() {
         at.insert(path.clone(), index as u32);
     }
 
-    Some(GitTree { paths: snapshot.paths, oids: snapshot.oids, at })
+    GitTree {
+        paths: snapshot.paths,
+        oids: snapshot.oids,
+        at,
+        seeds,
+    }
 }
 
 #[napi]
 impl GitTree {
+    /// Files found below the roots supplied to `gitTreeFor`.
+    #[napi]
+    pub fn seeds(&self) -> Vec<String> {
+        self.seeds.clone()
+    }
     /// How many paths the tree holds.
     #[napi(getter)]
     pub fn size(&self) -> u32 {
@@ -72,7 +109,88 @@ impl GitTree {
     /// The digest of one path's bytes on disk, spelled `git:<object>`.
     #[napi]
     pub fn digest(&self, path: String) -> Option<String> {
-        self.at.get(&path).map(|index| git::spell(&self.oids[*index as usize]))
+        self.at
+            .get(&path)
+            .map(|index| git::spell(&self.oids[*index as usize]))
+    }
+
+    /// Digests for `paths`, in the same order; empty when the tree has no path.
+    #[napi]
+    pub fn digests_for(&self, paths: Vec<String>) -> Vec<String> {
+        paths
+            .iter()
+            .map(|path| {
+                self.at
+                    .get(path)
+                    .map_or_else(String::new, |index| git::spell(&self.oids[*index as usize]))
+            })
+            .collect()
+    }
+
+    /// Read tracked files from Git's pack streams and every other file from disk.
+    #[napi]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "stable positional N-API contract"
+    )]
+    pub fn scan_batch(
+        &self,
+        root: String,
+        files: Vec<String>,
+        largest_file: Option<u32>,
+        digests: Option<bool>,
+        readers: Option<u32>,
+        tsconfig: Option<String>,
+        condition_names: Option<Vec<String>>,
+    ) -> batch::ScanBatch {
+        let oids = files
+            .iter()
+            .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
+            .collect();
+        batch::scan_batch_with_oids(
+            batch::ScanOptions {
+                root,
+                files,
+                largest_file,
+                digests,
+                readers,
+                tsconfig,
+                condition_names,
+            },
+            Some(oids),
+            Some(&self.at),
+        )
+    }
+
+    /// Follow every module reachable from `seeds` in one native operation.
+    #[napi]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "stable positional N-API contract"
+    )]
+    pub fn scan_graph(
+        &self,
+        root: String,
+        seeds: Vec<String>,
+        largest_file: Option<u32>,
+        readers: Option<u32>,
+        tsconfig: Option<String>,
+        condition_names: Option<Vec<String>>,
+        include_parses: Option<bool>,
+    ) -> batch::ScanBatch {
+        batch::scan_graph_with_tree(
+            batch::GraphOptions {
+                root,
+                seeds,
+                largest_file,
+                readers,
+                tsconfig,
+                condition_names,
+                include_parses: include_parses.unwrap_or(false),
+            },
+            &self.at,
+            &self.oids,
+        )
     }
 
     /// Every path, sorted by code unit.
@@ -123,6 +241,12 @@ impl GitTree {
         names: Vec<String>,
         aliases_unknown: bool,
     ) -> String {
-        tree::config_digest(&header, &self.paths, &self.digests(), &names, aliases_unknown)
+        tree::config_digest(
+            &header,
+            &self.paths,
+            &self.digests(),
+            &names,
+            aliases_unknown,
+        )
     }
 }

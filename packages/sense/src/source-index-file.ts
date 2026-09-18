@@ -19,7 +19,13 @@ export interface SourceIndexFile {
   /** The committed generation. */
   readonly stored: StoredSourceIndex;
   /** Append what `next` changes about it; cache I/O never fails a scan. */
-  save(next: StoredSourceIndex): Promise<void>;
+  save(next: StoredSourceIndex, encodedParses?: EncodedParseLayer): Promise<void>;
+}
+
+/** A parse layer already encoded by the native cold scanner. */
+export interface EncodedParseLayer {
+  readonly bytes: Uint8Array;
+  readonly keys: ReadonlySet<ParseKey>;
 }
 
 interface Opened {
@@ -46,8 +52,8 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
   const opened = await opening(path);
   return {
     stored: opened.stored,
-    async save(next) {
-      await append(await baseline(path, opened), next);
+    async save(next, encodedParses) {
+      await append(await baseline(path, opened), next, encodedParses);
     },
   };
 }
@@ -73,21 +79,36 @@ async function baseline(path: string, opened: Opened): Promise<Opened> {
   }
 }
 
-async function append(current: Opened, stored: StoredSourceIndex): Promise<void> {
+async function append(
+  current: Opened,
+  stored: StoredSourceIndex,
+  encodedParses?: EncodedParseLayer,
+): Promise<void> {
   try {
     const parses = differenceLayer(current.stored.parses, stored.parses, unchanged);
     const records = differenceLayer(current.stored.records, stored.records, unchanged);
     const directories = differenceLayer(current.stored.directories, stored.directories);
+    const native = !current.log.committed && encodedParses !== undefined
+      ? encodedParses
+      : undefined;
     if (
       current.log.committed &&
       current.stored.config === stored.config &&
       empty(parses) && empty(records) && empty(directories)
     ) return;
 
-    await current.log.publish(
-      encodeSourceIndex(segment(stored.config, parses, records, directories)),
-      () => encodeSourceIndex(stored),
-    );
+    const parseLayer = native === undefined
+      ? parses
+      : {
+          puts: new Map([...parses.puts].filter(([key]) => !native.keys.has(key))),
+          deletes: parses.deletes,
+        };
+    const delta = encodeSourceIndex(segment(stored.config, parseLayer, records, directories));
+    if (native === undefined) {
+      await current.log.publish(delta, () => encodeSourceIndex(stored));
+    } else {
+      await current.log.publishAll([native.bytes, delta], () => encodeSourceIndex(stored));
+    }
   } catch {
     // Persistence is a saving, never a new failure mode for the scan.
   }
