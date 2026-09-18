@@ -3840,6 +3840,7 @@ __metadata:
     "@variance-authority/core": "workspace:^"
     "@variance-authority/distill": "workspace:^"
     "@variance-authority/eyes": "workspace:^"
+    "@variance-authority/help": "workspace:^"
     "@variance-authority/history": "workspace:^"
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/observe": "workspace:^"
@@ -4055,6 +4056,7 @@ __metadata:
     "@variance-authority/mcp": "workspace:^"
     "@variance-authority/package": "workspace:^"
     "@variance-authority/sense": "workspace:^"
+    minisearch: "npm:^7.2.0"
   bin:
     variance-authority-help: ./dist/bin.js
   languageName: unknown
@@ -4276,7 +4278,7 @@ __metadata:
     oxc-resolver: "npm:^11.24.2"
     picomatch: "npm:^4.0.7"
   peerDependencies:
-    vitest: ^2.1.9
+    vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
   peerDependenciesMeta:
     vitest:
       optional: true
@@ -7019,6 +7021,13 @@ __metadata:
   version: 7.1.3
   resolution: "minipass@npm:7.1.3"
   checksum: 10c0/539da88daca16533211ea5a9ee98dc62ff5742f531f54640dd34429e621955e91cc280a91a776026264b7f9f6735947629f920944e9c1558369e8bf22eb33fbb
+  languageName: node
+  linkType: hard
+
+"minisearch@npm:^7.2.0":
+  version: 7.2.0
+  resolution: "minisearch@npm:7.2.0"
+  checksum: 10c0/64efaf30ead2acb19eb8be49c78352c527812dd2927a0981c9d666339d5d206d132b83038d2bfa756f5161cae5d98f15b07cc7e7b7be6b8278d35d2ecdc2628c
   languageName: node
   linkType: hard
 

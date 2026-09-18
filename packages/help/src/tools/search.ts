@@ -1,6 +1,7 @@
+import MiniSearch from 'minisearch';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Entry, Help, Named } from '@variance-authority/package/help';
+import type { Documented, Entry, Help, Named, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
 import { areaLine, areaOf } from './area.js';
 import { specifierOf } from './find.js';
@@ -9,10 +10,9 @@ import { line } from './format.js';
 /**
  * `docs_search` — the name for a thing somebody can only describe.
  *
- * Substring, case-insensitive, over the name and over what was written about it.
- * Not fuzzy and not embedded: a match here is a fact about the text, so a caller
- * that gets nothing back has learned something true rather than that the ranking
- * disagreed with them.
+ * Substring, case-insensitive, over the name and over what was written about
+ * it. A match there is a fact about the text, so it is reported first, whole,
+ * and in the order it has always been in.
  *
  * ## Two halves, because most code is not published
  *
@@ -33,6 +33,27 @@ import { line } from './format.js';
  * Published names come first and are never repeated below, so a name that is
  * both is reported once, as the API it is.
  *
+ * ## A third section, which may only add
+ *
+ * Substring answers the word you typed and nothing else. It cannot answer a
+ * word you typed two characters wrong, and it cannot answer two words that are
+ * both written about a name but not written next to each other — `read span`
+ * matches no text anywhere, and the declaration it was asking for says both.
+ *
+ * Those two cases are what the loose pass is for, and they are the whole of
+ * what it is for. It is not a better ranking of the sections above: it never
+ * scores, reorders, promotes, demotes or removes anything they answered, and it
+ * cannot be reached by a name they already returned. It appends names they did
+ * not, under a heading that says how they were matched, and when it has nothing
+ * to append it prints nothing at all. So an answer that used to be clean stays
+ * clean, and *nothing matched* still means the substring matched nothing — now
+ * said over a wider net, and saying so.
+ *
+ * The order inside it is the order the sections above use, by consumers and
+ * then by name. The index decides membership; it is never allowed to decide
+ * position, because a caller who can see why a name is in a list can check it,
+ * and a caller reading a rank has to trust it.
+ *
  * ## Where the substring stops being enough
  *
  * On a repository of a few thousand names it is. On a large one it is not, and
@@ -42,6 +63,10 @@ import { line } from './format.js';
  * and the query never carried — which part of the repository they are standing
  * in — so `from` and `to` take it as a path and the closure decides what may be
  * answered. See [`area.ts`](./area.ts): a boundary, not a preference.
+ *
+ * The loose pass is inside that boundary and not beside it. It is built from
+ * the files the area already allows, so a widening can reach a name the caller
+ * did not type and can never reach a file they ruled out.
  */
 
 /** Published matches shown before the answer says it stopped. */
@@ -50,12 +75,42 @@ const CAP = 40;
 /** Exported matches shown. Lower, because the section below it is the cheaper half. */
 const ELSEWHERE_CAP = 25;
 
+/** Loose matches shown. Lowest: these are the ones the caller did not ask for. */
+const LOOSE_CAP = 15;
+
+/** How wrong a word may be and still be looked up: about one character in five. */
+const FUZZY = 0.2;
+
+/** One published name, as `everyEntry` yields it. */
+type Row = readonly [Documented, Opening, Entry];
+
 function matches(entry: Entry, query: string): boolean {
   return entry.name.toLowerCase().includes(query) || (entry.doc ?? '').toLowerCase().includes(query);
 }
 
 /**
- * Exported names matching the query, one line each, nearest thing to a ranking.
+ * Published names a rule accepts, in the order the surface is always read in.
+ *
+ * The rule is a predicate rather than the query because the same ordering has
+ * to hold for names the substring found and names the loose pass added. Two
+ * orderings would be two answers, and the second would look like a ranking.
+ */
+function surface(help: Help, hit: (entry: Entry) => boolean, within: ReadonlySet<string> | undefined): readonly Row[] {
+  return [...everyEntry(help)]
+    .filter(([, , entry]) => hit(entry))
+    .filter(([, , entry]) => within === undefined || within.has(entry.at))
+    .sort(
+      ([, , a], [, , b]) =>
+        b.usedBy.length - a.usedBy.length ||
+        b.uses - a.uses ||
+        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+    );
+}
+
+const shownAs = ([owner, held, entry]: Row): string => `${specifierOf(owner, held)} · ${line(entry)}`;
+
+/**
+ * Exported names a rule accepts, one line each, nearest thing to a ranking.
  *
  * Grouped by name because one name exported from a barrel and from the file that
  * declares it is one thing to go and look at, and ordered by how many files
@@ -65,14 +120,14 @@ function matches(entry: Entry, query: string): boolean {
  */
 function elsewhere(
   help: Help,
-  query: string,
-  published: ReadonlySet<string>,
+  hit: (name: string) => boolean,
+  shown: ReadonlySet<string>,
   within: ReadonlySet<string> | undefined,
 ): readonly string[] {
   const found = new Map<string, Named[]>();
 
   for (const name of help.exported) {
-    if (published.has(name.name) || !name.name.toLowerCase().includes(query)) continue;
+    if (shown.has(name.name) || !hit(name.name)) continue;
     // The file that exports it, against the closure. A name exported from a
     // barrel inside the area and declared outside it arrives here twice, under
     // two paths, and the one in the area is the one a reader can open.
@@ -94,6 +149,50 @@ function elsewhere(
 }
 
 /**
+ * Names the words reach when they are allowed apart and allowed to be wrong.
+ *
+ * Both halves of the checkout go in, under the area that already applies, and
+ * the names the substring answered are kept out — a name the caller can already
+ * see must not be offered back to them as something else. Published names carry
+ * their documentation in; exported names carry a name and nothing else, because
+ * nothing else was read for them, and the index is not a reason to read more.
+ *
+ * What comes back is a set and not a list. Whether a name is in the answer is
+ * this index's to say; where it sits is not.
+ */
+function loosely(
+  help: Help,
+  query: string,
+  within: ReadonlySet<string> | undefined,
+  already: (name: string) => boolean,
+): ReadonlySet<string> {
+  const held = new Map<string, string>();
+
+  const keep = (name: string, doc: string, at: string): void => {
+    if (already(name) || (within !== undefined && !within.has(at))) return;
+    const written = held.get(name) ?? '';
+    held.set(name, doc === '' ? written : `${written} ${doc}`);
+  };
+
+  for (const [, , entry] of everyEntry(help)) keep(entry.name, entry.doc ?? '', entry.at);
+  for (const name of help.exported) keep(name.name, '', name.at);
+  if (held.size === 0) return new Set();
+
+  const index = new MiniSearch<{ id: number; name: string; doc: string }>({
+    fields: ['name', 'doc'],
+    processTerm: (term) => (term.length < 2 ? null : term.toLowerCase()),
+  });
+  const names = [...held.keys()];
+  index.addAll(names.map((name, id) => ({ id, name, doc: held.get(name) ?? '' })));
+
+  // Every word has to land somewhere, or a two-word query answers with
+  // everything either word touched — which is the failure this whole tool is
+  // arranged against.
+  const hits = index.search(query, { combineWith: 'AND', fuzzy: FUZZY, prefix: true });
+  return new Set(hits.map((hit) => names[hit.id as number] ?? ''));
+}
+
+/**
  * The search, as a tool: a `query` and an optional start point, answered in
  * two halves — published names first, then the ones a file exports for its
  * neighbours — as the header above sets out.
@@ -110,7 +209,9 @@ export const search: Tool<Help> = {
     'Find names whose name or documentation contains a string, case-insensitive. Published names ' +
     'come first, ordered by how many packages import them, each carrying the import specifier it ' +
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
-    'but does not publish follow, with the file and line that exports them. On a large ' +
+    'but does not publish follow, with the file and line that exports them. Names that match only ' +
+    'loosely — your words apart, or within a character of the ones written — are listed last and ' +
+    'labelled, never mixed in. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing: `from` a path answers only from the files that path reaches along the ' +
     'imports, `to` a path only from the files that reach it. That removes names rather than ' +
@@ -155,17 +256,33 @@ export const search: Tool<Help> = {
     if (area?.refused !== undefined) return areaLine(area);
     const within = area?.files;
 
-    const found = [...everyEntry(help)]
-      .filter(([, , entry]) => matches(entry, query))
-      .filter(([, , entry]) => within === undefined || within.has(entry.at))
-      .sort(
-        ([, , a], [, , b]) =>
-          b.usedBy.length - a.usedBy.length ||
-          b.uses - a.uses ||
-          (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-      );
+    const found = surface(help, (entry) => matches(entry, query), within);
+    const answered = new Set(found.map(([, , entry]) => entry.name));
+    const rest = elsewhere(help, (name) => name.toLowerCase().includes(query), answered, within);
 
-    const rest = elsewhere(help, query, new Set(found.map(([, , entry]) => entry.name)), within);
+    // A name is already answered when either half returned it — the surface by
+    // its name or its doc, the rest by its name. Both are the caller's own
+    // word, and offering a word back to whoever typed it is not an addition.
+    const already = (name: string): boolean => answered.has(name) || name.toLowerCase().includes(query);
+    const loose = loosely(help, query, within, already);
+    const alsoFound = loose.size === 0 ? [] : surface(help, (entry) => loose.has(entry.name), within);
+    const alsoRest =
+      loose.size === 0
+        ? []
+        : elsewhere(help, (name) => loose.has(name), new Set(alsoFound.map(([, , e]) => e.name)), within);
+    const looser = [...alsoFound.map(shownAs), ...alsoRest];
+
+    const seenLoosely = looser.slice(0, LOOSE_CAP);
+    const looseSection =
+      looser.length === 0
+        ? []
+        : [
+            '',
+            `${looser.length} more ${looser.length === 1 ? 'name matches' : 'names match'} loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.`,
+            '',
+            ...seenLoosely,
+            ...(looser.length > seenLoosely.length ? [`\n${looser.length - seenLoosely.length} more not shown.`] : []),
+          ];
 
     // Said before the counts and before the emptiness, because it is what the
     // counts are counts *of*. A reader told `nothing matches` without being told
@@ -177,7 +294,7 @@ export const search: Tool<Help> = {
         area === undefined
           ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
           : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-      return [...where, nowhere].join('\n');
+      return [...where, nowhere, ...looseSection].join('\n');
     }
 
     const shown = found.slice(0, CAP);
@@ -192,11 +309,11 @@ export const search: Tool<Help> = {
         : [
             `${found.length} published ${found.length === 1 ? 'match' : 'matches'} for \`${query}\``,
             '',
-            ...shown.map(([owner, held, entry]) => `${specifierOf(owner, held)} · ${line(entry)}`),
+            ...shown.map(shownAs),
             ...more,
           ];
 
-    if (rest.length === 0) return [...where, ...heads].join('\n');
+    if (rest.length === 0) return [...where, ...heads, ...looseSection].join('\n');
 
     const seen = rest.slice(0, ELSEWHERE_CAP);
     const hidden = rest.length > seen.length ? [`\n${rest.length - seen.length} more not shown.`] : [];
@@ -209,6 +326,7 @@ export const search: Tool<Help> = {
       '',
       ...seen,
       ...hidden,
+      ...looseSection,
     ].join('\n');
   },
 };

@@ -63,8 +63,9 @@ is for the workspace that does not.
 
 Text, on stdout. `search` answers in two sections — the names a manifest
 publishes, ranked by how many packages import them, then the names the source
-exports without publishing. Run against this repository, abridged to the first
-few lines of each section:
+exports without publishing — and in a third when your words reach a name they do
+not contain. Run against this repository, abridged to the first few lines of
+each section:
 
 ```
 12 published matches for `viewport`
@@ -113,7 +114,7 @@ stays available without taking space from the first answer.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading reaches |
 | `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `packages` takes no argument and returns the import specifiers every other
@@ -157,6 +158,36 @@ about the whole repository under a heading you would read as *your area*.
 This removes names rather than ranking them down, which is the point: an empty
 answer is then a fact about the area, and the answer says how many files it
 looked in so you can place the count it gives you.
+
+### When the word you typed is not the word that was written
+
+A substring answers the string you gave it and nothing else. Two questions it
+cannot answer at all: a word typed two characters wrong, and two words that are
+both written about a name but not written beside each other — `read span`
+appears in no text anywhere, and the declaration you wanted says both.
+
+Those get a third section, and only those. Ask for `numbers order` in this
+repository's own fixture and the substring finds nothing, which is said first:
+
+```
+Nothing in this repository is named or documented with `numbers order`.
+
+1 more name matches loosely — your words apart, or within a character of the
+ones written. Nothing above was reordered by this.
+
+alpha · Span [type] 0 packages, 0 imports — Two numbers, in order.
+```
+
+It may only add. Nothing the two sections above answered is scored, reordered,
+promoted, demoted or removed by it, a name they already returned can never
+appear in it, and when it has nothing to add it prints nothing — so an answer to
+a word that was written stays exactly as short as it was. It obeys `from` and
+`to` as they are: the looser reading runs over the files the area allows, so it
+can reach a name you did not type and never a file you ruled out.
+
+Inside it the order is the order above — by how many packages import the name,
+then by name. Membership is the only decision the looser reading makes, because
+you can check why a name is on a list and can only trust where it sits on one.
 
 ### Where the declaration says nothing
 
@@ -368,8 +399,9 @@ through that package's own `rootDir` and `outDir` to `src/index.ts`, so what it
 reports is what somebody wrote.
 
 It does not infer. A name with no block comment above it is reported as having
-none, and a search that matches nothing says so rather than returning the
-nearest thing. A README passage is returned only where the prose writes the name
+none, and a search that matches nothing says so before it offers anything near
+it — the near ones arrive under their own heading, counted and labelled, never
+mixed into the answer to the word you typed. A README passage is returned only where the prose writes the name
 as a whole word, and it arrives labelled with the file it came from.
 
 It does not serve source. `uses` names the story, the test and the file, with
