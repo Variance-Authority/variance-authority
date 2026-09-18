@@ -11,6 +11,9 @@ crate-type = ["cdylib"]
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
+oxc_allocator = { version = "0.144.0", features = ["pool"] }
+oxc_parser = "0.144.0"
+oxc_span = "0.144.0"
 rayon = "1"
 sha2 = "0.10"
 

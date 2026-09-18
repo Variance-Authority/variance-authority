@@ -25,8 +25,40 @@ export interface NativeGitTree {
   configDigest(header: string[], names: string[], aliasesUnknown: boolean): string;
 }
 
+/**
+ * What a batch of files said, in columns rather than in objects.
+ *
+ * `counts[i]` is how many requests file `i` contributed; they follow the
+ * previous file's in `values` and `kinds`. The whole point of the shape is that
+ * a repository's worth of edges crosses as two arrays and a prefix sum, so a
+ * reader walks it with a cursor and never allocates an object per edge unless it
+ * wants one.
+ */
+export interface NativeReadBatch {
+  readonly counts: Uint32Array;
+  readonly digests: string[];
+  readonly unknown: string[];
+  readonly values: string[];
+  /** Each request's kind, as an index into `kinds()`. */
+  readonly kinds: Buffer;
+}
+
 export interface NativeScanner {
   gitTree(root: string): NativeGitTree | null;
+  /**
+   * Read, parse and extract every one of `files` under `root`, across all cores.
+   *
+   * Paths are repository-relative, the answer is in the order asked, and
+   * resolution is not included — a specifier comes back as it was written.
+   */
+  readBatch(
+    root: string,
+    files: string[],
+    largestFile?: number,
+    digests?: boolean,
+  ): NativeReadBatch;
+  /** The kind names, indexed by the codes a batch's `kinds` carries. */
+  kinds(): string[];
 }
 
 let loaded: NativeScanner | undefined | null;

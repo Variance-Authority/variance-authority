@@ -17,9 +17,11 @@
 use napi_derive::napi;
 use std::collections::HashMap;
 
+mod batch;
 mod digest;
 mod git;
 mod order;
+mod read;
 mod tree;
 
 /// Every tracked path under a root, and the digest of the bytes on disk.
