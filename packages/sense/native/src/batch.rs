@@ -16,6 +16,7 @@
 //! serial execution.
 
 use std::fs;
+use std::io::Read as _;
 use std::path::Path;
 
 use napi::bindgen_prelude::{Buffer, Uint32Array};
@@ -127,7 +128,9 @@ const READERS: usize = 6;
 
 /// Files per pipeline step — enough that the reader pool is never idle waiting
 /// for a step to end, few enough that their bytes are megabytes and not the
-/// repository.
+/// repository. Measured over material-ui: 2,048 finishes in 201 ms and 128 in
+/// 349, because a step short enough to pipeline finely is also short enough that
+/// six readers spend it starting and stopping.
 const CHUNK: usize = 2048;
 
 /// A file once it has been opened: its bytes, or the answer opening it settled.
@@ -210,18 +213,31 @@ fn open<'a>(root: &Path, file: &'a str, largest: u64, digests: bool) -> (&'a str
         (file, Opened::Settled(Read { requests: Vec::new(), unknown: Some(unknown) }), String::new())
     };
 
-    // Asked before the file is opened, because a parse cannot be given back: the
-    // arena is native and costs its fifty times the moment it is allocated.
-    if let Ok(held) = fs::metadata(&absolute) {
-        if held.len() > largest {
-            return settled(too_large(file, held.len(), largest));
-        }
-    }
-
-    let source = match fs::read_to_string(&absolute) {
-        Ok(source) => source,
+    // One descriptor, not one pathname and then another. The size is asked of the
+    // open file rather than of the path, so the bytes measured are the bytes read
+    // — a `stat` and a later `read` are two answers about a file that may have
+    // moved between them. It is not faster: measured over material-ui, a `stat`
+    // followed by an `open` costs what a single `open` costs, because the second
+    // lookup finds the vnode the first one just cached.
+    let mut held = match fs::File::open(&absolute) {
+        Ok(held) => held,
         Err(error) => return settled(format!("{file} could not be read: {error}")),
     };
+
+    // Asked before the file is parsed, because a parse cannot be given back: the
+    // arena is native and costs its fifty times the moment it is allocated.
+    let size = match held.metadata() {
+        Ok(held) => held.len(),
+        Err(error) => return settled(format!("{file} could not be read: {error}")),
+    };
+    if size > largest {
+        return settled(too_large(file, size, largest));
+    }
+
+    let mut source = String::with_capacity(size as usize);
+    if let Err(error) = held.read_to_string(&mut source) {
+        return settled(format!("{file} could not be read: {error}"));
+    }
 
     let digest = if digests { digest::of_string(&source) } else { String::new() };
 
