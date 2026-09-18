@@ -28,7 +28,9 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { Digest } from '@variance-authority/core/format';
+import { digestString, type Digest } from './digest.js';
+import { native, type NativeGitTree } from './native.js';
+import { directoriesOf } from './witness.js';
 
 const run = promisify(execFile);
 
@@ -169,4 +171,116 @@ async function hashOnDisk(
  */
 function blob(object: string): Digest {
   return `git:${object}`;
+}
+
+/**
+ * The path set, as the questions a scan actually asks of it.
+ *
+ * A scan does not want the listing. It wants one digest at a time, the handful
+ * of paths that decide how resolution is configured, one digest per directory,
+ * and one digest over the whole set for the case where nothing bounds a bare
+ * specifier. Four questions, three of them folds — and a fold whose input is
+ * four hundred thousand paths is the reason a cold scan spends its first
+ * seconds building `Map`s before a file has been opened.
+ *
+ * So the path set is an interface rather than a `Map`. The native implementation
+ * answers all four without the listing crossing into JavaScript at all; the
+ * JavaScript one answers them over a `Map` and is what a caller supplying its
+ * own digests gets. Both are the same answers — `tree.test.ts` compares them.
+ */
+export interface Tree {
+  /** How many paths the tree holds. */
+  readonly size: number;
+  /** The digest of one path's bytes on disk. */
+  get(path: string): Digest | undefined;
+  /** Every path, sorted by code unit. The one answer that is repository-sized. */
+  paths(): readonly string[];
+  /** Every path whose basename is one of `names`, or is a `tsconfig*.json`. */
+  named(names: readonly string[]): readonly string[];
+  /** Every directory in the tree, named by the entries it holds. */
+  directories(): ReadonlyMap<string, Digest>;
+  /**
+   * The configuration digest: these header lines, then the tree's own part.
+   *
+   * `aliasesUnknown` folds in every path, which is what `reuse.ts` falls back to
+   * when no configuration bounds where a bare specifier could land.
+   */
+  configDigest(
+    header: readonly string[],
+    names: readonly string[],
+    aliasesUnknown: boolean,
+  ): Digest;
+}
+
+/**
+ * The tree under `root`, natively when this checkout built the scanner.
+ *
+ * `undefined` for the same reason `gitDigests` returns it: this is not a
+ * checkout, or git could not answer.
+ */
+export async function gitTreeOf(root: string): Promise<Tree | undefined> {
+  const addon = native();
+  if (addon !== undefined) {
+    const held = addon.gitTree(root);
+    if (held !== null) return nativeTree(held);
+    return undefined;
+  }
+
+  const digests = await gitDigests(root);
+
+  return digests === undefined ? undefined : treeOf(digests);
+}
+
+/** A tree over digests somebody else computed — a caller's own map, or the oracle's. */
+export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
+  let sorted: readonly string[] | undefined;
+  const paths = (): readonly string[] =>
+    (sorted ??= [...digests.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)));
+
+  return {
+    get size() {
+      return digests.size;
+    },
+    get: (path) => digests.get(path),
+    paths,
+    named: (names) => paths().filter((path) => isNamed(path, names)),
+    directories: () => directoriesOf(paths()),
+    configDigest: (header, names, aliasesUnknown) =>
+      digestString(
+        [
+          ...header,
+          ...paths()
+            .filter((path) => isNamed(path, names))
+            .map((path) => `${path} ${digests.get(path)}`),
+          ...(aliasesUnknown ? ['aliases unknown', ...paths()] : []),
+        ].join('\n'),
+      ),
+  };
+}
+
+function nativeTree(held: NativeGitTree): Tree {
+  return {
+    get size() {
+      return held.size;
+    },
+    get: (path) => held.digest(path) ?? undefined,
+    paths: () => held.paths(),
+    named: (names) => held.named([...names]),
+    directories: () => new Map(Object.entries(held.directories())),
+    configDigest: (header, names, aliasesUnknown) =>
+      held.configDigest([...header], [...names], aliasesUnknown),
+  };
+}
+
+/**
+ * Whether a path's name decides where other files resolve to.
+ *
+ * The `tsconfig*.json` half is a pattern rather than a list and is the same on
+ * both sides of the boundary; the literal names come from the caller, because
+ * [`reuse.ts`](./reuse.ts) owns that list.
+ */
+function isNamed(path: string, names: readonly string[]): boolean {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+
+  return names.includes(name) || (name.startsWith('tsconfig') && name.endsWith('.json'));
 }

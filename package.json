@@ -13,7 +13,7 @@
     "cases/*"
   ],
   "scripts": {
-    "build": "tsc --build && node tools/page-agents.mjs && node tools/tribunal-ui.mjs && node tools/tribunal-migrations.mjs",
+    "build": "tsc --build && node packages/sense/native/build.mjs && node tools/page-agents.mjs && node tools/tribunal-ui.mjs && node tools/tribunal-migrations.mjs",
     "check": "vitest run --config vitest.checks.config.ts",
     "clean": "tsc --build --clean",
     "lint": "oxlint",

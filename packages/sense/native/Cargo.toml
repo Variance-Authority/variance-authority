@@ -1,0 +1,23 @@
+[package]
+name = "sense-native"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "The scanning path of @variance-authority/sense, where a cold repository is the cost."
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", default-features = false, features = ["napi8"] }
+napi-derive = "3"
+rayon = "1"
+sha2 = "0.10"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3

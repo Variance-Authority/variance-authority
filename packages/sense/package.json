@@ -77,12 +77,13 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
+    "!dist/native",
     "mark.svg",
     "scripts/overhead.mjs",
     "skill"
   ],
   "scripts": {
-    "build": "tsc --build",
+    "build": "tsc --build && node native/build.mjs",
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
     "records": "node scripts/records.mjs",

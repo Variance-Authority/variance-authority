@@ -52,12 +52,12 @@
  * is bounded by `git add`, and `digests: false` turns the whole mechanism off.
  */
 
-import { basename } from 'node:path';
-import { digestString, type Digest } from './digest.js';
+import type { Digest } from './digest.js';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
-import { aliasesIn, directoriesOf, movedDirectories, type Aliases } from './witness.js';
+import { treeOf, type Tree } from './tree.js';
+import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
 export interface TreeShape {
@@ -131,33 +131,44 @@ export async function treeShapeOf(input: {
   readonly digests: ReadonlyMap<string, Digest>;
   readonly options?: ResolveOptions;
 }): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
-  const { root, digests, options } = input;
-  const paths = [...digests.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const aliases = await aliasesIn(root, paths);
+  const { digests, ...rest } = input;
 
-  const lines = [
+  return shapeOf({ ...rest, tree: treeOf(digests) });
+}
+
+/**
+ * The same two questions, asked of a tree rather than of a map.
+ *
+ * Every line below is a fold over the repository's paths, and on a tree the size
+ * of a monorepo the folding is the cost — so it is the tree that folds, and the
+ * listing stays wherever it already is ([`tree.ts`](./tree.ts)).
+ */
+export async function shapeOf(input: {
+  readonly root: string;
+  readonly tree: Tree;
+  readonly options?: ResolveOptions;
+}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
+  const { root, tree, options } = input;
+  // `aliasesIn` reads configuration files, so it wants the configuration files —
+  // which is the same question the config digest asks, minus the manifests.
+  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']));
+
+  const header = [
     `version ${VERSION}`,
     `root ${root}`,
     `tsconfig ${options?.tsconfig ?? 'auto'}`,
     `conditions ${(options?.conditionNames ?? DEFAULT_CONDITIONS).join(',')}`,
-    ...paths.filter(decidesConfig).map((path) => `${path} ${digests.get(path)}`),
-    // No bound on where a bare specifier could land means no bound on what a new
-    // path could change, and the honest expression of that is the old rule.
-    ...(aliases === undefined ? ['aliases unknown', ...paths] : []),
   ];
 
   return {
-    shape: { config: digestString(lines.join('\n')), directories: directoriesOf(paths) },
+    shape: {
+      // No bound on where a bare specifier could land means no bound on what a
+      // new path could change, and the honest expression of that is the old rule.
+      config: tree.configDigest(header, LAYOUT_FILES, aliases === undefined),
+      directories: tree.directories(),
+    },
     aliases,
   };
-}
-
-function decidesConfig(path: string): boolean {
-  const name = basename(path);
-
-  return (
-    LAYOUT_FILES.includes(name) || (name.startsWith('tsconfig') && name.endsWith('.json'))
-  );
 }
 
 /** A cache that keeps everything and remembers nothing between processes. */

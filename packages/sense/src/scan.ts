@@ -46,8 +46,8 @@ import { digestString, type Digest } from './digest.js';
 import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import { readModule, readStyle } from './read.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
-import { gitDigests } from './tree.js';
-import { treeShapeOf, type RecordCache } from './reuse.js';
+import { gitTreeOf, treeOf } from './tree.js';
+import { shapeOf, type RecordCache } from './reuse.js';
 import { witnessesOf, type Aliases } from './witness.js';
 import { READABLE, isStyle, keyFor, parseWay, seedFiles, type ParseWay } from './files.js';
 import {
@@ -187,16 +187,18 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
 
   const built = new Map<string, FileRecord>();
   const cache = options.cache ?? memoryParseCache();
-  const digests =
+  const tree =
     options.digests === false
       ? undefined
-      : (options.digests ?? (await gitDigests(root))) ?? undefined;
+      : options.digests === undefined
+        ? await gitTreeOf(root)
+        : treeOf(options.digests);
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
-  const reuse = digests === undefined ? undefined : options.reuse;
-  const tree = digests === undefined ? undefined : await treeShapeOf({ root, digests, options });
-  if (tree !== undefined) reuse?.under(tree.shape);
+  const reuse = tree === undefined ? undefined : options.reuse;
+  const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
+  if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
   // path this scan uses as a key, and the absolute form is wanted only where a
@@ -209,7 +211,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     const file = queue[head]!;
     if (built.has(file)) continue;
 
-    const digest = digests?.get(file);
+    const digest = tree?.get(file);
     const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
 
     const way = parseWay(file);
@@ -222,8 +224,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
           root,
           resolvers,
           cache,
-          aliases: tree?.aliases,
-          directories: tree?.shape.directories ?? new Map(),
+          aliases: shape?.aliases,
+          directories: shape?.shape.directories ?? new Map(),
           largestFile: options.largestFile ?? LARGEST_FILE,
           remembering: reuse !== undefined,
           ...(digest === undefined ? {} : { digest }),
