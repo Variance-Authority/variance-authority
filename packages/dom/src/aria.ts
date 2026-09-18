@@ -38,12 +38,12 @@ const INPUT_ROLES: Readonly<Record<string, string>> = {
   url: 'textbox',
 };
 
-export function ariaOf(element: Element): RawAria {
-  const description = accessibleDescription(element);
+export function ariaOf(element: Element, view?: Window): RawAria {
+  const description = accessibleDescription(element, view);
 
   return {
     role: roleOf(element),
-    name: accessibleName(element),
+    name: accessibleName(element, view),
     ...(description !== null ? { description } : {}),
     state: stateOf(element),
   };
@@ -116,7 +116,7 @@ export function roleOf(element: Element): string | null {
  *
  * Order: `aria-labelledby`, `aria-label`, a native label host, then content.
  */
-export function accessibleName(element: Element): string | null {
+export function accessibleName(element: Element, view?: Window): string | null {
   const explicit = explicitName(element);
   if (explicit !== null) return explicit;
 
@@ -153,7 +153,7 @@ export function accessibleName(element: Element): string | null {
   // over-eager accname fallback silently disabled a whole normalization rule.
   const role = roleOf(element);
   if (role !== null && NAME_FROM_CONTENT.has(role)) {
-    const text = visibleText(element);
+    const text = visibleText(element, view);
     if (text.trim().length > 0) return normalize(text);
   }
 
@@ -197,13 +197,39 @@ function explicitName(element: Element): string | null {
  * `aria-labelledby` is deliberately not filtered this way: referenced content is
  * used for a name even when it is hidden, which is how the pattern of pointing
  * at an off-screen `<span>` works at all.
+ *
+ * **CSS decides two things here, which is why a `view` is worth threading.**
+ *
+ * The first is which children contribute at all. `aria-hidden` and `hidden` are
+ * the declared ways to leave the accessibility tree, and `display: none` is the
+ * one nobody declares — a responsive site renders the mobile navigation into
+ * every desktop document and hides it with a class. Chrome does not build a
+ * node for it; a reader that only honours the declared forms sees two
+ * navigations where the browser sees one, and reports a duplicate landmark that
+ * no assistive technology can reach.
+ *
+ * The second is the separator. Chrome appends a space between contributions
+ * whose computed `display` is not inline, which is how
+ * `<button>Search<kbd>⌘K</kbd></button>` under `display: flex` is named
+ * "Search ⌘K" rather than "Search⌘K" — flex blockifies its items, so the `kbd`
+ * computes as `block` however it was written. Concatenating regardless gives a
+ * name that no voice command matches and that disagrees with the visible text
+ * this project computes elsewhere, which surfaced as a wall of `label-mismatch`
+ * findings against perfectly good markup.
+ *
+ * Without a `view` — the JSDOM profile, where no layout is performed and a flex
+ * item's `display` is whatever the cascade said — neither question can be asked,
+ * and both are answered the way they were before: everything contributes, and
+ * nothing is separated. That is a fidelity limit of reading a document that was
+ * never laid out, and it is named rather than papered over.
  */
-function visibleText(element: Element): string {
+function visibleText(element: Element, view?: Window): string {
   let text = '';
+  const transform = view === undefined ? undefined : transformOf(element, view);
 
   for (const child of element.childNodes) {
     if (child.nodeType === 3 /* text */) {
-      text += child.nodeValue ?? '';
+      text += transformed(child.nodeValue ?? '', transform);
       continue;
     }
     if (child.nodeType !== 1 /* element */) continue;
@@ -211,10 +237,74 @@ function visibleText(element: Element): string {
     const node = child as Element;
     if (node.getAttribute('aria-hidden') === 'true' || node.hasAttribute('hidden')) continue;
 
-    text += visibleText(node);
+    const display = view === undefined ? undefined : displayOf(node, view);
+    if (display === 'none') continue;
+    if (view !== undefined && hiddenByVisibility(node, view)) continue;
+
+    const separated = display !== undefined && display !== 'inline' && display !== 'contents';
+    text += separated ? ` ${visibleText(node, view)} ` : visibleText(node, view);
   }
 
   return text;
+}
+
+/**
+ * `text-transform`, applied — because the browser announces the transformed text.
+ *
+ * CSS's casing properties are not decoration. Chrome's accessible name for a
+ * link written `Run less of the suite` under `text-transform: uppercase` is
+ * "RUN LESS OF THE SUITE", and that is the string a voice-control user says and
+ * the string a screen reader spells out letter by letter. A reader that
+ * recorded the authored casing would disagree with every one of them.
+ *
+ * Measured, not assumed: across this project's own five pages, 1588 names
+ * agreed with Chrome's and 114 did not, and casing was the largest class in the
+ * difference — every uppercase eyebrow, every small-caps `<dt>`, every
+ * "NEXT →".
+ *
+ * Applied per text run, on the element that owns the run, because that is where
+ * the computed value lives; inheritance has already done its work by the time
+ * `getComputedStyle` answers. `capitalize` is approximated at whitespace
+ * boundaries rather than by UAX #29 word segmentation — the difference shows up
+ * on punctuation-joined words, and it is a smaller error than ignoring the
+ * property.
+ */
+function transformOf(element: Element, view: Window): string {
+  try {
+    return view.getComputedStyle(element).textTransform;
+  } catch {
+    return '';
+  }
+}
+
+function transformed(text: string, transform: string | undefined): string {
+  switch (transform) {
+    case 'uppercase':
+      return text.toUpperCase();
+    case 'lowercase':
+      return text.toLowerCase();
+    case 'capitalize':
+      return text.replace(/(^|\s)(\S)/gu, (_, lead: string, first: string) => lead + first.toUpperCase());
+    default:
+      return text;
+  }
+}
+
+function displayOf(element: Element, view: Window): string {
+  try {
+    return view.getComputedStyle(element).display;
+  } catch {
+    return '';
+  }
+}
+
+function hiddenByVisibility(element: Element, view: Window): boolean {
+  try {
+    const visibility = view.getComputedStyle(element).visibility;
+    return visibility === 'hidden' || visibility === 'collapse';
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -235,7 +325,7 @@ function visibleText(element: Element): string {
  * `title` is consulted second and only when it did not already become the name,
  * because a `title` on an unnamed element is its name, not its description.
  */
-export function accessibleDescription(element: Element): string | null {
+export function accessibleDescription(element: Element, view?: Window): string | null {
   const describedBy = element.getAttribute('aria-describedby');
   if (describedBy) {
     const parts = describedBy
@@ -249,7 +339,7 @@ export function accessibleDescription(element: Element): string | null {
   const title = element.getAttribute('title');
   if (!title || title.trim().length === 0) return null;
 
-  return accessibleName(element) === normalize(title) ? null : normalize(title);
+  return accessibleName(element, view) === normalize(title) ? null : normalize(title);
 }
 
 /**
@@ -257,10 +347,24 @@ export function accessibleDescription(element: Element): string | null {
  * §"name from author and content"). Everything else takes a name only from an
  * explicit label or a `title`.
  */
+/**
+ * Roles whose name may be taken from their own contents.
+ *
+ * Kept to what a browser actually does rather than to what the ARIA tables
+ * permit, because the name this project records is compared against the name a
+ * user is given. Two roles the spec allows are absent for that reason, both
+ * measured against Chrome on real markup:
+ *
+ * - **`row`.** `row` is listed as name-from-contents, and Chrome names no row.
+ *   Taking the contents gave every `<tr>` a name that was the whole row read as
+ *   one sentence — a string no assistive technology announces.
+ * - **`definition`.** `<dd>` is name-from-author only, and a paragraph of prose
+ *   is not a name. Every description in a list was being recorded as one.
+ */
 const NAME_FROM_CONTENT = new Set([
   'button', 'cell', 'checkbox', 'columnheader', 'gridcell', 'heading', 'link',
-  'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio', 'row',
-  'rowheader', 'switch', 'tab', 'tooltip', 'treeitem', 'term', 'definition',
+  'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'radio',
+  'rowheader', 'switch', 'tab', 'tooltip', 'treeitem', 'term',
   'caption', 'legend',
 ]);
 

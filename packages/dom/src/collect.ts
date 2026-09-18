@@ -376,7 +376,7 @@ function captureNode(
   return {
     tag: element.tagName.toLowerCase(),
     attributes,
-    aria: ariaOf(element),
+    aria: ariaOf(element, view ?? undefined),
     matchedRules: matched,
     ...(Object.keys(inlineStyle).length > 0 ? { inlineStyle } : {}),
     ...(profile.computedStyle && view ? { computedStyle: computedStyleOf(element, view) } : {}),

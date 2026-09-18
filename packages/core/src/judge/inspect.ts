@@ -196,6 +196,14 @@ export function inspect(snapshot: SemanticSnapshot): readonly Finding[] {
   return findings;
 
   function visit(node: SemanticNode, insideControl: boolean): void {
+    // Nothing below a node the browser never built. A responsive site renders
+    // the mobile navigation into the desktop document and hides it with a
+    // class, and a reader that counts it sees two `navigation` landmarks where
+    // Chrome's tree holds one — a duplicate nobody can reach, reported against
+    // markup that is correct. Every rule here is about what a screen reader
+    // encounters, so the gate belongs at the walk rather than in each rule.
+    if (!exposed(node)) return;
+
     const interactive = node.role !== undefined && INTERACTIVE.has(node.role);
 
     if (interactive && node.name === undefined) {
@@ -331,6 +339,27 @@ export function inspect(snapshot: SemanticSnapshot): readonly Finding[] {
   }
 }
 
+/**
+ * Whether a screen reader reaches this node at all.
+ *
+ * Three ways out of the accessibility tree, and only one of them is declared.
+ * `aria-hidden="true"` and the `hidden` attribute are the author saying so, and
+ * arrive as state. `display: none` is the one nobody says: it is a utility
+ * class, a media query, a `<details>` that is closed at this width. All three
+ * take the subtree with them — `aria-hidden` is not reversible by a descendant,
+ * and neither is a box that was never generated.
+ *
+ * `display` is read from the node's own computed style, which the capture
+ * already carries: it is in the style allowlist, so this costs no new field and
+ * moves no hash. Absent — a structural-only profile, where no style was
+ * computed — the answer is "exposed", because refusing to report on a document
+ * whose visibility could not be observed would silently empty the inspection.
+ */
+function exposed(node: SemanticNode): boolean {
+  if (node.state?.['hidden'] === true) return false;
+  return node.style['display'] !== 'none';
+}
+
 function hasHeaders(node: SemanticNode): boolean {
   if (node.role === 'columnheader' || node.role === 'rowheader') return true;
   return node.children.some(hasHeaders);
@@ -344,12 +373,38 @@ function hasHeaders(node: SemanticNode): boolean {
  * has nothing to compare.
  */
 function visibleTextOf(node: SemanticNode): string {
-  if (node.state?.['hidden'] === true) return '';
+  return runsOf(node).replace(/\s+/g, ' ').trim();
+}
 
-  const own = node.text ?? '';
-  const children = node.children.map(visibleTextOf).join(' ');
+/**
+ * The same separator rule accname uses, so the two readings can be compared.
+ *
+ * `label-mismatch` asks whether the accessible name contains the visible words,
+ * and that question is only meaningful if both sides were assembled the same
+ * way. Joining every child with a space while `accessibleName` concatenated
+ * them produced the failure this rule exists to prevent, in the rule itself: a
+ * flex button reading "Search ⌘K" and named "Search⌘K" was reported as
+ * unreachable by voice, against markup a browser names correctly.
+ *
+ * So a child contributes separated only when its computed `display` is not
+ * inline — which is what a browser does, and which makes `<b>` inside a
+ * sentence contribute as part of the word it is inside.
+ */
+function runsOf(node: SemanticNode): string {
+  if (!exposed(node)) return '';
 
-  return `${own} ${children}`.replace(/\s+/g, ' ').trim();
+  let text = node.text ?? '';
+
+  for (const child of node.children) {
+    const contribution = runsOf(child);
+    if (contribution.length === 0) continue;
+
+    const display = child.style['display'];
+    const separated = display !== undefined && display !== 'inline' && display !== 'contents';
+    text += separated ? ` ${contribution} ` : contribution;
+  }
+
+  return text;
 }
 
 function levelOf(node: SemanticNode): number | undefined {
