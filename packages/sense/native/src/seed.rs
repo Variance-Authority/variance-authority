@@ -1,4 +1,4 @@
-//! Repository files under configured roots, found without serialising directory I/O.
+//! Repository files under configured roots, selected from Git identity when available.
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -11,6 +11,55 @@ const EXTENSIONS: &[&str] = &[
     "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "css", "scss", "sass", "less",
 ];
 const READERS: usize = 6;
+
+/// Select readable paths from the snapshot that supplies their content identity.
+pub(crate) fn seed_paths(root: &str, dirs: &[String], paths: &[String]) -> Vec<String> {
+    let root = PathBuf::from(root);
+    let prefixes: Vec<String> = dirs
+        .iter()
+        .filter_map(|dir| {
+            let absolute = if Path::new(dir).is_absolute() {
+                PathBuf::from(dir)
+            } else {
+                root.join(dir)
+            };
+            repo_path(&root, &absolute)
+        })
+        .collect();
+
+    paths
+        .iter()
+        .filter(|path| readable(path) && prefixes.iter().any(|prefix| below(path, prefix)))
+        .cloned()
+        .collect()
+}
+
+fn readable(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .and_then(|part| part.to_str())
+        .is_some_and(|extension| EXTENSIONS.contains(&extension))
+}
+
+fn below(path: &str, prefix: &str) -> bool {
+    let relative = if prefix.is_empty() {
+        path
+    } else if let Some(relative) = path
+        .strip_prefix(prefix)
+        .and_then(|path| path.strip_prefix('/'))
+    {
+        relative
+    } else {
+        return false;
+    };
+    let mut components = relative.split('/').peekable();
+    while let Some(component) = components.next() {
+        if components.peek().is_some() && crate::path::excluded(component) {
+            return false;
+        }
+    }
+    !relative.is_empty()
+}
 
 struct Directory {
     absolute: PathBuf,
@@ -114,4 +163,25 @@ fn repo_path(root: &Path, absolute: &Path) -> Option<String> {
         parts.push(part.to_str()?);
     }
     Some(parts.join("/"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seed_paths;
+
+    #[test]
+    fn snapshot_seeds_stay_below_roots_and_out_of_generated_directories() {
+        let paths = [
+            "jira/src/a.ts".to_owned(),
+            "jira/src/a.css".to_owned(),
+            "jira/src/readme.md".to_owned(),
+            "jira/dist/built.js".to_owned(),
+            "platform/button.tsx".to_owned(),
+        ];
+
+        assert_eq!(
+            seed_paths("/repo", &["jira".to_owned()], &paths),
+            ["jira/src/a.ts", "jira/src/a.css"]
+        );
+    }
 }

@@ -5,6 +5,8 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import { nativeAvailable } from './native.js';
+import { seedPaths } from './files.js';
+import { scanRelations } from './scan.js';
 import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
 
 /**
@@ -99,6 +101,26 @@ describe('the native tree against the JavaScript one', () => {
     const { oracle, answered } = await both(root);
 
     expect(answered).toEqual(oracle);
+  });
+
+  it.runIf(native)('seeds from the Git-visible path set', async () => {
+    const root = await repository();
+    await write(root, '.git/info/exclude', 'src/generated/\n');
+    await write(root, 'src/generated/built.ts', 'export const ignored = 1\n');
+    await write(root, 'src/untracked.ts', 'export const untracked = 1\n');
+    const digests = await gitDigests(root);
+    const tree = await gitTreeOf(root, ['src']);
+    const paths = [...digests!.keys()].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+
+    expect(tree?.seeds).toEqual(seedPaths(root, ['src'], paths));
+    expect(tree?.seeds).toContain('src/untracked.ts');
+    expect(tree?.seeds).not.toContain('src/generated/built.ts');
+
+    const nativeRecords = await scanRelations({ root, dirs: ['src'] });
+    const oracleRecords = await scanRelations({ root, dirs: ['src'], digests });
+    expect(nativeRecords).toEqual(oracleRecords);
+    expect(nativeRecords.map((record) => record.file)).toContain('src/untracked.ts');
+    expect(nativeRecords.map((record) => record.file)).not.toContain('src/generated/built.ts');
   });
 
   it.runIf(native)('agrees on a tree whose only configuration is gone', async () => {

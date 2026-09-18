@@ -272,7 +272,7 @@ function nativeTree(held: NativeGitTree): Tree {
   const seeds = held.seeds();
   return {
     native: held,
-    ...(seeds.length === 0 ? {} : { seeds }),
+    seeds,
     get size() {
       return held.size;
     },

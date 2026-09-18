@@ -8,6 +8,7 @@
  */
 
 import { resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
@@ -64,6 +65,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   let decodedNative: ReadonlyMap<ParseKey, Parsed> | undefined;
   const records = new Map<string, IndexedRecord>();
   let adopted: TreeShape | undefined;
+  let dirty = false;
 
   const cache: ParseCache = {
     get(key) {
@@ -76,6 +78,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       return parsed;
     },
     set(key, parsed) {
+      if (!isDeepStrictEqual(stored.parses.get(key), parsed)) dirty = true;
       parses.set(key, parsed);
     },
     keep(key) {
@@ -91,7 +94,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   const reuse: RecordCache = {
     under(shape) {
       adopted = shape;
-      prune(available, held, shape);
+      if (prune(available, held, shape)) dirty = true;
       records.clear();
     },
     get(file, digest) {
@@ -103,7 +106,10 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     },
     set(record, witnesses) {
       if (adopted !== undefined && record.digest !== undefined) {
-        records.set(record.file, { record, witnesses });
+        const next = { record, witnesses };
+        const previous = records.get(record.file) ?? available.get(record.file);
+        if (!isDeepStrictEqual(previous, next)) dirty = true;
+        records.set(record.file, next);
       }
     },
   };
@@ -112,6 +118,9 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     cache,
     reuse,
     async save() {
+      const native = nativeParses.get(cache);
+      if (!dirty && native === undefined &&
+          (adopted === undefined || records.size === available.size)) return;
       await file.save({
         parses,
         ...(adopted?.config === undefined
@@ -119,7 +128,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
           : { config: adopted.config }),
         directories: adopted?.directories ?? stored.directories,
         records: adopted === undefined ? stored.records : records,
-      }, nativeParses.get(cache));
+      }, native);
     },
   };
 }

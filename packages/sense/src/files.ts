@@ -39,6 +39,33 @@ export function seedFiles(root: string, dirs: readonly string[]): readonly strin
   return found;
 }
 
+/** Every Git-visible readable path below the configured roots. */
+export function seedPaths(
+  root: string,
+  dirs: readonly string[],
+  paths: readonly string[],
+): readonly string[] {
+  const prefixes = dirs.flatMap((dir) => {
+    const absolute = isAbsolute(dir) ? dir : join(root, dir);
+    const prefix = absolute === root ? '' : toRepoPath(root, absolute);
+    return prefix === undefined ? [] : [prefix];
+  });
+
+  return paths.filter((file) =>
+    READABLE.has(extname(file)) && prefixes.some((prefix) => below(file, prefix)));
+}
+
+function below(file: string, prefix: string): boolean {
+  const relative = prefix === ''
+    ? file
+    : file.startsWith(`${prefix}/`)
+      ? file.slice(prefix.length + 1)
+      : '';
+  if (relative === '') return false;
+  const directories = relative.split('/').slice(0, -1);
+  return !directories.some((part) => EXCLUDE_DIRS.includes(part));
+}
+
 /**
  * Every readable file under one directory, unless it is a repository of its own.
  *

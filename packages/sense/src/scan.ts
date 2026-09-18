@@ -47,7 +47,7 @@ import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
 import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
-import { READABLE, isStyle, keyFor, parseWay, seedFiles, type ParseWay } from './files.js';
+import { READABLE, isStyle, keyFor, parseWay, seedFiles, seedPaths, type ParseWay } from './files.js';
 import { recordFor } from './record.js';
 import {
   realPath,
@@ -172,6 +172,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // file is opened — which on a run that reuses everything is nowhere.
   const queue = tree?.seeds !== undefined
     ? [...tree.seeds]
+    : tree !== undefined
+    ? [...seedPaths(root, options.dirs, tree.paths())]
     : addon === undefined
     ? [...seedFiles(root, options.dirs)]
     : addon.seedFiles(root, [...options.dirs]);

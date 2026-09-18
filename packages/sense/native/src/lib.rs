@@ -57,20 +57,12 @@ pub fn git_tree(root: String) -> Option<GitTree> {
     Some(tree_from_snapshot(snapshot, Vec::new()))
 }
 
-/// Build repository identity and discover configured roots concurrently.
+/// Build repository identity and select the Git-visible files below configured roots.
 #[napi]
 pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
-    let (snapshot, seeds) = std::thread::scope(|scope| {
-        let tree_root = root.clone();
-        let seed_root = root.clone();
-        let snapshot = scope.spawn(move || git::snapshot(&tree_root));
-        let seeds = scope.spawn(move || seed::seed_files(seed_root, dirs));
-        (
-            snapshot.join().ok().flatten(),
-            seeds.join().unwrap_or_default(),
-        )
-    });
-    Some(tree_from_snapshot(snapshot?, seeds))
+    let snapshot = git::snapshot(&root)?;
+    let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
+    Some(tree_from_snapshot(snapshot, seeds))
 }
 
 fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {

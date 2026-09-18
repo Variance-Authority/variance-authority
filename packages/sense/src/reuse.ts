@@ -242,23 +242,27 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
  * it — which is why the witnesses are stored beside the record rather than
  * recomputed here: the specifiers that produced them are in a parse the record
  * was built from, and a run that reuses the record never opens it.
+ *
+ * The result says whether the adopted shape moved, so a persistent generation
+ * can distinguish an unchanged scan from one that must publish new identity.
  */
 export function prune(
   entries: Map<string, IndexedRecord>,
   before: TreeShape | undefined,
   after: TreeShape,
-): void {
+): boolean {
   if (before === undefined || before.config !== after.config) {
     entries.clear();
-    return;
+    return true;
   }
 
   const moved = movedDirectories(before.directories, after.directories);
-  if (moved.size === 0) return;
+  if (moved.size === 0) return false;
 
   for (const [file, held] of entries) {
     if (held.witnesses.some((directory) => moved.has(directory))) entries.delete(file);
   }
+  return true;
 }
 
 /** A record only answers for the bytes it was built from. */
