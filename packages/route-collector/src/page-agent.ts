@@ -5,6 +5,7 @@ import {
   stabilizeForObservation,
 } from '@variance-authority/dom';
 import {
+  awaitHydration,
   awaitSuspense,
   createDeclarationRegistry,
   holdingOf,
@@ -13,7 +14,7 @@ import {
   digestPass,
   wiringOf,
 } from '@variance-authority/react';
-import type { SuspenseSettlement } from '@variance-authority/react';
+import type { HydrationSettlement, SuspenseSettlement } from '@variance-authority/react';
 import { recipeOf } from '@variance-authority/core/format';
 import type { RawCapture, RenderDocument, Viewport } from '@variance-authority/core/format';
 
@@ -88,6 +89,17 @@ export interface AcquireRequest {
   readonly wiring?: boolean;
 
   /**
+   * How long to wait for React to commit into a server-rendered document, in
+   * milliseconds. Absent means the adapter's own default.
+   *
+   * Separate from `suspense` because it precedes it: a boundary is React's
+   * record of work in flight, and a document with no fiber in it yet has no
+   * record of anything. Paid only by a subject that is not hydrated when the
+   * driver looks — a page already committed returns on the first read.
+   */
+  readonly hydration?: { readonly timeoutMs?: number };
+
+  /**
    * Read held state as evidence. Absent means *off*, and that asymmetry is the
    * point rather than an oversight.
    *
@@ -127,6 +139,18 @@ export interface Acquired {
    * back is the reading; `suspenseRefusal` on the driver turns it into a verdict.
    */
   readonly suspense: SuspenseSettlement;
+
+  /**
+   * Whether React had committed into the document by the time it was read.
+   *
+   * Absent when the run turned `wiring` off, which is the run saying it never
+   * expected a fiber. Present and `hydrated: false` is the honest shape of a
+   * capture with no provenance in it: a page this adapter cannot read, or one
+   * that took longer to hydrate than the budget allowed. Either way the reader
+   * of a report with no `file:line` on it can tell which of the two it has,
+   * instead of inferring a production build.
+   */
+  readonly hydration?: HydrationSettlement;
 }
 
 /**
@@ -149,7 +173,22 @@ function rootOf(selectors: readonly string[]): Element {
 export async function acquire(request: AcquireRequest): Promise<string> {
   const root = rootOf(request.roots);
 
-  // First of everything, because it decides what the rest of it is looking at.
+  // Before the Suspense read, because a document React has not committed into
+  // holds no boundary to read: `awaitSuspense` would answer `unobserved` — the
+  // word it reserves for a page with no React in it — and the capture would go
+  // on to attribute nothing, silently and correctly-looking. See
+  // `awaitHydration` for why a settled wire is not a hydration barrier, and for
+  // why the subject this lands on is the second one rather than the first.
+  //
+  // Run only when `wiring` is on, which is this run saying it expects a React
+  // tree to read. A route table holding a page the adapter cannot read declares
+  // that by turning wiring off, and pays nothing here.
+  const hydration =
+    request.wiring === false
+      ? undefined
+      : await awaitHydration(root, request.hydration ?? {});
+
+  // First of everything else, because it decides what the rest of it is looking at.
   // The driver has already settled the wire, which is a different fact: a
   // response that arrived is not a component that rendered, and between them sit
   // a promise, a retry and a commit. Ahead of stabilization deliberately —
@@ -206,7 +245,13 @@ export async function acquire(request: AcquireRequest): Promise<string> {
     ...(request.ignore !== undefined ? { ignore: request.ignore } : {}),
   });
 
-  return JSON.stringify({ document, capture, stabilization: held.ids, suspense });
+  return JSON.stringify({
+    document,
+    capture,
+    stabilization: held.ids,
+    suspense,
+    ...(hydration !== undefined ? { hydration } : {}),
+  });
 }
 
 /**

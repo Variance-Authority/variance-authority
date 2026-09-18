@@ -71,6 +71,9 @@ export type {
 } from './arrival.js';
 export { awaitSuspense, suspenseRefusal } from './arrival.js';
 
+export type { HydrationSettlement, HydrationWaitOptions } from './hydration.js';
+export { awaitHydration } from './hydration.js';
+
 export type {
   Commit,
   CommitTap,
