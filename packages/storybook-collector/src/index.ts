@@ -205,7 +205,7 @@ export function storybookCollector(
     // sites out of this cache without a single fetch. Built over the run's own
     // page, because an isolated world is closed before anyone could ask it for a
     // frame — and it would resolve the same modules from the same server anyway.
-    const callSites = createCallSiteResolver(fetchModules(world.page));
+    const callSites = createCallSiteResolver(fetchModules(world.page), { sourceRoot: process.cwd() });
 
     // Asked of the engine, laid over the scan. The scan answers names it found in
     // the configured directories; the engine answers the functions this page

@@ -168,7 +168,7 @@ export function routeCollector(
     // modules and the next route shares most of them, so the cache is worth more
     // the longer the run goes on. Built over the run's own page, because an
     // isolated world is closed before anyone could ask it for a frame.
-    const callSites = createCallSiteResolver(fetchModules(world.page));
+    const callSites = createCallSiteResolver(fetchModules(world.page), { sourceRoot: process.cwd() });
 
     // Asked of the engine, laid over the scan. The scan answers names it found in
     // the configured directories; the engine answers the functions this page

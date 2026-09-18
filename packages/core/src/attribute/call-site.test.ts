@@ -347,3 +347,44 @@ describe('spending frames for the nodes a report names', () => {
     expect(located).toEqual({ ...region, source: { file: 'src/probe.jsx', line: 21, column: 5 } });
   });
 });
+
+describe('a location that arrived holding somebody’s home directory', () => {
+  /**
+   * Two kinds of frame reach `locate` and only one of them is relative already.
+   * A frame answered by a source map is answered in the build's terms, which are
+   * the repository's. A frame that needed no map — a Node stack, or the frame
+   * React manufactures for a server component — names a file on the disk it was
+   * captured on, so an RSC route reported half its findings against
+   * `/Users/someone/dev/project/site/app/...` and half against `site/app/...`.
+   * One report, two coordinate systems, and neither pastes into anything.
+   */
+  const captured = [
+    { url: 'file:///home/dev/project/site/app/Page.tsx', line: 12, column: 4, function: 'Page' },
+  ];
+
+  it('states an absolute frame in the terms of the repository it is in', async () => {
+    const resolver = createCallSiteResolver(async () => null, {
+      sourceRoot: '/home/dev/project',
+    });
+
+    expect(await resolver.locate(captured)).toEqual({
+      file: 'site/app/Page.tsx',
+      line: 12,
+      column: 4,
+    });
+  });
+
+  /** Absent, it is returned as it arrived: guessing at a root is how a path stops resolving. */
+  it('leaves the path alone when no root was declared', async () => {
+    const resolver = createCallSiteResolver(async () => null);
+
+    expect((await resolver.locate(captured))?.file).toBe('/home/dev/project/site/app/Page.tsx');
+  });
+
+  /** A root the path is not under is not a root for it. */
+  it('leaves alone a path that is outside the declared root', async () => {
+    const resolver = createCallSiteResolver(async () => null, { sourceRoot: '/home/dev/other' });
+
+    expect((await resolver.locate(captured))?.file).toBe('/home/dev/project/site/app/Page.tsx');
+  });
+});

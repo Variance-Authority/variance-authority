@@ -1,4 +1,9 @@
-import type { Provenance, SourceLocation, StackFrame } from '../format/provenance.js';
+import {
+  relativizeSource,
+  type Provenance,
+  type SourceLocation,
+  type StackFrame,
+} from '../format/provenance.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import {
   inlineSourceMapOf,
@@ -44,6 +49,25 @@ import { isVendorPath, servedPath, writerLocationOf } from './stack.js';
 /** Fetch a module's text, or answer that it cannot be had. Never throws. */
 export type FetchModule = (url: string) => Promise<string | null>;
 
+export interface CallSiteOptions {
+  /**
+   * The repository root, for a location that arrives holding an absolute path.
+   *
+   * Two kinds of frame reach {@link CallSiteResolver.locate} and only one of
+   * them is relative already. A frame that needed a map is answered in the map's
+   * own terms, which are the build's and so the repository's. A frame that
+   * needed none — a Node stack, or the synthetic frame React manufactures for a
+   * server component — is answered in the terms of the disk it was captured on,
+   * which means somebody's home directory in the middle of a path that is
+   * otherwise a fact about the project.
+   *
+   * Given, the two shapes come out as one. Absent, a location is returned as it
+   * arrived, because guessing at a root is how a path stops resolving for the
+   * reader who opens it.
+   */
+  readonly sourceRoot?: string;
+}
+
 export interface CallSiteResolver {
   /** The location that wrote an element, from the frames its fiber carried. */
   locate(frames: readonly StackFrame[]): Promise<SourceLocation | null>;
@@ -60,7 +84,10 @@ export interface CallSiteStats {
   readonly located: number;
 }
 
-export function createCallSiteResolver(fetchModule: FetchModule): CallSiteResolver {
+export function createCallSiteResolver(
+  fetchModule: FetchModule,
+  options: CallSiteOptions = {},
+): CallSiteResolver {
   /** Module URL → its map, `null` once we know it has none. Also the in-flight guard. */
   const maps = new Map<string, Promise<readonly SourceMap[] | null>>();
   /** `url:line:column` → the answer, so a page's 4211 nodes cost 14 resolutions. */
@@ -143,7 +170,9 @@ export function createCallSiteResolver(fetchModule: FetchModule): CallSiteResolv
 
       if (chosen !== null) {
         stats.located += 1;
-        return chosen;
+        return options.sourceRoot === undefined
+          ? chosen
+          : relativizeSource(chosen, options.sourceRoot);
       }
     }
 

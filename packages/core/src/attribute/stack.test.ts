@@ -192,6 +192,31 @@ describe('choosing the frame that wrote the element', () => {
     expect(writtenPath('file:///C:/app/src/probe.ts')).toBe('C:/app/src/probe.ts');
   });
 
+  /**
+   * React 19 renders a server component with no stack of its own and
+   * manufactures one: `about://React/Server/file:///app/src/Page.tsx?0`. The
+   * `file:` URL inside it is real; the coordinates beside it are positions in
+   * the module the *server* compiled, which is not the module the browser can
+   * fetch a map for. Measured on an RSC route, reading it as a path named a
+   * line 54 past the end of the file it named.
+   */
+  it('says nothing for the frame React manufactures for a server component', () => {
+    expect(writtenPath('about://React/Server/file:///app/src/Page.tsx?0')).toBeUndefined();
+  });
+
+  it('refuses it as a location rather than naming a line nothing was measured in', () => {
+    const frames = [
+      {
+        url: 'about://React/Server/file:///app/src/Page.tsx?0',
+        line: 200,
+        column: 45,
+        function: 'Page',
+      },
+    ];
+
+    expect(writerLocationOf(frames, () => null)).toBeNull();
+  });
+
   it('says nothing for a frame a server sent, whatever the scheme', () => {
     expect(writtenPath('http://host/src/probe.js')).toBeUndefined();
     expect(writtenPath('webpack-internal:///./src/probe.js')).toBeUndefined();

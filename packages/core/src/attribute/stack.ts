@@ -142,7 +142,7 @@ export function servedPath(url: string): string {
  * hand. Nothing here asks a filesystem whether a path is real; a coordinate is
  * ours because of how it was obtained, and a disk cannot be asked about how.
  *
- * Three shapes are a disk. A bare path does not parse as a URL at all. A
+ * Four shapes are a disk. A bare path does not parse as a URL at all. A
  * `file:` URL is a path spelled formally, so it is decoded back into one —
  * whole, including the leading separator a served path sheds, because an
  * absolute path that arrives looking repository-relative is a wrong answer that
@@ -150,6 +150,28 @@ export function servedPath(url: string): string {
  * parses as a URL whose scheme is the drive letter: a test that asked only
  * whether a frame parsed would call every frame on Windows served, and attribute
  * nothing at all there.
+ *
+ * **The fourth shape is React's, and it is refused — measured, not assumed.**
+ * A component that ran on the server has no fiber in the browser and no module
+ * the browser was served, so React manufactures a frame on the client out of
+ * coordinates the server put on the wire:
+ * `about://React/<environment>/<url>?<n>`. It *looks* like the third shape — a
+ * `file:` URL naming a file in the repository — and it is not one. The
+ * coordinates inside it are positions in the module the **server** compiled,
+ * and that module is not the one the browser can fetch.
+ *
+ * Reading it as a path was tried against a real RSC route, and the answer was
+ * wrong in the way that is worst: plausibly. React's frame for one `<aside>`
+ * read `DocsPage.tsx:200`, in a file 146 lines long; the browser's own build of
+ * the same source put that element at line 196 of a 268-line module, and
+ * resolving *that* through its map landed on line 126 — a different element,
+ * four lines from the right answer, with nothing about it to say so.
+ *
+ * So it falls to the `file:` test below and yields nothing, which is the rule
+ * {@link writerLocationOf} already states for every served frame: a position in
+ * text the build made is a position in this repository only if a map says so.
+ * The component is still named — that comes from the owner chain, not from
+ * here — and the source index still answers where it was declared.
  */
 export function writtenPath(url: string): string | undefined {
   if (DRIVE.test(url)) return url;
@@ -183,9 +205,13 @@ function decoded(pathname: string): string {
  * types no host library (ADR-0001), and taking a URL apart by hand is a bug
  * farm.
  */
-const URL_OF = (globalThis as {
-  URL?: new (url: string) => { readonly pathname: string; readonly protocol: string };
-}).URL;
+const URL_OF = (globalThis as { URL?: new (url: string) => ParsedUrl }).URL;
+
+/** As much of a parsed URL as this file reads. See {@link URL_OF}. */
+interface ParsedUrl {
+  readonly pathname: string;
+  readonly protocol: string;
+}
 
 /**
  * The location that wrote this element, chosen from its stack.
