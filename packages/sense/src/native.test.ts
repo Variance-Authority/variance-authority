@@ -43,6 +43,10 @@ describe('the native tree against the JavaScript one', () => {
     await write(root, 'src/panel/Panel.tsx', 'export const Panel = () => null\n');
     await write(root, 'src/panel/deep/nested/leaf.ts', 'export const leaf = 1\n');
     await write(root, 'src/café/über.ts', 'export const naming = 1\n');
+    // U+1F600 sorts *before* U+FF5E in UTF-16 code units and after it in UTF-8
+    // bytes, so these two catch an ordering that walks bytes rather than units.
+    await write(root, 'src/\u{1F600}.ts', 'export const grin = 1\n');
+    await write(root, 'src/\uFF5E.ts', 'export const wide = 1\n');
     await write(root, 'docs/readme.md', 'one\n');
 
     await git(root, ['init', '--quiet']);
@@ -121,8 +125,16 @@ describe('the native tree against the JavaScript one', () => {
     const root = await repository();
     const tree = treeOf((await gitDigests(root))!);
 
-    expect(tree.size).toBe(9);
+    expect(tree.size).toBe(11);
     expect(tree.named(['package.json'])).toEqual(['package.json', 'tsconfig.json']);
+    // Code units, not code points. The last two are the pair that separates the
+    // two orders: a surrogate pair leads with 0xD83D and sorts under U+FF5E,
+    // while its UTF-8 bytes lead with 0xF0 and sort above U+FF5E's 0xEF.
+    expect(tree.paths().filter((path) => /[^\u0000-\u007f]/u.test(path))).toEqual([
+      'src/caf\u00e9/\u00fcber.ts',
+      'src/\u{1F600}.ts',
+      'src/\uFF5E.ts',
+    ]);
     expect(tree.get('src/Button.tsx')).toMatch(/^git:[0-9a-f]{40}$/u);
     expect(tree.directories().get('')).toBe(tree.directories().get(''));
   });
