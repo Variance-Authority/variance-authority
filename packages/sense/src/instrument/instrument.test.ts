@@ -216,6 +216,28 @@ describe('instrumented code does what the original did', () => {
     );
   });
 
+  it.each(['vi', 'jest', 'rs', 'rstest'])('keeps a %s.mock call above the header it hoists over', (object) => {
+    // Every runner that hoists mocks moves the call above the module's imports
+    // in a transform of its own, which runs before this one. A header placed
+    // ahead of it would be hoisted with it, into a position where the module's
+    // own imports have not been evaluated yet.
+    const code = instrument(
+      `${object}.mock('./x');\nimport { a } from './x';\nexport function f() { return a; }\n`,
+      'fixture.js',
+    )!.code;
+
+    expect(code.startsWith(`${object}.mock('./x');`)).toBe(true);
+  });
+
+  it('hoists its header over a call on an object no runner spells', () => {
+    const code = instrument(
+      `zz.mock('./x');\nimport { a } from './x';\nexport function f() { return a; }\n`,
+      'fixture.js',
+    )!.code;
+
+    expect(code.startsWith('function __va(')).toBe(true);
+  });
+
   it('calls its generated runtime without a guard', () => {
     const code = instrument(`async function f() { await Promise.resolve(1); }`, 'fixture.js')!.code;
 

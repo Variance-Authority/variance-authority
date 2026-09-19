@@ -238,7 +238,11 @@ function isHoistedCall(node: Node | null | undefined): boolean {
 
   return (
     object.type === 'Identifier' &&
-    ['vi', 'jest'].includes(String(object.name)) &&
+    // Every runner that hoists spells it on an object of its own: `vi` under
+    // Vitest, `jest` under Jest, `rs` or `rstest` under Rstest. The call is
+    // hoisted above the imports whichever name it wears, so a probe placed
+    // before it would be placed before the module's own imports.
+    ['vi', 'jest', 'rs', 'rstest'].includes(String(object.name)) &&
     HOISTED.has(String(property.name))
   );
 }
