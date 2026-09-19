@@ -49,7 +49,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   // Only the manifests, because the rest of the reading wants the index and the
   // index wants a turn of the event loop, and a startup check is not worth
   // becoming a promise for.
-  readOfferings(root, reading);
+  readOfferings(root, { ...reading, tolerant: reading.tolerant ?? true });
 
   let cached: Help | undefined;
 

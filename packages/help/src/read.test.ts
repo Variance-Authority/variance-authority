@@ -45,6 +45,10 @@ function exported(help: Help): readonly string[] {
 }
 
 describe('reading a workspace through the source index', () => {
+  it('returns the same help value without reparsing the published surface', () => {
+    expect(indexed).toEqual(walked);
+  });
+
   it('finds the same call sites the walk finds', () => {
     // The whole claim. Two readings of one checkout — one that opened every file
     // and one that opened almost none — have to agree site for site and line for

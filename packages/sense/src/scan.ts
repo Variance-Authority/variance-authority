@@ -47,6 +47,7 @@ import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
 import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
+import type { IndexedRecord } from './source-index-format.js';
 import { READABLE, isStyle, keyFor, parseWay, seedFiles, seedPaths, type ParseWay } from './files.js';
 import { recordFor } from './record.js';
 import {
@@ -120,6 +121,13 @@ export interface ScanOptions extends ResolveOptions {
    * because every other caller of the scan holds the same object.
    */
   readonly parsed?: (file: string, parsed: Parsed) => void;
+
+  /** A parse together with the path-dependent target of each request. */
+  readonly indexed?: (
+    file: string,
+    parsed: Parsed,
+    targets: readonly (string | undefined)[],
+  ) => void;
 }
 
 /**
@@ -181,12 +189,15 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
 
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
-    reuse?.set(fresh.record, fresh.witnesses);
+    reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
     const heldDigest = fresh.record.digest;
     if (fresh.read !== undefined && heldDigest !== undefined) {
       cache.set(keyFor(heldDigest, way), fresh.read);
     }
     if (fresh.read !== undefined) options.parsed?.(file, fresh.read);
+    if (fresh.read !== undefined && fresh.targets !== undefined) {
+      options.indexed?.(file, fresh.read, fresh.targets);
+    }
     for (const edge of fresh.record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
     }
@@ -196,13 +207,20 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     file: string,
     digest: Digest,
     way: ParseWay,
-    record: FileRecord,
+    held: IndexedRecord,
   ): void => {
+    const record = held.record;
     built.set(file, record);
     cache.keep?.(keyFor(digest, way));
     if (options.parsed !== undefined) {
       const read = cache.get(keyFor(digest, way));
-      if (read !== undefined) options.parsed(file, read);
+      if (read !== undefined) {
+        options.parsed(file, read);
+        if (held.targets !== undefined) options.indexed?.(file, read, held.targets);
+      }
+    } else if (options.indexed !== undefined) {
+      const read = cache.get(keyFor(digest, way));
+      if (read !== undefined && held.targets !== undefined) options.indexed(file, read, held.targets);
     }
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
@@ -224,7 +242,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       if (built.has(file) || pendingSet.has(file)) continue;
       const digest = frontierDigests?.[head - frontierStart];
       const way = parseWay(file);
-      const remembered = digest === undefined ? undefined : reuse?.get(file, digest);
+      const remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
       if (remembered !== undefined && digest !== undefined) {
         acceptRemembered(file, digest, way, remembered);
         continue;
@@ -269,7 +287,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
           ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
         };
         if (useGraph) {
-          const graph = nativeGraph(nativeOptions, options.parsed !== undefined);
+          const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
           answers = graph.built;
           if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
           nativeGraphUsed = true;

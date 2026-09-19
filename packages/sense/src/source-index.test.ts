@@ -38,8 +38,24 @@ const PARSED: Parsed = {
     },
   ],
   exports: [
-    { exported: 'Card', local: 'Card', type: false, line: 3 },
-    { from: './button.js', imported: '*', type: false, line: 9 },
+    {
+      exported: 'Card',
+      local: 'Card',
+      type: false,
+      line: 3,
+      signature: { start: 18, end: 42 },
+      doc: { start: 2, end: 15 },
+    },
+    { from: './button.js', imported: '*', type: false, line: 9, signature: { start: 80, end: 108 } },
+  ],
+  symbols: [
+    {
+      name: 'Card',
+      kind: 'class',
+      line: 3,
+      signature: { start: 18, end: 42 },
+      doc: { start: 2, end: 15 },
+    },
   ],
   declares: ['Card'],
   unknown: 'one dynamic request could not be read',

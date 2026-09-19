@@ -31,22 +31,33 @@
  * already said what the file imports also says what it exports.
  */
 
-import { resolve } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { relative, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/mcp/tools';
-import { openSourceIndex, scanRelations, sourceIndexPath, type Parsed } from '@variance-authority/sense';
+import {
+  enrichSources,
+  openSourceIndex,
+  scanRelations,
+  sourceIndexPath,
+  type ParseCache,
+  type Parsed,
+} from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
+  assembleHelp,
   ownership,
-  readHelp,
   readOfferings,
   usageFrom,
   type Bound,
   type Exported,
   type Help,
   type HelpOptions,
+  type Offering,
   type Recorded,
   type Usage,
 } from '@variance-authority/package/help';
+import { indexedNames, type IndexedSource } from './indexed-surface.js';
 
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
 
@@ -126,10 +137,28 @@ export async function readIndexedUsage(
   opened: ReadonlySet<string>,
   options: IndexedUsageOptions = {},
 ): Promise<Usage> {
+  const scanned = await scanIndexed(root, opened, options);
+  if (options.save !== false) await scanned.save();
+  return scanned.usage;
+}
+
+async function scanIndexed(
+  root: string,
+  opened: ReadonlySet<string>,
+  options: IndexedUsageOptions,
+  dirs: readonly string[] = ['.'],
+): Promise<{
+  readonly usage: Usage;
+  readonly sources: Map<string, IndexedSource>;
+  readonly records: readonly FileRecord[];
+  readonly cache: ParseCache;
+  save(): Promise<void>;
+}> {
   const where = resolve(root);
   const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
   const owner = ownership(where);
   const files: Recorded[] = [];
+  const sources = new Map<string, IndexedSource>();
 
   const records = await scanRelations({
     // The whole checkout, not the workspace members. A repository holds source
@@ -138,18 +167,30 @@ export async function readIndexedUsage(
     // packages like anything else does. The scan declines to descend into a
     // checkout that is not this one, so the root means this repository.
     root: where,
-    dirs: ['.'],
+    dirs,
     cache: index.cache,
     reuse: index.reuse,
     parsed: (file, parsed) => {
       files.push(recordedOf(file, owner(file), parsed));
     },
+    indexed: (file, parsed, targets) => {
+      sources.set(file, { parsed, targets });
+    },
   });
 
-  if (options.save !== false) await index.save();
   options.records?.(records);
 
-  return usageFrom(opened, files);
+  const usage = usageFrom(opened, files);
+  const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
+  return {
+    usage: recordUnknown.length === 0
+      ? usage
+      : { ...usage, unreadable: [...usage.unreadable, ...recordUnknown] },
+    sources,
+    records,
+    cache: index.cache,
+    save: () => index.save(),
+  };
 }
 
 /**
@@ -169,13 +210,42 @@ export async function readIndexedUsage(
  */
 export async function readWorkspace(root: string, options: ReadingOptions = {}): Promise<Help> {
   const where = resolve(root);
+  const offerings = readOfferings(where, { ...options, tolerant: options.tolerant ?? true });
+  const scope = scanScope(where, offerings);
   const opened = new Set(
-    readOfferings(where, options).flatMap((offering) =>
+    offerings.flatMap((offering) =>
       offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`),
     ),
   );
 
-  const usage = await readIndexedUsage(where, opened, options);
+  const scanned = await scanIndexed(scope.root, opened, options, scope.dirs);
+  const byFile = new Map(scanned.records.map((record) => [record.file, record]));
+  const names = await indexedNames(scope.root, offerings, scanned.sources, async (files) => {
+    const subjects = files.flatMap((file) => {
+      const digest = byFile.get(file)?.digest;
+      return digest === undefined ? [] : [{ file, digest }];
+    });
+    return enrichSources(scope.root, subjects, scanned.cache);
+  });
+  if (options.save !== false) await scanned.save();
 
-  return readHelp(where, { ...options, usage });
+  return assembleHelp(scope.root, offerings, scanned.usage, names);
+}
+
+function scanScope(root: string, offerings: readonly Offering[]): { readonly root: string; readonly dirs: readonly string[] } {
+  const crossesRoot = offerings.some((offering) => relative(root, realpathSync(offering.dir)).startsWith('..'));
+  if (!crossesRoot) return { root, dirs: ['.'] };
+  let repository = root;
+  try {
+    repository = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: root, encoding: 'utf8' }).trim();
+  } catch { /* A non-Git workspace is its own scan boundary. */ }
+  if (repository === root) return { root, dirs: ['.'] };
+
+  const dirs = new Set<string>();
+  for (const path of [root, ...offerings.map((offering) => offering.dir)]) {
+    const from = relative(repository, realpathSync(path));
+    if (from === '' || from.startsWith('..')) continue;
+    dirs.add(from.split('/')[0]!);
+  }
+  return { root: repository, dirs: [...dirs].sort() };
 }

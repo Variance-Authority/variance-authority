@@ -15,6 +15,8 @@ import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
+import { dictionary, joinedKey, partsOf } from './source-index-codec.js';
+import { encodeHarvest, openHarvest } from './source-index-harvest.js';
 
 /**
  * One durable generation of source facts, as bytes.
@@ -30,7 +32,7 @@ import type { Export } from './read.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 5;
+const VERSION = 6;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -38,6 +40,8 @@ export interface IndexedRecord {
   readonly record: FileRecord;
   /** Repo-relative directories, sorted ([`witness.ts`](./witness.ts)). */
   readonly witnesses: readonly string[];
+  /** Resolved target for each request in the matching parse, preserving order. */
+  readonly targets?: readonly (string | undefined)[];
 }
 
 export interface StoredSourceIndex {
@@ -71,6 +75,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const parseDeclares = new Uint32Array(parses.length + 1);
   const parseDeclarePresent = new Uint8Array(parses.length);
   const parseUnknown = new Uint32Array(parses.length).fill(NONE);
+  const parseHarvested = new Uint8Array(parses.length);
   const requestValue: number[] = [];
   const requestKind: number[] = [];
   const requestLine: number[] = [];
@@ -120,6 +125,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     parseDeclarePresent[index] = parsed.declares === undefined ? 0 : 1;
     for (const name of parsed.declares ?? []) declareName.push(id(name));
     parseUnknown[index] = optionalId(parsed.unknown, id);
+    parseHarvested[index] = parsed.harvested === true ? 1 : 0;
   }
   parseRequests[parses.length] = requestValue.length;
   parseExports[parses.length] = exportExported.length;
@@ -135,7 +141,10 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const recordUnresolvedPresent = new Uint8Array(records.length);
   const recordUnknown = new Uint32Array(records.length).fill(NONE);
   const recordWitnesses = new Uint32Array(records.length + 1);
+  const recordTargets = new Uint32Array(records.length + 1);
+  const recordTargetPresent = new Uint8Array(records.length);
   const witnessDirectory: number[] = [];
+  const targetPath: number[] = [];
   const edgeTo: number[] = [];
   const edgeKind: number[] = [];
   const recordDeclareName: number[] = [];
@@ -146,6 +155,9 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     recordFile[index] = id(file);
     recordWitnesses[index] = witnessDirectory.length;
     for (const directory of held.witnesses) witnessDirectory.push(id(directory));
+    recordTargets[index] = targetPath.length;
+    recordTargetPresent[index] = held.targets === undefined ? 0 : 1;
+    for (const target of held.targets ?? []) targetPath.push(optionalId(target, id));
     recordDigest[index] = optionalId(record.digest, id);
     recordEdges[index] = edgeTo.length;
     recordEdgePresent[index] = record.edges === undefined ? 0 : 1;
@@ -162,6 +174,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     recordUnknown[index] = optionalId(record.unknown, id);
   }
   recordWitnesses[records.length] = witnessDirectory.length;
+  recordTargets[records.length] = targetPath.length;
   recordEdges[records.length] = edgeTo.length;
   recordDeclares[records.length] = recordDeclareName.length;
   recordUnresolved[records.length] = unresolvedValue.length;
@@ -186,6 +199,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'parses.declares': parseDeclares,
     'parses.declares-present': parseDeclarePresent,
     'parses.unknown': parseUnknown,
+    'parses.harvested': parseHarvested,
     'requests.value': Uint32Array.from(requestValue),
     'requests.kind': Uint32Array.from(requestKind),
     'requests.line': Uint32Array.from(requestLine),
@@ -200,6 +214,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'exports.imported': Uint32Array.from(exportImported),
     'exports.type': Uint8Array.from(exportType),
     'exports.line': Uint32Array.from(exportLine),
+    ...encodeHarvest(parses, id),
     'declares.name': Uint32Array.from(declareName),
     'records.file': recordFile,
     'records.deleted': Uint32Array.from(
@@ -213,7 +228,10 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'records.unresolved-present': recordUnresolvedPresent,
     'records.unknown': recordUnknown,
     'records.witnesses': recordWitnesses,
+    'records.targets': recordTargets,
+    'records.targets-present': recordTargetPresent,
     'witnesses.directory': Uint32Array.from(witnessDirectory),
+    'targets.path': Uint32Array.from(targetPath),
     'edges.to': Uint32Array.from(edgeTo),
     'edges.kind': Uint32Array.from(edgeKind),
     'record-declares.name': Uint32Array.from(recordDeclareName),
@@ -241,6 +259,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const parseDeclares = opened.u32('parses.declares');
   const parseDeclarePresent = opened.u8('parses.declares-present');
   const parseUnknown = opened.u32('parses.unknown');
+  const parseHarvested = opened.u8('parses.harvested');
   const requestValue = opened.u32('requests.value');
   const requestKind = opened.u32('requests.kind');
   const requestLine = opened.u32('requests.line');
@@ -256,10 +275,11 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const exportType = opened.u8('exports.type');
   const exportLine = opened.u32('exports.line');
   const declareName = opened.u32('declares.name');
+  const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
-  sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown]);
+  sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested]);
   sameLength(parseKey.length, [parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
   sameLength(requestValue.length, [requestKind, requestLine]);
@@ -285,6 +305,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       const local = optional(exportLocal[entry]!);
       const from = optional(exportFrom[entry]!);
       const imported = optional(exportImported[entry]!);
+      const signature = harvest.exportSignature(entry);
+      const doc = harvest.exportDoc(entry);
       return {
         ...(exported === undefined ? {} : { exported }),
         ...(local === undefined ? {} : { local }),
@@ -292,8 +314,11 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         ...(imported === undefined ? {} : { imported }),
         type: flag(exportType[entry]),
         line: exportLine[entry]!,
+        ...(signature === undefined ? {} : { signature }),
+        ...(doc === undefined ? {} : { doc }),
       };
     });
+    const symbols = harvest.symbols(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
     const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
@@ -301,6 +326,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     parses.set(key, {
       requests,
       ...(flag(parseExportPresent[row]) ? { exports: published } : {}),
+      ...(symbols.length === 0 ? {} : { symbols }),
+      ...(flag(parseHarvested[row]) ? { harvested: true } : {}),
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
       ...(unknown === undefined ? {} : { unknown }),
     });
@@ -323,7 +350,10 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const recordUnresolvedPresent = opened.u8('records.unresolved-present');
   const recordUnknown = opened.u32('records.unknown');
   const recordWitnesses = opened.u32('records.witnesses');
+  const recordTargets = opened.u32('records.targets');
+  const recordTargetPresent = opened.u8('records.targets-present');
   const witnessDirectory = opened.u32('witnesses.directory');
+  const targetPath = opened.u32('targets.path');
   const edgeTo = opened.u32('edges.to');
   const edgeKind = opened.u32('edges.kind');
   const recordDeclareName = opened.u32('record-declares.name');
@@ -332,8 +362,9 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   validateOffset(recordDeclares, recordDeclareName.length, recordFile.length);
   validateOffset(recordUnresolved, unresolvedValue.length, recordFile.length);
   validateOffset(recordWitnesses, witnessDirectory.length, recordFile.length);
+  validateOffset(recordTargets, targetPath.length, recordFile.length);
   sameLength(recordFile.length, [recordDigest, recordEdgePresent, recordDeclarePresent,
-    recordUnresolvedPresent, recordUnknown]);
+    recordUnresolvedPresent, recordUnknown, recordTargetPresent]);
   sameLength(edgeTo.length, [edgeKind]);
 
   const records = new Map<string, IndexedRecord>();
@@ -348,6 +379,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     const unresolved = range(recordUnresolved, row).map((entry) => text(unresolvedValue[entry]!));
     const unknown = optional(recordUnknown[row]!);
     const witnesses = range(recordWitnesses, row).map((entry) => text(witnessDirectory[entry]!));
+    const targets = range(recordTargets, row).map((entry) => optional(targetPath[entry]!));
     if (records.has(file)) throw invalid();
     records.set(file, {
       record: {
@@ -359,6 +391,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         ...(unknown === undefined ? {} : { unknown }),
       },
       witnesses,
+      ...(flag(recordTargetPresent[row]) ? { targets } : {}),
     });
   }
   const deletedRecords = new Set<string>();
@@ -393,61 +426,6 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     records,
     ...(deletedRecords.size === 0 ? {} : { deletedRecords }),
   };
-}
-
-/**
- * A parse key stored as its two parts, so the digest is the entry the record row
- * already interned.
- *
- * The key is a content digest joined to what the file's name said about reading
- * it ([`cache.ts`](./cache.ts)). Written whole it is a second dictionary string
- * for every blob, naming a digest this index already holds — 1.4 MB of a 7.7 MB
- * index on a repository of 24,909 files. Written as two columns the digest is
- * shared with the record that was read from it, and the ways are a handful of
- * distinct strings however large the repository is.
- */
-function partsOf(key: ParseKey): readonly [string, string] {
-  const at = key.indexOf('\u0000');
-  return at === -1 ? [key, ''] : [key.slice(0, at), key.slice(at + 1)];
-}
-
-function joinedKey(digest: string, way: string): ParseKey {
-  return way === '' ? digest : `${digest}\u0000${way}`;
-}
-
-function dictionary(
-  stored: StoredSourceIndex,
-  parses: readonly (readonly [ParseKey, Parsed])[],
-  records: readonly (readonly [string, IndexedRecord])[],
-): readonly string[] {
-  const values = new Set<string>();
-  if (stored.config !== undefined) values.add(stored.config);
-  for (const key of stored.deletedParses ?? []) for (const part of partsOf(key)) values.add(part);
-  for (const file of stored.deletedRecords ?? []) values.add(file);
-  for (const path of stored.deletedDirectories ?? []) values.add(path);
-  for (const [path, digest] of stored.directories) { values.add(path); values.add(digest); }
-  for (const [key, parsed] of parses) {
-    for (const part of partsOf(key)) values.add(part);
-    for (const request of parsed.requests) {
-      values.add(request.value); values.add(request.kind);
-      for (const binding of request.bindings) { values.add(binding.imported); values.add(binding.local); }
-    }
-    for (const item of parsed.exports ?? []) {
-      for (const value of [item.exported, item.local, item.from, item.imported]) if (value !== undefined) values.add(value);
-    }
-    for (const value of parsed.declares ?? []) values.add(value);
-    if (parsed.unknown !== undefined) values.add(parsed.unknown);
-  }
-  for (const [file, held] of records) {
-    const record = held.record;
-    values.add(file);
-    for (const value of [record.digest, record.unknown]) if (value !== undefined) values.add(value);
-    for (const edge of record.edges ?? []) { values.add(edge.to); values.add(edge.kind); }
-    for (const value of record.declares ?? []) values.add(value);
-    for (const value of record.unresolved ?? []) values.add(value);
-    for (const value of held.witnesses) values.add(value);
-  }
-  return [...values].sort(order);
 }
 
 function validateOffset(column: Uint32Array, end: number, rows = column.length - 1): void {

@@ -438,15 +438,7 @@ describe('what a browser never built', () => {
 });
 
 describe('visible text is assembled the way a name is', () => {
-  /**
-   * The finding this project reported against its own site, twenty-four times.
-   *
-   * `<button>Search<kbd>⌘K</kbd></button>` under `display: flex` is named
-   * "Search ⌘K" by every browser, because flex blockifies its items and accname
-   * separates a non-inline contribution. Reading the visible text with a space
-   * and the name without one made the two disagree by construction, so the rule
-   * fired on markup a voice command reaches perfectly well.
-   */
+  // Flex blockifies its items, so the browser separates their contributions to the name.
   it('holds for a flex control whose name carries the separator a browser inserts', () => {
     expect(
       found(
@@ -466,8 +458,7 @@ describe('visible text is assembled the way a name is', () => {
       ),
     ).toEqual([]);
   });
-
-  /** And an inline child is part of the word it sits inside, not beside it. */
+  // An inline child is part of the word it sits inside, not beside it.
   it('holds for an inline child that is not separated from its sentence', () => {
     expect(
       found(
@@ -488,7 +479,7 @@ describe('visible text is assembled the way a name is', () => {
     ).toEqual([]);
   });
 
-  /** The rule still fires when the words genuinely do not appear in the name. */
+  // The rule still fires when the words genuinely do not appear in the name.
   it('still reports a control named something the page does not read', () => {
     expect(
       found(

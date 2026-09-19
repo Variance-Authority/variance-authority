@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
 
 /**
@@ -49,11 +49,15 @@ export interface Offering {
   readonly dir: string;
   readonly declared: Readonly<Record<string, unknown>>;
   readonly entrypoints: readonly Entrypoint[];
+  /** Published subpaths whose source could not be established. */
+  readonly unreadable?: readonly string[];
 }
 
 export interface OfferingOptions {
   /** Manifest keys to record. Defaults to {@link OFFERED}. */
   readonly offered?: readonly string[];
+  /** Record an unreadable opening and continue. Strict when absent. */
+  readonly tolerant?: boolean;
 }
 
 /**
@@ -70,7 +74,62 @@ export function requested(specifier: string): string {
 }
 
 function read(path: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  const source = readFileSync(path, 'utf8');
+  try {
+    return JSON.parse(path.endsWith('tsconfig.json') ? jsonc(source) : source) as Record<string, unknown>;
+  } catch (error) {
+    throw new Error(`${path} is not readable JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/** Remove JSONC comments and trailing commas without touching string contents. */
+function jsonc(source: string): string {
+  let plain = '';
+  let string = false;
+  let escaped = false;
+  for (let at = 0; at < source.length; at += 1) {
+    const char = source[at]!;
+    const next = source[at + 1];
+    if (string) {
+      plain += char;
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') string = false;
+    } else if (char === '"') {
+      string = true;
+      plain += char;
+    } else if (char === '/' && next === '/') {
+      while (at + 1 < source.length && source[at + 1] !== '\n') at += 1;
+    } else if (char === '/' && next === '*') {
+      at += 2;
+      while (at < source.length && !(source[at] === '*' && source[at + 1] === '/')) at += 1;
+      at += 1;
+    } else {
+      plain += char;
+    }
+  }
+
+  let cleaned = '';
+  string = false;
+  escaped = false;
+  for (let at = 0; at < plain.length; at += 1) {
+    const char = plain[at]!;
+    if (string) {
+      cleaned += char;
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') string = false;
+      continue;
+    }
+    if (char === '"') string = true;
+    if (char === ',') {
+      let next = at + 1;
+      while (/\s/.test(plain[next] ?? '')) next += 1;
+      if (plain[next] === '}' || plain[next] === ']') continue;
+    }
+    cleaned += char;
+  }
+  return cleaned;
 }
 
 /**
@@ -185,12 +244,14 @@ function sourceOf(dir: string, types: string): string {
   const outDir = compilerOptions?.outDir;
   const rootDir = compilerOptions?.rootDir;
   if (outDir === undefined || rootDir === undefined) {
+    if (existsSync(emitted)) return emitted;
     throw new Error(`\`${config}\` declares no \`rootDir\`/\`outDir\` pair, so \`${types}\` cannot be mapped back`);
   }
 
   const out = posix.normalize(`${outDir}/`);
   const target = posix.normalize(types);
   if (!target.startsWith(out)) {
+    if (existsSync(emitted)) return emitted;
     throw new Error(`\`${types}\` is not under this package's outDir \`${outDir}\``);
   }
 
@@ -198,6 +259,7 @@ function sourceOf(dir: string, types: string): string {
   for (const extension of ['.ts', '.tsx']) {
     if (existsSync(`${stem}${extension}`)) return `${stem}${extension}`;
   }
+  if (existsSync(emitted)) return emitted;
   throw new Error(`\`${types}\` maps to \`${stem}.ts\`, which is not there`);
 }
 
@@ -233,6 +295,25 @@ function declarationsOf(condition: unknown): string | undefined {
   return undefined;
 }
 
+function openedBy(dir: string, subpath: string, types: string): readonly Entrypoint[] {
+  if (!types.includes('*')) return [{ subpath, source: sourceOf(dir, types) }];
+  if ((types.match(/\*/g)?.length ?? 0) !== 1 || (subpath.match(/\*/g)?.length ?? 0) !== 1) {
+    throw new Error(`export pattern \`${subpath}\` -> \`${types}\` must contain one wildcard on each side`);
+  }
+  if (!/\.(ts|tsx|mts|cts)$/.test(types)) {
+    throw new Error(`export pattern \`${types}\` is not source and cannot be mapped without built files`);
+  }
+
+  const normalized = types.replace(/^\.\//, '');
+  const [before = '', after = ''] = normalized.split('*');
+  return globSync(normalized, { cwd: dir })
+    .sort()
+    .map((matched) => {
+      const capture = matched.slice(before.length, matched.length - after.length);
+      return { subpath: subpath.replace('*', capture), source: join(dir, matched) };
+    });
+}
+
 /**
  * Every published package of a workspace, and the source each entrypoint opens.
  *
@@ -255,14 +336,26 @@ export function readOfferings(root: string, options: OfferingOptions = {}): read
     for (const key of offered) if (manifest[key] !== undefined) declared[key] = manifest[key];
 
     const entrypoints: Entrypoint[] = [];
+    const unreadable: string[] = [];
     const exports = (manifest['exports'] ?? {}) as Record<string, unknown>;
     for (const [subpath, condition] of Object.entries(exports)) {
       const types = declarationsOf(condition);
       if (types === undefined) continue;
-      entrypoints.push({ subpath, source: sourceOf(dir, types) });
+      try {
+        entrypoints.push(...openedBy(dir, subpath, types));
+      } catch (error) {
+        if (options.tolerant !== true) throw error;
+        unreadable.push(`${manifest['name']} ${subpath} — ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
 
-    found.push({ name: manifest['name'], dir, declared, entrypoints });
+    found.push({
+      name: manifest['name'],
+      dir,
+      declared,
+      entrypoints,
+      ...(unreadable.length === 0 ? {} : { unreadable }),
+    });
   }
 
   return found;

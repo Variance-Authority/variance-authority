@@ -1,7 +1,7 @@
 import { relative, resolve } from 'node:path';
 import type { Declaration } from './declare.js';
-import { type OfferingOptions, readOfferings } from './manifest.js';
-import { createReader, namesReachedBy } from './reach.js';
+import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
+import { createReader, namesReachedBy, type Names } from './reach.js';
 import { type Mention, type Readmes, readMention, readmes } from './mention.js';
 import { type Deep, type Named, type Usage, type UsageOptions, type Use, readUsage } from './use.js';
 
@@ -189,6 +189,18 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
   const reader = createReader(where, entrypoints);
   const usage = options.usage ?? readUsage(where, new Set(entrypoints.keys()), options, reader.parses);
 
+  return assembleHelp(where, offerings, usage, (source) => namesReachedBy(reader, source));
+}
+
+/** Join manifests, declarations and usage after a caller has already read the source. */
+export function assembleHelp(
+  root: string,
+  offerings: readonly Offering[],
+  usage: Usage,
+  namesOf: (source: string) => Names,
+): Help {
+  const where = resolve(root);
+
   // One cache for one reading, and one lookup per declaring file: a barrel and a
   // subpath publishing the same declaration ask the same question twice.
   const held: Readmes = readmes();
@@ -204,7 +216,7 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
     declared: offering.declared,
     openings: offering.entrypoints.map((entry) => {
       const key = `${offering.name} ${entry.subpath}`;
-      const entries = [...namesReachedBy(reader, entry.source)]
+      const entries = [...namesOf(entry.source)]
         .map(([name, kinds]) =>
           entryOf(name, kinds, reachedFrom(usage, key, name, offering.name), mentionOf(name)),
         )
@@ -218,7 +230,12 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
     }),
   }));
 
-  return { packages, deep: usage.deep, exported: usage.exported, unreadable: usage.unreadable };
+  return {
+    packages,
+    deep: usage.deep,
+    exported: usage.exported,
+    unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
+  };
 }
 
 /** Every entry of a reading, flattened, with the package and subpath each came from. */
@@ -275,3 +292,4 @@ export type { Entrypoint, Offering, OfferingOptions } from './manifest.js';
 export { readMention, readmes } from './mention.js';
 export type { Mention, Readmes } from './mention.js';
 export type { Declaration, DeclarationKind } from './declare.js';
+export type { Names } from './reach.js';

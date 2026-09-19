@@ -280,6 +280,11 @@ each other's questions from a shared cache.
 `readOfferings` is the manifest half on its own: per published package, its
 `declared` keys and the source file behind each subpath.
 
+Set `tolerant` to true when one stale subpath should be recorded in the
+offering's `unreadable` list while the other entrypoints remain available.
+Strict mode is the default and throws at the first subpath whose source cannot
+be established.
+
 ```ts
 import { createReader, namesReachedBy, readOfferings } from '@variance-authority/package';
 

@@ -79,6 +79,8 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
     },
     set(key, parsed) {
       if (!isDeepStrictEqual(stored.parses.get(key), parsed)) dirty = true;
+      const layer = nativeParses.get(cache);
+      if (parsed.harvested === true) layer?.keys.delete(key);
       parses.set(key, parsed);
     },
     keep(key) {
@@ -104,9 +106,16 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       records.set(file, found);
       return found.record;
     },
-    set(record, witnesses) {
+    getIndexed(file, digest) {
+      if (adopted === undefined) return undefined;
+      const found = records.get(file) ?? available.get(file);
+      if (found?.record.digest !== digest) return undefined;
+      records.set(file, found);
+      return found;
+    },
+    set(record, witnesses, targets) {
       if (adopted !== undefined && record.digest !== undefined) {
-        const next = { record, witnesses };
+        const next = { record, witnesses, ...(targets === undefined ? {} : { targets }) };
         const previous = records.get(record.file) ?? available.get(record.file);
         if (!isDeepStrictEqual(previous, next)) dirty = true;
         records.set(record.file, next);

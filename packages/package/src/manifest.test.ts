@@ -100,6 +100,36 @@ describe('reading a workspace', () => {
     expect(Object.keys(alpha!.declared['exports'] as object)).toContain('./raw');
     expect(alpha!.entrypoints.map((entry) => entry.subpath)).not.toContain('./raw');
   });
+
+  it('reads comments and trailing commas in a package tsconfig', () => {
+    const root = workspace({
+      'package.json': { name: 'jsonc', exports: { '.': { types: './dist/index.d.ts' } } },
+      'tsconfig.json': '/* inherited settings */\n{"compilerOptions":{"rootDir":"src","outDir":"dist",},}',
+      'src/index.ts': 'export const value = 1;\n',
+    });
+    expect(readOfferings(root)[0]?.entrypoints[0]?.source).toBe(join(root, 'src/index.ts'));
+  });
+
+  it('expands a source wildcard into the subpaths that exist', () => {
+    const root = workspace({
+      'package.json': { name: 'pattern', exports: { './services/*': './src/services/*.ts' } },
+      'src/services/first.ts': 'export const first = 1;\n',
+      'src/services/second.ts': 'export const second = 2;\n',
+    });
+    expect(readOfferings(root)[0]?.entrypoints.map((entry) => entry.subpath)).toEqual([
+      './services/first',
+      './services/second',
+    ]);
+  });
+
+  it('keeps an authored declaration file when no emit mapping exists', () => {
+    const root = workspace({
+      'package.json': { name: 'ambient', exports: { '.': { types: './src/index.d.ts' } } },
+      'tsconfig.json': '{"compilerOptions":{}}',
+      'src/index.d.ts': 'export declare const value: number;\n',
+    });
+    expect(readOfferings(root)[0]?.entrypoints[0]?.source).toBe(join(root, 'src/index.d.ts'));
+  });
 });
 
 describe('what it refuses rather than guesses', () => {
@@ -134,6 +164,23 @@ describe('what it refuses rather than guesses', () => {
       'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
     });
     expect(() => readOfferings(root)).toThrow(/maps to `.*src\/index.ts`, which is not there/);
+  });
+
+  it('records one stale opening without hiding the rest when tolerance is requested', () => {
+    const root = workspace({
+      'package.json': {
+        name: 'mixed',
+        exports: {
+          '.': './src/index.ts',
+          './stale': { types: './dist/stale.d.ts' },
+        },
+      },
+      'tsconfig.json': { compilerOptions: { rootDir: './src', outDir: './dist' } },
+      'src/index.ts': 'export const value = 1;\n',
+    });
+    const [offering] = readOfferings(root, { tolerant: true });
+    expect(offering?.entrypoints.map((entry) => entry.subpath)).toEqual(['.']);
+    expect(offering?.unreadable?.[0]).toMatch(/mixed \.\/stale/);
   });
 });
 

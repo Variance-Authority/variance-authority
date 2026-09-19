@@ -629,6 +629,7 @@ never touch a disk.
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
 | `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded opaque instead of parsed |
+| `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
 
 `conditionNames` and `tsconfig` are accepted by the same call and control how
 specifiers become file edges; the generated declaration carries their exact
@@ -679,6 +680,10 @@ included. A caller that wants a different reading of the same bytes otherwise
 has to walk and parse the tree a second time; handed this, that second reading
 of an unchanged tree costs a map lookup per file. The value is the cached parse
 itself rather than a copy, so treat it as read-only.
+
+`indexed` is the path-dependent companion: it receives the same parse and one
+resolved target per request, in request order. Use it when a consumer needs to
+follow named re-exports without resolving the same specifiers again.
 
 ```ts
 // An excerpt of the call above: `source` is the opened index, and `exports` is

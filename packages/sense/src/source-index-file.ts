@@ -25,7 +25,7 @@ export interface SourceIndexFile {
 /** A parse layer already encoded by the native cold scanner. */
 export interface EncodedParseLayer {
   readonly bytes: Uint8Array;
-  readonly keys: ReadonlySet<ParseKey>;
+  readonly keys: Set<ParseKey>;
 }
 
 interface Opened {

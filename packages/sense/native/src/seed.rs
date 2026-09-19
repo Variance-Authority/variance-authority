@@ -54,7 +54,10 @@ fn below(path: &str, prefix: &str) -> bool {
     };
     let mut components = relative.split('/').peekable();
     while let Some(component) = components.next() {
-        if components.peek().is_some() && crate::path::excluded(component) {
+        // A tracked `build/` can itself be source (large monorepos use it for
+        // build tooling). Filesystem discovery still declines generated build
+        // output; Git identity is the evidence that this path is intentional.
+        if components.peek().is_some() && component != "build" && crate::path::excluded(component) {
             return false;
         }
     }
@@ -172,16 +175,17 @@ mod tests {
     #[test]
     fn snapshot_seeds_stay_below_roots_and_out_of_generated_directories() {
         let paths = [
+            "jira/build/tooling.ts".to_owned(),
+            "jira/dist/built.js".to_owned(),
             "jira/src/a.ts".to_owned(),
             "jira/src/a.css".to_owned(),
             "jira/src/readme.md".to_owned(),
-            "jira/dist/built.js".to_owned(),
             "platform/button.tsx".to_owned(),
         ];
 
         assert_eq!(
             seed_paths("/repo", &["jira".to_owned()], &paths),
-            ["jira/src/a.ts", "jira/src/a.css"]
+            ["jira/build/tooling.ts", "jira/src/a.ts", "jira/src/a.css"]
         );
     }
 }

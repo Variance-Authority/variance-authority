@@ -5,11 +5,10 @@ use std::path::Path;
 
 use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi_derive::napi;
-use oxc_allocator::AllocatorPool;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
-use crate::acquire::{read_all, read_git, read_git_persistent, BlobReader, PACK_READERS};
+use crate::acquire::{read_all, read_git};
 use crate::git::{self, Oid};
 use crate::read::{Kind, Read};
 use crate::resolve::Resolvers;
@@ -82,7 +81,10 @@ pub fn read_batch(
     digests: Option<bool>,
     readers: Option<u32>,
 ) -> ReadBatch {
-    columns(read_all(root, files, largest_file, digests, readers), true)
+    columns(
+        read_all(root, files, largest_file, digests, readers, true),
+        true,
+    )
 }
 
 /// Read, parse, extract and resolve a frontier on one native side.
@@ -137,7 +139,14 @@ pub(crate) fn scan_batch_with_oids(
             digests,
             readers,
         ),
-        None => read_all(root.clone(), files.clone(), largest_file, digests, readers),
+        None => read_all(
+            root.clone(),
+            files.clone(),
+            largest_file,
+            digests,
+            readers,
+            true,
+        ),
     };
     let targets = resolve_all(root_path, &files, &read, &resolvers, known);
     let columns = columns(read, true);
@@ -167,9 +176,6 @@ pub(crate) fn scan_graph_with_tree(
     let mut identities = Vec::new();
     let mut queue = Vec::new();
     let mut seen = HashSet::with_capacity(seeds.len() * 2);
-    let width = readers.map_or(PACK_READERS, |value| value as usize).max(1);
-    let arenas = AllocatorPool::new(width);
-    let mut blobs: Vec<BlobReader> = (0..width).map(|_| BlobReader::new(&root)).collect();
     for file in seeds {
         if seen.insert(file.clone()) {
             queue.push(file);
@@ -188,8 +194,14 @@ pub(crate) fn scan_graph_with_tree(
             .iter()
             .map(|oid| oid.as_ref().map(git::spell))
             .collect::<Vec<_>>();
-        let held =
-            read_git_persistent(&mut blobs, &root, wave.clone(), oids, largest_file, &arenas);
+        let held = read_all(
+            root.clone(),
+            wave.clone(),
+            largest_file,
+            Some(true),
+            Some(readers.unwrap_or(6).max(1)),
+            false,
+        );
         let resolved = resolve_all(root_path, &wave, &held, &resolvers, Some(at));
         for target in resolved.iter().flatten() {
             if is_module(target) && seen.insert(target.clone()) {

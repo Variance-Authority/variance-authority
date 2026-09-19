@@ -37,6 +37,7 @@ export interface RecordSubject {
 export interface BuiltRecord {
   readonly record: FileRecord;
   readonly witnesses: readonly string[];
+  readonly targets?: readonly (string | undefined)[];
   /** What the bytes said, absent when the file could not be read. */
   readonly read?: Parsed;
 }
@@ -85,12 +86,17 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   const edges: FileEdge[] = [];
   const unresolved: string[] = [];
   const holes: string[] = [];
+  const targets: (string | undefined)[] = [];
 
   for (const asked of read.requests) {
     const request = requestOf(asked.value);
-    if (request === undefined) continue;
+    if (request === undefined) {
+      targets.push(undefined);
+      continue;
+    }
 
     const target = resolveTo({ resolvers, root, from: absolute, request, style });
+    targets.push(target);
     if (target === undefined) {
       unresolved.push(asked.value);
       if (isRelative(request)) holes.push(asked.value);
@@ -118,6 +124,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
     },
     read,
+    targets,
     witnesses: subject.remembering
       ? witnessesOf({
         file,
@@ -145,6 +152,8 @@ function parsedFrom(file: string, contents: string, way: ParseWay, style: boolea
   return {
     requests: read.requests,
     ...(read.exports === undefined ? {} : { exports: read.exports }),
+    ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
+    harvested: true,
     ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
   };

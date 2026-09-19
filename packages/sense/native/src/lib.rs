@@ -21,6 +21,7 @@ mod acquire;
 mod batch;
 mod digest;
 mod git;
+mod harvest;
 mod index;
 mod order;
 mod path;

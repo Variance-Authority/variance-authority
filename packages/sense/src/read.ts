@@ -65,6 +65,7 @@
 
 import { parseSync } from 'oxc-parser';
 import type { EdgeKind } from '@variance-authority/core/relate';
+import { harvestDocs, harvestSymbols, type SourceSymbol, type TextSpan } from './harvest.js';
 import { optionsFor } from './transfer.js';
 
 /**
@@ -166,6 +167,10 @@ export interface Export {
    * whoever needs the declaration has the file and can ask for it.
    */
   readonly line: number;
+  /** The complete export statement, for a name declared outside this workspace. */
+  readonly signature?: TextSpan;
+  /** The doc block attached to that export statement. */
+  readonly doc?: TextSpan;
 }
 
 export interface Read {
@@ -173,6 +178,9 @@ export interface Read {
 
   /** Every name this file publishes. Absent when it publishes nothing. */
   readonly exports?: readonly Export[];
+
+  /** Top-level declarations reduced while the AST is already resident. */
+  readonly symbols?: readonly SourceSymbol[];
 
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;
@@ -216,6 +224,7 @@ function linesOf(contents: string): (offset: number) => number {
   };
 }
 
+/** Reduce one JavaScript or TypeScript module to cacheable import and export facts. */
 export function readModule(file: string, contents: string): Read {
   let result;
   try {
@@ -232,6 +241,8 @@ export function readModule(file: string, contents: string): Read {
   const published: Export[] = [];
   const record = result.module;
   const lineAt = linesOf(contents);
+  const docs = harvestDocs(contents, result.comments);
+  const symbols = harvestSymbols(result.program, contents, docs);
 
   for (const entry of record.staticImports) {
     const line = lineAt(entry.start);
@@ -264,6 +275,7 @@ export function readModule(file: string, contents: string): Read {
       const exported = publishedName(binding.exportName);
       const imported = sourceName(binding.importName);
       const local = localName(binding.localName);
+      const doc = docs.get(entry.start);
 
       published.push({
         ...(exported === undefined ? {} : { exported }),
@@ -272,6 +284,8 @@ export function readModule(file: string, contents: string): Read {
         ...(imported === undefined ? {} : { imported }),
         type: binding.isType,
         line,
+        signature: { start: entry.start, end: entry.end },
+        ...(doc === undefined ? {} : { doc }),
       });
 
       if (from === undefined) continue;
@@ -320,6 +334,7 @@ export function readModule(file: string, contents: string): Read {
   return {
     requests,
     ...(published.length > 0 ? { exports: published } : {}),
+    ...(symbols.length > 0 ? { symbols } : {}),
     ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
 }

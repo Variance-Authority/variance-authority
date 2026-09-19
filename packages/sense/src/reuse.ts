@@ -78,12 +78,14 @@ export interface RecordCache {
   under(shape: TreeShape): void;
   /** The record last built for this file from these bytes, still answerable. */
   get(file: string, digest: Digest): FileRecord | undefined;
+  /** The same hit with resolution metadata for an indexed consumer. */
+  getIndexed(file: string, digest: Digest): IndexedRecord | undefined;
   /**
    * Remember a record and the directories that answered it.
    *
    * One without a digest is not remembered — see `save`.
    */
-  set(record: FileRecord, witnesses: readonly string[]): void;
+  set(record: FileRecord, witnesses: readonly string[], targets?: readonly (string | undefined)[]): void;
 }
 
 export interface PersistentRecordCache extends RecordCache {
@@ -181,9 +183,14 @@ export function memoryRecordCache(): RecordCache {
       prune(entries, adopted, shape);
       adopted = shape;
     },
-    get: (file, digest) => matching(entries.get(file), digest),
-    set(record, witnesses) {
-      if (record.digest !== undefined) entries.set(record.file, { record, witnesses });
+    get: (file, digest) => matching(entries.get(file), digest)?.record,
+    getIndexed: (file, digest) => matching(entries.get(file), digest),
+    set(record, witnesses, targets) {
+      if (record.digest !== undefined) entries.set(record.file, {
+        record,
+        witnesses,
+        ...(targets === undefined ? {} : { targets }),
+      });
     },
   };
 }
@@ -217,10 +224,20 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
       // repository hits every entry and rewrites none of them.
       if (found !== undefined) used.set(file, held!);
 
+      return found?.record;
+    },
+    getIndexed(file, digest) {
+      const held = used.get(file) ?? entries.get(file);
+      const found = matching(held, digest);
+      if (found !== undefined) used.set(file, found);
       return found;
     },
-    set(record, witnesses) {
-      if (record.digest !== undefined) used.set(record.file, { record, witnesses });
+    set(record, witnesses, targets) {
+      if (record.digest !== undefined) used.set(record.file, {
+        record,
+        witnesses,
+        ...(targets === undefined ? {} : { targets }),
+      });
     },
     async save() {
       if (adopted === undefined) return;
@@ -266,6 +283,6 @@ export function prune(
 }
 
 /** A record only answers for the bytes it was built from. */
-function matching(held: IndexedRecord | undefined, digest: Digest): FileRecord | undefined {
-  return held?.record.digest === digest ? held.record : undefined;
+function matching(held: IndexedRecord | undefined, digest: Digest): IndexedRecord | undefined {
+  return held?.record.digest === digest ? held : undefined;
 }

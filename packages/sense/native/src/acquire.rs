@@ -1,9 +1,9 @@
 //! Bounded acquisition of worktree files and committed Git blobs.
 
 use std::fs;
-use std::io::{BufRead, BufReader, BufWriter, Read as _, Write as _};
+use std::io::{BufRead, BufReader, Read as _, Write as _};
 use std::path::Path;
-use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::mpsc;
 
 use oxc_allocator::AllocatorPool;
@@ -20,125 +20,8 @@ type Requested = (usize, String, Option<Oid>);
 
 /// Worktree opens peak before the machine's core count on APFS.
 const READERS: usize = 6;
-/// Pack decompression is CPU work behind a sequential stream per process.
-pub(crate) const PACK_READERS: usize = 10;
 /// Enough files to keep the readers busy while bounding held source bytes.
 const CHUNK: usize = 2048;
-
-pub(crate) struct BlobReader {
-    child: Option<Child>,
-    input: Option<BufWriter<ChildStdin>>,
-    output: Option<BufReader<ChildStdout>>,
-}
-
-impl BlobReader {
-    pub(crate) fn new(root: &str) -> Self {
-        let mut child = Command::new("git")
-            .args(["cat-file", "--batch"])
-            .current_dir(root)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok();
-        let input = child
-            .as_mut()
-            .and_then(|held| held.stdin.take())
-            .map(BufWriter::new);
-        let output = child
-            .as_mut()
-            .and_then(|held| held.stdout.take())
-            .map(BufReader::new);
-        Self {
-            child,
-            input,
-            output,
-        }
-    }
-
-    fn read(
-        &mut self,
-        root: &str,
-        bucket: Vec<Requested>,
-        largest: u64,
-        arenas: &AllocatorPool,
-    ) -> Vec<Numbered> {
-        let mut answers = Vec::with_capacity(bucket.len());
-        self.read_each(root, bucket, largest, arenas, |(index, _, answer)| {
-            answers.push((index, answer));
-        });
-        answers
-    }
-
-    fn read_each(
-        &mut self,
-        root: &str,
-        bucket: Vec<Requested>,
-        largest: u64,
-        arenas: &AllocatorPool,
-        mut emit: impl FnMut((usize, String, Answer)),
-    ) {
-        let root = Path::new(root);
-        let (Some(input), Some(output)) = (self.input.as_mut(), self.output.as_mut()) else {
-            for (index, file, _) in bucket {
-                let answer = open_and_parse(root, &file, largest, true, arenas);
-                emit((index, file, answer));
-            }
-            return;
-        };
-        let (tracked, worktree): (Vec<_>, Vec<_>) =
-            bucket.into_iter().partition(|(_, _, oid)| oid.is_some());
-        for chunk in tracked.chunks(64) {
-            for (_, _, oid) in chunk {
-                if let Some(oid) = oid {
-                    let _ = writeln!(input, "{}", git::hex(oid));
-                }
-            }
-            let _ = input.flush();
-            for (index, file, _) in chunk {
-                let answer = read_blob(root, file, output, largest, true, arenas);
-                emit((*index, file.clone(), answer));
-            }
-        }
-        for (index, file, _) in worktree {
-            let answer = open_and_parse(root, &file, largest, true, arenas);
-            emit((index, file, answer));
-        }
-    }
-}
-
-impl Drop for BlobReader {
-    fn drop(&mut self) {
-        self.input.take();
-        self.output.take();
-        if let Some(mut child) = self.child.take() {
-            let _ = child.wait();
-        }
-    }
-}
-
-/// Read through persistent pack streams, falling back to disk for dirty paths.
-pub(crate) fn read_git_persistent(
-    readers: &mut [BlobReader],
-    root: &str,
-    files: Vec<String>,
-    oids: Vec<Option<Oid>>,
-    largest_file: Option<u32>,
-    arenas: &AllocatorPool,
-) -> Vec<Answer> {
-    let largest = u64::from(largest_file.unwrap_or(1024 * 1024));
-    let count = files.len();
-    let mut buckets: Vec<Vec<Requested>> = (0..readers.len()).map(|_| Vec::new()).collect();
-    for (index, (file, oid)) in files.into_iter().zip(oids).enumerate() {
-        buckets[index % readers.len()].push((index, file, oid));
-    }
-    let found: Vec<Vec<Numbered>> = readers
-        .par_iter_mut()
-        .zip(buckets.into_par_iter())
-        .map(|(reader, bucket)| reader.read(root, bucket, largest, arenas))
-        .collect();
-    ordered(count, found.into_iter().flatten())
-}
 
 pub(crate) fn read_git(
     root: String,
@@ -217,8 +100,10 @@ fn read_git_bucket(
     let mut answers = Vec::with_capacity(bucket.len());
     for (index, file, oid) in bucket {
         let answer = match (oid, reader.as_mut()) {
-            (Some(_), Some(reader)) => read_blob(root, &file, reader, largest, digests, arenas),
-            _ => open_and_parse(root, &file, largest, digests, arenas),
+            (Some(_), Some(reader)) => {
+                read_blob(root, &file, reader, largest, digests, arenas, true)
+            }
+            _ => open_and_parse(root, &file, largest, digests, arenas, true),
         };
         answers.push((index, answer));
     }
@@ -235,17 +120,18 @@ fn read_blob<R: BufRead>(
     largest: u64,
     digests: bool,
     arenas: &AllocatorPool,
+    symbols: bool,
 ) -> Answer {
     let mut header = String::new();
     if reader.read_line(&mut header).is_err() || header.ends_with(" missing\n") {
-        return open_and_parse(root, file, largest, digests, arenas);
+        return open_and_parse(root, file, largest, digests, arenas, symbols);
     }
     let Some(size) = header
         .split_ascii_whitespace()
         .nth(2)
         .and_then(|value| value.parse::<u64>().ok())
     else {
-        return open_and_parse(root, file, largest, digests, arenas);
+        return open_and_parse(root, file, largest, digests, arenas, symbols);
     };
     if size > largest {
         let copied = {
@@ -254,7 +140,7 @@ fn read_blob<R: BufRead>(
         };
         let mut newline = [0];
         if !matches!(copied, Ok(read) if read == size) || reader.read_exact(&mut newline).is_err() {
-            return open_and_parse(root, file, largest, digests, arenas);
+            return open_and_parse(root, file, largest, digests, arenas, symbols);
         }
         return (
             Read {
@@ -267,14 +153,14 @@ fn read_blob<R: BufRead>(
     }
     let mut bytes = vec![0; size as usize];
     if reader.read_exact(&mut bytes).is_err() {
-        return open_and_parse(root, file, largest, digests, arenas);
+        return open_and_parse(root, file, largest, digests, arenas, symbols);
     }
     let mut newline = [0];
     let _ = reader.read_exact(&mut newline);
     let Ok(source) = String::from_utf8(bytes) else {
-        return open_and_parse(root, file, largest, digests, arenas);
+        return open_and_parse(root, file, largest, digests, arenas, symbols);
     };
-    parsed(file, source, digests, arenas)
+    parsed(file, source, digests, arenas, symbols)
 }
 
 fn open_and_parse(
@@ -283,21 +169,32 @@ fn open_and_parse(
     largest: u64,
     digests: bool,
     arenas: &AllocatorPool,
+    symbols: bool,
 ) -> Answer {
     let (_, opened, digest) = open(root, file, largest, digests);
     match opened {
         Opened::Settled(read) => (read, digest, false),
-        Opened::Source(source) => parsed(file, source, digests, arenas),
+        Opened::Source(source) => parsed(file, source, digests, arenas, symbols),
     }
 }
 
-fn parsed(file: &str, source: String, digests: bool, arenas: &AllocatorPool) -> Answer {
+fn parsed(
+    file: &str,
+    source: String,
+    digests: bool,
+    arenas: &AllocatorPool,
+    symbols: bool,
+) -> Answer {
     let digest = if digests {
         digest::of_string(&source)
     } else {
         String::new()
     };
-    (read_module(file, &source, &arenas.get()), digest, true)
+    (
+        read_module(file, &source, &arenas.get(), symbols),
+        digest,
+        true,
+    )
 }
 
 pub(crate) fn read_all(
@@ -306,6 +203,7 @@ pub(crate) fn read_all(
     largest_file: Option<u32>,
     digests: Option<bool>,
     readers: Option<u32>,
+    symbols: bool,
 ) -> Vec<Answer> {
     let largest = u64::from(largest_file.unwrap_or(1024 * 1024));
     let wanted = digests.unwrap_or(false);
@@ -327,13 +225,13 @@ pub(crate) fn read_all(
     let mut held = open_all(at, first, largest, wanted, &opening);
     for next in chunks {
         let (parsed, fresh) = rayon::join(
-            || parse_all(held, &arenas),
+            || parse_all(held, &arenas, symbols),
             || open_all(at, next, largest, wanted, &opening),
         );
         read.extend(parsed);
         held = fresh;
     }
-    read.extend(parse_all(held, &arenas));
+    read.extend(parse_all(held, &arenas, symbols));
     read
 }
 
@@ -361,12 +259,20 @@ fn open_all<'a>(
     }
 }
 
-fn parse_all(opened: Vec<(&str, Opened, String)>, arenas: &AllocatorPool) -> Vec<Answer> {
+fn parse_all(
+    opened: Vec<(&str, Opened, String)>,
+    arenas: &AllocatorPool,
+    symbols: bool,
+) -> Vec<Answer> {
     opened
         .into_par_iter()
         .map(|(file, held, digest)| match held {
             Opened::Settled(read) => (read, digest, false),
-            Opened::Source(source) => (read_module(file, &source, &arenas.get()), digest, true),
+            Opened::Source(source) => (
+                read_module(file, &source, &arenas.get(), symbols),
+                digest,
+                true,
+            ),
         })
         .collect()
 }
@@ -441,6 +347,7 @@ mod tests {
             1,
             false,
             &arenas,
+            true,
         );
         let (_, _, next_parsed) = read_blob(
             std::path::Path::new("."),
@@ -449,6 +356,7 @@ mod tests {
             1024,
             false,
             &arenas,
+            true,
         );
 
         assert!(!parsed);

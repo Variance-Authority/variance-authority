@@ -61,6 +61,7 @@ export interface HydrationWaitOptions {
   readonly confirmations?: number;
 }
 
+/** The last observed fiber count and whether it reached the requested stability. */
 export interface HydrationSettlement {
   /** True when the fiber count at or under the root came to rest above zero. */
   readonly hydrated: boolean;

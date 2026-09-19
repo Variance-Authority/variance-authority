@@ -104,12 +104,13 @@ describe('reading a module', () => {
   });
 
   it('publishes a name for every export, and refuses to invent one for a star', () => {
+    const source = "export const x = 1;\nexport default function () {}\nexport * from './star';\nexport * as ns from './n';\n";
     const read = readModule(
       'index.ts',
-      "export const x = 1;\nexport default function () {}\nexport * from './star';\nexport * as ns from './n';\n",
+      source,
     );
 
-    expect(read.exports).toEqual([
+    expect(read.exports?.map(({ signature: _, doc: __, ...published }) => published)).toEqual([
       { exported: 'x', local: 'x', type: false, line: 1 },
       // An anonymous default is exported and not locally accessible, so there
       // is no declaration behind it to name.
@@ -120,6 +121,14 @@ describe('reading a module', () => {
       // name space rather than in file space.
       { from: './star', imported: '*', type: false, line: 3 },
       { exported: 'ns', from: './n', imported: '*', type: false, line: 4 },
+    ]);
+    expect(read.exports?.map((published) => published.signature === undefined
+      ? undefined
+      : source.slice(published.signature.start, published.signature.end))).toEqual([
+      'export const x = 1;',
+      'export default function () {}',
+      "export * from './star';",
+      "export * as ns from './n';",
     ]);
   });
 

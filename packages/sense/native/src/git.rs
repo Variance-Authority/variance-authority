@@ -33,18 +33,24 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
+    let prefix = git(root, &["rev-parse", "--show-prefix"], None)?;
+    let prefix = trim(&prefix);
     let (listing, status) = std::thread::scope(|scope| {
-        let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD"], None));
+        let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None));
         let status = scope.spawn(|| {
             git(
                 root,
                 &[
                     "-c",
                     "core.fsmonitor=false",
+                    "-c",
+                    "status.relativePaths=true",
                     "status",
                     "--porcelain=v1",
                     "-z",
                     "--untracked-files=all",
+                    "--",
+                    ".",
                 ],
                 None,
             )
@@ -68,7 +74,9 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         let Some(oid) = object.and_then(parse_oid) else {
             continue;
         };
-        held.insert(path[1..].to_vec(), oid);
+        let path = &path[1..];
+        let relative = path.strip_prefix(prefix).unwrap_or(path);
+        held.insert(relative.to_vec(), oid);
     }
 
     overlay(root, &mut held, status)?;

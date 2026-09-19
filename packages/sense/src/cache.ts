@@ -31,6 +31,7 @@
  * be wrong the first time a package moved. Specifiers go in; edges do not.
  */
 
+import type { SourceSymbol } from './harvest.js';
 import type { Export, Request } from './read.js';
 import { openSourceIndexFile } from './source-index-file.js';
 
@@ -60,10 +61,14 @@ export interface Parsed {
    * and that join happens after resolution.
    */
   readonly exports?: readonly Export[];
+  readonly symbols?: readonly SourceSymbol[];
+  /** Declaration facts were requested, including when this file declared none. */
+  readonly harvested?: true;
   readonly declares?: readonly string[];
   readonly unknown?: string;
 }
 
+/** Content-addressed parses used by a scan and by consumers sharing its work. */
 export interface ParseCache {
   get(key: ParseKey): Parsed | undefined;
   set(key: ParseKey, parsed: Parsed): void;

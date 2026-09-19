@@ -153,6 +153,7 @@ export interface NativeFrontierOptions extends ResolveOptions {
 export interface NativeBuilt {
   readonly record: FileRecord;
   readonly witnesses: readonly string[];
+  readonly targets?: readonly (string | undefined)[];
   readonly read?: Parsed;
 }
 
@@ -180,7 +181,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
 
 export interface NativeGraphBuilt {
   readonly built: readonly NativeBuilt[];
-  readonly parseLayer?: { readonly bytes: Uint8Array; readonly keys: ReadonlySet<string> };
+  readonly parseLayer?: { readonly bytes: Uint8Array; readonly keys: Set<string> };
 }
 
 /** Follow a cold module closure on one native side of the boundary. */
@@ -249,12 +250,14 @@ function builtFromBatch(
     const unresolved: string[] = [];
     const holes: string[] = [];
     const requests: string[] = [];
+    const targets: (string | undefined)[] = [];
     for (let step = 0; step < count; step += 1) {
       const value = batch.values[at + step] ?? '';
       requests.push(value);
+      const target = batch.targets[at + step] ?? '';
+      targets.push(target === '' ? undefined : target);
       const request = requestOf(value);
       if (request === undefined) continue;
-      const target = batch.targets[at + step] ?? '';
       if (target === '') {
         unresolved.push(value);
         if (isRelative(request)) holes.push(value);
@@ -294,6 +297,7 @@ function builtFromBatch(
     built.push({
       record,
       ...(read === undefined ? {} : { read }),
+      targets,
       witnesses,
     });
   }

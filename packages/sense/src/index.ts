@@ -30,6 +30,8 @@ export {
   type ParseCache,
   type PersistentParseCache,
 } from './cache.js';
+export type { SourceSymbol, SourceSymbolKind, TextSpan } from './harvest.js';
+export { enrichSources, type HarvestSubject } from './enrich.js';
 
 export {
   treeShapeOf,

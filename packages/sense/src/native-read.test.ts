@@ -48,7 +48,7 @@ describe('the native reader against the JavaScript one', () => {
       if (String(answered) !== String(oracle)) disagreed.push({ file, oracle, answered });
     }
 
-    expect(disagreed).toEqual([]);
+    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
   }, 120_000);
 
   it.runIf(available)('returns the complete cacheable parse for every module', async () => {
@@ -63,6 +63,8 @@ describe('the native reader against the JavaScript one', () => {
       const oracle = {
         requests: read.requests,
         ...(read.exports === undefined ? {} : { exports: read.exports }),
+        ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
+        harvested: true,
         ...(declares.length === 0 ? {} : { declares }),
         ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
       };
@@ -72,7 +74,7 @@ describe('the native reader against the JavaScript one', () => {
       }
     }
 
-    expect(disagreed).toEqual([]);
+    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
   }, 120_000);
 
   it.runIf(available)('resolves every repository request the way the oracle does', async () => {

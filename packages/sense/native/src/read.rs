@@ -12,6 +12,8 @@ use oxc_syntax::module_record::{
 use regex::Regex;
 use serde::Serialize;
 
+use crate::harvest::{Harvest, SourceSymbol, TextSpan};
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -66,6 +68,10 @@ pub struct Export {
     #[serde(rename = "type")]
     pub(crate) type_only: bool,
     pub(crate) line: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) signature: Option<TextSpan>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) doc: Option<TextSpan>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -74,12 +80,16 @@ pub struct Read {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) exports: Vec<Export>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) symbols: Vec<SourceSymbol>,
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) harvested: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) declares: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
 }
 
-struct Lines(Vec<usize>);
+pub(crate) struct Lines(Vec<usize>);
 
 impl Lines {
     fn new(source: &str) -> Self {
@@ -88,7 +98,7 @@ impl Lines {
         Self(starts)
     }
 
-    fn at(&self, offset: u32) -> u32 {
+    pub(crate) fn at(&self, offset: u32) -> u32 {
         self.0.partition_point(|start| *start <= offset as usize) as u32
     }
 }
@@ -107,11 +117,12 @@ struct ReexportGroup {
 }
 
 /// The same `Parsed` value `read.ts` produces, from OXC's native module record.
-pub fn read_module(file: &str, source: &str, allocator: &Allocator) -> Read {
+pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: bool) -> Read {
     let source_type = SourceType::from_path(file).unwrap_or_else(|_| SourceType::tsx());
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
     let lines = Lines::new(source);
+    let harvest = Harvest::new(&parsed.program, source, &lines, symbols);
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
 
@@ -192,6 +203,8 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator) -> Read {
             imported: imported.clone(),
             type_only: entry.is_type,
             line,
+            signature: Some(harvest.span(entry.statement_span)),
+            doc: harvest.doc(entry.statement_span.start),
         });
 
         let Some(value) = from else { continue };
@@ -265,9 +278,15 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator) -> Read {
     Read {
         requests,
         exports,
+        symbols: harvest.symbols,
+        harvested: symbols,
         declares: declarations(file, source),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
     }
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 fn import_name(name: &ImportImportName<'_>) -> String {

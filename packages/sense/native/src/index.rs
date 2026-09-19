@@ -77,6 +77,10 @@ pub fn parse_segment(
                 values.insert(value.clone());
             }
         }
+        for symbol in &read.symbols {
+            values.insert(symbol.name.clone());
+            values.insert(symbol.kind.to_owned());
+        }
         values.extend(read.declares.iter().cloned());
         if let Some(unknown) = &read.unknown {
             values.insert(unknown.clone());
@@ -105,7 +109,9 @@ pub fn parse_segment(
     let mut parse_exports_present = Vec::with_capacity(rows.len());
     let mut parse_declares = Vec::with_capacity(rows.len() + 1);
     let mut parse_declares_present = Vec::with_capacity(rows.len());
+    let mut parse_symbols = Vec::with_capacity(rows.len() + 1);
     let mut parse_unknown = Vec::with_capacity(rows.len());
+    let mut parse_harvested = Vec::with_capacity(rows.len());
     let mut request_value = Vec::new();
     let mut request_kind = Vec::new();
     let mut request_line = Vec::new();
@@ -120,7 +126,18 @@ pub fn parse_segment(
     let mut export_imported = Vec::new();
     let mut export_type = Vec::new();
     let mut export_line = Vec::new();
+    let mut export_signature_start = Vec::new();
+    let mut export_signature_end = Vec::new();
+    let mut export_doc_start = Vec::new();
+    let mut export_doc_end = Vec::new();
     let mut declare_name = Vec::new();
+    let mut symbol_name = Vec::new();
+    let mut symbol_kind = Vec::new();
+    let mut symbol_line = Vec::new();
+    let mut symbol_signature_start = Vec::new();
+    let mut symbol_signature_end = Vec::new();
+    let mut symbol_doc_start = Vec::new();
+    let mut symbol_doc_end = Vec::new();
 
     for (key, index) in &rows {
         let (digest, held_way) = parts(key);
@@ -149,15 +166,31 @@ pub fn parse_segment(
             export_imported.push(optional(export.imported.as_deref(), &id));
             export_type.push(u8::from(export.type_only));
             export_line.push(export.line);
+            export_signature_start.push(export.signature.map_or(NONE, |span| span.start));
+            export_signature_end.push(export.signature.map_or(NONE, |span| span.end));
+            export_doc_start.push(export.doc.map_or(NONE, |span| span.start));
+            export_doc_end.push(export.doc.map_or(NONE, |span| span.end));
+        }
+        parse_symbols.push(symbol_name.len() as u32);
+        for symbol in &read.symbols {
+            symbol_name.push(id(&symbol.name));
+            symbol_kind.push(id(symbol.kind));
+            symbol_line.push(symbol.line);
+            symbol_signature_start.push(symbol.signature.map_or(NONE, |span| span.start));
+            symbol_signature_end.push(symbol.signature.map_or(NONE, |span| span.end));
+            symbol_doc_start.push(symbol.doc.map_or(NONE, |span| span.start));
+            symbol_doc_end.push(symbol.doc.map_or(NONE, |span| span.end));
         }
         parse_declares.push(declare_name.len() as u32);
         parse_declares_present.push(u8::from(!read.declares.is_empty()));
         declare_name.extend(read.declares.iter().map(|name| id(name)));
         parse_unknown.push(optional(read.unknown.as_deref(), &id));
+        parse_harvested.push(u8::from(read.harvested));
     }
     parse_requests.push(request_value.len() as u32);
     parse_exports.push(export_exported.len() as u32);
     parse_declares.push(declare_name.len() as u32);
+    parse_symbols.push(symbol_name.len() as u32);
 
     encode(vec![
         u8s("strings.blob", string_blob),
@@ -176,6 +209,7 @@ pub fn parse_segment(
         u32s("parses.declares", parse_declares),
         u8s("parses.declares-present", parse_declares_present),
         u32s("parses.unknown", parse_unknown),
+        u8s("parses.harvested", parse_harvested),
         u32s("requests.value", request_value),
         u32s("requests.kind", request_kind),
         u32s("requests.line", request_line),
@@ -190,6 +224,18 @@ pub fn parse_segment(
         u32s("exports.imported", export_imported),
         u8s("exports.type", export_type),
         u32s("exports.line", export_line),
+        u32s("parses.symbols", parse_symbols),
+        u32s("symbols.name", symbol_name),
+        u32s("symbols.kind", symbol_kind),
+        u32s("symbols.line", symbol_line),
+        u32s("symbols.signature-start", symbol_signature_start),
+        u32s("symbols.signature-end", symbol_signature_end),
+        u32s("symbols.doc-start", symbol_doc_start),
+        u32s("symbols.doc-end", symbol_doc_end),
+        u32s("exports.signature-start", export_signature_start),
+        u32s("exports.signature-end", export_signature_end),
+        u32s("exports.doc-start", export_doc_start),
+        u32s("exports.doc-end", export_doc_end),
         u32s("declares.name", declare_name),
         u32s("records.file", vec![]),
         u32s("records.deleted", vec![]),
@@ -202,7 +248,10 @@ pub fn parse_segment(
         u8s("records.unresolved-present", vec![]),
         u32s("records.unknown", vec![]),
         u32s("records.witnesses", vec![0]),
+        u32s("records.targets", vec![0]),
+        u8s("records.targets-present", vec![]),
         u32s("witnesses.directory", vec![]),
+        u32s("targets.path", vec![]),
         u32s("edges.to", vec![]),
         u32s("edges.kind", vec![]),
         u32s("record-declares.name", vec![]),
@@ -272,7 +321,7 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         .collect();
     let header = serde_json::to_vec(&Header {
         format: "variance-authority-source-index",
-        version: 5,
+        version: 6,
         sections,
     })
     .unwrap_or_default();
