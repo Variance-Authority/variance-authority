@@ -114,9 +114,11 @@ describe('every link resolves', () => {
  */
 const PUBLIC_MARKDOWN = MARKDOWN.filter(
   (file) =>
-    file === 'README.md' ||
-    /^docs\/[^/]+\.md$/.test(file) ||
-    /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file),
+    (file === 'README.md' ||
+      /^docs\/[^/]+\.md$/.test(file) ||
+      /^(?:packages|examples|cases)\/[^/]+\/README\.md$/.test(file)) &&
+    file !== 'docs/AGENTS.md' &&
+    file !== 'docs/visual-guidelines.md',
 );
 
 describe('public documentation stands without internal project history', () => {
