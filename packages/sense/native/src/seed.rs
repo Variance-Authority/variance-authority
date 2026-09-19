@@ -7,8 +7,17 @@ use napi_derive::napi;
 use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
+/// Every extension some reader claims, mirroring `READABLE` in `language.ts`.
+///
+/// Seeding is where a language enters the graph at all: a file whose extension
+/// is missing here is never opened, never resolved and never reported, and the
+/// scan says nothing about it — the one failure this package exists to refuse.
+/// The native seeder is an acceleration of `seedFiles`, so it has to claim the
+/// same set rather than the set the JavaScript half claimed when this list was
+/// written. `native-readable.check.ts` holds the two lists to each other.
 const EXTENSIONS: &[&str] = &[
-    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "css", "scss", "sass", "less",
+    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "css", "scss", "sass", "less", "py",
+    "pyi", "rs", "java", "kt", "kts", "swift",
 ];
 const READERS: usize = 6;
 

@@ -7,7 +7,8 @@ import { indexSource } from '@variance-authority/core/attribute';
 import { native, nativeAvailable, type NativeReadBatch } from './native.js';
 import { MODULE_EXTENSIONS, readModule } from './read.js';
 import { parseWay } from './files.js';
-import { requestOf, resolveTo, resolversFor } from './resolve.js';
+import { resolveTo, resolversFor } from './resolve.js';
+import { requestOf } from './specifier.js';
 
 /**
  * The native reader and the JavaScript one, over the same bytes.
