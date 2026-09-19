@@ -1,4 +1,4 @@
-# Which files a change reaches in any language
+# How different languages are handled
 
 Your diff touched a Python module, a Kotlin class and a stylesheet. Ask what
 those changes reach and you get one list. [Variance Authority](README.md) is a
