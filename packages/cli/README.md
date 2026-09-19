@@ -4,9 +4,9 @@
 
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 `variance` is the executable. It captures every **subject** your project asked
 for — one named UI state you asked for and can ask for again: one story, one

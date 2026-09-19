@@ -1,12 +1,11 @@
 # The suite compared to itself
 
-[Variance Authority](README.md) renders and compares your **subjects** — the stories, routes,
-fixtures or data values your config names, each carrying a stable id such as
-`story:components-button--primary` — against their **baselines**, the last
-accepted capture of that same subject. Every other comparison this tool makes is
-one subject against its own baseline: two revisions, one thing. Composition is
-the other axis — **many subjects, one revision, joined on the components they
-share**. There is no baseline anywhere in it.
+One token edit turns forty stories red, and every comparison you have is one
+**subject** — a story, route, fixture or data value your config names — against
+its own baseline: two revisions of one thing, forty times, with nothing saying
+the forty are one change. Composition is the other axis — **many subjects, one
+revision, joined on the components they share** — and there is no baseline
+anywhere in it.
 
 > A visual-regression example is a component built from components. The example
 > *is* a component, at a boundary; the same component appears again, with the

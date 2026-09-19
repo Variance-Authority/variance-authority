@@ -1,10 +1,9 @@
 # Choose an agent workflow
 
-[Variance Authority](README.md) gives coding agents tools to read a workspace,
-inspect a running test, investigate UI changes, and check proposed test
-simplifications. Choose the workflow for the question in front of you. Source
-questions need a readable checkout; questions about execution or the interface
-need the corresponding observation or recording.
+Three questions with three different owners: a hung test, a screenshot that
+moved, and a symbol you cannot name. Only the last can be answered without a run
+behind it. Each is matched below to the reading it needs and the guide that sets
+that reading up.
 
 The CLI and MCP expose the readings. The shipped skills guide how an agent
 uses them alongside its own editor, shell, and test runner. In the

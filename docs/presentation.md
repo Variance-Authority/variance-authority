@@ -1,16 +1,11 @@
 # Inspect presentation relationships during a UI edit
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is one path through that system, for a person or a coding agent making
-a UI edit and deciding whether the edit did what it claimed. A screenshot shows
-that an interface changed without saying what changed about the way it reads.
-One repeated row may have drifted from its peers, a heading may no longer stand
-apart from its body, or two groups may have become hard to tell apart even
-though every word is still present.
+You make a UI edit and the screenshot moves, which tells you the interface
+changed without saying what changed about the way it reads. One repeated row may
+have drifted from its peers, a heading may no longer stand apart from its body,
+or two groups may have become hard to tell apart even though every word is still
+present. Measure those relationships before the edit and again after it, and a
+person or a coding agent can say whether the edit did what it claimed.
 
 New here? Start with [your first run](start.md).
 

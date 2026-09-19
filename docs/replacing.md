@@ -1,17 +1,12 @@
 # Add Variance Authority to what you already use
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This page is for a suite that already has visual coverage — `toHaveScreenshot`,
-Percy, Chromatic, Argos — and a team deciding how much of it to move. It takes
-one harness at a time and says what stays yours, what you add, what the change
-buys and what it costs, so you can adopt at a single boundary instead of
-rebuilding the workflow around it. For the vendor tradeoffs in full, see [how it
-compares](comparison.md) and [where a build gate fits](gates.md); for the exact
-APIs, [the surface reference](surface.md).
+Moving a suite off Percy, Chromatic or Argos is not one decision but one per
+harness, and the `toHaveScreenshot` assertions that already work are usually
+worth keeping. This page takes one harness at a time and says what stays yours,
+what you add, what the change buys and what it costs, so you can adopt at a
+single boundary instead of rebuilding the workflow around it. For the vendor
+tradeoffs in full, see [how it compares](comparison.md) and [where a build gate
+fits](gates.md); for the exact APIs, [the surface reference](surface.md).
 
 New here? Start with [your first run](start.md).
 

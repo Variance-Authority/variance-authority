@@ -20,59 +20,62 @@ function NavigationLinks({ current }: { readonly current: string }) {
               {section.label}
             </p>
             <ul className="space-y-0.5">
-              {section.items.map((item, index) => {
-                const active =
-                  item.href === current ||
-                  (item.href === "/reference/packages" &&
-                    current.startsWith("/reference/packages/"));
-                const previous = section.items[index - 1];
-                const startsCluster =
-                  "cluster" in item &&
-                  item.cluster !==
-                    (previous && "cluster" in previous
-                      ? previous.cluster
-                      : undefined);
-                return (
-                  <Fragment key={item.href}>
-                    {startsCluster ? (
-                      <li className="pb-1 pt-4 first:pt-1">
-                        {"clusterOverview" in item && item.clusterOverview ? (
+              {section.items
+                .filter((item) => !item.unlisted)
+                .map((item, index, items) => {
+                  const active =
+                    item.href === current ||
+                    (item.href === "/reference/packages" &&
+                      current.startsWith("/reference/packages/"));
+                  const previous = items[index - 1];
+                  const startsCluster =
+                    "cluster" in item &&
+                    item.cluster !==
+                      (previous && "cluster" in previous
+                        ? previous.cluster
+                        : undefined);
+                  return (
+                    <Fragment key={item.href}>
+                      {startsCluster ? (
+                        <li className="pb-1 pt-4 first:pt-1">
+                          {"clusterOverview" in item && item.clusterOverview ? (
+                            <Link
+                              href={item.href}
+                              aria-current={active ? "page" : undefined}
+                              className={`block rounded-md border-l-2 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.13em] transition-colors ${
+                                active
+                                  ? "border-orange bg-orange/[0.07] text-ivory"
+                                  : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
+                              }`}
+                            >
+                              {item.cluster}
+                            </Link>
+                          ) : (
+                            <span className="px-3 font-mono text-[9px] uppercase tracking-[0.13em] text-quiet">
+                              {item.cluster}
+                            </span>
+                          )}
+                        </li>
+                      ) : null}
+                      {"clusterOverview" in item &&
+                      item.clusterOverview ? null : (
+                        <li>
                           <Link
                             href={item.href}
                             aria-current={active ? "page" : undefined}
-                            className={`block rounded-md border-l-2 px-3 py-2 font-mono text-[9px] uppercase tracking-[0.13em] transition-colors ${
+                            className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
                               active
-                                ? "border-orange bg-orange/[0.07] text-ivory"
+                                ? "border-orange bg-orange/[0.07] font-medium text-ivory"
                                 : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
                             }`}
                           >
-                            {item.cluster}
+                            {item.label}
                           </Link>
-                        ) : (
-                          <span className="px-3 font-mono text-[9px] uppercase tracking-[0.13em] text-quiet">
-                            {item.cluster}
-                          </span>
-                        )}
-                      </li>
-                    ) : null}
-                    {"clusterOverview" in item && item.clusterOverview ? null : (
-                      <li>
-                        <Link
-                          href={item.href}
-                          aria-current={active ? "page" : undefined}
-                          className={`block rounded-md border-l-2 px-3 py-2 text-sm leading-5 transition-colors ${
-                            active
-                              ? "border-orange bg-orange/[0.07] font-medium text-ivory"
-                              : "border-transparent text-quiet hover:border-hairline hover:bg-panel/70 hover:text-ivory"
-                          }`}
-                        >
-                          {item.label}
-                        </Link>
-                      </li>
-                    )}
-                  </Fragment>
-                );
-              })}
+                        </li>
+                      )}
+                    </Fragment>
+                  );
+                })}
             </ul>
           </div>
         ))}

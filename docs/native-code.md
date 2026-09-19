@@ -1,10 +1,9 @@
 # Native code
 
-Installing [Variance Authority](README.md), a visual regression system you run
-yourself, does not need a compiler. There is no `cargo`, no `rustc`, no
-`node-gyp` and no build step on install: the compiled code arrives as prebuilt
-binaries that your package manager downloads for your platform, and no package
-in this product runs an install or postinstall script.
+Installing [Variance Authority](README.md) does not need a compiler. There is no
+`cargo`, no `rustc`, no `node-gyp` and no build step on install: the compiled
+code arrives as prebuilt binaries that your package manager downloads for your
+platform, and no package in this product runs an install or postinstall script.
 
 This page says what lands on your disk, on which platforms, what your CI image
 needs, and what happens on a machine where a binary does not arrive.

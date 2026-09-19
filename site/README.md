@@ -1,10 +1,8 @@
 # site
 
 The public product and documentation site for
-**[Variance Authority](../README.md)** — a visual regression system you run
-yourself, which renders a UI state, compares it against the baseline you
-approved, and reports what changed in the vocabulary of your source. The site is
-a [vinext](https://vinext.dev/) app deployed to Cloudflare Workers, published at
+**[Variance Authority](../README.md)**. It is a [vinext](https://vinext.dev/)
+app deployed to Cloudflare Workers, published at
 <https://variance-authority.dev>.
 
 Its dependencies are its own: `site/package.json` is not in the root

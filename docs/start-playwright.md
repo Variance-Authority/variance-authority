@@ -1,10 +1,10 @@
 # Add one observation to a Playwright test
 
-[Variance Authority](README.md) renders a UI state, compares it against its
-approved baseline, and records what changed and why. This page adds one such
-comparison to a Playwright test you already have. The test keeps its runner,
-fixtures, navigation, authentication, readiness, and assertions; you add one
-call and one assertion to it.
+The state you want to review only exists after your test has navigated, logged
+in and waited for it — so keep all of that. This page adds one
+[Variance Authority](README.md) observation and one assertion inside the test
+body, at the point where the page is already right, and the locator you pass
+becomes a subject with a baseline image of its own.
 
 ## What this adds to a suite that already has `toHaveScreenshot`
 

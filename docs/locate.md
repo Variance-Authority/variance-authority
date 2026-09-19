@@ -2,12 +2,8 @@
 
 You know which thing you want to look at. You do not know what it is called.
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at. Each comparison is keyed by a
-**subject**: one named UI state you asked for and can ask for again, under an id
-you choose, such as `cart/empty`.
+Each comparison is keyed by a **subject**: one named UI state you asked for and
+can ask for again, under an id you choose, such as `cart/empty`.
 
 This page is search. Read it when you can describe a subject but cannot name it.
 Every tool that narrows to one subject takes its id, and on a suite of fifteen

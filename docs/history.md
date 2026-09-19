@@ -1,9 +1,8 @@
 # Keep a history of what a run changed
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
+Every run writes a report and then forgets the one before it. A history service
+keeps them, so drift that no single comparison was wrong about can still be asked
+about as a sum.
 
 This page is for the operator who wants those reports to accumulate: how to run
 the history service, what each run writes to it, and which answers come back in

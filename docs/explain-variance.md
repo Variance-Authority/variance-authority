@@ -1,14 +1,10 @@
 # Explain variance
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is the router for the question after that report: a run says a
-subject changed, and you have to decide what to do about it. Each row below
-names one kind of explanation and the page that produces it. New here? Start
-with [your first run](start.md).
+Something moved, and the report you are holding names a region but not a
+reason. Which page helps depends on the kind of explanation that is missing: a
+component name, the input that changed, a second reading that disagrees with
+the first, or a declaration that the region was never the subject. Each row
+below names one and the page that produces it.
 
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty`. Every question here is

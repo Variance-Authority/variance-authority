@@ -1,15 +1,10 @@
 # Measure what a variant changes, not just that it changed
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it renders a
-UI state, compares it against the baseline you approved, and reports what changed in
-the vocabulary of your source — the component that drew the pixels and the
-`file:line` it was written at.
-
-This page is for you if your suite has variants — a feature flag's second version,
-the same page in the dark scheme, a story at a narrow viewport, a route whose backend
-answers with the empty state — and you want a run to report the difference *between*
-a variant and the state it varies from. New here? Start with
-[your first run](start.md).
+Your suite has variants: a feature flag's second version, the same page in the dark
+scheme, a story at a narrow viewport, a route whose backend answers with the empty
+state. What each of them does to the page is the difference you care about, and it
+is the one difference an ordinary run never reports. This page is for making a run
+measure it instead.
 
 A **subject** is one named UI state you asked for and can ask for again, identified
 by a stable id like `story:checkout--empty`. Each variant is an ordinary subject with

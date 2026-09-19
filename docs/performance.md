@@ -1,14 +1,11 @@
 # What a source scan costs
 
-[**Variance Authority**](README.md) is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. Before a **run** —
-one execution of `variance run` — can capture anything, it has to know which
-**subjects** a code change could have reached. A subject is one named UI state
-you asked for and can ask for again, and the answer comes from an incremental,
-content-addressed index of your checkout: an unchanged run reuses it, edits
-rebuild changed records, and a path appearing invalidates only the records whose
-specifiers could have named the affected directory.
+Before a [Variance Authority](README.md) run can capture anything, it has to know
+which **subjects** — a subject is one named UI state you asked for and can ask
+for again — a code change could have reached. That answer comes from an
+incremental, content-addressed index of your checkout: an unchanged run reuses
+it, edits rebuild changed records, and a path appearing invalidates only the
+records whose specifiers could have named the affected directory.
 
 This page prices that scan and only that scan. It is the part of a run that
 grows with your repository rather than with your suite: on the checkout below a

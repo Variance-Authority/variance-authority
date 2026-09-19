@@ -1,13 +1,12 @@
 # Reuse what mainline already worked out
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
+Mainline worked out what your suite contains an hour ago, on a runner that no
+longer exists, and the branch build is about to work it out again from scratch.
+This page is for whoever owns the pipeline: it sets up a **share**, a place one
+run leaves what it derived about the suite so the next machine reads it instead
+of deriving it again.
 
-This page is for whoever owns the pipeline. It sets up a **share**: a place one
-run leaves what it derived about the suite, so the next machine reads it instead
-of deriving it again. New here? Start with [your first run](start.md).
+New here? Start with [your first run](start.md).
 
 A run that compares a branch against mainline needs two different things about
 mainline. One is the baselines: the images, which only a baseline store can

@@ -1,11 +1,9 @@
 # What every record means, and where it is kept
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. Run `variance run`
-once and look at what it leaves on disk: a report at `.variance/report.json`,
-PNGs beside it, an approved baseline directory it only updates when you accept
-a change, and cache entries under `$XDG_CACHE_HOME/variance-authority`.
+Run `variance run` once and look at what it leaves on disk: a report at
+`.variance/report.json`, PNGs beside it, an approved baseline directory it only
+updates when you accept a change, and cache entries under
+`$XDG_CACHE_HOME/variance-authority`.
 
 A **subject** is one named UI state you asked for and can ask for again — a
 story, a route, a fixture, or a value — under an id that survives a rename. A

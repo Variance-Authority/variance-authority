@@ -1,13 +1,10 @@
 # Sensitivity
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is for deciding how much of a subject is under test, so that a route
-test and a component test can assert on different things without either one
-going quiet. New here? Start with [your first run](start.md).
+A route test that goes red every time a colour token moves is a route test
+nobody reads, and the usual cure — a looser threshold — also stops it noticing
+that the sidebar collapsed. A **sensitivity** is the other answer: it names the
+kinds of change a subject is under test for, so a route test and a component
+test can assert on different things without either one going quiet.
 
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty` — a story, a route (a

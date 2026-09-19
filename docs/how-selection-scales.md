@@ -1,10 +1,9 @@
 # How the test-to-code map stays small
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself, and one of the things it keeps from a run is which tests entered which
-code, so the next change can run the tests that reached it. Before you put that
-on a repository of several hundred thousand modules, you want to know what it
-costs you on disk, in memory, and per question asked.
+Selection needs to know which tests entered which code. Recorded naively that is
+one entry for every test against every line it touched, which no large
+repository can hold. [Variance Authority](README.md) records it differently, and
+you want to know what that costs before you put it on a tree that size.
 
 This page answers that: what the relation between tests and code is, why it does
 not grow as one stored row per test per line, and what every figure here was

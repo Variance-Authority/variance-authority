@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ChangePath, EvidencePath } from "../../../components/ChangePaths";
 import DocsPage from "../../../components/DocsPage";
 import DocumentFigure from "../../../components/DocumentFigure";
 import MarkdownDocument from "../../../components/MarkdownDocument";
@@ -65,6 +66,27 @@ export default async function Page({ params }: PageProps) {
             </figure>
           ),
         }
+      : slug === "changed"
+        ? {
+            "the-middle-carries-the-explanation": (
+              <figure className="doc-figure doc-figure-panel">
+                <ChangePath />
+                <figcaption>
+                  The test can prove its promised path held. Stimulus,
+                  execution, state, and effect show what moved beside it.
+                </figcaption>
+              </figure>
+            ),
+            "different-readings-answer-different-parts": (
+              <figure className="doc-figure doc-figure-panel">
+                <EvidencePath />
+                <figcaption>
+                  Each reading answers a different question along the same
+                  path; none is a substitute for the others.
+                </figcaption>
+              </figure>
+            ),
+          }
       : undefined;
   return (
     <DocsPage

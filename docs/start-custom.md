@@ -1,10 +1,10 @@
 # Put a harness of your own into visual review
 
-[Variance Authority](README.md) renders a UI state, compares it against its approved
-baseline, and records what changed and why. It is visual regression testing: you
-approve what a state looks like once, and every later run tells you whether it
-still looks like that — and when it does not, which pixels moved, in which
-region, and what in your markup occupies them.
+Whatever renders your states can go under approved baselines, provided a
+state's name is the only input to the bytes it produces. This page is that
+route for a harness nobody wrote an adapter for: one module you write, then a
+`new` verdict, an approval, and `unchanged` on the rerun — every step after
+that module identical to a built Storybook's.
 
 The shipped integrations read those states out of somewhere that already holds
 them: a Playwright test, a built Storybook, a served route, a jsdom unit test.

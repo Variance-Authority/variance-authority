@@ -1,28 +1,29 @@
 const STEPS = [
   {
-    label: "Inspect",
-    detail: "Compare what the test loads and runs with the elements it uses to set up, act, and assert.",
+    label: "Record",
+    detail: "While the suite runs, keep what it reached: the code each test entered, the interfaces it used, the state it rendered.",
   },
   {
-    label: "Try",
-    detail: "Pick one dependency worth replacing. Let the agent make one reversible substitution.",
+    label: "Retain",
+    detail: "Hold that evidence for a repository of hundreds of thousands of files, and keep it between runs.",
   },
   {
-    label: "Check",
-    detail: "Rerun the exact test. Compare its assertions, interactions, and component updates before keeping the edit.",
+    label: "Answer",
+    detail: "Put the next question to the record — you or your coding agent — instead of running everything again to find out.",
   },
 ] as const;
 
-/** An illustrative workflow, without presenting invented output as a run. */
+/** The problem underneath the project, without presenting invented output as a run. */
 export default function AgentFlow() {
   return (
     <div className="overflow-hidden rounded-2xl border border-hairline bg-panel shadow-2xl shadow-black/20">
       <div className="border-b border-hairline px-6 py-5">
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
-          one thing you can ask your agent
+          the one problem behind all of it
         </p>
         <p className="mt-3 text-xl font-semibold leading-7 tracking-tight text-ivory">
-          “Make this checkout test smaller without weakening what it checks.”
+          Every test run knows far more than it reports. When it ends, almost
+          all of it is gone.
         </p>
       </div>
       <ol className="divide-y divide-hairline">
@@ -37,10 +38,10 @@ export default function AgentFlow() {
         ))}
       </ol>
       <a
-        href="/docs/distill"
+        href="/docs/observability"
         className="block border-t border-hairline bg-deep/50 px-6 py-4 text-sm text-orange transition-colors hover:text-ivory"
       >
-        Follow the test reduction workflow →
+        See what a run keeps after it ends →
       </a>
     </div>
   );

@@ -1,9 +1,8 @@
 # Run relevant work
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
+Not every subject in your suite can be touched by the file you just edited.
+[Variance Authority](README.md) rules out the ones that cannot, before a browser
+opens.
 
 This page is for deciding how much of that work one source change has to pay
 for. It lays out the four readings a narrowed run draws on and points at the

@@ -1,14 +1,10 @@
 # Why a baseline is what it is
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This page is about the record written when you approve a change: where the
-explanation of a baseline is kept, what it carries, and how to read it back
-later. Read it if you own baseline updates and somebody will eventually ask why
-an image looks the way it does.
+A baseline PNG records what the interface should look like. It records nothing
+about the change you approved to get there, so the explanation is written down
+beside it and `npx variance changelog` reads it back later. Start here if you
+own baseline updates and somebody will eventually ask why an image looks the way
+it does.
 
 New here? Start with [your first run](start.md).
 

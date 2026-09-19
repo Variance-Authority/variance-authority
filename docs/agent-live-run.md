@@ -1,15 +1,10 @@
 # Inspect a suite while it is running
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page covers the window before any of that exists. While a suite is still
-going, a watcher process can tell you which tests have opened, what each test
-has announced, and which announced work has not ended. That evidence lives in
-the watcher and disappears with it: nothing is written to disk, and nothing is
-added to the run's own evidence.
+While your suite is running there is no file to open. The only account of which
+tests have started, what each has announced, and which announced work has not
+ended is in the memory of a watcher process that was listening at the time — so
+start one before the suite, read it from a shell or an MCP client while the run
+is in flight, and expect that account to end when the watcher does.
 
 New here? Start with [your first run](start.md).
 

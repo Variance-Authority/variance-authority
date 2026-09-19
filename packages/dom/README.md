@@ -4,9 +4,9 @@
 
 > Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations

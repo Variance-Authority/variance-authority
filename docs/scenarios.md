@@ -1,17 +1,12 @@
 # Runtime scenarios
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
+A snapshot test tells you that one UI state looks the way it did. It cannot tell
+you that clicking Delete does the same thing on a page with one article as on a
+page with two. A **runtime scenario** records that: a named starting state, a
+fixed sequence of authored steps, and what the UI looked like after each one.
+Read this page when you want to compare two such recordings.
 
-This page is about a comparison a single snapshot cannot make. A snapshot test
-tells you that one UI state looks the way it did; it cannot tell you that
-clicking Delete does the same thing on a page with one article as on a page with
-two. A runtime scenario records that: a named starting state, a fixed sequence
-of authored steps, and what the UI looked like after each one. Read it when you
-want to compare two such recordings. New here? Start with [your first
-run](start.md).
+New here? Start with [your first run](start.md).
 
 Arrange is a named, observed precondition. Act is a label you author for a
 transition your own harness performs. Assert is the variance assessment across

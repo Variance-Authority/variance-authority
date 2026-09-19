@@ -1,17 +1,11 @@
 # Inspect the workspace public API
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is for the engineer wiring up an agent that has to read a TypeScript
-workspace: the name, import path, signature, documentation, package consumers,
-or call sites of an exported symbol. A separate server answers those questions
-from the current checkout on every request; no build and no generated API site
-stands between the question and the source.
-
-New here? Start with [your first run](start.md).
+An agent that cannot see your workspace invents import paths and guesses
+signatures. This server hands it the real ones, read out of the checkout as it
+stands: what each package publishes, where a name is declared, what is written
+above it, and every file that already imports it — no build step and no generated
+API site in between. It answers from source, so no run and no
+`variance.config.json` need exist.
 
 ## Point the server at the workspace
 

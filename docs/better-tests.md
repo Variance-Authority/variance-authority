@@ -1,12 +1,10 @@
 # Make a suite faster, more stable, smarter and cheaper
 
-[Variance Authority](README.md) is a visual regression system you run yourself:
-it renders a UI state, compares it against the baseline you approved, and
-reports what changed in the vocabulary of your source. `toHaveScreenshot`,
-Percy, Chromatic and Argos answer a red build with a pixel count and two images,
-and the run ends there. Getting to that answer means watching a test suite work:
-which code executed, which elements the tests queried or clicked, what setup ran
-before they began. Teardown is normally where all of that disappears.
+While a test runs, the machinery under it knows which code executed, which
+elements the test queried or clicked, and what setup ran before it began.
+Teardown is normally where all of that disappears, and the run ends with a pass,
+a fail and a pixel count. [Variance Authority](README.md) keeps the record
+instead.
 
 This page is about spending that record on the rest of your suite. A suite that
 grows usually gives you longer waits, failures nobody trusts, and a larger CI

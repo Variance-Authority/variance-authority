@@ -1,12 +1,10 @@
 # React evidence reference
 
-[Variance Authority](README.md) is a visual regression system you run yourself:
-it renders a UI state, compares it against the baseline you approved, and
-reports what changed in the vocabulary of your source.
-`@variance-authority/react` is the part that reads React's own record of a page,
-so a comparison can report differences the rendered document does not contain —
-a dropped `memo`, a list keyed by array position, a component rebuilt where it
-should have been updated.
+`@variance-authority/react` reads React's own record of a page — the fibers
+`react-dom` leaves behind on the DOM nodes it created — so a comparison can
+report differences the rendered document does not contain: a dropped `memo`, a
+list keyed by array position, a component rebuilt where it should have been
+updated.
 
 This page is the contract: return shapes, collector defaults, and what React's
 internals do and do not expose. For the task-oriented path through the same

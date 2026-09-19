@@ -1,13 +1,12 @@
 # Ask more of the run you already have
 
-**[Variance Authority](README.md)** renders a UI state, compares it against its
-approved baseline, and records what changed and why. A red build from
-`toHaveScreenshot`, Chromatic, Percy or Argos hands back a count of differing
-pixels and two images; every question after that — which component drew the
-region, whether the same state reads the same way twice, whether your edit could
-reach it at all — is answered by somebody opening the diff. This page is about
-those later questions, and about answering them from readings the run already
-took rather than from a second tool asked to take them again.
+A red build from `toHaveScreenshot`, Chromatic, Percy or Argos hands back a
+count of differing pixels and two images; every question after that — which
+component drew the region, whether the same state reads the same way twice,
+whether your edit could reach it at all — is answered by somebody opening the
+diff. This page is about those later questions, and about answering them from
+readings the run already took rather than from a second tool asked to take them
+again.
 
 **Evidence** is what one of those readings retained: a
 [source index](source-index.md), a record of which tests entered which code, a

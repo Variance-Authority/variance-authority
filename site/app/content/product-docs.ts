@@ -66,6 +66,8 @@ import startUnit from "../../../docs/start-unit.md?raw";
 import startVitestBrowser from "../../../docs/start-vitest-browser.md?raw";
 import startRstest from "../../../docs/start-rstest.md?raw";
 import surface from "../../../docs/surface.md?raw";
+import changed from "../../../docs/changed.md?raw";
+import tests from "../../../docs/tests.md?raw";
 import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
@@ -79,6 +81,8 @@ export interface ProductDocument {
 
 const documents = [
   ["overview", index, "docs/README.md"],
+  ["tests", tests, "docs/tests.md"],
+  ["changed", changed, "docs/changed.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],
   ["evidence-field", evidenceField, "docs/evidence-field.md"],
   ["great-data", greatData, "docs/great-data.md"],
