@@ -124,7 +124,7 @@ under another, and none requires the rest; take the one you are holding.
 | --- | --- |
 | How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) measures the rendered boxes — spacing, alignment, prominence, repetition — and hands back numbers you assert on. It has no baseline and gives no design score. |
 | At which step of a test did two runs stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records the Arrange–Act–Assert steps a run actually took as a state machine, then compares two of them. |
-| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source says can be reached with what a recorded run actually executed, and selects tests from it. |
+| Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source says can be reached with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
 | What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads every entrypoint a manifest opens and what it exports; [`@variance-authority/help`](packages/help) answers questions about those names and their call sites over MCP. |
 | What did a running system decide, and where did one execution go? | [`@variance-authority/event`](packages/event) lets code announce a decision so a test waits for it instead of guessing; [`@variance-authority/wire`](packages/wire) keeps one execution identity attached across processes; [`@variance-authority/vantage`](packages/vantage) makes a suite in flight something you can query rather than wait for. |
 | How often has a cause recurred, drifted, or proved unstable? | [`@variance-authority/history`](packages/history) defines those answers over retained observations; [`@variance-authority/server`](packages/server) is the self-hosted HTTP service that retains them. |
@@ -132,6 +132,31 @@ under another, and none requires the rest; take the one you are holding.
 
 Each row has its own requirements — a browser, a live DOM, a filesystem, a
 socket, a readable checkout — and none of them is imposed on the others.
+
+## It reads more than JavaScript
+
+The scan that answers *what can this change reach* is not limited to the
+language the tool is written in. JavaScript and TypeScript in every dialect,
+stylesheets, Python, Rust, Java, Kotlin and Swift are read into one graph, and a
+diff that spans several of them is answered in one walk.
+
+```bash
+npx variance reach --since origin/main
+```
+
+That prints the files the change reaches, one per line, so you can hand them to
+whatever runs them:
+
+```bash
+npx variance reach --since origin/main | grep '_test\.py$' | xargs pytest
+```
+
+There is no framework integration behind this and none is implied: the answer is
+a list of paths on stdout, and what you do with it is yours. Because a run list
+that comes back empty would look like a green build, `reach` never exits `0` with
+nothing to say — an empty answer is an error, not a pass.
+[What a change reaches, in any language](docs/polyglot.md) states what the graph
+does and does not claim.
 
 ## How the packages are cut
 
