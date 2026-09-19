@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
+import { taintTable } from '@variance-authority/sense/taint';
 import { readWorkspace } from './read.js';
+import { search } from './tools/search.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
 
@@ -95,5 +98,39 @@ describe('reading a workspace through the source index', () => {
     // A second reading against a file nothing wrote is a cold reading, and cold
     // is the same answer.
     expect(sites(await readWorkspace(WORKSPACE, { index: untouched, save: false }))).toEqual(sites(walked));
+  });
+
+  it('joins declarative module loads onto the graph without inventing symbol uses', async () => {
+    let records: readonly FileRecord[] = [];
+    const taint = taintTable('loaders', {
+      'packages/beta/src/again.ts': { '+': ['./inner/deeper'] },
+    });
+    const help = await readWorkspace(WORKSPACE, {
+      index,
+      taints: [taint],
+      records: (drawn) => {
+        records = drawn;
+      },
+    });
+
+    const answer = search.run(
+      help,
+      { query: 'behind', from: 'packages/beta/src/again.ts' },
+      { tree: treeOf(records, WORKSPACE) },
+    );
+    expect(answer).toContain('reachable from `packages/beta/src/again.ts`');
+    // The taint reaches the loaded module, whose ordinary `behind` import
+    // contributes one usage. It does not pretend the loader bound it itself.
+    expect(answer).toContain('1 file, 1 import in this area');
+    expect(answer).toContain('files by distance: 1: 1');
+  });
+
+  it('refuses to flatten a file-relative shadow into the workspace tree', async () => {
+    const taint = taintTable('mocks', {
+      'packages/beta/src/again.ts': { '-': ['../../alpha/src/index'] },
+    });
+    await expect(readWorkspace(WORKSPACE, { index, taints: [taint] })).rejects.toThrow(
+      /cannot apply subtractive taints/,
+    );
   });
 });

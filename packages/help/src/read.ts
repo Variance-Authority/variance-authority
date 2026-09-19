@@ -44,6 +44,7 @@ import {
   type Parsed,
 } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
+import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   ownership,
@@ -66,6 +67,16 @@ export interface IndexedUsageOptions {
   readonly index?: string;
   /** Whether to publish what this scan learned. On, because the next question is the point. */
   readonly save?: boolean;
+  /**
+   * Additional declarative module loads to join onto the graph used by path
+   * questions.
+   *
+   * These do not manufacture symbol bindings: usage counts remain facts from
+   * ordinary imports inside the files the additional edge makes reachable.
+   * Subtractive taints are refused because a mock is relative to one file's
+   * run and cannot be flattened into the workspace-wide source tree.
+   */
+  readonly taints?: readonly Taint[];
   /**
    * Handed the arrows the scan drew, for a caller that needs the graph as well
    * as the names.
@@ -178,7 +189,14 @@ async function scanIndexed(
     },
   });
 
-  options.records?.(records);
+  const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
+  if (tainted.shadows.size > 0) {
+    throw new Error(
+      `Help source areas cannot apply subtractive taints: ${tainted.shadows.size} file(s) shadow a module. ` +
+      'Pass addition-only taints for declarative module loads.',
+    );
+  }
+  options.records?.(tainted.records);
 
   const usage = usageFrom(opened, files);
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
@@ -187,7 +205,7 @@ async function scanIndexed(
       ? usage
       : { ...usage, unreadable: [...usage.unreadable, ...recordUnknown] },
     sources,
-    records,
+    records: tainted.records,
     cache: index.cache,
     save: () => index.save(),
   };
