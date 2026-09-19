@@ -80,7 +80,7 @@ describe('no paragraph stands in for a page', () => {
   }
 
   const pasted = [...homes]
-    .filter(([sentence, files]) => files.size > PASTE_LIMIT)
+    .filter(([, files]) => files.size > PASTE_LIMIT)
     .filter(([sentence]) => !SHARED_BY_DESIGN.some((allowed) => allowed.test(sentence)));
 
   it(`no sentence appears on more than ${PASTE_LIMIT} pages`, () => {

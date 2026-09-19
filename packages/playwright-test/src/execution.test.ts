@@ -1,8 +1,11 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { Page, TestInfo } from '@playwright/test';
 import {
+  closeStage,
+  foldStage,
+  openStage,
   testSelectionProbes,
   type ExecutionJournal,
 } from '@variance-authority/sense/journal';
@@ -10,6 +13,7 @@ import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import {
   createExecutionRecorder,
+  testOf,
   varianceCompletedFixtures,
   type ExecutionRecorder,
 } from './execution.js';
@@ -172,5 +176,98 @@ describe('a Playwright worker records what its specs executed', () => {
 
       await expect(readTestCoverage(coverageFile)).rejects.toThrow();
     });
+  });
+});
+
+describe('a worker that is one of several', () => {
+  it('stages its contribution instead of merging the index itself', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const directory = resolve(root, '.stage');
+      openStage(directory);
+      try {
+        const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+        await recorder.note(
+          pageReporting({
+            instrumentation: INSTRUMENTATION,
+            modules: [{ id, hits: [0], shared: [] }],
+          }),
+          'tests/checkout.spec.ts',
+        );
+        await recorder.close();
+
+        // Nothing merged: the run's own record is written once, by whoever saw
+        // all of it, because the merge retires a file's previous crossings and
+        // a worker only ever has part of the file.
+        await expect(readTestCoverage(coverageFile)).rejects.toThrow();
+        const staged = await foldStage(directory);
+        expect(staged.subjects.map((subject) => subject.owner)).toEqual([
+          'tests/checkout.spec.ts',
+        ]);
+      } finally {
+        await closeStage(directory);
+      }
+    });
+  });
+
+  it('records which test entered the region, for a run that asked', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile, cases: true });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+        owner,
+        { name: 'pays with a saved card', id: 'one' },
+      );
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [1], shared: [] }] }),
+        owner,
+        { name: 'pays with a new card', id: 'two' },
+      );
+      await recorder.close();
+
+      const index = JSON.parse(
+        await readFile(`${coverageFile}.cases.json`, 'utf8'),
+      ) as { readonly tests: readonly { readonly name: string; readonly file: string }[] };
+      expect(index.tests.map((test) => test.name).sort()).toEqual([
+        'pays with a new card',
+        'pays with a saved card',
+      ]);
+      expect([...new Set(index.tests.map((test) => test.file))]).toEqual([owner]);
+    });
+  });
+
+  it('writes no index at all for a run that did not ask', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
+        'tests/checkout.spec.ts',
+        { name: 'pays with a saved card', id: 'one' },
+      );
+      await recorder.close();
+
+      // The coordinate was there for the taking and the run did not ask for it.
+      // Being able to name a case is not being obliged to write a row for one.
+      await expect(readFile(`${coverageFile}.cases.json`, 'utf8')).rejects.toThrow();
+    });
+  });
+
+  it('names a test by where it is declared, not by the runner position for it', () => {
+    expect(
+      testOf({
+        titlePath: ['chromium', 'tests/checkout.spec.ts', 'checkout', 'pays with a saved card'],
+        project: { name: 'chromium' },
+        file: resolve(process.cwd(), 'tests/checkout.spec.ts'),
+        testId: 'abc123',
+      } as unknown as TestInfo),
+    ).toEqual({ name: 'checkout > pays with a saved card', id: 'abc123' });
   });
 });

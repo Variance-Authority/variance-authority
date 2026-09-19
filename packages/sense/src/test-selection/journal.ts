@@ -42,18 +42,24 @@
  */
 
 import { readFile, rename, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
+import { executionIndexFrom } from './cases.js';
+import {
+  caseJournals,
+  joinObservations,
+  type ObservedCase,
+  type ObservedSubject,
+} from './observed.js';
 import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
   coverageModule,
-  idOrder,
   isMissing,
   moduleNamesFile,
   projectPath,
@@ -88,6 +94,20 @@ export {
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
 
+// What a driver observed, and how a run recorded by several processes is
+// joined: both are the journal seam's surface, and neither is this file's
+// subject, which is the one call that turns a journal into the index.
+export { joinObservations, type ObservedCase, type ObservedSubject } from './observed.js';
+export {
+  STAGE_VARIABLE,
+  closeStage,
+  foldStage,
+  openStage,
+  stageExecution,
+  stagingDirectory,
+  type StagedExecution,
+} from './stage.js';
+
 
 /** The one thing a driver has to be able to do, so nothing here imports a driver. */
 export interface EvaluatingPage {
@@ -115,32 +135,6 @@ export async function drainExecution(page: EvaluatingPage): Promise<ExecutionJou
   }, EXECUTION_GLOBAL);
 }
 
-/** One subject's window in the page, as the driver observed it. */
-export interface ObservedSubject {
-  /**
-   * Who the crossings belong to: a subject id for a story, a test file for a
-   * Playwright page.
-   *
-   * Spec 0028 divides these on purpose. Storybook is an execution surface this
-   * tool owns, so a story may be selected individually; a Playwright page
-   * crossing joins the test file the runner would have to execute anyway.
-   */
-  readonly owner: string;
-  readonly journal: ExecutionJournal;
-  /**
-   * Inputs whose identity this observation depended on: the story file, the
-   * spec file, a fixture. A changed precondition retires the observation rather
-   * than aging it, and a changed file that no module answers for selects every
-   * observation it governs.
-   */
-  readonly preconditions?: readonly CoveragePrecondition[];
-  /**
-   * False when the subject did not finish — a story that never rendered, a test
-   * that failed. An incomplete observation contributes crossings and may never
-   * justify an exclusion.
-   */
-  readonly complete?: boolean;
-}
 
 export interface RecordExecutionOptions {
   /** Repository root the paths in the inventory are relative to. */
@@ -175,6 +169,22 @@ export interface RecordExecutionOptions {
    * answer in every case except a caller that already knows better.
    */
   readonly commit?: string;
+  /**
+   * The individual cases the run could tell apart, for the execution index.
+   *
+   * Empty is the default and stays the default. The index answers *which cases
+   * entered this line*, which is worth writing for a suite of a few hundred
+   * subjects a person reads about and not for a hundred thousand unit tests
+   * nobody will ever ask that of. A driver that can distinguish cases is not
+   * thereby obliged to record them, and every seam that can leaves the choice
+   * with whoever pays for the file.
+   */
+  readonly cases?: readonly ObservedCase[];
+  /**
+   * Where the execution index goes. Defaults beside the snapshot, as the Vitest
+   * seam's does: `<coverage file>.cases.json`.
+   */
+  readonly executionFile?: string;
 }
 
 /** What a run learned, or why it learned nothing. */
@@ -184,6 +194,10 @@ export interface ExecutionRecord {
   readonly because?: string;
   readonly coverageFile: string;
   readonly subjects: number;
+  /** Where the execution index went, for a run that was asked for one. */
+  readonly executionFile?: string;
+  /** How many cases that index names. */
+  readonly cases?: number;
 }
 
 /**
@@ -383,76 +397,26 @@ export async function recordExecution(
     };
   }
 
-  return { recorded: true, coverageFile, subjects: subjects.length };
-}
-
-/**
- * One row per owner, whatever realm saw it.
- *
- * A run records once. Two calls describing the same subject are two runs as far
- * as the merge is concerned, and the second retires the first — so a page's
- * crossings and every head's are one observation before anything is written.
- */
-export function joinObservations(
-  sources: readonly (readonly ObservedSubject[])[],
-): readonly ObservedSubject[] {
-  interface Held {
-    readonly modules: Map<ModuleId, Set<number>>;
-    readonly shared: Map<ModuleId, Set<number>>;
-    readonly preconditions: Map<string, CoveragePrecondition>;
-    complete: boolean;
-    instrumentation: string;
+  // Beside the snapshot, never inside it, and only for a driver that asked. A
+  // run that records cases writes the same bytes into the snapshot as one that
+  // does not; what it adds is a second file, and a reader that never opens it
+  // is unaffected by its size.
+  if (options.cases === undefined || options.cases.length === 0) {
+    return { recorded: true, coverageFile, subjects: subjects.length };
   }
-  const byOwner = new Map<string, Held>();
-  const union = (into: Map<ModuleId, Set<number>>, id: ModuleId, ordinals: readonly number[]): void => {
-    into.set(id, new Set([...(into.get(id) ?? []), ...ordinals]));
+  const executionFile =
+    options.executionFile === undefined
+      ? `${coverageFile}.cases.json`
+      : resolve(root, options.executionFile);
+  const journals = caseJournals(options.cases);
+  await writeFile(executionFile, JSON.stringify(executionIndexFrom(journals, byId)));
+  return {
+    recorded: true,
+    coverageFile,
+    subjects: subjects.length,
+    executionFile,
+    cases: options.cases.length,
   };
-
-  for (const subjects of sources) {
-    for (const subject of subjects) {
-      const held = byOwner.get(subject.owner) ?? {
-        modules: new Map<ModuleId, Set<number>>(),
-        shared: new Map<ModuleId, Set<number>>(),
-        preconditions: new Map<string, CoveragePrecondition>(),
-        complete: true,
-        instrumentation: INSTRUMENTATION_ID,
-      };
-      for (const module of subject.journal.modules) {
-        union(held.modules, module.id, module.hits);
-        union(held.shared, module.id, module.shared);
-      }
-      for (const precondition of subject.preconditions ?? []) {
-        held.preconditions.set(precondition.name, precondition);
-      }
-      if (subject.complete === false) held.complete = false;
-      // A recipe that does not match this driver's has to survive the fold, or
-      // the refusal it exists to trigger is folded away with it.
-      if (subject.journal.instrumentation !== INSTRUMENTATION_ID) {
-        held.instrumentation = subject.journal.instrumentation;
-      }
-      byOwner.set(subject.owner, held);
-    }
-  }
-
-  return [...byOwner]
-    .sort(([left], [right]) => codeUnitOrder(left, right))
-    .map(([owner, held]) => ({
-      owner,
-      complete: held.complete,
-      journal: {
-        instrumentation: held.instrumentation,
-        modules: [...held.modules]
-          .map(([id, ordinals]) => ({
-            id,
-            hits: [...ordinals].sort((a, b) => a - b),
-            shared: [...(held.shared.get(id) ?? [])].sort((a, b) => a - b),
-          }))
-          .sort((left, right) => idOrder(left.id, right.id)),
-      },
-      ...(held.preconditions.size === 0
-        ? {}
-        : { preconditions: [...held.preconditions.values()] }),
-    }));
 }
 
 /**
@@ -476,4 +440,5 @@ export async function preconditionOf(
     throw error;
   }
 }
+
 

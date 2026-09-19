@@ -1426,6 +1426,10 @@
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
         },
+        "./reporter": {
+          "types": "./dist/reporter.d.ts",
+          "default": "./dist/reporter.js"
+        },
         "./rstest": {
           "types": "./dist/rstest.d.ts",
           "default": "./dist/rstest.js"
@@ -1458,6 +1462,7 @@
         "InstalledAgent": "interface",
         "MaterializationOptions": "type",
         "Observed": "interface",
+        "ObservedTest": "interface",
         "UnchangedOptions": "interface",
         "VarianceDesk": "interface",
         "VarianceEventFixtures": "interface",
@@ -1482,12 +1487,17 @@
         "ownerOf": "function",
         "runOf": "function",
         "runnerReprieve": "function",
+        "testOf": "function",
         "toBeUnchanged": "function",
         "varianceDesk": "function",
         "varianceFixtures": "const",
         "varianceMatchers": "const",
         "varianceVantageFixtures": "const",
         "varianceWireFixtures": "const"
+      },
+      "./reporter": {
+        "ExecutionReporterOptions": "interface",
+        "default": "class"
       },
       "./rstest": {
         "RstestContext": "interface",
@@ -2439,15 +2449,23 @@
         "ExecutionRecord": "interface",
         "InstrumentingPlugin": "interface",
         "ModuleId": "type",
+        "ObservedCase": "interface",
         "ObservedSubject": "interface",
         "RecordExecutionOptions": "interface",
+        "STAGE_VARIABLE": "const",
+        "StagedExecution": "interface",
         "TestSelectionProbeOptions": "interface",
         "TransformingContext": "interface",
+        "closeStage": "function",
         "drainExecution": "function",
         "executionCollectorSource": "function",
+        "foldStage": "function",
         "joinObservations": "function",
+        "openStage": "function",
         "preconditionOf": "function",
         "recordExecution": "function",
+        "stageExecution": "function",
+        "stagingDirectory": "function",
         "testSelectionProbes": "function"
       },
       "./journey": {

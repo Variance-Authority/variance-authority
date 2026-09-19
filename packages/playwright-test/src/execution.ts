@@ -28,7 +28,11 @@ import {
   joinObservations,
   preconditionOf,
   recordExecution,
+  stageExecution,
+  stagingDirectory,
+  type ExecutedModule,
   type ModuleId,
+  type ObservedCase,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import {
@@ -71,12 +75,34 @@ export interface ExecutionRecording {
    * decision about which services ever see it.
    */
   readonly origin?: string;
+  /**
+   * Also record which individual test entered which region, not only which
+   * spec file.
+   *
+   * Off by default and worth leaving off for most suites. Selection does not
+   * use it — the runner's unit of execution is the spec file, so a distinction
+   * finer than that is one no `--since` could spend. What it is for is the
+   * question asked *of* a line rather than of a commit: which tests walk this
+   * branch, which `variance covering` and `@variance-authority/distill`
+   * answer. It is a row per test per region, so a suite that writes one to
+   * answer a question nobody asks has bought a large file and nothing else.
+   *
+   * Turning it on needs the reporter, like everything else this seam writes:
+   * the index is folded once, by the process that saw the whole run.
+   */
+  readonly cases?: boolean;
 }
 
 /** One worker's accumulation, drained per observation and written once. */
 export interface ExecutionRecorder {
-  /** Take everything the page has entered since the last drain. */
-  readonly note: (page: Page, owner: string) => Promise<void>;
+  /**
+   * Take everything the page has entered since the last drain.
+   *
+   * `subject` names the individual test the window belongs to, for a run
+   * recording cases. Without it the crossings join the file and nothing finer,
+   * which is what selection reads either way.
+   */
+  readonly note: (page: Page, owner: string, subject?: ObservedTest) => Promise<void>;
   /**
    * Mint this execution's journey and put it on the page's context.
    *
@@ -95,6 +121,28 @@ export interface ExecutionRecorder {
   readonly mark: (owner: string, complete: boolean) => void;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
+}
+
+/** Which test a window belongs to, where the run is recording that. */
+export interface ObservedTest {
+  /** The declaration path inside the spec file, as a person reads it. */
+  readonly name: string;
+  /** Stable across retries, so a flake and its retry are one case read twice. */
+  readonly id: string;
+}
+
+/**
+ * Where a test is declared, as the execution index names it.
+ *
+ * Playwright's own `titlePath` opens with the project and the file, which the
+ * index already holds as the owner; what is left is the path a person reads in
+ * the report, and the one a `describe` in a diff moves.
+ */
+export function testOf(testInfo: TestInfo): ObservedTest {
+  const path = [...testInfo.titlePath];
+  if (path[0] === testInfo.project.name) path.shift();
+  if (path[0] !== undefined && testInfo.file.endsWith(path[0])) path.shift();
+  return { name: path.join(' > '), id: testInfo.testId };
 }
 
 interface Accumulated {
@@ -177,11 +225,17 @@ export function createExecutionRecorder(
 ): ExecutionRecorder {
   const root = resolve(recording.root ?? process.cwd());
   const owners = new Map<string, Accumulated>();
+  // Kept beside the owners rather than derived from them: a case is a window
+  // inside a file's window, and both are wanted whole. The key carries all
+  // three coordinates because a test retried in the same worker drains twice
+  // and is one case.
+  const cases = new Map<string, { readonly of: ObservedCase; readonly hits: Accumulated }>();
   const heads = recording.heads ?? [];
   const minted = new Map<string, string>();
   const failed = new Set<string>();
   const reports: JourneyReport[] = [];
   let seen = false;
+  let announced = false;
   let instrumentation: string | undefined;
   let owned: Wire | undefined;
   let taking: Wire | undefined;
@@ -203,21 +257,24 @@ export function createExecutionRecorder(
   };
 
   return {
-    note: async (page, owner) => {
+    note: async (page, owner, subject) => {
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
       instrumentation = journal.instrumentation;
       const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
-      for (const module of journal.modules) {
-        const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
-        for (const ordinal of module.hits) ordinals.add(ordinal);
-        accumulated.hits.set(module.id, ordinals);
-        const shared = accumulated.shared.get(module.id) ?? new Set<number>();
-        for (const ordinal of module.shared) shared.add(ordinal);
-        accumulated.shared.set(module.id, shared);
-      }
+      absorb(accumulated, journal);
       owners.set(owner, accumulated);
+      if (recording.cases !== true || subject === undefined) return;
+      const key = `${owner}\u0000${subject.id}`;
+      const held =
+        cases.get(key) ??
+        ({
+          of: { file: owner, name: subject.name, id: subject.id, journal },
+          hits: { hits: new Map(), shared: new Map(), complete: true },
+        } as const);
+      absorb(held.hits, journal);
+      cases.set(key, held);
     },
 
     join: async (page, owner, origin) => {
@@ -273,6 +330,35 @@ export function createExecutionRecorder(
     },
   };
 
+  /** Fold one drained window into an accumulation, keeping evaluation apart. */
+  function absorb(accumulated: Accumulated, journal: { modules: readonly ExecutedModule[] }): void {
+    for (const module of journal.modules) {
+      const ordinals = accumulated.hits.get(module.id) ?? new Set<number>();
+      for (const ordinal of module.hits) ordinals.add(ordinal);
+      accumulated.hits.set(module.id, ordinals);
+      const shared = accumulated.shared.get(module.id) ?? new Set<number>();
+      for (const ordinal of module.shared) shared.add(ordinal);
+      accumulated.shared.set(module.id, shared);
+    }
+  }
+
+  /** An accumulation as a journal again, which is what both records are made of. */
+  function journalOf(accumulated: Accumulated) {
+    return {
+      instrumentation: instrumentation!,
+      modules: [...accumulated.hits].map(([id, ordinals]) => ({
+        id,
+        hits: [...ordinals],
+        shared: [...(accumulated.shared.get(id) ?? [])],
+      })),
+    };
+  }
+
+  /** Every case this worker could name, as the index reads them. */
+  function observedCases(): readonly ObservedCase[] {
+    return [...cases.values()].map((held) => ({ ...held.of, journal: journalOf(held.hits) }));
+  }
+
   async function contribute(): Promise<void> {
     if (!seen && heads.length === 0) {
       process.stderr.write(
@@ -313,14 +399,7 @@ export function createExecutionRecorder(
       subjects.push({
         owner,
         complete: accumulated.complete && stitched.complete,
-        journal: {
-          instrumentation: instrumentation!,
-          modules: [...accumulated.hits].map(([id, ordinals]) => ({
-            id,
-            hits: [...ordinals],
-            shared: [...(accumulated.shared.get(id) ?? [])],
-          })),
-        },
+        journal: journalOf(accumulated),
         ...(preconditions.has(owner) ? { preconditions: preconditions.get(owner)! } : {}),
       });
     }
@@ -332,6 +411,39 @@ export function createExecutionRecorder(
     // the run drove.
     const joined = joinObservations([subjects, ...stitched.heads.values()]);
     if (joined.length === 0) return;
+
+    // A worker is one process of several and the index is one file, so a worker
+    // that merged for itself would be writing a whole-run answer from a
+    // fragment. The merge retires the previous crossings of every file whose
+    // incoming row says it finished; two workers that each ran part of one spec
+    // — `fullyParallel`, a second project, a shard, a retry that landed
+    // elsewhere — would each write a finished-looking row and the later one
+    // would drop the earlier one's regions. The spec is then recorded as fully
+    // observed with half of what it walked, and the next `--since` skips it
+    // over a line the other worker was in. So a run with the reporter installed
+    // stages here and is folded once, by the process that saw all of it.
+    const staging = stagingDirectory();
+    if (staging !== undefined) {
+      await stageExecution(staging, {
+        subjects: joined,
+        ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
+        ...(cases.size === 0 ? {} : { cases: observedCases() }),
+      });
+      return;
+    }
+    // Said once, and only from inside a worker, which is the case the reporter
+    // exists for: a process running by itself sees the whole run and merging
+    // for itself is exactly right. Playwright names its workers in the
+    // environment, so the difference is readable without asking the runner.
+    if (!announced && process.env.TEST_WORKER_INDEX !== undefined) {
+      announced = true;
+      process.stderr.write(
+        'variance-authority: execution recording is on without the reporter that folds it — ' +
+          'add `@variance-authority/playwright-test/reporter` to `reporter` in this ' +
+          "project's configuration. Without it each worker merges the index on its own, " +
+          'and a spec two of them shared keeps only the later half of what it walked\n',
+      );
+    }
     const record = await recordExecution({
       root,
       subjects: joined,
@@ -339,6 +451,7 @@ export function createExecutionRecorder(
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
       ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
+      ...(cases.size === 0 ? {} : { cases: observedCases() }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

@@ -11,7 +11,6 @@ import { normalize } from '@variance-authority/core/rules';
 import type { CaptureArtifact } from '@variance-authority/core';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type {
-  AccessibilitySnapshot,
   SemanticSnapshot,
   SubjectRef,
   Viewport,
@@ -32,9 +31,11 @@ import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
 import { withEvidence, type Observed } from './evidence.js';
+import { engineOf, promote } from './promote.js';
 import {
   createExecutionRecorder,
   ownerOf,
+  testOf,
   varianceCompletedFixtures,
   type ExecutionRecorder,
   type ExecutionRecording,
@@ -292,7 +293,7 @@ export const varianceFixtures: Fixtures<
         // Drained on the way out of a refusal too. A subject that threw still
         // executed code, and counters left in the page would be handed to
         // whichever spec drained next — an attribution that is simply false.
-        if (owner !== undefined) await varianceRecorder!.note(page, owner);
+        if (owner !== undefined) await varianceRecorder!.note(page, owner, testOf(testInfo));
       }
     };
 
@@ -304,6 +305,23 @@ export const varianceFixtures: Fixtures<
         }),
       ),
     );
+    // One last window, here rather than at an observation, because the test
+    // goes on executing after the last thing it compared: a final assertion, a
+    // teardown of its own, a navigation away. Those crossings are as real as
+    // the ones before them, and the verdict this file's record carries says
+    // the file was walked whole — so leaving them out is the under-recording
+    // that makes a later `--since` skip a line that ran. The page is still
+    // open: this fixture asked for it, so it is torn down first.
+    if (owner !== undefined) {
+      try {
+        await varianceRecorder!.note(page, owner, testOf(testInfo));
+      } catch {
+        // A page closed inside the test — `page.close()`, a crash, a context
+        // the test tore down itself — has nothing left to drain and no way to
+        // say so other than throwing. The window is lost either way; ending
+        // the test over it would lose the run as well.
+      }
+    }
     await declared.close();
   },
 };
@@ -447,53 +465,4 @@ export async function observeLocator(
   return await withEvidence(runtime, key, observation, () =>
     store.renderCache.get(documentDigest(document), identity),
   );
-}
-
-function engineOf(page: Page): string {
-  const browser = page.context().browser();
-  const name = browser?.browserType().name() ?? 'browser';
-  return `${name}@${browser?.version() ?? 'unknown'}`;
-}
-
-/**
- * Promote the candidate this run already painted.
- *
- * The image is taken from the render cache rather than rendered again, which is
- * not only a saving: re-rendering here would produce a *second* image and store
- * that one, so the bytes a reviewer approved and the bytes that became the
- * baseline would be two different renders that nobody compared. A cache miss is
- * therefore refused rather than papered over — the cache never throws and is
- * allowed to be cold, and "cold" is exactly the case where there is no candidate
- * to promote.
- */
-async function promote(
-  store: RasterStore,
-  renderer: Renderer,
-  document: Parameters<typeof documentDigest>[0],
-  key: BaselineKey,
-  /** This run's snapshot of the same render. See below. */
-  snapshot: SemanticSnapshot,
-  accessibility: AccessibilitySnapshot,
-): Promise<void> {
-  const identity = renderer.identityFor(document);
-  const candidate = await store.renderCache.get(documentDigest(document), identity);
-
-  if (candidate === null) {
-    throw new Error(
-      `cannot accept \`${key.subject}\`: this run produced no candidate for it. ` +
-        'Acceptance promotes an image the run already painted and never paints one',
-    );
-  }
-
-  // The image comes from the cache and the hashes do not. A render cache is keyed
-  // by document digest and holds images; component hashes describe a snapshot,
-  // which carries provenance a document does not (ADR-0027). Promoting the cached
-  // raster as-is would record a baseline with no hashes at all, so every later run
-  // against it would rank regions by area — the ordering journal 0013 measured as
-  // backwards — on the one surface where both documents were in hand.
-  await store.put(key, {
-    ...candidate,
-    components: hashComponents(snapshot),
-    accessibility,
-  });
 }

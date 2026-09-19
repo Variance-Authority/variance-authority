@@ -19,6 +19,7 @@ import {
   preconditionOf,
   recordExecution,
   type EvaluatingPage,
+  type ObservedCase,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import { parseStoryIndex } from '@variance-authority/storybook';
@@ -34,6 +35,23 @@ export interface StoryExecutionOptions {
   readonly cacheRoot?: string;
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;
+  /**
+   * Also write the execution index: which individual story entered which region.
+   *
+   * Off by default, and the default is the point. The index is what answers
+   * *which stories walk this branch* — the question `variance covering` and
+   * `@variance-authority/distill` are asked, and the one a component library
+   * with a few hundred stories is worth asking. It is a row per story per
+   * region either way, so a preview that indexes ten thousand stories to answer
+   * a question nobody asks has bought a large file and nothing else.
+   *
+   * A story is the case this costs nothing to name: the driver shows one at a
+   * time, so the per-case grain a unit runner needs an async scope and a custom
+   * runner for is already here.
+   */
+  readonly cases?: boolean;
+  /** Where that index goes. Defaults beside the snapshot, as the Vitest seam's does. */
+  readonly executionFile?: string;
 }
 
 /** One run's accumulation: a window per story, written once at the end. */
@@ -57,6 +75,7 @@ export async function createStoryRecorder(
   const root = resolve(options.root ?? process.cwd());
   const storyFiles = await storyFilesFrom(index);
   const observed: ObservedSubject[] = [];
+  const cases: ObservedCase[] = [];
   let seen = false;
 
   return {
@@ -65,14 +84,23 @@ export async function createStoryRecorder(
       if (journal === undefined) return;
       seen = true;
       const storyId = subjectId.replace(/^story:/, '');
-      const file = storyFiles.get(storyId);
-      const precondition = file === undefined ? undefined : await preconditionOf(root, file);
+      const story = storyFiles.get(storyId);
+      const precondition =
+        story === undefined ? undefined : await preconditionOf(root, story.file);
       observed.push({
         owner: subjectId,
         journal,
         complete,
         ...(precondition === undefined ? {} : { preconditions: [precondition] }),
       });
+      // The index names a story by where it is declared, which is the same
+      // coordinate a person reads in the sidebar and the same one a diff
+      // touches. A story the driving index does not know — a subject named on
+      // the command line, a preview rebuilt since — has no file to be a case
+      // in, and contributes to the file-level record only.
+      if (options.cases === true && story !== undefined) {
+        cases.push({ file: story.file, name: `${story.title}/${story.name}`, id: storyId, journal });
+      }
     },
 
     close: async () => {
@@ -105,6 +133,10 @@ export async function createStoryRecorder(
           ...(options.label === undefined ? {} : { label: options.label }),
           ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
           ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
+          ...(cases.length === 0 ? {} : { cases }),
+          ...(options.executionFile === undefined
+            ? {}
+            : { executionFile: options.executionFile }),
         });
       } catch (error) {
         process.stderr.write(
@@ -124,13 +156,27 @@ export async function createStoryRecorder(
 }
 
 /**
- * Story id to the file that declares it, from the index the run is driving.
+ * Story id to where it is declared, from the index the run is driving.
  *
  * The one route from a subject back to a file, and the reason a story's own
  * `.stories` file can select it: nothing *enters* a story file the way execution
- * enters a module, so without this a commit that edits one selects nothing.
+ * enters a module, so without this a commit that edits one selects nothing. The
+ * title and the name come along because the execution index names a case by its
+ * declaration rather than by the id Storybook slugged from it.
  */
-async function storyFilesFrom(index: string): Promise<Map<string, string>> {
+async function storyFilesFrom(index: string): Promise<Map<string, StoryCoordinate>> {
   const parsed = parseStoryIndex(JSON.parse(await readFile(index, 'utf8')), index);
-  return new Map(parsed.stories.map((story) => [story.id, story.importPath]));
+  return new Map(
+    parsed.stories.map((story) => [
+      story.id,
+      { file: story.importPath, title: story.title, name: story.name },
+    ]),
+  );
+}
+
+/** Where a story is declared and what it is called there. */
+interface StoryCoordinate {
+  readonly file: string;
+  readonly title: string;
+  readonly name: string;
 }

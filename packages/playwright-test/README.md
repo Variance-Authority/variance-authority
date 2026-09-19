@@ -464,6 +464,51 @@ lock on the index, so parallel workers do not overwrite each other. A spec whose
 test failed is recorded as incomplete — its crossings still count, and it can
 never justify skipping itself later.
 
+### Fold what the workers recorded
+
+Playwright runs specs in worker processes, and the execution index is one file
+that is merged rather than appended to. When two workers each record part of one
+spec file, the later merge retires the earlier worker's crossings: the file is
+then recorded as fully observed with half of what it walked, and the next
+`--since` skips it over a line that ran. Nothing fails — the run is green and
+the index quietly wrong, which is the one direction selection may not go.
+
+So add the reporter. The workers stage what they recorded and it folds once, at
+the end of the run:
+
+```ts
+// playwright.config.ts
+export default defineConfig({
+  reporter: [['list'], ['@variance-authority/playwright-test/reporter']],
+  use: { varianceExecution: true },
+});
+```
+
+It is worth installing for a single-worker run too: a worker that finds no
+staging directory merges for itself and says so on stderr, and one that does
+contribute costs a file write it would have spent on the merge anyway.
+
+The reporter takes the same values the fixture was given, and they have to
+match — the workers stage crossings recorded against one root and one build's
+records, and a mismatch is not an error anybody sees but a record written under
+paths no later run will ask about.
+
+| Option | Purpose | Default |
+| --- | --- | --- |
+| `root` | Repository root the recorded paths are relative to. | The cwd. |
+| `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
+| `cacheRoot` | Where that build wrote its block records. | The user cache. |
+| `coverageFile` | The coverage index this run merges into. | The repository-keyed user cache. |
+| `cases` | Also write the execution index: which individual test entered which region. | `false` |
+| `executionFile` | Where that index goes. | Beside the snapshot: `<coverage file>.cases.json`. |
+
+`cases` is off by default and stays off for most suites. The index answers
+*which tests walk this branch* — the question `variance covering` and
+`@variance-authority/distill` are asked — and it is a row per test per region,
+so a suite that indexes to answer a question nobody asks has bought a large file
+and nothing else. Selection does not read it: a spec file is the smallest thing
+Playwright can be asked to run, and the file-level record already names that.
+
 ### Optional fixture composition
 
 | Fixture | Purpose | Default |
@@ -472,7 +517,7 @@ never justify skipping itself later.
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
-| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, coverageFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
+| `varianceExecution` | Record what each spec executed, for the next run's selection. | `false`. Accepts `true` or `{ root, label, cacheRoot, coverageFile, cases, executionFile, heads, origin }`, and is set like any Playwright option: `use: { varianceExecution: true }`. |
 | `varianceEvents` | Whether services behind the page announce, and where the driver leaves its return address. | `{}`. Accepts `heads` (the services that report for themselves, described below) and `origin`. The browser half needs neither. |
 | `varianceWire` | The worker's end of the loopback listener the page and any reporting service answer on. | A listener on an ephemeral port, opened and closed by the fixture. |
 | `varianceVantage` | Where this worker reports what it is doing, for a process watching the run. | Whatever `VARIANCE_AUTHORITY_VANTAGE` names, and `undefined` when nothing does. |
