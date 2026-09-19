@@ -1,10 +1,8 @@
 # Connect your suite
 
 You already have a suite that reaches the UI states you care about. To put those
-states under review by [Variance Authority](README.md) — a visual regression
-system you run yourself, which compares a rendered UI state against the baseline
-you approved and reports what changed in the vocabulary of your source — you
-install one package that knows your host, and keep everything else.
+states under review by [Variance Authority](README.md), you install one package
+that knows your host, and keep everything else.
 
 That package is called a **surface**. It finds the states worth observing,
 drives your host to each one, and gives each a **subject id**: one named UI

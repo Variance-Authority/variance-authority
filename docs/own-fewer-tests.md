@@ -3,12 +3,10 @@
 Your suite only grows. Every test in it was justified when it was written, and a
 merged coverage report cannot tell you which of them still earns its keep: it
 says a line ran, not which tests ran it, not whether six of them ran it for the
-same reason. **[Variance Authority](README.md)** is a visual and execution
-regression system you run yourself, and its execution side records the half
-coverage drops — for each test case, which regions of your source that case
-entered. Point at a line and it hands back the named cases that walked it, which
-is where the question *why do all of these tests need this code?* starts having
-an answer.
+same reason. [Variance Authority](README.md) records the half coverage drops:
+for each test case, which regions of your source that case entered. Point at a
+line and it hands back the named cases that walked it, which is where the
+question *why do all of these tests need this code?* starts having an answer.
 
 This page is the decision that sits on top of that reading: which tests to keep,
 where to put them, and when to retire one. The reading never authorizes a

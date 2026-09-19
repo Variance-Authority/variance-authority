@@ -1,14 +1,10 @@
 # One runner, two adoptions
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
-
 [Rstest](https://rstest.rs) is a Rspack-native test runner. It can run a suite
 in `jsdom` with no browser anywhere, and — through `@rstest/playwright` — it can
 hand a test body a live Playwright `Page`. Those are the two ways a suite adopts
-this system, and this case drives both against the real `rstest` CLI in the same
-package.
+Variance Authority, and this case drives both against the real `rstest` CLI in
+the same package.
 
 **Deferred.** A `jsdom` test mounts a button and writes a **capture** — markup,
 the CSS that applies to it, and the bytes of every resource it references. The

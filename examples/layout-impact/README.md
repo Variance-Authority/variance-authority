@@ -1,12 +1,11 @@
 # Source cause and layout impact
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at. This example is the
-small fixture that exercises that path end to end, and it also sorts each change
-into a **band**: the kind of difference it is — `a11y`, `geometry`, `token`,
-`content` or `texture` — rather than a pixel count.
+Where a region of pixels changed is not the same question as which component
+caused it. This example is the small fixture that takes one React tree through
+four readings and, for each difference, names the component responsible, resolves
+it to the `file:line` it was written at, and sorts it into a **band** — `a11y`,
+`geometry`, `token`, `content` or `texture` — rather than reporting a pixel
+count.
 
 The fixture is one React component tree rooted at `Workspace`
 (`src/workspace.tsx`): a `SidePanel` labelled Sidebar (`src/side-panel.tsx`)

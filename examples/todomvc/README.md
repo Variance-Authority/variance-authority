@@ -1,16 +1,12 @@
 # todomvc
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This example is the application it is measured on: a small design system, a
-TodoMVC built from it, and a set of edits with a declared intent. Three test
-files run over that application — one that turns a pixel diff into named
-components, one that runs an ordinary screenshot-and-diff pipeline over the same
-states so every claim has a measured number beside it, and one that renders a
-document acquired in a unit-test process on a different machine.
+This example is the application the measurements in this repository are taken
+on: a small design system, a TodoMVC built from it, and a set of edits with a
+declared intent. Three test files run over that application — one that turns a
+pixel diff into named components, one that runs an ordinary screenshot-and-diff
+pipeline over the same states so every claim has a measured number beside it,
+and one that renders a document acquired in a unit-test process on a different
+machine.
 
 The fixtures are authored here. What you are looking at is the machinery working
 on a codebase small enough to read, not a survey of real-world repositories.

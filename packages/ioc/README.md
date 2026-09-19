@@ -4,9 +4,7 @@
 
 > Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 A module-level `let` outlives the test that changed it. A counter, a cache, a
 lazily built client, a memoized value — each one is written by whichever test

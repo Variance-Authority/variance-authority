@@ -4,9 +4,7 @@
 
 > A self-hosted review service for Variance Authority baselines, history and per-subject decisions.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 Install this package when you want a place — yours, on your infrastructure — where
 a finished run lands, a person looks at what changed, and approves or rejects it

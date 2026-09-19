@@ -4,9 +4,7 @@
 
 > Turn a built or already-served Storybook into Variance Authority subjects.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 

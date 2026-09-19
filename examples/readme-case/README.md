@@ -1,15 +1,10 @@
 # README example
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
 This directory is the executable source of the comparison at the top of the
-repository README, at the smallest scale that still carries an answer. One
-`Button` keeps the same text, role, size, props and DOM structure while its
-`background-color` changes, and the report names the component and the line the
-change was written at.
+[repository README](../../README.md), at the smallest scale that still carries
+an answer. One `Button` keeps the same text, role, size, props and DOM structure
+while its `background-color` changes, and the report names the component and the
+line the change was written at.
 
 ## What it produces
 

@@ -4,9 +4,7 @@
 
 > Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 

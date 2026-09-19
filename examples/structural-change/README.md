@@ -1,10 +1,7 @@
 # Structural change
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at. This example is the case
-a screenshot cannot hold at all: a change with zero pixel difference.
+This example is the case a screenshot cannot hold at all: a change with zero
+pixel difference.
 
 The same `AccountCard` paints the same pixels in both variants. The second
 variant changes the card from an unlabelled `div` to a labelled `section`, so a

@@ -4,9 +4,7 @@
 
 > Let an agent ask questions about a test run that has already finished.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 Reach for this package only to hand an already-finished run, or an execution
 index, to an agent that speaks MCP.

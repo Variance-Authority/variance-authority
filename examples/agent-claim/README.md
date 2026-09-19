@@ -1,32 +1,27 @@
 # Agent claim
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This example demonstrates the half of that a diff cannot give you: a run read
-back against what the author said they were doing. An agent that edits a design
-system and then looks at a diff can only learn what moved. The thing it most
-needs to know is the opposite: that `Card`, which it believes it just edited, did
-not move at all. That is not a diff finding, it is the absence of one, and an
-absence only becomes a finding once something declared it should have been there.
+You edit a design system and you want to know whether the edit did what you said
+it would. A list of what moved cannot tell you that `Card`, which you believe you
+just edited, did not move at all — an absence only becomes a finding once
+something declared it should have been there. This example declares the intent
+first, runs the change, and reads the run back against that declaration: each
+component you named gets a verdict, and anything that moved without being named
+is called out on its own line.
 
 Two words this page uses throughout:
 
-- A **subject** is one named UI state you asked for and can ask for again — one
-  Storybook story, one route at one viewport, one component mounted in a test —
-  captured and compared under an id you choose. This example has three:
-  `card/summary`, `card/compact` and `badge/standalone`.
+- A **subject** is one named UI state you asked for and can ask for again, under
+  an id you choose. This example has three: `card/summary`, `card/compact` and
+  `badge/standalone`.
 - A **claim** is what you declare before the run: a root (`component:Button`), a
   reason in your own words, and optionally a cap on how many subjects the change
   may reach.
 
 ## What the example declares
 
-So this example declares first. [`claims.json`](claims.json) is written before
-anything reads a diff, and the run is adjudicated against it. Each claim is a
-root, a reason, and an optional bound:
+[`claims.json`](claims.json) is written before anything reads a diff, and the
+run is adjudicated against it. Each claim is a root, a reason, and an optional
+bound:
 
 ```json
 {

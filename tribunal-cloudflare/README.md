@@ -1,30 +1,23 @@
 # tribunal-cloudflare
 
-**[Variance Authority](../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
+This directory is a deployable **review console** that is never itself deployed.
+It is a complete [vinext](https://vinext.dev/) app on a Worker — D1 for rows, R2
+for images, Cloudflare Access for the people who decide — and it exists to be
+read, run locally, and copied. Its `wrangler.jsonc` carries a placeholder
+`database_id`, so nothing here points at a database that exists; its dependency
+on [`@variance-authority/tribunal`](../packages/tribunal/README.md) is a `link:`
+into this repository, so it always builds against the package as it stands here
+rather than against a published version. It is a project of its own — its own
+`yarn.lock`, outside the repository's workspaces — so installing it touches
+nothing it serves. [Your own deployment](#your-own-deployment) is what you do
+with it.
 
-This directory is a worked example of the **review console** on Cloudflare — the
-page where a person looks at what a run changed and decides it. What is reviewed
-is one **subject** at a time: one named UI state you asked for and can ask for
-again, such as one Storybook story or one route at one viewport, captured under
-an id you choose. A run (`npx variance run`) captures each subject and sends the
-fresh image — the **candidate** — to this service; that is **ingest**. A reviewer
-opens the page, compares the candidate with the **baseline** it was judged
-against, and approving promotes that candidate to be the baseline the next run
-compares against.
-
-The console is a [vinext](https://vinext.dev/) app on a Worker, with D1 for rows,
-R2 for images, and Cloudflare Access for the people who decide. It is a project
-of its own — its own `yarn.lock`, outside the repository's workspaces — so it
-installs without touching the packages it serves.
-
-**This copy is not itself deployed.** Its `wrangler.jsonc` carries a placeholder
-`database_id`, and its dependency on `@variance-authority/tribunal` is a `link:`
-into this repository so the console always builds against the package as it
-stands here. It exists to be read, run locally, and copied:
-[Your own deployment](#your-own-deployment) is what you do with it.
+The console is the page where a person looks at what a run changed and decides
+it, one **subject** at a time — one named UI state, under the id the run used. A
+run (`npx variance run`) sends each fresh image, the **candidate**, to this
+service; that is **ingest**. A reviewer opens the page, puts the candidate beside
+the **baseline** it was judged against, and approving promotes that candidate to
+be the baseline the next run is judged against.
 
 ## The files
 

@@ -1,11 +1,10 @@
 # Dynamic route flake
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at. This example is the case
-where two things move at once: one of them was authored, and the other cannot be
-blamed on any file.
+Two things move between two readings of the same card: one of them you wrote,
+and the other cannot be blamed on any file. This example runs that case and
+shows where the two answers part — the authored edit resolved to the component
+and the line it was written at, the unstable half reported with no location at
+all, because nothing in the document can carry the blame for it.
 
 The page has a real `img` request to one stable URL. Its Playwright route returns
 different SVG bytes on consecutive reads. A `PriceTag` style edit changes the

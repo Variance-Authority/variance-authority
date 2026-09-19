@@ -1,18 +1,13 @@
 # kitchen-sink
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This directory is where the comparison itself is scored. It holds a small
-component library and a table of 40 cases over 8 subjects. A **subject** is one
-named UI state you can ask for again — here one component composition, such as
-`button` or `dialog`. A **case** is two renders of one subject plus the answer
-they should produce: `hash-stable` where nothing a user could perceive moved,
-`hash-changed` where something did. Every answer is written down before the run,
-so a run that agrees is evidence and a run that disagrees is a defect report
-rather than a discussion.
+This directory scores the comparison against answers written down before the run
+that produces them. It holds a small component library and a table of 40 cases
+over 8 subjects. A **subject** is one named UI state you can ask for again —
+here one component composition, such as `button` or `dialog`. A **case** is two
+renders of one subject plus the answer they should produce: `hash-stable` where
+nothing a user could perceive moved, `hash-changed` where something did. Because
+the answer came first, a run that agrees is evidence and a run that disagrees is
+a defect report rather than a discussion.
 
 What is being scored is **normalization** — the pass that turns a raw DOM
 capture into the semantic snapshot a verdict is decided from: ids replaced by

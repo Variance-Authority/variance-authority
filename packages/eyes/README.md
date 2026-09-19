@@ -4,9 +4,7 @@
 
 > Record which DOM elements a test addresses and preserve their React attribution before the rendered tree changes under it.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 

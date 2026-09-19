@@ -37,6 +37,24 @@ export function prose(file: string): string {
   );
 }
 
+/**
+ * Prose as a reader hears it: one line, no markup, no code.
+ *
+ * Every file here is hard-wrapped, so a phrase a person reads as one sentence
+ * is several lines on disk and no line-oriented search can find it. A rule
+ * about wording that reads the file directly does not under-report sometimes —
+ * it under-reports whenever the phrase is longer than the column it wrapped at,
+ * which is most of them. Match against this instead.
+ */
+export function flat(file: string): string {
+  return prose(file)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[`*_]/g, '')
+    .replace(/[\u2014\u2013]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function lineOf(text: string, index: number): number {
   return text.slice(0, index).split('\n').length;
 }

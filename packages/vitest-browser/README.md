@@ -4,9 +4,7 @@
 
 > Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 Your component test in Vitest browser mode has already mounted the component in
 a real engine with the real stylesheets, and the locator it awaited is proof the

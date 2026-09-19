@@ -4,9 +4,7 @@
 
 > Measure how a rendered interface groups, separates, aligns and emphasizes its content, and return those measurements as data a test or an agent can read.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 

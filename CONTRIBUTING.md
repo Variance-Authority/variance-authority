@@ -1,10 +1,9 @@
 # Contributing
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at. This page is how you work
-on the repository that builds it.
+You are about to change this repository. This page is how you work in it: what
+to install, what `verify` holds you to, how to run less than the whole suite
+while an edit is still open, how to reproduce the behaviour the documentation
+claims, and what a change owes a release.
 
 ## Set up
 

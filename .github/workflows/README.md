@@ -1,17 +1,15 @@
 # Workflows
 
-**[Variance Authority](../../README.md)** renders a UI state, compares it against
-the baseline you approved, and reports what changed in the vocabulary of your
-source — the component that drew the pixels and the `file:line` it was written
-at. A **subject** is one named UI state you asked for and can ask for again — one
-Storybook story, one route at one viewport, one component mounted in a test —
-captured and compared under an id you choose.
+Five workflow files live here. Three of them are recipes, meant to be copied
+into your own repository and edited. Each is a complete answer to a different
+question, and every decision inside them is commented as a decision — including
+the ones that are wrong for somebody else's repository. They all shell out to
+one tool: `@variance-authority/cli`, a devDependency, invoked as
+`npx variance <command>`.
 
-Three of the workflows here are recipes, meant to be copied and edited. Each is a
-complete answer to a different question, and every decision inside them is
-commented as a decision — including the ones that are wrong for somebody else's
-repository. They all shell out to one tool: `@variance-authority/cli`, a
-devDependency, invoked as `npx variance <command>`.
+A **subject** is one named UI state observed under an id you choose — one
+Storybook story, one route at one viewport, one component mounted in a test. It
+is the unit these files count, shard and gate on.
 
 If you copy one file, change two things: the `--config` path, so it points at
 your own `variance.config.json`, and the step that builds the thing being
