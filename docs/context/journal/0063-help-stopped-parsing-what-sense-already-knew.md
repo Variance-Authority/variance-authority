@@ -117,3 +117,10 @@ it excluded tracked files below a directory named `build`, while the native Git
 seed correctly treated tracking as evidence that the directory held source. The
 oracle now keeps tracked `build` source and continues to exclude generated build
 directories during filesystem discovery.
+
+The library entrance was not enough for the shell consumer. `variance ask` now
+accepts `--changed-file`, a newline-delimited authoritative list supplied by an
+editor, watcher or orchestrator. The warmed Jira-scale command, including graph
+folding and the scoped query, completed in 17.60 seconds and returned the same
+44,426-file issue-view closure as discovery. The preceding discovery-backed CLI
+run took 33.13 seconds after its index had stabilized.

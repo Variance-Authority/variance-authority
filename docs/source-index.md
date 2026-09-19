@@ -37,6 +37,18 @@ Each of those opens the index, scans, and publishes what it learned before it
 exits. The first such command on a machine pays a cold scan; every later one
 pays for what moved.
 
+When an editor, watcher or orchestrator already holds the exact changed paths,
+write them one per line and hand the file to a source question:
+
+```bash
+variance ask search --query button --from src/issue-view.tsx --changed-file /tmp/changed-paths
+```
+
+The paths are relative to the scan root. The file is authoritative, including
+when it is empty; a rename writes both its old and new path. Git still supplies
+the committed path set and the named paths are hashed from disk, but `git
+status` is not run to rediscover them.
+
 From your own tooling, `openSourceIndex` and `sourceIndexPath` in
 [`@variance-authority/sense`](../packages/sense/README.md) are the same two
 halves the commands use: open the index, hand `cache` and `reuse` to

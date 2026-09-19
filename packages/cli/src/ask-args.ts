@@ -91,6 +91,8 @@ export interface ParsedAsk {
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers what reaches it, the other way along the imports. */
   readonly to?: string;
+  /** `--changed-file <path>`: authoritative scan-root-relative paths, one per line. */
+  readonly changedFile?: string;
   readonly limit?: number;
   /**
    * `--at <address>`: a running watcher to ask, instead of the last report.
@@ -129,6 +131,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const query = flags.values.get('--query');
   const from = flags.values.get('--from');
   const to = flags.values.get('--to');
+  const changedFile = flags.values.get('--changed-file');
   const limit = countOf(flags.values.get('--limit'), 'tests to list');
   const at = flags.values.get('--at');
 
@@ -152,6 +155,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...placing(flags),
     ...(from !== undefined ? { from } : {}),
     ...(to !== undefined ? { to } : {}),
+    ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(at !== undefined ? { at } : {}),
     reports: reports.map((path) => resolve(path)),

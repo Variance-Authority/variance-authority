@@ -129,6 +129,8 @@ export interface AskRequest {
   readonly from?: string;
   /** `--to <path>`: a path to arrive at. Answers from what reaches it, the other way along the imports. */
   readonly to?: string;
+  /** A newline-delimited authoritative changed-file list for source questions. */
+  readonly changedFile?: string;
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
@@ -139,7 +141,7 @@ export interface AskRequest {
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
-  readonly source?: (root: string) => Promise<Sourced>;
+  readonly source?: (root: string, changed?: readonly string[]) => Promise<Sourced>;
 }
 
 /** The flags every question is spelled with, whichever subject answers it. */
@@ -157,7 +159,7 @@ type Flagged = Pick<
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source'> & { readonly question: string };
+export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile'> & { readonly question: string };
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
 export interface Sourced {
@@ -171,6 +173,9 @@ export async function ask(request: AskRequest): Promise<string> {
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
+  if (request.changedFile !== undefined) {
+    throw new OperatorError('`--changed-file` supplies source identity and can only be used with a source question');
+  }
 
   const input = await inputFrom(question, request);
 
@@ -195,7 +200,8 @@ export async function askSource(request: SourceRequest): Promise<string> {
   }
 
   const input = inputFor(tool, flagged(request));
-  const sourced = await (request.source ?? readSource)(process.cwd());
+  const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
+  const sourced = await (request.source ?? readSource)(process.cwd(), changed);
   const tree = tool.wants?.(input) === true ? sourced.tree?.() : undefined;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
@@ -217,15 +223,27 @@ export async function askSource(request: SourceRequest): Promise<string> {
  * the repository a second time — the same arrangement the standalone
  * `variance-authority-help` binary makes, from the same cache.
  */
-async function readSource(root: string): Promise<Sourced> {
+async function readSource(root: string, changed?: readonly string[]): Promise<Sourced> {
   let records: readonly FileRecord[] | undefined;
   const help = await readWorkspace(root, {
     index: join(scanCacheRoot(root), 'source-index.bin'),
+    ...(changed === undefined ? {} : { changed }),
     records: (drawn) => {
       records = drawn;
     },
   });
   return { help, tree: () => (records === undefined ? undefined : treeOf(records, root)) };
+}
+
+/** Read the editor/orchestrator answer without asking Git to rediscover it. */
+async function readChanged(path: string): Promise<readonly string[]> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (error) {
+    throw new OperatorError(`--changed-file ${path} could not be read: ${messageOf(error)}`, { cause: error });
+  }
+  return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
 }
 
 /** A question about a suite that is still going, asked of the process holding it. */

@@ -145,6 +145,25 @@ describe('a question about the code', () => {
     expect(answer).toContain('viewport');
   });
 
+  it('hands an authoritative changed-file list to the source reader', async () => {
+    const changedFile = join(await directory(), 'changed.txt');
+    await writeFile(changedFile, 'src/button.tsx\nsrc/theme.ts\n');
+    let received: readonly string[] | undefined;
+    const source = (_root: string, changed?: readonly string[]): Promise<Sourced> => {
+      received = changed;
+      return sourced();
+    };
+
+    await askSource({ question: 'search', query: 'box', changedFile, source });
+
+    expect(received).toEqual(['src/button.tsx', 'src/theme.ts']);
+  });
+
+  it('does not silently apply a changed-file list to a report question', async () => {
+    await expect(ask(asking('/nowhere/report.json', 'summary', { changedFile: '/tmp/changed.txt' })))
+      .rejects.toThrow('can only be used with a source question');
+  });
+
   it('refuses the arguments of the other subjects by name', async () => {
     await expect(askSource({ question: 'search', query: 'box', source: sourced, name: 'x' } as never)).rejects.toThrow(
       '`--name` is not an argument `variance ask search` takes',
