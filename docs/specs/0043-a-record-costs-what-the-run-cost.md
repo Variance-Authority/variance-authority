@@ -35,7 +35,7 @@ is not a slow path. It is an impossible one:
   `Map<ModuleId, Map<ordinal, Set<string>>>` — one entry per region a test
   entered, holding test paths as strings. Thirty-one test files of a
   40,000-module shape cost 2.5 GB; five hundred exhaust a twelve-gigabyte heap.
-  The shipped reporters call it: `vitest.ts:320` and `jest-reporter.ts:97`.
+  The shipped reporters call it: `selection-fold.ts:83` and `jest-reporter.ts:97`.
 - **Publishing.** `layeredCoverage` no longer decodes the snapshot to that
   model — `format-layer.ts:238-260` copies an untouched module's rows column to
   column as integers, and `:335-350` remaps each carried crossing set once per

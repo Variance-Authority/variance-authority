@@ -81,7 +81,7 @@ operational story:
 - **Locally there are workers and no shards.** One runner process, however many
   workers it spawns, one snapshot: each test file writes its own journal into
   the run directory as it finishes, and the reporter reads them and writes the
-  file (`vitest.ts:313` over `readJournals`). There is no fan-in to operate and
+  file (`selection-fold.ts:76` over `readJournals`). There is no fan-in to operate and
   no server in the path — `SelectionRun` is keyed by the snapshot being written,
   which is exactly the scope of one run.
 - **In CI there are shards, and they are stitched afterwards.** One snapshot per

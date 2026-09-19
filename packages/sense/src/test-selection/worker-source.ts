@@ -13,7 +13,10 @@
  * child realm rather than trusting that it reads correctly.
  */
 
-import { AMBIENT } from './cases.js';
+import { AMBIENT, CASE_SCOPE } from './cases.js';
+
+/** The realm key {@link CASE_SCOPE} is, as the generated source has to spell it. */
+const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
 
 /**
  * This file, so the setup module can reach the codec beside it.
@@ -37,7 +40,28 @@ const HERE = import.meta.url;
  * neither runner's journals are a shape the other does not read, and neither
  * worker builds a row per module to hand one over.
  */
-export function setupSource(runDirectory: string, caseDirectory?: string): string {
+export interface SetupShim {
+  /**
+   * The specifier the runner's hooks are imported from. `vitest` when absent.
+   *
+   * `beforeAll`, `afterAll` and `expect` are the whole of what this module asks
+   * a runner for, and Rstest spells all three the same way Vitest does — so the
+   * one thing that differs between the two shims is the name above them.
+   */
+  readonly runner?: string;
+  /**
+   * Source that opens a case scope around each test, for a runner that cannot be
+   * given a runner of its own. Evaluated after the collector is installed and
+   * before the first hook is registered.
+   */
+  readonly scope?: string;
+}
+
+export function setupSource(
+  runDirectory: string,
+  caseDirectory?: string,
+  shim: SetupShim = {},
+): string {
   // One counter set for the whole file, which is what the file-level snapshot
   // asks for and all it asks for.
   const flat = `
@@ -64,12 +88,13 @@ const fileModules = () => modules;
   const writeCases = caseDirectory === undefined ? '' : caseWriterSource(caseDirectory);
 
   return `
-import { afterAll, beforeAll, expect } from 'vitest';
+import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vitest')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
 ${caseDirectory === undefined ? flat : scoped}
+${caseDirectory === undefined ? '' : (shim.scope ?? '')}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
@@ -237,6 +262,58 @@ export default class extends VitestTestRunner {
       fn,
     );
   }
+}
+`;
+}
+
+/**
+ * The case scope for a runner that has no runner to replace, as source.
+ *
+ * Vitest loads a runner by module id, and `runTask` there *wraps* the test
+ * function — see {@link caseRunnerSource}. Rstest has no such option, so the
+ * enclosure has to come from the only other thing that holds the function
+ * before the runner calls it: the API that registered it. Every registrar is
+ * wrapped, its own properties with it, because `it.only`, `it.concurrent` and
+ * `it.each(rows)` are each a separate callable that takes a test function and
+ * none of them route through the bare one.
+ *
+ * The coordinate is read at call time rather than at registration: `each`
+ * interpolates its row into the title, and a describe path is only assembled
+ * once the suite has collected. `currentTestName` is the resolved answer to
+ * both, spelled exactly as a reader recognises the case by.
+ *
+ * This needs the registrars to be *on the realm*, which is `globals: true`.
+ * Without it a test file imports them and gets the module's own bindings, which
+ * nothing outside that module can rebind — so `rstest.ts` refuses the
+ * combination rather than recording a file's worth of cases as one.
+ */
+export function caseGlobalsSource(): string {
+  return `
+const caseScope = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
+let caseOrdinal = 0;
+// A registrar's properties are registrars too, and \`each\` answers with one
+// rather than taking the function itself. Both are followed, to the depth the
+// deepest of them nests — \`it.only.each(rows)(name, fn)\`.
+const wrapCase = (api, depth) => {
+  if (typeof api !== 'function' || depth > 4) return api;
+  const out = function (...args) {
+    const fn = args[1];
+    if (typeof fn === 'function') {
+      const ordinal = String((caseOrdinal += 1));
+      args[1] = function (...given) {
+        const state = expect.getState();
+        const key = (state.testPath ?? '') + '\\u0000' + (state.currentTestName ?? '') + '\\u0000' + ordinal;
+        return caseScope.enter(key, () => fn.apply(this, given));
+      };
+    }
+    const answered = api.apply(this, args);
+    return typeof answered === 'function' ? wrapCase(answered, depth + 1) : answered;
+  };
+  for (const key of Object.keys(api)) out[key] = wrapCase(api[key], depth + 1);
+  return out;
+};
+for (const name of ['it', 'test']) {
+  if (typeof globalThis[name] === 'function') globalThis[name] = wrapCase(globalThis[name], 0);
 }
 `;
 }

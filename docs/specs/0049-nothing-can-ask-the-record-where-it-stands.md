@@ -61,9 +61,9 @@ The gap is that the question was never asked. What shipped:
   (`packages/sense/src/test-selection/reverse.ts:69`, `:85`) ask exactly the
   three questions above, over an `ExecutionIndex` a caller supplies. The only
   producer is `executionIndexFrom`
-  (`packages/sense/src/test-selection/cases.ts:194`), written by the Vitest
-  reporter beside the snapshot when `cases: true`
-  (`packages/sense/src/test-selection/vitest.ts:351`). Jest writes none. Its
+  (`packages/sense/src/test-selection/cases.ts:194`), written by the shared
+  runner fold beside the snapshot when `cases: true`
+  (`packages/sense/src/test-selection/selection-fold.ts:126`). Jest writes none. Its
   `find` over `index.modules` is a linear scan of a decoded JSON model, so the
   cost is the repository's rather than the point's. And every crossing in it
   carries `distance: 0` (`cases.ts:279`), which

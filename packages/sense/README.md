@@ -312,6 +312,45 @@ modules by path, and you can name them yourself:
 `@variance-authority/sense/jest-setup`, and
 `@variance-authority/sense/jest-reporter`.
 
+## Cut an Rstest run down to a diff
+
+Rstest builds the suite with Rspack and runs what it built, so the recording
+half is a loader rather than a plugin. Wrap the configuration once and the rule
+is appended to `tools.rspack` rather than replacing it, `setupFiles` keep their
+order and gain the counter factory at the start, and `reporters` gain one at the
+end.
+
+```ts
+// rstest.config.ts
+import { defineConfig } from '@rstest/core';
+import { withTestSelection } from '@variance-authority/sense/rstest';
+
+export default defineConfig(withTestSelection({
+  globals: true,
+  setupFiles: ['./test/setup.ts'],
+}));
+```
+
+The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
+`mode`, `cases`, and `executionFile`, with the meanings above. The loader runs
+at `enforce: 'post'`, after SWC, and reads the block extents back through the
+map the bundler already made, so the lines a record carries are the ones you
+edited rather than the ones the transpiler emitted.
+
+`cases` requires `globals: true`. Rstest has no runner option, so the only place
+a per-case bracket can be installed is around the injected `it` and `test`; a
+suite that imports them from `@rstest/core` gets the runner's own binding
+instead, and asking for cases without globals is refused rather than recorded as
+one bucket a file wide.
+
+A configuration with `projects` describes the run rather than a suite: wrap each
+project *and* keep one wrap at the root, the same shape a Vitest `projects`
+layout needs.
+
+To assemble a configuration by hand instead, `withTestSelection` names one
+module by path, and you can name it yourself:
+`@variance-authority/sense/rstest-loader`.
+
 ## Record what a driven page executed
 
 A Storybook preview or a Playwright-driven application is built by one process
@@ -1264,6 +1303,8 @@ is.
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
+| `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
+| `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |

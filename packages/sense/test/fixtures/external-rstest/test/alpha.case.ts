@@ -1,0 +1,13 @@
+import { decide } from '../src/decide';
+
+it('takes the alpha path', () => {
+  expect(decide('alpha')).toBe('A');
+});
+
+it("ran after the project's own setup file", () => {
+  expect(globalThis.__FIXTURE_SETUP__).toBe('composed');
+});
+
+it.skip('is skipped, and so never reaches the B branch this file is not selected for', () => {
+  expect(decide('beta')).toBe('B');
+});

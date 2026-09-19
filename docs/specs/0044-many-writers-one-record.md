@@ -21,9 +21,10 @@ without anyone choosing between them:
 
 - `recordExecution` takes `<coverage>.lock` before its read-modify-write
   (`packages/sense/src/test-selection/journal.ts:364`).
-- The Vitest reporter reads the index, layers onto it and renames, with no lock
-  (`packages/sense/src/test-selection/vitest.ts:343-344`). The Jest reporter does
-  the same.
+- The shared runner fold reads the index, layers onto it and renames under one
+  lock it does not wait for — it notes a busy index and drops the merge
+  (`packages/sense/src/test-selection/selection-fold.ts:110-119`). The Jest
+  reporter does the same (`jest-reporter.ts:140-149`).
 - `nameModules` — read-modify-write over the file that assigns every module its
   id — reads at `packages/sense/src/module-names.ts:127` and publishes at `:140`
   with no lock between them, and swallows its write errors at `:141`.

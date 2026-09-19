@@ -61,6 +61,14 @@
       "types": "./dist/test-selection/vitest.d.ts",
       "default": "./dist/test-selection/vitest.js"
     },
+    "./rstest": {
+      "types": "./dist/test-selection/rstest.d.ts",
+      "default": "./dist/test-selection/rstest.js"
+    },
+    "./rstest-loader": {
+      "types": "./dist/test-selection/rstest-loader.d.ts",
+      "default": "./dist/test-selection/rstest-loader.js"
+    },
     "./jest": {
       "types": "./dist/test-selection/jest.d.ts",
       "default": "./dist/test-selection/jest.js"
@@ -122,6 +130,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.5.1",
+    "@rstest/core": "^0.12.0",
     "@swc/core": "^1.16.2",
     "@swc/jest": "^0.2.39",
     "@types/picomatch": "^4.0.3",

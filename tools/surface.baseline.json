@@ -2240,6 +2240,14 @@
           "types": "./dist/test-selection/vitest.d.ts",
           "default": "./dist/test-selection/vitest.js"
         },
+        "./rstest": {
+          "types": "./dist/test-selection/rstest.d.ts",
+          "default": "./dist/test-selection/rstest.js"
+        },
+        "./rstest-loader": {
+          "types": "./dist/test-selection/rstest-loader.d.ts",
+          "default": "./dist/test-selection/rstest-loader.js"
+        },
         "./jest": {
           "types": "./dist/test-selection/jest.d.ts",
           "default": "./dist/test-selection/jest.js"
@@ -2492,6 +2500,19 @@
         "TestSelectionOptions": "interface",
         "mergeCoverage": "function",
         "withTestSelection": "function"
+      },
+      "./rstest": {
+        "RstestConfig": "interface",
+        "RstestFileResult": "interface",
+        "RstestTestSelectionOptions": "interface",
+        "SELECTION_LOADER": "const",
+        "mergeCoverage": "function",
+        "withTestSelection": "function"
+      },
+      "./rstest-loader": {
+        "SelectionLoaderContext": "interface",
+        "SelectionLoaderOptions": "interface",
+        "default": "function"
       },
       "./jest": {
         "CASE_DIRECTORY_VARIABLE": "const",

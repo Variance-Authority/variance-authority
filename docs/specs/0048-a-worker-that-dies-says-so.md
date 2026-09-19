@@ -45,14 +45,15 @@ The problem is everything around them.
   while the test stays complete — a narrowing. Jest's finished-file path sets
   `placed = false` (`jest-reporter.ts:186`), which demotes correctly. One
   condition, three behaviours, and the middle one is the unsafe one.
-- `run.settled` is set at `vitest.ts:310-311` and never reset, so `vitest
+- `run.settled` is set at `selection-fold.ts:133-134` and never reset, so `vitest
   --watch` records the **first** run and silently ignores every one after it.
   Jest does not have this bug: `jest-reporter.ts:71-77` re-mints the run
   directory in `onRunStart`.
-- Neither `settle` has a `try`/`finally`. Vitest marks the run settled before
-  doing any work and `rm`s the run and case directories as trailing statements
-  at `vitest.ts:358-359`, so a throw in between loses the run *and* leaves its
-  directories behind. A killed process leaves them too, and nothing ever
+- The run is marked settled before any work is done, and the run and case
+  directories come off as trailing statements — `selection-fold.ts:128-129` for
+  every runner that folds through it, `jest-reporter.ts:165-167` for Jest. The
+  shared fold's `try`/`finally` covers the shims and nothing else, so a throw in
+  between loses the run *and* leaves its directories behind. A killed process leaves them too, and nothing ever
   collects them.
 - Counts are `Uint32Array` increments with bit 31 taken for `EVALUATING`
   (`instrument/index.ts:238`), and the increment does not saturate. A region
