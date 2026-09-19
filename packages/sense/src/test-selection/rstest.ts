@@ -93,6 +93,16 @@ export interface RstestConfig {
 export const SELECTION_LOADER = fileURLToPath(new URL('./rstest-loader.js', import.meta.url));
 
 /**
+ * Rstest's API, which is an injected object rather than a resolvable module.
+ *
+ * Rspack is configured with `'@rstest/core': 'global @rstest/core'`, so an
+ * import of it compiles to a read of that property of the realm, and the
+ * runner assigns the API there before a setup file runs. A `resolve.alias` on
+ * the specifier never fires, and this is the name that does.
+ */
+const RSTEST_API = '@rstest/core';
+
+/**
  * Add source instrumentation, test-file attribution, and coverage persistence to
  * an ordinary Rstest configuration.
  *
@@ -110,16 +120,7 @@ export function withTestSelection(
     : resolve(root, options.coverageFile);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
-  if (options.cases === true) {
-    if (config.globals !== true) {
-      throw new Error(
-        'withTestSelection was asked to record cases, which under Rstest means wrapping the ' +
-          'injected `it` and `test`, and this configuration does not set `globals: true`. Set it, ' +
-          'or drop `cases` — the per-file snapshot is recorded either way.',
-      );
-    }
-    run.cases = true;
-  }
+  if (options.cases === true) run.cases = true;
 
   // Named for the run rather than for the seam, so two Rstest processes over
   // one project — a watch run beside a CLI one — do not write each other's
@@ -167,7 +168,15 @@ export function withTestSelection(
     return { ...config, reporters: [...reporters, reporter] };
   }
 
-  const scope = options.cases === true ? caseGlobalsSource() : undefined;
+  // Both spellings of the same registrar, because a project may use either and
+  // the seam is not told which. `globals: true` puts `it` and `test` on the
+  // realm; a test file that imports them instead reads them off
+  // `globalThis['@rstest/core']`, which is where Rstest assigns its API and
+  // what Rspack compiles the import of that external to. Wrapping both reaches
+  // a mixed suite, and wrapping an absent one is skipped.
+  const scope = options.cases === true
+    ? caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`)
+    : undefined;
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
@@ -176,7 +185,7 @@ export function withTestSelection(
       writeSeamModule(
         setupId,
         setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined, {
-          runner: '@rstest/core',
+          runner: RSTEST_API,
           ...(scope === undefined ? {} : { scope }),
         }),
       ),

@@ -282,12 +282,20 @@ export default class extends VitestTestRunner {
  * once the suite has collected. `currentTestName` is the resolved answer to
  * both, spelled exactly as a reader recognises the case by.
  *
- * This needs the registrars to be *on the realm*, which is `globals: true`.
- * Without it a test file imports them and gets the module's own bindings, which
- * nothing outside that module can rebind — so `rstest.ts` refuses the
- * combination rather than recording a file's worth of cases as one.
+ * The wrap is applied to every object that *holds* a registrar, which is what
+ * `holders` names. `globals: true` puts them on the realm; an import does not,
+ * but under Rspack `@rstest/core` is an external of type `global`, so
+ * `import { it } from '@rstest/core'` compiles to a property read of
+ * `globalThis['@rstest/core']` — the object the runner assigns the API to
+ * before any setup file runs. Wrapping that object's `it` and `test` in place
+ * reaches the imported registrars for the same reason wrapping the realm
+ * reaches the injected ones, and neither spelling has to be configured.
+ *
+ * @param holders Source for the objects to wrap the registrars on, in the
+ * order they are wrapped. Defaults to the realm alone, which is every runner
+ * whose API is a module rather than an injected object.
  */
-export function caseGlobalsSource(): string {
+export function caseGlobalsSource(holders = 'globalThis'): string {
   return `
 const caseScope = globalThis[Symbol.for(${JSON.stringify(CASE_SCOPE_KEY)})];
 let caseOrdinal = 0;
@@ -312,8 +320,11 @@ const wrapCase = (api, depth) => {
   for (const key of Object.keys(api)) out[key] = wrapCase(api[key], depth + 1);
   return out;
 };
-for (const name of ['it', 'test']) {
-  if (typeof globalThis[name] === 'function') globalThis[name] = wrapCase(globalThis[name], 0);
+for (const holder of [${holders}]) {
+  if (holder === undefined || holder === null) continue;
+  for (const name of ['it', 'test']) {
+    if (typeof holder[name] === 'function') holder[name] = wrapCase(holder[name], 0);
+  }
 }
 `;
 }

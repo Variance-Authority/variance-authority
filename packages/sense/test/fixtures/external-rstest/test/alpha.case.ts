@@ -1,3 +1,4 @@
+import { expect, it } from '@rstest/core';
 import { decide } from '../src/decide';
 
 it('takes the alpha path', () => {

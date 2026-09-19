@@ -68,22 +68,31 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(shim).not.toContain('wrapCase');
   });
 
-  it('refuses to record cases without the injected globals the bracket goes around', async () => {
+  it('wraps the registrars a suite imports, which is a configuration without globals', async () => {
     const directory = await root();
-    expect(() => withTestSelection(
+    const config = withTestSelection(
       { root: directory },
       { coverageFile: resolve(directory, 'coverage.bin'), cases: true },
-    )).toThrow(/globals: true/);
+    );
+    const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
+    expect(shim).toContain('wrapCase');
+    // `@rstest/core` is an Rspack external of type `global`, so an import of it
+    // is a read of this property and wrapping the property is wrapping the
+    // import. Nothing about it is configured, which is why `cases` asks the
+    // project for nothing.
+    expect(shim).toContain('globalThis["@rstest/core"]');
   });
 
-  it('wraps the registrars when cases are asked for and globals are on', async () => {
+  it('wraps the registrars on the realm as well, for a suite that runs with globals', async () => {
     const directory = await root();
     const config = withTestSelection(
       { root: directory, globals: true },
       { coverageFile: resolve(directory, 'coverage.bin'), cases: true },
     );
     const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
-    expect(shim).toContain('wrapCase');
+    // Both holders, in one shim: a suite may spell it either way, file by file,
+    // and the seam is not told which.
+    expect(shim).toContain('for (const holder of [globalThis, globalThis["@rstest/core"]])');
   });
 
   it('gives a projects layout the reporter and nothing else, since nothing is bundled under it', async () => {

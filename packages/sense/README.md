@@ -337,11 +337,12 @@ at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
 edited rather than the ones the transpiler emitted.
 
-`cases` requires `globals: true`. Rstest has no runner option, so the only place
-a per-case bracket can be installed is around the injected `it` and `test`; a
-suite that imports them from `@rstest/core` gets the runner's own binding
-instead, and asking for cases without globals is refused rather than recorded as
-one bucket a file wide.
+`cases` needs nothing from the configuration. Rstest has no runner option, so
+the per-case bracket goes around `it` and `test` themselves — on the realm when
+`globals: true` puts them there, and on `globalThis['@rstest/core']`, which is
+where Rstest assigns its API and what Rspack compiles an import of that external
+to. A suite that imports its registrars and a suite that takes the injected ones
+are recorded the same way, and a suite that mixes the two is too.
 
 A configuration with `projects` describes the run rather than a suite: wrap each
 project *and* keep one wrap at the root, the same shape a Vitest `projects`
