@@ -9,21 +9,28 @@ per language writing into one graph with one kind of node is what **polyglot**
 means here, and a diff that spans several of them is answered in one walk.
 
 You do not need a subject, a baseline or a configuration file to use that half.
-Ask what a diff reaches and pipe the answer at whatever runs your tests:
+Ask what a diff reaches and pipe the answer at whatever runs your tests. The
+commit below touched a React component and a Python pricing rule together,
+which is the case this page is about:
 
 ```bash
 variance reach --since origin/main
 ```
 
 ```text
-src/app/checkout.py
-src/app/cart.py
-tests/test_checkout.py
+src/checkout/CartSummary.tsx
+src/checkout/CartSummary.test.tsx
+src/checkout/total.ts
+src/checkout/cart.css
+services/pricing/rules.py
+services/pricing/tests/test_rules.py
 ```
 
+One list, two runners:
+
 ```bash
-variance reach --since origin/main | grep '_test\.py$' | xargs pytest
-variance reach --since origin/main | grep '\.rs$' | xargs -r cargo check --
+variance reach --since origin/main | grep '\.test\.tsx$' | xargs -r vitest run
+variance reach --since origin/main | grep '/test_.*\.py$' | xargs -r pytest
 ```
 
 The list holds every file the change can reach, the changed files among them,
@@ -34,11 +41,12 @@ guessing a ref there would be guessing what a build is about to skip.
 
 ## Why an import graph is the safe half
 
-An import is permission, not proof. `import parse` says this file *may* depend
-on `parse`, and most of the time it depends on one function in it. So a graph
-built from imports names more than a change really moved, and that is the
-direction to be wrong in: the cost of a file you did not need is a test run, and
-the cost of a file you missed is a green build over code nobody looked at.
+An import is permission, not proof. `import { total } from './total'` says this
+file *may* depend on `total.ts`, and most of the time it depends on one function
+in it. So a graph built from imports names more than a change really moved, and
+that is the direction to be wrong in: the cost of a file you did not need is a
+test run, and the cost of a file you missed is a green build over code nobody
+looked at.
 
 Everything that narrows below the graph narrows from evidence. An
 [execution record](execution-record.md) says which regions a test actually
@@ -59,6 +67,25 @@ followed.
 A language here is a reader and a resolution algorithm — what does this file
 ask for, and where does that land on this disk — and nothing above them learns
 a new type. What differs between languages is how much the syntax tells you.
+
+**JavaScript and TypeScript.** One language, not six: `.ts`, `.tsx`, `.jsx`,
+`.mjs` and `.cts` share a reader and a resolver, so a dialect is not a port.
+The syntax says almost everything, and the work is in resolution instead. A
+`tsconfig.json` is found per file rather than once per repository, which is what
+a workspace of many packages needs, and its `paths` apply where it applies.
+Export conditions are read in order, source before built output, so a package
+that publishes both is read as its source rather than its `dist`. Anything
+outside this repository resolves to nothing on purpose — a builtin, a package in
+`node_modules`, a path above the root — because no diff of this repository can
+be that file. On macOS and Windows a specifier can resolve to a file it does not
+name, since both match filenames without regard to case; that is handled where
+it happens rather than left to the case-sensitive machine CI runs on.
+
+**Stylesheets.** A second language rather than a dialect of the first, because
+the same string asked from two places is two different questions: `./colors`
+from a stylesheet may find `_colors.scss`, and from a module must not. `.scss`
+and `.less` share that reader, and a component that imports its own stylesheet
+is an edge like any other.
 
 **Python.** A statement is several modules: `from a.b.c import name` runs three
 `__init__.py` on the way down and then either `c.py` or nothing, and which one is
