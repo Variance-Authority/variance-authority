@@ -474,6 +474,9 @@ integer from claiming a clean run over a surface nobody observed.
 - [`relations`](./reach/relations/README.md) — folds those records into the
   graph and seeds every traversal with the files whose edges are unknown, so an
   unreadable file widens the run rather than narrowing it
+- [`installed`](./reach/installed/README.md) — compares the lockfile at two
+  revisions, and reports *the comparison could not be made* as its own answer
+  rather than as an install that moved nothing
 - [`selection`](./reach/selection/README.md) — narrows from the structural and
   execution grounds, refuses to narrow at all when either ground cannot answer,
   and names every **subject** it removed with the reason
@@ -509,6 +512,7 @@ integer from claiming a clean run over a surface nobody observed.
 flowchart TB
   SCAN[source-scan<br/>edges could not be enumerated] -->|the file, with its sentence| REL[relations]
   REL -->|unknown files seeded into the walk| SEL[selection]
+  INS[installed<br/>the lockfile could not be compared] -->|no narrowing, not an empty diff| SEL
   PLAN[subject-plan<br/>a viewport it cannot resolve] -->|every subject by id| SEL
   SEL -->|"unreached: the change cannot arrive here"| RR
 
@@ -537,6 +541,17 @@ flowchart TB
   marked unknown, returning them as `Reached.opaque` (`Hole[]`) counted apart
   from `Reached.files`. `packages/sense/src/scan.ts` (`scanRelations`) is the
   only producer.
+- An install that could not be read — `readLockfile` in
+  `packages/sense/src/lock/` throws rather than returning an empty install, and
+  `changedPackages` compares two reads instead of a path. A caller that cannot
+  produce both reads has no comparison, which is not the same value as a
+  comparison that found nothing, and the run widens. A moved package whose
+  importers the execution record never measured travels the same channel as an
+  unread path — `ExecutionNarrowing.unread` in
+  `packages/sense/src/test-selection/select.ts` carries it under the package's
+  own name, so the valve the walk opened in
+  `packages/sense/src/test-selection/importers.ts` cannot be closed by a filter
+  written for file paths.
 - Two grounds to one narrowing — `affectedSubjects` in
   `packages/cli/src/commands/affected.ts` returns `Affected` with `skipped: {
   subject, because }[]` and a `whole` sentence when it declined to narrow;

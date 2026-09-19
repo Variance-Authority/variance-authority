@@ -46,6 +46,11 @@ export interface ExecutionNarrowing {
    * name is about the audience that read that name, and the built twin's
    * audience is a different set of tests from the source's.
    *
+   * A moved package is here under its name rather than a path, and means the
+   * same thing it means for a file: some file importing it entered a module
+   * the record never measured, so nothing here can say the bump changed
+   * nothing.
+   *
    * Empty is the ordinary state.
    */
   readonly unread: readonly string[];
@@ -291,7 +296,15 @@ function readDiff(
     const names = knownAs(file);
     return names.length > 0 && names.every((name) => !unmatched.has(name));
   };
-  const unread = answered.unread.filter((file) => !measured(file)).sort(codeUnitOrder);
+  // A package name reaches `unread` only from the install walk, and that walk
+  // already decided: its importers were not all measured. `measured` is about
+  // the names a snapshot may hold a *file* under and would answer for a package
+  // by accident — it holds no row under one, so it never appears in
+  // `unmatched`, and the valve the walk opened would close here unnoticed.
+  const moved = new Set(options.packages ?? []);
+  const unread = answered.unread
+    .filter((name) => moved.has(name) || !measured(name))
+    .sort(codeUnitOrder);
 
   const because = [...selected]
     .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))

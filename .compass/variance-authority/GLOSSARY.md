@@ -644,8 +644,10 @@ the reachability trail, which explains it. Cycles are condensed, never broken.
 
 ### Meaning
 
-What another build tool contributes to a selection: more changed input, never a
-second opinion, and never a selection.
+Anything that enters a selection as more changed input, never as a second
+opinion and never as a selection itself: the projects another build tool calls
+affected, and the packages a lockfile comparison says the install moved. A seed
+is walked from exactly as a changed file is.
 
 ### Bounded context
 

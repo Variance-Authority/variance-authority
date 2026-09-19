@@ -15,7 +15,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
 import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
-import { importGraph } from './since-graph.mjs';
+import { importGraph, isManifest, movedPackages } from './since-graph.mjs';
 import { describeRange, distanceLines, findingLines, helpLines } from './since-report.mjs';
 
 /**
@@ -315,8 +315,14 @@ async function main() {
   // module's identity: the old path's regions are gone and the new path has none.
   const changed = [...lines(git('diff', '--name-only', '--no-renames', base)), ...untracked];
 
-  const consequential = changed.filter((path) => !isInert(path));
-  if (consequential.length === 0) {
+  // The install is read at the two revisions rather than counted as a changed
+  // path, and the paths that record it are then dropped: counted as changed
+  // files they have no row, so they would widen the run for the very thing
+  // they just explained. `undefined` is a comparison that could not be made.
+  const moved = movedPackages(ROOT, base, git);
+  const bumped = new Set(moved ?? []);
+  const consequential = changed.filter((path) => !isInert(path) && !isManifest(path));
+  if (consequential.length === 0 && moved !== undefined && moved.length === 0) {
     say(
       changed.length === 0
         ? `test:since: nothing has changed since ${base.slice(0, 12)}.`
@@ -350,6 +356,7 @@ async function main() {
       enumerated,
       knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named(file)),
       faces,
+      ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
     },
   );
   const whole = new Set(narrowing.whole);
@@ -363,7 +370,11 @@ async function main() {
    * the build never read this module — and which the graph holds no importer
    * for either arrives as `unread`.
    */
-  const unmeasured = narrowing.unread.filter((path) => !isInert(path) && !isTest(path));
+  const unmeasured = narrowing.unread.filter((p) => !isInert(p) && !isTest(p) && !bumped.has(p));
+  // A moved package whose importers the record never measured: unread for the
+  // reason a file there is, reported separately because "no measurement of
+  // @mui/material" reads as a missing path rather than a watched dependency.
+  const unwatched = narrowing.unread.filter((name) => bumped.has(name));
 
   const widen = (because) => {
     say(`test:since: running the whole suite — ${because}.`, `  ${suite.length} files`, '');
@@ -371,6 +382,16 @@ async function main() {
     const result = spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' });
     return result.status ?? 1;
   };
+
+  if (moved === undefined) {
+    return widen(`the install could not be compared against ${base.slice(0, 12)}`);
+  }
+
+  if (unwatched.length > 0) {
+    const [first, ...rest] = [...new Set(unwatched)].sort();
+    const more = rest.length === 0 ? '' : ` and ${rest.length} other package(s)`;
+    return widen(`the install moved ${first}${more}, and no file importing it was measured`);
+  }
 
   if (unmeasured.length > 0) {
     const [first, ...rest] = [...new Set(unmeasured)].sort();

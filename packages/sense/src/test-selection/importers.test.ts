@@ -415,3 +415,77 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     ).toMatchObject({ entered: [], unread: ['src/rules.css'] });
   });
 });
+
+describe('a package the install moved, asked of the files that import it', () => {
+  const file = (name: string) => ({ kind: 'file', name }) as const;
+  const pkg = (name: string) => ({ kind: 'package', name }) as const;
+  const view = () => openTestCoverage(encodeTestCoverage(coverage));
+  const uses = (from: string, to: string, kind: 'imports' | 'type' = 'imports') =>
+    ({ from: file(from), to: pkg(to), kind }) as const;
+  const beneath = (from: string, to: string) =>
+    ({ from: pkg(from), to: pkg(to), kind: 'depends-on' }) as const;
+
+  it('selects the tests that entered a module importing it', () => {
+    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material')] });
+
+    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toEqual({
+      whole: testFiles,
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      unread: [],
+      stale: [],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
+      ],
+    });
+  });
+
+  it('reaches the importer from a package three levels under it', () => {
+    // Nothing imports `jsdom`. `jest-environment-jsdom` resolves it beneath
+    // itself, and `src/decide.ts` imports that: the bump arrives by the same
+    // backwards walk an edited file arrives by, and the trail says so.
+    const relations = relationsOf({
+      relations: [uses('src/decide.ts', 'jest-environment-jsdom'), beneath('jest-environment-jsdom', 'jsdom')],
+    });
+    const narrowing = narrowByExecutionFromView(view(), '', { relations, packages: ['jsdom'] });
+
+    expect(narrowing.entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
+    expect(narrowing.because[0]?.via).toEqual([
+      { kind: 'importer', trail: ['jsdom', 'jest-environment-jsdom', 'src/decide.ts'] },
+    ]);
+  });
+
+  it('says nothing about a package no file imports', () => {
+    // An answer, not a gap: the install moved something this repository does
+    // not reach, so nothing it does can be observed here.
+    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material')] });
+
+    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['left-pad'] })).toEqual({
+      whole: testFiles,
+      entered: [],
+      unread: [],
+      stale: [],
+      because: [],
+    });
+  });
+
+  it('does not select on a type-only import, which is erased before anything runs', () => {
+    const relations = relationsOf({ relations: [uses('src/decide.ts', '@mui/material', 'type')] });
+
+    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] }).entered).toEqual(
+      [],
+    );
+  });
+
+  it('leaves the package unread when the record never measured a file that imports it', () => {
+    const relations = relationsOf({ relations: [uses('src/legacy-widget.js', '@mui/material')] });
+
+    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toEqual({
+      whole: testFiles,
+      entered: [],
+      unread: ['@mui/material'],
+      stale: [],
+      because: [],
+    });
+  });
+});

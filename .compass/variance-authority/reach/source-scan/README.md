@@ -33,7 +33,8 @@ nothing runs for it.
 
 ## Used by
 
-- [`relations`](../relations/README.md) — the records it folds into the graph
+- [`relations`](../relations/README.md) — the records it folds into the graph,
+  package edges among them
 - [`crossings`](../crossings/README.md) — the statically reachable files behind
   a test file, for measuring how much of them a run entered
 
@@ -42,18 +43,25 @@ nothing runs for it.
 Configured directories are seeds and not a boundary: an imported stylesheet
 outside them still enters the graph, because a scan that only knows the files it
 was pointed at cannot answer the question it exists for. It stops at the
-repository edge — a specifier resolving into installed dependencies, into a
-sibling package's built output, or anywhere above the root is dropped, since
-nothing in a diff of this repository can be that file. That leaves a real gap at
-every package boundary, and it is filled by [`selection`](../selection/README.md)
-taking another tool's affected-project answer as more changed input.
+repository edge for *files* — a specifier resolving into a sibling package's
+built output, or anywhere above the root, is dropped, since nothing in a diff of
+this repository can be that file. That leaves a real gap at every package
+boundary, and it is filled by [`selection`](../selection/README.md) taking
+another tool's affected-project answer as more changed input.
+
+A specifier that names an installed dependency does not vanish at that edge: it
+is kept as an edge to the package under the name the source asked for, so a
+package [`installed`](../installed/README.md) says moved reaches the files that
+import it and no others. The name is the whole of what is recorded — no version,
+no resolution, no directory.
 
 It decides where a specifier points and never what counts as one; that is
 settled from syntax alone. A specifier that resolves nowhere is still a fact
-worth keeping, and *binds nothing* has several causes that must stay apart: an
-uninstalled package lies outside the diff and widens nothing, while an
-unreadable or unresolved relative edge means this file may depend on anything
-and carries the sentence saying so.
+worth keeping, and *binds nothing* has several causes that must stay apart: a
+bare specifier is recorded as a package edge whether or not anything is
+installed under that name, since whether a package is present here decides
+nothing about which files import it, while an unreadable or unresolved relative
+edge means this file may depend on anything and carries the sentence saying so.
 
 ## Implementation coordinates
 

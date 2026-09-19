@@ -42,14 +42,21 @@
  *
  * ## Nodes are typed, because files are not the last kind
  *
- * This ships with two kinds and the join between them: a `file` graph built from
- * imports, and the `component` nodes the source index already knows how to find.
- * That is deliberate rather than incidental. A component relation — *`TodoFooter`
- * renders `Chip`* — is another edge kind between nodes of another kind in this
- * same structure, and
+ * Three kinds and the joins between them: a `file` graph built from imports, the
+ * `component` nodes the source index already knows how to find, and a `package`
+ * for each name an install resolved. That is deliberate rather than incidental. A
+ * component relation — *`TodoFooter` renders `Chip`* — is another edge kind
+ * between nodes of another kind in this same structure, and
  * [`composition.md`](../../../../docs/composition.md) already computes exactly
  * that relation from what a run rendered. One graph means the static answer and
  * the rendered answer are joinable rather than adjacent.
+ *
+ * A `package` earns its kind for the same reason and one more: it is the far end
+ * of the same line. A run starts at the harness, arrives at our code through the
+ * tests, and leaves it again at the packages — so a bumped dependency is a node
+ * like any other, and *which of our files a new `jsdom` can have moved* is the
+ * one traversal this file already performs, seeded on the other side
+ * ([`docs/selecting.md`](../../../../docs/selecting.md)).
  *
  * ## What it is not
  *
@@ -63,7 +70,7 @@
  */
 
 /** Node kinds, in id order. An id is an index into this, never the word. */
-export const NODE_KINDS = ['file', 'component'] as const;
+export const NODE_KINDS = ['file', 'component', 'package'] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
 
 /**
@@ -89,18 +96,28 @@ export const EDGE_KINDS = [
   'asset',
   /** A component to the file that declares it. */
   'declared-in',
+  /** A package to a package its install resolved beneath it. */
+  'depends-on',
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 /**
  * The edge kinds something at runtime can follow: every kind but `type`. The
- * default for a reach and for a closure, and the list a caller widens from.
+ * default for a reach, and the list a caller widens from. A closure folds a
+ * shorter list (`CLOSURE_EDGES`), because a digest is a claim about bytes and
+ * one of these kinds leads nowhere any bytes are.
  */
 export const RUNTIME_EDGES: readonly EdgeKind[] = EDGE_KINDS.filter((kind) => kind !== 'type');
 
 export interface Node {
   readonly kind: NodeKind;
-  /** Repository-relative for a file; the identifier for a component. */
+  /**
+   * Repository-relative for a file, the identifier for a component, and for a
+   * package the name source code imports it by — `@mui/material`, never a
+   * version and never a resolution. Which copy a resolver handed any one
+   * importer is unanswerable without running that resolver, and the question
+   * this graph is asked never needs it ([`sense/lock`](../../../sense/src/lock/index.ts)).
+   */
   readonly name: string;
 }
 
@@ -179,8 +196,8 @@ export interface Relations {
  * The lookup key for a node.
  *
  * Runtime only; nothing serializes this, and no code parses it back — the
- * separator only has to be injective, and it is, because a kind is one of two
- * fixed words and neither contains a `:`. A name that contains one is therefore
+ * separator only has to be injective, and it is, because a kind is one of a few
+ * fixed words and none contains a `:`. A name that contains one is therefore
  * fine.
  *
  * The obvious separator is a NUL, and it is the wrong one: a source file

@@ -16,6 +16,7 @@ import { digestString } from '@variance-authority/core/format';
 import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import { indexOf } from './affected.js';
+import { installedDepends } from './installed.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
 
@@ -325,6 +326,13 @@ export async function scanSourceDirs(
  * selects and the first one is the only one that should cost a repository. They
  * are keyed by content and by tree shape, so the worst a bad one can do is a full
  * scan — see `scanCacheRoot`.
+ *
+ * The install is joined here too, and it is the same graph rather than a second
+ * one. A file that imports `@mui/material` has an edge to a node named
+ * `@mui/material`, the lockfile says which packages that one rests on, and a
+ * transitive bump — `jsdom`, three levels under something a test imports —
+ * reaches our code by the same backwards walk an edited file does
+ * ([`installed.ts`](./installed.ts)).
  */
 export async function relationsFor(
   root: string,
@@ -369,7 +377,14 @@ export async function relationsFor(
   // generation as the parses they were taken beside.
   await source.save();
 
-  return relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+  // Read from the lockfile at this revision, never from `package.json`: a range
+  // is a request and the lockfile is the answer to it. Empty when there is no
+  // install to read, which loses the transitive half of a package bump and
+  // never the direct half — and the diff that would have needed it refuses on
+  // the same unreadable file rather than narrowing.
+  const depends = await installedDepends(root);
+
+  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends });
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];

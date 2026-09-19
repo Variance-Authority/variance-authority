@@ -26,6 +26,7 @@ import {
   type EdgeKind,
   type Node,
   type NodeId,
+  type NodeKind,
   type Relation,
   type Relations,
 } from './graph.js';
@@ -34,6 +35,21 @@ import { dependenciesOf, dependentsOf, trailOf, type Reach, type ReachOptions } 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
   readonly to: string;
+  readonly kind: EdgeKind;
+}
+
+/**
+ * A file's import of something the install provides.
+ *
+ * The name a specifier asked for, never a version and never a resolution:
+ * which copy a resolver handed this importer is unanswerable without
+ * reproducing that resolver, and a selector that guessed would skip on the
+ * guess. Names over-include, which is the safe direction.
+ */
+export interface PackageEdge {
+  /** The package name the specifier asked for — `@mui/material`, not a path. */
+  readonly to: string;
+  /** The import's own kind, so a `type` import of a package is erased like any other. */
   readonly kind: EdgeKind;
 }
 
@@ -59,6 +75,22 @@ export interface FileRecord {
   readonly declares?: readonly string[];
 
   /**
+   * Packages this file imports, by the name it imports them by.
+   *
+   * The far end of the line. Nothing resolves these to a path — under pnpm's
+   * store or Yarn PnP there may not be one, and under a custom resolver the path
+   * would be a lie about a different machine — so the name stands for the
+   * dependency, and what the install currently has under that name is a question
+   * for the lockfile ([`sense/lock`](../../../sense/src/lock/index.ts)).
+   *
+   * A file that imports `@mui/material` is moved by `@mui/material` moving; a
+   * file that does not, is not. That is the whole rule, and it is why this is
+   * read from the imports rather than from a manifest: a `package.json` says what
+   * a workspace may use, and the imports say what a file does use.
+   */
+  readonly packages?: readonly PackageEdge[];
+
+  /**
    * Specifiers that were read but did not resolve.
    *
    * Kept for the report rather than for the graph. A bare specifier that failed
@@ -80,6 +112,7 @@ export interface FileRecord {
 
 const file = (name: string): Node => ({ kind: 'file', name });
 const component = (name: string): Node => ({ kind: 'component', name });
+const pkg = (name: string): Node => ({ kind: 'package', name });
 
 /**
  * Fold file records into the graph.
@@ -106,6 +139,9 @@ export function relationsOfFiles(records: Iterable<FileRecord>, options: Relatio
     for (const edge of record.edges ?? []) {
       relations.push({ from, to: file(edge.to), kind: edge.kind });
     }
+    for (const edge of record.packages ?? []) {
+      relations.push({ from, to: pkg(edge.to), kind: edge.kind });
+    }
     for (const name of record.declares ?? []) {
       relations.push({ from: component(name), to: from, kind: 'declared-in' });
     }
@@ -114,12 +150,31 @@ export function relationsOfFiles(records: Iterable<FileRecord>, options: Relatio
     if (record.unknown !== undefined) unknown.push([from, record.unknown]);
   }
 
+  // The lock's own edges arrive here rather than as records, because they are
+  // not a file's reading of anything: one lockfile answers for the whole
+  // install, and folding them in beside the imports is what lets a bump three
+  // packages deep walk up to the file that imports the one at the top.
+  for (const [from, to] of options.depends ?? []) {
+    relations.push({ from: pkg(from), to: pkg(to), kind: 'depends-on' });
+  }
+
   return relationsOf({ relations, isolated, unknown, ...(options.shadows === undefined ? {} : { shadows: options.shadows }) });
 }
 
 export interface RelationsOptions {
   /** Per file, the files its run never reaches; see {@link Relations.shadows}. */
   readonly shadows?: ReadonlyMap<string, readonly string[]>;
+
+  /**
+   * `[dependent, dependency]` pairs between packages, from a lockfile
+   * ([`packageRelations`](../../../sense/src/lock/lockfile.ts)).
+   *
+   * Optional, and a graph without them is not wrong, only shorter-sighted: it
+   * answers a change to a package some file imports directly, and says nothing
+   * about a change three levels down. Supplying them is what turns *`jsdom`
+   * moved* into *every test whose environment is built on it*.
+   */
+  readonly depends?: Iterable<readonly [string, string]>;
 }
 
 export interface Hole {
@@ -134,6 +189,17 @@ export interface Reached {
   readonly files: readonly string[];
   /** Components declared in any of them. */
   readonly components: readonly string[];
+
+  /**
+   * Packages the change could have moved, including the changed packages
+   * themselves and everything the install resolved beneath them.
+   *
+   * Reported rather than used: the answer a caller acts on is in `files`, and
+   * this is the trail of package names that got there. Empty for a walk seeded
+   * only with files, because a package is downstream of every file that imports
+   * it and a walk against the arrows never descends.
+   */
+  readonly packages: readonly string[];
 
   /**
    * Changed paths the graph does not hold.
@@ -191,20 +257,29 @@ export interface MovedOptions extends ReachOptions {
  * too, and the cost is a collection rather than a green run over an unwatched
  * surface.
  *
+ * A seed is a path, or a node naming its own kind. The second form is how a
+ * changed *package* enters: a bare string keeps meaning a file, because that is
+ * what every caller written before packages existed meant by one, and a caller
+ * with a lockfile in hand passes `{ kind: 'package', name: 'jsdom' }` into the
+ * same walk. There is no second selector, and there is no order between the two
+ * — a commit that bumps a dependency and edits a file is one seed set and one
+ * traversal.
+ *
  * One breadth-first search, whatever the number of changed files, over the
  * runtime edges unless the caller names others.
  */
 export function movedBy(
   relations: Relations,
-  changed: Iterable<string>,
+  changed: Iterable<string | Node>,
   options: MovedOptions = {},
 ): Reached {
   const seeds: NodeId[] = [];
   const missing: string[] = [];
 
-  for (const path of changed) {
-    const id = idOf(relations, 'file', path);
-    if (id === undefined) missing.push(path);
+  for (const entry of changed) {
+    const node = typeof entry === 'string' ? file(entry) : entry;
+    const id = idOf(relations, node.kind, node.name);
+    if (id === undefined) missing.push(node.name);
     else seeds.push(id);
   }
 
@@ -218,16 +293,23 @@ export function movedBy(
   }
 
   const reach = unshadowed(relations, seeds, options);
-  const files: string[] = [];
-  const components: string[] = [];
+  const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
 
   for (const id of reach.reached) {
     const node = nodeAt(relations, id);
     if (node === undefined) continue;
-    (node.kind === 'file' ? files : components).push(node.name);
+    found[node.kind].push(node.name);
   }
 
-  return { files, components, missing: missing.sort(byCodeUnit), opaque, shadowed: reach.shadowed, reach };
+  return {
+    files: found.file,
+    components: found.component,
+    packages: found.package,
+    missing: missing.sort(byCodeUnit),
+    opaque,
+    shadowed: reach.shadowed,
+    reach,
+  };
 }
 
 /**

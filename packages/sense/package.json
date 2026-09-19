@@ -33,6 +33,10 @@
       "types": "./dist/read.d.ts",
       "default": "./dist/read.js"
     },
+    "./lock": {
+      "types": "./dist/lock/index.d.ts",
+      "default": "./dist/lock/index.js"
+    },
     "./taint": {
       "types": "./dist/taint/index.d.ts",
       "default": "./dist/taint/index.js"

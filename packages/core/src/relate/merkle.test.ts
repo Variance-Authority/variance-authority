@@ -169,11 +169,13 @@ describe('a cycle', () => {
 });
 
 describe('the edge kinds a closure folds', () => {
-  it('are the runtime edges, listed on their own and tied here', () => {
+  it('are the runtime edges a digest can speak for', () => {
     // The closure lists its kinds rather than deriving them, so that widening
     // the fold reads as the decision it is. This is the one place the two
-    // lists are held equal, so a reach and a closure answer the same question.
-    expect(CLOSURE_EDGES).toEqual(RUNTIME_EDGES);
+    // lists are held against each other, and the only permitted difference is
+    // the edge between two packages: a package node is a name, so hashing
+    // across one proves nothing an install comparison has not already said.
+    expect(CLOSURE_EDGES).toEqual(RUNTIME_EDGES.filter((kind) => kind !== 'depends-on'));
   });
 
   const records: readonly FileRecord[] = [

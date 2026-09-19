@@ -22,6 +22,7 @@
  * which is exactly why they are written down rather than discovered.
  */
 
+import { isBuiltin } from 'node:module';
 import { realpathSync } from 'node:fs';
 import { basename, extname, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory } from 'oxc-resolver';
@@ -367,6 +368,32 @@ function indexOr(value: string, mark: string): number {
 /** Whether a request names a path in this repository rather than a package. */
 export function isRelative(request: string): boolean {
   return request.startsWith('./') || request.startsWith('../') || request === '.' || request === '..';
+}
+
+/**
+ * The package a specifier asks for, or nothing when it asks for no package.
+ *
+ * A relative path, an absolute one, a URL and a Node builtin are all excluded,
+ * and what is left is a bare specifier — whose package is its first segment, or
+ * its first two when it is scoped. `@mui/material/Button` is `@mui/material`,
+ * because that is the name an install resolves and the name a lockfile moves.
+ *
+ * Nothing here checks whether the package exists. It cannot: the reason a bare
+ * specifier reaches this function at all is that resolution declined to place
+ * it, which under pnpm's store or Yarn PnP is the ordinary case rather than a
+ * failure. A name is enough, and asking for more would make the answer depend
+ * on whose machine ran the scan.
+ */
+export function packageOf(request: string): string | undefined {
+  if (isRelative(request) || request.startsWith('/') || request.includes('://')) return undefined;
+  if (isBuiltin(request)) return undefined;
+
+  const parts = request.split('/');
+  const name = request.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!;
+
+  // `@scope` on its own is not a package, and neither is the empty string a
+  // specifier like `/` leaves behind.
+  return name === '' || (name.startsWith('@') && !name.includes('/')) ? undefined : name;
 }
 
 /**

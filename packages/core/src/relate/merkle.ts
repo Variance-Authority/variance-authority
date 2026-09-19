@@ -303,6 +303,12 @@ function condense(relations: Relations, allowed: Uint8Array): Condensation {
  *
  * `type` is not in it: a type-only import is erased before a render, so a change
  * behind one is not an input the render folded.
+ *
+ * `depends-on` is not in it either, for the opposite reason. It runs between two
+ * packages, and a package node is a name rather than a content digest — an
+ * install that moved is a fact the diff carries, never one a hash of names could
+ * reveal. Folding it would add a term that cannot change and a walk that cannot
+ * answer.
  */
 export const CLOSURE_EDGES: readonly EdgeKind[] = [
   'imports',

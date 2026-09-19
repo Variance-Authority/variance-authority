@@ -184,6 +184,7 @@ export async function selectionFor(
           roots: config.source.dirs,
           baselines,
           ...(changedDirs === undefined ? {} : { changedDirs }),
+          ...(explains.install === undefined ? {} : { install: explains.install }),
         });
 
   if (options.since === undefined) {
@@ -208,6 +209,7 @@ export async function selectionFor(
     ...(relations === undefined ? {} : { relations }),
     ...(config.source.unrendered === undefined ? {} : { unrendered: config.source.unrendered }),
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
+    ...(options.since.install === undefined ? {} : { install: options.since.install }),
   });
 
   // Only what survived the structural ground. A journal recorded before a

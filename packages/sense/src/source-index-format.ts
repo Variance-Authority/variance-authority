@@ -137,6 +137,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const recordEdgePresent = new Uint8Array(records.length);
   const recordDeclares = new Uint32Array(records.length + 1);
   const recordDeclarePresent = new Uint8Array(records.length);
+  const recordPackages = new Uint32Array(records.length + 1);
+  const recordPackagePresent = new Uint8Array(records.length);
   const recordUnresolved = new Uint32Array(records.length + 1);
   const recordUnresolvedPresent = new Uint8Array(records.length);
   const recordUnknown = new Uint32Array(records.length).fill(NONE);
@@ -149,6 +151,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const edgeKind: number[] = [];
   const recordDeclareName: number[] = [];
   const unresolvedValue: number[] = [];
+  const packageTo: number[] = [];
+  const packageKind: number[] = [];
 
   for (const [index, [file, held]] of records.entries()) {
     const record = held.record;
@@ -168,6 +172,12 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     recordDeclares[index] = recordDeclareName.length;
     recordDeclarePresent[index] = record.declares === undefined ? 0 : 1;
     for (const name of record.declares ?? []) recordDeclareName.push(id(name));
+    recordPackages[index] = packageTo.length;
+    recordPackagePresent[index] = record.packages === undefined ? 0 : 1;
+    for (const edge of record.packages ?? []) {
+      packageTo.push(id(edge.to));
+      packageKind.push(id(edge.kind));
+    }
     recordUnresolved[index] = unresolvedValue.length;
     recordUnresolvedPresent[index] = record.unresolved === undefined ? 0 : 1;
     for (const value of record.unresolved ?? []) unresolvedValue.push(id(value));
@@ -177,6 +187,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   recordTargets[records.length] = targetPath.length;
   recordEdges[records.length] = edgeTo.length;
   recordDeclares[records.length] = recordDeclareName.length;
+  recordPackages[records.length] = packageTo.length;
   recordUnresolved[records.length] = unresolvedValue.length;
 
   return bytes(encodeSegment(FORMAT, VERSION, {
@@ -224,6 +235,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'records.edges-present': recordEdgePresent,
     'records.declares': recordDeclares,
     'records.declares-present': recordDeclarePresent,
+    'records.packages': recordPackages,
+    'records.packages-present': recordPackagePresent,
     'records.unresolved': recordUnresolved,
     'records.unresolved-present': recordUnresolvedPresent,
     'records.unknown': recordUnknown,
@@ -236,6 +249,8 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'edges.kind': Uint32Array.from(edgeKind),
     'record-declares.name': Uint32Array.from(recordDeclareName),
     'unresolved.value': Uint32Array.from(unresolvedValue),
+    'packages.to': Uint32Array.from(packageTo),
+    'packages.kind': Uint32Array.from(packageKind),
   } satisfies Record<string, Column>));
 }
 
@@ -346,6 +361,8 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const recordEdgePresent = opened.u8('records.edges-present');
   const recordDeclares = opened.u32('records.declares');
   const recordDeclarePresent = opened.u8('records.declares-present');
+  const recordPackages = opened.u32('records.packages');
+  const recordPackagePresent = opened.u8('records.packages-present');
   const recordUnresolved = opened.u32('records.unresolved');
   const recordUnresolvedPresent = opened.u8('records.unresolved-present');
   const recordUnknown = opened.u32('records.unknown');
@@ -358,14 +375,18 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const edgeKind = opened.u32('edges.kind');
   const recordDeclareName = opened.u32('record-declares.name');
   const unresolvedValue = opened.u32('unresolved.value');
+  const packageTo = opened.u32('packages.to');
+  const packageKind = opened.u32('packages.kind');
   validateOffset(recordEdges, edgeTo.length, recordFile.length);
   validateOffset(recordDeclares, recordDeclareName.length, recordFile.length);
   validateOffset(recordUnresolved, unresolvedValue.length, recordFile.length);
+  validateOffset(recordPackages, packageTo.length, recordFile.length);
   validateOffset(recordWitnesses, witnessDirectory.length, recordFile.length);
   validateOffset(recordTargets, targetPath.length, recordFile.length);
   sameLength(recordFile.length, [recordDigest, recordEdgePresent, recordDeclarePresent,
-    recordUnresolvedPresent, recordUnknown, recordTargetPresent]);
+    recordPackagePresent, recordUnresolvedPresent, recordUnknown, recordTargetPresent]);
   sameLength(edgeTo.length, [edgeKind]);
+  sameLength(packageTo.length, [packageKind]);
 
   const records = new Map<string, IndexedRecord>();
   for (let row = 0; row < recordFile.length; row += 1) {
@@ -376,6 +397,10 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       kind: text(edgeKind[edge]!) as NonNullable<FileRecord['edges']>[number]['kind'],
     }));
     const declares = range(recordDeclares, row).map((entry) => text(recordDeclareName[entry]!));
+    const packages = range(recordPackages, row).map((edge) => ({
+      to: text(packageTo[edge]!),
+      kind: text(packageKind[edge]!) as NonNullable<FileRecord['edges']>[number]['kind'],
+    }));
     const unresolved = range(recordUnresolved, row).map((entry) => text(unresolvedValue[entry]!));
     const unknown = optional(recordUnknown[row]!);
     const witnesses = range(recordWitnesses, row).map((entry) => text(witnessDirectory[entry]!));
@@ -387,6 +412,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
         ...(digest === undefined ? {} : { digest }),
         ...(flag(recordEdgePresent[row]) ? { edges } : {}),
         ...(flag(recordDeclarePresent[row]) ? { declares } : {}),
+        ...(flag(recordPackagePresent[row]) ? { packages } : {}),
         ...(flag(recordUnresolvedPresent[row]) ? { unresolved } : {}),
         ...(unknown === undefined ? {} : { unknown }),
       },

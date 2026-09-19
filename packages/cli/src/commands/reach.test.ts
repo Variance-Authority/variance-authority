@@ -178,3 +178,97 @@ describe('a component reached through a file the scan could not read', () => {
     ]);
   });
 });
+
+/**
+ * The chain from a package to a picture.
+ *
+ * The same attribution the file trails carry, one node further out. A reviewer
+ * reading "your `@mui/material` bump reaches `Button`" can check it by opening
+ * the file in the middle; a reviewer reading "the lockfile changed" can check
+ * nothing at all, which is what this replaces.
+ */
+describe('the chain from a bumped package to a component', () => {
+  const INSTALLED = relationsOfFiles(
+    [
+      {
+        file: 'src/ds/Button.tsx',
+        declares: ['Button'],
+        packages: [{ to: '@mui/material', kind: 'imports' }],
+      },
+      {
+        file: 'src/ds/Types.tsx',
+        declares: ['Typed'],
+        // Erased by every compiler, so it cannot be repainted by a bump.
+        packages: [{ to: '@mui/material', kind: 'type' }],
+      },
+      { file: 'src/ds/Clock.tsx', declares: ['Clock'] },
+    ],
+    { depends: [['@mui/material', '@emotion/react']] },
+  );
+
+  it('opens the trail at the package, through the file that imports it', () => {
+    const reach = reachOf({
+      against: 'main',
+      changed: ['yarn.lock'],
+      relations: INSTALLED,
+      roots: ROOTS,
+      baselines: baselines([['story:button', ['Button']]]),
+      install: { packages: ['@emotion/react'], manifests: ['yarn.lock', 'package.json'] },
+    });
+
+    expect(reach.components).toEqual([
+      {
+        component: 'Button',
+        trail: ['@emotion/react', '@mui/material', 'src/ds/Button.tsx', 'Button'],
+      },
+    ]);
+    // Named, not `throughUnread`: the install said this package moved, so the
+    // seed is one the run can stand behind.
+    expect(reach.components[0]?.throughUnread).toBeUndefined();
+  });
+
+  it('does not reach a component that only imports the package as a type', () => {
+    const reach = reachOf({
+      against: 'main',
+      changed: ['yarn.lock'],
+      relations: INSTALLED,
+      roots: ROOTS,
+      baselines: baselines([['story:typed', ['Typed']]]),
+      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'] },
+    });
+
+    expect(reach.components.map((entry) => entry.component)).toEqual(['Button']);
+    expect(reach.subjects?.['story:typed']?.reached).toBe(false);
+  });
+
+  it('says which packages nothing imports rather than refusing', () => {
+    const reach = reachOf({
+      against: 'main',
+      changed: ['yarn.lock'],
+      relations: INSTALLED,
+      roots: ROOTS,
+      baselines: baselines([['story:button', ['Button']]]),
+      install: { packages: ['eslint'], manifests: ['yarn.lock', 'package.json'] },
+    });
+
+    // An empty answer that is a fact, not a gap: the graph holds every file
+    // that names a package, so *no file names this one* is complete.
+    expect(reach.components).toEqual([]);
+    expect(reach.whole).toBeUndefined();
+    expect(reach.subjects?.['story:button']?.reached).toBe(false);
+  });
+
+  it('refuses when the install could not be compared, and names the reason', () => {
+    const reach = reachOf({
+      against: 'main',
+      changed: ['yarn.lock'],
+      relations: INSTALLED,
+      roots: ROOTS,
+      baselines: baselines([['story:button', ['Button']]]),
+      install: { whole: 'yarn.lock declares __metadata.version 3, and this reader reads 4 and above' },
+    });
+
+    expect(reach.whole).toContain('__metadata.version 3');
+    expect(reach.components).toEqual([]);
+  });
+});

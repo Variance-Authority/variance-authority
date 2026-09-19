@@ -519,6 +519,7 @@
         "Node": "interface",
         "NodeId": "type",
         "NodeKind": "type",
+        "PackageEdge": "interface",
         "RUNTIME_EDGES": "const",
         "Reach": "interface",
         "ReachOptions": "interface",
@@ -2193,6 +2194,10 @@
           "types": "./dist/read.d.ts",
           "default": "./dist/read.js"
         },
+        "./lock": {
+          "types": "./dist/lock/index.d.ts",
+          "default": "./dist/lock/index.js"
+        },
         "./taint": {
           "types": "./dist/taint/index.d.ts",
           "default": "./dist/taint/index.js"
@@ -2297,6 +2302,15 @@
         "STYLE_EXTENSIONS": "const",
         "readModule": "function",
         "readStyle": "function"
+      },
+      "./lock": {
+        "LOCKFILES": "const",
+        "Lockfile": "interface",
+        "Unreadable": "class",
+        "changedPackages": "function",
+        "packageNameOf": "function",
+        "packageRelations": "function",
+        "readLockfile": "function"
       },
       "./taint": {
         "ImportDiff": "interface",

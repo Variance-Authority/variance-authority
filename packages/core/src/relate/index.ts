@@ -53,6 +53,7 @@ export {
   type FileRecord,
   type Hole,
   type MovedOptions,
+  type PackageEdge,
   type RelationsOptions,
   type Reached,
 } from './records.js';

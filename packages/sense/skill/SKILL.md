@@ -271,6 +271,13 @@ not argue with them:
   `unread`; the caller clears its skip list and names the path.
 - A test file that changed selects itself.
 - A run that cannot list its changed files at all does not narrow.
+- A lockfile that cannot be read, or cannot be read at the base revision, does
+  not narrow. A comparison that failed is not a comparison that found nothing.
+- A dependency bump under a file the recording never measured does not narrow.
+  The moved package appears under `unread` by name rather than by path.
+- A change to the harness, the bundler config or the node version does not
+  narrow. Nothing imports them, so there is no edge to walk and no answer
+  smaller than the whole suite.
 
 When an integration reports that it retained the whole suite, read the named
 path. That is a wiring fact about the project, and usually a fixable one.

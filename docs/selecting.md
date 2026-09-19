@@ -213,11 +213,11 @@ refusals of its own:
 | Situation | What happens |
 |---|---|
 | A changed file under `source.dirs` is not in the graph | The whole suite runs. The roots are your statement about where renders come from, so a file inside them the scan never read is a gap in the scan, not a file that affects nothing |
-| The diff is entirely outside the graph | The whole suite runs. A lockfile, a `package.json`, a CI config: none of them is a node here, and every one of them can repaint the suite |
+| The diff is entirely outside the graph | The whole suite runs. A CI config, a `tsconfig`, a build config: none of them is a node here, and every one of them can repaint the suite. A lockfile is the exception — it is [read rather than counted](#changes-before-and-beyond-reach) |
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
 | A file's own imports could not be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | It is traversed **as though it changed**, and named in the report with the reason |
 | A relative specifier resolves nowhere | Its file is treated as having unknown edges and widens for the same reason: the missing target belongs to this repository but could not be identified |
-| A bare specifier resolves nowhere | It is retained as an unresolved package request but does not widen the graph. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
+| A bare specifier resolves nowhere | It becomes an edge to a [package node](#changes-before-and-beyond-reach) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
 The widening rows are why the report distinguishes *reached* from *widened*. A
 file that had to be widened is printed with the specifier or read failure that
@@ -262,6 +262,104 @@ meaning *this diff crosses no package boundary*, so a missing binary and a quiet
 diff must not be able to produce the same value — one of them means every
 consumer of the changed package is safe to skip, and the other means nothing at
 all.
+
+## Changes before and beyond reach
+
+Read a run from left to right. The harness starts it, the tests it started enter
+your code, and your code goes out into what the install provides and never comes
+back. Selection lives in the middle stretch, where a file has a name the record
+can hold. Both ends are outside it, for opposite reasons.
+
+```mermaid
+flowchart LR
+  subgraph before["before reach"]
+    node["node version"]
+    config["jest config, vite config, next setup"]
+  end
+  subgraph reach["within reach"]
+    tests["your tests"]
+    code["your code"]
+  end
+  subgraph beyond["beyond reach"]
+    direct["@mui/material"]
+    transitive["jsdom"]
+  end
+
+  node --> config
+  config --> tests
+  tests --> code
+  code --> direct
+  direct --> transitive
+  transitive -.->|"wired into the environment"| config
+
+  classDef outside fill:none,stroke-dasharray:4 3;
+  class before,beyond outside;
+```
+
+**Beyond reach** is the far right: a dependency bump. Nothing in the diff names
+a file you wrote, and yet the code that imports the bumped package renders
+differently. That end is reachable, because the thing that moved has a name and
+your files say the name.
+
+**Before reach** is the far left: the node version, the harness config, the
+bundler setup. Nothing imports them and they change everything downstream of
+themselves. That end is not reachable, and a diff that touches only it runs the
+whole suite.
+
+### What a bumped package reaches
+
+A package is a node in the graph like a file is, and an import of one is an edge
+to it. So the question a dependency bump asks is the question every change asks
+— *which subjects entered something that depends on this* — and it is answered
+by the same walk, from a seed at the other end of the line.
+
+| The diff says | Selection does |
+| --- | --- |
+| `@mui/material` moved | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
+| `jsdom` moved, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
+| `@mui/material` moved and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
+| Only a `type` import reaches the moved package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
+| A file that imports the moved package was never measured | The whole suite runs. The record cannot say what entered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
+
+Which **copy** of a package an importer got is not asked. A specifier names
+`@mui/material`; which of the installed instances a resolver hands it is
+unanswerable without reproducing that resolver, and a selector that guessed
+would skip on the guess. Names over-include, and over-including is the safe
+direction.
+
+### Why the lockfile is read and not diffed
+
+`package.json` is a request, the lockfile is the answer, and neither is a
+changed file here. They are read at two revisions — the base and the working
+tree — and compared as installs, which is a different question from *did this
+file's bytes move*:
+
+- A workspace edit rewrites `yarn.lock` and moves no package. Counted as a
+  changed path it would widen the run; compared as an install it contributes
+  nothing.
+- A resolution or an override changes what `^4.17.21` means without changing the
+  line that asked for it. Compared as an install it is a bump like any other.
+- Both paths are then dropped from the changed-file list. They have no row in
+  any record, so left in they would widen the run for the very thing they just
+  explained.
+
+`yarn.lock` (classic and Berry), `pnpm-lock.yaml` and `package-lock.json` are
+read. **A lockfile that cannot be read widens the run**: a comparison that could
+not be made is not a comparison that found nothing.
+
+### Why the left end cannot be narrowed
+
+A change to `vite.config.ts`, to the jest environment, to the node version in
+CI: none of them is imported by anything, and all of them decide how everything
+runs. There is no edge to walk, so there is no smaller answer than the whole
+suite, and the whole suite is what runs.
+
+The two ends meet more often than they look like they should. A `jsdom` bump is
+beyond reach, and the environment it is wired into is before reach — the only
+arrow in the figure that points back to the left. Traced through the install it
+reaches `jest-environment-jsdom`; whether your harness config then hands that
+environment to every test is a fact about the config, not about any import, so
+the run widens on the config's terms rather than the graph's.
 
 ## What selecting costs
 
