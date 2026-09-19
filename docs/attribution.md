@@ -216,12 +216,12 @@ a stack, and between them they held **14 distinct call sites**. A hundred-row
 table writes two thousand cells from one line of JSX.
 
 Call sites are resolved for the handful of nodes a report is about to name, not
-on every capture. Frames ride the snapshot as provenance and no hash projects
-provenance, so `locateSites` spends them only there. A page whose only change is
-one button resolves one call site; a page that did not change resolves none.
-The frames are transient by design and never reach a document, a digest or a
-baseline: a frame holds an absolute URL with a build hash in it, and hashing one
-would make every baseline disagree with the next dev-server restart.
+on every capture. Frames are carried in the snapshot as provenance and no hash
+projects provenance, so `locateSites` spends them only there. A page whose only
+change is one button resolves one call site; a page that did not change resolves
+none. The frames are transient by design and never reach a document, a digest or
+a baseline: a frame holds an absolute URL with a build hash in it, and hashing
+one would make every baseline disagree with the next dev-server restart.
 
 The fetch is supplied by the caller, because the right way to fetch differs by
 host. A browser-driving **collector** — the module that reaches your UI and
@@ -240,14 +240,14 @@ script and a position, read over the debugger protocol.
 
 So the page agent keeps every component function provenance names, held by
 identity and never serialized, and the collector asks Chromium about each one
-after a subject is read. The position is in the served module, which is the
-same coordinate a stack frame carries, so it goes through the same maps and the
-same vendor rule as a call site. What comes back is a source index whose refs
-say `via: 'engine'`, and it is laid over the scan rather than merged with it: a
-name the engine located replaces the scan's candidates for it, and a name the
-engine never met keeps them. That is what turns an ambiguous name into one
-file, because the engine can only speak for a component that rendered, which is
-exactly the one the report is about.
+after a subject is read. The position is in the served module, which is the same
+coordinate a stack frame carries, so it goes through the same maps and the same
+vendor rule as a call site. What comes back is a source index whose refs say
+`via: 'engine'`, and it is laid over the scan rather than merged with it: a name
+the engine located replaces the scan's candidates for it, and a name the engine
+never met keeps them. That is what turns an ambiguous name into one file,
+because the engine only knows about a component that rendered, which is exactly
+the one the report is about.
 
 The engine's answer reaches the run's own `source` and the composed report's
 `files` field, and `@variance-authority/playwright-test` lays it over the
@@ -256,11 +256,12 @@ another engine the reader answers nothing and the scan stands as it did.
 
 ### The fallback nobody configures
 
-`indexSource` reads a file and returns component name → where it is declared,
-recognised as a function, a `const`, a class or a declaration, with *how* it was
-recognised carried so a bad match is debuggable. It is what a repository that has
-configured nothing still gets, and it answers with a declaration, which is
-coarser than a call site and enough to open the right file.
+`indexSource` reads a file and returns a map from component name to where it is
+declared, recognised as a function, a `const`, a class or a declaration, with
+*how* it was recognised carried so a bad match is debuggable. It is what a
+repository that has configured nothing still gets, and it answers with a
+declaration, which is coarser than a call site and enough to open the right
+file.
 
 A name may map to several files, and that is not an error to be resolved by
 picking one. Two components genuinely can share a name, and silently choosing the

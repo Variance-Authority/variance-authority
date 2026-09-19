@@ -85,7 +85,7 @@ no composition, both say so rather than matching nothing.
 ## Evidence other integrations hold
 
 The standalone `variance-authority-mcp` executable reads the report file it is
-given and nothing else; it does not go looking for other artifacts beside it.
+given and nothing else; it does not look for other artifacts beside it.
 Evidence another integration produced — a [source execution
 index](source-index.md), a [presentation report](presentation.md), a [scenario
 archive](scenarios.md) — is served by the connection that integration sets up,

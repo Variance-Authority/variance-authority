@@ -43,12 +43,12 @@ the cost of a file you missed is a green build over code nobody looked at.
 Everything that narrows below the graph narrows from evidence. An
 [execution record](execution-record.md) says which regions a test actually
 entered, and [running less of the suite](selecting.md) uses it to skip work the
-graph would have summoned. Nothing narrows from absence — "I saw no import" is
+graph would have included. Nothing narrows from absence — "I saw no import" is
 never a reason on its own, because a file whose edges could not be read may
 import anything.
 
-Type-level references are the one thing the walk declines to follow, because
-they are erased before anything runs. A TypeScript `import type`, a Python
+Type-level references are the one thing the walk does not follow, because they
+are erased before anything runs. A TypeScript `import type`, a Python
 `if TYPE_CHECKING:` block and a Kotlin import that only names a signature are
 recorded as edges and skipped by a walk that asks what a change can move at
 runtime. The `else:` branch of that Python block is the runtime half and is
@@ -56,10 +56,9 @@ followed.
 
 ## One reader per language, one graph
 
-A language here is a reader and a resolution algorithm — what does this file ask
-for, and where does that land on this disk — and nothing above them learns a new
-type. What differs between languages is how much the syntax is willing to tell
-you.
+A language here is a reader and a resolution algorithm — what does this file
+ask for, and where does that land on this disk — and nothing above them learns
+a new type. What differs between languages is how much the syntax tells you.
 
 **Python.** A statement is several modules: `from a.b.c import name` runs three
 `__init__.py` on the way down and then either `c.py` or nothing, and which one is

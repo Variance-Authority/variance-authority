@@ -18,7 +18,7 @@ pull request, so that the promotion of new images is reviewable as its own act.
 What that run produces is a set of PNGs, and a PNG says what the new baseline
 **is**. It says nothing about what the change **was**.
 
-That gap has a half-life. On the day it lands, the report is one click away and
+That gap does not last. On the day it lands, the report is one click away and
 the reviewer is still in the tab. A month later the CI job has expired, the
 report with it, and the only surviving evidence is a commit called
 `chore(variance): regenerate baselines` touching four hundred files.

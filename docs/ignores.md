@@ -233,8 +233,8 @@ somewhere a typo can be caught, which markup is not.
 An ignore is the one setting that makes a run less observant, so where two
 readings exist the narrower one is correct, and a union is two rules.
 
-A tag no subject wears is reported by name at the end of the run, with the worn
-tag it is one edit away from:
+A tag no subject carries is reported by name at the end of the run, with the
+carried tag it is one edit away from:
 
 ```
   [unworn] live-feed — no subject in this run carries `volatle`
@@ -243,7 +243,7 @@ tag it is one edit away from:
 
 That line is the only defence a tag has. A misspelled *key* is refused by name,
 because every object in the config is closed; a misspelled *tag* is a legal word
-that simply matches nothing. Story parameters would be a richer surface and are
+that matches nothing. Story parameters would be a richer surface and are
 not offered: a built `index.json` carries `tags` and does not carry
 `parameters`, so a declaration written there does not survive the build that
 `variance run` reads.

@@ -227,7 +227,7 @@ before anything else.**
 
 Four boxes require nothing at all, and `hash`, `compare` and `isolate` — the
 three kinds that need nothing — all live in one of them. Running the ephemeral
-retention mode therefore pulls in no filesystem and no socket.
+retention mode pulls in no filesystem and no socket.
 
 Entrypoints are the second cut, and each one exists because the two halves cost
 different things to have. `store/lfs` needs `git`; `history/client` needs a

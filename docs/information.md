@@ -126,8 +126,8 @@ it did not take), or `unobservable` (the run could not have seen it either
 way). The run-level answer is `clean`, `review`, or `unmet`. Adjudication
 changes no verdict and no exit code beyond its own.
 
-Exit codes are `0` nothing needs review, `1` changes need review, `2` operator
-error. A verdict and a crash never share a code.
+Exit code `0` means nothing needs review, `1` means changes need review, and
+`2` means operator error. A verdict and a crash never share a code.
 
 ## Where work starts
 
@@ -252,7 +252,7 @@ can produce:
 - an **in-place raster**, when the state-owning browser paints directly; or
 - a **captured value**, when the subject is not renderable.
 
-Semantic and source evidence travel beside the material when the host can
+Semantic and source evidence accompany the material when the host can
 observe them.
 
 ### Scenario points
@@ -505,7 +505,7 @@ answers:
 One missing input can produce both shapes in one report, so do not read them
 as the same word. On a production React build there is no owner information at
 all: `composition.components[].createdBy` comes back as `[]`, while the
-corresponding `structure` row simply has no `createdBy` key. The empty array
+corresponding `structure` row has no `createdBy` key. The empty array
 there does not mean nothing mounted the component — it means the build could
 not say.
 
@@ -567,9 +567,9 @@ would attribute half the observations to a machine that never saw them.
 
 `--subjects` records every subject outside the slice as `excluded`, so a
 subject observed by one shard is excluded by the others; the merge resolves
-that in the shard's favour. A subject **no** shard claimed is a hole in your
-split — nobody looked at that component — so it is promoted to `failed` and the
-merged run exits `1`. A correct split never produces one.
+that in the shard's favour. A subject **no** shard claimed is a gap in your
+split — nobody looked at that component — so it is promoted to `failed` and
+the merged run exits `1`. A correct split never produces one.
 
 The composition section is dropped from a merged report, and the report says
 so. It compares the run's subjects to *each other*, and a split is exactly what
@@ -603,12 +603,13 @@ Each durable output is kept, shared and reused on its own terms:
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
 | Eyes attention | test process memory or a runner-owned JSON attachment containing an Eyes archive | whoever can read the test artifact | no: it explains the test execution that produced it |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
-| presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever holds the reading; the signal travels with the report | no: each run senses its own pages |
+| presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever holds the reading; the signal goes with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |
 | review decision | history approval row and, for repository baselines, changelog evidence | history/repository readers | yes: determines which historical changes count as approved |
 
 The feedback stores answer different questions. Runtime coverage selects tests;
 baseline component names select visual subjects; the source index reduces
 source-work cost; render caches reduce painting cost; history qualifies the
-current result; approved references supply the next comparison. None stands in
-for another, and losing a disposable cache never looks like losing evidence.
+current result; approved references supply the next comparison. None
+substitutes for another, and losing a disposable cache never looks like losing
+evidence.

@@ -109,13 +109,13 @@ questions:
 | `created by` | the component that wrote this element | `TodoFooter` |
 
 `within` is where a boundary sits, which is frequently a layout primitive that
-knows nothing about its contents. `created by` is who wrote the element, which is
-where the props are written and therefore what an edit to it changes. Measured on
+knows nothing about its contents. `created by` is who wrote the element, which
+is where the props are written and so what an edit to it changes. Measured on
 [`examples/todomvc`](../examples/todomvc): every `Chip` is `within: Stack` and
 `created by: TodoFooter`; `Toggle` is `within: Stack`, `created by: TodoItem`;
 `TextField` is created by `TodoHeader`. Across the whole suite the mounting edge
-names five components and every one of them is a file a reviewer edits, while the
-enclosing edge adds `Stack` and `Card` — the two nobody does.
+names five components and every one of them is a file a reviewer edits, while
+the enclosing edge adds `Stack` and `Card` — the two nobody does.
 
 **`created by` is empty on a production build**, where React's owner links are
 gone. Empty is *not* "nothing mounted it", and nothing here reads it that way. A
@@ -131,7 +131,7 @@ the child arrived as `children` from somewhere else, the placeholder is an
 anonymous hole — a container is not told what it was handed, so its hash must not
 depend on it.
 
-That containment is the property the whole page rests on, so it is measured
+That containment is the property the whole page depends on, so it is measured
 against the whole suite rather than argued
 ([`closure.test.tsx`](../examples/todomvc/src/closure.test.tsx)):
 
@@ -304,10 +304,10 @@ already knows about. Compared as two `Price`s, they differ in one property.
 
 This is the one place in the system a parting is reachable without a decision
 about how both sides were read: both renderings come out of one run, off one
-collector, at one commit, so they are read the same way by construction. It needs
-no framework adapter either — the boundaries come from the owner chain and the
-cascade from `styleProvenance` — which is why an ancestor's `color` is nameable
-on a browser run.
+collector, at one commit, so they are read the same way by construction. It
+needs no framework adapter either — the boundaries come from the owner chain and
+the cascade from `styleProvenance` — which is why an ancestor's `color` is
+nameable on a browser run.
 
 **Measured on todomvc: zero.** A props digest is not a complete statement of a
 component's inputs, so three shapes reach the check and are refused by it:

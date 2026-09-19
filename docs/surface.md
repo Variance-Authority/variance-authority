@@ -342,7 +342,7 @@ npx playwright install chromium
 
 Vitest needs `// @vitest-environment jsdom` at the top of the test file, or the
 equivalent project setting; Jest needs its normal `jsdom` test environment.
-Vanilla Jest or Vitest has a DOM and no rasterizer, so the unit surface does
+Plain Jest or Vitest has a DOM and no rasterizer, so the unit surface does
 acquisition only:
 
 ```ts
@@ -372,7 +372,7 @@ npm install --save-dev @variance-authority/vitest-browser vitest-browser-react
 npx playwright install chromium
 ```
 
-Two browsers are in play: the one the suite mounts components in, and the one
+Two browsers are involved: the one the suite mounts components in, and the one
 this package paints the baseline image with. The second is why the install is
 not only the suite's own.
 

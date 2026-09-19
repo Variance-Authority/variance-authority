@@ -188,7 +188,7 @@ producing it.
 
 That is why naming one file still hands you an area. A checkout page is one file
 and forty neighbours: the hook it calls, the component three imports down that
-draws the badge, the formatter that component leans on. Naming the page means
+draws the badge, the formatter that component depends on. Naming the page means
 the neighbourhood, and you should not have to list it.
 
 The walk runs one way. What your entry point imports is in the scope; what
@@ -244,7 +244,7 @@ thing. It is a coordinate you already have, so it is matched literally:
   another because one ends with the other.
 - **A name is not a place.** Never a component, never an id, and never what a
   subject shows on screen. A button labelled *Dispatch* on the account screen is
-  the thing you are looking for wearing the clothes of the place to look, and a
+  the thing you are looking for, and it looks like the place to look for it — a
   start point that read visible text would hand it to you first.
 - **A space is a character in a name**, and so is a backslash. One path is one
   string, spaces and all, and several paths are said as several strings.
@@ -282,7 +282,7 @@ Half the descriptions you hold are one step longer than *which subject*: the
 warning underneath the Carrier field, on the dispatch drawer. That names two
 things and the relation between them. No count of matched words answers it — a
 subject holding both words holds them whatever their order on the screen, and
-the surface where the warning sits *above* the field matches just as well.
+the surface where the warning sits *above* the field matches equally well.
 
 Name each of the three separately and the arrangement is read instead:
 
@@ -369,7 +369,7 @@ A subject whose values were capped says how many it lost.
 
 ## Then narrow
 
-An id is the door into everything else. Over MCP,
+An id is the way into everything else. Over MCP,
 [`variance_composition {subject}`](composition.md) prints what the subject is
 made of, [`variance_describe {subject}`](agent-questions.md) prints what was
 observed, and [`variance_explain_verdict {subject}`](agent-questions.md) says

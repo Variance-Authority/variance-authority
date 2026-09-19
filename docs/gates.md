@@ -105,7 +105,7 @@ track review or flake history.
 | Requirement | Fit |
 | --- | --- |
 | Additive Playwright capture | **yes** — native `test` and `expect` stay with Playwright |
-| In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, the pixels compared against the baseline. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
+| In-place page screenshot | **yes** — the page is screenshotted, then re-read; if nothing drifted between the two reads, that screenshot becomes the candidate raster, and its pixels are compared against the baseline. A subject that keeps repainting exhausts a retry budget and is refused instead of compared |
 | Deferred render instead | **yes** — the same adapter can emit a document |
 | Existing raster library input | **yes** — `observeRasters` and raster `CaptureArtifact`; a foreign image declares its painter, and two painters return `incomparable` rather than a wall of red |
 | Arbitrary PNG CLI upload | **no** — the CLI has no ingest workflow |

@@ -96,7 +96,7 @@ matter.
 
 `baselines` defaults to `.variance/baselines`; the line above is the default
 written out. Use `varianceCommands(options)` instead when your config already
-builds its own command map and wants to decide when the browser closes.
+builds its own command map and you want to decide when the browser closes.
 
 | option | default | what it decides |
 | --- | --- | --- |
@@ -200,7 +200,7 @@ Every option goes in the second argument to `variance`.
 | `subjectKind` | `'fixture'` | what produced the subject, recorded rather than guessed |
 | `fonts` | none | the font stack this machine is asserted to have, as `family/weight/style/hash` |
 | `features` | none | environment facts folded into the capture and into media-condition resolution |
-| `sourceRoot` | none | the root component paths are made relative to, so `file:line` survives the trip to another machine |
+| `sourceRoot` | none | the root component paths are made relative to, so `file:line` stays correct on another machine |
 | `suspenseTimeoutMs` | `5000` | how long to wait for the subject's Suspense boundaries before refusing |
 | `loading` | `false` | this subject's loading state is the thing being captured |
 | `wiring` | `true` | read each node's framework wiring — hook count, keys, boundaries — as part of the compared identity |
@@ -211,8 +211,9 @@ Every option goes in the second argument to `variance`.
 state rather than one test: a test comparing three states needs three ids. Its
 uniqueness scope is the baseline directory, so two calls using one id address
 one baseline whatever files they live in. Left out, the id is the test's full
-name, and renaming the test then orphans its baseline and the next run reports
-`new` — so pass `subjectId` explicitly for any baseline you expect to keep.
+name, and renaming the test then leaves its baseline unreachable and the next
+run reports `new` — so pass `subjectId` explicitly for any baseline you expect
+to keep.
 
 ### Reading the verdict yourself
 
@@ -318,7 +319,7 @@ instead of a refusal:
 [Baseline placement](placement.md) covers where the bytes live under either
 choice.
 
-## A subject that had not arrived yet
+## A subject still showing a Suspense fallback
 
 A subject still showing a Suspense fallback is refused rather than captured. The
 locator assertion above it passes against a skeleton, and a baseline taken over

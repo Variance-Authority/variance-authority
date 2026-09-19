@@ -243,7 +243,7 @@ is refused by name rather than replaced.
 
 The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 
-`accept --all` promotes every candidate in the report in one keystroke —
+`accept --all` promotes every candidate in the report with one command —
 subjects that are `new` and subjects that are `changed`, identically, whether or
 not anyone opened the page. Name ids explicitly in anything unattended, and keep
 `--all` for the moment you have just reviewed the whole report yourself.
@@ -281,10 +281,10 @@ looked at less than the whole subject — a stylesheet served cross-origin and
 skipped on both sides compares clean while the styling was missing from both
 images.
 
-`--exit-zero-on-changes` turns `1` into `0` on `run` and `report`, for a job that
-reports rather than blocks a merge. It leaves `2` alone, which `|| true` does not:
-a job whose browser never launched observed nothing, and `|| true` posts a green
-tick over it.
+`--exit-zero-on-changes` turns `1` into `0` on `run` and `report`, for a job
+that reports rather than blocks a merge. It leaves `2` alone, which `|| true`
+does not: a job whose browser never launched observed nothing, and `|| true`
+reports it as passed anyway.
 
 ## Go deeper
 

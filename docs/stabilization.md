@@ -293,8 +293,8 @@ And for the wire:
 
 A GIF that failed to decode paints nothing in *both* runs, so "held still" and
 "never arrived" would otherwise have the same signature. Every sampling run
-therefore checks the image's intrinsic width before it believes a pair of
-identical frames.
+checks the image's intrinsic width before it believes a pair of identical
+frames.
 
 ---
 
@@ -378,7 +378,7 @@ is a regression, and after the fact none is distinguishable from one.
 The usual answer is a mask drawn over the region, and it is the wrong shape in
 three ways at once. The bytes are still fetched. The *layout* still moves when the
 replacement has different dimensions. And the environment key still changes with
-the bytes, so the run re-renders every subject the image appears on in order to
+the bytes, so the run re-renders every subject the image appears on to
 discover that the difference was going to be masked anyway.
 
 Blanking answers all three before the browser has decoded anything:

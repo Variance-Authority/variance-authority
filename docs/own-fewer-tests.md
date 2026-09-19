@@ -1,9 +1,9 @@
 # Own fewer tests
 
 Your suite only grows. Every test in it was justified when it was written, and a
-merged coverage report cannot tell you which of them still earns its keep: it
-says a line ran, not which tests ran it, not whether six of them ran it for the
-same reason. [Variance Authority](README.md) records the half coverage drops:
+merged coverage report cannot tell you which of them are still worth keeping:
+it says a line ran, not which tests ran it, not whether six of them ran it for
+the same reason. [Variance Authority](README.md) records the half coverage drops:
 for each test case, which regions of your source that case entered. Point at a
 line and it hands back the named cases that walked it, which is where the
 question *why do all of these tests need this code?* starts having an answer.
@@ -65,15 +65,15 @@ Two limits shape how you read the list. Anything a file entered before its first
 case — imports, `beforeAll`, top-level evaluation — is credited to every case
 in that file. And case crossings carry no call-stack depth, so the answer is
 ordered by identity rather than by how near each case stood to the line; the
-file-level [execution record](execution-record.md) is where distance lives. Turn
-cases on for a local loop over the code you are changing, not for the
+file-level [execution record](execution-record.md) has that distance instead.
+Turn cases on for a local loop over the code you are changing, not for the
 repository-wide index CI reads to select files. A Jest suite wraps its own
 configuration the same way and records the same regions against test files; the
 case axis is the Vitest integration.
 
 The list starts the conversation. It does not finish it, and the rest of this
-page is about what finishes it. For one candidate test rather than a set of
-them, [Distill](distill.md) separates what that test loaded, entered and
+page is about what finishes it. For one candidate test rather than a
+set of them, [Distill](distill.md) separates what that test loaded, entered and
 addressed, and names what it never witnessed.
 
 The useful unit is not a test or a covered line. It is a decision the test can
@@ -90,7 +90,7 @@ to repair.
 
 A test adds little when an existing test would fail for the same reason, at the
 same useful time, and lead to the same action. Executing different lines is not
-enough. Neither is asserting the same outcome through another spelling.
+enough. Neither is asserting the same outcome a different way.
 
 Ask four questions before adding one:
 
@@ -158,7 +158,7 @@ without repeating the whole composition. That can improve runtime and cover
 more meaningful cases without increasing test code; removing duplicated setup
 can reduce it.
 
-The reading nominates a seam; the rerun proves it. Change one boundary and
+The reading suggests a seam; the rerun proves it. Change one boundary and
 check that the social test still proves the parts agree and the solitary tests
 still witness the local decisions they own. A runner may establish mocks for a
 whole test file. In that case, split the original file so its social tests keep
@@ -223,8 +223,8 @@ For every retained test, be able to finish this sentence:
 
 If several tests complete it with the same failure, timing and owner, the suite
 probably owns too many. If none completes it for an important promise, the
-suite owns too few. The goal is not fewer executions at any cost. It is fewer
-tests with more distinct reasons to exist.
+suite owns too few. The goal is not fewer executions regardless of cost. It is
+fewer tests with more distinct reasons to exist.
 
 ---
 

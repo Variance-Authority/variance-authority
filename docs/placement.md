@@ -209,10 +209,10 @@ lands under the baseline root by default:
 baselines/v1:6c1f…/by-document/v1:a04e….png
 ```
 
-Commit that cache and the repository grows by a render on every edit.
-`npx variance run` therefore points it at
-`$XDG_CACHE_HOME/variance-authority/renders` and leaves the configured root
-holding baselines and nothing else. There is no config field for the location.
+Commit that cache and the repository grows by a render on every edit, so `npx
+variance run` points it at `$XDG_CACHE_HOME/variance-authority/renders` and
+leaves the configured root holding baselines and nothing else. There is no
+config field for the location.
 Building a store yourself, `createDurableStore` and `createLfsStore` both take
 `cacheRoot`, and both default it to the baseline root — pass a path outside the
 work tree.
@@ -288,8 +288,8 @@ differ, and `remote` has no paths at all. What is portable is the verdict: every
 placement answers the same comparison the same way, so moving changes where the
 bytes live and nothing about what a run reports.
 
-Switching is therefore a re-record. Run the suite once against the new placement
-on a commit you already trust, rather than copying files between layouts.
+Switching is a re-record. Run the suite once against the new placement on a
+commit you already trust, rather than copying files between layouts.
 
 ---
 

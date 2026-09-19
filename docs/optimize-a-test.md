@@ -67,8 +67,8 @@ it entered is a mock that did not take, or a taint that is wrong about it.
 ## Verify the substitution, do not assume it
 
 Mocking removes the top level with the rest, and a top level that registers a
-handler, installs a polyfill or builds a singleton is one the test may be
-standing on. Nothing in the reading knows which.
+handler, installs a polyfill or builds a singleton is one the test may depend
+on. Nothing in the reading knows which.
 
 So change one boundary, rerun the exact test, and compare the witness. If an
 assertion loses its causal path, an addressed target disappears, or an update

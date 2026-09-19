@@ -1,6 +1,6 @@
 # Running less of the suite
 
-A change to a few lines should not summon every test that imports the file. With
+A change to a few lines should not run every test that imports the file. With
 [**execution recording**](execution-record.md), [Variance Authority](README.md)
 knows **which parts each test actually entered**. It selects the tests that
 reached those lines and shows when no test did —
@@ -65,10 +65,10 @@ numbered.
 A recording is made by *running* the suite, so the text its line numbers were
 cut from is whatever was on disk at that moment, while the position written on
 it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else. Each
-changed module is therefore hashed against the text it stands at in the commit
-the index names, and one whose two do not agree is charged **whole** — every
-subject that ever entered it — and named in the run's notes. Recording once over
-a clean tree is what narrows by region again.
+changed module is hashed against the text it stands at in the commit the index
+names, and one whose two do not agree is charged **whole** — every subject that
+ever entered it — and named in the run's notes. Recording once over a clean tree
+is what narrows by region again.
 
 ## Where selection widens
 
@@ -91,9 +91,9 @@ report to be missing from. So every uncertainty resolves toward observing:
 | `git` could not list the diff | The run refuses. An empty diff read as "nothing changed" would narrow to nothing and report success |
 | `--since` with no `source.dirs` | The run refuses, for the same reason |
 
-The last three produce an explicit warning or stop. A run that quietly declines
-to narrow looks exactly like a selector that found nothing affected, although
-those facts require different next steps.
+The last three produce an explicit warning or stop. A run that stays whole
+without saying so looks exactly like a selector that found nothing affected,
+although those facts require different next steps.
 
 ## What a skipped subject looks like
 
@@ -198,7 +198,7 @@ Runtime selection does not walk them by default: every compiler erases
 `import type`, so a change connected only through a type edge reaches no
 importer, test or rendered subject unless another runtime edge also connects it.
 
-The graph believes the text, and the text lies in one known way: a test that
+The graph trusts the text, and the text is wrong in one known way: a test that
 calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
 scan reads those calls off test, story and setup files as it goes, and the
 mocked module is taken out of the graph as seen from that file at every level —
@@ -358,7 +358,7 @@ A diff that is *only* a config file already runs everything, because a diff no
 part of which is in the graph says nothing about which component moved. That
 stops holding the moment anything else is in the diff. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
-component — confidently, over a change it never looked at.
+component, though it never examined the change that seeded it.
 
 Name the files the run rests on and it stops being an accident:
 

@@ -44,7 +44,7 @@ leave the questions that matter unanswered:
 
 Looking only at the end turns investigation into reconstruction. You walk
 backwards from the symptom, open files, add logs, rerun the program and form a
-theory — after the evidence that knew what happened has gone.
+theory — after the evidence of what happened has gone.
 
 ## The middle carries the explanation
 

@@ -10,7 +10,7 @@ New here? Start with [your first run](start.md).
 
 Reach for this when a test hangs and the runner's timeout tells you only what
 the test *wanted*. Once a run has finished, ask its output instead:
-[distill a completed test](distill.md) says what one test can shed, and the
+[distill a completed test](distill.md) says what one test can show, and the
 [execution record](execution-record.md) — the file a run writes naming which
 source each test entered — says what ran.
 

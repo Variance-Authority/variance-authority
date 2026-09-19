@@ -171,8 +171,8 @@ in one module are told apart by `name`, never by `path`: every function body
 is `entry`.
 
 **Digest.** `digestString` of the kind, a `NUL`, and the block's own text with
-each child region replaced by a `NUL`-framed `kind:name:path` placeholder. The
-digest therefore changes when the block's own statements change and does not
+each child region replaced by a `NUL`-framed `kind:name:path` placeholder. So
+the digest changes when the block's own statements change and does not
 change when a nested region's body does: the condition of an `if` belongs to
 the region around it, and editing the condition moves that region's digest
 while editing one arm moves only the arm's. A synthesized region, an `else`
@@ -188,7 +188,7 @@ hunk lands on the file the author edited.
 this repository's own source on one Mac, so a build that changed ten files
 spends under two milliseconds carving them — and about two fifths of that is
 already the platform's rather than this project's. `sense` takes SHA-256 from
-`node:crypto` rather than the portable implementation `core` needs in order to
+`node:crypto` rather than the portable implementation `core` needs to
 run inside a page, and takes the parsed tree straight out of `oxc`'s buffer
 rather than through the JSON it would otherwise serialize and read back. The raw
 transfer wants a 64-bit little-endian host and says so; where the answer is no
@@ -299,7 +299,7 @@ row names the exact text the ordinals were cut from, and `startLine` and
 line lands on the blocks whose range holds it, and a block yields the tests
 that crossed it; the procedure is in *Tracing a diff to tests* below.
 
-Whether a change to a handler runs any test therefore depends on where the
+So whether a change to a handler runs any test depends on where the
 edited line sits. Take a component whose render function holds a two-line
 `toggle` closure and a one-line `onClick` arrow, recorded with one test that
 clicked and one that only rendered:

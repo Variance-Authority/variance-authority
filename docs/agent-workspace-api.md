@@ -163,7 +163,7 @@ $skill-installer install https://github.com/Variance-Authority/variance-authorit
 Invoke it as `$variance-workspace-api`, or let Codex select it when a question
 is about what a workspace publishes.
 
-The full tool and source-reading contract lives in the
+The full tool and source-reading contract is in the
 [`@variance-authority/help` package
 reference](https://variance-authority.dev/reference/packages/help). When the
 answer raises an ownership or entrypoint question, continue with [package

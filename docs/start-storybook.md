@@ -28,7 +28,7 @@ Here:
   skips a story whose approved image records none of the components your diff
   touched — decided from what the last run actually rendered, not from a module
   graph. See [test selection](selecting.md).
-- **A difference can be told from a wobble.** [Parting](parting.md) reads two
+- **A difference can be told from a flake.** [Parting](parting.md) reads two
   renderings of one story and names the input that changed, or says every input
   agreed and the output moved anyway.
 
@@ -212,7 +212,7 @@ platform, device scale factor and fonts, and an image stored under a different
 identity is not diffed against — the run reports `incomparable`, and `doctor`
 exits `2` listing the identities the root does hold.
 
-So neither your laptop nor CI wins an argument; they never have one. Pick one
+So your laptop and CI never compare against different identities — pick one
 painter and use it for both:
 
 - run local and CI through the same pinned container image, and accept images

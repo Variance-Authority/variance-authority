@@ -63,8 +63,8 @@ callback, or source statement scheduled the work.
 
 Every target is copied while its DOM node and Fiber [attribution](attribution.md) are still live.
 The journal retains portable names, structural owner paths, props digests, and
-source candidates rather than DOM nodes or Fibers. An element removed by its
-own click therefore remains attributable after it has disappeared.
+source candidates rather than DOM nodes or Fibers, so an element removed by
+its own click remains attributable after it has disappeared.
 
 ## Distil attention against execution
 
@@ -88,7 +88,7 @@ or safe to skip. The agent workflow changes one dependency boundary, reruns the
 exact test, and keeps the substitution only when the witnessed behavior and
 addressed targets survive. [Distil a test](distill.md) defines that loop.
 
-## React improves the attribution; it is not the admission ticket
+## React improves the attribution; it is not required
 
 With React attribution, Eyes records structural owner paths, components that
 performed work, and update initiators inside or outside the addressed surface.

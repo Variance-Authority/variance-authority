@@ -123,10 +123,10 @@ test('a parent update preserves the counter', async () => {
 ```
 
 As written, the received value names `InlineCounter` and `Counter`, and the text
-is `0 of 1`. Move `InlineCounter` outside `Screen` and pass `tick` as a prop; the
-same assertion then has no accidental remounts and the counter retains `1 of 1`.
-That is the completion condition: the action preserves the state the user had,
-and the interval contains no unkeyed rebuild.
+is `0 of 1`. Move `InlineCounter` outside `Screen` and pass `tick` as a prop;
+the same assertion then has no accidental remounts and the counter retains
+`1 of 1`. That is the completion condition: the action preserves the state the
+user had, and the interval contains no unkeyed rebuild.
 
 A reported key changes the interpretation, not the observation. React was asked
 to create a fresh instance under that key; check whether the key was intended to
@@ -135,8 +135,8 @@ change for this action before treating the remount as a defect.
 ## Continue from the result
 
 After the focused test passes, capture and compare that subject the usual way,
-so the fix is also checked against its rendered and accessibility evidence — see
-[your first run](start.md). Use the
+so the fix is also checked against its rendered and accessibility evidence —
+see [your first run](start.md). Use the
 [React evidence reference](framework-reference.md) when you need exact return
 shapes, the defaults each integration applies, or the limits of fiber matching.
 Use [parting](parting.md) when the component survived but its inputs led to a

@@ -38,8 +38,8 @@ band absorbs exactly one kind of thing, however large it is. A route declared
 report a rebrand that repainted every surface on the page.
 
 `a11y` belongs to every level. A control that loses its accessible name repaints
-nothing and moves nothing, but a route test blind to it would assert on the
-shape of the page while ignoring the shape a screen reader sees.
+nothing and moves nothing, but a route test that does not check it would
+assert on the shape of the page while ignoring the shape a screen reader sees.
 
 ## What the run reports
 
@@ -58,7 +58,7 @@ SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
 A rule that absorbs something is working. A rule that reaches subjects and
 absorbs nothing is `[dead]` — either a route nothing styles or a declaration
 nobody needed. A rule that matches no subject is `[unscoped]`, which points to a
-scope or spelling error rather than a policy that has outlived its cause.
+scope or spelling error rather than a policy whose reason no longer applies.
 
 ## Declaring one
 

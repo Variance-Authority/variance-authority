@@ -145,8 +145,8 @@ exported name; absent is not interpreted as an empty set.
 
 The module record supplies these facts without making the full syntax tree part
 of the retained result. Stylesheets use a conservative text reading instead:
-`@import`, `@use`, `@forward`, `url()` and CSS Modules `composes … from` become
-whole-file asset requests. A request found inside a CSS comment may therefore
+`@import`, `@use`, `@forward`, `url()` and CSS Modules `composes … from`
+become whole-file asset requests. A request found inside a CSS comment may
 over-include. That costs work; missing a real request could skip work, so the
 reading errs towards over-including.
 
@@ -331,7 +331,7 @@ dependency widen every traversal.
 ## Graph handoff
 
 `relationsOfFiles` turns file records into a bidirectional graph. The
-edge convention is always `A → B` means **A depends on B**. A component therefore
+edge convention is always `A → B` means **A depends on B**. A component
 points to the file declaring it, and one walk against the arrows from a changed
 file reaches importers and components together.
 
@@ -369,7 +369,7 @@ answer it.
 Git can name tracked and unignored untracked contents without the scan opening
 every file. The committed tree supplies blob ids; working-tree status identifies
 paths that must be re-hashed from disk. A file edited back to its committed
-contents therefore returns to the committed digest.
+contents returns to the committed digest.
 
 Git object ids carry a `git:` prefix and scan-computed digests carry `v1:`. They
 are different schemes and never compare as though they were interchangeable.
@@ -427,7 +427,7 @@ record as build equivalence.
 
 **A Git-ignored generated file can shadow resolution.** The scan learns the
 tree's layout from Git, and Git does not report ignored files. A generated file
-your `.gitignore` covers can therefore appear or disappear without the scan
+your `.gitignore` covers can appear or disappear without the scan
 noticing, even though it changes which path a request resolves to, and a reused
 record then names the wrong target. Track the file, or pass `digests: false`,
 which reads and hashes the checkout directly and turns record reuse off.

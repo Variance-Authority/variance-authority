@@ -118,8 +118,8 @@ Real trees give the rate to carry, and it is a range rather than one number:
 [Docusaurus](https://github.com/facebook/docusaurus)'s 2,670, and **556 B** over
 a 1,236-file TypeScript workspace. Bytes per file track how many edges a file
 has, not how large the repository is, which is why the largest of the three is
-the cheapest per file. A real 200,000-file tree therefore lands somewhere
-between about 60 MB and 110 MB.
+the cheapest per file. A real 200,000-file tree lands somewhere between about
+60 MB and 110 MB.
 
 That is the whole index on disk. A run does not load it either: the index is
 read segment by segment, newest first, and a record whose bytes and
@@ -320,8 +320,8 @@ library: it enters 791 of 24,519 modules, about 3%, because most of what the
 repository tracks is documentation, examples and packages that suite never
 imports. An application's own suite enters most of the application, which is why
 the medium-app row assumes roughly 1,400 of 2,000. The 200,000 fixture enters
-every module it holds, by construction. What sets the rate is how much of the
-tree your test files import, and only a recording tells you.
+every module it holds, because it was built that way. What sets the rate is
+how much of the tree your test files import, and only a recording tells you.
 
 **The record needs a different constant from the one a per-module figure
 gives.** The fixture's 77 MB over 200,000 modules is 0.385 KB per module, and

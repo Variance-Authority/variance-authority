@@ -36,10 +36,9 @@ already been parsed.
 Every figure comes from `packages/sense/scripts/source-index.mjs`, run against a
 clone of that checkout.
 
-The cache is warm by construction: the floor stage reads all 24,519 module files
-before the first run is timed, so even the cold-index row runs against a warm
-filesystem. Milliseconds move with the machine; the ratios between rows move much
-less.
+The cache starts warm: the floor stage reads all 24,519 module files before the
+first run is timed, so even the cold-index row runs against a warm filesystem.
+Milliseconds move with the machine; the ratios between rows move much less.
 
 The git rows and the floor rows are each the median of five timings. **Each row
 of the run table is one timing of one run.** Read the column for its shape and
@@ -73,9 +72,9 @@ read at once; every row after it holds the index and walks the tree.
 about 130 ms more than four did — roughly a quarter of a millisecond each, which
 is a file read, parsed and resolved. The 330 ms underneath is charged whether
 anything changed or not, and a quarter of it is git. The rest is the walk — every
-path in the repository visited and checked against its digest in order to decide
-not to do anything about it — plus the index decoded so that there is something
-to check it against. Both are proportional to the repository rather than to the
+path in the repository visited and checked against its digest to decide not to
+do anything about it — plus the index decoded so that there is something to
+check it against. Both are proportional to the repository rather than to the
 diff.
 
 ### Scale these to your own checkout
@@ -88,7 +87,7 @@ Scale by tracked paths, not by your diff:
 | every record            | about 115 µs       | the one cold build                                  |
 | every record            | about 310 bytes    | the index on disk                                   |
 
-A 9,000-path checkout of similar module density is therefore an 80 ms warm run.
+A 9,000-path checkout of similar module density is an 80 ms warm run.
 A 400,000-path checkout pays the fixed toll ten times over: budget around three
 and a half seconds of walk and index decode on every run, and turn on the two git
 accelerators further down this page before you do anything else. Those are
@@ -221,8 +220,8 @@ git config core.untrackedCache true
 The monitor answers for tracked files, and it is what takes `status` from 84 ms to
 45 here. The untracked cache answers the other half of the same question — what is
 on disk that the index has never heard of — and it does not move this row, because
-these figures require a clean checkout and the walk it spares therefore finds
-nothing. On a working tree with build output in it, that is the half that costs.
+these figures require a clean checkout and the walk it spares finds nothing. On
+a working tree with build output in it, that is the half that costs.
 
 Both scale with the checkout rather than with the diff, so they matter more the
 larger the working tree gets.

@@ -1,7 +1,7 @@
 # Watch a run that has not finished
 
-Your suite is still running and one test has been sitting on the same line for
-longer than it should. [Variance Authority](README.md) can tell you what that
+Your suite is still running and one test has been on the same line for longer
+than it should. [Variance Authority](README.md) can tell you what that
 test has heard, and from whom, while it is still in flight rather than after
 teardown has thrown all of it away.
 
@@ -136,7 +136,7 @@ read rather than half-reading it.
 
 `waitingAt` is not a sixth `state`. A test standing still is running.
 
-Every read hands you a snapshot: plain values that will not change again, so an
+Every read returns a snapshot: plain values that will not change again, so an
 answer about a run in flight cannot shift while you are reading it.
 
 One watcher keeps the 200 newest tests, and per test the 500 newest

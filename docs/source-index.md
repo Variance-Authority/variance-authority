@@ -234,7 +234,7 @@ lengths and invalid references.
 The two length prefixes above are written little-endian explicitly and parse the
 same way on any host. The four-byte data columns are not: they are written as
 the writing host's native words and read as the reading host's, and nothing in
-the file records which order that was. A byte-order mismatch is therefore not
+the file records which order that was. So a byte-order mismatch is not
 detected as such.
 
 What an index written on the other endianness meets instead is the validation

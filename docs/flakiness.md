@@ -271,7 +271,7 @@ time in fifty passes this forty-nine runs out of fifty, and an absent finding
 means *this run's two readings agreed* — never *this subject is stable*. The
 report says so in those words. The second instrument is
 [recurrence over a window](#has-this-happened-before), which needs a record and
-therefore a service. The third is the suite itself, at this one commit: the same
+so a service. The third is the suite itself, at this one commit: the same
 component with the same props, held in subjects that did not change
 ([`composition.md`](composition.md)), which needs no record and no second run
 because the control group was already collected. Raster-level nondeterminism is
@@ -333,8 +333,9 @@ produce one document digest. A disagreement is reported as instability even when
 the pixels and verdict still agree.
 
 That protects render reuse as well as correctness. `settle` skips a render only
-when the document digest repeatably describes the same subject; observer-induced
-digest drift therefore cannot silently disable the cheap tier for later runs.
+when the document digest repeatably describes the same subject, so
+observer-induced digest drift cannot silently disable the cheap tier for later
+runs.
 
 ### No two are alike, so the answer is a place
 

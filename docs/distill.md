@@ -78,8 +78,8 @@ test/checkout.test.tsx > checkout > submits
 ```
 
 So that is the id to give [Eyes](eyes.md) when you open each test's journal. The
-per-test hook in the
-[distill README](../packages/distill/README.md#both-halves-must-use-the-same-test-id)
+per-test hook in the [distill
+README](../packages/distill/README.md#both-halves-must-use-the-same-test-id)
 builds it. A runner's own positional id — `875862714_0` — is unique within the
 run and archives without complaint, but matches nothing in the execution index:
 
@@ -173,10 +173,10 @@ Entered with no addressed target attributed to the same file: 2.
 
 Depth is whatever the producer of the execution index recorded. The Vitest
 recorder in [Sense](../packages/sense/README.md) records every crossing at depth
-0: it reports which regions a test entered, not how many calls deep it was
-standing when it entered them. The field carries a real number only from a
-producer that tracks call depth, so read `depth 0` as "not recorded here"
-rather than as "called directly".
+0: it reports which regions a test entered, not how many calls deep the call
+stack was when it entered them. The field carries a real number only from a
+producer that tracks call depth, so read `depth 0` as "not recorded here" rather
+than as "called directly".
 
 An opportunity is not permission to mock, replace, or delete the file.
 [Static reachability](source.md) describes what the test could load; execution
@@ -215,9 +215,9 @@ Loaded but not entered: 1 module(s).
 
 This is a stronger reading than an opportunity and still not a verdict. Mocking
 takes the module's top level with the rest, and a top level that registers a
-handler, installs a polyfill, or builds a singleton is one the test may be
-standing on. Write the mock, rerun the exact test, and compare the witness
-before you keep it.
+handler, installs a polyfill, or builds a singleton is one the test may depend
+on. Write the mock, rerun the exact test, and compare the witness before you
+keep it.
 
 ## One capability, three entrances
 

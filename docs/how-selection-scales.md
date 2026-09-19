@@ -136,7 +136,7 @@ any tool can recompute it                     │
 
 Every generation and tool using the compact form must therefore share one
 numbering lineage. Number `41` means nothing by itself; it means the path that
-this database assigned `41`. What you buy for that is a small, compressible
+this database assigned `41`. What that gives you is a small, compressible
 integer repeated across millions of crossings instead of a path or a uniformly
 distributed digest. A digest spends its full 64 bits at every crossing and
 cannot spend fewer; 200,000 modules hold 17.6 bits of module, and a sorted run
@@ -173,11 +173,11 @@ that record already holds both.
 
 The failure a stable number prevents is not a crash. The coverage file is a set
 of crossings between test identities and module numbers, and nothing in it
-restates a path. If a number silently changed hands, the file would still load,
-still answer, and answer about the wrong module — selecting the tests that
-entered `cart.ts` for a change in `checkout.ts`, and skipping the ones that
-matter. A stable number is what makes evidence from an earlier run usable by a
-later one.
+restates a path. If a number were silently reassigned, the file would still
+load, still answer, and answer about the wrong module — selecting the tests
+that entered `cart.ts` for a change in `checkout.ts`, and skipping the ones
+that matter. A stable number is what makes evidence from an earlier run usable
+by a later one.
 
 Growth keeps the property through a log-structured merge design. The database is
 a chain of immutable segments under one atomic manifest: an append adds a
@@ -219,7 +219,7 @@ meaning.
 A module the table has never seen — a file created since the last run — is
 instrumented under its path instead, because a transform cannot wait for an
 authority to hand it a number. The run is correct with one module costing
-path-length bytes at its crossings, and the next fold numbers it for good.
+path-length bytes at its crossings, and the next fold numbers it permanently.
 
 ## One edit becomes one narrow read
 

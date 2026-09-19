@@ -1,10 +1,10 @@
 # Interrogate a test where it stands
 
-A failure that will not reproduce by hand is only visible while the test is still
-standing in it. You can hold a Playwright test at a line you choose — page up,
-network in whatever state the test left it — and look at that moment from another
-shell, or hold a request open to see what the UI does with a reply that has not
-come.
+A failure that will not reproduce by hand is only visible while the test is
+still standing in it. You can hold a Playwright test at a line you choose — page up,
+network in whatever state the test left it — and look at
+that moment from another shell, or hold a request open to see what the UI does
+with a reply that has not come.
 
 New here? Start with [your first run](start.md).
 
@@ -177,10 +177,10 @@ test('the totals spinner outlives a slow price call', async ({ page, variance })
 });
 ```
 
-A call in a frame nobody awaits — a React effect, a render body, a listener
-fired and forgotten — has no await point to stop at. It sends its note and
-execution carries on past it. That is not the runner's rule; it is what `await`
-means.
+A call in a frame nobody awaits — a React effect, a render body, a listener that
+runs without being awaited — has no await point to stop at. It sends its note
+and execution carries on past it. That is not the runner's rule; it is what
+`await` means.
 
 ## Compare two moments without stopping
 
@@ -216,7 +216,7 @@ afterwards, so a test released after two minutes has exactly the budget it had
 before anybody looked at it — not a fresh one, and not none.
 
 The wait is bounded. `observe` gives up after ten minutes by default, because
-the thing on the other end is a person or an agent and either can walk away:
+the thing on the other end is a person or an agent and either can leave:
 
 ```ts
 await variance.observe('the failing state', { timeoutMs: 60_000 });

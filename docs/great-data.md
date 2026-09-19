@@ -87,8 +87,8 @@ when you reach for it.
 | [Composition](composition.md) | Component identities and renderings joined across many subjects in one revision | Twelve subjects changed — is one component behind all of them? |
 | [History](history.md) | Causes, approvals, content identities, and repeated observations kept across runs | Has this been drifting for months, and did this flake start today? |
 
-Selection closes a loop with the rest: the next selected run refreshes the
-[execution record](execution-record.md) that future selections, distillation and
+Selection closes a loop with the rest: the next selected run refreshes the [execution
+record](execution-record.md) that future selections, distillation and
 test-retention decisions read.
 
 ## What this has to do with visual regression

@@ -37,8 +37,8 @@ somewhere, and the parting is a place with lines.
 It is a memory of where the execution has been, not a route through the file.
 One subject can have entered both arms of one decision — a component that
 rendered twice with different state, a loop that went both ways — and the record
-keeps both. The map is not the territory: two executions that walked the same
-places are one record, however differently they walked them.
+keeps both. Two executions that walked the same places are one record, however
+differently they walked them.
 
 A region is named by its kind and by the declaration enclosing it —
 `function CartCard/onClick` — rather than by where it sits in the file, so an
@@ -96,8 +96,8 @@ that narrowed on the first when the second was true would skip the one spec
 that mattered.
 
 Most suites need none of this. A Storybook preview and a Vitest file are each
-one process, the realm that executes is the realm that is watched, and no head
-is declared. Nothing above runs.
+one process, the process that executes is the process that is watched, and no
+head is declared. Nothing above runs.
 
 ## Where two subjects parted
 
@@ -117,11 +117,11 @@ pool: 3 observations the journal recorded whole, out of 3 subjects the report na
 note: recorded at 4f2a1c9d0b73
 ```
 
-**`parted`** is one module two of its observers — the subjects whose whole record
-entered it — went through differently. **`unentered`**
-is the weaker sibling: regions with source of their own that no subject in the
-pool entered at all — not *these two disagree* but *this run never went here*,
-which is the code a visual suite is silent about however many subjects it paints.
+**`parted`** is one module two of its observers — the subjects whose whole
+record entered it — went through differently. **`unentered`** is the weaker of
+the two: regions with source of their own that no subject in the pool entered
+at all — not *these two disagree* but *this run never went here*, which is the
+code a visual suite is silent about however many subjects it paints.
 
 **The pool is most of the finding.** It is whoever entered a region with source
 of its own, which is not whoever loaded the file: a module root is crossed on

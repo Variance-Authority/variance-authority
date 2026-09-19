@@ -157,7 +157,7 @@ const artifact = await capture(container, {
 
 Return `{ absent: true }` for a URL nothing serves: a fixture pointing at a
 missing image is a subject like any other, and the renderer answers the same
-404 rather than reaching for a network it does not have. Returning `null` fails
+404 rather than accessing a network it does not have. Returning `null` fails
 the capture naming that one URL.
 
 CSS is read out of the document rather than fetched, so nothing has to resolve
@@ -271,7 +271,7 @@ Each subject is a picture you can work: the approved image, the difference, and
 the candidate, with a wipe to drag between the two, a blend, a blink, and an
 overlay of the regions the comparison found. `button/save` is `new`, so there is
 no approved image yet and nothing to compare against — what you are looking at
-is the candidate on its own, and the decision is simply whether that is what the
+is the candidate on its own, and the decision is whether that is what the
 component is supposed to look like.
 
 It is, so approve it:

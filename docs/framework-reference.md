@@ -87,7 +87,7 @@ which property moved:
 | Tree is a different tree and the page followed, with every input agreeing | `reshaped — the component tree is a different tree and the page followed` |
 | Nothing moved at all | `settled — the component tree, its inputs and its output all held` |
 
-So a wiring-only edit hands you `refactor`: the screenshots match, which is all
+So a wiring-only edit produces `refactor`: the screenshots match, which is all
 a pixel differ can tell you, and the components underneath are confirmed
 rewritten. Wrap a subtree in a new `Panel` and the tree signature is what
 notices. [Parting](parting.md#what-kind-of-difference-this-is) lists all
@@ -281,10 +281,10 @@ among components with the same name and depth — not by fiber identity, which a
 remount replaces, and not by component function identity, which moves on every
 parent render for a component declared inside another function.
 
-Two unkeyed siblings with the same component name at the same depth can
-therefore be confused when one is removed and another is added. Read that result
-together with the recorded reconciliation keys; an unkeyed list is already
-missing the identity React would need to distinguish those siblings.
+Two unkeyed siblings with the same component name at the same depth can be
+confused when one is removed and another is added. Read that result together
+with the recorded reconciliation keys; an unkeyed list is already missing the
+identity React would need to distinguish those siblings.
 
 ## In a minified production build
 
@@ -489,7 +489,8 @@ Route: [From a pixel to a line](attribution.md).
 - These readers support React DOM fibers. They do not generalize React evidence
   to another renderer or framework.
 - `wiringOf` reads hook names in development builds, not hook values. A
-  production build leaves them unavailable; the rest of `Wiring` survives it.
+  production build leaves them unavailable; the rest of `Wiring` stays
+  available.
 - A remount names the rebuilt component, its owner chain, key and host element.
   It does not recover which parent update caused the rebuild or attribute it to
   a source line.

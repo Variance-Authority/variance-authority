@@ -13,9 +13,9 @@ transition your own harness performs. Assert is the variance assessment across
 that edge. One **execution** — one recorded path through those states — is what
 you compare; several executions fold into a partial graph.
 
-This answers a question a list of clicks cannot: whether two runs already differ
-at Arrange, whether one Act has the same effect under both preconditions, and
-which Act first changes that effect.
+This answers a question a list of clicks cannot: whether two executions already
+differ at Arrange, whether one Act has the same effect under both
+preconditions, and which Act first changes that effect.
 
 Two terms are used throughout below. A **subject** is one named UI state you
 asked for and can ask for again, identified by a stable id such as

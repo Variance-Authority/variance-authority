@@ -309,7 +309,7 @@ with M2, M3 and M6; otherwise the result says only that one part works.
 Cross-machine operation needs M5. Longitudinal value needs M8. M9 bounds every
 one of those conclusions.
 
-The outcome is therefore a set of measurements, not a product score. The right
+The outcome is a set of measurements, not a product score. The right
 column of [what you can run yourself](#what-you-can-run-yourself) states which
 metrics the repository has readings for and which it does not; a result on the
 nearest proxy does not fill the second group. Use

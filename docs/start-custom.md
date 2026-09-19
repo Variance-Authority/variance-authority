@@ -250,7 +250,7 @@ rules that actually match the subtree — the `.unused` rule in the harness's
 stylesheet is not in the list above, and on a real design system this is the
 difference between shipping one rule and shipping a thousand. And `frame`
 reproduces the ancestors the subject rendered inside as empty tags, so a rule
-like `html.dark .receipt` still matches once the subtree stands on its own.
+like `html.dark .receipt` still matches once the subtree is used on its own.
 
 ### Documents, not images
 
@@ -336,9 +336,9 @@ tracked and pushed. A run that cannot read it does not fail: it finds nothing,
 reports every subject `new`, records what is on screen as the new truth, and
 exits `0`.
 
-The trap is the wildcard. `.variance/` also holds the report and candidate
-images that genuinely are per-run junk, so exclude the contents rather than the
-directory, and git still descends:
+The wildcard is the mistake to avoid. `.variance/` also holds the report and
+candidate images that genuinely are per-run junk, so exclude the contents
+rather than the directory, and git still descends:
 
 ```gitignore
 .variance/*

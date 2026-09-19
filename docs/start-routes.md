@@ -9,7 +9,7 @@ What you get here that Percy, Argos or Playwright's `toHaveScreenshot` do not
 give you is the two steps after the diff. Those hand back a count of differing
 pixels and two images; somebody opens them, finds the changed region by eye,
 works out which component drew it, and decides whether the change was authored
-or whether the route is simply unstable. A changed region here resolves to the
+or whether the route is unstable. A changed region here resolves to the
 component that drew it and the `file:line` it was written at
 ([attribution](attribution.md)), and a route that changed is collected a second
 time in a clean world before it is reported, so a change somebody authored
@@ -72,8 +72,8 @@ wait below — everything outside it is neither captured nor waited for. The
 default is `['body']`, which is you saying the whole page is the subject. A
 tighter root keeps a shared header or navigation out of every route's
 comparison, so an edit to the header does not change forty routes at once. The
-sitemap example further down uses `['main']` for exactly that reason; `#app` and
-`main` are both just selectors, and which one you want depends on what your
+sitemap example further down uses `['main']` for exactly that reason; `#app`
+and `main` are both selectors, and which one you want depends on what your
 application puts the route's own content inside. If none of the selectors
 matches, the route is a collection failure, not an empty capture.
 

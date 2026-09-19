@@ -89,8 +89,8 @@ box.
 
 A graph node is a rendered element with an id relative to the sensed locator,
 plus semantic class, geometry, typography, painted-surface evidence, state
-signature, and relative prominence. Text nodes occupy path positions but are not invented as rendered
-objects.
+signature, and relative prominence. Text nodes occupy path positions but are
+not invented as rendered objects.
 
 Relations retain containment, measured sibling separation, discovered
 alignment, inferred text baselines, and semantic peers. Baselines are labelled
@@ -253,9 +253,10 @@ never changes that verdict.
 
 The evidence answers two things: whether the interface preserved its
 information, and how its relationships are rendered. It may show that two
-declared meanings are rendered alike or that one peer departs from its group. It cannot decide how much information the product
-should contain or whether the response should be a table, cards, typography,
-spacing, a denser layout, a sparser layout, or no edit.
+declared meanings are rendered alike or that one peer departs from its
+group. It cannot decide how much information the product should contain or
+whether the response should be a table, cards, typography, spacing, a denser
+layout, a sparser layout, or no edit.
 
 ARIA evidence remains an independent browser reading, not a repaired version of
 the DOM-correlated anchors. Empty and partial roots are observed values. Only

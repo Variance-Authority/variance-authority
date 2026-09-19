@@ -144,8 +144,8 @@ None of them writes a baseline, an approval, a history row or an exit code.
 ## One vocabulary across all three stages
 
 The stages hand each other the same three things — a **component**, a **band**,
-and a **`file:line`** — which is what makes the chain readable end to end rather
-than three tools stapled together.
+and a **`file:line`** — which is what makes the chain readable end to end
+rather than three separate tools.
 
 - A verdict resolves to a component and a band, because a document carries its
   component hashes.

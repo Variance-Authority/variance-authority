@@ -117,7 +117,7 @@ nothing to diff: component identity enters neither the render hash nor any
 `geometry`, `token`, `content` and `texture` — so wrapping a subtree in a new
 `Panel` produces zero deltas. The tree
 signature — owner chains and wiring, read directly rather than through a hash —
-is what notices.
+is what detects it.
 
 `reshaped` and `refactor` are the same reading of the component tree with the
 output landing on opposite sides. A tree that is a different tree and an output
@@ -127,7 +127,7 @@ neither case has a changed input for attribution to name.
 
 `placed` is the fourth fact: *were the two readings taken at one address*. A
 subject read twice — across two revisions, or across two moments of one scenario
-— is `same`, and an output that moved with every input holding is the accusation.
+— is `same`, and an output that moved with every input holding is called a flake.
 Two instances lifted out of two subjects at one commit are `elsewhere`, and there
 the same evidence means something else. Where a component sits is decided by the
 boxes around it, and no component receives its own position as a prop: two
@@ -136,7 +136,7 @@ contradicted nothing, so they are never reported as a flake.
 
 `unread` is what makes `flake` safe to say. **Unread** means the evidence was
 never collected: a run that read no component boundaries has not found the
-inputs agreeing, it has not asked them. Because that is a slice of its own,
+inputs agreeing, it has not checked them. Because that is a slice of its own,
 silence is never reported to you as agreement.
 
 ---
@@ -145,14 +145,14 @@ silence is never reported to you as agreement.
 
 A **boundary** is one component instance in the rendered tree, together with
 what it received and what it retained. At every boundary, one rule applies: *a
-component whose inputs agreed and whose output changed decided differently.*
+component whose inputs agreed and whose output changed chose differently.*
 Walking up to the shallowest boundary where that holds is what turns a page of
 deltas into one sentence.
 
 | category | evidence | where to look |
 |---|---|---|
-| `handed` | a named prop differs | the parent decided this — up |
-| `provided` | a context value differs | a provider above decided this — up |
+| `handed` | a named prop differs | the parent chose this — up |
+| `provided` | a context value differs | a provider above chose this — up |
 | `inherited` | a style value differs that this boundary declares none of | an ancestor's cascade — up |
 | `external` | a `useSyncExternalStore` snapshot differs | the store changed, outside React |
 | `stateful` | an own hook cell differs | **here. This is the cause** |
@@ -238,12 +238,12 @@ capture(root, { subject, viewport, provenanceOf, wiringOf, holdingOf });
 **Digests, never values.** A prop can be a customer record and a `useState` cell
 can hold the same record with a session token beside it, so what travels is a
 digest: enough to compare two readings for equality, and not reversible into
-what a user was looking at. The comparison is therefore by shape rather than by
+what a user was looking at. So the comparison is by shape rather than by
 identity — a re-created inline closure is not reported as changed.
 
 **A holding never decides a pass or a fail.** It enters no hash and no band, so
-it can never turn a run red on its own. It rides beside the snapshot and is read
-only to explain a difference the comparison already found.
+it can never turn a run red on its own. It is present alongside the snapshot and
+is read only to explain a difference the comparison already found.
 
 The cell list is sparse and says so. A hook that retains nothing a later reading
 could disagree about contributes no cell, and each cell carries the position a

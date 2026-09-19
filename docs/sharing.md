@@ -21,7 +21,7 @@ starts from the same tree.
 
 So the second machine should not pay for it again. Mainline computed it an hour
 ago, on a runner that no longer exists. A share is where those bytes were left
-on the way out.
+when that run finished.
 
 The CLI is a devDependency, and every command below is run through it:
 
@@ -55,9 +55,9 @@ else.
 Read the third row before you choose a bucket. The lexicon holds accessible
 names and visible text as the run read them off your rendered UI — `Clear
 completed`, `--va-space-2`, `src/todo/TodoFooter.tsx` — alongside your component
-names and file paths. A share is therefore as sensitive as your source plus
-whatever your test states put on screen. Give it the audience you give the
-repository, not a wider one.
+names and file paths. A share is as sensitive as your source plus whatever
+your test states put on screen. Give it the audience you give the repository,
+not a wider one.
 
 Text an [ignore](ignores.md) declared volatile — a clock, a feed, an order
 number — is the exception: it is digested before the lexicon is written, so it
@@ -92,7 +92,7 @@ suite index: ~/.cache/variance-authority/suite/web/3f1c…bd.bin (published)
 
 A run whose report names no commit publishes nothing — a laptop mid-edit is such
 a run. Pass `--commit <sha>` to `npx variance run` when you want the run to
-publish; without it the index is still written to this machine, just not
+publish; without it the index is still written to this machine, only not
 addressed to anything the next machine could ask for.
 
 To publish from a report that is already on disk, or to check the wiring:
@@ -254,9 +254,10 @@ object per commit, at this key under the endpoint:
 ```
 
 `<project>` is the `project` name from your `variance.config.json` — the
-required top-level key shown in the complete config above, which also names this
-suite everywhere else. It is a namespace rather than a secret, and it is what keeps two suites in one
-monorepo from writing over each other in one bucket. Anything outside
+required top-level key shown in the complete config above, which also names
+this suite everywhere else. It is a namespace rather than a secret, and it is
+what keeps two suites in one monorepo from writing over each other in one
+bucket. Anything outside
 `A-Za-z0-9._-` is replaced with `-` before the key is built, so pick a name that
 already reads as one path segment. `suite-index-v1` carries the file format's
 version, so a reader that does not understand a later format asks for a key that

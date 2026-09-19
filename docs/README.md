@@ -8,7 +8,7 @@ on its own or combine several as the investigation grows.
 across hundreds of thousands of files and tests, over time — so that a question
 is answered from that record instead of by running the whole suite again to find
 out. The record has several readings, and none of them is the centre the others
-hang off.
+depend on.
 
 ## What do you need to do?
 

@@ -43,7 +43,7 @@ A variation that renders identically to its parent says so. It means the flag
 reached nothing this run could read, which is a finding when the flag was
 supposed to change something.
 
-## Link by name: the great green dragon
+## Link by name
 
 Most suites have already written the link down. `checkout`, `checkout-dark`,
 `checkout-dark-narrow` — the name carries the axes, in order, and a declaration

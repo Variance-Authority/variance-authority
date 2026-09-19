@@ -79,8 +79,8 @@ produces.
 
 Hosted products meter different units. Percy and Argos count screenshots;
 Chromatic counts snapshots with product-specific multipliers; Applitools defines
-a Page independently of browser and device repetitions. A useful estimate therefore
-starts with the vendor's unit, not with a raw subject count:
+a Page independently of browser and device repetitions. A useful estimate starts
+with the vendor's unit, not with a raw subject count:
 
 ```text
 subjects × viewports × browsers × modes × selected builds
@@ -161,10 +161,10 @@ reviewers. TurboSnap uses the module graph to avoid snapshots a change cannot
 reach. SteadySnap adds render stabilization and repeated-capture techniques
 within the managed service.
 
-Component isolation is therefore a choice you make rather than a limit the
-product imposes: a page-level story and an archived end-to-end flow both reach
-the same review surface. An archive is repainted after the run that recorded it
-has ended, so what it can answer later is fixed at the moment of capture.
+Component isolation is a choice you make rather than a limit the product
+imposes: a page-level story and an archived end-to-end flow both reach the same
+review surface. An archive is repainted after the run that recorded it has
+ended, so what it can answer later is fixed at the moment of capture.
 
 Choose Chromatic when review should be a product — Storybook inventory, E2E
 archives, or both — and non-engineer review, branch semantics, and managed

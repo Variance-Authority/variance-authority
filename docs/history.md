@@ -40,7 +40,7 @@ one key are two rows, and the query selects the lineage.
 It stores **no pixels**, ever. A 1px edit to a spacing token produces 4949
 changed pixels, because the count is dominated by how much page sits below the
 edit — a pixel count measures *displacement* rather than magnitude, and it is
-machine-bound on top of that. A content hash has neither problem.
+machine-bound as well. A content hash has neither problem.
 
 ## Start the service and point your config at it
 
@@ -175,7 +175,7 @@ application as the thing that changes in every run.
 
 Reading one subject twice puts a floor under its flakiness and can never put a
 ceiling on it. The record supplies the rest: how long the subject has been
-reading differently from itself, and how many runs have swept past since the
+reading differently from itself, and how many runs have happened since the
 last time it did. [Has this happened
 before](flakiness.md#has-this-happened-before) covers the questions and the
 answers.
@@ -191,16 +191,16 @@ rejected.
 
 **An absent answer never reads as a good one.** With no store configured, every
 history question answers with the sentence *nobody is keeping a record* — never
-an empty result, because an agent handed an empty churn figure concludes the
-product is stable when the truth is that the question was never asked. The same rule holds
-one level in: a service that cannot be reached is a warning naming what was lost,
-not a zero.
+an empty result, because an agent that is handed an empty churn figure
+concludes the product is stable when the truth is that the question was never
+asked. The same rule holds one level in: a service that cannot be reached is a
+warning naming what was lost, not a zero.
 
 ## What it costs to run
 
-One process, one SQLite file, one port, on Node 22 or newer. The shipped
-backend is `node:sqlite`, so there is no native build to install and nothing to
-compile.
+It costs one process, one SQLite file, one port, on Node 22 or newer. The
+shipped backend is `node:sqlite`, so there is no native build to install and
+nothing to compile.
 
 Concurrent CI jobs serialize their writes through that one process. Storage sits
 behind an interface, so another engine can replace it without changing the

@@ -31,12 +31,13 @@ separate install.
 Measured on macOS arm64, the compiled addons come to roughly 25 MB — libvips is
 15 MB of it, the two oxc bindings are about 1.5 MB each, and the scanner is
 3.4 MB. Your package manager unpacks one platform's binaries, not the matrix.
-Playwright's Chromium dwarfs all of it at a few hundred megabytes, and it is
-downloaded into Playwright's own cache rather than into `node_modules`.
+Playwright's Chromium is a few hundred megabytes, far more than all of it
+combined, and it is downloaded into Playwright's own cache rather than into
+`node_modules`.
 
 Nothing here is WebAssembly. Two wasm PNG decoders were measured against the
 pure-JavaScript one and both were slower, so there is no portable-and-fast
-middle option to reach for.
+middle option.
 
 ### Platforms and architectures
 
@@ -51,7 +52,7 @@ afford to be — see *When a binary does not arrive* below.
 
 `oxc-parser`, `oxc-resolver` and `sharp` each publish a musl build for x64 and
 arm64, so on Alpine and other musl images the usual failure — an addon that
-resolves to a glibc binary and dies at load — does not apply to these three.
+resolves to a glibc binary and fails to load — does not apply to these three.
 Whether Playwright's Chromium runs on your musl image is Playwright's question,
 not this one; check it before you build the image around it.
 
