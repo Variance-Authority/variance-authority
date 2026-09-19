@@ -179,6 +179,17 @@ language. That last part is not a small adjustment. It decides the words.
    *powerful* (there is no power), *simply* (a claim about how the reader feels,
    not about the software), and the pretty inverted title whose shape carries
    what its words do not.
+
+   **Move is the worked example.** To move is to change position. A button can
+   move. A box, a line of text, a token, a pixel, a file going to a new path —
+   each has a place, so each can move, and this product exists to report exactly
+   that. Nothing else in a running system does. State changes. A value changes.
+   A hash, a prop, a key, a name, a ratio, a digest, a verdict: all change, none
+   move. *State tells you what moved inside the running system* is wrong, and
+   the fix is *changed*. A change does not move code either — it changes it.
+   Keep the word for the thing on screen that is one place today and another
+   place tomorrow, because that is the finding the reader came for, and a page
+   that spends *moved* on abstractions has no word left for it.
 5. **Plain words, plain sentences.** Outside terms of art, use the most common
    word that still means it, and the plainest sentence that still carries it.
    *Use*, not *utilise*. *Enough*, not *sufficient*. *So*, not *hence*. *But*,
