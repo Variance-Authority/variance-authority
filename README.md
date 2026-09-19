@@ -155,8 +155,8 @@ There is no framework integration behind this and none is implied: the answer is
 a list of paths on stdout, and what you do with it is yours. Because a run list
 that comes back empty would look like a green build, `reach` never exits `0` with
 nothing to say — an empty answer is an error, not a pass.
-[What a change reaches, in any language](docs/polyglot.md) states what the graph
-does and does not claim.
+[Which files a change reaches in any language](docs/polyglot.md) states what
+the graph does and does not claim.
 
 ## How the packages are cut
 

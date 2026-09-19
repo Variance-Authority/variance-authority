@@ -312,10 +312,7 @@ export const NAVIGATION = [
       { href: "/docs/surface", label: "Connect a suite" },
       { href: "/docs/observability", label: "Observability contracts" },
       { href: "/docs/lexicon", label: "How search finds a subject" },
-      {
-        href: "/docs/polyglot",
-        label: "What a change reaches, in any language",
-      },
+      { href: "/docs/polyglot", label: "Source languages" },
       { href: "/docs/metrics", label: "Metric definitions" },
       { href: "/docs/source-index", label: "Source index" },
       { href: "/docs/source-structures", label: "Source structures" },

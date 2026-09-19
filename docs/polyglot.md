@@ -1,14 +1,15 @@
-# What a change reaches, in the language it was written in
+# Which files a change reaches in any language
 
-[Variance Authority](README.md) is a visual regression system you run yourself:
-it renders a UI state, compares it against the baseline you approved, and
-reports what changed in the vocabulary of your source. To decide what a change
-can affect, it reads your checkout for the file graph — and that reading is not
-limited to the language the tool is written in. JavaScript and TypeScript in
-every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift are read by one
-scan into one graph, and a diff that spans several of them is answered in one
-walk. That is what **polyglot** means here: not a plugin per language, but one
-graph with one kind of node, whatever produced it.
+Your diff touched a Python module, a Kotlin class and a stylesheet. Ask what
+those changes reach and you get one list. [Variance Authority](README.md) is a
+visual regression system you run yourself: it renders a UI state, compares it
+against the baseline you approved, and reports what changed in the vocabulary of
+your source. To decide what a change can affect it reads your checkout, and that
+reading is not limited to the language the tool is written in: JavaScript and
+TypeScript in every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift.
+One reader per language writing into one graph with one kind of node is what
+**polyglot** means here, and a diff that spans several languages is answered in
+one walk.
 
 You do not need a subject, a baseline or a configuration file to use that half.
 Ask what a diff reaches and pipe the answer at whatever runs your tests:
