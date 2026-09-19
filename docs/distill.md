@@ -196,7 +196,7 @@ import { HeavyChart } from './heavy-chart';
 return points.length === 0 ? <EmptyState /> : <HeavyChart points={points} />;
 ```
 
-A spy reaches the same place from the other side. `vi.spyOn(totals,
+A spy creates the same situation from the other side. `vi.spyOn(totals,
 'formatTotal')` leaves the module loaded and its function unreached, and the
 import statement above it still reads as a use.
 
@@ -237,7 +237,7 @@ For each opportunity, the agent identifies the narrowest reversible
 substitution, changes one boundary, and reruns the exact test. It compares the
 new attention and execution witness with the original before keeping the edit.
 If an assertion loses its causal path, an addressed target disappears, or an
-outside update initiator reaches the retained surface, the substitution is
+outside update initiator touches the retained surface, the substitution is
 reverted or the test is adjusted to state the behavior it actually owns.
 
 This is where mocking becomes justified: by a counterfactual run, not by an

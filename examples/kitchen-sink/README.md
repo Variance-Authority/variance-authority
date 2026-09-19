@@ -130,10 +130,10 @@ down for it before the run. The cases themselves are in
 row carrying the argument for its answer in a `rationale` field that the run
 prints back when a case fails.
 
-The defects share a shape a unit test does not reach. One over-eager accessible-name
-fallback, for instance, handed every wrapper `<div>` the text of its subtree as a
-name, which made it non-inert to the wrapper-collapse rule — so no wrapper
-anywhere ever collapsed. The collector's own tests asserted on roles and names
+The defects share a shape a unit test does not catch. One over-eager
+accessible-name fallback, for instance, handed every wrapper `<div>` the text of
+its subtree as a name, which made it non-inert to the wrapper-collapse rule — so
+no wrapper anywhere ever collapsed. The collector's own tests asserted on roles and names
 and passed; four corpus cases did not.
 
 ## What a capture costs
@@ -167,7 +167,7 @@ does not establish the ruleset's behaviour on a third-party component library,
 and it gives no false-alarm rate for no-op edits outside this fixture set. The
 fixtures were convenient in the same ways the implementation was convenient:
 token overrides applied inline on the subject root routed around a hole where
-`:root` tokens reached nothing at all.
+`:root` tokens applied to nothing at all.
 
 ## The files
 

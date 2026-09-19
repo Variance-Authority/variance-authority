@@ -35,7 +35,7 @@ Node 22 or newer, and ESM — every `@variance-authority/*` package is
 `"type": "module"` and has no CommonJS build. The CLI, when you use it, requires
 Node 22.15.
 
-Both servers listen on `127.0.0.1`. To reach either one from another machine,
+Both servers listen on `127.0.0.1`. To call either one from another machine,
 put a reverse proxy on the same host and point the client at the proxy. That
 proxy is also where TLS goes: the servers speak plain HTTP, and the renderer
 server has no authentication of its own (see
@@ -334,7 +334,7 @@ Every failure mode **throws**; none is translated into a missing baseline:
 
 | failure | what it must not be |
 |---|---|
-| unreachable endpoint | a missing baseline |
+| endpoint you cannot call | a missing baseline |
 | refused token | a missing baseline |
 | failing backing store (500) | a missing baseline |
 | a lookup that hangs | a stalled run |
@@ -347,7 +347,7 @@ They share one safety boundary. A subject with no baseline gets the verdict
 read as a miss does not just skip a check — it **destroys the thing the check
 was against, and reports success while doing it.**
 
-The one exception is the render cache, which cannot reach a verdict: a cache
+The one exception is the render cache, which decides nothing: a cache
 lookup that fails is a miss, and the run repaints. It is slower, not wrong.
 
 ### What you get

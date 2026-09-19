@@ -30,14 +30,14 @@ pixels somebody has already painted. Every product here keeps one or the other,
 and the choice decides where rendering can happen.
 
 You are probably not choosing from an empty workspace. You already have a runner,
-a way to reach important states, and some form of review. Keep the parts that
-work, then compare the responsibilities that remain.
+a way to get the app into important states, and some form of review. Keep the
+parts that work, then compare the responsibilities that remain.
 
 Those responsibilities decide what the practice costs. Visual review is paid for
 twice: once in the meter, and once in the hours somebody spends deciding whether
 a diff mattered. Both bills are driven by one quantity — how many comparisons
-reach a person — and an architecture fixes that quantity long before a report
-does.
+are shown to a person — and an architecture fixes that quantity long before a
+report does.
 
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
@@ -46,13 +46,13 @@ hosted-service features there before buying; both change independently.
 
 | Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- | --- |
-| Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters reach a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
+| Acquisition | Playwright screenshots the page or locator inside the running test | SDK captures the DOM and its resources, or Automate captures the running browser | Storybook or E2E archive | Host adapters open a page and Playwright produces screenshots | Classic SDK captures in place; Ultrafast Grid captures a DOM snapshot | Storybook, routes and unit tests keep a render document; Playwright keeps a document or takes a screenshot in place |
 | Pixel placement | Caller-owned browser | Percy cloud, or the Automate browser | Capture Cloud | Caller-owned browser | Caller browser or Ultrafast Grid | Caller-owned browser, local renderer, or a renderer you host |
 | Review | PNG files in your repository, reviewed in the pull request that changes them | Hosted dashboard and approval workflow | Hosted UI Test and UI Review | Hosted test review, comments, and flake history | Eyes Test Manager | `tribunal`, a review service you deploy — builds, docket, region overlays, recorded decisions, which `variance push` posts runs to; or no service at all, and the same evidence as JSON, HTML, CLI output or MCP |
 | Browser breadth | Whatever your Playwright projects run | Managed desktop and mobile coverage | Managed browser and mode matrix | Whatever the caller's capture suite runs | Managed grid plus mobile products | Whatever the caller's capture suite runs; the CLI paints with Chromium, Firefox or WebKit (§3.2) |
 | Source [attribution](attribution.md) | Test name and snapshot path | DOM and CSS root-cause aids | Story identity and dependency tracing | Spec and story metadata | DOM and CSS root-cause aids | Pixel region → component → `file:line`, when the capture supplies [matching provenance](attribution.md) |
 | Compared against | The committed snapshot file | The approved baseline | The approved baseline | The approved baseline | The approved baseline | The baseline. Also, within a single run: two related states, compared for the gap between them; and one input rendered twice, compared for the point where the two renderings diverge |
-| What a run captures | The assertions the tests you ran reached | The states your test code calls `percySnapshot` on | Stories and archived runs; TurboSnap uses the module graph to avoid snapshots a change cannot reach | The screenshots your suite takes | The checkpoints your SDK calls reach | `--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
+| What a run captures | The assertions the tests you ran reached | The states your test code calls `percySnapshot` on | Stories and archived runs; TurboSnap uses the module graph to avoid snapshots a change cannot reach | The screenshots your suite takes | The checkpoints your SDK calls make | `--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed |
 | Operations | Adopter | Vendor | Vendor | Vendor, with an open-source self-host option outside the supported service contract | Vendor or contracted on-premise deployment | Adopter |
 
 The capture row divides on one axis: what a change imports versus what its tests
@@ -162,8 +162,8 @@ reach. SteadySnap adds render stabilization and repeated-capture techniques
 within the managed service.
 
 Component isolation is a choice you make rather than a limit the product
-imposes: a page-level story and an archived end-to-end flow both reach the same
-review surface. An archive is repainted after the run that recorded it has
+imposes: a page-level story and an archived end-to-end flow both land in the
+same review surface. An archive is repainted after the run that recorded it has
 ended, so what it can answer later is fixed at the moment of capture.
 
 Choose Chromatic when review should be a product — Storybook inventory, E2E
@@ -234,11 +234,11 @@ scan](source.md).
 ### 3.2 Capture material, rendering placement, and which engine paints
 
 A run keeps one of the two materials named at the top of this page, and both
-reach the same comparison.
+land in the same comparison.
 
 A **render document** can be painted later. It is *portable* once every resource
 it needs travels inside it, which means any machine can paint it; it is
-*environment-dependent* while it still has to reach back to the origin that
+*environment-dependent* while it still has to fetch from the origin that
 served it, which means only a machine with that access can paint it. Either way
 the paint happens locally or across a renderer you host.
 
@@ -327,9 +327,9 @@ and it changes only when the variation gains or loses something its parent does
 not have. So *everything changed and the flag still does what it did* arrives as
 a hash that did not change, and *the flag now does something else* arrives as a
 hash that did — a distinction a reviewer otherwise draws by hand, on every diff.
-Nothing on this axis reaches the exit code, `variance accept`, or the baseline
-store. See [subjects that are other subjects on purpose](variations.md) and [the
-suite compared to itself](composition.md).
+Nothing on this axis changes the exit code, the baseline store, or what
+`variance accept` does. See [subjects that are other subjects on
+purpose](variations.md) and [the suite compared to itself](composition.md).
 
 A changed subject is also read a second time, and there are two second readings.
 `again` holds the world and advances time; `alone` rebuilds the world and holds
@@ -446,8 +446,8 @@ placement are worth the operation they cost.
 Nothing here asks you to switch the other tool off. Add one subject, run it next
 to the suite you already trust, and compare the two answers on a real diff.
 
-Install the package for the host that already reaches the state. For an existing
-Playwright suite:
+Install the package for the host that already gets the app into the state. For
+an existing Playwright suite:
 
 ```bash
 npm install --save-dev @variance-authority/playwright-test @playwright/test

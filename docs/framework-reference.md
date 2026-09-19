@@ -189,7 +189,7 @@ on an empty result — only `{}` is evidence about the component.
 
 `hooks` is absent, never `[]`, when React recorded no names. React records a
 hook name only after that hook runs, so a component that declares none and a
-component in a production build reach this field the same way.
+component in a production build leave this field the same way.
 
 ### Reading it
 
@@ -343,7 +343,7 @@ const held = holdingOf(document.querySelector('[data-testid="row-3"]')!);
 | `unread?: string` | The name of a hook this reader does not know. Its presence means `cells` is a prefix, not the whole list |
 
 `HeldCell` is `{ index: number; hook: string; digest: Digest }` — `index` is the
-position you reach by counting hook calls down the component, and indexes
+position you get by counting hook calls down the component, and indexes
 `Wiring.hooks` exactly. `HeldValue` is `{ name: string; digest: Digest }`.
 
 Route: [Where two readings parted](parting.md).
@@ -475,7 +475,7 @@ naming the component whose JSX placed it. `Provenance.createdBy` names the
 component whose JSX created the host node itself, which is a different question
 from which component encloses it. `source` is a `{ file, line, column }`, present
 when a compiler plugin is installed. `stack` is transient call-site evidence
-awaiting a source map, and never reaches a digest or a baseline.
+awaiting a source map, and never enters a digest or a baseline.
 
 The two optional arguments are collector plumbing and a direct caller passes
 neither: `DeclarationSink` is `{ note(fiber) }`, a registry a collector fills so

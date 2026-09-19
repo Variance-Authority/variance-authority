@@ -32,7 +32,7 @@ nothing on this page is a step in that workflow.
 ## Requirements
 
 Node 22 or newer. The package is ESM-only (`"type": "module"`), so a CommonJS
-project reaches it through `import()`. There are no peer dependencies and no
+project loads it through `import()`. There are no peer dependencies and no
 configuration file. It works on a checkout that is not a git repository, is not
 a workspace, and has no `package.json` at all — with no manifest there is
 nothing published, so every answer comes from what the source exports.
@@ -63,8 +63,8 @@ is for the workspace that does not.
 
 Text, on stdout. `search` answers in two sections — the names a manifest
 publishes, ranked by how many packages import them, then the names the source
-exports without publishing — and in a third when your words reach a name they do
-not contain. Run against this repository, abridged to the first few lines of
+exports without publishing — and in a third when your words match a name they
+do not contain. Run against this repository, abridged to the first few lines of
 each section:
 
 ```
@@ -105,7 +105,7 @@ docs_uses names the 60 places this is imported, nearest to a file you name first
 ## The six questions
 
 Ranking is one number: how many packages in the repository import the name. A
-frequently imported name leads; a name nothing outside its own package reaches
+frequently imported name leads; a name nothing outside its own package imports
 stays available without taking space from the first answer.
 
 | verb / tool | takes | answers |
@@ -114,7 +114,7 @@ stays available without taking space from the first answer.
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first |
-| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading reaches |
+| `search` / `docs_search` | a string, optionally a path to answer from | published names whose name or doc contains it, then the names exported without being published, then the ones only a looser reading finds |
 | `gaps` / `docs_gaps` | nothing | names other packages import that say nothing about themselves |
 
 `packages` takes no argument and returns the import specifiers every other
@@ -147,7 +147,7 @@ docs_search  query: order  from: src/fulfilment/
 files actually import. Results are ordered by the number of importing files in
 that area, and each line reports those files by import distance from the start
 point beside the workspace-wide count. `to` walks the other direction and does
-the same for files that reach the path — the one to reach for when you have the
+the same for files that reach the path — the one to use when you have the
 helper and want its callers. Give both and you get both areas, unioned: two entry
 points of one application share almost no file, so intersecting them would
 answer nothing about a question that named two places. Internal exports have no
@@ -186,7 +186,7 @@ promoted, demoted or removed by it, a name they already returned can never
 appear in it, and when it has nothing to add it prints nothing — so an answer to
 a word that was written stays exactly as short as it was. It obeys `from` and
 `to` as they are: the looser reading runs over the files the area allows, so it
-can reach a name you did not type and never a file you ruled out.
+can find a name you did not type and never a file you ruled out.
 
 Inside it the order is the order above — by how many packages import the name,
 then by name. Membership is the only decision the looser reading makes, because
@@ -251,7 +251,7 @@ and it needs an index this server does not keep.
 npx @variance-authority/help search session --root ../shadow
 ```
 
-Install it where you will ask more than once, and reach for `npx` where you will
+Install it where you will ask more than once, and use `npx` where you will
 not: a checkout you are passing through, a colleague's repository, a tree you
 are reading to decide whether to work in it. The index survives either way — it
 is kept per checkout under `~/.cache/variance-authority/`, honouring

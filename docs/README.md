@@ -80,10 +80,10 @@ through an edit and a check.
 
 ## Start from the tools you already use
 
-For rendered comparison, keep the harness that already reaches the state:
-[Playwright](start-playwright.md), [Storybook](start-storybook.md), [application
-routes](start-routes.md), [Jest or Vitest](start-unit.md), [Vitest browser
-mode](start-vitest-browser.md), [Rstest](start-rstest.md), or [a custom
+For rendered comparison, keep the harness that already puts the app in that
+state: [Playwright](start-playwright.md), [Storybook](start-storybook.md),
+[application routes](start-routes.md), [Jest or Vitest](start-unit.md), [Vitest
+browser mode](start-vitest-browser.md), [Rstest](start-rstest.md), or [a custom
 collector](start-custom.md). [Observe one state](start.md) takes a single UI
 state through capture, review, and explicit acceptance before you decide how
 much of the suite belongs in the workflow.

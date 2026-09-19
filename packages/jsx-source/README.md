@@ -81,7 +81,7 @@ recovered.
 This package supplies that last hop. Its `jsxDEV` wrapper writes the transform's
 location onto props under a symbol, then hands the element to React. The symbol
 arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
-survives minification, never reaches the document, and is not digested, so
+survives minification, never appears in the document, and is not digested, so
 nothing about the page the browser draws changes.
 
 It does not intercept `React.createElement`. React 18 with an unchanged classic
@@ -328,7 +328,7 @@ fiber.memoizedProps[Symbol.for('@variance-authority/jsx-source')];
 ```
 
 `undefined` there means the transform passed no source, or the runtime swap did
-not reach this module. Check the emitted bundle's runtime request and the
+not apply to this module. Check the emitted bundle's runtime request and the
 transform's development setting before changing application code.
 
 ### What you get
@@ -435,7 +435,7 @@ const a = jsxDEV("div", { className: "x" }, void 0, false, {
 That is the transform's output before this package sees it, and it is present in
 any build with the setting on, installed or not. What this package adds is that
 location on the props object — the same strings the compiler already wrote, no
-new ones, and nothing that reaches the document.
+new ones, and nothing that appears in the document.
 
 So instrument the artifact you observe, not the artifact you serve to the
 public. A built Storybook or a preview build is the subject either way; a
@@ -469,7 +469,7 @@ happens.
   pre-compiled JSX. Its elements were transformed by its own build and never
   passed through this runtime.
 - **Call sites are absent when a dependency is external:** the plugin swaps a
-  module, so it only reaches code the bundler processes. A build that marks
+  module, so it only applies to code the bundler processes. A build that marks
   your JSX runtime external resolves its import of React at runtime, past
   the point a resolver can answer.
 - **An element carrying Emotion's `css` prop reports from one fiber up:**

@@ -25,8 +25,8 @@ timings of four files.
 It then scans that checkout three times — cold, warm from the index the cold
 scan wrote, and again after editing `tokens.css` — asking each time which
 subjects a change to `src/tokens.css` reaches. `story:catalog` is collected
-because the change reaches `Button`; `story:account` is skipped because it does
-not reach `Badge`.
+because `Button` imports `button.css`, which imports the token; `story:account`
+is skipped because `Badge` imports neither.
 
 ## Run it
 
@@ -67,7 +67,7 @@ checkout of Material UI — 41,165 tracked paths, 24,909 records — at 2,866 ms
 cold against a 357 ms warm run.
 
 The line to read is `304 records reused, 0 rebuilt`: the warm scan rebuilt
-nothing and still reached the same two-subject answer as the cold one. After the
+nothing and still gave the same two-subject answer as the cold one. After the
 token edit it rebuilds only what the edit invalidated and answers the same way
 again.
 

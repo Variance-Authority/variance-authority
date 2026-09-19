@@ -184,9 +184,9 @@ help.exported.filter((named) => named.name.includes('Viewport'));
 // [{ name: 'parseViewport', at: 'packages/raster/src/viewport.ts', by: '@acme/raster', line: 31, type: false, kind: 'source' }]
 ```
 
-`help.deep` is the other half of the same reading: every specifier that reaches
-into a workspace package past what its `exports` map opens — an import that
-depends on internals the manifest never promised to keep stable.
+`help.deep` is the other half of the same reading: every specifier that imports
+a workspace package past what its `exports` map opens — an import that depends
+on internals the manifest never promised to keep stable.
 
 ```json
 [{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1 }]

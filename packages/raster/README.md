@@ -40,8 +40,8 @@ what a baseline store promises, and which comparison policy a number came from.
 
 ## Use this package when
 
-Reach for `@variance-authority/raster` when you already have decoded pixels, or
-when you are wiring your own pipeline and need the contracts around rendering,
+Use `@variance-authority/raster` when you already have decoded pixels, or when
+you are wiring your own pipeline and need the contracts around rendering,
 storage, plans and stability.
 
 It does not decode PNGs, launch a browser, write a baseline, or choose a test
@@ -260,9 +260,9 @@ throws.
   "did anything change at all", `fieldStatistics(field).changedPixels` is the
   field that answers it — it counts `D > 0` strictly. `fieldStatistics` also
   returns `mean`, `maximum` and `totalPixels`.
-- The unit's maximum is red against cyan. Black against white only reaches
-  `0.933`, so a greyscale subject cannot produce a severity above that however
-  wrong it is.
+- The unit's maximum is red against cyan. Black against white is only `0.933`,
+  so a greyscale subject cannot produce a severity above that however wrong it
+  is.
 
 ### Images that do not match
 
@@ -288,7 +288,7 @@ pixels count at all. The curve reproduces the first and cannot reproduce the
 second: `pixelmatch` decides antialiasing from a neighbourhood of *both* images,
 so it can treat two pixels carrying an identical difference value oppositely,
 and no threshold on any per-pixel field gets there because the decision is not a
-property of the pixel. Keep both — the field for how far a change reaches, the
+property of the pixel. Keep both — the field for how big a change is, the
 policy for whether a renderer's antialiasing counts as a change at all.
 
 ## Decide whether a subject is worth photographing

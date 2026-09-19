@@ -28,7 +28,7 @@ before one explicitly unphased.
 | Evidence | What it answers |
 | --- | --- |
 | Addressed target | Which live DOM element a query or locator resolved to, and which React path rendered it? |
-| Consumed operation | Was that target acted on, read, asserted, or reached by a DOM event? |
+| Consumed operation | Was that target acted on, read, asserted, or did a DOM event fire on it? |
 | Update initiator | Which live component instance scheduled a React commit in this phase? |
 | Performed work | Which component render bodies React visited because of that commit? |
 
@@ -38,7 +38,7 @@ because of that update without initiating it. Source can execute without
 producing any DOM target the test consumes.
 
 That last combination is the useful smell: the test operates one surface while
-another branch reaches into it.
+another branch touches it.
 
 ## Read the test at the level it was written
 

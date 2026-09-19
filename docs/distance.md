@@ -129,7 +129,7 @@ If the nearest measured test is five hops away, `0-2` is empty. Distance does
 not renumber the groups to fill a requested range.
 
 A test selected from the snapshot without a measurable path is **unplaced**.
-`atDistance` carries such tests with the range that reaches the measured end.
+`atDistance` carries such tests with the range that covers the measured end.
 Tests selected only by the current host inventory are outside the distance
 reading altogether and stay your integration's responsibility.
 
@@ -142,7 +142,7 @@ later ranges or about tests the snapshot could not place.
 Not a shorter suite. A nearby test can be slow, and running `0-2` and then `3-`
 can cost more wall clock than running the selection once. What arrives earlier
 is the first answer, from the tests with the fewest modules between the change
-and the assertion, so a failure reaches you sooner and has fewer candidate
+and the assertion, so you see a failure sooner and it has fewer candidate
 causes.
 
 A distance is not a time estimate. Take a near range when you want feedback

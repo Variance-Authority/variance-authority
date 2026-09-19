@@ -78,10 +78,10 @@ serve the text, so what you read is the file as it is now.
 
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
-ranking. Where your words reach a name that does not contain them — a word typed
-wrong, or two words written about a name but not beside each other — those names
-follow under a heading of their own, after the substring answer and never inside
-it.
+ranking. Where your words land on a name that does not contain them — a word
+typed wrong, or two words written about a name but not beside each other — those
+names follow under a heading of their own, after the substring answer and never
+inside it.
 
 ## Bound a search to where you are working
 

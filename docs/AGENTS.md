@@ -240,6 +240,24 @@ language. That last part is not a small adjustment. It decides the words.
    Keep the word for the thing on screen that is one place today and another
    place tomorrow, because that is the finding the reader came for, and a page
    that spends *moved* on abstractions has no word left for it.
+
+   **Reach is the second one.** To reach is to arrive somewhere along an edge
+   somebody wrote: an import, a dependency, a render, a call. A change reaches a
+   file, a file reaches a package, a diff reaches a subject, a test reaches a
+   line. That walk is what `variance reach` answers and it is the finding the
+   reader came for; nothing else in a page reaches anything. A run does not
+   *reach a verdict*, it **decides** one. A harness does not *reach a state*, it
+   **gets the app into** one. A test does not *reach into* a module, it
+   **reads** what the module did not export. A writer does not *reach for* a
+   word, they **use** it. A comparison does not *reach a person*, it **is shown
+   to** one. A value does not *reach a digest*, it **is written into** one. A
+   capability is not *reached for*, it is **chosen**.
+
+   Density is the other half of this one. Even used correctly, the word carries
+   a specific claim, and a paragraph that makes it four times is not making it
+   any more. Say it once, then name the edge — *imports*, *depends on*,
+   *renders*, *calls* — because the reader is counting how far the change went,
+   and every extra *reaches* is one more thing to count.
 5. **Plain words, plain sentences.** Outside terms of art, use the most common
    word that still means it, and the plainest sentence that still carries it.
    *Use*, not *utilise*. *Enough*, not *sufficient*. *So*, not *hence*. *But*,

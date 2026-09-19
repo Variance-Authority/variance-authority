@@ -109,9 +109,9 @@ would be applied to one side of the match only. The query side owns the rule
 and applies it to the query and the value alike.
 
 Digests never enter. Text an [ignore](ignores.md) declared volatile — a clock, a
-feed, an order number — reaches the snapshot hashed, as `v1:9a3f1c2e…` rather
-than as words, and a query that matched on it would be matching a coordinate
-rather than a word.
+feed, an order number — is written into the snapshot hashed, as `v1:9a3f1c2e…`
+rather than as words, and a query that matched on it would be matching a
+coordinate rather than a word.
 
 ## The same pass writes the arrangement
 
@@ -187,7 +187,7 @@ one subject rather than a family of them:
 |---|---|---|---|---|
 | `id`, `example` | `names`, `text` | `components`, `createdBy` | `regions`, `files` | `roles`, `tokens` |
 
-Both factors are integers and the sum is an integer, so no float reaches the
+Both factors are integers and the sum is an integer, so no float enters the
 sort and two machines cannot order the same hits differently.
 
 Rarity is counted per field, not once across all of them, because the fields
@@ -316,7 +316,7 @@ pick the answer.**
 ### Why the words run out
 
 The rank's second key is how rare a matched word is, and on a large suite the
-words an author reaches for are not rare. Of the words the product-app questions
+words an author uses are not rare. Of the words the product-app questions
 matched, a fifth are held by more than half of its 572 subjects — `section` by
 568, `page` by 567, `states` by 566 — at which point the word is being asked to
 distinguish between subjects that all have it.
@@ -374,7 +374,7 @@ checkout page is one file and forty neighbours.
 
 The walk runs one way. What your entry point imports is in the scope; what
 imports it is not, or naming a single button would name every screen that uses
-it. Those screens still reach you through the run's own record, which says which
+it. You still see those screens through the run's own record, which says which
 files each subject was seen in.
 
 You say which way the walk runs. `from` is answered along the imports — what the
@@ -463,7 +463,7 @@ normalisation, because the size of a subject is already a rank key.
 
 **Not evidence.** A wrong top hit costs one more call. The same wrong hit quoted
 as a finding would cost a baseline, which is why nothing here carries a verdict
-— the decision a comparison reached about one subject — or a pixel count, or a
+— the decision a comparison made about one subject — or a pixel count, or a
 file to open. Only ids, and the tools that take them.
 
 **Not a declaration.** Nothing in the lexicon was written by hand or annotated

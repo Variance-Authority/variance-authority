@@ -29,7 +29,7 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 |---|---|---|---|
 | `directory` | files in a folder you commit | a path | binary blobs in the git history |
 | `lfs` | the same files, through the LFS filter | `git lfs install` | LFS storage and bandwidth |
-| `remote` | nothing in the repository | a deployment and a token | a network hop, and a run that cannot reach it stops |
+| `remote` | nothing in the repository | a deployment and a token | a network hop, and a run that cannot call it stops |
 
 ## Committed means committed
 
@@ -188,14 +188,14 @@ either way — the verdict is the one word a run carries per subject,
 `unchanged`, `changed`, `new`, `incomparable` or `ignored`, and it is decided
 by the comparison rather than by how many requests fetched the baseline.
 
-Anything else the store cannot answer — an unreachable endpoint, a refused token,
-a 500, a body that is not an answer — **throws**. It is never a miss, because
-`new` re-records what is on screen and a network blip read as a miss destroys the
-thing the check was against while reporting success.
+Anything else the store cannot answer — an endpoint it cannot call, a refused
+token, a 500, a body that is not an answer — **throws**. It is never a miss,
+because `new` re-records what is on screen and a network blip read as a miss
+destroys the thing the check was against while reporting success.
 
 The serving half is `serveRasterStore` from
 [`@variance-authority/remote`](../packages/remote/README.md), which binds
-loopback; a deployment CI can reach is either that behind a proxy you run, or
+loopback; a deployment CI can call is either that behind a proxy you run, or
 the [`tribunal`](../packages/tribunal/README.md) Worker, which serves the same
 paths on D1 and R2.
 
@@ -219,7 +219,7 @@ work tree.
 
 ### The cache prunes itself
 
-That directory is outside the work tree, so `git clean` never reaches it, and it
+That directory is outside the work tree, so `git clean` never touches it, and it
 is under a dot-directory nobody browses. Every edit to a document mints a new
 key and kills the old one — a run against a changed file never asks for the
 previous document's image again — so left alone it is a directory that only
@@ -248,8 +248,8 @@ the whole directory costs you renders and nothing else.
 
 ### The records, if the diffs are the problem
 
-An image and its record can be kept in separate places, which is what you reach
-for when the records are the thing putting noise in your diffs.
+An image and its record can be kept in separate places, which is what you use
+when the records are the thing putting noise in your diffs.
 
 Every baseline is an image and a `.json` record of how it was painted: the
 document digest, the identity, the fonts that did not resolve, the regions
@@ -295,4 +295,4 @@ commit you already trust, rather than copying files between layouts.
 
 **Further:** [what each level of adoption buys](flows.md) ·
 [`@variance-authority/store`](../packages/store/README.md) for the two
-file-backed stores · [how evidence reaches a verdict](reasoning.md).
+file-backed stores · [how evidence decides a verdict](reasoning.md).

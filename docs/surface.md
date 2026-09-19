@@ -1,8 +1,8 @@
 # Connect your suite
 
-You already have a suite that reaches the UI states you care about. To put those
-states under review by [Variance Authority](README.md), you install one package
-that knows your host, and keep everything else.
+You already have a suite that gets the app into the UI states you care about. To
+put those states under review by [Variance Authority](README.md), you install
+one package that knows your host, and keep everything else.
 
 That package is called a **surface**. It finds the states worth observing,
 drives your host to each one, and gives each a **subject id**: one named UI
@@ -23,13 +23,14 @@ below.
 - A **raster** is a screenshot: pixels the host has already painted, handed
   straight to comparison with no second render.
 
-Both reach the same comparison and the same report. The choice changes what a
+Both end in the same comparison and the same report. The choice changes what a
 run costs and what it discloses, not the verdict you get.
 
 ## 1. What you install
 
-Pick the row for the host that already reaches the state you want to review.
-Everything the surface needs beyond that stays behind its package boundary.
+Pick the row for the host that already puts the app in the state you want to
+review. Everything the surface needs beyond that stays behind its package
+boundary.
 
 | Existing host | Install | What it keeps, and where it is painted |
 | --- | --- | --- |
@@ -264,8 +265,8 @@ creates one subject per `.html` file. The config then names no ids:
 
 The walkthrough is [put one served route through review](start-routes.md). The
 [`@variance-authority/route-collector` reference](../packages/route-collector/README.md)
-owns responsive widths, capturing a route on a machine that cannot reach your
-asset origin, and the complete option contract.
+owns responsive widths, capturing a route on a machine that has no access to
+your asset origin, and the complete option contract.
 
 ### Playwright
 
@@ -476,7 +477,7 @@ change.
 
 | Choice | Saves | Pays | Best fit |
 | --- | --- | --- | --- |
-| Raster taken in place | reconstruction and a second browser | keeping the host browser's identity pinned; repeated screenshots; raster egress if remote review follows | a state already reached in a stable, pinned browser, where disclosing the DOM is unacceptable |
+| Raster taken in place | reconstruction and a second browser | keeping the host browser's identity pinned; repeated screenshots; raster egress if remote review follows | a state you already have in a stable, pinned browser, where disclosing the DOM is unacceptable |
 | Document painted locally | rerunning the application; enables render caching | closing the document over its resources, or guaranteeing the renderer the same access, plus local browser cost | browserless acquisition, or one pinned local renderer |
 | Document painted remotely | pinning the acquisition machine; enables remote fan-out | disclosing the document and its resources, plus transport; an environment-dependent document requires equivalent resource access | a shared render service; cross-environment portability, for closed documents only |
 | A raster you already hold | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
@@ -554,7 +555,7 @@ npm install --save-dev @variance-authority/observe
 ```
 
 The observation engine accepts an existing `Raster`. A `CaptureArtifact` with
-`material.kind: "raster"` reaches `observeCaptureAgainstBaseline` without a
+`material.kind: "raster"` goes into `observeCaptureAgainstBaseline` without a
 renderer, and `observeRasters` compares two images already in hand. Compose that
 yourself: the `variance` binary has no command for ingesting a foreign image,
 because `variance accept` reads the stored candidate raster, semantic evidence

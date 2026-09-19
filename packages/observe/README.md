@@ -18,8 +18,8 @@ It is the comparison half, on its own. It opens no browser, picks no baseline
 directory, writes no report, and exits with no code. You supply an image source
 and somewhere to keep baselines; it decides what changed.
 
-Reach for it when you are building an integration of your own. If you want a
-tool rather than a seam, install
+Use it when you are building an integration of your own. If you want a tool
+rather than a seam, install
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli),
 [`@variance-authority/storybook-collector`](https://variance-authority.dev/reference/packages/storybook-collector),
 [`@variance-authority/route-collector`](https://variance-authority.dev/reference/packages/route-collector),

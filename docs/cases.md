@@ -1,6 +1,6 @@
 # Choose from the state you already have
 
-The state you want to watch is already reachable: a story renders it, a
+You can already get to the state you want to watch: a story renders it, a
 Playwright test drives to it, a Vitest test mounts it. Which of those supplies
 it decides what travels into a run, where the pixels are painted, and what your
 baselines end up named, so the choice below starts from the lifecycle you
@@ -17,10 +17,10 @@ npx variance run --config variance.config.json
 npx variance accept --config variance.config.json cart/empty
 ```
 
-Start with the harness that already knows how to reach the state and declare it
-ready. Keep that lifecycle where it works, then choose what to capture and
-where to render it. A Storybook or route host does not require local rendering,
-and a Playwright host does not require in-place pixels.
+Start with the harness that already knows how to get the app into that state
+and declare it ready. Keep that lifecycle where it works, then choose what to
+capture and where to render it. A Storybook or route host does not require
+local rendering, and a Playwright host does not require in-place pixels.
 
 ## The three questions
 
@@ -44,7 +44,7 @@ the run what it captured. This one runs beside Storybook, reads its index,
 reuses a single preview, applies each story's viewport before mount, waits for
 the rendered state, and emits documents. Fonts, images and stylesheets the
 story loads from elsewhere are identified by hash rather than copied, so the
-renderer has to be able to reach them too.
+renderer has to be able to read them too.
 
 Choose it when:
 
@@ -66,10 +66,10 @@ viewport is planned separately and navigation happens at that viewport.
 Choose it when:
 
 - the application route, not an isolated component, is the subject;
-- the state can be reached by deterministic navigation and setup;
+- deterministic navigation and setup get the app into the state;
 - the route list is an owned contract.
 
-The collector is not a crawler: it never follows a link from one page to reach
+The collector is not a crawler: it never follows a link from one page to
 another. A sitemap or a built directory may supply the route list instead of an
 explicit map. You still get told when a page drops out — the run names it as a
 subject the baseline store holds and this run did not plan — but the removal
@@ -118,7 +118,7 @@ Choose it when:
   nothing from your machine;
 - capturing in one process and painting in another is acceptable.
 
-Nothing inside jsdom reaches a verdict — the run's answer for a subject, such as
+Nothing inside jsdom decides a verdict — the run's answer for a subject, such as
 `new`, `unchanged`, `changed` or `incomparable`. The verdict comes from the
 later run that paints the capture. jsdom also has no layout engine, so a changed
 pixel region on this path is reported without the component that drew it. To
@@ -149,7 +149,7 @@ Choose local when the setup and transport cost of an endpoint outweighs what it
 buys. Choose remote when one pinned machine, placement next to your data, or
 several renderers in parallel is worth the network hop. A document that carries
 its own resource bytes paints identically anywhere; one that still points at
-your server needs the endpoint to reach that server.
+your server needs an endpoint that can call that server.
 
 ## Where the baseline lives between runs
 
@@ -164,7 +164,7 @@ Every path above works with every row here.
 | Remote store | operator service | Shared baselines across workers or repositories |
 
 Moving between these stores changes nothing about the verdicts you get. A store
-that cannot be reached fails the run as a store error; it is never reported as a
+the run cannot open fails the run as a store error; it is never reported as a
 subject with no baseline.
 
 ## When the answer is a managed product

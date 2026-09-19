@@ -35,11 +35,11 @@ repository already recorded instead of re-transforming it.
 
 **Do not commit it, and add nothing to `.gitignore` for it.** The default path
 is outside your work tree: `git status` never sees it, `git clean` never takes
-it, and it cannot reach a pull request. The one case that needs an ignore entry
-is one you create — pass `coverageFile` to the Vitest or Jest integration to put
-the snapshot at a path you name, typically inside the repository so CI can
-upload it as an artifact, and then ignore that path. Turning on `cases` writes a
-second file at `<coverageFile>.cases.json`, under the same rule.
+it, and it never lands in a pull request. The one case that needs an ignore
+entry is one you create — pass `coverageFile` to the Vitest or Jest integration
+to put the snapshot at a path you name, typically inside the repository so CI
+can upload it as an artifact, and then ignore that path. Turning on `cases`
+writes a second file at `<coverageFile>.cases.json`, under the same rule.
 
 Three more things live under that directory. Each instrumenting build keeps a
 store of module records under a `<label>` of its own; the module names table is
@@ -312,7 +312,7 @@ clicked and one that only rendered:
 | the JSX line holding `onClick={() => …}` | `Button/anon#0`, then `Button` | both |
 
 A line that is a region's first or last line is also the enclosing region's
-text on that line, so the charge reaches outward and the tests that merely
+text on that line, so the charge extends outward and the tests that merely
 rendered are selected. An edit that lands on a line the handler holds entirely
 charges the handler and nothing wider, and a handler no test crossed then
 selects no test at all. A one-line handler has no such line, so every edit to
@@ -564,7 +564,7 @@ below is one stage of that call.
    parsed. A range whose text is nothing but types, interfaces,
    signatures with no body, erased enums, type-only imports and a re-export of
    a name the file already holds is dropped before anything is charged: none of
-   it is evaluated where the code that already ran could reach it. Text that
+   it is evaluated where the code that already ran could use it. Text that
    parses to no construct at all — a comment, a blank line — is *not* dropped,
    because the same bytes at the same line number are equally a line of the CSS
    or the copy a module renders out of a template literal, and a diff carries no
@@ -573,8 +573,8 @@ below is one stage of that call.
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
    charged whole. Each wider group is charged in turn as long as a region of
-   the group just charged reaches outward, which means its text on that line
-   sits beside the wider region's text. A region reaches outward when the line
+   the group just charged extends outward, which means its text on that line
+   sits beside the wider region's text. A region extends outward when the line
    is its first line, except that the module root and a continuation never do,
    a function also does when the line is its last, and a resume does only when
    no region of another kind has its span. A line no source region contains
@@ -689,7 +689,7 @@ The reporter reads the record each id names, folds every journal's `hits` into
 crossings and its `loaded` ordinals the same way over the other column, merges
 into the coverage file, and removes the run directory. A
 shared ordinal is credited to every test file that consumed the module; under
-isolation each file consumed its own evaluation and the credit reaches nobody
+isolation each file consumed its own evaluation and the credit goes to nobody
 else.
 
 **Module record.** One module as bytes, appended by whoever transformed it to a
@@ -799,7 +799,7 @@ silent, reported another instrumentation id, or lost an account.
 
 ## Writing the record
 
-Four ways bytes reach the file. Each is reachable from the imports above.
+Four ways bytes land in the file. Each is reachable from the imports above.
 
 **Append from a worker run.** The Vitest and Jest reporters read every worker
 journal in the run directory, fold the `hits` and `loaded` columns into

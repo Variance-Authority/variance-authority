@@ -64,7 +64,7 @@ the build.
 
 ### 2. Write the collector module
 
-The collector is the module that tells the run how to reach and read your
+The collector is the module that tells the run how to find and read your
 stories. Create it anywhere in your project and default-export the factory.
 
 ```js

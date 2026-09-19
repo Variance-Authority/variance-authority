@@ -15,7 +15,7 @@ That sentence is a join key. A run holds, for every subject it observed, the
 component boundaries the document contained and a digest of what each one
 rendered.
 Once those boundaries are addressable across subjects, one commit's worth of
-snapshots answers three questions no per-subject comparison can reach:
+snapshots answers three questions no per-subject comparison can answer:
 
 - **Which examples are watching the same bytes.** Two diffs over one shared
   rendering are one thing to review, and the narrow example among them is where
@@ -302,15 +302,15 @@ The lift is what makes that readable. Compared as whole subjects, a receipt and 
 promo card differ everywhere and the answer would be the difference the reader
 already knows about. Compared as two `Price`s, they differ in one property.
 
-This is the one place in the system a parting is reachable without a decision
-about how both sides were read: both renderings come out of one run, off one
+This is the one place in the system you get a parting without a decision about
+how both sides were read: both renderings come out of one run, off one
 collector, at one commit, so they are read the same way by construction. It
 needs no framework adapter either — the boundaries come from the owner chain and
 the cascade from `styleProvenance` — which is why an ancestor's `color` is
 nameable on a browser run.
 
 **Measured on todomvc: zero.** A props digest is not a complete statement of a
-component's inputs, so three shapes reach the check and are refused by it:
+component's inputs, so the check sees three shapes and refuses them:
 
 | shape | why it is not a divergence |
 |---|---|
@@ -407,7 +407,7 @@ and stops at the first matching rule:
 | `unexplained` | none of the above | the finding |
 
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
-cannot reach either. That degrades honestly, and it is checked in
+cannot apply either. That degrades honestly, and it is checked in
 [`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted
 to the caller: an unexplained difference in a run with no change set carries a
 sentence saying so instead of an accusation.
@@ -502,11 +502,11 @@ how the record travels to a machine that ran nothing.
 One pass over the instances every subject already reported, after the worker pool
 and in plan order, so a slower machine that finishes subject 41 before subject 3
 produces the same bytes. No browser, no image, no disk, no service. Every list
-that reaches the artifact is sorted by code unit, not by locale, because a
+that lands in the artifact is sorted by code unit, not by locale, because a
 report is committed, diffed and read back on another runner, and a locale-aware
 comparison makes the byte order a promise about `LANG`.
 
-What reaches the artifact is smaller than what produced it. The full graph
+What the artifact holds is smaller than what produced it. The full graph
 carries one entry per boundary per subject — tens of thousands of objects on a real suite
 — and a report is a file people open, so the record keeps the names, the counts
 and the subject lists, and a consumer that wants the graph recomputes it from the

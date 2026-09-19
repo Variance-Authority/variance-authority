@@ -2,7 +2,7 @@
 
 # @variance-authority/playwright-test
 
-> Add a source-aware visual observation to a Playwright test that already knows how to reach the state.
+> Add a source-aware visual observation to a Playwright test that already knows how to get the app into the state.
 
 Part of [Variance Authority](https://variance-authority.dev).
 
@@ -209,7 +209,7 @@ attribution.
 Deferred document rendering is the default. It repaints the acquired document
 through the session renderer, which may be local or remote and may reuse its
 render cache. The adapter preserves the acquisition base URL but does not archive
-resource bytes, so a remote renderer must be able to reach equivalent resources.
+resource bytes, so a remote renderer must be able to load equivalent resources.
 
 For a browser the suite already pins, capture the caller-owned locator in place.
 Configure Chromium with the exported text-rendering arguments, then declare the
@@ -262,7 +262,7 @@ gives changed regions a useful component context.
 The helper always acquires the live subtree and semantic evidence. Deferred mode
 then paints the document through a renderer. In-place mode screenshots the live
 locator and stamps the raster with the browser identity declared by the suite.
-Both modes reach the same baseline comparison and attribution path.
+Both modes end in the same baseline comparison and attribution path.
 
 The helper also calls Playwright's native `locator.ariaSnapshot()` on the
 subject and on React portal content belonging to it. This is separate from the
@@ -432,7 +432,7 @@ snapshots that have none yet, which is an absence and not an approval.
 An Rstest test that runs in `node` or `jsdom` and starts no browser is the other
 adoption: it writes a capture with
 [`@variance-authority/unit-test`](../unit-test/README.md) and a later CLI run
-paints it. That path reaches nothing here.
+paints it. Nothing in this package is on that path.
 
 `materialization` selects how pixels are produced; its `kind` field picks the
 strategy. `kind: 'in-place'` requires `browser`, the declared launch of the
@@ -688,7 +688,7 @@ With it unset, nothing happens and the run pays one environment read per worker
 — the same bargain the heads make above. With it set, the watcher is told each
 test as it opens, each announcement as it is recorded rather than at teardown, the
 listener's remarks, and how each test ended. The process on the other end is
-[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), reached over the same
+[`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage), on the same
 connection the announcements already use, and none of it is written down.
 
 The lifecycle half is automatic, so a listing has no holes: a test that

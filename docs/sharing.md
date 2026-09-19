@@ -61,7 +61,7 @@ not a wider one.
 
 Text an [ignore](ignores.md) declared volatile — a clock, a feed, an order
 number — is the exception: it is digested before the lexicon is written, so it
-never reaches the file as words.
+never lands in the file as words.
 
 ## The rule that makes it safe
 
@@ -197,8 +197,8 @@ command with `npx variance share --ref <ref>`.
 
 ## GitHub Actions
 
-The expected arrangement, and the one to reach for first: a cache step around
-the directory the index is kept in, before the run.
+The expected arrangement, and the one to use first: a cache step around the
+directory the index is kept in, before the run.
 
 ```yaml
       - name: Restore the mainline evaluation

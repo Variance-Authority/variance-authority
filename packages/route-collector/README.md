@@ -16,7 +16,7 @@ When something changed, the report names the component that drew it and the
 
 A **subject** is one named UI state you asked for and can ask for again — here,
 one route at one viewport, under an id you choose. A **collector** is a module
-you write that tells the CLI which subjects exist and how to reach them; this
+you write that tells the CLI which subjects exist and how to open them; this
 package builds one from a list of routes, a sitemap, or a directory of built
 HTML.
 
@@ -389,7 +389,7 @@ console.log(routesFrom(xml));
 
 ## When integration fails
 
-- **The server cannot be reached:** start the application before `npx variance run`
+- **The server does not answer:** start the application before `npx variance run`
   and verify the exact URLs from the machine running CI.
 - **A subject is missing:** for `kind: "list"`, match every config id to a key in
   `routes`. For discovery, inspect the sitemap or built `.html` files that are

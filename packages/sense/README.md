@@ -21,7 +21,7 @@ It answers four questions:
   near ones first?
 - Which files and components can a changed file reach, from a scan of the
   checkout alone?
-- Which named test cases reached a given function or line — the query an editor
+- Which named test cases entered a given function or line — the query an editor
   or a coding agent asks.
 
 The first three work today from a wrapped runner. The fourth needs a recording
@@ -39,8 +39,8 @@ npm install --save-dev @variance-authority/sense
 Node 22.15 or newer. Vitest is the only declared peer dependency
 (`^2.1.9`, optional) — install it yourself if you use the Vitest seam. The Jest
 seam is built and tested against Jest 30 and declares no peer, so your own Jest
-is the one that runs. Storybook and Playwright are reached through sibling
-packages rather than from here, and are covered below.
+is the one that runs. Storybook and Playwright come from sibling packages
+rather than from here, and are covered below.
 
 ## Cut a Vitest run down to a diff
 
@@ -572,7 +572,7 @@ running one distance.
 Start a near range at `0` rather than `1`. Zero is a distance and a common one
 in an edit loop: a test whose own source you just changed.
 
-A test nobody could place runs with the range that reaches the end. So `0-2`
+A test nobody could place runs with the range that has no end. So `0-2`
 then `3-` runs every placed file exactly once, and no near range is made
 expensive by everything nobody could place. A current test file that is not
 represented in `distances` remains outside both arrays; keep it selected and
@@ -825,8 +825,8 @@ a hand-written table or to the mock reader.
 
 `mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
 story and setup files and shadows the mocked module. Nothing is shadowed when
-the factory reaches for the real module through `importActual`, `requireActual`
-or `importOriginal`, when the factory is written somewhere this cannot read,
+the factory loads the real module through `importActual`, `requireActual` or
+`importOriginal`, when the factory is written somewhere this cannot read,
 when the mock is a `doMock` the static imports above it have already evaluated
 past, and when the specifier is not a string literal. Pass `callers` to name
 other mocking objects and `files` to widen which files are read.

@@ -278,8 +278,8 @@ decision — a tag you filter out), `failed` (it exists and could not be read), 
 `unreached` (the run stopped before getting to it). `warnings` are strings
 printed with the run.
 
-If your collector needs to stop the whole run — a missing template directory, an
-unreachable service — throw an error marked as the operator's to fix, and the
+If your collector needs to stop the whole run — a missing template directory, a
+service it cannot call — throw an error marked as the operator's to fix, and the
 CLI exits `2` instead of `1`:
 
 ```js
@@ -306,9 +306,9 @@ throw Object.assign(new Error('template directory not found'), { varianceOperato
 }
 ```
 
-It is JSON and runs nothing, so `subjects.collector` is the one key through
-which your module reaches a run. Unknown keys are refused by name, and paths
-resolve against this file's directory rather than the working directory.
+It is JSON and runs nothing, so `subjects.collector` is the one key that brings
+your module into a run. Unknown keys are refused by name, and paths resolve
+against this file's directory rather than the working directory.
 
 | key | what it decides |
 | --- | --- |
@@ -401,7 +401,7 @@ receipts `changed` and the region that changed named in the report.
 Exit codes are three, and they mean different things to different people: `0`
 nothing to review, `1` the run happened and found something a person must decide
 about, `2` the run did not happen as configured — a bad config, a missing
-browser, an unreachable store.
+browser, a store the run cannot talk to.
 
 ## If you already have the pictures
 

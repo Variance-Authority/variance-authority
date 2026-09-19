@@ -25,7 +25,7 @@ place to the component that produced it (**attribution**) are the next two steps
 and they are in `@variance-authority/core`. This package does not launch a
 browser, store a baseline, or decide a pass/fail verdict.
 
-Reach for `@variance-authority/raster` instead when a renderer already hands you
+Use `@variance-authority/raster` instead when a renderer already hands you
 RGBA pixels, or when you want the comparison policy and storage contracts without
 a codec.
 

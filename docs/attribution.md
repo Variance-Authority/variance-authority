@@ -219,12 +219,13 @@ Call sites are resolved for the handful of nodes a report is about to name, not
 on every capture. Frames are carried in the snapshot as provenance and no hash
 projects provenance, so `locateSites` spends them only there. A page whose only
 change is one button resolves one call site; a page that did not change resolves
-none. The frames are transient by design and never reach a document, a digest or
-a baseline: a frame holds an absolute URL with a build hash in it, and hashing
-one would make every baseline disagree with the next dev-server restart.
+none. The frames are transient by design and are never written into a document,
+a digest or a baseline: a frame holds an absolute URL with a build hash in it,
+and hashing one would make every baseline disagree with the next dev-server
+restart.
 
 The fetch is supplied by the caller, because the right way to fetch differs by
-host. A browser-driving **collector** — the module that reaches your UI and
+host. A browser-driving **collector** — the module that opens your UI and
 hands each subject to the run — should fetch from the page's own context, where
 the origin, the cookies and the dev server's module graph are already correct.
 
@@ -249,10 +250,10 @@ never met keeps them. That is what turns an ambiguous name into one file,
 because the engine only knows about a component that rendered, which is exactly
 the one the report is about.
 
-The engine's answer reaches the run's own `source` and the composed report's
-`files` field, and `@variance-authority/playwright-test` lays it over the
-`source` an observation was given. Chromium only: the property is V8's, and on
-another engine the reader answers nothing and the scan stands as it did.
+The engine's answer is written into the run's own `source` and the composed
+report's `files` field, and `@variance-authority/playwright-test` lays it over
+the `source` an observation was given. Chromium only: the property is V8's, and
+on another engine the reader answers nothing and the scan stands as it did.
 
 ### The fallback nobody configures
 

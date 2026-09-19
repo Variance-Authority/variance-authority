@@ -111,7 +111,7 @@ input change, did the output change — and a fourth that splits one of them:
 | `absorbed` | an input changed and the output did not — a variant was assigned differently and rendered the same |
 | `unread` | the output changed and what would explain it was not read |
 
-`refactor` is the slice a pixel diff cannot reach at all, because there is
+`refactor` is the slice a pixel diff cannot see at all, because there is
 nothing to diff: component identity enters neither the render hash nor any
 **band** — the category a visual difference is sorted into, one of `a11y`,
 `geometry`, `token`, `content` and `texture` — so wrapping a subtree in a new
@@ -170,7 +170,7 @@ winning declaration came from, so a property a node ended up with and no
 declaration set *there* arrived from above — `color` from a card, a token from
 `:root`. It needs no framework adapter: the boundary is found from the owner
 chain and the cascade is read from the snapshot, which is why it is the category a
-browser run reaches first.
+browser run answers first.
 
 `external` is one row and covers the ecosystem. Redux, Zustand, Jotai, valtio
 and a URL all reach React through `useSyncExternalStore`, so a store that changed

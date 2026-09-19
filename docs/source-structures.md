@@ -97,7 +97,7 @@ is enough, per depended-on package:
 
 - a `source` export condition in its `package.json` pointing at `src`;
 - a `main` naming a `.ts` file;
-- importing a subpath that reaches into the package's `src` directly.
+- importing a subpath that names a file in the package's `src` directly.
 
 Failing that, seed the selection from a monorepo tool instead: `source.changes`
 takes `nx` or `turbo`, whose affected-project answer crosses the package
@@ -346,8 +346,8 @@ remain two edges.
 
 **Edge kinds.** `imports` (a value import), `reexports` (an import that also
 republishes), `dynamic` (`import()` with a literal specifier), `type` (erased
-before anything runs), `asset` (a stylesheet's `@import`, or a `url()` reaching a
-font or an image), and `declared-in` (a component to the file that declares it).
+before anything runs), `asset` (a stylesheet's `@import`, or a `url()` that names
+a font or an image), and `declared-in` (a component to the file that declares it).
 A request is `type` when every binding it brings in is type-only, with
 `import type { T }` and `import { type T }` alike, and a re-export is `type`
 under the same rule. Because a component points at the file that declares it,

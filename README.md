@@ -49,8 +49,8 @@ runners.
 
 ## Add it to a Playwright test
 
-The fastest way in is a test that already reaches the UI state you care about.
-Two installs, one call, one assertion:
+The fastest way in is a test that already gets the app into the UI state you
+care about. Two installs, one call, one assertion:
 
 ```bash
 npm install --save-dev @variance-authority/playwright-test @playwright/test

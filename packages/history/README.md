@@ -29,7 +29,7 @@ opens a socket or touches a disk; the two entrypoints are:
 | entrypoint | requires | holds |
 |---|---|---|
 | `.` | nothing | the row contract, the drift arithmetic, the wire protocol, `createAbsentStore` |
-| `./client` | a reachable service | `createHttpHistoryStore` |
+| `./client` | a service you can call | `createHttpHistoryStore` |
 
 ## Detect accumulated drift
 
@@ -238,7 +238,7 @@ With that in place, `npx variance run` records the run, its observations and its
 resolved token values, and `npx variance accept <subject>` records the approval —
 which is what makes the change countable, since drift sums approved changes only.
 
-## Reach the service from your own code
+## Call the service from your own code
 
 ```ts
 import { detectDrift, describeDrift, isKept } from '@variance-authority/history';
@@ -270,7 +270,7 @@ if (!isKept(answer)) {
 Every transport failure throws — a 500, a 401, a body that parses but is not the
 shape asked for. None of them resolves to an empty result.
 
-A store you reach this way holds exactly what your own code posted to it. With no
+A store you call this way holds exactly what your own code posted to it. With no
 writer, every query answers from an empty store.
 
 ## When no store is configured

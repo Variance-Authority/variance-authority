@@ -6,8 +6,8 @@
 
 Part of [Variance Authority](https://variance-authority.dev).
 
-Reach for this package only to hand an already-finished run, or an execution
-index, to an agent that speaks MCP.
+Use this package only to hand an already-finished run, or an execution index,
+to an agent that speaks MCP.
 
 It is an MCP server over stdio. It reads a file something else produced — the
 JSON report a run wrote, or a record of which tests entered which source — and
@@ -19,7 +19,7 @@ Skip it if there is no MCP client in the loop. Running the suite and reading its
 output yourself is [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
 (`variance run`, `variance accept`), with no server or protocol involved. That
 same CLI also offers the report questions below as shell commands — `variance ask
-<question>` — so nothing here is reachable only through a client. What a
+<question>` — so nothing here is available only through a client. What a
 connection adds is the other evidence an agent can be handed: an execution index,
 a suite still running, a record of what each test touched.
 
@@ -185,7 +185,7 @@ this answers about the agent. `variance_changes` can say that `Button` changed i
 twelve subjects. It cannot say that `Card` — which the agent believes it just
 edited — did not change at all, because a diff has no opinion about what was
 supposed to happen. That third case is where a wrong file, a dead branch, an
-overridden rule or a stale build surfaces, and no screenshot comparison reaches
+overridden rule or a stale build surfaces, and no screenshot comparison shows
 it.
 
 The declaration has to come first: the tool takes claims as an argument rather
@@ -414,7 +414,7 @@ edit — see [ask a run from the command line](https://variance-authority.dev/do
 after an edit: which named tests reached this source, and how directly? A line
 or function query returns tests ordered by minimum observed call-stack depth. A
 file query returns every indexed line as compact ranges, including ranges no
-test reached.
+test entered.
 
 An `ExecutionIndex` is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 writes: a record, per test, of which regions of which source files that test

@@ -33,14 +33,14 @@ the `baselines` section in each example. **Placement** — which machine runs th
 browser that paints each reading — is a separate axis, covered later on this
 page. [Tribunal](../packages/tribunal) and
 history are services a durable run can add; one Tribunal deployment can supply
-both the remote-baseline and the history protocol. How each subject is reached
-in the first place is a separate choice, described in [how subjects are
+both the remote-baseline and the history protocol. How you get each subject in
+the first place is a separate choice, described in [how subjects are
 acquired](surface.md).
 
 | Level | You operate | Choose it when | The constraint you accept |
 | --- | --- | --- | --- |
 | 0. Ephemeral | no baseline store | one run can produce both revisions of the UI | no approved baseline crosses runs |
-| 1. Directory | a durable filesystem path | one machine or persistent workspace owns the baseline corpus | the path must reach the next run |
+| 1. Directory | a durable filesystem path | one machine or persistent workspace owns the baseline corpus | the path must survive into the next run |
 | 2. Git LFS | Git LFS and a tracked baseline root | baseline updates should travel with the repository without ordinary PNG blobs in Git history | approval changes the repository |
 | 3. Remote baselines | a baseline endpoint, with a token when the service requires one | the baseline corpus must stay out of the repository | an unavailable store stops the run |
 | 4. Tribunal | database, object storage, two tokens, and a review adapter | reviewers need a browser page per build and a recorded decision on each subject | authentication remains the operator's responsibility |
@@ -49,9 +49,10 @@ acquired](surface.md).
 ## Level 0 — ephemeral: compare two revisions now
 
 Ephemeral retention is a complete comparison with no durable baseline. Its
-**collector** — the module that reaches each UI state and says when it is ready
-to be captured — supplies the current document and a `before` document for every
-subject; the renderer paints both under one identity during the run.
+**collector** — the module that drives the app to each UI state and says when
+it is ready to be captured — supplies the current document and a `before`
+document for every subject; the renderer paints both under one identity during
+the run.
 
 ```jsonc
 // variance.config.json
@@ -140,9 +141,9 @@ Choose it when bot commits, LFS bandwidth, or repository size make a tracked
 corpus the wrong place to keep the images. `npx variance accept` writes through
 the same endpoint, so approval no longer requires a baseline commit.
 
-An unreachable endpoint, a refused token, or an invalid response stops the run.
-None of them is reported as a missing baseline, so a network failure can never
-lead the next `accept` to overwrite the only approved copy. Run
+An endpoint the run cannot call, a refused token, or an invalid response stops
+the run. None of them is reported as a missing baseline, so a network failure
+can never lead the next `accept` to overwrite the only approved copy. Run
 `serveRasterStore` from
 [`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
 behind infrastructure you operate, or point the endpoint at the compatible
@@ -262,7 +263,7 @@ A remote renderer is selected independently of baseline storage:
 exposes no token setting, so keep it on a trusted network or put authentication
 in a proxy you operate. The remote machine must also be able to resolve the
 resources the captured document carries or references. A resource the renderer
-cannot reach is a collection or render failure, not an empty image.
+cannot load is a collection or render failure, not an empty image.
 
 Moving the renderer to another machine does not by itself make readings
 incomparable — a different engine, platform, scale factor, font declaration, or
@@ -283,7 +284,7 @@ change in the subject.
 - Keep the **renderer inside the run** until a pinned or separately scaled
   machine is an actual requirement.
 
-[Your first run](start.md) begins from the harness that already reaches the
-state. [Baseline placement](placement.md) carries the complete storage
+[Your first run](start.md) begins from the harness that already puts the app in
+that state. [Baseline placement](placement.md) carries the complete storage
 trade-offs, and [how subjects are acquired](surface.md) carries the
 collection and materialization choices.

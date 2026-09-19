@@ -64,7 +64,7 @@ on pixels reports the difference as `unexplained` — the finding class that
 names a change nothing in the run accounts for — about something you already
 said was not the subject.
 
-**Which tier your run reaches is worth knowing.** `variance run` compares images
+**Which tier your run uses is worth knowing.** `variance run` compares images
 against a stored baseline, so the pixel half is the half that decides its
 verdicts. The semantic half — `applyIgnores` over a pair of snapshots — applies
 where two documents are compared, which means composing `core` yourself: a stored
@@ -80,7 +80,7 @@ a selector to follow ([`comparison.md`](comparison.md)).
 
 ### By shape — a fingerprint
 
-The one that matters at scale, and the one to reach for when a flake moves
+The one that matters at scale, and the one to choose when a flake moves
 around.
 
 A **fingerprint** is a digest of a difference with its position removed, so the
@@ -137,7 +137,7 @@ taller: the selector exclusion follows the element because it *is* the element.
 ### A carousel, a marquee, or anything that animates
 
 Place, and consider whether you want it at all. An animation caught mid-flight is
-a computed style value that genuinely reached the representation — see
+a computed style value that genuinely landed in the representation — see
 [flakiness](flakiness.md). Pausing it is better than ignoring it, and ignoring it
 is better than deleting the subject.
 
@@ -179,7 +179,7 @@ Excluding it by shape does not.
 **When the image is never under test at all, blank it instead.** A fingerprint
 absorbs the difference after the page has already fetched the image and put its
 bytes into the environment key, so a re-exported hero still re-renders every
-subject it appears on to reach a verdict that was going to be absorbed. A
+subject it appears on for a verdict that was going to be absorbed. A
 [`blank` rule](stabilization.md#some-images-can-be-served-as-nothing) intercepts
 it earlier. The trade is the one every ignore makes, made more completely — a
 real change inside a blanked image is not reported, and cannot be.
@@ -306,7 +306,7 @@ Each line asks for a different action:
 | `[dead]` … `matched nothing in any subject` | the selector resolved nowhere | fix or delete it — you believe something is silenced and it is not |
 | `[expired]` | past its `until` | the differences are being reported again; decide again |
 | `[unworn]` | the rule is scoped to tags no subject in this run carries | check the spelling against the run's vocabulary, which the line offers |
-| … `none of which was compared this run` | it found its element, and no subject carrying it reached a comparison | nothing yet — this run says nothing either way |
+| … `none of which was compared this run` | it found its element, and no subject carrying it was compared | nothing yet — this run says nothing either way |
 
 Coordinate masks cannot distinguish a rule whose target held steady from one
 whose target disappeared, which is why a masked suite rots silently.

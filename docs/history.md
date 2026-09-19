@@ -133,7 +133,7 @@ to your service.
 
 Printed in the run summary, and in the pull-request comment above the **docket**
 — the causes a run leaves for you to decide. It sits above them because a
-reviewer cannot reach it from the diff in front of them:
+reviewer cannot see it in the diff in front of them:
 
 ```
 DRIFT: 1 token(s) moved in this run, and the record says what they have
@@ -193,8 +193,8 @@ rejected.
 history question answers with the sentence *nobody is keeping a record* — never
 an empty result, because an agent that is handed an empty churn figure
 concludes the product is stable when the truth is that the question was never
-asked. The same rule holds one level in: a service that cannot be reached is a
-warning naming what was lost, not a zero.
+asked. The same rule holds one level in: a service you cannot call is a warning
+naming what was lost, not a zero.
 
 ## What it costs to run
 

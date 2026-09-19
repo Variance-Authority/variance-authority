@@ -109,7 +109,7 @@ start.
 
 When your phrase names the thing *and* what it sits in — *the Pickup window on
 the dispatch drawer* — the place is the enclosed one. The drawer can outscore
-what is on it, being the rarer words, so nothing in the ranking reaches the
+what is on it, being the rarer words, so nothing in the ranking gives you the
 answer; but both were found and one holds the other, which is your phrase
 saying it named a path. Containment decides it, and containment is recorded
 whether or not the run resolved layout.
@@ -319,8 +319,8 @@ looked for on it.
 
 **Here the place is the whole answer**, not a line beside the id. Order is still
 orientation and a wrong top hit costs you one more call; what the relation buys
-is that the surface where the warning sits *above* the field never reaches you
-at all.
+is that you never see the surface where the warning sits *above* the field at
+all.
 
 Three things in that answer are worth reading before you act on it:
 

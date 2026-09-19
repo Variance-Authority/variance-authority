@@ -213,11 +213,11 @@ refusals of its own:
 | Situation | What happens |
 |---|---|
 | A changed file under `source.dirs` is not in the graph | The whole suite runs. The roots are your statement about where renders come from, so a file inside them the scan never read is a gap in the scan, not a file that affects nothing |
-| The diff is entirely outside the graph | The whole suite runs. A CI config, a `tsconfig`, a build config: none of them is a node here, and every one of them can repaint the suite. A lockfile is the exception — it is [read rather than counted](reach-ends.md#why-the-lockfile-is-read-and-not-diffed) |
+| The diff is entirely outside the graph | The whole suite runs. A CI config, a `tsconfig`, a build config: none of them is a node here, and every one of them can repaint the suite. A lockfile is the exception — it is [read rather than counted](changes-before-and-beyond.md#why-the-lockfile-is-read-and-not-diffed) |
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
 | A file's own imports could not be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | It is traversed **as though it changed**, and named in the report with the reason |
 | A relative specifier resolves nowhere | Its file is treated as having unknown edges and widens for the same reason: the missing target belongs to this repository but could not be identified |
-| A bare specifier resolves nowhere | It becomes an edge to a [package node](reach-ends.md#what-a-bumped-package-reaches) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
+| A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
 The widening rows are why the report distinguishes *reached* from *widened*. A
 file that had to be widened is printed with the specifier or read failure that
@@ -268,9 +268,10 @@ all.
 A run reads from left to right: the harness starts it, the tests it started
 enter your code, and your code goes out into what the install provides. Selection
 lives in the middle stretch, where a file has a name the record can hold. A
-config file nothing imports and a bumped package you never wrote are the two
-ends outside it, and they widen a run for opposite reasons —
-[both ends of a run](reach-ends.md) is the page about handling them.
+config file nothing imports and a bumped package you never wrote sit outside it,
+and they widen a run for opposite reasons —
+[changes before and beyond](changes-before-and-beyond.md) is the page about
+handling them.
 
 ## What selecting costs
 
@@ -414,7 +415,7 @@ selected by a change to `Button`, because a component that has never appeared is
 in no baseline to be matched against. `relations` does not change it: the graph
 widens what a change reaches, and never what a subject is known to have rendered.
 No observation closes that, however closely a run is watched — a record holds
-what happened, and this render did not. A bundler graph over stories reaches it,
+what happened, and this render did not. A bundler graph over stories selects it,
 because on the subject side it too reads imports rather than a record, and this
 does not. What holds the line is the row above it: a change the selection cannot
 attribute runs everything, and a new branch usually arrives with an edit to the

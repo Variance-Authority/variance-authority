@@ -8,8 +8,8 @@ is in flight, and expect that account to end when the watcher does.
 
 New here? Start with [your first run](start.md).
 
-Reach for this when a test hangs and the runner's timeout tells you only what
-the test *wanted*. Once a run has finished, ask its output instead:
+Use this when a test hangs and the runner's timeout tells you only what the
+test *wanted*. Once a run has finished, ask its output instead:
 [distill a completed test](distill.md) says what one test can show, and the
 [execution record](execution-record.md) — the file a run writes naming which
 source each test entered — says what ran.
@@ -93,7 +93,7 @@ Start with identity, then narrow to the test:
 
 | Question | Shell | MCP |
 | --- | --- | --- |
-| Is this the watcher the suite reached? | `npx variance ask self` | `variance_self` |
+| Is this the watcher the suite reported to? | `npx variance ask self` | `variance_self` |
 | Which tests opened, and which is still running? | `npx variance ask run-signals` | `variance_run_signals` |
 | What did one test announce, in order? | `npx variance ask test-signals --test <id>` | `variance_test_signals` |
 | What arrived since the previous reading? | `npx variance ask diff` | `variance_diff` |
@@ -105,7 +105,7 @@ Start with identity, then narrow to the test:
 address and a suite that never started both look quiet to every other question.
 
 The last two answer only under MCP. A shell command holds no run, so there is
-nothing in it to release. They are the pair a test reaches with
+nothing in it to release. They are the pair a test triggers with
 `variance.snapshot()` and `await variance.observe()` — see [interrogate a test
 where it stands](agent-interrogate.md).
 

@@ -1,21 +1,22 @@
 # Find out which component changed, and whether anyone changed it
 
-One question picks your guide: which harness already reaches the UI state you
-want to review — a Playwright spec, a built Storybook, a served route, a jsdom
-unit test, Vitest browser mode, an Rstest suite, or a mount nobody else owns.
-Whichever row of the table below you land on ends the same way: that state
-gets a baseline image you approved, and a later run that moves pixels reports
-the component that drew them and the `file:line` it was written at.
+One question picks your guide: which harness already puts the app in the UI
+state you want to review — a Playwright spec, a built Storybook, a served
+route, a jsdom unit test, Vitest browser mode, an Rstest suite, or a mount
+nobody else owns. Whichever row of the table below you land on ends the same
+way: that state gets a baseline image you approved, and a later run that moves
+pixels reports the component that drew them and the `file:line` it was written
+at.
 
 This page takes one UI state through that loop end to end, so you can see the
 whole review cycle before deciding how much of the suite belongs in it.
 
-## Start from a state something already knows how to reach
+## Start from a state something already knows how to set up
 
 A **subject** is one named UI state you asked for and can ask for again — one
 Storybook story, one route at one viewport, one component mounted in a test —
 captured and compared under an id you choose. Pick a first subject whose state
-a harness you already trust can reach: a Playwright spec, a Storybook story, a
+a harness you already trust can set up: a Playwright spec, a Storybook story, a
 served route. Navigation, fixtures, authentication, and readiness stay with that
 harness. [Variance Authority](README.md) either keeps the document for later
 rendering or takes an image the caller already painted.
@@ -29,7 +30,7 @@ and the second report `unchanged`.
 
 | Step | What you see |
 | --- | --- |
-| The harness reaches the intended UI state | Navigation, fixtures, authentication, and readiness stay where they already work. |
+| The harness puts the app in the intended UI state | Navigation, fixtures, authentication, and readiness stay where they already work. |
 | The first run reports `new` | The subject was captured, and no approved baseline exists yet. |
 | You accept that candidate | `variance accept <subject-id>`, or Playwright's snapshot update flag, promotes exactly the image the run under review produced. It never renders a replacement. |
 | The next run reports `unchanged` | The stored baseline and the new capture were comparable, and nothing differs. |
@@ -42,7 +43,7 @@ fixtures in a second harness.
 | You already have | Start here | Choose it when |
 | --- | --- | --- |
 | A Playwright test | [`@variance-authority/playwright-test`](start-playwright.md) | The state only exists after navigation, login, or fixture setup the suite performs. |
-| A built or served Storybook | [`@variance-authority/storybook-collector`](start-storybook.md) | Story ids are the ids you want your baselines named by, and decorators or play functions already reach the state. |
+| A built or served Storybook | [`@variance-authority/storybook-collector`](start-storybook.md) | Story ids are the ids you want your baselines named by, and decorators or play functions already set up the state. |
 | A served application, sitemap, or static build | [`@variance-authority/route-collector`](start-routes.md) | The application route, not an isolated component, is what you review. |
 | Jest or Vitest with a mounted jsdom tree | [`@variance-authority/unit-test`](start-unit.md) | The unit run must not start a browser; a later CLI process renders what it captured. |
 | Vitest browser mode with a mounted component | [`@variance-authority/vitest-browser`](start-vitest-browser.md) | The component is mounted in a real browser by the Vitest run itself. |
@@ -52,7 +53,7 @@ fixtures in a second harness.
 If you have both a Playwright suite and a Storybook, both rows apply and you can
 use both later. For the first subject, choose by where the state you want to
 review lives: use Storybook when the story already renders it and you want the
-story id as the baseline id, and use Playwright when reaching that state needs
+story id as the baseline id, and use Playwright when setting that state up needs
 navigation, authentication, or fixtures a story does not perform.
 
 If you have already written a collector that plans and captures subjects itself,

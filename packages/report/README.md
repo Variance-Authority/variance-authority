@@ -176,7 +176,7 @@ Three further fields are present only when the run had something to put in them:
   from; it never means the index is current, which is `changed: 0`.
 - `drift` — design tokens whose value changed in this run, each with what it
   changed from, what it changed to, and how many approved steps it took to get
-  there. This is what a single comparison structurally cannot reach: eleven
+  there. This is what a single comparison structurally cannot show: eleven
   correct 2px approvals sum to a 22px move nobody reviewed.
 - `journeys` — for a build instrumented with `testSelectionProbes()` from
   `@variance-authority/sense`, the modules where the run's subjects entered

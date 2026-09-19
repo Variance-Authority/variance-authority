@@ -242,7 +242,7 @@ imports of that same object are observed. Queries returned by `render()` and by
 
 Watching also installs capture-phase listeners on the runner's document, which is
 how a click on an element the handler then removes is recorded with the
-attribution it had when the event reached it.
+attribution it had when the event fired.
 
 Where you want a subscription with no notion of a test — reading
 `attention.log.seen`, or taking entries with `attention.log.drain()` yourself —

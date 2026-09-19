@@ -14,8 +14,8 @@ rather than the one that did the writing.
 
 The usual answers both cost something. Rebuilding the world between tests pays
 setup on every test and throws away the evidence that would have identified the
-leak. Reaching into a module's internals from a test file makes the test know
-things the module never promised.
+leak. Reading a module's internals from a test file makes the test know things
+the module never promised.
 
 This package inverts that: the module that owns the state says how to reset it,
 and the runner says when.
@@ -172,7 +172,7 @@ test('starts from zero again', () => {
 The fixture import goes above the import of any application module: `counter.ts`
 registers its handler when it is imported, and imports run in source order.
 
-## What it does not reach
+## What it does not cover
 
 Between *files*, not much: a module that reads state while it is being imported
 runs before any hook and sees whatever the previous file left.

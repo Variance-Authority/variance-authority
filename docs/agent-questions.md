@@ -17,7 +17,7 @@ A missing domain is unavailable, never an empty measurement.
 | Evidence in hand | First question | CLI | MCP |
 | --- | --- | --- | --- |
 | completed visual report | What changed? | `variance ask summary` | `variance_summary` |
-| live watcher | Is this the watcher the suite reached? | `variance ask self` | `variance_self` |
+| live watcher | Is this the watcher the suite connected to? | `variance ask self` | `variance_self` |
 | [Eyes](eyes.md) archive and/or [execution index](execution-record.md) | What can this test be distilled to? | `variance distill --test <id> …` | `variance_distill` |
 | current workspace source | What does this package publish? | `variance ask packages` | `docs_packages` on the workspace API server |
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |

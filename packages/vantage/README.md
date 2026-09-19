@@ -449,11 +449,11 @@ were dropped, so an empty list is never mistaken for a beginning that was
 forgotten. `pending` is exact regardless — what is bounded is the list of
 announcements, not the tally of work that opened and never closed.
 
-There is no authentication. The listener answers anyone who can reach the port,
-and loopback is the whole of the access control: `openVantage` refuses any
-address that is not `http:` on `127.0.0.1`, `localhost` or `::1`, so a watcher
-started with `host` set to a public interface will listen there and no run will
-report to it.
+There is no authentication. The listener answers anyone who can connect to the
+port, and loopback is the whole of the access control: `openVantage` refuses
+any address that is not `http:` on `127.0.0.1`, `localhost` or `::1`, so a
+watcher started with `host` set to a public interface will listen there and no
+run will report to it.
 
 Nothing is written down. There is no report directory, no file to clean up and no
 artifact to mistake for evidence later; what changes is only how long one

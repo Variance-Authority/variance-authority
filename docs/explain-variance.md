@@ -48,7 +48,7 @@ exits `0`, and the verdict stays with `run`, `report` and `adjudicate`.
 ## What an explanation does not do
 
 An explanation does not approve anything. Nothing accepts a baseline on your
-behalf, so a cause you understand still reaches review as a change to accept or
+behalf, so a cause you understand still goes to review as a change to accept or
 reject.
 
 Two verdicts are not code problems at all, and `explain-verdict` is there to say

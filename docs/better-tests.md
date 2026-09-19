@@ -54,7 +54,7 @@ isolation between test files are the runner's, configured where the runner
 configures them, and observing a component it mounted changes none of it — the
 same is true of a page your own Playwright test navigated. What stays this
 side's in both is the deferred paint: one browser for the whole run, rendering
-every captured document, whatever the suite did to reach the state.
+every captured document, whatever the suite did to get the app into that state.
 
 Rendering an image is expensive, so a run avoids it when comparing the captured
 document is enough. If that document is identical to the one used for the
@@ -64,8 +64,8 @@ against taking a screenshot. The timings come from one machine and one Chromium;
 they are not a prediction for every suite.
 
 Keeping the page open saves that work, but it also lets one test's leftovers
-reach the next. The saving depends on finding those leaks and helping you fix
-them. That is where speed and reliability meet.
+survive into the next. The saving depends on finding those leaks and helping
+you fix them. That is where speed and reliability meet.
 
 ## More stable: see the root cause
 

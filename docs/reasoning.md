@@ -83,7 +83,7 @@ relationships, or another observation. A **vantage** is where and under which
 conditions that eye reads: committed source, a live page, one execution, two
 runs, or retained history.
 
-[Eyes](eyes.md) shows how a test's attention reaches the React tree.
+[Eyes](eyes.md) shows how a test's attention reads the React tree.
 [Vantage](vantage.md) shows what a live or unfinished run can reveal. They are
 examples of the choice, not mandatory stages. The same eye from another vantage
 may answer a different question; the same vantage with another eye may expose a

@@ -36,7 +36,7 @@ nothing below the top level runs.
 
 Both leave one trace, and `variance distill` reports it: the module root
 crossed, every declaration below it uncrossed. The reading names the module, the
-declarations nothing reached, and the substitution to try.
+declarations nothing entered, and the substitution to try.
 
 ```text
 Loaded but not entered: 1 module(s).
@@ -56,8 +56,8 @@ to anything only that module reaches.
 
 That is why an explicit mock beats a spy that happens to intercept everything. A
 spy is a fact about one run; a `vi.mock` call is a fact the scan can read
-without running anything, so it reaches the decision made before the suite
-starts. The [expensive row](selecting.md#the-expensive-row-and-what-retires-it)
+without running anything, so it counts toward the decision made before the
+suite starts. The [expensive row](selecting.md#the-expensive-row-and-what-retires-it)
 is retired by the same reader.
 
 A mock that stops taking then becomes a selection hole rather than a slow test,
@@ -72,12 +72,12 @@ on. Nothing in the reading knows which.
 
 So change one boundary, rerun the exact test, and compare the witness. If an
 assertion loses its causal path, an addressed target disappears, or an update
-initiator outside the addressed paths reaches the retained surface, revert the
+initiator outside the addressed paths updates the retained surface, revert the
 substitution or state the behavior the test actually owns.
 [The agent loop](distill.md#the-agent-loop) is that comparison written down for
 an actor that runs it for you.
 
-## What this does not reach
+## What this does not answer
 
 **A module with no probes.** An uninstrumented module was entered by nobody the
 record can see, and that is silence rather than absence. Only an instrumented

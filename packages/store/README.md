@@ -396,7 +396,7 @@ than review.
 
 | option | default | what it decides |
 |---|---|---|
-| `root` | required | the baseline root. Only commits that touched a path under it are read — a repository's ordinary commits are not baseline updates, and scanning them would spend the whole log to reach the same answer |
+| `root` | required | the baseline root. Only commits that touched a path under it are read — a repository's ordinary commits are not baseline updates, and scanning them would spend the whole log to get the same answer |
 | `cwd` | `root` | where git is run |
 | `limit` | `200` | commits to read; a reading that hits this cap notes it in `bounded` rather than presenting the window as the whole history |
 | `since` | none | a revision to read forward from, exclusive, passed as `<since>..HEAD`. One that does not resolve is a refusal naming it, never an empty answer |
@@ -405,7 +405,7 @@ than review.
 **An empty list is a real answer only when git ran, this is a repository, and no
 commit under the root carried a record.** Every other case is a refusal:
 `wasRead` narrows the union, and `because` names what went wrong. "No baseline
-has ever been explained" and "git could not be reached" are opposite findings,
+has ever been explained" and "git could not be run" are opposite findings,
 and an operator who reads the second as the first goes hunting for a bug in the
 writer.
 

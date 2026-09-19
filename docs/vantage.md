@@ -86,8 +86,8 @@ browser, or the name a backend service reports under.
 | `waitingAt` is set on the test | The test stopped on purpose, at a `variance.observe()` call its author placed, and is holding the page until somebody releases it. |
 
 Read the run listing before the announcements inside any one test. Silence in a
-test that never reached the watcher is a different fact from silence in a test
-that did.
+test that never reported to the watcher is a different fact from silence in a
+test that did.
 
 ## Report from a runner that is not Playwright
 
@@ -217,12 +217,12 @@ There is no report directory, no file to clean up, and no artifact to mistake fo
 evidence later. The memory holding a run belongs to the watcher; stop the watcher
 and the run is gone.
 
-There is also no authentication. The watcher answers anyone who can reach the
+There is also no authentication. The watcher answers anyone who can connect to
 port, and loopback is the whole of the access control: `openVantage` refuses any
 address that is not `http:` on `127.0.0.1`, `localhost` or `::1`, so a watcher
 bound to a public interface will listen there and no run will report to it.
 
-None of this reaches a baseline, a comparison result or an exit code, and a suite
+None of this changes a baseline, a comparison result or an exit code, and a suite
 that never takes a screenshot reports exactly the same sentences as one that
 does. When the
 question has to survive the process, it belongs to a completed artifact instead —

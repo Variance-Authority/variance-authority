@@ -50,7 +50,7 @@ import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scale from "../../../docs/scale.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
-import reachEnds from "../../../docs/reach-ends.md?raw";
+import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
@@ -131,7 +131,7 @@ const documents = [
   ["framework-reference", frameworkReference, "docs/framework-reference.md"],
   ["parting", parting, "docs/parting.md"],
   ["source", source, "docs/source.md"],
-  ["reach-ends", reachEnds, "docs/reach-ends.md"],
+  ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
   ["scale", scale, "docs/scale.md"],

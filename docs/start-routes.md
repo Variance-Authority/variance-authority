@@ -27,7 +27,7 @@ point](start.md) lists the other harnesses this loop can start from.
 Two words carry the rest of the page. A **subject** is one named UI state a run
 captures and compares, under an id you choose; here, one route at one viewport.
 A **collector** is a module you write that tells the CLI which subjects exist
-and how to reach them.
+and how to open them.
 
 ## Before you collect
 
@@ -91,7 +91,7 @@ nothing to read and falls back to the component's declaration line.
 
 ## Declare the same route in the run config
 
-The collector says how to reach the route; the config says what to do with it.
+The collector says how to open the route; the config says what to do with it.
 Create `variance.config.json`, which is the file every command below is pointed
 at:
 
@@ -245,7 +245,7 @@ green because a rule absorbed the difference is reported as `ignored` rather
 than `unchanged`. [Ignores](ignores.md) covers the other form, which matches a
 difference shape rather than a place. [Stabilization](stabilization.md) is what
 is done to the page and what it costs; [flakiness](flakiness.md) is which causes
-get absorbed and which reach you as findings.
+get absorbed and which you see as findings.
 
 ## Run the first review loop
 
@@ -262,17 +262,17 @@ it launches the browser rather than trusting a `playwright` in `node_modules`,
 measures the fonts you asserted rather than consulting a version table, and
 names the baseline root and the render cache. A pass is a machine that can do
 what your config asks for. It touches no network, so a remote store or history
-service is reported as configured, never as reachable.
+service is reported as configured, never as one the run can talk to.
 
 The first durable run exits `1` with `checkout/empty` reported as `new`. That
 `1` is not a failure. `0` means nothing needs review, `1` means the run happened
 and found something a person must decide about, and `2` means the run did not
-happen as configured — a bad config, a missing browser, an unreachable store.
-The codes are separate so a CI job can page whoever owns the runner image on
-`2` and ask a reviewer on `1`. A first run is `1` because a route with no
-baseline is a candidate nobody has approved, and nothing accepts on your behalf:
-accepting an unseen image would record whatever was on screen as the truth and
-report green from then on.
+happen as configured — a bad config, a missing browser, a store the run cannot
+talk to. The codes are separate so a CI job can page whoever owns the runner
+image on `2` and ask a reviewer on `1`. A first run is `1` because a route with
+no baseline is a candidate nobody has approved, and nothing accepts on your
+behalf: accepting an unseen image would record whatever was on screen as the
+truth and report green from then on.
 
 Reviewing is you looking at that candidate. Write the report as HTML beside its
 JSON source, so its relative image links hold, and open it:
@@ -319,6 +319,6 @@ Read [baseline placement](placement.md) before choosing where approved route
 images live, or [running less of the suite](selecting.md) before narrowing a
 large route suite to the routes an edit can reach. The
 [`@variance-authority/route-collector` reference](../packages/route-collector/README.md)
-owns responsive widths, capturing a route on a machine that cannot reach your
+owns responsive widths, capturing a route on a machine that cannot talk to your
 asset origin, sitemap and static-directory discovery, and the complete option
 contract.

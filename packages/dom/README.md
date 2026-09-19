@@ -8,9 +8,9 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 Point this package at an element that is already mounted and it reads back two
 things: a **capture** — the element's tree, its ARIA, and the CSS declarations
-that actually reach it, as serializable data — and a **render document**, the
-same subtree as markup plus the frame it was mounted in and only the CSS that
-applies to it, which another process can paint. It does not mount anything,
+that actually apply to it, as serializable data — and a **render document**,
+the same subtree as markup plus the frame it was mounted in and only the CSS
+that applies to it, which another process can paint. It does not mount anything,
 launch a browser, or take a screenshot; it reads a DOM you already have.
 
 ```bash
@@ -135,17 +135,17 @@ The second `console.log` — the CSS the render document ships:
 ```
 
 Two of the four rules in that page are gone. `.sb-show-main` and `.u-mt-2`
-cannot reach anything in the subtree, so they are not in the payload and not in
+cannot match anything in the subtree, so they are not in the payload and not in
 the comparison.
 
 ## What applicability pruning removes
 
 `collect` and `acquireDocument` both discard every stylesheet rule that cannot
-reach the mounted element, keeping only what could style it.
+apply to the mounted element, keeping only what could style it.
 
 On a single-button subject mounted under Storybook chrome — a preview reset,
 dead utility classes, CSS-in-JS accretion — pruning reduced 1,010 parsed rules
-to the one that could reach the subject. Without it, a baseline changes when a
+to the one that could style the subject. Without it, a baseline changes when a
 stylesheet the subject never touched does.
 
 ## Use this package when
@@ -175,7 +175,7 @@ and call this underneath.
 
 | Module | Answers |
 | --- | --- |
-| `collect` | the tree, its ARIA, and the declarations that reached each node |
+| `collect` | the tree, its ARIA, and the declarations that apply to each node |
 | `document` | markup plus applicable CSS, ready to be assembled and painted |
 | `css` | which rules match — `css-index` flattens the sheets once per document, `css-match` answers once per element |
 | `media` / `specificity` | `@media` and `@supports` evaluation, and cascade order |

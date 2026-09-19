@@ -63,14 +63,15 @@ Two optional methods are worth knowing about: `collectAlone(subject)` lets the
 run re-read a changed subject in a world nothing else has touched, and
 `callSites` resolves a changed region to the call site that drew it.
 
-## Start the application the collector reaches
+## Start the application the collector talks to
 
 The CLI holds no URL. Nothing in `variance.config.json` names an origin, a port,
 or a server, so start whatever your collector talks to before you run anything,
 and let the collector carry the address:
 
-- your own collector reaches the application however its code already does — an
-  environment variable, a fixed loopback port, a harness it starts itself;
+- your own collector connects to the application however its code already
+  does — an environment variable, a fixed loopback port, a harness it starts
+  itself;
 - [`@variance-authority/storybook-collector`](../packages/storybook-collector/README.md)
   takes a `baseUrl` option for a Storybook that is already served, and otherwise
   serves the directory holding `subjects.index` on a loopback port for the run;
@@ -144,7 +145,7 @@ in different directions:
 | --- | --- | --- |
 | `directory` | a path in the repository, committed like any other file. | `root`, `layout`, `records` |
 | `lfs` | the same, tracked through Git LFS. | `root`, `pattern`, `layout`, `records` |
-| `remote` | a service, not committed; a run that cannot reach it stops. | `endpoint`, `token` |
+| `remote` | a service, not committed; a run that cannot connect to it stops. | `endpoint`, `token` |
 
 `directory` and `lfs` are committed, so a repository that gitignores `root`
 reports every subject `new` forever without ever erroring. `records` moves the
@@ -174,7 +175,7 @@ on what your config selected, before the first expensive run:
 - **renderer** — it actually launches one, and prints `available`,
   `NOT AVAILABLE` with the launch error, or `not checked` for a remote endpoint.
   Doctor makes no network calls, so a remote renderer, a remote baseline store
-  and a history service are reported as configured, never as reachable;
+  and a history service are reported as configured, never as working;
 - **identity** — the renderer, engine, platform and scale factor a baseline would
   be keyed under, and the fonts asserted into that key;
 - **fonts** — it renders a probe document and reads back which asserted families
@@ -271,7 +272,7 @@ Three exit codes, and a verdict never shares one with a crash:
 | --- | --- |
 | `0` | nothing needs review, and the run accounted for every subject. |
 | `1` | the run completed and found something a person must decide about. |
-| `2` | the run did not happen as configured — bad config, missing browser, unreachable store. Never a statement about your UI. |
+| `2` | the run did not happen as configured — bad config, missing browser, a store the run could not connect to. Never a statement about your UI. |
 
 Six things take a completed run to `1`: a `changed`, `new` or `incomparable`
 verdict; a subject the run meant to observe and could not; a subject that was

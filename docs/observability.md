@@ -36,7 +36,7 @@ and there are two parties:
 
 When either side fails, the run marks every observation incomplete, writes what
 it saw anyway, and refuses to narrow the next run: `variance run --since` then
-runs the whole suite and prints the reason. Nothing here reaches a baseline or an
+runs the whole suite and prints the reason. Nothing here changes a baseline or an
 exit code — your suite still passes and fails on the assertions you wrote, with
 the same queries and the same expectations.
 
@@ -169,7 +169,7 @@ you can size yours next to.
 
 ## The record, rather than the breakpoint
 
-Open dev tools on a live page and every one of these facts is reachable: the
+Open dev tools on a live page and every one of these facts is available: the
 component that produced a node, the update that scheduled a render, the branch a
 module took. Three conditions have to hold for that — the page is running,
 execution is stopped, and a person is watching. In CI none of the three holds,
@@ -361,7 +361,7 @@ tree:
 `<cache>` is `XDG_CACHE_HOME`, or `~/.cache` when that is unset, and
 `<repository-digest>` is a digest of the checkout's absolute path, so two
 checkouts never write one another's bytes. `git status` never sees it and it
-cannot reach a pull request. Nothing in a head or a page writes a file; the
+can never land in a pull request. Nothing in a head or a page writes a file; the
 driver merges into this one snapshot at teardown. [The execution
 record](execution-record.md) gives the reader to import and the cost of a
 lookup, a merge and a fold across shards.

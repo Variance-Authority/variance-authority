@@ -93,10 +93,11 @@ can be matched across subjects, and `accept --shape` promotes a subject wherever
 that shape accounts for the whole change. The line is something to copy, not
 something to read and then translate. After it comes where the change was — the
 component, and the file if the run could attribute one — and then `11/14`:
-promoted in eleven of the fourteen subjects the shape reached. A bare `11` means it reached exactly those.
-An entry the run could not attribute to an edit is marked ` collateral`, and the
-prose names the first twenty changes; past that it says how many more are in the
-trailers, which carry all of them.
+promoted in eleven of the fourteen subjects the shape reached. A bare `11`
+means the shape covered exactly those. An entry the run could not attribute
+to an edit is marked ` collateral`, and the prose names the first twenty
+changes; past that it says how many more are in the trailers, which carry all
+of them.
 
 **The run line is last and always present.** `--shape`, `--subject` and `--all`
 are different amounts of review, and the run line names which one this update

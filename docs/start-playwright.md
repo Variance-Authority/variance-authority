@@ -29,7 +29,7 @@ it or read its baselines.
 
 ## Before you add the observation
 
-The test must already reach a deterministic state in a page with a viewport.
+The test must already get a page with a viewport into a deterministic state.
 Choose a locator around the behavior under review, not the whole page.
 
 Install the helper and the Chromium binary it paints with. By default Variance
@@ -127,7 +127,7 @@ stores for corpora too large to commit as blobs.
 The first run returns `new`, so `assertUnchanged` fails. No approved baseline
 exists for `cart/empty` yet.
 
-Look at the state the test reached:
+Look at the state the test left the page in:
 
 ```bash
 npx playwright test cart.spec.ts --ui

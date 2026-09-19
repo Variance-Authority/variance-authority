@@ -20,7 +20,7 @@ Beside them sit the network observers (`observeNetwork`, `freezeGif`, the
 `blank*` helpers, `fetchModules`), `unresizable`, and `captureOnce` for a single
 capture with no harness standing.
 
-**Reach for this package when you are writing the integration**, not when you
+**Use this package when you are writing the integration**, not when you
 are writing tests. It does not choose subjects, mount application state, or
 build the page-side agent; you supply that. If you already have a Playwright
 Test suite, install `@variance-authority/playwright-test` instead. For a CLI
@@ -161,7 +161,7 @@ the page, not the harness.
 
 `observeNetwork` watches every request a page's navigation makes and returns a
 `NetworkObservation`: which assets were seen, and — per the options below —
-which of them were frozen or blanked before they reached the page.
+which of them were frozen or blanked before the page received them.
 
 ```ts
 import {
@@ -317,7 +317,7 @@ headed or headless at 1x and 2x. Where fontconfig is live — Linux, so most CI 
 the flags are load-bearing for Chromium and absent for the other two. Measured in
 `mcr.microsoft.com/playwright:v1.62.1-noble`: Chromium painting a webfont emits
 6,662 chromatic pixels, the two flags take that to zero, and Firefox and WebKit
-are unaffected because the flags never reached them.
+are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
 `RenderIdentity` carries `platform`, so a laptop's baseline and a container's are
@@ -359,7 +359,7 @@ WebKit is the reverse, seven times cheaper to capture and four times more
 expensive per unit of drawing. **WebKit is the fastest engine on the first
 subject and the slowest on the second**, so a ranking measured on one kind of
 subject does not transfer to a suite made of the other kind. Firefox is second
-on both, and would be the engine to reach for on a mixed or unmeasured suite —
+on both, and would be the engine to choose on a mixed or unmeasured suite —
 but it is not one of the engines this package declares. `DECLARED_ENGINES` is
 `chromium` and `webkit`, because the Playwright Firefox build does not launch
 under the macOS sandbox on recent versions, and an engine that is declared and

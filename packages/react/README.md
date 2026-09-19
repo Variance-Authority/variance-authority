@@ -24,7 +24,7 @@ It reads metadata `react-dom` already wrote onto the node. There is no
 `import 'react'` anywhere in its source, so it cannot pin, duplicate or conflict
 with the React copy your application ships.
 
-Reach for it when you want a diff, a report or a test failure to name a
+Use it when you want a diff, a report or a test failure to name a
 component instead of a DOM path. It does not render components, install a test
 runner, or capture the DOM itself — the DOM capture is
 [`@variance-authority/dom`](https://variance-authority.dev/reference/packages/dom),
@@ -227,7 +227,7 @@ The options are caller policy rather than hidden defaults:
 | `tapCommits` | `scope` supplies an isolated hook object, `nameLimit` bounds rendered-component traversal, `updaterLimit` bounds update initiators, `keep` bounds retained commits, `onCommit` streams the same record, `refuseIfLoaded` keeps a late tap from claiming coverage, and `createHook` set to `false` skips writing a hook nobody will read |
 | `awaitQuiet` | `quietFor` is the required silence, `timeout` bounds the wait, `interval` controls polling; a timeout returns `settled: false` with the restless component names |
 | `awaitSuspense` | `timeoutMs`, `pollMs` and `confirmations`, as above |
-| `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; reaching it returns `truncated: true` rather than a short answer that looks complete |
+| `walkFiberSubtree` | `limit` caps the fibers one read-only walk visits, 500,000 by default; at the limit the walk returns `truncated: true` rather than a short answer that looks complete |
 
 ## Where the source location comes from
 

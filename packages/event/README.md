@@ -42,7 +42,7 @@ npm install --save-dev @variance-authority/playwright-test @playwright/test
 
 The announcing half is a plain dependency because the calls live in application
 source and ship with it. The driver half is a devDependency, and nothing that
-reaches a user imports it.
+ships to a user imports it.
 
 ## Announce at the decision
 
@@ -158,7 +158,7 @@ finds nothing in production. That is why these calls belong in product source
 rather than in a wrapper a test build swaps in: an announcement that only exists
 under test tells you about the test harness.
 
-Nothing a listener does reaches the code that announced. A sink that throws is
+Nothing a listener does affects the code that announced. A sink that throws is
 swallowed at the call, and the failure that produces is a wait that times out in
 the driver, printing what it did hear.
 

@@ -110,7 +110,7 @@ add `baselines` beside it:
 | `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
 | `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
-| `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Anything reachable from off the machine also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
+| `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
 | `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory holding baseline and candidate bytes |
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
@@ -220,7 +220,7 @@ reads four names plus two optional ones:
 
 A bad environment answers **500 with a sentence**, not a deployment-wide platform
 error: construction happens inside `fetch`, so *your token is too short* and *your
-two tokens are the same* reach you as the response body.
+two tokens are the same* come back to you as the response body.
 
 `PROJECT` is a deployment setting, so one deployment serves one project; a second
 tenant needs a second deployment.
@@ -628,7 +628,7 @@ resizes, or deduplicates across builds.
 
 **A build cannot distinguish two images of one subject.** The per-subject outcome
 a run reports carries a subject and no label, so labelled baselines are writable
-through the store and not reachable through the review path.
+through the store and the review path can never address them.
 
 **Anything that satisfies `D1Like` and `R2Like` is an adapter away**, and the
 package makes no portability promise beyond the two deployments it ships. Your

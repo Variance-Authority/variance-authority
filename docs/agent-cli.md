@@ -116,7 +116,7 @@ compares against the reading the watcher handed out last — the watcher holds
 that state rather than a file, because these questions write nothing down and
 the run lives in memory that ends with the watcher.
 
-The suite reaches the watcher only if it extends `varianceFixtures`. That
+The suite reports to the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
 one boundary whichever transport asks: [inspect a live run](agent-live-run.md).
 
@@ -135,7 +135,7 @@ variance ask packages
 
 `search` answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
-publishing. A third follows only when your words reach a name that does not
+publishing. A third follows only when your words match a name that does not
 contain them, labelled as the looser reading it is. Every question takes a
 question: a word, a name or a specifier. `packages` is the one that takes none,
 and it answers with the specifiers the others take, so it is where a reader who

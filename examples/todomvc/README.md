@@ -122,9 +122,9 @@ use the same mechanism:
   silencing it. A pixel differ masks a coordinate region, which silences
   whatever else lands there and breaks when the layout moves; `digestText` masks
   the text node, which follows the content.
-- **nothing** — `block-whitespace` reaches the semantic snapshot and is reported
-  anyway, while the pixel arm holds. It is in the table because a comparison
-  that only lists the rows we win is not a comparison.
+- **nothing** — `block-whitespace` shows up in the semantic snapshot and is
+  reported anyway, while the pixel arm holds. It is in the table because a
+  comparison that only lists the rows we win is not a comparison.
 
 The full head-to-head — per-mutation costs, the timing split between
 screenshotting and semantic collection, and three probes where the pixel

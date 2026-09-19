@@ -45,7 +45,7 @@ assert on the shape of the page while ignoring the shape a screen reader sees.
 
 Every sensitivity has an id, a required reason, a level, and a count of what it
 absorbed. A relaxing rule also names its scope. The count includes zero, which
-exposes a declaration that reached subjects but did not relax any of them.
+exposes a declaration that matched subjects but did not relax any of them.
 
 ```
 SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
@@ -55,7 +55,7 @@ SENSITIVITY — 38 subject(s) not asserted on in full, by 2 rule(s)
     nothing (a third-party embed you do not style); nothing here needed relaxing
 ```
 
-A rule that absorbs something is working. A rule that reaches subjects and
+A rule that absorbs something is working. A rule that matches subjects and
 absorbs nothing is `[dead]` — either a route nothing styles or a declaration
 nobody needed. A rule that matches no subject is `[unscoped]`, which points to a
 scope or spelling error rather than a policy whose reason no longer applies.
@@ -110,7 +110,7 @@ duplicate is refused.
 
 When both revisions were captured in full, the comparison reads the two
 documents directly. `npx variance run` usually has only an image and a stored
-baseline instead, and it reaches the same absorb-or-report decision from the
+baseline instead, and it makes the same absorb-or-report decision from the
 per-component hashes the baseline carries, split by band:
 
 | digest | band |

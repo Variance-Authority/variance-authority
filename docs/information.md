@@ -69,7 +69,7 @@ one is absent — not empty — when that input was not there.
 | `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
 | `lexicon` | Every name the run held for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
 | `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
-| `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit reaching it. |
+| `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit leading to it. |
 | `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
 | `flakiness` | How often each subject this run found unstable has read differently before, and whether it has happened in the last few sweeps. See [flakiness](flakiness.md). |
 | `churn` | How often each component this run named as a cause has changed before. A comparison answers *what changed*; this answers *how often this changes*. |
@@ -273,9 +273,9 @@ addressed by subject and establishes nothing a later run is measured against,
 and what it measured lasts only as long as the caller holds it.
 
 Two readings of the same locator produce relationship effects and a
-presentation-independent content identity. Those, and only those, reach
-`report.json`, as the presentation signal on the observation you aligned the
-reading with. A pair the tool cannot compare carries its reason and no
+presentation-independent content identity. Those, and only those, are written
+into `report.json`, as the presentation signal on the observation you aligned
+the reading with. A pair the tool cannot compare carries its reason and no
 effects: one reading is not a transition.
 
 ## What crosses process and service boundaries
@@ -539,7 +539,7 @@ ledger.
 The states remain distinct: **absent** means no producer established a value;
 **empty** means the declared measurement completed and found no members;
 **partial** names its omitted, failed, capped, or unknown part; **complete**
-covers the declared scope; **expired** reached its retention boundary; and
+covers the declared scope; **expired** passed its retention boundary; and
 **deleted** was deliberately removed.
 
 A record that was deleted or evicted never reads back as an empty measurement:

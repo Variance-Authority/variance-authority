@@ -13,7 +13,7 @@ inside the body, the verdict is an assertion Rstest reports, and approval is the
 `-u` you already use for its snapshots.
 
 Both run under the same `rstest` binary in the same repository. Choose per
-suite, by whether reaching the state needs a browser — not by which one you
+suite, by whether getting into the state needs a browser — not by which one you
 adopt first.
 
 ## Deferred: capture in jsdom, paint later
@@ -114,7 +114,7 @@ Everything the subtree references has to arrive as bytes inside the capture,
 because the renderer has no network. If it references an `<img src>`, a `url()`,
 or an SVG `<use href>` and you passed no resolver, `capture` throws and names
 each one. [Add visual review to the unit tests you already
-have](start-unit.md) covers `resolveResource`, the CSS that has to reach the
+have](start-unit.md) covers `resolveResource`, the CSS that has to be in the
 document, and `retainStyles`.
 
 ### Run the loop
@@ -299,7 +299,7 @@ reviewed it.
 | what compares | a later `variance run` | the test body |
 | what approves | `variance accept <id>` | `rstest run -u` |
 | component and `file:line` for a changed region | no | yes |
-| reaching state that needs navigation or login | no | yes |
+| getting into state that needs navigation or login | no | yes |
 
 A repository can run both, and the case that proves this path does exactly that:
 [`cases/rstest-case`](../cases/rstest-case/README.md) drives the real `rstest`

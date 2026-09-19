@@ -54,8 +54,8 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
-        href: "/docs/reach-ends",
-        label: "Cover both ends of a run",
+        href: "/docs/changes-before-and-beyond",
+        label: "Changes before and beyond",
         cluster: "Run less of the suite",
       },
       {

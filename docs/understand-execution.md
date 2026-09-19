@@ -46,7 +46,7 @@ pool: 3 observations the journal recorded whole, out of 3 subjects the report na
 ```
 
 `parted` names a region one subject entered and the others did not. `unentered`
-names a region no subject reached at all. [Read the journey](journeys.md) covers
+names a region no subject entered at all. [Read the journey](journeys.md) covers
 what recording one costs — a flag in your collector or Playwright config, plus a
 `testSelectionProbes()` step in the build that bundles your product source — and
 what to do with the answer.
@@ -55,7 +55,7 @@ what to do with the answer.
 
 Each reading below survives for a different span. One exists only while the
 suite is still running; the rest are written out and can be read afterwards.
-Ask the question the evidence can still reach.
+Ask the question the evidence can still answer.
 
 | Question | What answers it | Page |
 | --- | --- | --- |

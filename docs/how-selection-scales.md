@@ -238,7 +238,7 @@ tests that entered the region
 Region boundaries matter here. An edit wholly inside a handler can select the
 tests that entered that handler instead of every test that rendered the
 containing component. An edit on a line shared with the enclosing function
-correctly reaches the wider audience. The
+correctly selects the wider audience. The
 [execution-record reference](execution-record.md#from-a-crossing-back-to-a-line)
 defines how changed lines are charged at those boundaries.
 

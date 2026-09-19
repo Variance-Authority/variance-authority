@@ -13,8 +13,8 @@ New here? Start with [your first run](start.md).
 Two words repeat below. A **subject** is one named UI state you asked for and
 can ask for again, under an id you choose — `cart/empty`, or
 `story:checkout--empty`. A **collector** is a module you write that tells a run
-which subjects exist and how to reach them; the first two sections below need no
-collector, because the test you already have reaches the state itself.
+which subjects exist and how to set each one up; the first two sections below
+need no collector, because the test you already have creates the state itself.
 
 ## Alongside `expect(page).toHaveScreenshot()`
 
@@ -80,7 +80,7 @@ hands the agreeing image to the same comparison.
 - in-place capture needs an explicit browser launch recipe and at least two
   screenshots;
 - deferred capture needs a second paint, and this adapter does not archive
-  resource bytes: the renderer must be able to reach equivalent resources;
+  resource bytes: the renderer must be able to read equivalent resources;
 - the call takes a bounded locator, not a whole-page shot;
 - review and baseline retention are yours to operate.
 
@@ -126,7 +126,7 @@ test('save button', async () => {
 });
 ```
 
-The unit process launches no browser, produces no screenshot and reaches no
+The unit process launches no browser, produces no screenshot and decides no
 verdict. It writes the markup, the CSS that applies to it, and the bytes of
 every resource it references. A later `npx variance run` reads that directory
 through `captureCollector`, opens Chromium once, paints every capture the suite
@@ -265,7 +265,7 @@ nothing has been approved, so nothing can be unchanged. For a signal before
 anyone owns a baseline, set `"retention": "ephemeral"` in the run config — the
 run renders two revisions in one process, compares them against each other, and
 keeps neither image. A single-revision inspection can report structure,
-accessibility, token or locale evidence without reaching a visual verdict at
+accessibility, token or locale evidence without deciding a visual verdict at
 all.
 
 Choose that composition when the immediate value is attribution or inspection,

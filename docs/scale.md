@@ -174,7 +174,7 @@ below come from two recordings:
 
 Multiply modules by regions by test files and the crossing count of a large
 repository runs to hundreds of millions. Held as pairs, one per test per
-region, that is gigabytes before a byte reaches disk.
+region, that is gigabytes before a byte is written to disk.
 
 The record never holds pairs. A region does not own the list of tests that
 entered it. It holds an identifier into a pool of the **distinct** sets of
@@ -249,7 +249,7 @@ deliberately.
 | what it would cost if no sharing existed at all | a 510 MB peak over 386 MB of containers |
 
 **Plan against the first row.** It is the only one an ordinary run pays. The
-rest are ceilings: two you reach only by asking for them, and one that no real
+rest are ceilings: two you pay only by asking for them, and one that no real
 import graph can produce.
 
 ### Where the observation comes from

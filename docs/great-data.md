@@ -66,7 +66,7 @@ one.
 ## What else the data powers
 
 Each row is one capability, its evidence, and the question you would be asking
-when you reach for it.
+when you use it.
 
 | Capability | Evidence it reuses | The question it answers |
 | --- | --- | --- |

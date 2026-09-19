@@ -105,18 +105,18 @@ invisible to every comparison, because it compares equal to itself on every run
 forever — and these fire on a first run, on a green run, and on a suite with no
 baselines:
 
-| what it finds | why no comparison reaches it | what has been read |
+| what it finds | why no comparison catches it | what has been read |
 | --- | --- | --- |
 | **inspection findings** — a control with no accessible name, a string nobody translated | it has always been wrong, so it never _changes_ | **measured** — nine rule families (unnamed control, image without alt, skipped heading level, nested interactive, dangling reference, label mismatch, duplicate landmark, table without headers, positive `tabindex`), each with a case that reports and a case that holds, so a rule that fires on a correct page fails the suite |
 | **[remounts](framework-reference.md#markrender-and-remountedsince)** — an instance destroyed and rebuilt rather than updated | identical `outerHTML`, identical `rendering`, identical `wiring`. What differs is the state, the focus and what the user typed | **measured** — the remount row in the table below, plus a first mount, a freshly mounted page and a subtree that bailed out without committing, none of which is reported as a remount |
 | **[wiring](framework-reference.md#wiringof)** — a lost `memo`, an unkeyed list, a context subscription | two byte-identical documents that are two different components | **measured** — the wiring row in the table below |
 | **[a Suspense boundary still open](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)** | a component that suspends renders no markup for a marker to attach to, and both runs agree on a skeleton | **measured** — a waiting boundary reads `pending`, names the components above it and the one that created it, counts how many boundaries enclose a nested one, carries the author's key, and reads `resolved` from the same walk once the promise settles. A boundary outside the subject is not reported, and a node React never rendered returns nothing rather than a guess |
-| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)** | no markup and no computed style can see a re-exported logo | **measured in Chromium** — an image changing behind an unchanged URL changes the environment key; the digests cover only the assets the subject itself references, reach the document as well as the capture, and are visibly empty rather than absent when the watch is off |
+| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)** | no markup and no computed style can see a re-exported logo | **measured in Chromium** — an image changing behind an unchanged URL changes the environment key; the digests cover only the assets the subject itself references, are recorded for the document as well as the capture, and are visibly empty rather than absent when the watch is off |
 | **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)** | two runs of the substitution compare `unchanged` — true, and worthless | **measured** — the probe reports a family it could not resolve and refuses to call it absent; with no browser, fonts read as `unprobed` rather than as none missing, and neither outcome fails the exit code |
 
 The last row of that table is the one worth stating separately, because it is
 about the instrument, not the page: **reading a subject twice catches
-instability in the observer, which no assertion about a verdict can reach.** The
+instability in the observer, which no assertion about a verdict can see.** The
 worked case is a Blink attribute-order effect that changed a document digest while
 leaving the verdict entirely correct. Left in place, it can turn the cheap tier off
 for later runs, and whether it does depends on the collection history of the run
@@ -125,7 +125,7 @@ that recorded the baseline
 
 ### Five instruments that never open one
 
-Those rows are about defects a comparison cannot reach. These are readings that
+Those rows are about defects a comparison cannot find. These are readings that
 do not attempt one: each answers _what happened in this run_, which is a
 different question from _is this different from what you agreed_, a shift set out
 in [ask a question the test did not ask](observability.md). Each is installable
@@ -172,7 +172,7 @@ rather than three separate tools.
 | A remount is invisible to the document | The two renders serialize identically while the UI reads `1 of 1` against `0 of 1` — one page kept the click, the other threw it away. The finding names the rebuilt component and the owner that rebuilt it, and reports the author's `key` where there was one instead of filtering itself away |
 | A subject already settled by its digest is not painted | On a document digest equal to the one the baseline was painted from, the verdict is `unchanged` with no render. A changed document renders, an absent baseline renders so the subject can be accepted at all, and a baseline another machine painted refuses the shortcut rather than reusing it |
 | Detecting cross-pollution beats rinsing it away | Thirty subjects through one jsdom world against thirty rebuilt worlds, 300 CSS rules apiece: one world built against thirty, ~68% of the rebuild regime's clock spent building worlds, ~2% of the session's own clock spent on the probes that replace the rinse. Those three are re-measured every run and bounded away from the current reading — exactly one world, over half, under 15% — so none can rot silently. The end-to-end speedup that follows is printed and gated by nothing: it divides two separately-timed runs, and load alone takes it from 3.2× on an idle machine to ~1.1× under a parallel suite |
-| Which bands a single prop reaches | Seven props of one small design system reach five distinct sets of bands, from one band to three, asserted as a single shape because the shape is the finding. Under jsdom the reading reports geometry as unavailable rather than as unmoved |
+| Which bands a single prop reaches | Seven props of one small design system touch five distinct sets of bands, from one band to three, asserted as a single shape because the shape is the finding. Under jsdom the reading reports geometry as unavailable rather than as unmoved |
 
 ## What none of this establishes
 

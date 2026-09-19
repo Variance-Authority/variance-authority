@@ -119,7 +119,7 @@ An edit you declared did not take. Fix that before reading anything else.
 [exit 1: changes need review]
 ```
 
-Every outcome in the table above is reachable from both surfaces an agent has.
+You can get every outcome in the table above from both surfaces an agent has.
 `variance adjudicate` and the `variance_adjudicate` MCP tool answer the same run
 with the same sentences, over a CLI flag and over stdio JSON-RPC. Neither derives
 a claim: the MCP call in the demo declares two of the four, and the two it drops
@@ -156,7 +156,7 @@ binaries, and exits non-zero when one stops holding:
 7/7 claims hold.
 ```
 
-The interesting ones are the transport claims a pure unit test cannot reach — a
+The interesting ones are the transport claims a pure unit test cannot check — a
 JSON-RPC frame split where the OS split it, a notification that must produce no
 reply at all, a report rewritten under an open session — and the one that matters
 most for two surfaces: **the CLI and the MCP tool, given the same claims, answer

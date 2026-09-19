@@ -41,7 +41,7 @@ That distinguishes two events a reviewer currently has to tell apart by hand:
 - **the flag now does something else**, which is a review nobody has done.
 
 A variation that renders identically to its parent says so. It means the flag
-reached nothing this run could read, which is a finding when the flag was
+changed nothing this run could read, which is a finding when the flag was
 supposed to change something.
 
 ## Link by name
@@ -162,7 +162,7 @@ resolved by order: a difference attached to the wrong parent, printed with full
 confidence, is worse than one not printed at all.
 
 Nothing else changes. The tag is read when the run is planned and used when the
-two are compared; it reaches no hash, no baseline and no store, so adding one
+two are compared; it changes no hash, no baseline and no store, so adding one
 invalidates nothing.
 
 **A tag always wins, and a name never covers for a tag that failed.** A
@@ -175,7 +175,7 @@ in the record, in the sentence, and in its own group in the answer — because
 
 **It is not a verdict.** A dark story is darker than its light parent; a narrow
 one is narrower. Reporting that as a regression would be reporting a subject for
-existing. Nothing on this axis reaches the exit code, `accept`, or the baseline
+existing. Nothing on this axis changes the exit code, `accept`, or the baseline
 store — a run whose only news is a variation is a green run.
 
 **It is not a variant language.** There is no viewport list, no scheme list, no

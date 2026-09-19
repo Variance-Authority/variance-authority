@@ -54,11 +54,11 @@ workflow.
   ([information exchange](information.md)).
 - **resource-closed document** — a captured document carrying the bytes it
   references, so a second renderer needs no access to the origin; an
-  environment-dependent document instead requires that renderer to reach
+  environment-dependent document instead requires that renderer to fetch
   equivalent resources through a preserved base URL
   ([choose from the state you already have](cases.md)).
 - **composition** — the combination a setup selects across four independent
-  choices: which process reaches the state, what crosses the acquisition
+  choices: which process sets up the state, what crosses the acquisition
   boundary, where pixels are made, and where the answer is retained
   ([compose an observation](compose-observation.md)). The composition sets the
   evidence boundary, which is what M9 inventories.

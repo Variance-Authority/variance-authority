@@ -597,11 +597,11 @@ variance run --flakes
 ```
 
 A subject that agrees with its baseline and disagrees with itself is a flake one
-run before anybody has to look at a red build, and it is unreachable from a
-verdict — a green suite settles on its digests and never builds a comparison at
-all. The answer names the component, the file and the **band** — one of five
-categories (`a11y`, `geometry`, `token`, `content`, `texture`) a change is
-classified into by what kind of thing changed:
+run before anybody has to look at a red build, and no verdict shows it — a green
+suite settles on its digests and never builds a comparison at all. The answer
+names the component, the file and the **band** — one of five categories (`a11y`,
+`geometry`, `token`, `content`, `texture`) a change is classified into by what
+kind of thing changed:
 
 ```
 [unstable] story:case-surface--ticking: … Clock src/ds.jsx:118 read differently
@@ -656,10 +656,10 @@ throw Object.assign(new Error('this collector needs `subjects.kind: "list"`'), {
 });
 ```
 
-That is the entire integration, and it is worth doing: without it a mistyped path
-in your own collector reaches the adopter as a stack trace claiming this tool is
-broken. Leave the marker off anything they cannot act on — a bug in the collector
-should still read as a bug.
+That is the entire integration, and it is worth doing: without it the adopter
+sees a mistyped path in your own collector as a stack trace claiming this tool
+is broken. Leave the marker off anything they cannot act on — a bug in the
+collector should still read as a bug.
 
 ### Sharding: `journeys` takes more than one file too
 
@@ -771,9 +771,9 @@ What counts as a test, and how your runner takes a list of them, stays in your
 shell — where it is already written, in a form matching the repository you have.
 
 An import over-approximates: `import x` means this file *may* depend on that one,
-so everything reached is a superset of everything affected. That is what makes
-the graph alone enough to answer from with nothing recorded, and it is the same
-direction of error every narrowing in this tool is allowed.
+so the list is a superset of everything affected. That is what makes the graph
+alone enough to answer from with nothing recorded, and it is the same direction
+of error every narrowing in this tool is allowed.
 
 This one prints a **run** list, which is the dangerous shape, so it has no short
 answer at all. Either stdout holds every file the diff reaches — the changed
@@ -900,7 +900,7 @@ a CI job gates on.
 ```
 
 **A verdict and a crash never share a code.** A red build that could mean either
-"a component changed" or "the store was unreachable" is a red build nobody
+"a component changed" or "the store did not answer" is a red build nobody
 investigates, and the second case is the one where continuing destroys a
 baseline. `variance doctor` exists so the second is diagnosable before a run
 rather than after one.
@@ -1091,8 +1091,8 @@ of, its text — a framework's own import notation, a module loaded under a name
 the code never writes — keyed by file with `-` and `+` rows. The same
 graph answers the execution journal for a changed file it holds no row of: the
 importers of that file, and theirs, until one the journal did record. `unrendered`
-answers the case where the walk succeeds and lands nowhere: a change reaching
-only components no baseline records narrows like any other, and the run names
+answers the case where the walk succeeds and lands nowhere: a change landing
+only on components no baseline records narrows like any other, and the run names
 what it could not match — either nothing here watches that surface, or something
 here paints it without recording it, which a server component always does. Set it
 to `"whole"` for the second, and the run observes everything instead. `changes`
@@ -1125,7 +1125,7 @@ The remaining top-level keys:
 
 | key | what it decides |
 |---|---|
-| `history` | the history service to reach. Setting it is what makes `variance run` record observations and `variance accept` record approvals |
+| `history` | the history service to call. Setting it is what makes `variance run` record observations and `variance accept` record approvals |
 | `images` | what a run writes alongside its report |
 | `blank` | replaces an image on the wire with a transparent one of the same intrinsic size |
 | `sensitivity` | narrows a named subject to a sensitivity level |
@@ -1217,7 +1217,7 @@ anything.
 | Every subject is `new` after changing browser or renderer settings | The environment identity changed, so old and new images are intentionally partitioned. | Confirm the engine, viewport scale, fonts, and stabilization inputs. Establish new baselines only when the identity change was intended. |
 | A planned subject is absent from the report | Coverage accounting failed; a complete run must account for observed, excluded, or failed subjects. | Inspect collector failures and, for shards, verify the subject globs cover the whole plan without overlap. |
 | HTML report images are broken | Image paths are relative to the JSON report. | Upload or move the HTML report together with its report and image directory. |
-| A ready selector times out | The collector reached the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
+| A ready selector times out | The collector opened the subject but its project-owned completion marker never appeared. | Check the collector module's id-to-selector map; do not replace the marker with an arbitrary sleep. |
 | A clean pull request has no comment body | This is expected. `variance comment` emits an empty body for a clean report. | Keep the CI gate on `variance run`; let the posting integration delete or skip its prior comment. |
 | A merged shard report is refused | The shards did not describe one compatible run or observed the same subject twice. | Align renderer identity, retention, and intent, then make the subject globs disjoint. |
 | A change is green but reported as `ignored` | Differences existed and declarations absorbed all of them. | Read the ignore and sensitivity registers; `ignored` is intentionally distinct from `unchanged`. |

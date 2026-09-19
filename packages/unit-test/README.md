@@ -18,7 +18,7 @@ Each comparison is keyed by a **subject id** — one named UI state you asked fo
 and can ask for again, such as `cart/empty`.
 
 The test process needs a live DOM and a directory it can write to. It launches
-no browser, produces no screenshot and reaches no verdict, and this package
+no browser, produces no screenshot and decides no verdict, and this package
 exports no `test`, `expect` or reporter: your suite keeps its own runner,
 fixtures and assertions, and passes or fails on them as before.
 
@@ -205,7 +205,7 @@ directory that does not exist yet is not an error.
 ## Configure the run that paints
 
 Two files, both of which you write. The first is the collector module — the
-single key through which any subject source, this one included, reaches a run:
+single key through which any subject source, this one included, enters a run:
 
 ```js
 // variance/collector.mjs
@@ -243,7 +243,7 @@ directory rather than the working directory.
 | `viewport` | the fallback for a subject that arrives without one. Every capture carries its own, and that is the one used for its subject |
 | `retention` | `durable` compares against a stored image and requires `baselines`; `ephemeral` renders both sides inside one run, keeps neither, and requires `baselines` to be absent |
 | `subjects.kind` | `collector` for a module like the one above, `storybook` for a built story index, or `list` for ids you write down |
-| `baselines.kind` | `directory` for files you commit, `lfs` for the same files through the Git LFS filter, or `remote` for an HTTP endpoint — `{ "kind": "remote", "endpoint": "https://…", "token": "…" }` — with nothing in the repository, where a run that cannot reach the endpoint stops |
+| `baselines.kind` | `directory` for files you commit, `lfs` for the same files through the Git LFS filter, or `remote` for an HTTP endpoint — `{ "kind": "remote", "endpoint": "https://…", "token": "…" }` — with nothing in the repository, where a run that cannot call the endpoint stops |
 | `fonts` | fonts this machine asserts it has, each as `family/weight/style/hash`. Defaults to `[]`, which asserts nothing |
 | `report` | where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json` |
 

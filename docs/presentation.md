@@ -10,7 +10,7 @@ person or a coding agent can say whether the edit did what it claimed.
 New here? Start with [your first run](start.md).
 
 [Presentation evidence](presentation-reference.md) measures those
-relationships inside the Playwright session that already reaches the interface.
+relationships inside the Playwright session that already drives the interface.
 You read the rendered **subject** — one named UI state you asked for and can ask
 for again, identified by a stable id like `work:queue` — narrow one measurement
 to the element that owns it, draw that evidence over the live page, edit your

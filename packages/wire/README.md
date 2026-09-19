@@ -370,9 +370,9 @@ to make your server fetch an address somebody else chose.
 **Inbound.** The listener has no authentication. It binds loopback, and anything
 on the machine that knows the port and the execution id can POST a report; the
 id is a v4 UUID the driver mints and never writes to disk. Responses carry no
-CORS headers, so a browser refuses to read one cross-origin, but a `no-cors`
-POST would still reach the listener. What that buys is a fabricated report
-inside one run: nothing posted here is executed, and nothing is written to disk.
+CORS headers, so a browser refuses to read one cross-origin, but the listener
+still receives a `no-cors` POST. What that buys is a fabricated report inside
+one run: nothing posted here is executed, and nothing is written to disk.
 Passing a non-loopback `host` widens that to the network, and stops reports
 arriving anyway.
 

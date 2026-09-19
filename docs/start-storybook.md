@@ -163,7 +163,7 @@ variance run --config variance.config.json
 `doctor` opens a browser here, measures the asserted fonts inside it, and lists
 which identities the baseline root holds and whether this machine's is one of
 them. It makes no network calls, so a remote renderer or store is reported as
-configured and never as reachable. It exits `2` when no browser opens or when
+configured and never as working. It exits `2` when no browser opens or when
 the root holds no images this machine could compare against, and `0` otherwise —
 a missing font is reported and does not change the exit code.
 

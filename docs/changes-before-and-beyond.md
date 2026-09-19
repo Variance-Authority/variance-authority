@@ -1,16 +1,17 @@
-# Both ends of a run
+# Changes before and beyond
 
 Two changes widen a run that no import graph can narrow: a config file nothing
 imports, and a package you never wrote. Selection answers from names files say
 to each other, so a change with no name in that conversation is either the whole
 suite or nothing at all — and which of the two is a choice you make rather than
-one the walk makes for you. This page is about the two ends of a run,
+one the walk makes for you. This page is about those two changes, and
 [selection](selecting.md) is about everything between them.
 
 Read a run from left to right. The harness starts it, the tests it started enter
 your code, and your code goes out into what the install provides and never comes
 back. Selection lives in the middle stretch, where a file has a name the record
-can hold. Both ends are outside it, for opposite reasons.
+can hold. What comes before it and what lies beyond it are both outside
+selection, for opposite reasons.
 
 ```mermaid
 flowchart LR
@@ -40,13 +41,13 @@ flowchart LR
 
 **Beyond reach** is the far right: a dependency bump. Nothing in the diff names
 a file you wrote, and yet the code that imports the bumped package renders
-differently. That end is reachable, because the thing that changed has a name
-and your files say the name.
+differently. That change is reachable, because the thing that changed has a
+name and your files say the name.
 
 **Before reach** is the far left: the node version, the harness config, the
 bundler setup. Nothing imports them and they change everything downstream of
-themselves. That end is not reachable, and a diff that touches only it runs the
-whole suite.
+themselves. That change is not reachable, and a diff that touches only it runs
+the whole suite.
 
 ## What a bumped package reaches
 
@@ -60,7 +61,7 @@ by the same walk, from a seed at the other end of the line.
 | `@mui/material` bumped | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
 | `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
 | `@mui/material` bumped and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
-| Only a `type` import reaches the bumped package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
+| Only a `type` import names the bumped package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
 | A file that imports the bumped package was never measured | The whole suite runs. The record cannot say what entered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
 
 Which **copy** of a package an importer got is not asked. A specifier names
@@ -89,7 +90,7 @@ file's bytes change*:
 read. **A lockfile that cannot be read widens the run**: a comparison that could
 not be made is not a comparison that found nothing.
 
-## How the left end is declared
+## How a change before reach is declared
 
 A change to `vite.config.ts`, to the jest environment, to the node version in
 CI: none of them is imported by anything, so there is no edge to walk back
@@ -175,11 +176,11 @@ rests on everything that bundler rests on, so a bump inside that set widens the
 run. That is the correct answer, because the harness did change; a repository
 that finds it too wide narrows what it declares.
 
-## Where the two ends meet
+## Where before and beyond meet
 
 A `jsdom` bump is beyond reach, and the environment it is wired into is before
 reach — the only arrow in the first figure that points back to the left. The
-install comparison names `jsdom`; the harness reaches it through
+install comparison names `jsdom`; the harness depends on it through
 `jest-environment-jsdom`, three edges out from a config file; and no file you
 wrote ever spells the word. Undeclared, that diff narrows to whatever else it
 touched. Declared, the run is whole, and it says `jsdom`.

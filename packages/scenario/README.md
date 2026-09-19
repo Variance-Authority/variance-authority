@@ -235,7 +235,7 @@ records it and infers nothing about fixtures, mocks, cookies, routes or flags.
 
 `foldScenarios(runs)` groups frames by render hash and adds the transitions those
 recordings witnessed under their act keys. Paths that reach one hash converge on
-one node. If one state and act reach two destination hashes, both transitions
+one node. If one state and act produce two destination hashes, both transitions
 survive and the result reports the divergence. An act that was never observed
 appears under `unknown`. Continuing `scenario-demo.ts`:
 

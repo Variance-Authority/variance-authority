@@ -183,7 +183,7 @@ npx vitest run -u
 That promotes the image this run already painted rather than painting a second
 one, so the bytes that became the baseline are the bytes the run produced. The
 run it wrote during still fails and still exits non-zero: the assertion had
-already reached its verdict on a subject with no baseline, and writing one
+already made its verdict on a subject with no baseline, and writing one
 afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.

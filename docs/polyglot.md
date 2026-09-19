@@ -144,8 +144,8 @@ stderr carries the sentence saying which file and why. A widening you can read
 is a work item; a widening you cannot is a tax.
 
 **It will not narrow by language.** The reach of a diff that touched Python and
-Swift is one walk over one graph, and the Swift file reached through a target is
-in the same list as the Python module reached through a package.
+Swift is one walk over one graph, and the Swift file reached through a target
+is in the same list as the Python module reached through a package.
 
 ## Where it sits
 

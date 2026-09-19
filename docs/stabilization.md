@@ -3,8 +3,8 @@
 A spinner caught mid-turn, a web font that arrived late, a scrollbar one machine
 draws and another does not: any of them reports a change your code did not make.
 A run holds your page still before it reads it, so that two readings of an
-unchanged UI agree. Read on for what it does to reach that state, what you can
-change about it, and how far into your page it reaches.
+unchanged UI agree. Read on for what it does to get your page there, what you
+can change about it, and how far into your page it goes.
 
 New here? Start with [your first run](start.md).
 
@@ -30,7 +30,7 @@ npx variance doctor --config variance.config.json
 npx variance run --config variance.config.json
 ```
 
-`npx variance doctor` prints which **tier** the run will reach before the first
+`npx variance doctor` prints which **tier** the run will use before the first
 expensive run. A tier is a level of observation: the structure-and-style reading
 of a document, which any DOM host produces without a browser, and the painted
 image, which only a browser can produce. Stabilization is filtered by tier, so a
@@ -38,7 +38,7 @@ jsdom run applies none of it — no layout engine and no animation clock means
 there is nothing to hold still.
 
 A subject that is still changing cannot be compared, so every tool in this
-category reaches into the page before it looks. The questions worth asking are
+category changes the page before it looks. The questions worth asking are
 **when**, **what it costs**, and **whether the baseline remembers it happened**.
 
 [Flakiness](flakiness.md) is the position — what kind of thing variance is, and
@@ -46,8 +46,8 @@ the four ways a cause gets absorbed. This page is the mechanism.
 
 ## What you can configure
 
-Stabilization runs without any of this. Each entry below is a knob you can reach
-for once you need it.
+Stabilization runs without any of this. Each entry below is a knob you can turn
+once you need it.
 
 | you want to | set | where |
 | --- | --- | --- |
@@ -108,7 +108,7 @@ the page is served can be rewritten before the browser sees it.
 |---|---|---|
 | **Collection** | the live page, before the subject is read | `pin-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images` |
 | **Render** | the reconstructed page, before it is painted | `hold-animations`, `hide-scrollbars`, `wait-for-fonts`, `wait-for-images`, `hide-caret` |
-| **The wire** | every response the page is served | `freezeAnimatedImages`, `hashAssets` — network-observer options rather than recipe ids, because a response body is not something a stylesheet can reach |
+| **The wire** | every response the page is served | `freezeAnimatedImages`, `hashAssets` — network-observer options rather than recipe ids, because a response body is not something a stylesheet can change |
 
 The collection and render recipes differ in exactly one trick and it is not a
 preference: `hold-animations` is a *screenshot* option, and at collection nobody
@@ -121,7 +121,7 @@ what already happened to your subject.
 
 | trick | absorbs | and the limit, stated here rather than found later |
 |---|---|---|
-| `pin-animations` | CSS animations and transitions, held at their first frame | the first frame is where a fade-in is *invisible* — deterministic, and not where a user sees the component. CSS reaches CSS: `requestAnimationFrame` writing inline styles keeps running |
+| `pin-animations` | CSS animations and transitions, held at their first frame | the first frame is where a fade-in is *invisible* — deterministic, and not where a user sees the component. CSS stops CSS: `requestAnimationFrame` writing inline styles keeps running |
 | `wait-for-fonts` | a font arriving after the subject was read | `document.fonts.ready` covers loads that have *started*; a font requested lazily by a later interaction is not in it |
 | `wait-for-images` | an image whose intrinsic size had not landed | `document.images` at one moment. Anything appended during the wait is missed — the wire covers that |
 | `hide-scrollbars` | a platform and preference difference, and the reflow at the overflow threshold | headless Chromium uses overlay scrollbars, so the classic scrollbar flake does not reproduce in CI at all |
@@ -163,12 +163,12 @@ the page is yours and its JavaScript is the subject.
 
 </details>
 
-## How far an intervention reaches
+## How far an intervention goes
 
 Holding a page still means changing it, and the three ways of doing that cost
 you different things. **Every trick shipped here stays in the first row.**
 
-| how far it reaches | what it is | what it costs you |
+| how far it goes | what it is | what it costs you |
 |---|---|---|
 | **outside the subject** | injected CSS, screenshot options, a rewritten response | delete the tool and the intervention is gone |
 | **runtime substitution** | wrapping `Promise`, replacing a suspense boundary | a difference caused by the patch is indistinguishable from one caused by the code |
@@ -259,7 +259,7 @@ export default routeCollector({
 });
 ```
 
-Reach for it when your suite's own determinism story is already better than this
+Use it when your suite's own determinism story is already better than this
 one's — it freezes its clock, its data and its animations — and a second
 `!important` stylesheet would be damage buying nothing.
 
@@ -340,7 +340,7 @@ text — so hashing them buys a second copy of a covered input.
 
 ### Animated GIFs are frozen on the wire
 
-A GIF has been animating since it decoded, and no CSS reaches it —
+A GIF has been animating since it decoded, and no CSS applies to it —
 `animation-play-state` governs CSS animations and a GIF is not one.
 
 Argos solves this in the page and the design is careful: build a *fresh* `Image`,
@@ -648,7 +648,7 @@ is over; a declared subject then waits for nothing, because paying the timeout t
 be told the boundary is open costs five seconds to learn what the declaration
 already said. `@variance-authority/playwright-test` takes the same declaration as
 `loading: true` on the fixture, and throws instead of refusing: in a Playwright
-test a failed assertion is what reaches the person who can decide.
+test a failed assertion is what the person who can decide sees.
 
 **The declaration is checked in both directions.** A subject declared as a
 loading capture that turns out to have settled is refused too: a declaration
@@ -674,7 +674,7 @@ the ones beneath it:
 | --- | --- | --- |
 | `pendingSuspense` | whether the subject has arrived at all | a fiber traversal |
 | `awaitQuiet` | whether the application has stopped working | a hook installed before React |
-| `documentDigest` | whether anything that reaches a renderer changed | a read of a page already mounted |
+| `documentDigest` | whether anything the renderer reads changed | a read of a page already mounted |
 | the image | whether the pixels moved | a raster, the most expensive reading here by an order of magnitude |
 
 The implication runs one way. A component tree that did not re-render cannot
@@ -692,10 +692,10 @@ it holds is not a wasted check, it is the fact somebody wanted:
 - **The fiber changed and the document did not.** The components re-rendered
   and the page did not follow — `refactor` in [parting](parting.md), read
   across a moment instead of across a commit. This is the receipt a refactor
-  never gets, and no pixel differ can reach it.
-- **The document changed and the image did not.** Something reached the
-  renderer and the renderer absorbed it: sub-pixel geometry, a repeated
-  colour, a rule that lost the cascade.
+  never gets, and no pixel differ can see it.
+- **The document changed and the image did not.** The renderer read the change
+  and absorbed it: sub-pixel geometry, a repeated colour, a rule that lost the
+  cascade.
 - **Nothing that was read changed and the image did.** Every input the run
   actually looked at agreed and the picture changed anyway — `flake`, which is
   an accusation, and only safe to make because `unread` exists to carry the case
@@ -736,8 +736,8 @@ something is genuinely moving.
 **What the skip saves is arithmetic, not a reading.** Two animation frames on a
 60Hz compositor is about 32 ms, so putting them back into every subject would
 cost roughly a third of a second on a ten-story Storybook and about six seconds
-on two hundred. The suite fails if that regression ever lands, so it reaches you
-as a red build rather than a slow CI job nobody attributes to anything.
+on two hundred. The suite fails if that regression ever lands, so you see it as
+a red build rather than a slow CI job nobody attributes to anything.
 
 ---
 

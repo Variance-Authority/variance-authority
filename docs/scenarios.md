@@ -91,11 +91,11 @@ page:
 | `absorbed` | an input changed and the page did not. The Act landed on nothing |
 | `reshaped` | a different component tree from the same inputs — a boundary resolved |
 
-*Snapshot, click, snapshot* and *snapshot, wait for a boundary, snapshot* reach
-the same comparison, and the slice is the only place they part: a click that
-worked is `variation`, with the hook cell that changed named under it; an arrival
-is `reshaped`. Neither is reported as `flake`, which stays reserved for the edge
-where every input the run actually read agreed.
+*Snapshot, click, snapshot* and *snapshot, wait for a boundary, snapshot*
+produce the same comparison, and the slice is the only place they part: a click
+that worked is `variation`, with the hook cell that changed named under it; an
+arrival is `reshaped`. Neither is reported as `flake`, which stays reserved for
+the edge where every input the run actually read agreed.
 
 An Act is identified by an authored key and its occurrence. DOM event bubbling,
 selectors, accessible names, and targets are not identity. Alignment stops at

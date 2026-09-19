@@ -1,7 +1,7 @@
 # Compose an observation
 
 Wiring an observation into a suite you already have is four separate decisions:
-which of your harnesses reaches the state, what gets captured and where the
+which of your harnesses sets up the state, what gets captured and where the
 pixels are painted, where the answer is consumed and how long it is kept, and
 who holds the baseline between runs. This page is the index to those four. If
 you have not run anything yet, [your first run](start.md) takes one UI state
@@ -15,7 +15,7 @@ decision about how subjects get observed, and the page that makes it.
 
 | Decision | What it changes | Where it is made |
 | --- | --- | --- |
-| Which harness reaches the state and declares it ready | Lifecycle, subject discovery, the ids your baselines are named by | [Choose from the state you already have](cases.md) |
+| Which harness sets up the state and declares it ready | Lifecycle, subject discovery, the ids your baselines are named by | [Choose from the state you already have](cases.md) |
 | What is captured, and where pixels are painted | Portability, what leaves your network, which evidence travels, latency, renderer identity | [Connect your suite](surface.md) |
 | Where the answer is consumed and how long it is kept | Infrastructure you operate, where review happens, how far back you can ask | [Choose an operating flow](flows.md) |
 | Who holds the baseline between runs | Baseline lookup, acceptance, storage cost | [Where baselines live](placement.md) |
@@ -26,14 +26,14 @@ pixels taken in place. Where baselines are stored does not change the verdict a
 run reports — `unchanged`, `changed`, `new` or `incomparable`; what decides
 whether two captures may be compared at all is the renderer that painted them.
 
-## Start from the harness that already reaches the state
+## Start from the harness that already sets up the state
 
 Pick the first decision by asking which of your existing harnesses already
 navigates, logs in, seeds fixtures and decides the UI is ready. Navigation,
 fixtures, authentication and readiness stay there. Then take the smallest answer
 to the other three that still answers your question.
 
-Every combination reaches the same comparison and the same report. What differs
+Every combination produces the same comparison and the same report. What differs
 between them is what each one was able to see.
 
 ## What you capture decides what the report can say

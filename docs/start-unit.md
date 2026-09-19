@@ -162,8 +162,8 @@ the capture naming that one URL.
 
 CSS is read out of the document rather than fetched, so nothing has to resolve
 for it: `<style>` elements, inline `style`, and every stylesheet the document
-already holds are indexed and carried. What never reaches the document never
-reaches the capture, and that is the failure worth checking for once. A runner
+already holds are indexed and carried. What never lands in the document never
+lands in the capture, and that is the failure worth checking for once. A runner
 that stubs CSS imports out instead of injecting them, or a CSS-in-JS library
 that removes its `<style>` tags during teardown, leaves the class names in the
 markup with nothing matching them — and the baseline is a picture of unstyled
@@ -193,7 +193,7 @@ directory rather than the working directory.
 
 The config is JSON and executes nothing of its own, so `subjects.collector` is
 the single key through which any collector — this one, Storybook's, a route
-list, one you write — reaches a run. The unit-test collector needs only the
+list, one you write — enters a run. The unit-test collector needs only the
 directory:
 
 ```js

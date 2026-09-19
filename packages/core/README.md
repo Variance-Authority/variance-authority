@@ -123,8 +123,8 @@ reads as a key that was removed.
 
 Every key is a JSON Pointer (RFC 6901). A `-` token matches any array index, so
 `/items/-/updatedAt` names that member of every item. Neither `dialect` nor
-`generator` reaches the digest, so labelling a value later does not orphan its
-baseline.
+`generator` counts toward the digest, so labelling a value later does not orphan
+its baseline.
 
 ## Use this package when
 
@@ -161,8 +161,8 @@ specifier holds only the capture artifact.
 
 Five of those are the order an answer travels through: `format`, `rules`,
 `compare`, `attribute`, `judge`. `plan` and `relate` are asked before anything
-is captured — one decides which baselines a run can reach, the other which
-subjects are worth reaching for. `segment` and `share` are how a derived answer
+is captured — one decides which baselines a run can use, the other which
+subjects are worth reading. `segment` and `share` are how a derived answer
 is written down and handed to another machine.
 
 ## The four words the output uses
@@ -254,7 +254,7 @@ observation profiles differ.
 | `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
-| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and reaches only the files that import it |
+| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and affects only the files that import it |
 | `beforeReach` | `sensed` names the directories the scan already answers for, and the descent from a declared entry point stops at the first file under one of them rather than dragging the repository's own source in behind the harness |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
 | `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey entered |

@@ -23,9 +23,9 @@ of a file, on the reading a capture already takes.
 [Running less of the suite](selecting.md) is built on that pair.
 
 A journey answers below the file. It is the reading that tells the three
-`CartCard` stories apart — and the one to reach for when the file-level answer
-is too coarse to act on: a shared component half the suite mounts, a handler one
-flow reaches, a branch whose two sides are different products.
+`CartCard` stories apart — and the one to use when the file-level answer is too
+coarse to act on: a shared component half the suite mounts, a handler one flow
+calls, a branch whose two sides are different products.
 
 ## A path, not a stack
 

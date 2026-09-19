@@ -55,7 +55,7 @@ condition, something acts on it, work happens, state changes, and an observable
 result appears.
 
 A regression can enter anywhere along that path. The wrong state may be
-arranged at the beginning. An edit may reach code it was not meant to reach.
+arranged at the beginning. An edit may reach code it was not meant to affect.
 Execution may take a different branch. A component may receive a different
 input. The same input may produce unstable output. The interface may change
 while the behaviour you explicitly cared about stays intact.

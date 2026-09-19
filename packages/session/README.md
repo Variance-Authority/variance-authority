@@ -182,8 +182,8 @@ renders them as the block above, confirmed first, defaulting to `findings()`.
 | `culpritComponents` | `readonly string[]` | components the culprit rendered, empty unless `provenanceOf` is configured |
 
 `findings()` is suspicion from read/write overlap, and it is directional: only a
-subject that ran *earlier* can have reached a given subject, which is why the
-sample's `findings()` says nothing until `verify()` has re-run `story:card`
+subject that ran *earlier* can have leaked into a given subject, which is why
+the sample's `findings()` says nothing until `verify()` has re-run `story:card`
 after the leak. A subject that writes a key it also reads is not reported — that
 is a component managing its own stylesheet. One finding per victim/culprit/key,
 however many rules matched.
@@ -214,8 +214,8 @@ callback that receives the container. It returns a `SubjectRun`:
 | `durationMs` | wall clock from clearing the container to the recorded run |
 
 An id is a free string. Nothing parses it, and `story:card` is a convention, not
-a format: the ids that reach a finding are the ids you pass, so make them stable
-across renames — `story:components-button--primary` rather than a file path.
+a format: the ids in a finding are the ids you pass, so make them stable across
+renames — `story:components-button--primary` rather than a file path.
 
 `session.container` is the element subjects mount into, stable for the session's
 lifetime. `session.runs()` returns every `SubjectRun` in order.
@@ -263,7 +263,7 @@ which subjects are worth the second pass.
 is addressed by — so changing either produces a different baseline rather than a
 diff. `engine` is a free string, recorded verbatim; nothing checks it against the
 DOM implementation you actually handed in, so derive it rather than typing it,
-and a version bump that does not reach the string leaves two different engines
+and a version bump that does not change the string leaves two different engines
 sharing one baseline address.
 
 ## Wiring it into a runner

@@ -82,8 +82,8 @@ The execution index answers below that grain, at the region. Three stories mount
 the same component and one of them clicks Remove; the body of that handler is a
 place the other two have never been inside, though all three import the same
 file. Nothing read from the source tells them apart, because the difference is
-not in the tree — it is in what each execution did with it. Reach for that
-reading when file-level reach is too coarse to be worth acting on, and read
+not in the tree — it is in what each execution did with it. Use that reading when
+file-level reach is too coarse to be worth acting on, and read
 [the path an execution took](journeys.md) for what it costs to record.
 
 ## Start with the saving you need

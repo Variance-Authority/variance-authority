@@ -54,10 +54,10 @@ the absence rules, and what enters a comparison.
 
 ## Remounts: what the document cannot show you
 
-Use the remount path when a test can already reach the mounted state and perform
-the action that triggers the reset. Take the mark after setup is complete and
-immediately before that action; a mark taken after the action has no earlier
-instance to compare with.
+Use the remount path when a test can already put the app in the mounted state
+and perform the action that triggers the reset. Take the mark after setup is
+complete and immediately before that action; a mark taken after the action has
+no earlier instance to compare with.
 
 This complete Vitest example contains the defect deliberately: `InlineCounter`
 is declared inside `Screen`, so each render creates a new component type. The

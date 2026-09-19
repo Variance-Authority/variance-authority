@@ -29,7 +29,7 @@ npm install --save-dev @variance-authority/cli
 
 `npx variance run` exits `0` when nothing needs review, `1` when it found
 something a person must look at, and `2` when the run did not happen as
-configured — a missing browser, an unreachable store. A finding and a crash
+configured — a missing browser, a store it cannot open. A finding and a crash
 never share a code, so a red build says which of the two it is before anybody
 opens it. Gate on the integer; nothing parses the output.
 
@@ -44,7 +44,7 @@ the run to `1`:
 | a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
-| an observation carries an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not reach, say — so the images agree about something smaller than what you asked for |
+| an observation carries an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
 Three things deliberately do not take it there: an `ignored` verdict, where
 every moved pixel fell inside a subtree you excluded; a subject your own
