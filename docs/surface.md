@@ -41,9 +41,14 @@ boundary.
 | Vitest browser mode | `@variance-authority/vitest-browser` | A document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Whichever you already use, through a store you inject and — for documents — a renderer you supply. |
 
-Every path that paints needs Playwright's browser binaries, which do not arrive
-with an `npm install`. So each install below is two commands, the second of
-which is always `npx playwright install chromium`.
+Everything below paints with Chromium, and the reason it is not a choice is
+text: `--disable-lcd-text` and `--font-render-hinting=none` are flags no other
+engine accepts, so Chromium is the only engine whose rasterization you can pin
+and reproduce on a second machine. Firefox and WebKit paint text the way their
+host does, which makes their baselines the property of that host —
+[how this compares](comparison.md) sets out what else follows from the engine.
+If your suite already runs `npx playwright install chromium`, the second command
+in each install below has already happened.
 
 `@variance-authority/cli` supplies the `variance` binary: `variance run`,
 `variance report`, `variance accept`, `variance doctor`. The Playwright Test and
