@@ -97,14 +97,15 @@ output changed anyway, the same question asked of one page instead of two.
 
 Before *which input changed* comes *whether anybody should look*. Every parting
 opens with a **slice** — the one word that classifies the whole difference.
-There are eight, decided from three facts — did the component tree hold, did any
-input change, did the output change — and a fourth that splits one of them:
+There are eight, decided from three facts — did the component tree stay the
+same, did any input change, did the output change — and a fourth that splits one
+of them:
 
 | slice | reading |
 |---|---|
 | `settled` | nothing changed: not the tree, not an input, not the output |
 | `variation` | an input changed and the output followed — **the only one where the attribution categories below are worth reading** |
-| `flake` | every input agreed, the component tree held, and the output changed anyway |
+| `flake` | every input agreed, the component tree did not change, and the output changed anyway |
 | `placed` | the same, between two readings taken in different places |
 | `reshaped` | the component tree is a different tree, no input changed, and the output followed |
 | `refactor` | the component tree changed and the output did not |
@@ -127,7 +128,7 @@ neither case has a changed input for attribution to name.
 
 `placed` is the fourth fact: *were the two readings taken at one address*. A
 subject read twice — across two revisions, or across two moments of one scenario
-— is `same`, and an output that changed with every input holding is called a
+— is `same`, and an output that changed while every input agreed is called a
 flake. Two instances lifted out of two subjects at one commit are `elsewhere`,
 and there the same evidence means something else. Where a component sits is
 decided by the boxes around it, and no component receives its own position as
@@ -146,8 +147,8 @@ silence is never reported to you as agreement.
 A **boundary** is one component instance in the rendered tree, together with
 what it received and what it retained. At every boundary, one rule applies: *a
 component whose inputs agreed and whose output changed chose differently.*
-Walking up to the shallowest boundary where that holds is what turns a page of
-deltas into one sentence.
+Walking up to the shallowest boundary where that applies is what turns a page
+of deltas into one sentence.
 
 | category | evidence | where to look |
 |---|---|---|
@@ -236,7 +237,7 @@ capture(root, { subject, viewport, provenanceOf, wiringOf, holdingOf });
 ```
 
 **Digests, never values.** A prop can be a customer record and a `useState` cell
-can hold the same record with a session token beside it, so what travels is a
+can contain the same record with a session token beside it, so what travels is a
 digest: enough to compare two readings for equality, and not reversible into
 what a user was looking at. So the comparison is by shape rather than by
 identity — a re-created inline closure is not reported as changed.
@@ -246,14 +247,14 @@ it can never turn a run red on its own. It is present alongside the snapshot and
 is read only to explain a difference the comparison already found.
 
 The cell list is sparse and says so. A hook that retains nothing a later reading
-could disagree about contributes no cell, and each cell carries the position a
+could disagree about contributes no cell, and each cell names the position a
 person arrives at by counting hook calls down the component — not an index into
 React's cell chain, where `useContext` builds none and `useTransition` builds
 two. Converting between those two numberings needs the cell count of every hook
 by name. Meeting a hook name it has no count for — a hook a later React release
 adds, for instance — the reader stops there and records the name that stopped
 it, so the cells you get are a prefix that says where it ends rather than a full
-list mislabelled from that point on. `holdingOf`, which carries that table, is
+list mislabelled from that point on. `holdingOf`, which owns that table, is
 documented in the
 [`@variance-authority/react` reference](https://variance-authority.dev/reference/packages/react).
 

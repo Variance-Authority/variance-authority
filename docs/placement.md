@@ -3,7 +3,7 @@
 Approved images have to sit somewhere between runs, one per **subject** — the
 named UI state a baseline belongs to, such as `story:checkout--empty` — and
 there are three places to put them: committed to the repository, tracked
-through git-LFS, or held by a service. They differ in what a clone costs, who
+through git-LFS, or stored by a service. They differ in what a clone costs, who
 can approve a change, and what happens to the repository as history grows. This
 page is the reference for choosing one while you set a project up.
 
@@ -20,8 +20,8 @@ Whether two images may be compared at all is decided by the **identity
 digest** — a hash of the renderer, browser engine, platform, device scale
 factor and fonts that produced the image, written into paths as the
 `v1:6c1f…` segment you will see throughout this page. Storage has no say in
-it. What placement decides is **who is holding the bytes when the next run
-starts**, and what that costs.
+it. What placement decides is **who has the bytes when the next run starts**,
+and what that costs.
 
 There are three answers and no default. Set `baselines.kind` explicitly.
 
@@ -40,9 +40,10 @@ finds no baseline, reports every subject `new`, records what is on screen as the
 new truth, and exits 0 — green, forever, comparing nothing.
 
 The trap is a wildcard. `.variance/` is the conventional output directory, it
-holds a report and images that genuinely are per-run junk, and a repository that
-ignores the whole of it ignores the baselines under it too. If the root lives
-there, exclude the contents rather than the directory, so git still descends:
+contains a report and images that genuinely are per-run junk, and a repository
+that ignores the whole of it ignores the baselines under it too. If the root
+lives there, exclude the contents rather than the directory, so git still
+descends:
 
 ```gitignore
 .variance/*
@@ -73,7 +74,7 @@ Take this one when the baselines are a corpus rather than part of a codebase —
 something you back up, prune, or point a bucket at. When the code is in the
 same repository, the placement below is the one that keeps it together.
 
-One directory, anywhere, holding every subject in the suite. Under the `flat`
+One directory, anywhere, with every subject in the suite. Under the `flat`
 layout the whole store is one directory per machine identity, and a subject id is
 a file name:
 
@@ -84,7 +85,7 @@ baselines/v1:6c1f…/src%2Fui%2FButton%2Fprimary.json
 
 The `.json` sidecar is the attribution — which machine wrote the image, and what
 it was allowed to be compared against. It stays text, and reviewable, in every
-placement. A key carrying a label lands as `<subject>__<label>.png`.
+placement. A labelled key lands as `<subject>__<label>.png`.
 
 The percent-encoding is what keeps one directory flat, and it is also its cost:
 a diff touching four components is four files in one heap, and the heap is
@@ -103,9 +104,10 @@ An excerpt — this replaces the `baselines` key of the full
 
 Take this one when the baselines belong to code in the same repository, which in
 a monorepo is every time. `"layout": "beside"` puts a subject's image in the
-directory holding the thing it is an image of, so it arrives with the checkout,
-moves with the `git mv` that moves the component, is deleted by the commit that
-deletes it, and shows up in the diff of the directory that caused it:
+directory where the thing it is an image of lives, so it arrives with the
+checkout, moves with the `git mv` that moves the component, is deleted by the
+commit that deletes it, and shows up in the diff of the directory that caused
+it:
 
 ```
 src/ui/Button/Button.tsx
@@ -135,8 +137,8 @@ because it would write outside the root.
 A **story** is not named after a path. Its id is `story:components-button--primary`
 — a namespaced identifier, which is what keeps it stable when the file moves and
 distinct from a route called the same thing. The directory comes from the built
-index instead: Storybook records an `importPath` per story, the plan carries the
-directory it names, and the image lands there under the story's whole id.
+index instead: Storybook records an `importPath` per story, the plan picks up
+the directory it names, and the image lands there under the story's whole id.
 
 ```
 src/ui/shell/HatBar.stories.tsx
@@ -145,14 +147,14 @@ src/ui/shell/v1:6c1f…/story%3Ahatbar--accepted-hats.png
 
 A story declared at the root of the repository places at the root. A path
 climbing out of the project with `../` is refused, and the message names the
-subject whose id carried it.
+subject whose id spelled it.
 
 `beside` is available to `directory` too. Under either backend the images sit
 next to code people edit, so they turn up in every diff and every clone;
 `lfs` is what keeps the PNG bytes out of the git history.
 
 `createLfsStore` writes its own `.gitattributes` in the root, and the layout
-needs nothing added to it — attributes apply to the directory holding the file
+needs nothing added to it — attributes apply to the directory the file sits in
 and to everything under it.
 
 ## Somewhere else entirely
@@ -184,7 +186,7 @@ The declaration is a hint, not a requirement. A store that does not serve
 `/baseline/working-set` answers it with a 404 and the client falls back to one
 request per key, which is what a deployment of
 [`tribunal`](../packages/tribunal/README.md) does. No **verdict** changes
-either way — the verdict is the one word a run carries per subject,
+either way — the verdict is the one word a run reports per subject,
 `unchanged`, `changed`, `new`, `incomparable` or `ignored`, and it is decided
 by the comparison rather than by how many requests fetched the baseline.
 
@@ -211,7 +213,7 @@ baselines/v1:6c1f…/by-document/v1:a04e….png
 
 Commit that cache and the repository grows by a render on every edit, so `npx
 variance run` points it at `$XDG_CACHE_HOME/variance-authority/renders` and
-leaves the configured root holding baselines and nothing else. There is no
+leaves the configured root with baselines and nothing else. There is no
 config field for the location.
 Building a store yourself, `createDurableStore` and `createLfsStore` both take
 `cacheRoot`, and both default it to the baseline root — pass a path outside the
@@ -225,7 +227,7 @@ key and kills the old one — a run against a changed file never asks for the
 previous document's image again — so left alone it is a directory that only
 grows, in a place you have no reason to look.
 
-Every run sweeps it, and prints what it holds:
+Every run sweeps it, and prints what is left:
 
 ```
 renders: 214.6 MiB cached in /home/you/.cache/variance-authority/renders, freed 91.2 MiB

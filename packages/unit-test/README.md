@@ -79,7 +79,7 @@ test('save button', async () => {
 `capture(root, options)` takes any `Element` mounted in the document — Testing
 Library's `container`, a node from `getByRole`, or one you built with
 `document.createElement` and appended. It reads that element's document for the
-stylesheets that apply to it, so an element that was never attached carries no
+stylesheets that apply to it, so an element that was never attached gets no
 styling.
 
 `writeCapture(directory, artifact)` writes one file per subject and returns its
@@ -128,8 +128,8 @@ missing image is a subject like any other, and the renderer answers the same
 404. Returning `null` fails the capture, naming that one URL.
 
 CSS is read out of the document rather than fetched, so nothing has to resolve
-for it: `<style>` elements, inline `style`, and every stylesheet the document
-already holds are carried.
+for it: the capture takes `<style>` elements, inline `style`, and every
+stylesheet the document already has.
 
 ### Every option
 
@@ -143,7 +143,7 @@ already holds are carried.
 | `sourceRoot` | none | the root component paths are made relative to, so `file:line` survives the move to another machine |
 | `resolveResource` | none | `(url) => bytes`, as above. Required the moment the subtree references anything |
 | `provenanceOf` | none | `(node) => owners`. Attaches the component chain that rendered each node, so a difference can be named by component rather than by DOM path |
-| `wiringOf` | none | `(node) => wiring`. Attaches the framework wiring a node carries — hook shape, keys, boundaries — and it is compared |
+| `wiringOf` | none | `(node) => wiring`. Attaches the framework wiring behind a node — hook shape, keys, boundaries — and it is compared |
 | `holdingOf` | none | `(node) => holding`. Attaches what each component boundary was handed and retained — props, contexts and hook cells, as digests. It rides beside the capture and enters no hash |
 | `stabilization` | none | a digest identifying the routine you held the subject still with — pausing animations, freezing the clock — before calling. Nothing here holds anything still. Absent records that the subject was read as found, and hashes differently |
 
@@ -168,13 +168,13 @@ const artifact = await capture(container, {
 });
 ```
 
-Without them a capture carries no component names — not empty ones.
+Without them a capture stores no component names — not empty ones.
 
 ## Empty the capture directory once per run
 
 A capture is addressed by its subject id, so two tests that both call themselves
 `button/save` address one file. `writeCapture` refuses to be the second write
-rather than overwriting, which also means a directory carried across two runs
+rather than overwriting, which also means a directory kept across two runs
 fails on the second. `resetCaptures` is what gives the directory a run boundary.
 Call it from a once-per-run hook — never from a test file, where it races the
 other test files and deletes their captures.
@@ -239,8 +239,8 @@ directory rather than the working directory.
 | key | what it decides |
 |---|---|
 | `project` | the label this project's rows are filed under in a shared history store |
-| `profile` | what the run may claim about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process carries; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
-| `viewport` | the fallback for a subject that arrives without one. Every capture carries its own, and that is the one used for its subject |
+| `profile` | what the run may claim about a change: `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process records; `chromium` adds computed style, layout and geometry. It does not decide what paints — Chromium paints either way. Set it to match where the capture was taken |
+| `viewport` | the fallback for a subject that arrives without one. Every capture sets its own, and that is the one used for its subject |
 | `retention` | `durable` compares against a stored image and requires `baselines`; `ephemeral` renders both sides inside one run, keeps neither, and requires `baselines` to be absent |
 | `subjects.kind` | `collector` for a module like the one above, `storybook` for a built story index, or `list` for ids you write down |
 | `baselines.kind` | `directory` for files you commit, `lfs` for the same files through the Git LFS filter, or `remote` for an HTTP endpoint — `{ "kind": "remote", "endpoint": "https://…", "token": "…" }` — with nothing in the repository, where a run that cannot call the endpoint stops |
@@ -248,7 +248,7 @@ directory rather than the working directory.
 | `report` | where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json` |
 
 `.variance/baselines` is what every later run compares against, so it has to be
-tracked. `.variance/` also holds captures, a report and candidate images, so
+tracked. `.variance/` also contains captures, a report and candidate images, so
 ignore the contents and keep the baselines:
 
 ```gitignore
@@ -370,7 +370,7 @@ for that test — the next test is entitled to a clean page. A document whose
 environment has no `MutationObserver` retains nothing, and the capture is then
 exactly as good as it was without this.
 
-Read the stylesheets a capture carried, once, after wiring this up. A subject
+Read the stylesheets a capture collected, once, after wiring this up. A subject
 with none is the symptom, and it is invisible in every verdict a run can
 produce:
 
@@ -386,7 +386,7 @@ for (const path of await captureFiles('.variance/captures')) {
 ## Capture from inside a browser tab
 
 `capture` is published on its own as
-`@variance-authority/unit-test/capture`, carrying nothing that touches a
+`@variance-authority/unit-test/capture`, importing nothing that touches a
 filesystem. `@variance-authority/vitest-browser` imports that entrypoint from
 inside the browser tab the test runs in and sends the artifact out to be
 rendered. Everything else on this page is the Node half and stays on the default

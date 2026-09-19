@@ -40,7 +40,7 @@ variance run --config variance.config.json
 collector that mounts each UI state is
 [run visual review from the command line](https://variance-authority.dev/docs/start-cli).
 
-The report holds one record per **subject** — one named UI state you asked for
+The report lists one record per **subject** — one named UI state you asked for
 and can ask for again, such as `checkout/empty`. Storybook stories become
 subjects with a `story:` prefix, so `card--dark` is `story:card--dark`.
 
@@ -143,7 +143,7 @@ console.log(
 ```
 
 `variance_diff` is the twelfth, and the only one that needs a second value — the
-state it is comparing against, which the server holds for you between calls.
+state it is comparing against, which the server remembers for you between calls.
 Called directly, you supply it:
 
 ```ts
@@ -165,7 +165,7 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of and which of its renderings other subjects share | a change has no obvious author, or you are about to call something flaky |
 | `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the source-code regions its tests entered — each hit printing the field it matched | you can describe the subject and do not know its id |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
-| `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will carry, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
+| `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will add, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — the changed pixel regions, the component each belongs to, the files | the summary named a subject and you need the detail |
 | `variance_findings` | accessibility defects in the renders themselves, grouped by rule, with no baseline involved | fixing a component, whether or not it changed |
 | `variance_trace_component` | every subject one component appears in, with pixels and cause-or-displaced | sizing the blast radius of a design-system or token edit |
@@ -193,7 +193,7 @@ than deriving them, so an agent must state what it expected before reading what
 happened. A claim that reaches more subjects than it declared comes back
 `overreached`.
 
-A claim carrying a field this resolution cannot check is named rather than
+A claim that sets a field this resolution cannot check is named rather than
 dropped. A **band** is a category of visual difference, such as `content` or
 `geometry`; an agent told `delivered` about a band nothing looked at has been
 told something the run never established, so the answer ends `Not checked here:
@@ -201,7 +201,7 @@ bands`.
 
 `variance_changelog` previews what accepting this run would write into the
 baseline record, before the write happens — otherwise a baseline update is only
-explained in the commit that carries it, which does not exist until `accept`
+explained in the commit that makes it, which does not exist until `accept`
 runs. The preview renders the record's own lines through the same function that
 writes the commit, over the subject set the same rules select, so the preview
 and the eventual commit cannot disagree. It stops short of the commit trailers:
@@ -219,8 +219,8 @@ changed — whether an edited file, a changed token or an edited *caller* accoun
 for it.
 
 This is also where an unexplained difference gets a **control group**: the
-subjects where that same component, with the same props, held — did not change —
-the stable states to compare against. Given one, an unexplained difference is
+subjects where that same component, with the same props, did not change — the
+stable states to compare against. Given one, an unexplained difference is
 `flake` if the subject also failed to read the same way twice, or `suspect` — a
 shortlist, not a verdict — if nobody has read it twice yet.
 
@@ -239,11 +239,11 @@ per-subject declaration of which bands it asserts on — a route declared `layou
 has said, in its config, that it does not assert on what the page is painted
 with, so a clock inside it is a fact about the page rather than a defect. A
 subject whose two readings differed entirely in bands outside its declared level
-is listed under **not asserted on** and carries no instruction. It is still named
-and counted, with the rule that absorbed it — the same reason a subject whose
-pixels were excluded by an ignore rule is reported as `ignored` rather than
-folded into `unchanged`: an exclusion nobody can see again is one nobody is
-really watching.
+is listed under **not asserted on** and comes with no instruction. It is still
+named and counted, with the rule that absorbed it — the same reason a subject
+whose pixels were excluded by an ignore rule is reported as `ignored` rather
+than folded into `unchanged`: an exclusion nobody can see again is one nobody
+is really watching.
 
 `accept` refuses `unstable` and `order-dependent` subjects; only `changed` can be
 promoted. Instability is checked first: the clean-vs-shared comparison behind
@@ -280,17 +280,17 @@ stands and how many files the working tree differs from it by — followed by th
 It is in the header rather than in a tool of its own because an option an agent
 is never told about is an option it does not have. Nothing about the line
 proposes that a run should have skipped anything; narrowing stays the operator's
-decision, and the header carries the coordinate the decision needs. It is omitted
+decision, and the header prints the coordinate the decision needs. It is omitted
 when there is nothing to offer: no index on disk, an index with no position, or
 a working tree that has not changed since.
 
 ## Diff against the previous call
 
-The word **subject** carries two grains here, and both are in the source. Inside
+The word **subject** has two grains here, and both are in the source. Inside
 a report it is one UI state, as above. In the server API it is the whole value
 being served — a `RunReport` for the visual tools, an `ExecutionIndex` for the
 source-test tool, a `VantageState` for a suite that is still running, or an
-`ObservabilitySubject` carrying several of those at once.
+`ObservabilitySubject` combining several of those at once.
 
 `variance_diff` compares the currently served value with the value from the
 previous successful tool call. The first call records the current state and says
@@ -314,7 +314,7 @@ named when the server is started. `serveReportFile(path, options)` takes it:
 
 | option | what it decides |
 |---|---|
-| `root` | the repository the run was made in. Without it, a question carrying a start point is refused rather than answered from the paths the run happened to record |
+| `root` | the repository the run was made in. Without it, a question that names a start point is refused rather than answered from the paths the run happened to record |
 | `index` | where the scan keeps what it has already parsed, so a second question that names a path costs a map lookup per unchanged file instead of a parse |
 
 `readTree(options)` is the same walk on its own, for a host that would rather
@@ -358,7 +358,7 @@ told it one run too late.
 
 | tool | answers | ask it when |
 |---|---|---|
-| `variance_self` | where this watcher is listening, what it is holding, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
+| `variance_self` | where this watcher is listening, what it has collected, and exactly what to start a suite with | first, and again whenever an answer is emptier than expected |
 | `variance_run_signals` | every test that has reported, in the order the run opened them, its state, and how much each has announced | you want to know where the suite has got to, or which test is the one still going |
 | `variance_test_signals` | everything one test has announced, in order, with the realm that said each, plus work that started and never ended | a test is hanging, or failed, and the assertion that did not settle is the part you already know |
 | `variance_waiting` | which tests have stopped at an `await variance.observe()` call, where each stopped, and what it sent from there | before looking at anything, and whenever you want to know whether a run is holding something open for you |
@@ -383,7 +383,7 @@ clock is stopped while it stands still. `variance_waiting` says which tests are
 stopped and where, and prints whatever they sent from those points;
 `variance_continue` takes one id, or nothing at all to release everything.
 
-Neither is offered by `variance ask`. A shell command holds no run, so there is
+Neither is offered by `variance ask`. A shell command owns no run, so there is
 nothing in it to release, and one that reported success while nothing happened
 would be worse than a missing one.
 
@@ -396,15 +396,16 @@ arrived or never came back. Three announcements and then silence, with one
 
 Nothing is written down and nothing is added to the run's evidence: a report file
 records what a run **decided**, and this records what it **is doing**, which
-stops being a fact the moment this process exits. What it holds is bounded, and
-it says so when it dropped something, because a reader who cannot tell *nothing
-was announced* from *the beginning was forgotten* draws the first conclusion.
+stops being a fact the moment this process exits. What it retains is bounded,
+and it says so when it dropped something, because a reader who cannot tell
+*nothing was announced* from *the beginning was forgotten* draws the first
+conclusion.
 
 `variance_diff` is served here too, so *what changed since I last asked* works
 against a suite in flight the same way it works against a report.
 
 The same three questions, and `variance_diff` with them, are on the command line
-without a client: `variance watch` holds the run and `variance ask <question>
+without a client: `variance watch` hosts the run and `variance ask <question>
 --at <address>` reads it. Same functions, same text, no client configuration to
 edit — see [ask a run from the command line](https://variance-authority.dev/docs/agent-cli).
 
@@ -450,7 +451,7 @@ the test runner.
 ## Serve several kinds of evidence at once
 
 A run report is one of six things this package can answer from. The others are
-produced by sibling packages, and an integration that holds more than one can
+produced by sibling packages, and an integration that owns more than one can
 serve them over a single connection as an `ObservabilitySubject`, whose
 `OBSERVABILITY` tool set this package exports. Each field is optional, because
 each producer has its own lifecycle and retention rules:
@@ -482,7 +483,7 @@ members. Native tools remain available on the same connection:
 | `variance_test_attention` | an **Eyes archive** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each test addressed, and which React component rendered each | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_source_tests` | a Sense execution index, as above | which named tests entered source and their minimum observed distance |
-| `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) is holding for a suite that has not finished | what an in-flight suite and one test have announced |
+| `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) has heard from a suite that has not finished | what an in-flight suite and one test have announced |
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
@@ -522,15 +523,15 @@ the producer and route for every unavailable domain:
 | Eyes attention | `@variance-authority/eyes` | compose the host adapter, author AAA phase markers, retain per-test journals with their completion state under stable runner ids, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |
 
-The full mechanics stay with each producer. The MCP answer carries the minimum
+The full mechanics stay with each producer. The MCP answer states the minimum
 route and the constraint that would otherwise produce plausible but invalid
 evidence. The dedicated `REPORTS`, `PRESENTATIONS`, `SOURCE_TESTS`, `EYES`, and
-`SCENARIOS` served sets carry the same route in their initialization handshake,
+`SCENARIOS` served sets send the same route in their initialization handshake,
 so an integration does not need the combined surface to receive it.
 
 ## Entrypoints
 
-| entrypoint | requires | holds |
+| entrypoint | requires | exports |
 |---|---|---|
 | `.` | stdio | `serve`, `serveReportFile` and `serveVantage`, and the subject locator |
 | `./tools` | nothing | observability answers as pure functions over their native evidence |
@@ -556,7 +557,7 @@ composes when the report does not come from a file:
 | `served` | the `Served<Subject>` name and tools for the subject; use `REPORTS` for a `RunReport` or supply a set for another serializable subject |
 | `subject` | supplies the current subject. A function rather than a value, so a long-lived server picks up a re-run without a restart — an agent that fixes something and asks again should be answered from the new report, not from the one loaded at boot. It may be async, and the request waits for it: a supplier that started a refresh and answered from the previous value would make *this* request the stale one, and this request is the agent that just re-ran |
 
-A `Served` is a name, a version and the tools. It may also carry
+A `Served` is a name, a version and the tools. It may also include
 `instructions`, a function of the subject whose answer the client puts in front
 of the model before it has called anything — for a set of tools whose subject
 has to be *arranged* first, and which therefore reads as broken to an agent that
@@ -570,12 +571,12 @@ subject that keeps changing fits a surface built for one that does not.
 
 ## Stability
 
-**The tool names, their argument shapes and the wording of their answers carry no
-compatibility guarantee.** They are answers chosen to be useful to an agent
-rather than a published interface, and an answer that turns out to be the wrong
-one to give will change without a deprecation. If you need them to hold still,
-import `@variance-authority/mcp/tools` behind an adapter of your own and pin the
-version.
+**The tool names, their argument shapes and the wording of their answers come
+with no compatibility guarantee.** They are answers chosen to be useful to an
+agent rather than a published interface, and an answer that turns out to be the
+wrong one to give will change without a deprecation. If you need them to hold
+still, import `@variance-authority/mcp/tools` behind an adapter of your own and
+pin the version.
 
 ---
 

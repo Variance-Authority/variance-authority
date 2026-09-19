@@ -12,7 +12,7 @@ produced it, and what a lookup, merge and append cost.
 [`source-structures.md`](source-structures.md) covers the static side this page
 joins with.
 
-Throughout, `T` is the number of tests the record holds, `M` the number of
+Throughout, `T` is the number of tests the record lists, `M` the number of
 modules, `B` the number of blocks in one module, `P` the total number of
 preconditions, and `C` the number of crossings, one per test that executed a
 block.
@@ -78,8 +78,8 @@ for (const module of coverage.modules) {
 rest of this page describes: tests with their preconditions, modules with their
 blocks, and on each block the test files that crossed it. Budget a second and
 three hundred megabytes of heap for a repository-scale snapshot — thirty times
-the file it came from — because the model holds objects where the file holds
-columns.
+the file it came from — because the model is made of objects where the file is
+made of columns.
 
 When you want one module's regions rather than the repository's, open the file
 instead of decoding it. `openCoverageFile(file)` parses the section index and
@@ -126,7 +126,7 @@ those entry points, not functions you can call.
 Call `instrument` to parse one module with `oxc`. You get back `Instrumented`:
 the transformed `code`, the `sourceDigest` of the exact input, the
 `instrumentation` id, and a `blocks` array in ordinal order. Each `Block`
-carries the ordinal, the kind, the owner ordinal, the digest, the name, the
+has the ordinal, the kind, the owner ordinal, the digest, the name, the
 path, and the start and end offsets in the original source. For a module the
 parser cannot read you get `undefined` rather than an empty list, because *not
 instrumented* and *no regions* are different facts — check for it.
@@ -137,7 +137,7 @@ so read it against this order. One rule generates the set: a block is a region t
 enters under exactly one condition, one the region around it does not imply.
 Entering a `try` body follows from entering the region around it, so it is no
 block; entering its `catch` does not, so it is.
-Ternaries and the short-circuit operators stay inside the region that holds
+Ternaries and the short-circuit operators stay inside the region that encloses
 them.
 
 **Ordinal.** The block's position in a pre-order walk of the module, and the
@@ -180,7 +180,7 @@ nobody wrote or a `default` nobody wrote, has zero width and digests to its
 kind alone.
 
 **Offsets.** `start` and `end` are offsets into the original source. The
-record and the coverage file carry lines instead, computed through the
+record and the coverage file use lines instead, computed through the
 bundler's source map when there was a transform before this one, so a diff
 hunk lands on the file the author edited.
 
@@ -197,8 +197,8 @@ identical either way.
 
 ### A worked example
 
-The module below holds eight regions. Instrumenting it adds text on
-existing lines only; no line is added, so the lines a block covers are the
+The module below has eight regions. Instrumenting it adds text on existing
+lines only; no line is added, so the lines a block covers are the
 lines the author wrote.
 
 ```js
@@ -242,16 +242,16 @@ array of eight slots, not one per function.
 Across test files the ordinals are the join key. Every worker that ran this
 module reports hits against the same eight slots, and the fold unions them per
 ordinal into the block's `testFiles`. `foldTestCoverage` unions the records of a
-sharded run the same way, and refuses two shards that hold the module under two
-source digests, because their slot 4 would be two places.
+sharded run the same way, and refuses two shards that record the module under
+two source digests, because their slot 4 would be two places.
 
 ### Identity under an edit
 
 An ordinal is a slot in one instrumented version of a module, and it is not
-what carries evidence forward. What carries it is the region's address: the
+what keeps evidence across an edit. What keeps it is the region's address: the
 declaration name path and the structural path inside it, which say where the
 region sits in the module's tree rather than where it sits in the module's
-text. `mergeCoverage` carries a crossing from the previous record onto the
+text. `mergeCoverage` moves a crossing from the previous record onto the
 region with the same address, and the digests take no part in that.
 
 So renumbering is not invalidation. Inserting
@@ -262,7 +262,7 @@ body to 3, `label` to 8. Inserting a top-level
 other way. In both the record keeps every crossing it had, because
 `total/if#0/then` is still `total/if#0/then`.
 
-A crossing is dropped only when the new text holds no region with its address:
+A crossing is dropped only when the new text has no region with its address:
 a function renamed, a decision deleted, an arm that is now a loop. Even that
 rarely retires a test. Arrival nests — a test reached a region by entering
 every region around it, up to the module — so a test whose function was
@@ -277,19 +277,19 @@ the crossing would throw away the evidence the change is about to be answered
 with, and reading the owners' digests too made any edit at a module's top level
 retire every crossing in the file.
 
-| edit | crossings kept | the carried test's row |
+| edit | crossings kept | the kept test's row |
 |---|---|---|
 | function added inside `total` | every one | whole |
 | function added at module level | every one | whole |
 | body of one `if` arm edited | every one | whole |
 | `total` renamed | those of the root and `label` | whole |
 
-**A module the run did not load** is carried, and its rows are lines of the
-text it had when it was recorded. When that text has since changed, the
+**A module the run did not load** stays in the record, and its rows are lines
+of the text it had when it was recorded. When that text has since changed, the
 regions are read out of the text standing there now and each crossing is
-carried onto the region with its address, so the rows are in coordinates the
+moved onto the region with its address, so the rows are in coordinates the
 next diff will be in. A module whose text cannot be read as source has no
-table to place them in: it is carried as it was, and every test that entered
+table to place them in: it stays as it was, and every test that entered
 it is demoted.
 
 ### From a crossing back to a line
@@ -297,11 +297,11 @@ it is demoted.
 The record joins a block to the file two ways. `sourceDigest` on the module
 row names the exact text the ordinals were cut from, and `startLine` and
 `endLine` on each block are lines of that text. A diff is charged to lines, a
-line lands on the blocks whose range holds it, and a block yields the tests
+line lands on the blocks whose range covers it, and a block yields the tests
 that crossed it; the procedure is in *Tracing a diff to tests* below.
 
 So whether a change to a handler runs any test depends on where the
-edited line sits. Take a component whose render function holds a two-line
+edited line sits. Take a component whose render function defines a two-line
 `toggle` closure and a one-line `onClick` arrow, recorded with one test that
 clicked and one that only rendered:
 
@@ -309,12 +309,12 @@ clicked and one that only rendered:
 |---|---|---|
 | a line inside `toggle`'s body | `Button/toggle` only | the test that clicked |
 | the line `const toggle = () => {` | `Button/toggle`, then `Button` | both |
-| the JSX line holding `onClick={() => …}` | `Button/anon#0`, then `Button` | both |
+| the JSX line with `onClick={() => …}` | `Button/anon#0`, then `Button` | both |
 
 A line that is a region's first or last line is also the enclosing region's
 text on that line, so the charge extends outward and the tests that merely
-rendered are selected. An edit that lands on a line the handler holds entirely
-charges the handler and nothing wider, and a handler no test crossed then
+rendered are selected. An edit that lands on a line belonging to the handler
+alone charges the handler and nothing wider, and a handler no test crossed then
 selects no test at all. A one-line handler has no such line, so every edit to
 it runs the tests that reached the component.
 
@@ -322,28 +322,28 @@ it runs the tests that reached the component.
 own in the text the rows are coordinates in, so it is charged to the lines on
 either side of the gap it opens — and at a module's top level both of those are
 the module, whose crossings are every test that ever imported the file. The
-diff carries the added text, so the question is asked of the text instead: a
+diff includes the added text, so the question is asked of the text instead: a
 type, an interface, a signature with no body, a type-only import, a comment,
 each of them erased before the module runs, which leaves the text that was
 already there the whole of what ran, so the hunk charges nobody. A function
 declaration is not on that list, because it hoists: it binds its name at the top
-of the block the text landed in, over whatever that name held there, and the
-lines above it are the ones the hunk did not touch. Neither is a class
+of the block the text landed in, over whatever value that name had there, and
+the lines above it are the ones the hunk did not touch. Neither is a class
 declaration, whose decorators, computed keys, static initializers and base
 expression all run, nor an enum the compiler emits, whose function merges into
-whatever object its name already holds, nor a `const`, whose initializer is work
-every importer of the module consumed.
+whatever object its name already refers to, nor a `const`, whose initializer
+is work every importer of the module consumed.
 
 ## The coverage file
 
-The file you located above carries two numbers. One is the
-model version: what `TestCoverage` means, stated by a producer and carried
+The file you located above declares two numbers. One is the
+model version: what `TestCoverage` means, stated by a producer and passed
 through a merge. The other is the byte layout, which changes when the model
 does not; a file written under another layout is refused rather than
 reinterpreted. The container is a `u32` little-endian
 header length, a JSON header `{ version, sections }` padded with `NUL` so the
 payload starts on an 8-byte boundary, and then the sections. Each entry in
-`sections` carries `name`, `offset` from the start of the payload, `length` in
+`sections` gives `name`, `offset` from the start of the payload, `length` in
 bytes, `width` — one byte for `strings.blob` and the flag and kind columns,
 four for everything else — and `rows`, present only on a section stored as
 runs. Every section starts on an 8-byte boundary.
@@ -353,7 +353,7 @@ row number. Read a column whose name ends in `.off`, or one described below as a
 range, as a compressed sparse row offset column with one more entry than the
 parent has rows: child rows for parent `i` are `[off[i], off[i + 1])`.
 
-| Group | Column | Holds |
+| Group | Column | Contains |
 |---|---|---|
 | strings | `strings.blob`, `strings.off` | one UTF-8 dictionary, code-unit sorted, referenced by id everywhere else |
 | snapshot | `snapshot.instrumentation` | one string id, the instrumentation the whole file was produced under |
@@ -426,7 +426,7 @@ query reads columns and the model is something a caller asks for by name.
 
 What makes the model expensive is repetition rather than size. A path is named
 again by every region of its module and again by every crossing that entered
-one, so a decode holds one string per id and hands that one to every use of it.
+one, so a decode keeps one string per id and hands that one to every use of it.
 Decoding each use on its own costs twice the time and close to three times the
 heap, for a model that says exactly the same thing.
 
@@ -447,7 +447,7 @@ eight hundred and fifty modules. A digest spends sixty-four bits at every one
 of them and cannot spend fewer, because a digest is uniformly distributed: a
 sorted run of them has gaps as wide as the space, and measures 64.00 bits an
 element under zstd, which is the same as not compressing it at all. Two hundred
-thousand modules hold 17.6 bits of module. Numbering them exactly spends
+thousand modules come to 17.6 bits of module. Numbering them exactly spends
 eighteen, and a sorted run of exact numbers is a run of small gaps, which is a
 run that compresses.
 
@@ -462,10 +462,10 @@ today renumbers nobody numbered before it.
 
 **Growth.** The table rides the immutable log
 ([`source-structures.md`](source-structures.md) has its shape): an append is a
-new segment holding only the paths that are new, published under one atomic
+new segment listing only the paths that are new, published under one atomic
 manifest, and a compaction merges the chain into one sorted run without
-disturbing an id. A lookup binary-searches each of the at most eight segments a
-chain holds.
+disturbing an id. A lookup binary-searches each of the at most eight segments
+in a chain.
 
 **Who assigns.** The fold, at the end of a run: the runner's reporter in its
 parent process, or — where the fold is one of several processes writing one
@@ -520,7 +520,7 @@ of region sits at it. `mergeCoverage` matches `name` and `path`, and then asks
 the one remaining question, whether the kinds agree. Nothing above the block
 enters the match and neither does its digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
-against it does not carry over.
+against it is dropped.
 
 **Precondition.** The pair of path and digest, kept unique per test by the
 concatenation `name`, `NUL`, `digest`. A test's preconditions are the files
@@ -528,7 +528,7 @@ its answer depended on that the instrument could not see inside: the test
 file itself, configuration, fixtures, and modules that were loaded but not
 instrumented.
 
-**Crossing.** `(block, test)`. The record holds presence, not counts: a test
+**Crossing.** `(block, test)`. The record stores presence, not counts: a test
 crossed a block or did not. Counts exist only in the runtime array and are
 gone once the journal is written.
 
@@ -563,11 +563,11 @@ below is one stage of that call.
 2. **Added text the module never runs.** The added text of each such range is
    parsed. A range whose text is nothing but types, interfaces,
    signatures with no body, erased enums, type-only imports and a re-export of
-   a name the file already holds is dropped before anything is charged: none of
+   a name the file already has is dropped before anything is charged: none of
    it is evaluated where the code that already ran could use it. Text that
    parses to no construct at all — a comment, a blank line — is *not* dropped,
    because the same bytes at the same line number are equally a line of the CSS
-   or the copy a module renders out of a template literal, and a diff carries no
+   or the copy a module renders out of a template literal, and a diff offers no
    coordinate finer than the line. One parse per inserted run.
 3. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
@@ -600,10 +600,10 @@ below is one stage of that call.
    file whose edges are unknown is charged as well, as an addition that
    neither answers nor unsettles. O(n + m) on the graph per changed file.
 6. **Unread.** A changed path is measured only when *every* name the caller
-   says the snapshot may hold it under was answered for by a module row, a
+   says the snapshot may list it under was answered for by a module row, a
    precondition or a chain to a recorded importer. One file is often two names
    — a package's own suite loads `src`, every other package loads the built
-   twin — and the two carry different audiences, so a row under one name
+   twin — and the two serve different audiences, so a row under one name
    witnesses nothing about the tests that loaded the other. A path any of whose
    names went unanswered, and a path the caller gives no name at all, is
    reported as unread, and the caller runs everything. A name with a row is
@@ -617,7 +617,7 @@ The whole trace is O(diff length + inserted text + B per changed module + C of c
 Going the other way costs you one row read. A test's preconditions name the files
 whose change must re-run it without any block being involved, and its
 crossings are the inverse of `crossings.test`: the blocks whose crossing range
-contains the test's row. The file holds no index in that direction, so listing
+contains the test's row. The file has no index in that direction, so listing
 every block a test crossed is O(C) over the whole record. `ExecutionIndex` is
 the same data in the shape a collector or an editor integration supplies: each
 block lists the tests that crossed it with the call-stack depth from the test to
@@ -635,16 +635,17 @@ as a location without the chain: the declaration and the structural position
 inside it. `start` and `end` place the block on the lines of the source at
 `modules.source`. When the file on disk no longer hashes to that digest the
 lines are the record's, not the disk's. A merge notices that and re-cuts the
-rows over the text that is there. A file it cannot read at all is held apart from one that is not there: a path that has gone leaves the
+rows over the text that is there. A file it cannot read at all is treated
+differently from one that is not there: a path that has gone leaves the
 module to be answered for by name, and a path that refuses to be read retires
-the observation instead of carrying it forward over text nobody has seen.
+the observation instead of keeping it over text nobody has seen.
 
 ## Journals
 
 Every runner seam records what one process saw and leaves the fold to the
 writer. Read this section when you are wiring a runner yourself; a suite using
 the shipped Vitest, Jest, Playwright or Storybook seams never sees a journal.
-Three journal shapes exist, and each carries a list of `ExecutedModule`; the
+Three journal shapes exist, and each includes a list of `ExecutedModule`; the
 record that gives their ordinals meaning is the fourth shape here:
 
 ```json
@@ -653,7 +654,7 @@ record that gives their ordinals meaning is the fourth shape here:
 
 `id` is the id the module was instrumented under — its number, or its path
 until it has one — `hits` the ordinals whose counter was above zero, ascending,
-and `shared` the subset of `hits` whose counter carried the `EVALUATING` bit.
+and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 `loaded`, in the worker journal only, is the subset of `hits` whose counter was
 already above zero in the snapshot the setup file took before the file's first
 test: regions entered as a consequence of loading. Presence only: the counts
@@ -715,7 +716,7 @@ parser would take a pass. A module the parser refused has no blocks and says so
 in its flags, which is what makes a consumer widen instead of trusting an empty
 table.
 
-A frame carries everything it needs, which is what lets a writer append and
+A frame contains everything it needs, which is what lets a writer append and
 return. A reader stops at the first frame that runs past the end of the file,
 so a process killed mid-append loses that module and not the segment, and a
 byte a filesystem lost silently fails the frame's own checksum rather than
@@ -740,14 +741,14 @@ that still mean what they meant.
 application a Playwright suite drives, because an ordinal means something only
 against the record that minted it. A driven run has nowhere else to read its
 block table from, so a page journal's ordinals mean nothing without the store
-the build wrote. When one run reads several stores, a module two of them hold
+the build wrote. When one run reads several stores, a module two of them store
 with different source digests is recorded as not instrumented: its ordinals
 mean two things.
 
 **Page journal.** The collector that `testSelectionProbes` hoists in front of
 every instrumented module installs the page factory and exposes itself on
 `globalThis.__variance_authority_execution__` — the name `EXECUTION_GLOBAL`
-carries — as `{ version: 1, instrumentation, drain(), reset() }`. `drain`
+spells — as `{ version: 1, instrumentation, drain(), reset() }`. `drain`
 returns `{ instrumentation, modules }` and zeroes every counter; `reset` zeroes
 without reporting. Call `drainExecution(page)` after each subject. You get
 `undefined` back from a page with no collector, which means an application built
@@ -778,9 +779,9 @@ made inside a request that carried a journey cookie and `process` for
 everything the process did outside any journey, its own initialization for
 instance, which the driver folds into every subject. `lost` counts the
 earlier accounts this head could not deliver, and a positive count marks the
-run incomplete. The account carries no journey id and no subject name: the id
+run incomplete. The account names neither the journey nor the subject: the id
 travels on
-the wire, and only the driver holds the map from journey to subject.
+the wire, and only the driver owns the map from journey to subject.
 
 **The wire.** One execution is one opaque UUID minted by the driver, carried
 in the cookie `variance-authority-journey`, and the address a head delivers
@@ -813,24 +814,25 @@ build and of every declared head the record of each module the subjects
 reported, refuses when it can identify none of them or when one names another
 instrumentation id, and folds under `<coverage>.lock`. The lock is
 exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
-stale after sixty. Two stores that hold one module under two source digests
-record it as not instrumented. A module no store holds is dropped, and the
-subject that entered it is recorded incomplete, because a subject whose
+stale after sixty. Two stores that disagree on one module's source digest
+record it as not instrumented. A module missing from every store is dropped,
+and the subject that entered it is recorded incomplete, because a subject whose
 crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.
 
-**Merge with the previous record.** `mergeCoverage` carries forward what the run
+**Merge with the previous record.** `mergeCoverage` brings forward what the run
 did not observe. When the instrumentation id differs the previous record is
 dropped whole. A test the run observed replaces its previous row. A test the
-run did not observe keeps its row, unless the new table holds no region it
-crossed at all, in which case it is demoted to incomplete and re-runs on its
-next selection. A carried module whose text on disk changed has its rows re-cut
-over that text, one parse per such module, and only a module whose text cannot
-be parsed demotes every test that crossed it. Both sides are indexed before the
-walk — modules by path, blocks by their address, name path and structural path
-together — so the cost is O(M_prev + M_cur) plus O(B_prev + B_cur) for each
-matched module, and the file is sorted on the way out.
+run did not observe keeps its row, unless no region it crossed survives in the
+new table, in which case it is demoted to incomplete and re-runs on its
+next selection. An unobserved module whose text on disk changed has its rows
+re-cut over that text, one parse per such module, and only a module whose text
+cannot be parsed demotes every test that crossed it. Both sides are indexed
+before the walk — modules by path, blocks by their address, name path and
+structural path together — so the cost is O(M_prev + M_cur) plus
+O(B_prev + B_cur) for each matched module, and the file is sorted on the way
+out.
 
 **Fold shards.** `foldTestCoverage` unions the records of a
 sharded run, in any order, O(sum of shard sizes). It refuses shards with
@@ -849,18 +851,18 @@ and never the bytes between.
 
 Read a column and its values are checked on the way out; a column you never read
 is never proven. Validation is paid for where it is used: a column nobody reads is never checked,
-because nothing it holds was believed. Shape is the exception — the section
+because nothing in it was believed. Shape is the exception — the section
 index states it, and parsing the index is all an open does, so an open refuses
 an index whose row counts disagree: a range column that is not one longer than the rows
 it cuts, a column of block properties that does not agree with the block count,
 a snapshot without exactly one instrumentation id.
 
-Values are settled by the column that holds them, when something reads it, and
+Values are settled by the column that owns them, when something reads it, and
 a run at a time where a run is enough to tell. Every string id is below the
 dictionary size; every flag byte is zero or one; every kind byte names a kind;
 every crossing names a test row; every block's start is at or before its end; a
 module is instrumented exactly when it has blocks. A column nobody reads is
-never proven, because nothing it holds was believed.
+never proven, because nothing in it was believed.
 
 Some properties are true of a whole column and of no run of it, and those are
 settled when the column materializes: string offsets and the two range columns
@@ -901,7 +903,7 @@ file costs you one full run and never a narrowed one.
 | number what a run met | O(M log M), the compaction it publishes beside the delta | the fold, at the end of a run |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
 | merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
-| re-cut a carried module's rows | O(module length) | `mergeCoverage`, per changed module |
+| re-cut an unobserved module's rows | O(module length) | `mergeCoverage`, per changed module |
 | fold shards | O(Σ shard rows) | `foldTestCoverage` |
 | encode | O(r log r) | `writeTestCoverage` |
 

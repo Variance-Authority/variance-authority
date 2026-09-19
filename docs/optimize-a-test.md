@@ -16,7 +16,7 @@ cost in both halves of this chapter at once.
 | What did this test address, and what source did it enter? | One test's [Eyes](eyes.md) journal joined to its [execution index](execution-record.md) | [Distil a test](distill.md) |
 | Which modules did it load without entering? | The same reading, region by region | [Imports nothing ever calls](distill.md#imports-nothing-ever-calls) |
 | Which regions has nothing in the pool ever entered? | The journal accumulated across runs | [What a record knows](selecting.md#what-a-record-knows-that-no-graph-can) |
-| Does a mock already written still take? | Taints held against the record | [Where they disagree](selecting.md#where-the-taints-and-the-record-disagree) |
+| Does a mock already written still take? | Taints checked against the record | [Where they disagree](selecting.md#where-the-taints-and-the-record-disagree) |
 
 The first two are about one test. The last two are about the suite, and they are
 where a boundary worth changing usually shows up first.

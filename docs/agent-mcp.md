@@ -24,7 +24,7 @@ npx variance run --config variance.config.json
 collector that mounts each UI state, is
 [run visual review from the command line](start-cli.md).
 
-The report holds one record per **subject** — one named UI state you asked for
+The report contains one record per **subject** — one named UI state you asked for
 and can ask for again, identified by a stable id such as `checkout/empty` or
 `story:checkout--empty`.
 
@@ -64,15 +64,15 @@ and no server: [ask a run from the command line](agent-cli.md).
 
 Begin a report-file session with `variance_summary`. It accounts for planned
 subjects that were not observed as well as for the observations that produced a
-**verdict** — the one word carried per subject: `unchanged`, `changed`, `new`,
+**verdict** — the one word reported per subject: `unchanged`, `changed`, `new`,
 `incomparable` or `ignored` — so silence cannot be mistaken for a clean run.
 
 If the summary names changes, ask `variance_changes` before opening an
 individual subject. It groups shared causes across subjects. Narrow to a
 subject, component, finding, [composition](composition.md), or verdict explanation only when the
 question requires that detail. After replacing the report with a completed
-rerun, `variance_diff` compares the current supplied state with the one held from
-the preceding successful tool call.
+rerun, `variance_diff` compares the current supplied state with the one kept
+from the preceding successful tool call.
 
 A question that names a thing rather than a subject id goes to
 [`variance_locate`](locate.md). It finds subjects from a description over every
@@ -82,7 +82,7 @@ checkable and a wrong first hit costs one more call. `variance_composition`
 with a `subject` then prints what that subject is made of. When the run recorded
 no composition, both say so rather than matching nothing.
 
-## Evidence other integrations hold
+## Evidence other integrations supply
 
 The standalone `variance-authority-mcp` executable reads the report file it is
 given and nothing else; it does not look for other artifacts beside it.

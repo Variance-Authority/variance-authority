@@ -77,7 +77,7 @@ CHANGED  story:card
 `band` there is the kind of change, not its size. There are five, loudest
 first: `a11y` (a role, accessible name or ARIA state changed), `geometry`
 (boxes appeared, vanished, moved or resized), `token` (style values changed
-while structure held), `content` (text changed and nothing else did),
+while structure stayed the same), `content` (text changed and nothing else did),
 `texture` (sub-pixel raster noise).
 
 That is a false alarm wearing a name badge. A plain pixel differ would have told
@@ -99,7 +99,7 @@ The stabilization recipe meets that precondition before observation begins.
 
 A recipe is a named list of tricks applied at one moment. A **collector** is
 what does the reading — the Storybook, route, unit or custom adapter you point
-at your UI — and it carries the recipe. There are three moments:
+at your UI — and it comes with a recipe. There are three moments:
 **collection**, when the live page is read; **render**, when the
 reading is reconstructed and painted; and **the wire**, where every response
 the page is served can be rewritten before the browser sees it.
@@ -278,7 +278,7 @@ twice about a second apart through the collector you would use.
 | | |
 |---|---|
 | observed untouched | the render hash **changes** |
-| under the default recipe | the render hash **holds** |
+| under the default recipe | the render hash **stays the same** |
 | the two together | different `semanticDigest`, so they are never compared |
 | the injected sheet | appears nowhere in the subject |
 
@@ -360,7 +360,7 @@ compression are exactly what the author shipped, where a canvas round-trip
 re-encodes through RGBA into a different image from the one under test.
 
 No decoder, no encoder, no dependency. What it will not do is guess: bytes that
-are not a GIF, a GIF that already holds one frame, and a file whose blocks it
+are not a GIF, a GIF that already has one frame, and a file whose blocks it
 could not parse are all passed through untouched, because a truncation taken from
 a position the parse cannot vouch for is a corrupt asset served to a browser.
 
@@ -411,7 +411,7 @@ consequence worth knowing: a contrast finding over a blanked image is measured
 against whatever is behind it.
 
 A rule matches on `url` (a glob), `minPixels`, `maxPixels`, or any combination —
-every matcher present must hold. A rule that names none of them is refused rather
+every matcher present must match. A rule that names none of them is refused rather
 than applied to everything, because blanking every image on a site is a real
 policy and an illegitimate thing to arrive at by leaving a field out.
 
@@ -429,7 +429,7 @@ read it back per subject without re-running with the feature off.
 
 ### …and the half the wire cannot decide
 
-A request carries no idea which element wanted it. `role="presentation"`,
+A request says nothing about which element wanted it. `role="presentation"`,
 `alt=""`, a selector, a rendered box — none of those exists on the wire, and no
 amount of care there will produce them. That is a fact about a document, so the
 trick that uses it is a stylesheet:
@@ -494,16 +494,17 @@ Routing disables the browser's HTTP cache for what it routes, and every routed
 request makes a round trip into Node. Only asset requests are fetched and read;
 everything else is continued without its body. Set `network: false` on the
 collector — `hashAssets: false` on the observer — to turn it off, which is the
-right call for a build whose URLs already carry their own content hash. The
+right call for a build whose URLs already include their own content hash. The
 assets map is then empty, and an empty map is visibly a run that recorded nothing
 rather than a run that had nothing.
 
 ### Which assets belong to which subject
 
 Wired into both collectors, and narrowed per subject on the way in.
-**The wire sees a page; the result a run reports is about one subject.** A request carries no idea
-which story will end up using it, so a Storybook run — one navigation, three
-hundred subjects — would give story 200 the page's whole asset set, which depends on which stories ran before it. That is not
+**The wire sees a page; the result a run reports is about one subject.** Nothing
+in a request identifies which story will end up using it, so a Storybook run —
+one navigation, three hundred subjects — would give story 200 the page's whole
+asset set, which depends on which stories ran before it. That is not
 over-invalidation, which would merely be noise. It is **order dependence in the
 identity a baseline is stored under**: shard the suite differently and every key
 in it changes.
@@ -517,7 +518,7 @@ every element and its `::before`/`::after`, because a background image is named 
 no attribute at all.
 
 Every candidate rather than the one this device would pick, deliberately: which
-`srcset` entry loads depends on the device pixel ratio, and a key holding only the
+`srcset` entry loads depends on the device pixel ratio, and a key listing only the
 chosen one lets the 2× asset change without changing a 1× runner's key.
 
 A URL nothing requested is **absent, never a placeholder** — an asset served from
@@ -525,7 +526,7 @@ the browser's cache before the observation started has bytes nobody here saw, an
 an invented entry would be a claim about content that no later run could
 contradict.
 
-### The document carries them too, which is what the render skip reads
+### The document includes them too, which is what the render skip reads
 
 Putting the assets in the *capture* alone is not enough, and the shortfall has no
 symptom. The render skip — `settle()` from `@variance-authority/raster`, not the
@@ -534,7 +535,7 @@ the digest the baseline was painted from. So a document that omits the assets
 produces the same digest after a logo's bytes change, the render is skipped, and
 the run reports `unchanged`. That is the false verdict hashing the bytes exists
 to close, reappearing one layer in. Both the document digest and the environment
-key carry the same per-subject asset set.
+key are computed over the same per-subject asset set.
 
 ---
 
@@ -585,7 +586,7 @@ shows its fallback, so the state of every boundary is reachable by traversal fro
 the same `__reactFiber$…` expando [provenance](attribution.md) already reads — at any time, on a
 page nobody instrumented, including in production.
 
-What comes back is not a count. Each boundary carries the owner chain above it,
+What comes back is not a count. Each boundary comes with the owner chain above it,
 innermost first, the component that wrote the `<Suspense>`, its key, and how many
 boundaries enclose it:
 
@@ -687,7 +688,7 @@ painted from is not photographed again, and on a suite where nothing changed
 that is the whole value of a run.
 
 **The converse is where the findings are.** A row changing while the row above
-it holds is not a wasted check, it is the fact somebody wanted:
+it agrees is not a wasted check, it is the fact somebody wanted:
 
 - **The fiber changed and the document did not.** The components re-rendered
   and the page did not follow — `refactor` in [parting](parting.md), read
@@ -698,7 +699,7 @@ it holds is not a wasted check, it is the fact somebody wanted:
   cascade.
 - **Nothing that was read changed and the image did.** Every input the run
   actually looked at agreed and the picture changed anyway — `flake`, which is
-  an accusation, and only safe to make because `unread` exists to carry the case
+  an accusation, and only safe to make because `unread` exists to name the case
   where nothing was read at all.
 
 So this is a ladder of readings, not a settling loop. Climbing until two samples

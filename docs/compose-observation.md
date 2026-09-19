@@ -3,7 +3,7 @@
 Wiring an observation into a suite you already have is four separate decisions:
 which of your harnesses sets up the state, what gets captured and where the
 pixels are painted, where the answer is consumed and how long it is kept, and
-who holds the baseline between runs. This page is the index to those four. If
+who stores the baseline between runs. This page is the index to those four. If
 you have not run anything yet, [your first run](start.md) takes one UI state
 through capture, review and acceptance end to end.
 
@@ -18,7 +18,7 @@ decision about how subjects get observed, and the page that makes it.
 | Which harness sets up the state and declares it ready | Lifecycle, subject discovery, the ids your baselines are named by | [Choose from the state you already have](cases.md) |
 | What is captured, and where pixels are painted | Portability, what leaves your network, which evidence travels, latency, renderer identity | [Connect your suite](surface.md) |
 | Where the answer is consumed and how long it is kept | Infrastructure you operate, where review happens, how far back you can ask | [Choose an operating flow](flows.md) |
-| Who holds the baseline between runs | Baseline lookup, acceptance, storage cost | [Where baselines live](placement.md) |
+| Who stores the baseline between runs | Baseline lookup, acceptance, storage cost | [Where baselines live](placement.md) |
 
 The four are independent, and answering one does not answer another. A Storybook
 host does not require local rendering, and a Playwright host does not require

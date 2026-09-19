@@ -107,8 +107,8 @@ and the `Observation` behind it, abridged — the comparison mask is a
 }
 ```
 
-`regions` is empty and that is the ceiling of this entrypoint: an image carries
-no structure, so there is nothing to attribute the 192 pixels to. The two
+`regions` is empty and that is the ceiling of this entrypoint: an image has no
+structure, so there is nothing to attribute the 192 pixels to. The two
 regions the sentence counts are clusters of adjacent changed pixels, found by
 geometry alone. To get components and file lines instead of coordinates, take
 the baseline path below and supply a snapshot.
@@ -175,13 +175,13 @@ npx variance accept story:checkout--empty
 ```
 
 It also takes `--all`, or `--shape <fingerprint>` to promote every subject
-carrying one difference shape.
+with that difference shape.
 
 If you are not using the CLI, your integration owns this boundary. The candidate
 image is already in `store.renderCache`, keyed by the document digest and the
 render identity — promoting it means reading it back and calling
 `store.put(key, raster)`. The `Observation` does not hand you that raster; it
-reports, it does not carry the image.
+reports, it does not include the image.
 
 Both halves of that key are functions over the same `RenderDocument`. The
 digest is `documentDigest`, from `@variance-authority/core/format`:
@@ -205,8 +205,8 @@ blamed on the subject.
 | --- | --- | --- |
 | `observeRasters` | Both PNGs already exist, including images this system did not paint. | A subject id and two rasters. Snapshot and source are optional enrichment. |
 | `observePair` | Both sides were produced now and compared once, with nothing kept. | Two render documents, one `renderer`, and a `store` for the render cache. |
-| `observeAgainstBaseline` | The current state should be compared with a durable baseline. | A document, baseline key, `renderer`, and a `store` holding the approved image. |
-| `observeCaptureAgainstBaseline` | Your adapter emits the shared document-or-raster artifact. | A `CaptureArtifact`, baseline key, and `store`; a `renderer` only when the artifact carries a document. |
+| `observeAgainstBaseline` | The current state should be compared with a durable baseline. | A document, baseline key, `renderer`, and a `store` that has the approved image. |
+| `observeCaptureAgainstBaseline` | Your adapter emits the shared document-or-raster artifact. | A `CaptureArtifact`, baseline key, and `store`; a `renderer` only when the artifact contains a document. |
 | `summarizeObservation` | You are printing an observation to a person or an agent. | An `Observation`, and a `SourceIndex` when you want file lines. |
 | `declaredIgnores` | Your report must account for ignore declarations even on paths that never compare. | The semantic snapshot and device scale. |
 
@@ -225,7 +225,7 @@ this package.
 | Verdict | Meaning | What to do |
 | --- | --- | --- |
 | `unchanged` | Comparable images, no changed pixels. | Continue without review. |
-| `changed` | A comparable image differs. `regions` carries as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
+| `changed` | A comparable image differs. `regions` gives as much attribution as the snapshot and source you supplied allow. | Present the evidence and require review. |
 | `new` | No baseline exists for this key and this renderer. | Review and explicitly approve or reject. Not green. |
 | `incomparable` | The two sides were painted under incompatible identities — a baseline from another renderer, or two rasters from two declared painters. | Align the renderer inputs or keep a separate baseline. Do not accept the noise as a component change. |
 | `ignored` | Pixels changed, and every one fell inside a declared exclusion or sensitivity. | Continue, and record that the green result rested on a rule. |
@@ -233,7 +233,7 @@ this package.
 `unchanged` is never available for `incomparable`: a difference that could not
 be observed is not reported as no difference.
 
-## What else an observation carries
+## What else an observation reports
 
 Beyond the verdict and `regions`, an `Observation` records whether a render
 actually happened or the image came from the cache, fonts the document declared
@@ -245,20 +245,21 @@ as a mismatch between the acquired subject size and the painted image.
 `moved` and `relaxed` report **bands** — the kind of change, not its size.
 There are five, loudest first: `a11y` (a role, accessible name or ARIA state
 changed), `geometry` (boxes appeared, vanished, moved or resized), `token`
-(style values changed while structure held), `content` (text changed and
+(style values changed and structure did not), `content` (text changed and
 nothing else did), `texture` (sub-pixel raster noise). A band is the unit a
 sensitivity is declared against: a rule that absorbs `texture` and `token`
 still reports a `geometry` change, and `relaxed` names the rule, the level and
 the bands it actually absorbed here.
 
-`causes` and `moved` are absent whenever neither side carries component hashes — a
-baseline written before they existed, a store that dropped them, or a run with
-no snapshot. Absent means *unknown*. It does not mean nothing caused the change.
+`causes` and `moved` are absent whenever neither side supplies component
+hashes — a baseline written before they existed, a store that dropped them, or
+a run with no snapshot. Absent means *unknown*. It does not mean nothing caused
+the change.
 
 ## Print an observation
 
 `summarizeObservation` turns an `Observation` into the text a reviewer or an
-agent reads. Given an observation that did carry a snapshot and a source index:
+agent reads. Given an observation made with a snapshot and a source index:
 
 ```
 story:checkout--empty: changed — 1530 pixels differ
@@ -274,7 +275,7 @@ ordering measures displacement rather than blame:
 Each line is a cause and, where one exists, a file and line — because `Toggle`
 is an identifier and `src/app/cart.tsx:42` is an edit. A coordinate appears only
 where nothing could be named. The ordering caveat is printed rather than
-assumed: an `Observation` carries one snapshot, so nothing here knows which
+assumed: an `Observation` has only one snapshot, so nothing here knows which
 component was edited and which was merely pushed by a neighbour, and area
 measures displacement.
 

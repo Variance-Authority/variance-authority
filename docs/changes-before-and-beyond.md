@@ -10,7 +10,7 @@ one the walk makes for you. This page is about those two changes, and
 Read a run from left to right. The harness starts it, the tests it started enter
 your code, and your code goes out into what the install provides and never comes
 back. Selection lives in the middle stretch, where a file has a name the record
-can hold. What comes before it and what lies beyond it are both outside
+can store. What comes before it and what lies beyond it are both outside
 selection, for opposite reasons.
 
 ```mermaid
@@ -99,7 +99,7 @@ What is not decided is whether the run notices.
 
 A diff that is *only* a config file already runs everything, because a diff no
 part of which is in the graph says nothing about which component changed. That
-stops holding the moment anything else is in the diff. A CI workflow edited
+stops being true the moment anything else is in the diff. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
 
@@ -120,7 +120,7 @@ workflows is one line rather than one per file. When one of them changes, the
 run is whole and the report says which file put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
-it. *Every changed path the graph does not hold* would be the README, the
+it. *Every changed path the graph does not include* would be the README, the
 changelog and the editor settings — a whole run each, forever — and switching
 that off would switch the config files off with it. Declared, it is exact.
 
@@ -167,9 +167,9 @@ change to it is answered exactly by walking them, and pulling it in would trade
 an exact answer for a whole run. Everything below it is reached *through* it,
 so `src/tokens.css` stays out too.
 
-An entry the scan does not hold — a `.nvmrc`, a workflow, a `tsconfig` — has
-nothing under it to read. It contributes its own name, which is all it has, and
-the run says so in a note.
+An entry the scan does not cover — a `.nvmrc`, a workflow, a `tsconfig` —
+has nothing under it to read. It contributes its own name, which is all it has,
+and the run says so in a note.
 
 The cost is real and it is yours to spend. A config that imports your bundler
 rests on everything that bundler rests on, so a bump inside that set widens the

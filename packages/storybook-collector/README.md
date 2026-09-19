@@ -108,8 +108,8 @@ rather than the working directory, and unknown keys are refused by name.
 `profile` is what the run is capable of observing — `chromium` resolves computed
 style, layout and pixels, and a Storybook loop paints, so it is `chromium`.
 
-Track the approved images. `.variance/` also holds per-run junk, so exclude the
-contents rather than the directory:
+Track the approved images. `.variance/` also collects per-run junk, so exclude
+the contents rather than the directory:
 
 ```gitignore
 .variance/*
@@ -124,9 +124,9 @@ npx variance run --config variance.config.json
 ```
 
 `doctor` opens a browser, measures the fonts your config asserts, and lists
-which **identities** the baseline root holds — an identity being the digest of
+which **identities** the baseline root stores — an identity being the digest of
 renderer, engine, platform, device scale factor and fonts that an approved image
-is stored under. It exits `2` when no browser opens or when the root holds no
+is stored under. It exits `2` when no browser opens or when the root has no
 images this machine could compare against.
 
 The first durable run exits `1` and reports every story `new`. An image nobody
@@ -153,9 +153,9 @@ story nobody looked at from one that changed. After setup, name subject ids:
 npx variance accept --config variance.config.json story:checkout--empty story:checkout--one-item
 ```
 
-`--shape` takes a **fingerprint** — an identifier every changed region in the
-report carries, naming *what* changed rather than which screenshots it landed
-in. Accepting one covers every subject where that shape is the whole change, and
+`--shape` takes a **fingerprint** — an identifier the report gives every changed
+region, naming *what* changed rather than which screenshots it landed in.
+Accepting one covers every subject where that shape is the whole change, and
 refuses by name any subject where something else changed too.
 
 ### What you get
@@ -208,11 +208,11 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 | `baseUrl` | Storybook is already running, e.g. `http://localhost:6006`. | Omitted; the directory containing `subjects.index` is served on loopback for the run. |
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must participate in render identity. | `true`; set `false` only when asset URLs are already content-addressed. |
-| `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
+| `hashAssets` | Your asset URLs already contain their own content hash. | `true`. Read only while `network` is on, so GIF freezing and blanking survive it — this, not `network: false`, is the setting for a content-addressed build. |
 | `wiring` | Your preview's renderer is not React. | `true`. Reads props, context, hook cells and keys into a band of its own; turning it off changes no stored digest. |
-| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
+| `holdings` | Application values behind the nodes are evidence you want read. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `roots` | Your preview mounts somewhere other than the standard roots. | `['#storybook-root', '#root']`, tightest match first. |
-| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a Vite-built preview carrying `testSelectionProbes()`; see below. |
+| `tests` | The next run should be able to skip stories whose code nothing touched. | `false`. Requires a Vite-built preview that includes `testSelectionProbes()`; see below. |
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
@@ -332,7 +332,7 @@ the `build` section, not beside the JSX keys.
 
 Vite 7 and below spell all three under `esbuild` — `jsx: 'automatic'`,
 `jsxDev: true` and `keepNames: true` — in place of both sections above. A config
-carrying the other major's key is read by nothing and warns about nothing: the
+that uses the other major's key is read by nothing and warns about nothing: the
 build succeeds, and the report names `Ce`. See
 [`@variance-authority/jsx-source`](https://variance-authority.dev/reference/packages/jsx-source)
 for builds that already use Emotion, theme-ui or another custom JSX runtime.
@@ -407,7 +407,7 @@ still contributes its crossings while never justifying a later skip.
   `npx variance doctor` again.
 - **A rerun reports `incomparable`:** the approved image was stored under a
   different identity than this machine produces. `npx variance doctor` lists the
-  identities the baseline root holds.
+  identities the baseline root stores.
 
 ## Boundaries
 

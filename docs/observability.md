@@ -171,8 +171,8 @@ you can size yours next to.
 
 Open dev tools on a live page and every one of these facts is available: the
 component that produced a node, the update that scheduled a render, the branch a
-module took. Three conditions have to hold for that — the page is running,
-execution is stopped, and a person is watching. In CI none of the three holds,
+module took. Three conditions have to be true for that — the page is running,
+execution is stopped, and a person is watching. In CI none of the three is true,
 and for anything reading a result an hour later none of them ever will. So the
 record is taken while the page is alive and kept once it is gone.
 
@@ -188,9 +188,9 @@ replayed afterwards all arrive too late for it.
 commercial product of the same name — listens on `document` in the capture
 phase, ahead of React's delegated handler on the root container, and copies the
 owner chain, the props digest at each boundary, the authoring component and the
-JSX coordinate into a plain value in that same synchronous turn. The copy holds
-no DOM node and no Fiber, so delaying it and retaining the element is not the
-same operation.
+JSX coordinate into a plain value in that same synchronous turn. The copy
+points at no DOM node and no Fiber, so delaying it and retaining the element is
+not the same operation.
 
 The element is then detached and unreachable from the document, and the record
 still names the component that owned it, the component whose JSX put it there,
@@ -212,7 +212,7 @@ it was already going to send and nothing in your application is touched to carry
 them. A service built with probes reads both off the request's `Cookie` header,
 runs the handler in an `AsyncLocalStorage` scope keyed by the journey, and when
 that scope settles delivers what it entered as a JSON `POST` to
-`<return>/journeys` over loopback `http`. Only the driver holds
+`<return>/journeys` over loopback `http`. Only the driver knows
 `journey → subject`, so only the driver can join, and a report cannot claim an
 execution by writing one down: the execution is in the address the report
 arrived on, never in the body.
@@ -366,7 +366,7 @@ driver merges into this one snapshot at teardown. [The execution
 record](execution-record.md) gives the reader to import and the cost of a
 lookup, a merge and a fold across shards.
 
-### Carrying the record between CI runs
+### Passing the record between CI runs
 
 A fresh runner has no record, so the first `--since` there runs everything. Two
 ways to give the next job something to read:

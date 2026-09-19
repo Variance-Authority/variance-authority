@@ -83,8 +83,8 @@ VIEWPORT — @variance-authority/cli · packages/cli/src/commands/run-fixture.ts
 parseViewport — @variance-authority/cli · packages/cli/src/config-sections.ts:241
 ```
 
-A published name is API and carries the specifier you would import it from. An
-exported name carries a file and a line, because nothing else was read for it.
+A published name is API and comes with the specifier you would import it from.
+An exported name shows a file and a line, because nothing else was read for it.
 
 `symbol` answers with the one thing you asked about, in full.
 Run `npx variance-authority-help symbol Viewport`:
@@ -136,7 +136,7 @@ and no ranking rescues it: `order` really is written into four hundred names,
 you wanted the nine in one service, and the text cannot tell those apart because
 the text is the same.
 
-What separates them is something you know and the query never carried — which
+What separates them is something you know and the query never named — which
 part of the repository you are in. So `docs_search` takes it as a path:
 
 ```
@@ -155,7 +155,7 @@ import-site count, so they are admitted by the declaring file instead.
 
 A path is a path, at three widths and no others — `src/a/File.ts` is that file,
 `src/a/*` is that folder's own files, `src/a/` is everything under it. A path
-the checkout does not hold is refused by name. You are never quietly answered
+that is not in the checkout is refused by name. You are never quietly answered
 about the whole repository under a heading you would read as *your area*.
 
 This removes names rather than ranking them down, which is the point: an empty
@@ -326,19 +326,19 @@ The head of a generated `llms.txt`, run against this repository:
 `--base https://github.com/you/repo/blob/main/` puts a prefix in front of every
 path, for pages that will be read away from the checkout.
 
-`help.json` holds the same reading the other three files render, so a caller can
-build a different rendering without re-reading the repository.
+`help.json` contains the same reading the other three files render, so a
+caller can build a different rendering without re-reading the repository.
 
 ## From a program
 
 Two import specifiers:
 
-| specifier | needs | holds |
+| specifier | needs | exports |
 |---|---|---|
 | `@variance-authority/help` | a stdio pair, to serve | `serveWorkspace` and `writePages` |
 | `@variance-authority/help/tools` | nothing | the six answers, as pure functions from a reading to text |
 
-The functions in `@variance-authority/help/tools` carry no MCP dependency, so
+The functions in `@variance-authority/help/tools` have no MCP dependency, so
 you can call them directly, test them in isolation, or embed them in another
 interface without speaking the protocol.
 

@@ -11,12 +11,12 @@ the report. New here? Start with [your first run](start.md).
 One run compares a **subject** — one named UI state you asked for and can ask
 for again, identified by a stable id like `story:checkout--empty` — against its
 own baseline. A comparison between two things cannot see a quantity that only a
-sum holds:
+sum produces:
 
 > A button gains 2px. Eleven times. Each one approved by somebody who looked at
 > one diff and correctly decided it was fine. Nobody ever sees the 22px.
 
-No threshold catches that, because a tool that holds one run at a time keeps no
+No threshold catches that, because a tool that sees one run at a time keeps no
 sum. Neither does a sharper differ, a better mask or a stricter reviewer — each
 of the eleven decisions was right.
 
@@ -45,7 +45,7 @@ machine-bound as well. A content hash has neither problem.
 ## Start the service and point your config at it
 
 The service is `@variance-authority/server`. Install it on the host that will
-hold the record, and start it with a token:
+store the record, and start it with a token:
 
 ```bash
 npm install @variance-authority/server
@@ -84,7 +84,7 @@ the rest of the file is set up. `project` is the name your rows are filed
 under, and is required whether or not you configure `history`. The token is the one setting that does not belong in
 this file: the config is in your repository, so a literal here is a credential
 shared with everyone who can read it, and `{ "env": "NAME" }` names the variable
-that holds it instead. Nothing is read from the environment that the file did
+it is read from instead. Nothing is read from the environment that the file did
 not name, and a variable that is unset is refused by *its* name, so an operator
 whose config is right and whose CI secret is missing is sent to the secret. A
 literal string is still accepted, for a token that is not a secret.
@@ -126,8 +126,8 @@ recorded before it writes, and sends only what changed.
 The run asks the questions, and the answers travel **in the report** — the file
 a run writes when it finishes, at the path the `report` key in
 `variance.config.json` names. The summary, the pull-request comment and an agent
-over MCP all read that one file, hours apart, none of them holding a connection
-to your service.
+over MCP all read that one file, hours apart, none of them connected to your
+service.
 
 ### How far a token has drifted
 
@@ -166,10 +166,10 @@ them, while `style` and `geometry` rates name one profile, because one value
 observed under two engines is two different observations rather than two
 sightings of one edit.
 
-Only components a run named as a **cause** are counted: a component whose geometry
-moved while its own structure and style held was displaced by an edit somewhere
-else, and counting displacement would report the widest container in your
-application as the thing that changes in every run.
+Only components a run named as a **cause** are counted: a component whose
+geometry moved while its own structure and style stayed the same was displaced
+by an edit somewhere else, and counting displacement would report the widest
+container in your application as the thing that changes in every run.
 
 ### Whether a flake is new
 
@@ -193,7 +193,7 @@ rejected.
 history question answers with the sentence *nobody is keeping a record* — never
 an empty result, because an agent that is handed an empty churn figure
 concludes the product is stable when the truth is that the question was never
-asked. The same rule holds one level in: a service you cannot call is a warning
+asked. The same rule applies one level in: a service you cannot call is a warning
 naming what was lost, not a zero.
 
 ## What it costs to run

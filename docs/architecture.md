@@ -4,7 +4,7 @@ Three questions decide how much machinery you need: is there anything to do at
 all, what exactly changed, and will this **subject** — one named UI state you
 point the tools at, a story, a route, a fixture or a value — even hold still.
 One set of tools covers all three, and this page is how they fit together and
-which package holds each.
+which package each one lives in.
 
 The unit you adopt is the tool: a named capability you can understand, replace
 and compose without learning the implementation of the others. Lifecycle,
@@ -115,7 +115,7 @@ stored baseline recorded and the files a change reaches in source
 ## What flows between them
 
 Values, never handles. Every tool takes and returns something serializable. A
-`CaptureArtifact` carries either a `RenderDocument` or a `Raster` plus the
+`CaptureArtifact` contains either a `RenderDocument` or a `Raster` plus the
 semantic and source evidence acquisition could retain. A document is portable
 across environments only when it closes over its resource bytes; otherwise the
 renderer must have equivalent access to its references. The raster has already
@@ -129,7 +129,7 @@ The three hops from `difference` to `verdict` are one chain, and
 [`attribution.md`](attribution.md) writes each of them out. The chain never
 starts unless selection let the subject through, and the source graph selection
 reads is in [`source.md`](source.md). [`information.md`](information.md) is the
-reference for what each output holds, how long it is kept, and which outputs
+reference for what is in each output, how long it is kept, and which outputs
 merge with which.
 
 ## The contracts
@@ -187,7 +187,7 @@ three compositions above are supported offerings, not one mandatory pipeline.
 **You install only what your setup already has. Check the `requires` column
 before anything else.**
 
-| package | requires | holds |
+| package | requires | gives |
 |---|---|---|
 | `core` | nothing | the format, the rules, comparison, [attribution](attribution.md), verdicts, plans |
 | `raster` | nothing | the pixel tier as data: assembly, contracts, policies, interventions, the gate |
@@ -196,7 +196,7 @@ before anything else.**
 | `ioc` | nothing | the seam a module declares its own state reset through, and the per-test hook a suite drives it with |
 | `wire` | nothing; the driver's end of it needs a Node runtime and a loopback socket | one id per execution and one address to answer on, whether the participant is the page, a service in another process, or a server the suite started inside itself |
 | `event` | nothing; its `collect` entrypoint additionally needs a Node runtime and a loopback socket | announcements a running system makes about its own decisions, and the log a test waits on |
-| `vantage` | nothing; its `attach` entrypoint additionally needs a Node runtime and a loopback socket | what a run is saying while it is still saying it, held in a process that outlives the test |
+| `vantage` | nothing; its `attach` entrypoint additionally needs a Node runtime and a loopback socket | what a run is saying while it is still saying it, in a process that outlives the test |
 | `storybook` | a built Storybook's `index.json`, as a value | a project's own stories as a subject list |
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to open or a directory to serve | pages an application already serves, opened and collected |

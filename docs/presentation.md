@@ -161,8 +161,9 @@ the findings, so fewer findings cannot hide missing or substituted information.
 
 For this example, the edit has support when the drift finding is gone from the
 focused owner, the count for `PRESENTATION_GRAMMAR_DRIFT` decreased, content
-identity held, the information counts show no unexplained loss, and the
-repainted owner confirms that the comparison concerns the intended relationship.
+identity did not change, the information counts show no unexplained loss, and
+the repainted owner confirms that the comparison concerns the intended
+relationship.
 
 That result supports the statement "this edit removed the measured peer drift
 without changing the interface's information." It does not support "the design
@@ -198,6 +199,6 @@ It is narrower than a design review:
 
 Use the [presentation evidence reference](presentation-reference.md) to choose
 an explicit alignment, spacing, or hierarchy reading; understand findings and
-missing evidence; or carry a before/after consequence into a run report. The
+missing evidence; or write a before/after consequence into a run report. The
 [`@variance-authority/presentation` package reference](https://variance-authority.dev/reference/packages/presentation)
 owns installation, complete signatures, and integration details.

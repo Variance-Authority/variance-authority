@@ -16,9 +16,9 @@ facts, and disposable caches all keep their own identity, completeness,
 disclosure, retention, and merge rules.
 
 Read this page for the vocabulary the artifacts are written in, the verdict
-values, the keys you will meet in `report.json`, what each store holds, how two
-records from different producers join, and what survives to the next run. If
-you came here because a section of your report is missing, go straight to
+values, the keys you will meet in `report.json`, what lives in each store, how
+two records from different producers join, and what survives to the next run.
+If you came here because a section of your report is missing, go straight to
 [reading a missing section](#reading-a-missing-section-in-your-own-report).
 
 ## The words
@@ -33,20 +33,20 @@ several sections.
 | --- | --- |
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
-| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already hold. |
+| **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already keep. |
 | **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
 
 | Term | What it is |
 | --- | --- |
-| **semantic snapshot** | The normalized tree a verdict is decided from, and the thing a render hash addresses. It holds the subject reference, the profile and environment key it was taken under, a `renderHash` identifying the state plus separate `structureHash` and `styleHash`, the tree itself, where each winning style declaration came from, any subtrees your ignore rules excluded, and whatever the collector could not do. Ids have become structural aliases, class attributes are gone, inapplicable CSS is pruned, and the cascade is resolved to winning values — it is meant to be read. |
+| **semantic snapshot** | The normalized tree a verdict is decided from, and the thing a render hash addresses. It records the subject reference, the profile and environment key it was taken under, a `renderHash` identifying the state plus separate `structureHash` and `styleHash`, the tree itself, where each winning style declaration came from, any subtrees your ignore rules excluded, and whatever the collector could not do. Ids have become structural aliases, class attributes are gone, inapplicable CSS is pruned, and the cascade is resolved to winning values — it is meant to be read. |
 | **observation** | One subject's result: its id, the verdict, one sentence saying why, the comparison, the attributed regions with their components and `file:line`, whether the image was painted or came from the cache, fonts the document declared and the renderer lacked, the independently measured signals, and what your ignores absorbed. This is what `report.observations` is a list of. |
-| **block** | One region of a module's text that control enters under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Entering a `try` body follows from entering the code around it, so it is no block; entering its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that holds them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
+| **block** | One region of a module's text that control enters under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Entering a `try` body follows from entering the code around it, so it is no block; entering its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that encloses them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
 | **crossing** | One test entering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
-| **verdict** | The one word an observation carries for its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
+| **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
 | **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
-| **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline carries these so a later run can settle a subject on hashes instead of pixels. |
+| **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline saves these so a later run can settle a subject on hashes instead of pixels. |
 
 The digests are not the bands, and the two lists do not line up one for one.
 Each digest that changed contributes a band: `semantics` gives `a11y`, `text`
@@ -60,14 +60,14 @@ only its box.
 
 ### Keys you will meet in `report.json`
 
-Beside `observations`, a report carries these. Each one needs an input, and each
-one is absent — not empty — when that input was not there.
+Beside `observations`, a report includes these. Each one needs an input, and
+each one is absent — not empty — when that input was not there.
 
-| Key | What it holds |
+| Key | What it contains |
 | --- | --- |
 | `notObserved` | Subjects the run planned and has no observation for, each under one of three kinds: `excluded` by configuration, `failed` where the run meant to look and could not, or `unreached` by this change. |
 | `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
-| `lexicon` | Every name the run held for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
+| `lexicon` | Every name the run knew for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
 | `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
 | `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit leading to it. |
 | `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
@@ -92,13 +92,13 @@ own past.
   arrived alongside, the source that merely executed. It is this project's
   own recorder and has nothing to do with any similarly named commercial
   service.
-- **[Vantage](vantage.md)** holds a running suite's in-flight signals in a process that
+- **[Vantage](vantage.md)** keeps a running suite's in-flight signals in a process that
   outlives the test, so a suite that has not finished is something to look at.
 
 ## Verdicts
 
-Every observation in `report.json` carries exactly one `verdict`, from this
-set and no other:
+Every observation in `report.json` states exactly one `verdict`, from this set
+and no other:
 
 | `verdict` | What it means |
 | --- | --- |
@@ -113,10 +113,10 @@ A subject the run could not observe at all gets no verdict. It goes in
 where the run meant to look and could not, or `unreached` by this change — and
 a report whose `notObserved` is absent entirely cannot be read as a clean run.
 
-Beside the verdict, `signals` carries what each boundary independently
-measured: `document` is `unchanged` or `changed`; `pixels` adds `unobservable`
-for a subject that occupies no pixels; `accessibility` adds `incomparable`.
-These are measurements, not decisions, and they do not override the verdict.
+Beside the verdict, `signals` shows what each boundary independently measured:
+`document` is `unchanged` or `changed`; `pixels` adds `unobservable` for a
+subject that occupies no pixels; `accessibility` adds `incomparable`. These are
+measurements, not decisions, and they do not override the verdict.
 
 `variance adjudicate --claims <path>` answers a second question — whether the
 change you said you were making is the change that happened — and it uses its
@@ -174,7 +174,7 @@ approved references: a directory, Git LFS, or `{ "kind": "remote", "endpoint":
 "…", "token": "…" }` for a store behind an HTTP hop. `report` is the path the
 run report is written to. `images` is the directory the candidate, baseline and
 diff PNGs land in, resolved beside the report when you leave it out — which is
-why a CI job uploads the two together. [Surface](surface.md) carries the rest of
+why a CI job uploads the two together. [Surface](surface.md) covers the rest of
 the file.
 
 Configuration and the subject plan define the work. Caches may reduce its cost;
@@ -259,7 +259,7 @@ observe them.
 
 A scenario begins at the named Arrange subject and adds one frame after each
 authored Act. Each observed frame references a semantic snapshot; an unobserved
-outcome carries diagnostics and ends the witnessed prefix there. Several
+outcome comes with diagnostics and ends the witnessed prefix there. Several
 executions fold together, and the fold never invents an edge nobody walked.
 
 The scenario path is per SUT. Runtime coverage is run-wide. A shared host
@@ -270,12 +270,12 @@ attributes particular source crossings to one frame.
 
 A presentation reading is taken from one live page at one locator. It is not
 addressed by subject and establishes nothing a later run is measured against,
-and what it measured lasts only as long as the caller holds it.
+and what it measured lasts only as long as the caller has it.
 
 Two readings of the same locator produce relationship effects and a
 presentation-independent content identity. Those, and only those, are written
 into `report.json`, as the presentation signal on the observation you aligned
-the reading with. A pair the tool cannot compare carries its reason and no
+the reading with. A pair the tool cannot compare reports its reason and no
 effects: one reading is not a transition.
 
 ## What crosses process and service boundaries
@@ -283,10 +283,10 @@ effects: one reading is not a transition.
 ### HTML and semantic state
 
 HTML crosses the acquisition boundary as part of a `RenderDocument`, not as a
-baseline. Browser and route collection normally hold that document in memory or
-send it directly to a local or remote renderer. The unit-test composition writes
-one resource-closed `.va-capture.json` file per subject so a later process can
-render it.
+baseline. Browser and route collection normally keep that document in memory or
+send it directly to a local or remote renderer. The unit-test composition
+writes one resource-closed `.va-capture.json` file per subject so a later
+process can render it.
 
 There is no general HTML cache. A render cache is keyed by the document digest
 but stores the resulting raster, not the document. A baseline sidecar retains
@@ -375,9 +375,10 @@ cannot erase earlier evidence by silence. A changed instrumentation generation
 replaces the incompatible block universe.
 
 `ExecutionIndex` is the runner-independent query shape used for source-to-test
-questions. An MCP integration supplies it to the tool; the MCP server is not its
-store. The persisted Vitest coverage file and a supplied [execution index](execution-record.md) are two
-carriers for the runtime domain, not copies of the visual run report.
+questions. An MCP integration supplies it to the tool; the MCP server is not
+its store. The persisted Vitest coverage file and a supplied [execution
+index](execution-record.md) are two sources for the runtime domain, not copies
+of the visual run report.
 
 ### The three kinds of journey
 
@@ -388,7 +389,7 @@ carriers for the runtime domain, not copies of the visual run report.
    independently stored.
 2. A **runtime crossing record** says which tests entered which instrumented
    blocks. The coverage binary persists that relation. It is not a chronological
-   event log, and the current query shape carries distance rather than a complete
+   event log, and the current query shape returns distance rather than a complete
    call path.
 3. A **scenario path** records named SUT states and Acts. It remains in the
    session by default or enters the opt-in scenario archive as one manifest plus
@@ -411,7 +412,7 @@ identity is the digest of renderer, engine, platform, device scale factor,
 fonts, and the two stabilization digests. When a run reports `incomparable`,
 that is this join failing: the baseline was written under one identity and this
 run painted under another. Run `variance doctor`. It prints your current
-identity, then every identity your baseline root holds and every identity in
+identity, then every identity your baseline root stores and every identity in
 your render cache, with an arrow on yours. If the arrow points at an identity
 nobody else has, that is the whole diagnosis — pin one painter for laptop and
 CI, either the same container image or one `"renderer": { "endpoint": … }` both
@@ -442,20 +443,20 @@ change.
 ### MCP view
 
 An MCP connection can receive the run report, full presentation readings,
-execution index, live [Vantage](vantage.md) state, [Eyes](eyes.md) archive, and scenario manifests as
-optional fields of one subject. This is a view over separately supplied records,
-not a global run object. Tool discovery is shared; evidence identity,
-completeness, retention, and storage remain native to each domain. The
-inventory distinguishes a field nothing supplied from a field holding a record
-that is present and empty, and a tool asked for a field nothing supplied
-refuses rather than answering from an empty value.
+execution index, live [Vantage](vantage.md) state, [Eyes](eyes.md) archive, and
+scenario manifests as optional fields of one subject. This is a view over
+separately supplied records, not a global run object. Tool discovery is shared;
+evidence identity, completeness, retention, and storage remain native to each
+domain. The inventory distinguishes a field nothing supplied from a field with
+a record that is present and empty, and a tool asked for a field nothing
+supplied refuses rather than answering from an empty value.
 
 ## What can produce a useful report
 
-The report is assembled once, while the run still holds the plan, the snapshots,
+The report is assembled once, while the run still has the plan, the snapshots,
 the comparison, the [attribution](attribution.md) and the answers history
-returned — and it is read back later by tools that hold none of those. What it
-keeps is what a sentence needs.
+returned — and it is read back later by tools with none of those. What it keeps
+is what a sentence needs.
 
 The canonical `RunReport` persists the resulting observations, subject-coverage
 ledger, warnings, run and painter identity, image references, variation and
@@ -471,8 +472,8 @@ content identity, and information deltas are copied into the observation, while
 the graph and paint geometry they were measured from stay with the caller. A
 view that shows source-to-test evidence or scenario paths beside the visual
 report must be given the separate coverage or scenario artifact and joins it on
-a shared identity. Relative image paths are the one address the report carries
-directly, because the page must know where its review pixels live.
+a shared identity. Relative image paths are the one address the report spells
+out directly, because the page must know where its review pixels live.
 
 Test results contribute at two levels. Runner completion, preconditions, and
 probe hits form runtime coverage even when no visual subject is captured.
@@ -483,9 +484,9 @@ test execution complete.
 
 ## Reading a missing section in your own report
 
-Beside `observations` and `notObserved`, a report carries up to five optional
-semantic sections — `composition`, `lexicon`, `variations`, `reach` and
-`journeys` — plus `flakiness`, `churn` and `drift` ([what each one holds](#keys-you-will-meet-in-reportjson)).
+Beside `observations` and `notObserved`, a report can include up to five
+optional semantic sections — `composition`, `lexicon`, `variations`, `reach`
+and `journeys` — plus `flakiness`, `churn` and `drift` ([what is in each one](#keys-you-will-meet-in-reportjson)).
 Each needs an input, and when that input was not there the section is not an
 empty object: **the key is absent from `report.json` entirely.** Open the file
 and look for the key before concluding a section found nothing.
@@ -509,15 +510,15 @@ corresponding `structure` row has no `createdBy` key. The empty array
 there does not mean nothing mounted the component — it means the build could
 not say.
 
-Two more distinctions worth holding while you read the file. `regions` names
-two unrelated things: the [lexicon](lexicon.md) field above, and the required per-observation
-array of attributed boxes. The per-observation one is always written; it is
-empty on a subject settled without a comparison, and its boxes carry no
-component or `file:line` when the run had no snapshot or could not resolve call
-sites — a box with coordinates and no name is a degraded answer, not a nameless
-component. And `composition.structure` keeps a record for every composed
-subject whether or not anything was attributed to it, so `rows: []` there is a
-subject that was looked at.
+Two more distinctions worth remembering while you read the file. `regions`
+names two unrelated things: the [lexicon](lexicon.md) field above, and the
+required per-observation array of attributed boxes. The per-observation one is
+always written; it is empty on a subject settled without a comparison, and its
+boxes name no component or `file:line` when the run had no snapshot or could
+not resolve call sites — a box with coordinates and no name is a degraded
+answer, not a nameless component. And `composition.structure` keeps a record
+for every composed subject whether or not anything was attributed to it, so
+`rows: []` there is a subject that was looked at.
 
 Finally, one input gates two sections. The `journeys` section and the
 lexicon's `regions` field are both filled from the same execution journal, so a
@@ -603,7 +604,7 @@ Each durable output is kept, shared and reused on its own terms:
 | runtime coverage | default `coverage.bin` cache or configured file artifact | restored CI cache, shared volume, or explicit artifact transfer | yes: selects tests for later source changes |
 | Eyes attention | test process memory or a runner-owned JSON attachment containing an Eyes archive | whoever can read the test artifact | no: it explains the test execution that produced it |
 | scenario execution | process memory or opt-in scenario archive root | whoever can read the admitted semantic text | assessment and presentation; not automatic visual selection |
-| presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever holds the reading; the signal goes with the report | no: each run senses its own pages |
+| presentation reading | caller process memory; only the projected signal persists, inside the run report | whoever has the reading; the signal goes with the report | no: each run senses its own pages |
 | history facts | operator history service | authenticated clients in the configured project scope | yes: current values, recurrence, churn, flakiness, and drift |
 | review decision | history approval row and, for repository baselines, changelog evidence | history/repository readers | yes: determines which historical changes count as approved |
 

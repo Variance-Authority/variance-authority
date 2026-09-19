@@ -1,7 +1,7 @@
 # README example
 
 This directory is the executable source of the comparison at the top of the
-[repository README](../../README.md), at the smallest scale that still carries
+[repository README](../../README.md), at the smallest scale that still gives
 an answer. One `Button` keeps the same text, role, size, props and DOM structure
 while its `background-color` changes, and the report names the component and the
 line the change was written at.
@@ -63,7 +63,7 @@ It prints the report and rewrites the five files in `artifacts/`. The package is
 private and is not published; `generate` is its only script.
 
 The Vitest file re-runs the same comparison and checks the artifacts against it —
-that the semantic comparison holds exactly one paint-only `style-changed` delta,
+that the semantic comparison finds exactly one paint-only `style-changed` delta,
 that `diff.png` is the diff actually derived from `before.png` and `after.png`,
 and that the committed report and images are the ones the repository README
 displays. From the repository root:

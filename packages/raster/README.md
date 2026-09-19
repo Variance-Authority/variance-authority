@@ -218,7 +218,7 @@ returns every mismatch at once if you would rather check first.
 `compareDifferenceObservations` returns a `DifferenceComparison` whose three
 interesting members are:
 
-- `curveDelta` — one entry per severity level, carrying both observations'
+- `curveDelta` — one entry per severity level, giving both observations'
   pixel counts and ratios and the difference between them. Small enough to
   store and graph. This is what the loop above printed.
 - `fieldDelta` — `{ signed, increase, decrease }`, each a full-resolution
@@ -286,7 +286,7 @@ compares under. It has two knobs: `threshold`, the per-pixel colour distance
 above which a pixel counts as changed, and `includeAA`, whether antialiased
 pixels count at all. The curve reproduces the first and cannot reproduce the
 second: `pixelmatch` decides antialiasing from a neighbourhood of *both* images,
-so it can treat two pixels carrying an identical difference value oppositely,
+so it can treat two pixels sharing an identical difference value oppositely,
 and no threshold on any per-pixel field gets there because the decision is not a
 property of the pixel. Keep both — the field for how big a change is, the
 policy for whether a renderer's antialiasing counts as a change at all.
@@ -346,7 +346,7 @@ two documents of this subject at one commit disagree, so it was moving when it w
 verdict resting on a comparison nobody made. Nothing here retries and nothing
 here renders an image.
 
-Pass a `snapshot` alongside each digest and an unstable verdict carries an
+Pass a `snapshot` alongside each digest and an unstable verdict includes an
 `instability` naming the component and the property that changed, rather than
 only saying that something did:
 
@@ -399,8 +399,8 @@ packages named in the table above.
   default and evicts least-recently-used first; a miss costs a render.
 - **`RenderCache`** — `get(digest, identity)` and `put(raster)`. Losing a
   baseline is fatal, losing a cache entry costs a render, so a `RenderCache`
-  never throws. Wrap yours in `neverFails(cache)` at construction and that holds
-  whatever it is built on.
+  never throws. Wrap yours in `neverFails(cache)` at construction and that stays
+  true whatever it is built on.
 - **`DiffPolicy`** — `{ id, threshold, includeAA }`. `DEFAULT_POLICY` is
   `threshold: 0.1, includeAA: false`, which forgives antialiasing and is what a
   real deployment runs, because text edges are otherwise permanently red.
@@ -428,10 +428,10 @@ packages named in the table above.
 Stabilization recipes — the fixed sequence of tricks that holds a subject still
 before capture, such as pausing animations and freezing carets — live in
 `@variance-authority/core/format`, not here. An animation in flight changes
-`transform`, which the document already carries, so the recipe changes what the
-comparison sees at every stage rather than only at the image, and its digest is
-part of the environment key that decides whether two captures are comparable at
-all. What this package holds is
+`transform`, which the document already captures, so the recipe changes what
+the comparison sees at every stage rather than only at the image, and its
+digest is part of the environment key that decides whether two captures are
+comparable at all. What this package exports is
 `defaultPlan({ stabilization })`, which folds that digest into the plan
 identity, so retuning the tricks changes the key everything they produced is
 stored under. [Hold a subject still](https://variance-authority.dev/docs/stabilization)

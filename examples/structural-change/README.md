@@ -1,6 +1,6 @@
 # Structural change
 
-This example is the case a screenshot cannot hold at all: a change with zero
+This example is the case a screenshot cannot show at all: a change with zero
 pixel difference.
 
 The same `AccountCard` paints the same pixels in both variants. The second
@@ -49,7 +49,7 @@ yarn vitest run examples/structural-change/src/structural.chromium.test.ts --rep
 
 ## Does a finding like this fail the build?
 
-It is reported as a change, and a change holds the run open. A role or
+It is reported as a change, and a change keeps the run open. A role or
 accessible-name change lands in the `a11y` band — the loudest of the frequency
 bands that decide how a kind of change is reported — and `variance run` exits
 `1`, which the CLI reserves for *the run happened and found something a person
@@ -64,17 +64,17 @@ expectation fails the Vitest run like any other test.
 
 ## Does it report every wrapper you swap for a fragment?
 
-No, and by design. Before comparison, a `div` or `span` that exists only to hold
+No, and by design. Before comparison, a `div` or `span` that exists only to wrap
 its children is collapsed out of the tree: no role, no accessible name, no ARIA
 state, no allowlisted attribute, no text, no shadow content, and no style
-declaration of its own beyond the initial values a bare element carries.
+declaration of its own beyond the initial values a bare element starts with.
 Removing one of those produces no delta, because nothing that renders or is
 announced changed.
 
-Anything else is kept, and removing it is reported. A wrapper carrying a
-declared style, a name, a role, or an admitted attribute is evidence about the
-wrapper; deleting evidence to keep a report quiet is the failure this rule is
-written conservatively to avoid. So a fragment swap that drops a styled or named
+Anything else is kept, and removing it is reported. A wrapper with a declared
+style, a name, a role, or an admitted attribute is evidence about the wrapper;
+deleting evidence to keep a report quiet is the failure this rule is written
+conservatively to avoid. So a fragment swap that drops a styled or named
 element is reported — as a removed node, or as the role or name that went with
 it — and you decide whether that was what you meant.
 

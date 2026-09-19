@@ -108,17 +108,17 @@ add `baselines` beside it:
 |---|---|---|
 | `VARIANCE_TRIBUNAL_PROJECT` | required | scopes every row and every object key, so one deployment serves several repositories without their `story:card` colliding. There is no default: an invented one puts two projects' baselines in one namespace and the first symptom is a mass `changed` |
 | `VARIANCE_TRIBUNAL_INGEST_TOKEN` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
+| `VARIANCE_TRIBUNAL_REVIEW_TOKEN` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the ingest token |
 | `VARIANCE_TRIBUNAL_PORT` | `7789` | a whole number from 0 to 65535, or the process refuses to start |
 | `VARIANCE_TRIBUNAL_HOST` | `127.0.0.1` | the bind address. Any address other machines can connect to also needs `VARIANCE_TRIBUNAL_TRUST_NETWORK` |
 | `VARIANCE_TRIBUNAL_DB` | `variance-tribunal.db` | the SQLite file. Created and migrated on start; the startup line prints its absolute path and its schema version |
-| `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory holding baseline and candidate bytes |
+| `VARIANCE_TRIBUNAL_STORAGE` | `variance-tribunal-objects` | the directory that stores baseline and candidate bytes |
 | `VARIANCE_TRIBUNAL_RETENTION_DAYS` | `30` | days of builds `POST /review/sweep` keeps |
 | `VARIANCE_TRIBUNAL_REVIEWER` | the OS user | the name written on decisions made through the served page |
 | `VARIANCE_TRIBUNAL_TRUST_NETWORK` | unset | confirms a non-loopback bind; what that costs is below |
 
 **On loopback, a browser is a reviewer.** The bare URL serves the review page,
-and a caller with no token is treated as holding the review token: anything that
+and a caller with no token is treated as having sent the review token: anything that
 can open `127.0.0.1:7789` is already running as the person who started it.
 
 **On a network bind the review page is not served at all**, and no call is
@@ -128,8 +128,8 @@ reviewer who is not at the machine, mount the Next.js adapter behind your own
 sign-in, or leave the process on loopback behind a proxy that authenticates.
 
 The tokens are never printed and never rendered. The startup line names the
-variables, not their values, and the served page carries the endpoint and the
-reviewer name and nothing else — the browser calls the service, which holds the
+variables, not their values, and the served page shows the endpoint and the
+reviewer name and nothing else — the browser calls the service, which owns the
 token.
 
 ## Words this page uses
@@ -138,7 +138,7 @@ token.
 |---|---|
 | subject | one named UI state you asked for and can ask for again — a story, a route, a fixture — identified by a string id such as `story:card` |
 | verdict | the per-subject outcome a run decided: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Decided by the CLI, stored here |
-| shape | the digest of one distinct difference, computed from the kind of element that changed, the deltas inside it, and the component responsible. Two subjects that changed the same way carry the same shape, so one token edit across forty stories is one shape; the same-looking change in `Avatar` and in `Badge` are two |
+| shape | the digest of one distinct difference, computed from the kind of element that changed, the deltas inside it, and the component responsible. Two subjects that changed the same way share one shape, so one token edit across forty stories is one shape; the same-looking change in `Avatar` and in `Badge` are two |
 | cause | a flag on a changed region: the analysis attributed that region to a component's own edit rather than to something upstream of it |
 | collateral | pixels that moved because something else did — every changed region not flagged a cause. Counted once for the build, never split between causes |
 | the record | the history rows every run appends: which component hashes changed for which subject, and the token values resolved at the time. `POST /v1/observations` writes it; the `/v1` reads derive from it |
@@ -214,7 +214,7 @@ reads four names plus two optional ones:
 | `DB` | binding | D1. Rows: builds, verdicts, decisions, baseline metadata, history observations |
 | `BUCKET` | binding | R2. Baseline and candidate bytes; never a row |
 | `INGEST_TOKEN` | secret | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `REVIEW_TOKEN` | secret | held by people. Reads the review surface and decides. 16 characters or more |
+| `REVIEW_TOKEN` | secret | given to people. Reads the review surface and decides. 16 characters or more |
 | `PROJECT` | var, default `default` | scopes every row and object |
 | `RETENTION_DAYS` | var, default `30` | days of builds `POST /review/sweep` keeps. A value that is not a positive finite number falls back instead of sweeping everything |
 
@@ -231,7 +231,7 @@ below, behind your own sign-in.
 
 ## The HTTP API
 
-Authentication happens before routing. A caller holding neither token gets the
+Authentication happens before routing. A caller sending neither token gets the
 same response for a wrong token, a missing token, and a path that does not exist.
 Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 
@@ -251,7 +251,7 @@ Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 | `GET /v1/reach?component` | either | which subjects that component appears in now that it did not before |
 | `GET /v1/value-journey?token` | either | how one design token's resolved values drifted across approved runs |
 | `POST /review/builds` | ingest | file a finished run as a build. What `variance push` calls |
-| `POST /review/have` | ingest | given image digests, which of them this deployment already holds, so a push uploads only the rest |
+| `POST /review/have` | ingest | given image digests, which of them this deployment already has, so a push uploads only the rest |
 | `GET /review/builds[?limit]` | review | recent builds |
 | `GET /review/builds/{id}` | review | one build: its subjects, their verdicts, their regions, the docket |
 | `POST /review/builds/{id}/subjects/{subject}/decision` | review | `{"decision":"approved"\|"rejected","by":"…","note":"…"}` |
@@ -264,7 +264,7 @@ The four `/v1` reads take `since`, `until` and `limit` to bound the window, and
 
 **The review token reads the record and never writes it.** The five reads answer
 either capability because they derive from rows already recorded, and the browser
-drawing a review page holds the review token. `/v1/observations` and
+drawing a review page sends the review token. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
@@ -299,14 +299,14 @@ drifts in nineteen runs out of twenty. Two numbers are drawn as missing rather
 than as zero: a flake rate is **absent** until a run has read every subject
 twice, and a coverage that was never stated is unknown rather than clean.
 
-The run page — *what this run read*, one link from the docket — carries **where
-the subjects parted**, when the build was instrumented with probes and so carries
+The run page — *what this run read*, one link from the docket — shows **where
+the subjects parted**, when the build was instrumented with probes and so has
 a [journey](https://variance-authority.dev/docs/journeys) for each subject. The
 record `variance journeys` prints per module is turned round to face the subject:
 the stretches of source (a function body, a branch, a `case`) this subject
 entered that another subject of the same module did not, and the ones it missed
 that another entered, with the file and the lines. The count of subjects the
-journal holds is drawn even when nothing parted: no partings among five subjects
+journal covers is drawn even when nothing parted: no partings among five subjects
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.
 
@@ -355,7 +355,7 @@ that no shape could group are returned as `ungrouped`, not dropped.
 
 ## Entrypoints
 
-| entrypoint | requires | holds |
+| entrypoint | requires | exports |
 |---|---|---|
 | `@variance-authority/tribunal` | nothing | the binding types, `SCHEMA`, `applySchema`, `MIGRATIONS` |
 | `@variance-authority/tribunal/store` | D1 and R2 | `createBucketStore` — baselines |
@@ -408,7 +408,7 @@ export default {
 | `bucket` | required | the R2 binding |
 | `project` | required | scopes every row and every object key. There is no default, for the reason given above |
 | `ingestToken` | required | written into CI. Writes builds, baselines and history. 16 characters or more |
-| `reviewToken` | required | held by people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
+| `reviewToken` | required | given to people. Reads the review surface and decides. 16 characters or more, and not the same string as `ingestToken` |
 | `retentionDays` | `30` | days of builds `POST /review/sweep` keeps. Applied on request, not on a timer — a Worker has no timer, and this package will not invent a cron you did not ask for. Wire it to a scheduled trigger, call it from a CI job, or never |
 | `now` | the wall clock | supplies every recorded `at`; override it when the deployment has its own clock source |
 
@@ -527,8 +527,8 @@ export const { GET, POST, HEAD } = createTribunalRoutes(worker, {
 ```
 
 `createReviewClient` takes `endpoint` — where the Worker is mounted — and an
-optional `token` for a caller holding the review token directly. Omit `token`
-behind the adapter above: the server route holds it and the browser never sees
+optional `token` for a caller supplying the review token directly. Omit `token`
+behind the adapter above: the server route keeps it and the browser never sees
 it.
 
 `createTribunalRoutes` takes `basePath`, `authorize` and `tokens`. `basePath` is
@@ -558,14 +558,14 @@ object still exists rather than answering from the D1 row alone.
 
 **A coverage list that was never stated is not an empty one.** `undefined` and
 `[]` are stored, returned, and drawn as different values: absent means nothing
-looked, `[]` means inspected and clean. The same distinction holds for findings.
+looked, `[]` means inspected and clean. The same distinction applies to findings.
 
 **Two tokens, and they may not be equal.** The ingest token lives in CI
 configuration and writes builds, baselines and history; the review token belongs
 to people and decides. Construction refuses a token under 16 characters and
 refuses two identical tokens.
 
-**Which token a route requires is only revealed to a caller who already holds
+**Which token a route requires is only revealed to a caller who already has
 one.** Authentication happens before routing.
 
 **The service makes no outbound request.** Not a status check, not a PR comment,
@@ -573,7 +573,7 @@ not a webhook, not telemetry — the pipeline reports to the service, and the
 service reports to nobody.
 
 **The record is append-only, and the database enforces it.** Runs, observations,
-token values and decisions all carry `UPDATE` and `DELETE` triggers, so a direct
+token values and decisions all have `UPDATE` and `DELETE` triggers, so a direct
 `wrangler d1 execute` against the database is refused too.
 
 ## Retention
@@ -627,7 +627,7 @@ cannot. A unique index still refuses a run id pointing at two commits either way
 resizes, or deduplicates across builds.
 
 **A build cannot distinguish two images of one subject.** The per-subject outcome
-a run reports carries a subject and no label, so labelled baselines are writable
+a run reports names a subject and no label, so labelled baselines are writable
 through the store and the review path can never address them.
 
 **Anything that satisfies `D1Like` and `R2Like` is an adapter away**, and the

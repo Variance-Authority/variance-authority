@@ -193,7 +193,7 @@ Reading it:
 
 - `arrange` compares the two starting observations. The two pages genuinely
   differ, so it is `identical: false`.
-- Each entry in `transitions` carries the left recording's effect, the right
+- Each entry in `transitions` shows the left recording's effect, the right
   one's, and whether they agree. `firstDivergence` names the earliest act where
   they did not.
 - `bands` names the dimension that changed, from `a11y`, `geometry`, `token`,
@@ -227,9 +227,10 @@ are not shifted into a plausible pair. A failed observation is recorded with
 | `profile` | yes | the observation profile every frame must match |
 | `preconditionLink` | no | the already-resolved parent subject and whether it was `declared` or `named`; omitted means no link was supplied |
 
-`preconditionLink` is carried, not computed. If your harness already resolved
-that `page-error` derives from `page`, pass that result through; this package
-records it and infers nothing about fixtures, mocks, cookies, routes or flags.
+`preconditionLink` is passed through, not computed. If your harness already
+resolved that `page-error` derives from `page`, pass that result through; this
+package records it and infers nothing about fixtures, mocks, cookies, routes or
+flags.
 
 ## Fold recordings into a state machine
 
@@ -246,13 +247,13 @@ const machine = foldScenarios([oneArticle, twoArticles]);
 console.log(machine.nodes.length, machine.transitions.length, machine.divergences);
 ```
 
-The value holds `nodes`, `transitions`, `unknown` and `divergences`. An edge no
+The value has `nodes`, `transitions`, `unknown` and `divergences`. An edge no
 recording witnessed is simply absent from it. Folding replays nothing — it turns
 frames you already recorded into a graph.
 
 ## Retain semantic evidence explicitly
 
-The root entrypoint holds everything in memory and performs no I/O, so dropping
+The root entrypoint keeps everything in memory and performs no I/O, so dropping
 the value drops the recording. Import `createScenarioArchive` from
 `@variance-authority/scenario/archive` when the evidence has to survive the
 process. Continuing `scenario-demo.ts` again — `await` at the top level needs no

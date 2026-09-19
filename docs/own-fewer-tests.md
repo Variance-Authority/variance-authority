@@ -67,16 +67,16 @@ the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
 from `@variance-authority/sense/test-selection` answer the same two questions in
 process, for an editor or a script that wants the records rather than the text.
 
-Two limits shape how you read the list. Anything a file entered before its first
-case — imports, `beforeAll`, top-level evaluation — is credited to every case in
-that file. And this recorder writes every crossing at depth zero rather than
-inventing a call-stack distance it did not observe, so the order is by identity;
-the file-level [execution record](execution-record.md) carries real distance
-instead, and an index from another producer that measured depth sorts nearest
-first. Turn cases on for a local loop over the code you are changing, not for
-the repository-wide index CI reads to select files. A Jest suite wraps its own
-configuration the same way and records the same regions against test files; the
-case axis is the Vitest integration.
+Two limits shape how you read the list. Anything a file entered before its
+first case — imports, `beforeAll`, top-level evaluation — is credited to every
+case in that file. And this recorder writes every crossing at depth zero rather
+than inventing a call-stack distance it did not observe, so the order is by
+identity; the file-level [execution record](execution-record.md) stores real
+distance instead, and an index from another producer that measured depth sorts
+nearest first. Turn cases on for a local loop over the code you are changing,
+not for the repository-wide index CI reads to select files. A Jest suite wraps
+its own configuration the same way and records the same regions against test
+files; the case axis is the Vitest integration.
 
 The list starts the conversation. It does not finish it, and the rest of this
 page is about what finishes it. For one candidate test rather than a set of
@@ -221,7 +221,7 @@ code may still provide the same answer.
 [Ask which tests claim a line](#ask-which-tests-claim-a-line) names the cases
 that entered a region. The file-level [execution record](execution-record.md)
 answers the same question by test file, adds the call-stack depth each test
-stood at, and says how much source that test carries with it. Both readings
+stood at, and says how much source that test pulls in with it. Both readings
 identify a conversation rather than a verdict.
 
 For one candidate, [Distill](distill.md) can show what it loaded, entered and

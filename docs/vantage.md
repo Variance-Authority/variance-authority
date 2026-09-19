@@ -74,7 +74,7 @@ action)` for something that happened, `vaStart` / `vaEnd` on the same three word
 for work with a duration. Those three words are the announcing code's own
 coordinates; the `subject` there is not a Variance Authority subject, and this
 half of the toolkit never sees one. A test hears announcements only if it
-destructures the `events` fixture. Each announcement carries the **realm** it came from: `page` for the
+destructures the `events` fixture. Each announcement names the **realm** it came from: `page` for the
 browser, or the name a backend service reports under.
 
 | What you see | What it means |
@@ -113,14 +113,14 @@ that went away cannot fail the run it was watching.
 `attachVantage()`, from `@variance-authority/vantage/attach`, is the watching end
 and the only half that opens a socket. It takes an ephemeral port and returns the
 address to start a run with, so two watchers on one machine never collide and you
-never type a port. One watcher holds one run; start a second watcher for a second
+never type a port. One watcher tracks one run; start a second watcher for a second
 suite.
 
 The two halves are separately versioned, and a suite pinned a minor behind the
 watcher it reports to is the ordinary case. A watcher drops a report it cannot
 read rather than half-reading it.
 
-## What the watcher holds about one test
+## What the watcher knows about one test
 
 | Field | What it answers |
 | --- | --- |
@@ -161,7 +161,7 @@ The workflow is in [inspect a live run](agent-live-run.md).
 
 Two calls on the `variance` fixture put a test at your disposal.
 `variance.snapshot(note?)` sends what is here now and keeps going;
-`variance.observe(note?)` sends it and then holds the test — page still up,
+`variance.observe(note?)` sends it and then pauses the test — page still up,
 network still whatever it was — until somebody releases it. Neither takes a line
 number; both read their own from the stack.
 
@@ -186,8 +186,8 @@ has exactly the time it had before. Find the stopped tests from a shell:
 npx variance ask waiting --at http://127.0.0.1:53393
 ```
 
-Releasing is the one thing a one-shot shell command cannot do, because the run is
-held in the watcher's memory and a CLI process holds no run. Release from the
+Releasing is the one thing a one-shot shell command cannot do, because the run
+lives in the watcher's memory and a CLI process has none. Release from the
 process that is watching — over MCP with `variance_continue`, or from your own
 watcher with `observatory.release(id)`. A release is spent exactly once, by the
 stopped test's next poll, so two readers cannot let one test go twice and a
@@ -214,8 +214,8 @@ stands](agent-interrogate.md).
 ## Nothing is written down
 
 There is no report directory, no file to clean up, and no artifact to mistake for
-evidence later. The memory holding a run belongs to the watcher; stop the watcher
-and the run is gone.
+evidence later. The memory that keeps a run belongs to the watcher; stop the
+watcher and the run is gone.
 
 There is also no authentication. The watcher answers anyone who can connect to
 port, and loopback is the whole of the access control: `openVantage` refuses any

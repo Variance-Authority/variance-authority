@@ -196,7 +196,7 @@ console.log(await events.happened('checkout', 'upsell-modal', 'decided'));
 | `happened` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles when these coordinates are announced in **any** phase, past or future |
 | `finished` | `(location, subject, action, options?) => Promise<RecordedEvent>` | settles only when an `end` closes these coordinates, past or future |
 | `record` | `(realm, event) => RecordedEvent` | feed the log one announcement, from a named realm |
-| `remark` | `(about, sentence) => void` | a keyed sentence every failure from this log carries; last write for a key wins |
+| `remark` | `(about, sentence) => void` | a keyed sentence every failure from this log prints; last write for a key wins |
 | `close` | `(because?) => void` | fail every outstanding wait at once, and every later one |
 
 `WaitOptions` takes `timeoutMs`, defaulting to 5000. `RecordedEvent` is the
@@ -279,7 +279,7 @@ The channel is the cookie the driver already set, and it is not this package's.
 [`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) carries announcements and coverage
 accounts — which regions of source an execution entered — on one medium under one
 execution id, and reports only which of the two was speaking. `enter` takes the
-request's `Cookie` header, or the pairs a service's own cookie accessor holds,
+request's `Cookie` header, or the pairs a service's own cookie accessor returns,
 joined the same way. A request the run did not drive carries neither, and
 announces to nobody.
 

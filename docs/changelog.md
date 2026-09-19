@@ -38,7 +38,7 @@ baseline is a record that survives the baseline being replaced.
 
 | Baselines live in | The explanation lives in | Read back with |
 |---|---|---|
-| the repository, plain or git-LFS | the commit message that carried them | `npx variance changelog` |
+| the repository, plain or git-LFS | the commit message that came with them | `npx variance changelog` |
 | the [review service](https://variance-authority.dev/reference/packages/tribunal) | its own append-only table | `GET /review/changelog` |
 
 Retention is the config key `"retention"`, and it has two values: `durable`
@@ -60,7 +60,7 @@ git commit -F .variance/commit-message.txt
 ```
 
 The file has two audiences and satisfies them separately. The prose is for
-whoever scrolls `git log`. Below it, one trailer per change carries a versioned,
+whoever scrolls `git log`. Below it, the trailers make up a versioned,
 base64url-encoded record for a parser — the run, the commit it compared, the
 intent, and one entry per change. A change is grouped the way review groups it,
 so a token edit that reached forty **subjects** — one subject being a named UI
@@ -81,10 +81,9 @@ Variance-Run: v1 eyJjaGFuZ2Vsb2dWZXJzaW9uIjoxLCJydW4iOiI0MjQyIiw…
 Variance-Change: v1 eyJmaW5nZXJwcmludCI6InYxOjJjNGY5YTFlMGI3ZDM4…
 ```
 
-The block holds the operator's line if one was written, one line per change,
-one line per **drift** — a design token and the two values it changed
-between, summed over every approval that changed it — and one line for the
-run.
+The block lists the operator's line if one was written, one line per change,
+one line per **drift** — a design token and the two values it changed between,
+summed over every approval that changed it — and one line for the run.
 
 **A change line leads with the fingerprint** because that string is the argument
 `accept --shape` takes. A **shape** is a fingerprint computed from the diff
@@ -96,7 +95,7 @@ component, and the file if the run could attribute one — and then `11/14`:
 promoted in eleven of the fourteen subjects the shape reached. A bare `11`
 means the shape covered exactly those. An entry the run could not attribute
 to an edit is marked ` collateral`, and the prose names the first twenty
-changes; past that it says how many more are in the trailers, which carry all
+changes; past that it says how many more are in the trailers, which record all
 of them.
 
 **The run line is last and always present.** `--shape`, `--subject` and `--all`
@@ -129,7 +128,7 @@ and was promoted in eleven means three were left changed — either the promotio
 was partial or the shape is not what somebody thought it was. Both are worth
 knowing long after the run that produced them.
 
-## What a record carries, and what it deliberately does not
+## What a record says, and what it deliberately does not
 
 A record is written once and read for as long as the baseline exists. Three
 things are kept out of it.
@@ -146,8 +145,8 @@ sentence that can never be reworded, and every release afterwards inherits the
 phrasing of the one that shipped first.
 
 **Nothing derivable.** There is no accepted-subject total, because the entries
-and the unshaped count already carry it. Two numbers that can disagree leave a
-reader deciding which one is the record.
+and the unshaped count already add up to it. Two numbers that can disagree
+leave a reader deciding which one is the record.
 
 The version prefix is `v1`, and it goes up only if an existing field changes
 meaning. Adding a field does not need it: a reader keeps keys it does not
@@ -162,15 +161,15 @@ over a report. A row is written the moment a subject is approved, and shapes are
 grouped **when somebody reads**, so a change approved across three sessions
 still reads as one change.
 
-Each row carries its own copy of what it needs. Builds expire, and the
+Each row keeps its own copy of what it needs. Builds expire, and the
 explanation of a baseline has to last as long as the baseline does, so the
 changelog is excluded from retention sweeps and the database refuses `UPDATE`
 and `DELETE` on it.
 
 Nothing is written for a **rejection**. It is a decision, and it is recorded as
-one, but no baseline changed — and a changelog carrying rejections answers *why
-does this baseline look like this* with entries about baselines that are not
-there.
+one, but no baseline changed — and a changelog with rejections in it answers
+*why does this baseline look like this* with entries about baselines that are
+not there.
 
 ## Two rules worth knowing before you trust an answer
 

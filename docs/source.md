@@ -56,7 +56,7 @@ moved.opaque;     // files widened because their own edges are unknown
 
 `scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
 `readModule(file, contents)` and `readStyle(file, contents)` are exported from
-`@variance-authority/sense/read` when you already hold the source text: they
+`@variance-authority/sense/read` when you already have the source text: they
 read requests and names without resolving anything or opening the checkout.
 
 ## Lookup map
@@ -67,7 +67,7 @@ read requests and names without resolving anything or opening the checkout.
 | Check whether a file extension is read | [Extensions](#extensions) |
 | Reach a workspace package's source instead of its `dist` | [Workspace packages](#workspace-packages) |
 | Resolve a `@/…` alias | [Resolution](#resolution) |
-| Read source text already held by an editor, VFS or build | [`readModule` and `readStyle`](#install-and-call) |
+| Read source text an editor, VFS or build already has | [`readModule` and `readStyle`](#install-and-call) |
 | Interpret one returned file | [`FileRecord`](#file-records) |
 | Distinguish a missing package from an incomplete edge list | [Unresolved and unknown](#unresolved-and-unknown) |
 | Ask which edge kinds a runtime walk follows | [Graph handoff](#graph-handoff) |
@@ -152,7 +152,7 @@ reading errs towards over-including.
 
 The request set is explicitly incomplete when the parser reports an error, a
 dynamic import is not a literal, or a `require()` target cannot be read as a
-literal. The returned reading carries the reason rather than presenting a
+literal. The returned reading names the reason rather than presenting a
 partial list as complete.
 
 ## Resolution
@@ -215,7 +215,7 @@ produces no edge:
 
 `import { Button } from '@scope/ui'` lands on that package's `dist/index.js`,
 which is outside the graph. The importing record keeps `@scope/ui` under `unresolved`
-and carries no `unknown` reason, because a bare specifier normally names a
+and has no `unknown` reason, because a bare specifier normally names a
 dependency rather than repository source. An edit to the package's own
 `src/Button.tsx` then reaches nothing in the consuming package.
 
@@ -286,7 +286,7 @@ File-level reach is unaffected: you still get which files a change can reach.
 
 A component is one the source spells as a `function`, `const`, `let` or `class`
 declaration whose name begins with an uppercase letter, exported or not. Those
-names are what `declares` holds, and what a `declared-in` edge points from.
+names are what `declares` lists, and what a `declared-in` edge points from.
 Recognition reads the declaration line, not the value behind it, so these are
 all named:
 
@@ -309,9 +309,9 @@ Widget.Row = Inner;                         // assigned after the fact
 
 A missed component leaves a report naming the component without a file, which
 is what the report said before the index existed. The error runs the other way
-too: any capitalised `const` counts, including one that holds a hook, a schema
-or a constant, and including one declared inside another function. A false
-positive can only surface for an identifier something else already named.
+too: any capitalised `const` counts, including one whose value is a hook, a
+schema or a constant, and including one declared inside another function. A
+false positive can only surface for an identifier something else already named.
 
 ### Unresolved and unknown
 
@@ -371,8 +371,8 @@ every file. The committed tree supplies blob ids; working-tree status identifies
 paths that must be re-hashed from disk. A file edited back to its committed
 contents returns to the committed digest.
 
-Git object ids carry a `git:` prefix and scan-computed digests carry `v1:`. They
-are different schemes and never compare as though they were interchangeable.
+Git object ids start with `git:` and scan-computed digests with `v1:`. They are
+different schemes and never compare as though they were interchangeable.
 Outside a Git checkout, or when Git cannot answer, the scan reads and hashes
 files itself.
 
@@ -443,7 +443,7 @@ barrels and bundles from consuming a scan's memory budget. Raising
 `largestFile` accepts that cost for a file you want read anyway.
 
 **Components are React's, and only where the source names them.** On another
-framework `declares` is empty; on React, a component that never carries a
+framework `declares` is empty; on React, a component that never has a
 capitalised name at its declaration is missed. See
 [Component declarations](#component-declarations).
 

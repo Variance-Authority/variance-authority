@@ -33,8 +33,8 @@ variance reach --since origin/main | grep '\.test\.tsx$' | xargs -r vitest run
 variance reach --since origin/main | grep '/test_.*\.py$' | xargs -r pytest
 ```
 
-The list holds every file the change can reach, the changed files among them,
-one per line. `--format json` carries the same answer with what was left out of
+The list names every file the change can reach, the changed files among them,
+one per line. `--format json` returns the same answer with what was left out of
 it beside it. No project configuration is read, and `--since` has no default:
 the command is asked by a repository whose tests something else runs, and
 guessing a ref there would be guessing what a build is about to skip.
@@ -139,9 +139,9 @@ looks like a fast green build.
 build reads — a lockfile, a Dockerfile, a workflow — is taken out of the walk and
 named on stderr rather than dropped. A file whose own edges could not be
 enumerated — a parse error, a missing grammar, a computed import, a macro, a
-name resolved by reflection — is walked from as though it had changed, and
-stderr carries the sentence saying which file and why. A widening you can read
-is a work item; a widening you cannot is a tax.
+name resolved by reflection — is walked from as though it had changed, and a
+sentence on stderr says which file and why. A widening you can read is a work
+item; a widening you cannot is a tax.
 
 **It will not narrow by language.** The reach of a diff that touched Python and
 Swift is one walk over one graph, and the Swift file reached through a target

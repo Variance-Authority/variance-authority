@@ -78,12 +78,12 @@ every skip:
 ]
 ```
 
-`plan.warnings` carries anything the parser read but wants to flag — an index
-version it was not written against, a file declaring no `v`, a file carrying
+`plan.warnings` lists anything the parser read but wants to flag — an index
+version it was not written against, a file declaring no `v`, a file with
 both `entries` and `stories`.
 
 `parseStoryIndex` is the same parser without the `readFile`, for an index you
-fetched over HTTP or already hold as a value. The `/read` entrypoint is the only
+fetched over HTTP or already have as a value. The `/read` entrypoint is the only
 thing in this package that touches a filesystem.
 
 ## Drive a preview page you own
@@ -197,8 +197,8 @@ they rendered — see below.
 | option | default | what it decides |
 |---|---|---|
 | `viewport` | none | the run's viewport, which per-story overrides are merged over. Optional, because a fully-specified override needs no base. A partial override with no base cannot be completed, and that story is excluded with the reason rather than rendered at a guessed size |
-| `parameters` | none | per-story parameters by story id — `{ exclude?, viewport? }`. Supplied rather than read: the index carries `type`, `title`, `name`, `importPath` and `tags`, and nothing else. Reading a story's own parameters means evaluating its module, which is the preview's job |
-| `excludeTags` | none | stories carrying any of these tags are excluded. Tags are the one piece of per-story policy the index does carry, so this is the only opt-out that works without a running preview |
+| `parameters` | none | per-story parameters by story id — `{ exclude?, viewport? }`. Supplied rather than read: the index records `type`, `title`, `name`, `importPath` and `tags`, and nothing else. Reading a story's own parameters means evaluating its module, which is the preview's job |
+| `excludeTags` | none | stories tagged with any of these are excluded. Tags are the one piece of per-story policy the index does list, so this is the only opt-out that works without a running preview |
 
 Viewport lengths may be numbers or `px` strings, because `px` strings are how
 Storybook's own viewport entries are written. Any other unit is refused: `em` and
@@ -215,7 +215,7 @@ Storybook's own viewport entries are written. Any other unit is refused: `em` an
 | `events` | `STORYBOOK_EVENTS` | the channel event names this adapter listens for — `{ setCurrentStory, updateGlobals, storyRendered, storyFinished, storyThrewException, storyErrored, storyMissing, playFunctionThrewException }`. Override any of them if a Storybook build renamed one |
 | `globals` | `{ a11y: { manual: true } }` | Storybook globals to set on the preview, once per document, before any story is shown. The default stands `@storybook/addon-a11y`'s automatic scan down for this pass. Pass `{}` to change nothing |
 | `roots` | `#storybook-root`, `#root` | where the story mounts, tried in order |
-| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to carry the error |
+| `errorOverlay` | `STORYBOOK_ERROR_OVERLAY` | CSS selectors identifying Storybook's fatal-error overlay — `{ bodyClass: 'sb-show-errordisplay', message: '#error-message', stack: '#error-stack' }`. Only consulted when no channel was found, since there is then no event to name the error |
 | `observe` | none | `collectStories` only: called after a story became ready and before the next is shown. This is where a capture goes. Called only for `rendered` stories, and sequentially — one call finishes before the next story is shown |
 
 ## Readiness
@@ -274,9 +274,9 @@ re-renders only a story it is not already displaying, so asking for the same
 subject twice in one page — which is how an order-dependent reading is told apart
 from a regression — is answered by the render that already finished.
 
-That event also carries how the render ended. A story whose `play` threw after
+That event also says how the render ended. A story whose `play` threw after
 the last paint, or whose `afterEach` raised, finishes with status `error`, and
-the outcome carries a warning saying so. The status is not the outcome's status:
+the outcome includes a warning saying so. The status is not the outcome's status:
 the picture is on screen and a capture of it is a capture of what the component
 did, so the story is still `rendered`. The warning is for the baseline — a
 subject that failed its own checks is not one to record as the way it should
@@ -312,7 +312,7 @@ vocabulary:
   anything with `Date`.
 - `page.clock.install` also replaces `setTimeout` and `performance`, and advances
   only when you tick it. **Not supported while it is stopped**: a page whose
-  timers never fire cannot render a story, and no deadline the driver holds can
+  timers never fire cannot render a story, and no deadline the driver sets can
   change that. Tick the clock, or install it after the capture.
 
 ## No Storybook-specific denylist

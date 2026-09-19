@@ -129,7 +129,7 @@ If the nearest measured test is five hops away, `0-2` is empty. Distance does
 not renumber the groups to fill a requested range.
 
 A test selected from the snapshot without a measurable path is **unplaced**.
-`atDistance` carries such tests with the range that covers the measured end.
+`atDistance` returns such tests with the range that covers the measured end.
 Tests selected only by the current host inventory are outside the distance
 reading altogether and stay your integration's responsibility.
 

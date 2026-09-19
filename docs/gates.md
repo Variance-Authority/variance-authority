@@ -44,13 +44,13 @@ the run to `1`:
 | a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
-| an observation carries an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
+| an observation reports an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not read, say — so the images agree about something smaller than what you asked for |
 
 Three things deliberately do not take it there: an `ignored` verdict, where
 every moved pixel fell inside a subtree you excluded; a subject your own
 configuration excluded; and a `warn` diagnostic, which states a standing limit
 of the configuration rather than a finding. All three are recorded either way;
-what changes is whether they hold the build open.
+what changes is whether they block the build.
 
 Posting the result to the pull request is not part of the gate. `npx variance
 comment` writes a comment body and posts nothing — the posting stays with
@@ -72,8 +72,8 @@ writes a report you review where you like.
 ## 1. Percy route workflow
 
 Percy is BrowserStack's hosted visual-testing product: an SDK or its Automate
-browsers capture pages, Percy's cloud renders and diffs them, and its hosted
-dashboard carries review.
+browsers capture pages, Percy's cloud renders and diffs them, and review
+happens on its hosted dashboard.
 
 **Job:** a known set of URLs or static pages, captured at several widths and
 gated in CI.
@@ -139,7 +139,7 @@ extra instrumentation; resolving to the exact call site needs optional
 | Local or remote render | **conditional** — the Storybook document does not archive resource bytes |
 | Managed change selection | **partial** — source/baseline selection exists, without Chromatic's hosted module-graph service |
 | Changed element resolved to `file:line` | **conditional** — a development Storybook needs nothing; a built one can resolve component declarations without extra instrumentation, while exact per-element call sites require optional `jsx-source` instrumentation and automatic development JSX emission; `keepNames` separately preserves component names |
-| Branch semantics and recorded sign-off | **partial** — a build carries the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and deployment remains with the team |
+| Branch semantics and recorded sign-off | **partial** — a build names the `branch` it was pushed from and every decision is recorded against the reviewer who made it; baselines do not follow a branch's merge base, and deployment remains with the team |
 | Non-engineer review page | **partial** — [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal), the self-hosted review application, serves the page and its identity provider decides who opens it; standing it up is an engineer's job, once |
 
 **Summary:** Good fit when the team wants to operate Storybook capture, gating, and
@@ -176,7 +176,7 @@ the test that mounted it, without a second harness or a second run.
 | Acquisition in the frame that mounted the component | **yes** — markup, applicable CSS, provenance, wiring and resource bytes are read in the tester iframe |
 | Viewport the component was laid out in | **yes** — media conditions resolve against the tester iframe, not the browser tab |
 | Deferred, identified paint | **yes** — the Vitest process paints the captured document with a renderer that states its machine, scale and fonts |
-| Pixels taken live in the tab that mounted it | **no** — a live screenshot carries no render identity, so its baseline is reproducible on no other machine |
+| Pixels taken live in the tab that mounted it | **no** — a live screenshot has no render identity, so its baseline is reproducible on no other machine |
 | Approval from the runner's own flag | **yes** — `vitest -u` promotes the image the run already painted |
 | Portalled markup rendered outside the read element | **no** — a mount whose interesting half is in a portal is read without it |
 | The tab's own assistive tree | **no** — that reading comes from the Playwright path |

@@ -37,7 +37,7 @@ here.
 
 The failure message names components, and where the engine or a source index can
 say so, the file and line behind them — the sample above is the whole message,
-with no image opened. A baseline carries the browser, platform and scale it was
+with no image opened. A baseline records the browser, platform and scale it was
 painted under, so a baseline recorded elsewhere returns `incomparable` rather
 than a wall of differences you would have to read through. And the document, the
 pixels and the browser's accessibility tree are three separate results, so a role
@@ -181,9 +181,9 @@ name it never met keeps them.
 
 Both mechanisms name a declaration. If the report must distinguish *which
 instance* of a component changed, and the subject is a production React build,
-`@variance-authority/jsx-source` is the build instrumentation that carries each
+`@variance-authority/jsx-source` is the build instrumentation that passes each
 JSX element's own line as far as the fiber. Development React builds already
-carry it.
+include it.
 
 With a source index in hand, the message at the top of this page gains the
 remaining line:
@@ -199,7 +199,7 @@ ordering measures displacement rather than blame:
       src/ds/components.tsx:107
 ```
 
-The ordering is by changed area and the message says so: an `Observation` carries
+The ordering is by changed area and the message says so: an `Observation` names
 no causes, so area measures displacement — the container that merely reflowed
 sorts above the component that was edited. Do not read it as cause-first
 attribution.
@@ -294,7 +294,7 @@ by.
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
 | `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be said about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
-| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
+| `holdings` | Application values behind the nodes are evidence you want kept. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `sensitivity` | This subject is not asserted on in full — a themed embed, a route under an active rebrand. | Undeclared: everything is asserted on. Takes the rule that applies here, already matched: `{ rule, reason, level }`. `level` is `strict`, `layout` (asserts on `a11y` and `geometry`) or `content` (asserts on `a11y` and `content`); the rest are absorbed however large they are, and the verdict is `ignored` with the rule's id in it — which is why it is not a threshold. |
 
 ### `createVariance(page, within, options)`
@@ -363,7 +363,7 @@ is on and each image is attached to the test.
 
 `within` is Playwright's `TestInfo` or a plain run descriptor. Suites that drive
 a browser from vitest, `node:test` or a script have every fact this package
-reads from `TestInfo` and no `TestInfo` to hold them, so they state them:
+reads from `TestInfo` and no `TestInfo` to put them in, so they state them:
 
 ```ts
 import { createVariance } from '@variance-authority/playwright-test';
@@ -468,7 +468,7 @@ never justify skipping itself later.
 
 | Fixture | Purpose | Default |
 | --- | --- | --- |
-| `varianceBaselines` | Directory holding durable baselines. | `.variance/baselines` |
+| `varianceBaselines` | Directory of durable baselines. | `.variance/baselines` |
 | `varianceRenderer` | Renderer shared by one Playwright worker. | A Playwright renderer created and closed by the fixture. |
 | `varianceStore` | Baseline and render-cache implementation. | Durable directory store using `varianceBaselines`. |
 | `varianceBundle` | Page agent installed before application code runs. | The package's bundled agent. |
@@ -512,7 +512,7 @@ one per attempt, because a flake and its retry are two executions a service has
 to be able to tell apart. The fixture puts it on the browser context before the
 spec navigates, beside the address this worker is listening on. The browser
 attaches both to every same-origin request, so nothing in the application is
-touched to carry them, and the spec file's *name* never leaves the runner.
+touched to send them, and the spec file's *name* never leaves the runner.
 `VARIANCE_AUTHORITY_JOURNEYS` says only that the service is under a run — any
 value will do, because where to report is a fact about the request rather than
 about the environment. `origin` overrides the origin the cookies are scoped to
@@ -704,7 +704,7 @@ is hanging has heard so far.
 
 ### Stop a test where you want to look at it
 
-The `variance` fixture carries two more calls, for when you want a watcher to
+The `variance` fixture has two more calls, for when you want a watcher to
 see a particular moment rather than the whole run:
 
 ```ts
@@ -725,7 +725,7 @@ suite('the cart settles', async ({ page, variance }) => {
 ```
 
 `snapshot` sends what is here now and keeps going. `observe` sends it and then
-holds the test where it is — the page still up, the network still whatever it
+pauses the test where it is — the page still up, the network still whatever it
 was — until an agent that has looked around calls `variance_continue`. Neither
 takes a line number: both read their own.
 

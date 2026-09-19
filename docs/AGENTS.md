@@ -253,11 +253,38 @@ language. That last part is not a small adjustment. It decides the words.
    to** one. A value does not *reach a digest*, it **is written into** one. A
    capability is not *reached for*, it is **chosen**.
 
-   Density is the other half of this one. Even used correctly, the word carries
-   a specific claim, and a paragraph that makes it four times is not making it
+   Density is the other half of this one. Even used correctly, the word makes
+   one specific claim, and a paragraph that states it four times is not stating it
    any more. Say it once, then name the edge — *imports*, *depends on*,
    *renders*, *calls* — because the reader is counting how far the change went,
    and every extra *reaches* is one more thing to count.
+
+   **The test behind all three: how much can the word mean?** A word with one
+   meaning is safe to write as often as the subject needs it — `import` is an
+   import, `hydration` is hydration, and nobody reading either has to work out
+   which sense was intended. A word that means a dozen things is not safe once,
+   because the reader has to pick, and the sentence is shorter than the pick.
+   *Move*, *reach* and *follow* are all this: flexible enough to fit any
+   sentence, which is exactly why they say nothing about the one they are in.
+   The boundary is not the word's length or its register, it is how far it can
+   stretch. Stretchy words get spent on the one thing they literally describe
+   and nothing else; the rest of the time you write the verb that can only mean
+   what happened.
+
+   **Carry and hold are the third.** They are said about a thousand times across
+   the published pages, which is nearly nine a page, and almost none of it is
+   about carrying or holding. English has the exact verb for every one of these
+   and it is usually the shorter one. A record does not *carry* a reason, it
+   **gives** one. A document does not *carry* its hashes, it **lists** them. A
+   report does not *hold* two totals, it **counts** them. A fixture does not
+   *carry* both, it **is** both. A field does not *hold* a value, its value
+   **is** that. A request **takes** a header, a log **records** a line, a
+   baseline **stores** a pixel, a lockfile **pins** a version, a page **names**
+   its subject, a run **keeps** what it will need again. Keep *carry* for a
+   value that really travels — down a wire, through a process, along a chain —
+   and *hold* for a thing really kept still, a lock or a frozen clock. Writing
+   one of them because no other word came to mind is the caveman version of a
+   language that has the right word for every case.
 5. **Plain words, plain sentences.** Outside terms of art, use the most common
    word that still means it, and the plainest sentence that still carries it.
    *Use*, not *utilise*. *Enough*, not *sufficient*. *So*, not *hence*. *But*,

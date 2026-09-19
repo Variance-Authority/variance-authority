@@ -4,7 +4,7 @@
 
 > What a run is saying, while it is still saying it.
 >
-> Held in a process that outlives the test, so a suite in flight is something to look at rather than something to wait for.
+> Kept in a process that outlives the test, so a suite in flight is something to look at rather than something to wait for.
 
 Part of [Variance Authority](https://variance-authority.dev).
 
@@ -61,7 +61,7 @@ npm install --save-dev @variance-authority/vantage
 
 Three steps, in two shells. No port is agreed in advance: the watcher takes an
 ephemeral one and prints the address, and that printed string is the only thing
-you carry.
+you copy.
 
 **1. Start the watcher and leave it up.**
 
@@ -206,9 +206,9 @@ curl "$VARIANCE_AUTHORITY_VANTAGE/"
 ```
 
 `previous` is the snapshot handed to whoever read last, so a one-shot command can
-answer *what has happened since somebody looked* without holding anything between
-invocations. It is one value shared by every reader of that watcher, not one per
-reader.
+answer *what has happened since somebody looked* without remembering anything
+between invocations. It is one value shared by every reader of that watcher, not
+one per reader.
 
 ### The fields
 
@@ -307,8 +307,8 @@ npx variance ask waiting --at http://127.0.0.1:53393
       tests/checkout.spec.ts:41:11  after 3 announcement(s)  before the card form appears
 ```
 
-Releasing is the one thing a one-shot shell command cannot do, because the run is
-held in the watcher's memory and a CLI process holds no run. Release from the
+Releasing is the one thing a one-shot shell command cannot do, because the run
+lives in the watcher's memory and a CLI process has no run. Release from the
 process that is watching: over MCP with `variance_continue`, or in your own
 watcher with `release` (below).
 
@@ -317,7 +317,7 @@ returns `'unwatched'` immediately and `snapshot` sends nothing, so a spec that
 has them runs straight through in CI — which is what separates them from the
 `debugger;` and `.only` they stand in for. If you do run a watcher in CI and
 nobody ever releases, `observe` returns `'expired'` after ten minutes by default
-and the test carries on.
+and the test goes on.
 
 ## Write your own watcher
 
@@ -358,7 +358,7 @@ suite.on('exit', async () => {
 | `observatory.snapshot(): VantageState` | plain values that will not change again — the shape printed above |
 | `observatory.release(test: string): boolean` | let one stopped test go on; `false` if it was not stopped, or was already released |
 | `observatory.releaseAll(): readonly string[]` | let everything stopped go on, and answer which tests those were |
-| `close(): Promise<void>` | stop listening; the run it held is gone |
+| `close(): Promise<void>` | stop listening; the run in its memory is gone |
 
 A release is spent exactly once, by the run's next poll. Two readers cannot
 release one test twice, and a second release cannot land on whatever that test
@@ -434,14 +434,14 @@ timeout.
 ## Bounds, and what the watcher will not do
 
 `ObservatoryOptions` — passed through `attachVantage` — bounds what one watcher
-holds:
+keeps:
 
 | Option | Default | |
 | --- | --- | --- |
 | `tests` | 200 | tests kept, newest |
 | `heard` | 500 | announcements kept per test, newest |
 | `notes` | 100 | notes kept per test, newest |
-| `address` | the one it is listening on | carried into every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
+| `address` | the one it is listening on | included in every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
 
 Past those, entries drop from the front and are counted: `forgotten` on the run,
 `forgotten` and `forgottenNotes` on each test. Every printed answer says how many

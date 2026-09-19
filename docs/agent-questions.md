@@ -1,7 +1,8 @@
 # Everything an agent can ask
 
-Start from what you kept — a finished report, a watcher still holding the suite,
-an [Eyes](eyes.md) archive, or a checkout alone — and take the entrance you have:
+Start from what you kept — a finished report, a watcher still attached to the
+suite, an [Eyes](eyes.md) archive, or a checkout alone — and take the entrance
+you have:
 
 - the CLI reads files and live watchers from a shell;
 - MCP exposes the same readings when a producer already owns a connection;
@@ -88,7 +89,7 @@ whole: where it stopped, what it sent from there, and when it may go on. The
 worked spec and tool sequence are in [interrogate a test where it
 stands](agent-interrogate.md).
 
-Live signals do not carry authored AAA attention. They answer where progress
+Live signals do not report authored AAA attention. They answer where progress
 stopped, not what UI the test owns.
 
 ## Distill one test

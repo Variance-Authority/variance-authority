@@ -1,11 +1,11 @@
 # kitchen-sink
 
 This directory scores the comparison against answers written down before the run
-that produces them. It holds a small component library and a table of 40 cases
-over 8 subjects. A **subject** is one named UI state you can ask for again —
-here one component composition, such as `button` or `dialog`. A **case** is two
-renders of one subject plus the answer they should produce: `hash-stable` where
-nothing a user could perceive changed, `hash-changed` where something did.
+that produces them. It contains a small component library and a table of 40
+cases over 8 subjects. A **subject** is one named UI state you can ask for
+again — here one component composition, such as `button` or `dialog`. A **case**
+is two renders of one subject plus the answer they should produce: `hash-stable`
+where nothing a user could perceive changed, `hash-changed` where something did.
 Because the answer came first, a run that agrees is evidence and a run that
 disagrees is a defect report rather than a discussion.
 
@@ -65,9 +65,9 @@ totals differ by one.
 
 **Contested** is the case the corpus refuses to grade at all. `dialog-open/dialog`
 has nothing deciding whether portalled content belongs to the subject; the two
-defensible readings give opposite verdicts, and it is held out until a decision
-exists rather than settled by whichever answer the implementation happens to
-give. The run prints the whole argument rather than a label:
+defensible readings give opposite verdicts, and it is left ungraded until a
+decision exists rather than settled by whichever answer the implementation
+happens to give. The run prints the whole argument rather than a label:
 
 ```
 contested dialog-open/dialog: declared hash-changed, observed hash-changed — No ADR
@@ -127,7 +127,7 @@ down for it before the run. The cases themselves are in
 [`src/corpus-stable.ts`](src/corpus-stable.ts) (no-op refactors),
 [`src/corpus-restyled.ts`](src/corpus-restyled.ts) and
 [`src/corpus-restructured.ts`](src/corpus-restructured.ts) (real changes), each
-row carrying the argument for its answer in a `rationale` field that the run
+row stating the argument for its answer in a `rationale` field that the run
 prints back when a case fails.
 
 The defects share a shape a unit test does not catch. One over-eager

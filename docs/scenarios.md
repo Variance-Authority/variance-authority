@@ -36,7 +36,7 @@ no click and renders nothing. Your harness performs the Acts and hands the
 package the observations.
 
 The [`@variance-authority/scenario`
-reference](https://variance-authority.dev/reference/packages/scenario) carries a
+reference](https://variance-authority.dev/reference/packages/scenario) shows a
 complete `scenario-demo.ts` — two recordings of one Act under two preconditions,
 the printed assessment, and the fold into a state machine — that you can save and
 run as it stands.
@@ -51,7 +51,7 @@ rendered.
 
 A precondition can be recorded with a link to the subject it varies:
 `page-error` derives from `page`. The package does not compute that link. Your
-harness resolves it and passes it through, and the recording carries both the
+harness resolves it and passes it through, and the recording notes both the
 parent and how it was resolved, whether declared on the subject or read from its
 name. [Variations](variations.md) describes that resolution: a
 `variance-parent:` tag wins; otherwise a configured name grammar reads the axes
@@ -78,7 +78,7 @@ exit code.
 
 ## What the edge was, not only that there was one
 
-The first two readings carry a **parting** — the account of where two readings
+The first two readings give you a **parting** — the account of where two readings
 diverged and which input sent them there. A digest says the Act had an effect;
 the parting says which input made it, and its one-word **slice** is the triage.
 [Parting](parting.md) defines the full set of slices. Three of them read
@@ -120,8 +120,8 @@ as unchanged because one side had no boxes to compare.
 ## Retention is separate from recording
 
 **Retention** here is whether recorded evidence survives the process. By default
-it does not: the recording is a value in memory, so holding it keeps its semantic
-snapshots and dropping it keeps nothing.
+it does not: the recording is a value in memory, so a reference to it keeps its
+semantic snapshots alive and dropping that reference keeps nothing.
 
 When the evidence has to outlive the process, `createScenarioArchive` from
 `@variance-authority/scenario/archive` stores a small versioned manifest and

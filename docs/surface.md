@@ -39,7 +39,7 @@ boundary.
 | Existing Playwright Test | `@variance-authority/playwright-test` | A render document by default, or — when you ask for it — a raster taken in place from the page your test already owns. |
 | Jest or Vitest with jsdom | `@variance-authority/unit-test` and `@variance-authority/cli` | A resource-closed document archive written in the unit process and painted by a later CLI process. |
 | Vitest browser mode | `@variance-authority/vitest-browser` | A document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
-| Custom library composition | `@variance-authority/observe` | Whichever you already hold, through a store you inject and — for documents — a renderer you supply. |
+| Custom library composition | `@variance-authority/observe` | Whichever you already use, through a store you inject and — for documents — a renderer you supply. |
 
 Every path that paints needs Playwright's browser binaries, which do not arrive
 with an `npm install`. So each install below is two commands, the second of
@@ -100,7 +100,7 @@ Point the run config at the built index and that module:
 npx variance run --config variance.config.json
 ```
 
-Storybook subject ids carry a `story:` prefix, so a story whose Storybook id is
+Storybook subject ids begin with `story:`, so a story whose Storybook id is
 `checkout--empty` is accepted as `story:checkout--empty`.
 
 `source.dirs` is what resolves a component to the file it is declared in. A
@@ -151,7 +151,7 @@ export default {
 };
 ```
 
-A config carrying the other major's key is read by nothing and warns about
+A config using the other major's key is read by nothing and warns about
 nothing, so check which Vite your Storybook runs on. A development Storybook
 needs neither key.
 
@@ -167,7 +167,7 @@ not a portable resource-closed archive: a remote renderer painting it needs the
 same access to those resources that the run had.
 
 [`@variance-authority/storybook-collector`](../packages/storybook-collector/README.md)
-carries every collector option: `baseUrl`, `ready`, `loading`, `readyTimeoutMs`,
+lists every collector option: `baseUrl`, `ready`, `loading`, `readyTimeoutMs`,
 `roots`. The walkthrough is
 [compare Storybook stories against approved screenshots](start-storybook.md).
 
@@ -378,7 +378,7 @@ this package paints the baseline image with. The second is why the install is
 not only the suite's own.
 
 The test body runs in a tab, which has neither the baseline nor a browser to
-paint with, so the plugin that carries the work back to the Vitest process is
+paint with, so the plugin that hands the work back to the Vitest process is
 required rather than optional:
 
 ```ts
@@ -416,7 +416,7 @@ test('the save button, disabled', async () => {
 
 The subject id defaults to the running test's full name, so renaming a test
 orphans its baseline and the next run reports `new` rather than comparing
-against something else. Pass `subjectId` to hold the id still.
+against something else. Pass `subjectId` to pin the id.
 
 Browser mode with the Playwright provider is the Playwright composition, run
 inside the Vitest process, which owns the baseline and the verdict. It is not
@@ -437,7 +437,7 @@ comparison or retention path of its own.
 
 A first run reports every subject `new` and exits `1`, because no baseline has
 been approved for those ids yet. Nothing is accepted on your behalf. Write the
-report as HTML beside its JSON source, so the relative image links hold, and
+report as HTML beside its JSON source, so the relative image links work, and
 look at the candidate:
 
 ```bash
@@ -464,7 +464,7 @@ Four flags:
 | Flag | What it does |
 | --- | --- |
 | `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot tell a candidate somebody reviewed from one nobody opened. |
-| `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region carries its own. |
+| `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region has its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |
 
@@ -480,7 +480,7 @@ change.
 | Raster taken in place | reconstruction and a second browser | keeping the host browser's identity pinned; repeated screenshots; raster egress if remote review follows | a state you already have in a stable, pinned browser, where disclosing the DOM is unacceptable |
 | Document painted locally | rerunning the application; enables render caching | closing the document over its resources, or guaranteeing the renderer the same access, plus local browser cost | browserless acquisition, or one pinned local renderer |
 | Document painted remotely | pinning the acquisition machine; enables remote fan-out | disclosing the document and its resources, plus transport; an environment-dependent document requires equivalent resource access | a shared render service; cross-environment portability, for closed documents only |
-| A raster you already hold | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
+| A raster you already have | all acquisition and rendering work | less semantic evidence, unless you supply it yourself | another trusted capture system already owns the pixels and the identity |
 
 Baselines are partitioned by renderer identity: engine, platform, scale, fonts,
 stabilization, and rasterization recipe. Chromium rendering defaults to
@@ -562,10 +562,10 @@ because `variance accept` reads the stored candidate raster, semantic evidence
 and renderer identity that a run writes together.
 
 A foreign raster is only useful with an honest identity declaration. Without a
-snapshot it carries no component attribution, exclusions, or band-specific
+snapshot it supplies no component attribution, exclusions, or band-specific
 policy, and those fields stay absent rather than being inferred from pixels.
 
-| What you hold | Entrypoint |
+| What you start from | Entrypoint |
 | --- | --- |
 | A render document | `Renderer.render(document)`, local or a configured remote endpoint |
 | A raster | `observeCaptureAgainstBaseline`, or `observeRasters` for two images in hand |

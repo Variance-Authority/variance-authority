@@ -97,8 +97,8 @@ malformed fiber aborting a capture is worse than one unattributed node.
 
 Provenance reports a component by its *name*, and a name is one step short of a
 file — two files declaring a `Button` leave it ambiguous. Pass a declaration
-registry as the second argument and every component the walk names is also held
-by identity, so a debugger-protocol engine can later be asked where each
+registry as the second argument and every component the walk names is also
+stored by identity, so a debugger-protocol engine can later be asked where each
 function was declared.
 
 ```ts
@@ -140,7 +140,7 @@ for (const node of document.querySelectorAll('*')) provenanceOf(node, undefined,
 ## Put it in a capture
 
 `collect` from `@variance-authority/dom` walks a subtree and records it. It
-carries no framework dependency, so the React readers arrive as callbacks.
+depends on no framework, so the React readers arrive as callbacks.
 
 ```bash
 npm install --save-dev @variance-authority/dom
@@ -165,7 +165,7 @@ const capture = collect(document.querySelector('#card')!, {
 });
 ```
 
-Every node in `capture.root` now carries the `provenance` object shown above.
+Every node in `capture.root` now has the `provenance` object shown above.
 
 `portalsOf` is what makes a subject's boundary follow the component tree rather
 than DOM containment. Without it, content a component renders through
@@ -179,14 +179,14 @@ needs a DevTools extension.
 
 | | |
 |---|---|
-| `wiringOf` | Hook shape, wrapper chain, context subscriptions and reconciliation keys — how the framework holds the component, as a value stable enough to digest. `collect` records it beside the document; two components that render identical markup but differ in wiring stop comparing as equal. Returns `undefined` for a node with no readable framework, so a non-React page is absent from this dimension rather than carrying a digest of emptiness. |
+| `wiringOf` | Hook shape, wrapper chain, context subscriptions and reconciliation keys — how the framework wires the component, as a value stable enough to digest. `collect` records it beside the document; two components that render identical markup but differ in wiring stop comparing as equal. Returns `undefined` for a node with no readable framework, so a non-React page is absent from this dimension rather than giving a digest of emptiness. |
 | `holdingOf` | What a component was handed and what it retained — props, contexts and hook cells, each as a digest. It rides beside the snapshot and enters no hash, so it never decides a pass or fail; `partingOf` in `@variance-authority/core` reads it to say which input a difference came from. |
 | `markRender` / `remountedSince` | Which component instances were destroyed and rebuilt rather than updated, over an interval you delimit. Take the mark immediately before the action; a mark taken afterwards has no earlier instance to compare against. The result describes one interval, not a difference between two revisions, so it is never digested. |
 | `awaitSuspense` / `suspenseRefusal` | Wait until nothing under a node is suspended, then rule on what to do if something still is. |
 | `tapCommits` / `awaitQuiet` | Which components performed render work, and which live instances initiated each commit. |
 | `createDeclarationRegistry` | The registry described above. |
 | `memoizedUpdatersOf` | React's `memoizedUpdaters` set as portable component paths, with a JSX source coordinate where the fiber exposes one. |
-| `walkFiberSubtree` / `fiberParentChain` / `componentFiberPath` / `fiberSourceLocation` | Bounded read-only traversal for a caller that already holds a Fiber rather than a DOM node. |
+| `walkFiberSubtree` / `fiberParentChain` / `componentFiberPath` / `fiberSourceLocation` | Bounded read-only traversal for a caller that already has a Fiber rather than a DOM node. |
 | `detectReactRuntime` | The exact React version when a DevTools hook happens to expose one, plus the expando convention observed on the node as a coarse major-version bound. |
 
 ### Waiting for a subject to arrive
@@ -215,7 +215,7 @@ instead of reporting the page as quiet.
 Each retained commit keeps two independent readings. `components` comes from
 React's `PerformedWork` flags and says which render bodies ran. `updaters` comes
 from the root's `memoizedUpdaters` and says which live instances initiated the
-update — each an innermost-first component path whose frames carry a name, a
+update — each an innermost-first component path whose frames include a name, a
 reconciliation key and a props digest. A missing `updaters` means the renderer
 did not expose the set; an empty array means it did and the commit had no
 retained updater, as on an initial mount.
@@ -243,7 +243,7 @@ read first, and it costs nothing: no stack, no module fetch, no source map.
 **React 19** dropped that field — `jsxDEV` takes four parameters and overwrites
 the fifth — and replaced it with an `Error` captured inside React's own element
 factory, kept on each fiber as `_debugStack`. The first frames in it that are
-not vendor code are carried as `Provenance.stack` (at most four) and left
+not vendor code are recorded as `Provenance.stack` (at most four) and left
 unresolved until something in the report names that node; `locateSites` in
 `@variance-authority/core` then resolves them through the source map your build
 already emits. No plugin, no `jsxImportSource`, no `jsxDev` setting. The classic
@@ -261,7 +261,7 @@ against a repository scan (`indexSource` in `@variance-authority/core`) — the
 declaration site rather than the call site.
 
 An element whose props were rebuilt by a custom JSX runtime — Emotion does this
-for anything carrying a `css` prop, copying with `for…in`, which drops symbol
+for anything with a `css` prop, copying with `for…in`, which drops symbol
 keys — records its location one fiber up, and the lookup climbs composite
 ancestors to find it. The climb stops at the first host element, so it never
 reaches past the component that rendered the node.

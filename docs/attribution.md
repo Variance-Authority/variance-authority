@@ -11,19 +11,19 @@ Read this page to find out how a changed region gets a component name and a
 `file:line`, what each step needs from your build, and where the chain stops
 instead of guessing. New here? Start with [your first run](start.md).
 
-Five hops, each one a pure function over data the run already holds.
+Five hops, each one a pure function over data the run already has.
 
 | hop | from | to | needs |
 |---|---|---|---|
 | isolate | a change mask | regions with boxes | nothing but the mask |
-| join | regions and a snapshot | a node per region | a snapshot carrying rects |
+| join | regions and a snapshot | a node per region | a snapshot with rects |
 | name | a node's provenance | a component | React's owner links, which a development build keeps |
 | orient | a node's path | a landmark phrase | landmarks, roles and list position in the snapshot |
 | locate | a fiber's evidence | `file:line` | a call site on the fiber, and a source map fetch |
 
 A hop whose input is missing reports that it is missing; the hops before it
 still answer. A run with no layout engine reports every region `unattributed`,
-and a build that carries no call site still names the component.
+and a build that emits no call site still names the component.
 
 Causality runs one way through all of it — code to semantic to raster — and the
 system never infers cause from pixels. Every serialized node already remembers
@@ -33,7 +33,7 @@ which components produced it, so by the time a change is observed its author is
 ## Where on the canvas
 
 A change arrives as a mask: one byte per pixel, row-major, `1` where the pixel
-differs, with the changed count carried so nothing has to rescan.
+differs, and the changed count comes with it so nothing has to rescan.
 
 `isolateRegions` clusters it. Connected components are computed on a coarse grid
 — **8 pixels by default** — rather than on the pixels themselves, and the grid
@@ -43,8 +43,8 @@ number and longer. At cell 8, a word is one region and a button is one region.
 
 Membership is decided coarsely and **coordinates are not**: bounding boxes are
 tightened back onto the actual changed pixels afterwards, so a region's box is
-exact. Each region carries its pixel count and its density — `pixels / area` —
-which is what tells a scattered text change from a solid block of repaint.
+exact. Each region has a pixel count and a density — `pixels / area` — which is
+what tells a scattered text change from a solid block of repaint.
 
 Regions come back largest first, capped at 32, and the cap is *reported*:
 `truncated` counts the regions dropped and `truncatedPixels` the change in them.
@@ -54,7 +54,7 @@ reader has no way to know the difference.
 ## What is there
 
 `attributeRegions` joins those coordinates to the box tree. It needs a snapshot
-carrying rects, so it needs a **profile** — the named capture setup a run
+that includes rects, so it needs a **profile** — the named capture setup a run
 records under — that has a layout engine. `jsdom` has none; `chromium` does.
 Under a profile without one every region comes back unattributed: a rect that
 was never observed is never inferred.
@@ -82,7 +82,7 @@ button is also inside the card and inside `<main>`, and only the innermost answe
 is actionable.
 
 **Ties go to the innermost box, and that is one component name in every report
-over a design system.** A wrapper that shrink-wraps its only child carries a
+over a design system.** A wrapper that shrink-wraps its only child occupies a
 byte-identical rect: a `Tokens` wrapper and the `Button` inside it both measure
 `454.34,359 115.33×50`, and neither is tighter. The tie is broken toward the
 innermost box — the one the browser painted on top, and the one somebody edited
@@ -107,7 +107,7 @@ it into the attribution.
 
 ## Which component
 
-A node's provenance carries two upward relations and they are not the same
+A node's provenance records two upward relations and they are not the same
 relation.
 
 | field | means |
@@ -118,11 +118,11 @@ relation.
 They diverge exactly where an element is passed as a prop:
 `<Card title={<h3>Invoice</h3>} />` gives the `<h3>` `createdBy: Page` and
 `owners[0]: Card`. Attribution needs the author, so `component` is `createdBy`
-falling back to the enclosure. The enclosure is carried separately as `owner`,
+falling back to the enclosure. The enclosure is reported separately as `owner`,
 and only when it says something the author does not — an `owner` repeating the
 author is noise in every report that prints it.
 
-Both are carried because the two names are written in different places: a
+Both are kept because the two names are written in different places: a
 component hash is named for the enclosure and a region for its author, so
 anything matching one against the other has to try both.
 
@@ -211,17 +211,17 @@ stands, because a Node runner applies maps to `Error.stack` itself and its
 coordinates arrive already original.
 
 The work is per call site, not per node, which is why a whole page costs a
-handful of module fetches. Measured on a 4211-node document: every fiber carried
-a stack, and between them they held **14 distinct call sites**. A hundred-row
+handful of module fetches. Measured on a 4211-node document: every fiber had a
+stack, and between them they named **14 distinct call sites**. A hundred-row
 table writes two thousand cells from one line of JSX.
 
 Call sites are resolved for the handful of nodes a report is about to name, not
-on every capture. Frames are carried in the snapshot as provenance and no hash
+on every capture. Frames are stored in the snapshot as provenance and no hash
 projects provenance, so `locateSites` spends them only there. A page whose only
 change is one button resolves one call site; a page that did not change resolves
 none. The frames are transient by design and are never written into a document,
-a digest or a baseline: a frame holds an absolute URL with a build hash in it,
-and hashing one would make every baseline disagree with the next dev-server
+a digest or a baseline: a frame includes an absolute URL with a build hash in
+it, and hashing one would make every baseline disagree with the next dev-server
 restart.
 
 The fetch is supplied by the caller, because the right way to fetch differs by
@@ -234,15 +234,15 @@ the origin, the cookies and the dev server's module graph are already correct.
 A call site says who *wrote* an element. The other question a report needs
 answered is where the component that rendered it is *declared*, and the scan
 below answers it by name: every declaration in the configured directories that
-spells `Button`, ambiguous when two do. The page holds something better than a
-name. The fiber carries the function React called, and the engine knows where
+spells `Button`, ambiguous when two do. The page knows something better than a
+name. The fiber points at the function React called, and the engine knows where
 every function it compiled begins — V8 exposes it as `[[FunctionLocation]]`, a
 script and a position, read over the debugger protocol.
 
-So the page agent keeps every component function provenance names, held by
+So the page agent keeps every component function provenance names, keyed by
 identity and never serialized, and the collector asks Chromium about each one
 after a subject is read. The position is in the served module, which is the same
-coordinate a stack frame carries, so it goes through the same maps and the same
+coordinate a stack frame names, so it goes through the same maps and the same
 vendor rule as a call site. What comes back is a source index whose refs say
 `via: 'engine'`, and it is laid over the scan rather than merged with it: a name
 the engine located replaces the scan's candidates for it, and a name the engine
@@ -259,7 +259,7 @@ on another engine the reader answers nothing and the scan stands as it did.
 
 `indexSource` reads a file and returns a map from component name to where it is
 declared, recognised as a function, a `const`, a class or a declaration, with
-*how* it was recognised carried so a bad match is debuggable. It is what a
+*how* it was recognised noted so a bad match is debuggable. It is what a
 repository that has configured nothing still gets, and it answers with a
 declaration, which is coarser than a call site and enough to open the right
 file.

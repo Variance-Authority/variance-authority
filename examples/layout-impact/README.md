@@ -9,7 +9,7 @@ count.
 
 The fixture is one React component tree rooted at `Workspace`
 (`src/workspace.tsx`): a `SidePanel` labelled Sidebar (`src/side-panel.tsx`)
-holding a `Heading` (`src/heading.tsx`) and an `ActionButton`
+containing a `Heading` (`src/heading.tsx`) and an `ActionButton`
 (`src/action-button.tsx`). It has four readings: a base state, a Heading paint
 change, a wider SidePanel with a taller button, and a Sidebar landmark change.
 The readings are driven from `src/page-agent.tsx`, which renders the tree into

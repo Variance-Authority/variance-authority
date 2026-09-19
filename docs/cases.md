@@ -27,7 +27,7 @@ local rendering, and a Playwright host does not require in-place pixels.
 | Question | Choices | Consequence |
 | --- | --- | --- |
 | Where is the UI already ready? | Storybook, served routes or static output, Playwright Test, browserless unit DOM, custom host | Selects the lifecycle, the discovery mechanism, and the naming adapter |
-| What travels from your test into the run? | A document — the serialized DOM with the styles and resources it needs, either pointing at your server or carrying the bytes — or a PNG the test already painted | Selects portability, what leaves the test environment, and how much source evidence survives the trip |
+| What travels from your test into the run? | A document — the serialized DOM with the styles and resources it needs, either pointing at your server or embedding them — or a PNG the test already painted | Selects portability, what leaves the test environment, and how much source evidence survives the trip |
 | Where are pixels made? | Caller browser, local renderer, operator-owned remote renderer | Selects latency, reproducibility, infrastructure, and renderer identity |
 
 Whatever you answer, the rest of the loop is the same: the image is looked up
@@ -72,7 +72,7 @@ Choose it when:
 The collector is not a crawler: it never follows a link from one page to
 another. A sitemap or a built directory may supply the route list instead of an
 explicit map. You still get told when a page drops out — the run names it as a
-subject the baseline store holds and this run did not plan — but the removal
+subject the baseline store knows and this run did not plan — but the removal
 itself never shows up in a diff you review. List the routes explicitly when
 dropping one should be a reviewable change.
 
@@ -129,8 +129,8 @@ keep a real engine inside the test instead, use
 
 Use `observeRasters` from
 [`@variance-authority/observe`](https://variance-authority.dev/reference/packages/observe)
-to compare two PNGs you already hold, or `observeCaptureAgainstBaseline` to
-compare one against the baseline a store holds for that subject id. No browser
+to compare two PNGs you already have, or `observeCaptureAgainstBaseline` to
+compare one against the baseline a store keeps for that subject id. No browser
 is started on this path.
 
 Choose it when another system you trust already paints the images and can say

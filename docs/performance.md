@@ -25,8 +25,8 @@ cache, which makes these figures the fast end of the range and a floor rather
 than a budget: size a CI container above them, not against them.
 
 Three counts appear below and they are not the same count. **Multiply by
-records.** 24,519 is the module files git lists; 24,909 is the records the index
-holds, because the walk also records stylesheets and declaration files that the
+records.** 24,519 is the module files git lists; 24,909 is the records in the
+index, because the walk also records stylesheets and declaration files that the
 module listing excludes; and 24,859 is how many of those a cold build opened,
 the rest answering from the parse cache because a file with the same content had
 already been parsed.
@@ -66,7 +66,7 @@ what the file's name said about reading it.
 
 You pay the first row on a fresh clone and on a CI runner with nothing cached,
 and once per machine after that. The cold build is where the whole repository is
-read at once; every row after it holds the index and walks the tree.
+read at once; every row after it opens the index and walks the tree.
 
 **An edit costs per file, over a fixed toll.** Five hundred files edited cost
 about 130 ms more than four did — roughly a quarter of a millisecond each, which
@@ -116,7 +116,7 @@ that direction is skewed enough that its mean would tell you nothing:
 | the 99th percentile                               | 271     |
 | the worst directory in that checkout               | 21,500  |
 
-The worst directory there is `packages/mui-icons-material/lib/utils`, which holds
+The worst directory there is `packages/mui-icons-material/lib/utils`, home to
 the one module that 21,506 generated icons import. Every one of them genuinely
 depends on what that directory contains, so every one of them is rebuilt when its
 membership changes — which is to say a regeneration of the icons costs what a
@@ -172,10 +172,10 @@ ${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<checkout>/source-index.
 ```
 
 `<checkout>` is a digest of the checkout's **absolute path**. Beside the file is a
-directory `source-index.bin.segments/` holding the data; the file itself is only a
-pointer to which segments are current, and a pointer naming segments that are not
-there is rejected whole. Cache the directory both sit in, and restore it before
-the scan.
+directory `source-index.bin.segments/`, where the data lives; the file itself is
+only a pointer to which segments are current, and a pointer naming segments that
+are not there is rejected whole. Cache the directory both sit in, and restore it
+before the scan.
 
 A run pays the cold row when:
 
@@ -196,7 +196,7 @@ A run pays the cold row when:
 Branch and commit do not belong in the cache key: both halves are
 content-addressed, so an index restored from another branch costs a slower scan
 and cannot produce a different graph. [The source index
-format](source-index.md) gives the rest of the rules and what each half holds.
+format](source-index.md) gives the rest of the rules and what each half stores.
 
 ## git, and the watcher
 

@@ -18,7 +18,7 @@ npx playwright install chromium
 For the live before-and-after workflow, start with
 [Inspect presentation relationships during a UI edit](presentation.md). The
 [`@variance-authority/presentation` package reference](https://variance-authority.dev/reference/packages/presentation)
-carries the complete TypeScript signatures; this page carries the meaning,
+lists the complete TypeScript signatures; this page explains the meaning,
 presence rules, and selection rules of the evidence they return.
 
 ## Choose an entry point
@@ -62,8 +62,8 @@ The available options are:
 | `paint` | Paint means drawing an SVG overlay of the measurements onto the page you just read. `true` paints every diagnostic layer; a layer list paints only those layers; omission leaves the page unpainted. |
 
 Readiness follows the chosen subject. Images inside the locator and its portals
-settle before geometry is read, while an unrelated incomplete image elsewhere in
-the document does not hold the reading open. Font settlement remains
+settle before geometry is read, while an unrelated incomplete image elsewhere
+in the document does not delay the reading. Font settlement remains
 document-wide because substitution can move geometry inside the subject.
 
 ## Read a report
@@ -81,7 +81,7 @@ collapsing them into a score.
 | `findings` | Named relationship failures with their owner, involved nodes, and measurements. | Absent means layout was unobserved. Empty means layout was measured and no rule fired. |
 | `paint` | Located instructions for diagnostic overlays. | Absent without layout. |
 
-A layout-capable capture must carry a rectangle for every rendered element. A
+A layout-capable capture must include a rectangle for every rendered element. A
 missing rectangle is refused by element path rather than treated as an empty
 box.
 
@@ -182,9 +182,9 @@ The rule set names measured relationship failures and nothing else.
 | `REPETITION_GRAMMAR_COLLAPSE` | Repeated objects have weak between-instance boundary evidence. |
 | `PRESENTATION_GRAMMAR_DRIFT` | A peer departs from a dominant signature without observed semantic state explaining it. |
 
-Every finding carries a stable report-local id, the graph node that owns the
+Every finding has a stable report-local id, the graph node that owns the
 relationship, the involved nodes, and its measurements. Pattern- and
-contract-based findings carry those correlation ids as well.
+contract-based findings add those correlation ids as well.
 
 Thresholds decide when measured evidence supports a rule. They are not exposed
 as preferred margins, density, page dimensions, or spacing values, so no rule
@@ -196,10 +196,10 @@ Overlay instructions come from the same report as the measurements, so drawing a
 focus, alignment, spacing run, or hierarchy reading does not acquire the page
 again.
 
-The available layers are `semantic`, `spacing`, `axes`, `baselines`, `surfaces`,
-`prominence`, `repetition`, and `findings`. Each instruction carries its owner
-and touched nodes; finding, pattern, and hierarchy paint also carries the
-corresponding report-local id.
+The available layers are `semantic`, `spacing`, `axes`, `baselines`,
+`surfaces`, `prominence`, `repetition`, and `findings`. Each instruction names
+its owner and touched nodes; finding, pattern, and hierarchy paint also
+includes the corresponding report-local id.
 
 The overlay is a non-interactive SVG. It takes no pointer events, exposes
 nothing to assistive technology, and does not change the application's styles.
@@ -222,13 +222,13 @@ independent information comparison:
 Content identity covers structure, text, DOM-correlated semantics, state, and
 browser ARIA evidence before layout analysis. Equal counts cannot conceal
 substituted information; `information.content.preserved` is true only when the
-identity holds.
+identity matches.
 
 Comparison is edit feedback, not a retained baseline or approval lifecycle. A
 decrease in findings does not mean improvement when required information also
 disappeared, and a density change is neither success nor failure.
 
-### Carry the consequence into a run report
+### Write the consequence into a run report
 
 `presentationSignal(before, after, options)` is the smaller durable projection
 for `ObservationRecord.signals.presentation`. Automatic findings and optional

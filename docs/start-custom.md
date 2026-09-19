@@ -6,8 +6,9 @@ route for a harness nobody wrote an adapter for: one module you write, then a
 `new` verdict, an approval, and `unchanged` on the rerun — every step after
 that module identical to a built Storybook's.
 
-The shipped integrations read those states out of somewhere that already holds
-them: a Playwright test, a built Storybook, a served route, a jsdom unit test.
+The shipped integrations read those states out of somewhere that already
+defines them: a Playwright test, a built Storybook, a served route, a jsdom
+unit test.
 This page is for everything else — a template renderer, an email builder, a
 server-side view layer, a bespoke mount — where the states exist and nothing on
 that list owns them.
@@ -38,11 +39,11 @@ In practice that rules out, inside the rendered output:
 
 Two more requirements come from where the render ends up. The CSS that styles
 the subject has to be reachable from the DOM you hand over — a `<style>` tag, a
-stylesheet the document already holds, or inline `style` — because rules are
+stylesheet the document already includes, or inline `style` — because rules are
 read out of the document rather than fetched. And the subject has to be
 resource-closed or resource-free: anything it references by URL is fetched from
 nowhere at paint time, so a subject with images or web fonts needs their bytes
-carried in the document (`assets` and `resources` on the render document, which
+embedded in the document (`assets` and `resources` on the render document, which
 the [`@variance-authority/dom` reference](../packages/dom/README.md) covers). The
 example below references nothing, which is the easiest version of this to start
 from.
@@ -164,7 +165,7 @@ Three methods make up the rest:
 | --- | --- | --- |
 | `plan()` | once, before anything is collected | the subjects this run should observe |
 | `collect(subject)` | once per planned subject, serially | that subject's render, or a refusal |
-| `close()` | once, after the last subject and before the report is written | nothing; release whatever `plan` and `collect` held |
+| `close()` | once, after the last subject and before the report is written | nothing; release whatever `plan` and `collect` opened |
 
 `collect` is never called concurrently, even when `concurrency` is raised —
 mounting two subjects into one document would let each decide the other's
@@ -188,7 +189,7 @@ run knows about it:
 | `subject.kind` | `'story' \| 'route' \| 'fixture' \| 'value'` | yes | What sort of thing it is. Subjects planned from a config `ids` list are `fixture`. |
 | `subject.title` | `string` | no | A human label for the report. |
 | `viewport` | `Viewport` | no | Present when the subject declares its own; it overrides the run's. Absent means use the run's. |
-| `tags` | `readonly string[]` | no | What the subject declares itself to be, when the artifact that planned it carried tags. Absent for a `list` plan. |
+| `tags` | `readonly string[]` | no | What the subject declares itself to be, when the artifact that planned it declared tags. Absent for a `list` plan. |
 | `path` | `string` | no | The directory that declares this subject, relative to the repository root, when a plan can supply one. It decides where a `beside` baseline layout files the image. |
 
 One subject id is one image. To observe the same state at two viewports or in
@@ -198,7 +199,7 @@ dark mode, give it two ids.
 
 `collect` returns a `Collected`, which is one of two objects. Never throw for a
 subject you cannot render — return the refusal and the run reports it by name,
-with your sentence attached, and carries on with the other subjects.
+with your sentence attached, and continues with the other subjects.
 
 **The refusal** has exactly two fields:
 
@@ -245,7 +246,7 @@ A full success object from the example above, abbreviated:
 ```
 
 `acquireDocument` fills every one of those document fields for you, so you do not
-assemble it by hand. Two are worth knowing about anyway. `css` holds only the
+assemble it by hand. Two are worth knowing about anyway. `css` lists only the
 rules that actually match the subtree — the `.unused` rule in the harness's
 stylesheet is not in the list above, and on a real design system this is the
 difference between shipping one rule and shipping a thousand. And `frame`
@@ -255,7 +256,7 @@ like `html.dark .receipt` still matches once the subtree is used on its own.
 ### Documents, not images
 
 A collector hands over a document and the CLI paints it. There is no arm of
-`Collected` that carries a PNG, so if your harness already produces images, this
+`Collected` that is a PNG, so if your harness already produces images, this
 is not the path — see [If you already have the pictures](#if-you-already-have-the-pictures).
 
 ### Where the plan comes from
@@ -314,11 +315,11 @@ against this file's directory rather than the working directory.
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured. |
 | `profile` | What the run is *capable* of observing — `jsdom` or `chromium`. `jsdom` means structure, ARIA and declared style; `chromium` adds computed style, layout and geometry, and is only honest if your collector read inside a real browser. It does not decide what paints. Set it to match where you acquired. |
-| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry carries no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
+| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). The fallback for a subject whose planned entry sets no viewport of its own. Keep it equal to the viewport your collector acquires at, since that is what media queries were resolved against. |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent and your `collect` must return `before`. Setting both is refused. |
 | `subjects.kind` | `list` — the ids are in this file. `storybook` — read them from a built story index. `collector` — your `plan()` discovers them, and the config stops being the statement of what is watched. |
 | `baselines.kind` | `directory` — files you commit. `lfs` — the same files through the Git LFS filter. `remote` — an endpoint and a token, with nothing in the repository. No default; see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines carrying different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
+| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash` — a bare family name is refused. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. `[]` asserts nothing, which is correct for the example (it declares `system-ui` and no web fonts) and wrong for a subject with a web font: two machines with different cuts of Inter would then produce the same identity, compare, and report the difference as a regression. |
 | `report` | Where `run` writes and where `report` and `accept` read. Defaults to `.variance/report.json`. Candidate images land beside it. |
 | `browser` | Which engine paints: `chromium` (default), `firefox`, or `webkit`. It is part of the key baselines are stored under, so switching it moves every subject into a partition where nothing is approved yet. |
 
@@ -336,7 +337,7 @@ tracked and pushed. A run that cannot read it does not fail: it finds nothing,
 reports every subject `new`, records what is on screen as the new truth, and
 exits `0`.
 
-The wildcard is the mistake to avoid. `.variance/` also holds the report and
+The wildcard is the mistake to avoid. `.variance/` also contains the report and
 candidate images that genuinely are per-run junk, so exclude the contents
 rather than the directory, and git still descends:
 
@@ -366,7 +367,7 @@ npx variance run --config variance.config.json
 
 `doctor` reports what this machine can do and guesses at nothing: it opens the
 browser that will paint, measures the fonts you asserted inside it, and lists
-which identities the baseline root holds.
+which identities the baseline root stores.
 
 The first durable run exits `1` and reports both receipts as `new` — an image
 nobody has approved is not a pass. Write the HTML report beside the JSON one,

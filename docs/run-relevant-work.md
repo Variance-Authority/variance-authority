@@ -53,7 +53,7 @@ subjects.
 
 Source reach is a parse of the repository. The component list is a by-product of
 a run you already do: each capture reads the name off every element it collects
-and writes the list beside the approved image. React carries that name on the
+and writes the list beside the approved image. React puts that name on the
 fiber, so a React suite pays nothing for it; another framework needs a build step
 that stamps the name onto the element, which is the same step
 [attribution](composition.md) needs anyway.
@@ -74,7 +74,7 @@ every file in that suite one at a time and the median file selects 7% of the
 suite, while the ninetieth percentile selects 84% — a utility most of the
 library imports genuinely could break most of it. The
 [scale reference](scale.md#what-decides-the-value-is-what-changed-not-how-much)
-carries those counts and how they were taken, and
+gives those counts and how they were taken, and
 [how the test-to-code map stays small](how-selection-scales.md) prices the
 evidence they are read from.
 
@@ -100,7 +100,7 @@ npx vitest run
 npx variance select --format json
 ```
 
-`select` prints a **skip** list, never a run list: stdout carries paths and
+`select` prints a **skip** list, never a run list: stdout is paths and
 nothing else, and an empty answer runs your whole suite rather than none of it.
 It reads no `variance.config.json`, so a repository that uses Variance Authority
 for nothing else can still ask. The
@@ -120,7 +120,7 @@ retained format and invalidation reference beneath those readings.
 
 Skipping a subject changes how much of the run executes; it is not a claim that
 the change left that subject unaffected. A skipped subject produces no image and
-no **verdict** — the one word a result carries, from `unchanged` through
+no **verdict** — the one word a result reports, from `unchanged` through
 `needs-review` to `violation`. Missing coverage, an unreadable edge, an unknown
 changed file, or incompatible recorded evidence widens the run or refuses the
 selection; it never becomes proof that nothing is affected. A narrowed run

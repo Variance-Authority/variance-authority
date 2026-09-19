@@ -2,7 +2,7 @@
 
 Selection needs to know which tests entered which code. Recorded naively that is
 one entry for every test against every line it touched, which no large
-repository can hold. [Variance Authority](README.md) records it differently, and
+repository can store. [Variance Authority](README.md) records it differently, and
 you want to know what that costs before you put it on a tree that size.
 
 This page answers that: what the relation between tests and code is, why it does
@@ -73,13 +73,13 @@ compression only improve the result after the larger duplication is gone.
 On the 200,000-module fixture — 2,000 test files, its module paths, region
 counts and region spans drawn from the Material UI recording — 671 million
 crossings resolve to 3,408 distinct test sets, built, stored and queried inside
-132 MB. The same relation held as bare integer pairs has a floor of 2,561 MB.
+132 MB. The same relation written as bare integer pairs has a floor of 2,561 MB.
 
 Read that ratio for what it is. The fixture's *sharing* axis — which test
 entered which module — is synthesized, so it tells you how many bytes and how
 much memory a repository of that size costs, and it is not evidence about how
 well your own imports share. If your repository shared nothing at all, and every
-one of the fixture's 1.6 million regions held its own set, the record would be
+one of the fixture's 1.6 million regions had its own set, the record would be
 386 MB at a 510 MB peak: still one process, still under what a test runner is
 already using. That is the ceiling to plan against, because it does not depend
 on your repository being shaped nicely.
@@ -120,7 +120,7 @@ meet the same input independently and compute the same name. The name is wider,
 but it travels inside the artifact and needs no earlier agreement.
 
 Variance Authority makes the other trade at the busiest part of the record. Its
-instrumented modules and crossings carry small assigned numbers, not hashes or
+instrumented modules and crossings use small assigned numbers, not hashes or
 paths. The number cannot be recomputed from the module: its meaning lives in the
 repository's **module names database**, a file called `names.bin` in your cache
 directory.
@@ -139,7 +139,7 @@ numbering lineage. Number `41` means nothing by itself; it means the path that
 this database assigned `41`. What that gives you is a small, compressible
 integer repeated across millions of crossings instead of a path or a uniformly
 distributed digest. A digest spends its full 64 bits at every crossing and
-cannot spend fewer; 200,000 modules hold 17.6 bits of module, and a sorted run
+cannot spend fewer; 200,000 modules need 17.6 bits of module, and a sorted run
 of exact numbers is a run of small gaps, which compresses.
 
 The database keeps one promise you can rely on: **adding a file never changes
@@ -168,8 +168,8 @@ place.
 Only one direction is asked of the table. A build has a path and needs the
 number to emit, which is the binary search above. Going back — number to path —
 does not go through the table at all: the module record a build writes as it
-instruments a module carries the path and the number together, so whatever reads
-that record already holds both.
+instruments a module pairs the path with the number, so whatever reads that
+record already has both.
 
 The failure a stable number prevents is not a crash. The coverage file is a set
 of crossings between test identities and module numbers, and nothing in it
@@ -181,10 +181,10 @@ by a later one.
 
 Growth keeps the property through a log-structured merge design. The database is
 a chain of immutable segments under one atomic manifest: an append adds a
-segment holding only new paths, and compaction merges the chain into one sorted
-run without disturbing a single number. Reads touch immutable files, so parallel
-transforms need nothing from one another; only the fold that assigns new numbers
-writes, under an exclusive lock.
+segment containing only new paths, and compaction merges the chain into one
+sorted run without disturbing a single number. Reads touch immutable files, so
+parallel transforms need nothing from one another; only the fold that assigns
+new numbers writes, under an exclusive lock.
 
 ### Moving the numbering authority between checkouts
 

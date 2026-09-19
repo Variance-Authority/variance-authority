@@ -8,7 +8,7 @@ can ask for again, under an id you choose, such as `cart/empty`.
 This page is search. Read it when you can describe a subject but cannot name it.
 Every tool that narrows to one subject takes its id, and on a suite of fifteen
 that costs nothing, because the summary printed all fifteen ids. Once the ids
-stop fitting in a summary you read end to end, what you hold instead is a
+stop fitting in a summary you read end to end, what you have instead is a
 description: *the footer with the filter chips*, *the toggle that marks a todo
 done*, *the thing that uses the accent token*. Search turns that description
 into ids. It does not grep your source, and it is not a code search tool.
@@ -91,7 +91,7 @@ Over MCP the same question is `variance_locate {query: "footer chips"}`.
 
 **`where:` is the place behind the id.** An id is where the other tools start;
 it is not where your question ends. The same run that wrote the words down
-wrote where each of them was on the screen, so every hit carries the element on
+wrote where each of them was on the screen, so every hit shows the element on
 that surface saying your words, the file and line it is declared at, and what it
 sits in. A place reads as the element's role, its name, then where it was
 written: `group \`Filters\` · src/todo/TodoFooter.tsx:41`. You asked *where does
@@ -99,7 +99,7 @@ this live* and the answer is a file — no second call to find that out.
 
 **You get a file from a production build too.** The line an element sits on
 comes from the JSX-source plugin and a build strips it, so on a built Storybook
-no recorded element carries one. What survives is the component that owns the
+no recorded element has one. What survives is the component that owns the
 thing, and the run knows which files declare it — so the place reads
 `in \`CarrierPicker\` · src/dispatch/CarrierPicker.tsx` instead of a file and a
 line. That is a source
@@ -110,7 +110,7 @@ start.
 When your phrase names the thing *and* what it sits in — *the Pickup window on
 the dispatch drawer* — the place is the enclosed one. The drawer can outscore
 what is on it, being the rarer words, so nothing in the ranking gives you the
-answer; but both were found and one holds the other, which is your phrase
+answer; but both were found and one contains the other, which is your phrase
 saying it named a path. Containment decides it, and containment is recorded
 whether or not the run resolved layout.
 
@@ -118,8 +118,8 @@ whether or not the run resolved layout.
 vocabularies to compare it and kept all of them: `checkbox` finds the toggle
 because the run recorded its role, `--va-space-2` finds every subject that
 resolved through the token, and a filename finds whatever that file declares.
-So the word you happen to be holding is often one the suite already holds; when
-it is not, the answer says which fields it looked in rather than guessing at a
+So the word you happen to use is often one the suite already knows; when it is
+not, the answer says which fields it looked in rather than guessing at a
 synonym. That record is the [lexicon](lexicon.md) — the names the run wrote
 down, field by field — and that page has the how and the why.
 
@@ -255,9 +255,9 @@ thing. It is a coordinate you already have, so it is matched literally:
 
 Several paths are several entry points, and they are taken together rather than
 intersected: two areas of an application have very nearly no files in common, so
-keeping only what both hold would answer nothing exactly where you were most
-specific. The CLI takes one `--from` and one `--to`; over MCP each also takes a
-list, as in `variance_locate {query: "the contract warning", from:
+keeping only what appears in both would answer nothing exactly where you were
+most specific. The CLI takes one `--from` and one `--to`; over MCP each also
+takes a list, as in `variance_locate {query: "the contract warning", from:
 ["app/dispatch/", "src/shared/"]}`.
 
 **A start point also changes what your words are worth.** Removing subjects is
@@ -278,11 +278,11 @@ Over MCP all of it is one call: `variance_locate {query, under, on, from, to}`.
 
 ## Ask where something sits
 
-Half the descriptions you hold are one step longer than *which subject*: the
-warning underneath the Carrier field, on the dispatch drawer. That names two
-things and the relation between them. No count of matched words answers it — a
-subject holding both words holds them whatever their order on the screen, and
-the surface where the warning sits *above* the field matches equally well.
+Half your descriptions are one step longer than *which subject*: the warning
+underneath the Carrier field, on the dispatch drawer. That names two things and
+the relation between them. No count of matched words answers it — a subject
+saying both words says them whatever their order on the screen, and the surface
+where the warning sits *above* the field matches equally well.
 
 Name each of the three separately and the arrangement is read instead:
 
@@ -345,7 +345,7 @@ subject named for the thing and a subject that merely contains one, and you can
 see which one you have before you open it.
 
 The order is orientation, not evidence: nothing in the answer says whether a
-subject passed or failed, and none of it carries a pixel count or a diff to
+subject passed or failed, and none of it includes a pixel count or a diff to
 open — only ids and the tools that take them. Read the field you matched on,
 then narrow.
 
@@ -354,7 +354,7 @@ then narrow.
 The header separates them before the hits, per field:
 
 - **Read, and nothing matched.** The names exist; your word is not among them.
-  Ask again in the suite's vocabulary — a term no subject holds is named as
+  Ask again in the suite's vocabulary — a term no subject uses is named as
   such, beside the accessible names the run did record, so the answer tells you
   what to try.
 - **Not read.** No execution journal means no `regions`; no reading of the

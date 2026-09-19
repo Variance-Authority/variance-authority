@@ -52,7 +52,7 @@ that costs you:
   you a binary that will not load there. Install on the target platform, or in
   an image built for it.
 - A runtime that cannot load a `.node` file at all — a Cloudflare Worker, an
-  edge runtime, a bundle that cannot carry one — cannot use this package. Use
+  edge runtime, a bundle that cannot contain one — cannot use this package. Use
   `@variance-authority/png` alone there; it needs only `Buffer`.
 
 [Native code](https://variance-authority.dev/docs/native-code) has the full
@@ -135,8 +135,8 @@ Replace the two generated buffers with `readFileSync('before.png')` and
 "zero pixels changed" can be told apart from "zero pixels changed after
 forgiveness". `total` is the pixels on the compared canvas — the union of the
 two boxes, so a size change is a difference in the padded rows rather than a
-refusal to compare. `mask.data` (omitted above, it is 1,024,000 bytes) carries
-one byte per pixel, `1` where the pixel differs.
+refusal to compare. `mask.data` (omitted above, it is 1,024,000 bytes) is one
+byte per pixel, `1` where the pixel differs.
 
 Drop `{ decoder: sharpDecoder }` and the same call decodes with `pngjs` and
 prints the same numbers. `sharpDecoder.decode(bytes)` is the lower seam, when

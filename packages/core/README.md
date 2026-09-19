@@ -92,7 +92,7 @@ two-thousand-row list reports two thousand rows as changed.
 `fingerprint` is the shape of the difference with the row identity and the
 values removed. Change `cart.total` instead of `checkout.total` and you get the
 same `v1:444e8245747e15412c5142a5a44fe321`, so one decision can settle the same
-edit wherever it occurred. Deltas carry no values at all: the two canonical
+edit wherever it occurred. Deltas record no values at all: the two canonical
 texts are the evidence, and a delta that quoted them would put payload into
 every record that accumulates.
 
@@ -118,7 +118,7 @@ reads as a key that was removed.
 | `arrayKey` | `{ '/rows': 'id' }` — the member that identifies a row, so an array becomes an object and order stops being a fact about it |
 | `drop` | records a pointer's value as the token `[dropped]` — present, never compared |
 | `replace` | puts a stable token of your choosing at a pointer |
-| `dialect` | a label carried with the text, `'json'` by default; two values with different dialects refuse to compare |
+| `dialect` | a label saved with the text, `'json'` by default; two values with different dialects refuse to compare |
 | `generator` | `{ name, version }` of whatever emitted the value |
 
 Every key is a JSON Pointer (RFC 6901). A `-` token matches any array index, so
@@ -145,9 +145,9 @@ npm install --save-dev @variance-authority/png    # comparePngs() two PNGs into 
 ## Entrypoints
 
 Every name lives in exactly one group, and the bare `@variance-authority/core`
-specifier holds only the capture artifact.
+specifier exports only the capture artifact.
 
-| entrypoint | holds |
+| entrypoint | exports |
 |---|---|
 | `core/format` | what a subject *is*: capture, snapshot, document, identity, hashing |
 | `core/rules` | the versioned opinions: allowlist, applicability, cascade, canonicalization |
@@ -186,7 +186,7 @@ are five, loudest first:
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
 | `geometry` | boxes appeared, vanished, moved or resized | `node-added`, `node-moved`, `rect-changed`, `attribute-changed` |
-| `token` | style values changed while structure held | `style-changed`, `token-changed` |
+| `token` | style values changed while structure stayed the same | `style-changed`, `token-changed` |
 | `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |
 
@@ -196,7 +196,7 @@ component. `loudestBand(bands)` collapses a set to the loudest one present, and
 returns `null` for an empty set so that *nothing changed* and *something changed
 at the quietest band* stay apart.
 
-A **verdict** is the one word a result carries, and the whole pipeline exists to
+A **verdict** is the one word a result reports, and the whole pipeline exists to
 produce one with a reason attached. There are six, by severity:
 
 | verdict | means |
@@ -254,7 +254,7 @@ observation profiles differ.
 | `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
-| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and affects only the files that import it |
+| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` lists per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and affects only the files that import it |
 | `beforeReach` | `sensed` names the directories the scan already answers for, and the descent from a declared entry point stops at the first file under one of them rather than dragging the repository's own source in behind the harness |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
 | `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey entered |
@@ -266,7 +266,7 @@ observation profiles differ.
 `compare` says what changed. `judge` says whether anyone should mind. Between
 them, `partingOf` says which input changed.
 
-Given two snapshots carrying holdings — the inputs a collector recorded at each
+Given two snapshots with holdings — the inputs a collector recorded at each
 component boundary — it walks the boundaries for the shallowest one whose inputs
 agreed and whose output did not, and reports that as the origin: a changed prop,
 a context, an external store, or a hook cell by call position. `explainParting`
@@ -281,7 +281,7 @@ It leads with a slice, so you know whether to open the rest:
 | `absorbed` | an input changed and the output did not; the component ignored it |
 | `refactor` | the component tree changed and the output did not |
 | `reshaped` | the tree is a different tree, no input changed, and the output followed |
-| `flake` | every input agreed, the tree held, and the output changed anyway |
+| `flake` | every input agreed, the tree matched, and the output changed anyway |
 | `placed` | the same, but between two readings taken in different places |
 | `unread` | the output changed and what would explain it was not read |
 
@@ -317,7 +317,7 @@ that routes on it. A presigned base needs only the endpoint.
 
 **A share never throws.** A miss, an outage, a permission error and a body
 nobody can parse are one outcome: `get` answers `null` and `put` resolves.
-Everything a share holds can be derived again, so a broken share costs you the
+Everything a share stores can be derived again, so a broken share costs you the
 derivation — and is indistinguishable from a cold one except by the wall clock.
 [Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
 operator's side of it.

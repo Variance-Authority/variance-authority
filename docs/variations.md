@@ -29,7 +29,7 @@ story:checkout--new-flow ← story:checkout--default (content, structure)
 ```
 
 The digest is the part worth reading twice. It is taken over the difference
-itself, so it holds still when *both* sides change the same way — a token
+itself, so it stays the same when *both* sides change the same way — a token
 edit that turns the whole suite red leaves it exactly where it was — and it
 changes when the variation gains or loses something its parent does not
 have.
@@ -47,7 +47,7 @@ supposed to change something.
 ## Link by name
 
 Most suites have already written the link down. `checkout`, `checkout-dark`,
-`checkout-dark-narrow` — the name carries the axes, in order, and a declaration
+`checkout-dark-narrow` — the name spells the axes, in order, and a declaration
 beside it would only repeat what the name says and then drift from it.
 
 So a subject is asked its own name first. Its parent is the longest other
@@ -101,9 +101,9 @@ location — stays exactly as it is. [Your first run](start.md) writes the rest.
 List the axes in the order your names write them — the same fixed adjective order as
 above, now somewhere a reader can check it. Values are a closed list rather than
 a pattern, so `ff-on` is one word and not `ff` plus `on`, and so a name can be
-walked *toward* its base: **the first value is the base**, and a name carrying it
-means what a name omitting it means. That is what makes `checkout--default` the
-subject `checkout--empty` is measured against, and it is how a suite that spells
+walked *toward* its base: **the first value is the base**, and a name including
+it means what a name omitting it means. That is what makes `checkout--default`
+the subject `checkout--empty` is measured against, and it is how a suite that spells
 its baseline out loud reads the same as one that leaves it implied.
 
 A parent is then this subject's own name with its last axis moved one step toward
@@ -129,9 +129,9 @@ rule above rather than backing it up: a name whose words are not in your vocabul
 gets no parent at all. And two subjects that land on the same coordinate are refused
 by name, so you fix the names rather than find out which one the run picked.
 
-## Declare the link where a name will not carry it
+## Declare the link where a name will not say it
 
-A name carries an axis somebody chose to spell out. When there is no such name —
+A name states an axis somebody chose to spell out. When there is no such name —
 an id from a route list, a subject whose parent lives under another namespace, a
 convention this suite is not going to change — state the link outright, with
 one tag on the subject that is the variation:
@@ -145,7 +145,7 @@ variation that works for more than one collector — the adapter that produces t
 run's subjects, such as Storybook, a route list or a Playwright fixture. A story
 sets args, a route sets a query, a fixture sets a cookie or routes a request.
 Whatever produces the variation stays with the collector. The only thing this tool
-needs is the *link*, and every collector here already carries tags.
+needs is the *link*, and every collector here already has tags.
 
 In Storybook that is the story's own `tags` array:
 

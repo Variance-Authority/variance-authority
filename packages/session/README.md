@@ -203,7 +203,7 @@ const run = session.run(subject, mount);
 'fixture' | 'value'` and `title` is an optional third field — and a mount
 callback that receives the container. It returns a `SubjectRun`:
 
-| field | what it holds |
+| field | what it is |
 |---|---|
 | `subject` | the ref you passed |
 | `capture` | the raw capture, before any rule is applied |

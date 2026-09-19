@@ -8,7 +8,7 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-A tool holding a rendered DOM node can ask which JSX expression wrote it, and in
+A tool given a rendered DOM node can ask which JSX expression wrote it, and in
 a React development build the answer is already there — read straight off the
 fiber, with no plugin, no custom JSX runtime and no build change. A production
 build keeps no such record, and neither does React 18 compiled by an unchanged
@@ -35,7 +35,7 @@ never imports it.
 The package is useful only when all of these are true:
 
 - the rendered subject uses React;
-- React's own development record on the fiber carries no call site — the first
+- React's own development record on the fiber has no call site — the first
   two rows above are the builds where it does;
 - the report must distinguish element instances, not merely find the component
   declaration;
@@ -75,7 +75,7 @@ npm install --save-dev @variance-authority/react
 An automatic transform in development mode computes the call site and passes
 `{fileName, lineNumber, columnNumber}` to the runtime as the fifth argument of
 `jsxDEV`. React 19 discards that argument. A production React runtime also
-carries no development fiber metadata from which the call site could be
+writes no development fiber metadata from which the call site could be
 recovered.
 
 This package supplies that last hop. Its `jsxDEV` wrapper writes the transform's
@@ -118,7 +118,7 @@ export default {
 };
 ```
 
-Its position in the array does not matter: the plugin carries `enforce: 'pre'`,
+Its position in the array does not matter: the plugin sets `enforce: 'pre'`,
 which is what puts it ahead of Vite's own resolver, and that ordering is not
 something the array can express. It answers one module request and transforms
 nothing, so whichever tool actually compiles your JSX is where the development
@@ -260,7 +260,7 @@ not tell you when you miss:
 | Babel | `runtime: 'automatic'` | `development: true` |
 | `tsc` | `"jsx": "react-jsxdev"` | included in that value |
 
-A Vite config carries whichever keys it is given and reads only the ones its own
+A Vite config accepts whichever keys it is given and reads only the ones its own
 major knows, so an `esbuild` block on Vite 8 — or an `oxc` block on Vite 7 — is
 not a build error, not a warning, and not a log line. The plugin still installs,
 the bundle still runs, every subject still renders, and every report names the
@@ -274,7 +274,7 @@ So read the result rather than the config.
 Two checks. Run whichever matches the artifact you instrumented.
 
 **In a test that your instrumented config compiles**, ask
-`@variance-authority/react` what the rendered node carries. Paste this whole
+`@variance-authority/react` what the rendered node reports. Paste this whole
 file:
 
 ```tsx
@@ -312,9 +312,9 @@ written on, not the line `Badge` is declared on:
 ```
 
 Not installed, `source` is `undefined`. In a development build
-`provenanceOf(node)?.stack` then holds React's own frames instead — a URL the
-browser fetched, awaiting a source map — and in a production build it holds
-nothing at all.
+`provenanceOf(node)?.stack` then gives React's own frames instead — a URL the
+browser fetched, awaiting a source map — and in a production build, nothing at
+all.
 
 **In an artifact you have already built**, read the symbol straight off the
 fiber in the browser console. The key is registered with `Symbol.for`, so no
@@ -349,9 +349,9 @@ badge.attributes             // class — the symbol is not among them
 
 The owners and `createdBy` are React's own bookkeeping and are there with or
 without this package. What it adds is `source`, and the difference it makes to a
-run is per-element granularity: every finding carries the same
+run is per-element granularity: every finding gets the same
 `{ file, line, column }` as its `source`, and every entry in the run's lexicon
-carries that `file` and `line`. Without it, both fall back to naming the
+records that `file` and `line`. Without it, both fall back to naming the
 component and the file it is declared in — one answer for every element the
 component renders.
 
@@ -420,9 +420,9 @@ decides how to use it.
 ## Source paths in a shipped bundle
 
 They ship, and this package is not what puts them there. Development emission is
-a compiler setting: with it on, every JSX element in the output carries a literal
-object holding the file the compiler was given, which for every bundler in
-ordinary use is an absolute path on the machine that ran the build.
+a compiler setting: with it on, every JSX element in the output comes with a
+literal object naming the file the compiler was given, which for every bundler
+in ordinary use is an absolute path on the machine that ran the build.
 
 ```js
 const a = jsxDEV("div", { className: "x" }, void 0, false, {
@@ -439,7 +439,7 @@ new ones, and nothing that appears in the document.
 
 So instrument the artifact you observe, not the artifact you serve to the
 public. A built Storybook or a preview build is the subject either way; a
-public-facing bundle built with development emission on carries your build
+public-facing bundle built with development emission on ships your build
 machine's directory layout to everyone who loads it.
 
 ## Runtime cost
@@ -472,7 +472,7 @@ happens.
   module, so it only applies to code the bundler processes. A build that marks
   your JSX runtime external resolves its import of React at runtime, past
   the point a resolver can answer.
-- **An element carrying Emotion's `css` prop reports from one fiber up:**
+- **An element with Emotion's `css` prop reports from one fiber up:**
   Emotion answers that prop by rendering a component of its own and
   rebuilding the props with `for…in`, which does not copy symbols. The call
   site is not lost — Emotion forwards the transform's source argument

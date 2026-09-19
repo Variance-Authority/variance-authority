@@ -16,7 +16,7 @@ install.
 | Piece | What it does | How it arrives |
 |---|---|---|
 | [oxc](https://oxc.rs) — `oxc-parser`, `oxc-resolver` | parses and resolves every module in the [source index](source-index.md) | prebuilt `.node` addon, chosen by a per-platform optional dependency of each package |
-| the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript | the same way: one optional dependency per platform, named for the platform it carries |
+| the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript | the same way: one optional dependency per platform, named for the platform it serves |
 | `sharp`, through [`@variance-authority/png-sharp`](../packages/png-sharp) | decodes screenshots for the raster comparison | the same way: `sharp` resolves one prebuilt libvips addon for your platform |
 | zstd, SHA-256 | compresses the selection index, digests documents | already in Node, as `node:zlib` and `node:crypto` |
 | Chromium | paints the pages you compare | `npx playwright install chromium`, a separate step you already run |
@@ -88,13 +88,13 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
 - **Parsing does not degrade.** oxc has no fallback, so a command that builds
   the source index fails rather than building a smaller one.
 - **Scanning degrades.** The TypeScript scanner is the implementation of record
-  and the addon is an acceleration of it, held to the same answers by
+  and the addon is an acceleration of it, checked against the same answers by
   differential tests. A machine outside the three platforms — a Linux arm64
   runner, an Alpine image, an Intel Mac — builds the same source index from the
   same checkout, and pays what the TypeScript scan costs to build it.
 
 If you want the binaries, install without `--omit=optional` and resolve your
-lockfile so it carries entries for every platform you install on. If you want
+lockfile so it lists entries for every platform you install on. If you want
 the pure-JavaScript decoder on purpose, say so with `decoder` rather than by
 withholding an install.
 
@@ -111,17 +111,17 @@ The PNG decoder is the one piece you choose. `decoder` is a top-level key in
 
 - **`auto`** (the default) prefers `sharp` and silently keeps `pngjs` when the
   addon will not load — on a platform its binaries do not cover, or inside a
-  bundle that cannot carry one. A machine without the binary produces the same
+  bundle that cannot include one. A machine without the binary produces the same
   verdicts more slowly, never no verdicts.
 - **`pngjs`** pins the pure-JavaScript decoder, so a run cannot get faster or
   slower because a machine happened to have a binary.
 - **`sharp`** fails loudly when the addon is missing, which is what you want on
   a build machine you configured on purpose.
 
-Both decoders are held to producing byte-identical RGBA by a test, so this
-setting changes what a run costs and never what it decides. What it costs is
-not marginal: decoding is 90% of a raster comparison, and libvips decodes on
-libuv's threadpool, so images decoded concurrently leave the event loop
+A test requires byte-identical RGBA from both decoders, so this setting changes
+what a run costs and never what it decides. What it costs is not marginal:
+decoding is 90% of a raster comparison, and libvips decodes on libuv's
+threadpool, so images decoded concurrently leave the event loop
 entirely. That makes the decoder the largest single lever on how long a red run
 takes.
 

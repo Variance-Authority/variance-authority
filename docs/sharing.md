@@ -11,7 +11,7 @@ New here? Start with [your first run](start.md).
 A run that compares a branch against mainline needs two different things about
 mainline. One is the baselines: the images, which only a baseline store can
 answer for and which nothing here touches. The other is everything the run
-*derived* about the suite itself — which components exist, which subjects hold
+*derived* about the suite itself — which components exist, which subjects show
 them, and every name the run wrote down for all of it. A **subject** is one
 named UI state you asked for and can ask for again, under an id you choose such
 as `cart/empty`. That second half is a fact about a
@@ -32,7 +32,7 @@ npm install --save-dev @variance-authority/cli
 ## What travels
 
 One binary file per commit, the [suite index](lexicon.md#where-it-is-kept),
-holding four things:
+with four things in it:
 
 | In the file | What it is |
 | --- | --- |
@@ -52,7 +52,7 @@ anywhere else.
 
 ### What it exposes
 
-Read the third row before you choose a bucket. The lexicon holds accessible
+Read the third row before you choose a bucket. The lexicon records accessible
 names and visible text as the run read them off your rendered UI — `Clear
 completed`, `--va-space-2`, `src/todo/TodoFooter.tsx` — alongside your component
 names and file paths. A share is as sensitive as your source plus whatever
@@ -70,7 +70,7 @@ never lands in the file as words.
 A miss, an outage, an expired token, a bucket nobody has permission for, bytes
 from a writer this version does not understand — every one of them lands as the
 same outcome as having configured no share at all. The run derives its own index
-and carries on.
+and continues.
 
 The cost of that is on you to watch: a broken share looks exactly like a cold
 one, so CI gets slow and never gets red. The signal is the number
@@ -129,7 +129,7 @@ index, which is the right answer: mainline's names have changed since.
 ## Configuring one
 
 A share is one `share` section in `variance.config.json`, beside the keys that
-file already carries. The blocks below show that section on its own; drop it
+file already has. The blocks below show that section on its own; drop it
 into the config you already have:
 
 ```jsonc
@@ -221,8 +221,8 @@ restore useful.
 Two things to know about the cache this rides on. Branch scoping is GitHub's:
 a pull-request job reads caches written by its base branch, which is the
 direction that matters and is the reason mainline is worth publishing at all. And
-a cache entry is immutable, so the key carries the commit rather than being a
-constant; a constant key writes once and then silently holds the same stale
+a cache entry is immutable, so the key names the commit rather than being a
+constant; a constant key writes once and then silently serves the same stale
 entry forever.
 
 When CI already has a share configured, keep the cache step anyway. The two are
@@ -259,7 +259,7 @@ this suite everywhere else. It is a namespace rather than a secret, and it is
 what keeps two suites in one monorepo from writing over each other in one
 bucket. Anything outside
 `A-Za-z0-9._-` is replaced with `-` before the key is built, so pick a name that
-already reads as one path segment. `suite-index-v1` carries the file format's
+already reads as one path segment. `suite-index-v1` states the file format's
 version, so a reader that does not understand a later format asks for a key that
 format was never written to rather than parsing bytes it would reject. Both
 segments are stable prefixes an S3 lifecycle rule can expire on its own terms.
@@ -268,9 +268,9 @@ segments are stable prefixes an S3 lifecycle rule can expire on its own terms.
 
 If your team already sends its runs to a
 [`@variance-authority/tribunal`](https://variance-authority.dev/reference/packages/tribunal)
-deployment — the hosted service that holds runs for review — that deployment can
-hold the shares too. It is `kind: "http"` against a route that stores what it is
-given:
+deployment — the hosted service that stores runs for review — that deployment
+can keep the shares too. It is `kind: "http"` against a route that stores what
+it is given:
 
 ```json
 {

@@ -85,7 +85,7 @@ use them.
 
 An **observation** is one reading with the context that makes it usable later.
 An existing runner, collector, index, renderer, store, or review system can
-supply one when it carries:
+supply one when it reports:
 
 - the question the observation answered;
 - the subject and conditions it read;

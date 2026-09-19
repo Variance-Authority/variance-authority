@@ -15,7 +15,7 @@ reading below takes one subject and hands back data you assert on.
 | Your question | What it hands back | Where to go |
 | --- | --- | --- |
 | Do the rendered gaps, alignments and weights still separate the things my structure says are separate? | A graph of the rendered boxes, the relationships between them — gap, alignment, shared baseline, relative visual weight, repetition — and the places where a distinction the structure implies is not present in the pixels | [Inspect presentation relationships](presentation.md) |
-| Which rendered elements did this test actually operate, and who rendered them? | Every element the test queried, clicked, read or asserted on, in order, each carrying the React component that rendered it | [Follow the test's eyes](eyes.md) |
+| Which rendered elements did this test actually operate, and who rendered them? | Every element the test queried, clicked, read or asserted on, in order, each naming the React component that rendered it | [Follow the test's eyes](eyes.md) |
 | Which component owns this element, and does the capture follow the component tree or the DOM? | Component [provenance](attribution.md) and ownership, plus the content a component renders elsewhere in the document through `createPortal` | [Keep framework evidence](framework.md) |
 
 ## One finding, in full
@@ -26,7 +26,7 @@ finding named `SPACING_RELATION_COLLISION`, the element that arranges those
 records, and the numbers behind the call: `betweenGapMedianPx: 4`,
 `withinGapMedianPx: 4`, `ratio: 1`. Nothing in the stylesheet is wrong and
 nothing in a screenshot diff is different — this is how the page has always
-shipped — but the boundary between two records carries no more separation than
+shipped — but the boundary between two records shows no more separation than
 the boundary inside one, so the six read as a single block of text. `ratio` is
 a number your test can assert on.
 
@@ -43,7 +43,7 @@ good, picks a spacing value, or fails your build on its own; you assert on the
 numbers, and the decision stays with whoever knows what the product is for.
 
 A reading the page cannot supply comes back absent rather than as a guess: a
-page with no React tree carries no wiring digest instead of a digest of
+page with no React tree gives no wiring digest instead of a digest of
 emptiness. If the distinction you need is missing from all three readings, the
 subject you captured does not contain it yet — capture the state that does, and
 read that one.

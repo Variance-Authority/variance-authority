@@ -30,7 +30,7 @@ caused it, where it is written, and which other changed regions share that
 cause.
 
 More evidence is not automatically a better visual-regression workflow. It is
-better only when three things hold together:
+better only when three things are true at once:
 
 - verdicts remain correct, including when the environment changes or a chosen
   capture surface cannot observe part of the subject;
@@ -52,7 +52,7 @@ workflow.
 - **docket root** — one cause a run leaves for a person or system to decide,
   such as a component or a token, rather than one changed pixel region
   ([information exchange](information.md)).
-- **resource-closed document** — a captured document carrying the bytes it
+- **resource-closed document** — a captured document that embeds the bytes it
   references, so a second renderer needs no access to the origin; an
   environment-dependent document instead requires that renderer to fetch
   equivalent resources through a preserved base URL
@@ -114,7 +114,7 @@ of the result.
 A maintainer publishing a product claim and an adopter testing that claim on
 their own repository need the same definitions and produce different subsets of
 them; the split is in [what you can run yourself](#what-you-can-run-yourself). A
-test, case or benchmark can automate the calculation only when it carries the
+test, case or benchmark can automate the calculation only when it declares the
 independent ground truth the metric requires.
 
 ## What the measurements decide

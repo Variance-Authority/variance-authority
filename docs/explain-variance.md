@@ -1,6 +1,6 @@
 # Explain variance
 
-Something moved, and the report you are holding names a region but not a
+Something moved, and the report you are reading names a region but not a
 reason. Which page helps depends on the kind of explanation that is missing: a
 component name, the input that changed, a second reading that disagrees with
 the first, or a declaration that the region was never the subject. Each row

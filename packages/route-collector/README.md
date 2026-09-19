@@ -148,14 +148,14 @@ must decide about, and `2` means the run did not happen as configured.
 ### 6. Look at the candidates
 
 Write the report as HTML beside its JSON source, so its relative image links
-hold, and open it:
+still work, and open it:
 
 ```bash
 npx variance report --config variance.config.json --format html > .variance/report.html
 ```
 
-`report` carries the same exit codes as `run`: it writes the whole report and
-then exits `1` when the report holds something to review. Under `set -e` that
+`report` uses the same exit codes as `run`: it writes the whole report and
+then exits `1` when the report shows something to review. Under `set -e` that
 ends the script, so allow it — `|| true` in a shell recipe, `continue-on-error`
 in a CI step — and read the code from `run` instead.
 
@@ -175,8 +175,8 @@ The full signature:
 npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 ```
 
-`--shape` takes a **fingerprint** — the shape digest each changed region carries
-in the report — so one decision covers every subject where the same kind of
+`--shape` takes a **fingerprint** — the shape digest the report attaches to each
+changed region — so one decision covers every subject where the same kind of
 difference landed. Keep `--all` out of an unattended job: it cannot tell a
 candidate somebody reviewed from one nobody opened.
 
@@ -271,8 +271,8 @@ export default routeCollector({
 Discovered ids come from the URL path with leading and trailing slashes trimmed,
 and a sitemap listing two URLs whose paths collide is refused rather than
 resolved. For static output, replace `sitemap` with `directory: './build'`; the
-collector serves it locally and creates one subject per `.html` file. Ids carry
-no extension and `index.html` resolves to its directory, so `cart/empty.html` is
+collector serves it locally and creates one subject per `.html` file. Ids drop
+the extension and `index.html` resolves to its directory, so `cart/empty.html` is
 the subject `cart/empty` and `about/index.html` is `about` — the name you type
 back at `--subjects` and `variance accept`. The root `index.html` has no
 directory above it to be named after, so its id is `/`. Two files that would
@@ -280,7 +280,7 @@ answer to one id — `cart/empty.html` beside `cart/empty/index.html` — are
 refused by name rather than resolved.
 
 A page dropped from the sitemap or the build stops being watched with no config
-diff to approve. The run still reports it by id — the baseline store holds an
+diff to approve. The run still reports it by id — the baseline store keeps an
 approved image the plan did not contain — but you learn about it from a run
 rather than from a review. Keep the explicit `routes` form where removing a
 subject should be something somebody signs off. A sitemap index is not followed:
@@ -329,9 +329,9 @@ loudest first: `a11y`, `geometry`, `token`, `content`, `texture`.
 | `headless` | You need to watch collection while debugging. | `true`. |
 | `network` | Asset bytes at stable URLs must affect render identity. | `true`. |
 | `portable` | The pixels will be made on a machine with no route to your asset origin. | `false`. Requires `network`; a resource that cannot be closed fails its route and names itself. |
-| `hashAssets` | Your asset URLs already carry their own content hash. | `true`. Read only while `network` is on; GIF freezing, blanking and `portable` retention stay. |
+| `hashAssets` | Your asset URLs already include their own content hash. | `true`. Read only while `network` is on; GIF freezing, blanking and `portable` retention stay. |
 | `wiring` | This route is not React, so the fiber walk buys nothing. | `true`. A band of its own; turning it off changes no stored digest. |
-| `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes the structure digest — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
+| `holdings` | Application values behind the nodes are evidence you want recorded. | `false`. Changes the structure digest — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `stabilize` | The application has its own determinism strategy. | The standard collection recipe; `[]` records an untouched page. |
 
 ## Readiness and loading

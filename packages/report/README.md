@@ -24,7 +24,7 @@ changed screenshots into something you can act on:
 - **`adjudicateRun`** checks the run against what you said you were changing, and
   reports the edit that silently did not take.
 - **`changelogOf`** folds what a reviewer accepted into a record of *why* a
-  baseline is what it is, ready to go into the commit message that carries it.
+  baseline is what it is, ready to go into the commit message that lands it.
 
 This package compares nothing itself. It has no browser, no renderer and no
 baseline store. Something else produces a `RunReport` — the `variance` CLI does,
@@ -85,9 +85,9 @@ for (const subject of clustering.ungrouped) {
 ```
 
 Each **change** in `clustering.changes` is one fingerprint — a digest of the
-shape of the difference, carried on every region of the diff and built from the
+shape of the difference, stamped on every region of the diff and built from the
 component responsible, so the same-looking change in `Avatar` and in `Badge`
-stays two changes. `ungrouped` holds subjects that changed and produced no
+stays two changes. `ungrouped` lists subjects that changed and produced no
 fingerprint at all; they are never folded into a catch-all.
 
 ### What you get
@@ -156,7 +156,7 @@ subject. Abridged to the fields most reports use:
 `identity` is the machine and renderer the pixels came from — what a baseline is
 only comparable within. Each observation's `verdict` is the run's answer for that
 one subject: `unchanged`, `changed`, `new`, `incomparable` or `ignored`. Its
-`regions` are the rectangles of the diff, each carrying the component and pixel
+`regions` are the rectangles of the diff, each naming the component and pixel
 count that explain it.
 
 `notObserved` lists subjects the run planned and has no answer for, each
@@ -171,7 +171,7 @@ Three further fields are present only when the run had something to put in them:
 - `narrowing` — the ref the run was told to observe from (`--since`), and where
   the recorded execution index stands: the commit it was written at, and how many
   files the working tree differs from it by. A run that observed everything
-  carries the second half alone, which is what makes the option visible to a
+  includes the second half alone, which is what makes the option visible to a
   reader who never passed one. Absent `index` means there is nothing to diff
   from; it never means the index is current, which is `changed: 0`.
 - `drift` — design tokens whose value changed in this run, each with what it
@@ -181,24 +181,24 @@ Three further fields are present only when the run had something to put in them:
 - `journeys` — for a build instrumented with `testSelectionProbes()` from
   `@variance-authority/sense`, the modules where the run's subjects entered
   different regions of the source, plus the pool of subjects that answer is drawn
-  from. Absent means no execution journal was written — most builds carry no
+  from. Absent means no execution journal was written — most builds have no
   probes — and never that every subject took the same path through the source.
   The terms are in [journeys](https://variance-authority.dev/docs/journeys).
 
 ### Signals beside the verdict
 
-An `ObservationRecord` can carry `signals`: independently measured boundaries —
-`document`, `pixels`, `accessibility` and `presentation`. A missing member means
-that boundary was never measured, not that it was clean.
+An `ObservationRecord` can come with `signals`: independently measured
+boundaries — `document`, `pixels`, `accessibility` and `presentation`. A missing
+member means that boundary was never measured, not that it was clean.
 
 `signals.presentation` retains what changed in the rendered relationships between
 elements, beside the document, pixel and accessibility boundaries. It does not
-change the verdict. A comparable presentation signal carries the two digests,
-information counts, and `introduced`, `resolved` or `persisted` effects; an empty
-`effects` list means both sides were measured and no relationship changed. An
-`incomparable` one carries a reason and no effects.
+change the verdict. A comparable presentation signal has the two digests,
+information counts, and `introduced`, `resolved` or `persisted` effects; an
+empty `effects` list means both sides were measured and no relationship changed.
+An `incomparable` one gives a reason and no effects.
 
-The CLI carries the signal through both the pixel-compared path and the path
+The CLI passes the signal through both the pixel-compared path and the path
 where a subject's document digest matched the baseline's, so it was declared
 unchanged without being repainted at all. The JSON file, HTML report, text
 report, MCP description and Tribunal record all read that stored value rather
@@ -207,7 +207,7 @@ than re-running the analysis. The producing API is in
 
 ## Entrypoints
 
-| entrypoint | requires | holds |
+| entrypoint | requires | exports |
 |---|---|---|
 | `.` | nothing | `RunReport`, `ObservationRecord`, `PresentationSignalRecord`, `RegionRecord`, `NotObserved`, `clusterChanges`, `adjudicateRun`, `changelogOf` |
 | `./file` | a filesystem | `readRunReport`, `writeRunReport`, `readSuiteIndex`, `writeSuiteIndex` |
@@ -218,10 +218,10 @@ object store, a pull request comment or a socket carries the same `RunReport`
 value without it.
 
 `./suite-index` is the part of a report that is not about the run: what the suite
-is made of — its subjects, its components, every name each one carries. That is a
+is made of — its subjects, its components, every name each one goes by. That is a
 fact about the commit, it changes only when the suite does, and it is asked for
 far more often than a run happens. `suiteIndexOf` takes it out of a report as
-bytes, addressed by that commit, small enough for a cache to carry and stable
+bytes, addressed by that commit, small enough for a cache to keep and stable
 enough that two machines composing the same suite write the same file.
 `decodeSuiteIndex` refuses anything else.
 
@@ -373,7 +373,7 @@ was promoted.
 
 It returns an `Unrecordable` with a `because` — never an empty record, which
 would read as "nothing changed" — when nothing was accepted, or when the report
-carries no run id to attribute the baseline to. `isRecorded` narrows between the
+names no run id to attribute the baseline to. `isRecorded` narrows between the
 two.
 
 The record omits a changed-pixel count (the regions already say where the change

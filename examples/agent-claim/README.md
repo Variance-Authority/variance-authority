@@ -34,7 +34,7 @@ bound:
 }
 ```
 
-`reason` is required and never matched on — it is carried into the answer, which
+`reason` is required and never matched on — it comes back in the answer, which
 is read by whoever picks the branch up next. A bare array of claims is accepted
 too; an empty one is refused rather than adjudicated.
 
@@ -60,8 +60,8 @@ process, hands the CLI a `before` document alongside the `after`, and keeps
 neither. Nothing was recorded on a previous machine, so nothing about the machine
 has to cancel out — which is what makes this shape the right one for a run
 performed to answer a question rather than to defend a baseline.
-[`src/system.js`](src/system.js) holds both palettes for exactly that reason, and
-[`page/harness.html`](page/harness.html) with
+[`src/system.js`](src/system.js) defines both palettes for exactly that reason,
+and [`page/harness.html`](page/harness.html) with
 [`src/page-agent.js`](src/page-agent.js) is what the browser loads.
 
 Provenance is `data-component` on plain DOM. No framework is involved, and the
@@ -123,7 +123,7 @@ You can get every outcome in the table above from both surfaces an agent has.
 `variance adjudicate` and the `variance_adjudicate` MCP tool answer the same run
 with the same sentences, over a CLI flag and over stdio JSON-RPC. Neither derives
 a claim: the MCP call in the demo declares two of the four, and the two it drops
-come back as `unclaimed` rather than quietly passing. That call also carries one
+come back as `unclaimed` rather than quietly passing. That call also passes one
 field this resolution cannot check — a `bands` claim, which no run report keeps
 per change — and the answer says `Not checked here: bands` instead of reporting
 `delivered` about something nothing looked at.
@@ -142,7 +142,7 @@ yarn workspace @variance-authority/example-agent-claim verify
 ```
 
 `scripts/verify.mjs` checks the claims this page makes against the shipped
-binaries, and exits non-zero when one stops holding:
+binaries, and exits non-zero when one stops being true:
 
 ```
   ok   the CLI and the MCP tool answer the same claims identically

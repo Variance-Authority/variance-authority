@@ -11,9 +11,9 @@ and readiness. Those stay with Storybook; nothing here re-implements them.
 ## What you get that you do not have now
 
 `@storybook/test-runner` runs your play functions and assertions in a browser.
-It holds no approved screenshots, so a visual change nobody wrote an assertion
-for goes through green. Chromatic holds them and renders and reviews in its own
-cloud.
+It keeps no approved screenshots, so a visual change nobody wrote an assertion
+for goes through green. Chromatic stores them and renders and reviews in its
+own cloud.
 
 Here:
 
@@ -130,7 +130,7 @@ directory rather than the working directory.
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | `storybook` reads a built story index. The alternatives are `list`, where you write the subject ids down yourself, and `collector`, where the collector module discovers them. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. With `[]` you assert nothing, so two machines carrying different cuts of Inter produce the same identity, compare, and report the difference as a component regression. Naming them makes that a refused comparison instead. `variance doctor` measures the asserted families and lists the ones it could not find. |
+| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. With `[]` you assert nothing, so two machines with different cuts of Inter produce the same identity, compare, and report the difference as a component regression. Naming them makes that a refused comparison instead. `variance doctor` measures the asserted families and lists the ones it could not find. |
 | `report` | Where `run` writes, and where `report` and `accept` read. Defaults to `.variance/report.json`. |
 
 ### Commit the approved images
@@ -140,8 +140,8 @@ tracked and pushed. A run that cannot read it does not fail: it finds nothing,
 reports every story `new`, records what is on screen as the new truth, and
 exits `0`.
 
-The trap is the wildcard. `.variance/` also holds a report and candidate images
-that genuinely are per-run junk, and a repository that ignores the whole
+The trap is the wildcard. `.variance/` also contains a report and candidate
+images that genuinely are per-run junk, and a repository that ignores the whole
 directory ignores the approved images under it too. Exclude the contents, so git
 still descends:
 
@@ -161,23 +161,25 @@ variance run --config variance.config.json
 ```
 
 `doctor` opens a browser here, measures the asserted fonts inside it, and lists
-which identities the baseline root holds and whether this machine's is one of
-them. It makes no network calls, so a remote renderer or store is reported as
-configured and never as working. It exits `2` when no browser opens or when
-the root holds no images this machine could compare against, and `0` otherwise —
-a missing font is reported and does not change the exit code.
+which identities the baseline root stores images under and whether this
+machine's is one of them. It makes no network calls, so a remote renderer or
+store is reported as configured and never as working. It exits `2` when no
+browser opens or when the root has no images this machine could compare
+against, and `0` otherwise — a missing font is reported and does not change the
+exit code.
 
 The first successful durable run exits `1` and reports the stories as `new`. An
 image nobody approved is not a pass.
 
-Render the HTML report beside the JSON report so its relative image links hold:
+Render the HTML report beside the JSON report so its relative image links
+resolve:
 
 ```bash
 variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 Open it and look at the candidate — the screenshot this run just took. Copy the
-subject id it shows; Storybook subjects carry a `story:` prefix. For a story
+subject id it shows; Storybook subject ids start with `story:`. For a story
 whose Storybook id is `checkout--empty`:
 
 ```bash
@@ -210,7 +212,7 @@ The image a browser paints depends on the machine that painted it. Every
 approved image is stored under an identity digest of the renderer, engine,
 platform, device scale factor and fonts, and an image stored under a different
 identity is not diffed against — the run reports `incomparable`, and `doctor`
-exits `2` listing the identities the root does hold.
+exits `2` listing the identities the root does have images for.
 
 So your laptop and CI never compare against different identities — pick one
 painter and use it for both:

@@ -68,7 +68,7 @@ have](cases.md) covers those choices.
 
 Not every path can supply every kind of evidence. Browser accessibility evidence
 needs a browser, and `file:line` [attribution](attribution.md) needs a build that
-carries source locations. Where a path cannot supply something, the result leaves
+keeps source locations. Where a path cannot supply something, the result leaves
 it out rather than guessing.
 
 ## Bound the first subject
@@ -128,7 +128,7 @@ nobody opened.
 | --- | --- |
 | `new` | Open the report, check the candidate is the state you meant, and accept that id. |
 | `unchanged` | The subject is through the loop. Add another state, or ask a deeper question below. |
-| `changed` | Open the report at the region it names: it carries the component and the `file:line` that drew it. [Trace the region to source](attribution.md), or [compare across subjects](composition.md) to see whether the same component held elsewhere. |
+| `changed` | Open the report at the region it names: it includes the component and the `file:line` that drew it. [Trace the region to source](attribution.md), or [compare across subjects](composition.md) to see whether the same component held elsewhere. |
 | `incomparable` | The two images were refused a comparison because they were not made under the same renderer identity — engine, platform, scale factor, fonts, or stabilization recipe. The report names which. Make the pixels in one fixed place, a pinned local renderer or one you host, or switch to ephemeral retention where both sides are rendered in the same run. See [baseline placement](placement.md) and [stabilization](stabilization.md). Do not read a refused comparison as zero difference. |
 | Collection failure | The run could not read the subject at all, so it has no visual result. Fix the boundary it names. |
 

@@ -122,7 +122,7 @@ Sources: [Percy plans and billing](https://www.browserstack.com/docs/percy/overv
 
 You may already have it, and it costs nothing to keep. Baselines are PNG files in
 a `<test-file>-snapshots` directory beside the test; `npx playwright test
---update-snapshots` rewrites them; the filename carries the browser and platform
+--update-snapshots` rewrites them; the filename spells the browser and platform
 (`example-test-1-chromium-darwin.png`), so a Linux CI image and a macOS laptop do
 not fight over one file. Tolerance is a number — `maxDiffPixels` and its
 neighbours, set per assertion or once under `expect.toHaveScreenshot` in the
@@ -219,10 +219,10 @@ the host's runner or creating a second comparison system.
 ### 3.1 A diff that names a component and a file
 
 PNG comparison produces regions. Component attribution requires a semantic
-snapshot of the same subject, and source attribution requires provenance carried
-during acquisition. With both present, a region can resolve to a component and
-then to `file:line`. Without them, the observation remains a pixel result and the
-missing fields stay absent.
+snapshot of the same subject, and source attribution requires provenance
+recorded during acquisition. With both present, a region can resolve to a
+component and then to `file:line`. Without them, the observation remains a pixel
+result and the missing fields stay absent.
 
 React acquisition reads owner information; another framework can emit the same
 public provenance shape through `data-*` metadata. This is an acquisition
@@ -332,15 +332,15 @@ Nothing on this axis changes the exit code, the baseline store, or what
 purpose](variations.md) and [the suite compared to itself](composition.md).
 
 A changed subject is also read a second time, and there are two second readings.
-`again` holds the world and advances time; `alone` rebuilds the world and holds
-time. Neither is a retry and neither consults a baseline: each compares two
-readings of one input. The order is load-bearing — `again` runs first, because
-`alone`'s inference is *the clean reading differs from the shared one, so the
-world changed it*, which is only evidence once two readings of one world are
-known to agree. A run re-collects at most `alone.limit` changed subjects this
-way.
+`again` keeps the world still and advances time; `alone` rebuilds the world and
+freezes time. Neither is a retry and neither consults a baseline: each compares
+two readings of one input. The order is load-bearing — `again` runs first,
+because `alone`'s inference is *the clean reading differs from the shared one,
+so the world changed it*, which is only evidence once two readings of one world
+are known to agree. A run re-collects at most `alone.limit` changed subjects
+this way.
 
-Because a document carries a hash per component per band, the answer is not
+Because a document keeps a hash per component per band, the answer is not
 "this subject is flaky", which is a page to re-examine. It is a component and a
 band:
 
@@ -399,7 +399,7 @@ CLI output, or an MCP server — and review happens wherever your team already
 reads CI.
 
 **Parallelism is your runner's.** `concurrency` sets how many subjects one run
-holds in flight. Past one machine you shard the suite the way you already shard
+works on at once. Past one machine you shard the suite the way you already shard
 the test suite, then `variance report shard-1.json shard-2.json …` merges the
 shard reports into one build for `variance push` to post. Wall clock is whatever
 your own capacity buys; there is no fleet to fan out onto.
@@ -413,9 +413,10 @@ approve is a deployment you configure, not a seat you buy.
 
 **Approved baselines from another tool do not transfer.** A baseline here is a
 PNG plus a sidecar of per-component, per-band hashes, filed under the identity of
-the renderer that painted it. Images approved in a hosted service carry neither.
-`observeRasters` will compare two foreign images that declare the same painter,
-but a foreign image against a locally rendered candidate is `incomparable`.
+the renderer that painted it. Images approved in a hosted service come with
+neither. `observeRasters` will compare two foreign images that declare the same
+painter, but a foreign image against a locally rendered candidate is
+`incomparable`.
 
 So your first run reports `new` on every subject, and that is the adoption moment
 rather than a failure: nothing has been compared yet. Open the report, check the

@@ -1,7 +1,7 @@
 # Follow the reasoning loop
 
 You already have visual regression covered — `toHaveScreenshot`, Chromatic,
-Percy, `jest-image-snapshot` — and the question you carry to a red build is
+Percy, `jest-image-snapshot` — and the question you bring to a red build is
 rarely *did these pixels move*. It is which tests this edit could reach, whether
 the change on screen is the change somebody authored, or why one state keeps
 disagreeing with itself. [Variance Authority](README.md) answers those from
@@ -93,7 +93,7 @@ different kind of variance.
 
 Evidence supports only the question it answered. It may help approve a change,
 select work, attribute a cause, guide an investigation, or show that another
-observation is needed. The result carries its subject, conditions, provenance,
+observation is needed. The result names its subject, conditions, provenance,
 and boundary so the next person can understand why it is useful.
 
 The goal is enough confidence for one defensible decision, with no claim about
@@ -109,7 +109,7 @@ An unavailable reading is absent, never an empty result. A first observation is
 `incomparable`, not different. A capability that did not observe a band reports
 it as unobserved rather than silently clearing it.
 
-When the evidence cannot carry the intended decision, the next step is one of:
+When the evidence cannot support the intended decision, the next step is one of:
 
 - narrow the claim to what was observed;
 - widen the observation;

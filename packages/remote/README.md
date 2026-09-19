@@ -212,7 +212,7 @@ for that key. Every other outcome throws — see
 Four things cross, and all four are plain JSON:
 
 - a **render document** — the serializable description of what to paint
-- a **raster** — the painted image, its pixels carried as base64
+- a **raster** — the painted image, its pixels encoded as base64
 - a **baseline description** — a baseline's metadata (its document digest, the
   identity that wrote it, whether it is comparable, which declared fonts were
   missing) without its image bytes
@@ -306,7 +306,7 @@ Nothing is retried. A request that fails, fails the call that made it.
 ## Prefetch baseline descriptions
 
 Most subjects settle from the **sidecar** — the small JSON record stored beside
-a baseline image, holding its document digest, its identity and its missing
+a baseline image, recording its document digest, its identity and its missing
 fonts. Reading one is 32 hex characters and no image fetched. Over a socket that
 saving is spent again as one request per subject.
 

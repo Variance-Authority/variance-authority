@@ -62,14 +62,14 @@ export default storybookCollector({
 options. A collector you write yourself is a factory the CLI calls once per run,
 returning `plan`, `collect` and `close`;
 [run visual review from the command line](https://variance-authority.dev/docs/start-cli)
-carries the full shape, and `Collector`, `CollectorContext`, `Plan`,
+spells out the full shape, and `Collector`, `CollectorContext`, `Plan`,
 `PlannedSubject`, `Collected` and `SubjectSource` are type-only exports of this
 package. A module whose default export is not a function is refused by path
 before anything is collected.
 
-The CLI holds no URL. Nothing in the config names an origin, a port or a server,
+The CLI knows no URL. Nothing in the config names an origin, a port or a server,
 so start whatever the collector talks to before you run, and let the collector
-carry the address.
+own the address.
 
 ### 2. Add `variance.config.json`
 
@@ -83,7 +83,7 @@ passed to `--config` defaults to `variance.config.json`, and relative paths
 inside the file resolve against the file's own directory rather than the
 working directory.
 
-`profile` and `browser` are two different choices and the synopsis below carries
+`profile` and `browser` are two different choices and the synopsis below shows
 only one of them. `profile` says how much of the page is observed: `chromium`
 for a full render, `jsdom` for structure with no layout engine and no animation
 clock. `browser` names the engine that paints — `chromium` (the default),
@@ -175,8 +175,8 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `journeys` | reads back which regions of one module this run's subjects entered differently, and folds shard snapshots into the one this checkout reads |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
-| `share` | says what the share holds for mainline, or publishes what this run derived |
-| `watch` | holds a suite that is still running, so `ask` has something live to ask |
+| `share` | says what the share has for mainline, or publishes what this run derived |
+| `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
@@ -214,7 +214,7 @@ exit `1` when something needs review — one command per gate, so a workflow
 cannot lose its exit code to a question.
 
 `ask diff` reports what changed since the previous question was answered. An MCP
-connection holds that state in memory for as long as it lasts; a command line
+connection keeps that state in memory for as long as it lasts; a command line
 cannot, so the report each answer was read from is recorded beside the
 configured report as `asked.json`. Deleting it costs the next `ask diff` its
 comparison and nothing else.
@@ -311,7 +311,7 @@ it sorts the list where a producer measured one. The Vitest recorder in
 `@variance-authority/sense` does not measure it — every crossing it writes is
 depth zero, and a fabricated number would sort the answer by something nothing
 observed — so under that recorder the list comes back in identity order. An
-index from a runner, debugger or editor integration that carries real depths
+index from a runner, debugger or editor integration that measures real depths
 sorts nearest first, and the column is printed either way so you can tell which
 kind of index you are reading.
 
@@ -320,7 +320,7 @@ regions of the file, each with the tests shared by every line in it, which is
 where an unclaimed region shows up as one.
 
 The index comes from a run wrapped in `withTestSelection(config, { cases: true })`
-and is read from where that run writes it, so an agent holding a line number
+and is read from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
 somewhere else, and `--root <path>` names the project root the run recorded
 against. A missing index is refused rather than answered empty, because an empty
@@ -356,7 +356,7 @@ variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
 it for the suite asks with nothing extra typed. Ask `self` first: it says where
-the watcher is listening and what it is holding, which is what separates a run
+the watcher is listening and what it has heard, which is what separates a run
 that reported somewhere else from one that has not started. `run-signals` marks
 the test still going with `▸`; `test-signals` gives everything one test
 announced, in order, with the realm that said each and the work that started
@@ -364,7 +364,7 @@ without finishing — the answer a timeout cannot give, because a runner reports
 what a test *wanted*.
 
 `ask diff --at` works here too, against the reading the watcher handed out last.
-The watcher holds that state, not a file, because this process exits
+The watcher keeps that state, not a file, because this process exits
 between questions and there is nothing to write down: the run lives in memory
 that ends with the watcher. Stop it and the run is gone.
 
@@ -374,7 +374,7 @@ Same functions, same text.
 
 ### Push: put a build in front of a reviewer
 
-A [`tribunal`](https://variance-authority.dev/reference/packages/tribunal) deployment holds builds, a **docket** — one
+A [`tribunal`](https://variance-authority.dev/reference/packages/tribunal) deployment stores builds, a **docket** — one
 entry per root cause, grouping every subject that cause reached — and recorded
 decisions. `push` is what gets a run there — the report the run already
 wrote, with the images beside it.
@@ -427,7 +427,7 @@ loses is the button.
 Both ends say what they are. `push` asks the deployment for its API version
 before it reads a byte off disk, prints the pair on the line it reports, and
 names the mismatch when they differ — a CLI newer than its deployment uploads
-every image it is holding rather than naming the ones already there, and that
+every image it has rather than naming the ones already there, and that
 looks like a slow network until something says otherwise. `variance --version`
 prints this tool alone.
 
@@ -485,7 +485,7 @@ Three failure modes are handled explicitly:
   with a message, instead of printing an empty history that looks the same as
   "nothing has changed since the last baseline."
 - **A shallow clone bounds what can be read.** CI checkouts at depth 1 see one
-  commit; the output carries a `note:` saying what it could not see.
+  commit; the output prints a `note:` saying what it could not see.
 - **Stores whose baselines are not commits are refused by name.** Under
   `ephemeral` retention there is no baseline to explain; behind a `remote`
   store the explanation lives in that service's record instead, and this
@@ -541,9 +541,9 @@ left to be inferred:
 
 - An observation recorded incomplete is dropped from the pool and noted, rather
   than counted as a subject that agreed.
-- A named subject the journal holds no row for is listed by name, because this
-  run holds nothing that would settle it either way.
-- A pool holding fewer than two observations is said out loud. A parting is a
+- A named subject the journal never recorded is listed by name, because this
+  run observed nothing that would settle it either way.
+- A pool of fewer than two observations is said out loud. A parting is a
   disagreement between two observers, and a single observer has not found
   nothing — it has not been able to look.
 
@@ -563,7 +563,7 @@ report server or account.
 It renders the same docket the pull-request body does: one entry per root
 cause, grouping every subject that cause reached, instead of one entry per
 subject. Causes come first, with `file:line`, and their collateral is counted
-and not listed. Each card carries the subject id in its heading, the changed
+and not listed. Each card shows the subject id in its heading, the changed
 region with its component and `file:line`, and the commands for that id already
 filled in, to copy out:
 
@@ -721,23 +721,23 @@ jest $(variance select --format jest)
 ```
 
 It prints a **skip** list, never a run list, and that is the whole of its safety.
-A run list has to be complete to be correct, and this journal is never complete:
-it holds the tests that finished whole, at one commit, in one recipe. A skip list
-that comes back empty runs your suite. A run list that came back empty would run
-nothing, and the suite would go green in seconds.
+A run list has to be complete to be correct, and this journal is never
+complete: it records the tests that finished whole, at one commit, in one
+recipe. A skip list that comes back empty runs your suite. A run list that came
+back empty would run nothing, and the suite would go green in seconds.
 
-So stdout carries paths and nothing else, and every sentence about the reading
+So stdout gets paths and nothing else, and every sentence about the reading
 goes to stderr, where a `$(...)` cannot pick it up and hand it to a runner as a
 path. `--format plain` writes one path per line; `vitest` writes `--exclude=`
 arguments, which vitest adds to its own defaults; `jest` writes
 `--testPathIgnorePatterns=` arguments and re-states jest's `/node_modules/`
-default, which that flag would otherwise replace. `--format json` carries the
+default, which that flag would otherwise replace. `--format json` reports the
 counts and the widening reason together for something that wants to decide for
 itself.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal cannot speak: nothing recorded on this machine, a diff git would not
-produce, a journal holding no whole observation, or a diff touching a file no
+produce, a journal with no whole observation in it, or a diff touching a file no
 probe was ever in. That last one is the common case on a first read — an asset,
 a config, a module your probes do not cover — and it is why the command reads
 `0` even when it skips nothing:
@@ -751,7 +751,7 @@ the execution journal was not asked, having no record of every changed file.
 
 The journal's own commit is what the diff is measured from, because its line
 numbers are coordinates in that commit's text. `--since <ref>` names a base only
-for a journal recorded outside a checkout, which carries no commit of its own.
+for a journal recorded outside a checkout, which names no commit of its own.
 No `variance.config.json` is read, so a repository that uses this tool for
 nothing else can still ask.
 
@@ -776,7 +776,7 @@ alone enough to answer from with nothing recorded, and it is the same direction
 of error every narrowing in this tool is allowed.
 
 This one prints a **run** list, which is the dangerous shape, so it has no short
-answer at all. Either stdout holds every file the diff reaches — the changed
+answer at all. Either stdout lists every file the diff reaches — the changed
 files themselves always among them — or the command writes nothing to stdout and
 exits `2`. It refuses when the diff is empty, when a changed file in a language
 it reads is not in the graph, and when no changed file is in the graph:
@@ -793,7 +793,7 @@ Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile �
 are left out of the walk and named on stderr, so you can see the part of your
 diff the answer is not about. Everything else a person needs goes there too,
 including how many files were reached from how many, and which files were
-traversed because their own imports could not be read. `--format json` carries
+traversed because their own imports could not be read. `--format json` gives
 the same facts for something that wants to decide for itself.
 
 No `variance.config.json` is read, and there is no default for `--since`: without
@@ -873,7 +873,7 @@ rendered, not as an error.
 
 It answers three things: what you declared and delivered; what moved that you
 did not declare; and **what you declared that did not happen** — `Card`
-rendered in two subjects and held still, which means a wrong file, a dead
+rendered in two subjects and changed nothing, which means a wrong file, a dead
 branch, an overridden rule, or a stale build. That third answer is distinct
 from `Card` never rendering at all, which the run's own subject count already
 shows and is not evidence of anything on its own.
@@ -1019,7 +1019,7 @@ downloaded, so the run's inputs are the ones in the repository.
 
 `$schema` is the one key that configures nothing. It points at
 `schema/variance.config.schema.json`, shipped in this package, which describes
-every key a config may carry, the values each one accepts and what it decides.
+every key a config may contain, the values each one accepts and what it decides.
 An editor reads it for completion and an in-place refusal; an agent reading the
 repository gets the same answers without running anything. The parser accepts the
 line and ignores its value, so a wrong path costs completion and never a run.
@@ -1074,7 +1074,7 @@ write. `{ kind: "collector", collector }`
 is the third: the collector discovers the subject list itself, which is what a
 `sitemap` or a `directory` route collector needs, and the trade is the operator's
 — a page that stops being discovered stops being watched with no diff to approve,
-and is reported after the fact as a baseline the run holds and did not plan. `baselines` is
+and is reported after the fact as a baseline the run found and did not plan. `baselines` is
 `directory`, `lfs` or `remote`.
 
 `source` is the only thing `--since` can narrow against, and it is five settings
@@ -1089,7 +1089,7 @@ by a change to `api.ts`, at any depth, because its run never enters that module.
 `taints` names JSON tables that say what else a file imports beyond, or short
 of, its text — a framework's own import notation, a module loaded under a name
 the code never writes — keyed by file with `-` and `+` rows. The same
-graph answers the execution journal for a changed file it holds no row of: the
+graph answers the execution journal for a changed file it has no row of: the
 importers of that file, and theirs, until one the journal did record. `unrendered`
 answers the case where the walk succeeds and lands nowhere: a change landing
 only on components no baseline records narrows like any other, and the run names
@@ -1106,7 +1106,7 @@ failure that produced it would skip every consumer of whatever changed.
 
 `renderer` points the run at a machine that is not this one:
 `{ "endpoint": "http://pinned-runner:7777" }`, served by `serveRenderer` from
-`@variance-authority/remote`. It carries no token because
+`@variance-authority/remote`. It takes no token because
 `serveRenderer` has no authentication — a field accepting a credential nobody
 transmits would read as the endpoint being protected. It is refused together with
 `browser`, since the engine belongs to whichever machine paints. `variance doctor`
@@ -1116,7 +1116,7 @@ clean: doctor makes no network calls, and an unasked question is not a failed on
 `ignore` is the one setting that makes a run *less* observant, so it is the one
 with the most rules attached. Each entry excludes a subtree (`select`) or a
 difference shape (`fingerprints`, copied out of a previous run's regions), may be
-narrowed by `subjects` or by `tags`, and may carry an `until` date after which it
+narrowed by `subjects` or by `tags`, and may set an `until` date after which it
 stops absorbing. A subject whose only differences were absorbed reports
 **`ignored`**, never `unchanged`, and every run prints a ledger naming the rules
 that absorbed nothing — the two states that make a masked suite rot.
@@ -1135,8 +1135,8 @@ The remaining top-level keys:
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 
 `history.token`, and `baselines.token` on a remote store, take either a literal
-string or `{ "env": "NAME" }` naming the environment variable that holds it. A
-config file in a repository is the wrong place for a credential.
+string or `{ "env": "NAME" }` naming the environment variable that supplies
+it. A config file in a repository is the wrong place for a credential.
 
 `browser` is `chromium` (the default), `firefox` or `webkit` — one engine per
 run, because the engine is part of the identity a baseline is stored under, so
@@ -1195,7 +1195,7 @@ The poster is the platform-specific half, and it needs one thing from this CLI:
 variance comment --marker
 ```
 
-That prints the invisible marker the rendered body carries, and nothing else.
+That prints the invisible marker the rendered body embeds, and nothing else.
 Finding a previous comment by it and updating that comment — rather than adding
 one per run — is the whole of the "one comment, updated in place" rule; on
 Bitbucket that is a `GET` of

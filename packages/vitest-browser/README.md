@@ -57,7 +57,7 @@ npm install --save-dev @vitest/browser-playwright
 On Vitest 3 the provider is the string `'playwright'` and comes from
 `@vitest/browser`; both are inside this package's peer range.
 
-The line each changed region is reported at is carried by a second plugin, which
+The line each changed region is reported at comes from a second plugin, which
 makes `react/jsx-dev-runtime` resolve to a runtime that keeps the location the
 JSX transform already computed:
 
@@ -188,7 +188,7 @@ afterwards does not turn that verdict into a pass. Open the PNG it wrote under
 `.variance/baselines` before you commit it — that review is the approval. Run the
 suite again and the subject reports `unchanged`.
 
-Set `accept: false` on the plugin to hold baselines out of `--update`
+Set `accept: false` on the plugin to keep baselines out of `--update`
 altogether, or `accept: true` for a job whose whole purpose is to write them.
 
 ### Commit the baselines
@@ -262,9 +262,9 @@ There are five verdicts, and `assertUnchanged` throws on all four that are not
 | `incomparable` | a baseline exists but a different machine painted it, so the comparison is refused. Never read it as zero difference |
 | `ignored` | pixels differ and every one of them fell inside something you excluded |
 
-The observation carries these fields:
+The observation reports these fields:
 
-| field | what it holds |
+| field | what it gives you |
 |---|---|
 | `subject` | the subject id this observation is about |
 | `verdict` | one of the five above |
@@ -275,7 +275,7 @@ The observation carries these fields:
 | `missingFonts` | families the document declared that the renderer did not have |
 | `signals` | the document and the pixels as separately observed boundaries, plus the accessibility diff when one was read |
 | `comparison`, `isolation` | the raw pixel comparison and the region clustering behind `regions` |
-| `causes`, `moved` | components whose own hashes differ, and in which band. Absent when either side carries no hashes, which means *unknown* rather than *nothing moved* |
+| `causes`, `moved` | components whose own hashes differ, and in which band. Absent when either side is missing hashes, which means *unknown* rather than *nothing moved* |
 | `ignored` | what your exclusions absorbed here, per rule, including rules that absorbed nothing |
 | `relaxed` | the sensitivity that decided this verdict, and the bands it absorbed |
 | `diagnostics` | what this comparison could not do, or did under a condition worth stating |
@@ -308,8 +308,8 @@ Only the family — everything before the first `/` — is used to ask the rende
 whether it has the font, and what it could not find comes back in
 `missingFonts`. The weight, style and hash are folded into the renderer identity
 and compared for equality, never parsed, so any stable digest of the font file's
-bytes serves as the hash. What the declaration buys is that two machines
-carrying different cuts of one family produce different identities and report
+bytes serves as the hash. What the declaration buys is that two machines with
+different cuts of one family produce different identities and report
 `incomparable` instead of blaming a component for a substituted typeface.
 
 ### About `wiring`
@@ -325,7 +325,7 @@ hashes would make a performance change read as a visual regression and
 re-baseline every subject the first time the reading was switched on.
 
 What wiring buys is the record: hook shape, the `memo`/`forwardRef` chain around
-a component, the contexts it subscribes to and its reconciliation key, carried
+a component, the contexts it subscribes to and its reconciliation key, kept
 as their own band, so that two subjects agreeing on every content band and
 disagreeing here remain distinguishable. Hook names are recorded only by React
 development builds; against a production build the field is absent rather than
@@ -333,7 +333,7 @@ empty, because "declares no hooks" and "nobody could read the hooks" are
 different claims.
 
 Set `wiring: false` to skip the read. `holdings` is separate and off by default
-because it changes what a structure hash is — a node carrying a holding
+because it changes what a structure hash is — a node that has a holding
 suppresses the inert-wrapper collapse — so both sides of a comparison have to be
 read the same way.
 
@@ -343,7 +343,7 @@ A subject still showing a Suspense fallback is refused rather than captured. The
 locator assertion above it passes against a skeleton, and a baseline taken over
 a skeleton records the wrong state: a slower machine records the skeleton, a
 faster one records the content, and the next run reports the difference as a
-regression. The refusal names the boundary and the component holding it.
+regression. The refusal names the boundary and the component that created it.
 
 When the skeleton is the subject, declare it:
 
@@ -370,7 +370,7 @@ server refuses is recorded as absent rather than throwing, because a fixture
 pointing an `<img>` at a path nobody serves is testing the fallback.
 
 `@variance-authority/vitest-browser/node` is the other half, and the entrypoint
-your Vitest config imports. It holds the baseline store and one browser for the
+your Vitest config imports. It owns the baseline store and one browser for the
 whole run — opened on the first observation, not at config time — and it paints
 that reading rather than screenshotting the tab. A live screenshot has nothing
 behind it that can say which machine, which scale and which font stack produced

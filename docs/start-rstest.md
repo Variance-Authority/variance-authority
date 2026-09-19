@@ -51,7 +51,7 @@ export const CAPTURES = '.variance/captures';
 ```
 
 `writeCapture` refuses a second capture under a subject id that already has one,
-so a directory carried across two runs fails on the second. Empty it once, from
+so a directory reused across two runs fails on the second. Empty it once, from
 Rstest's global setup — never from a test file, where it races the other files
 and deletes their captures:
 

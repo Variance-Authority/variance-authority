@@ -27,7 +27,7 @@ runs in whichever one your test already has:
 | jsdom (`jsdom`, or Vitest's `jsdom` environment) | tree, ARIA, and declared CSS |
 | a real browser (Chromium, via Playwright or a collector) | the above, plus computed styles and element geometry |
 
-`@variance-authority/core` installs with it and carries the capture types. The
+`@variance-authority/core` installs with it and defines the capture types. The
 examples below also use `jsdom`:
 
 ```bash
@@ -110,7 +110,7 @@ Values leave as authored — generated ids intact, hashed class names intact,
 shorthands unexpanded, cascade losers retained. `normalize` decides what to do
 with them, so the rules that settle a comparison are versioned in one place.
 
-Around that node the capture also carries `subject`, an `environment` block
+Around that node the capture also includes `subject`, an `environment` block
 (engine, viewport, fonts, resolved conditions, assets), `inheritedSeed` —
 `{"--brand": "#0000ff"}` here, the custom properties in force at the root — and
 `diagnostics`. The run above reports one:
@@ -169,7 +169,7 @@ and call this underneath.
 | `collect` | `ignore` excludes subtrees by selector, `provenanceOf` adds component ownership, `wiringOf` adds framework wiring, `holdingOf` adds what each component was handed and retained, `portalsOf` pulls in portalled subtrees, and `stabilization` records the digest of whatever held the page still; none of these is inferred from markup |
 | `stabilizeForObservation` | `recipe` selects the interventions to apply — animations, carets, and the rest — and the result reports which ones actually applied. `tier` raises how much the run is claiming about: declarations, geometry, or pixels. Pass the raster tier when you are screenshotting the document you just read, so holds such as the caret are installed |
 | `resolveIgnores` | `selectors` names the excluded places, `markers` controls handling of the `data-variance-ignore` attribute |
-| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. What they carry is declared by whatever rendered the element, never guessed from a tag name |
+| `attributeProvenance` | `component`, `createdBy` and `props` name the attributes to read provenance from, defaulting to `data-component`, `data-created-by` and `data-props`. What they say is declared by whatever rendered the element, never guessed from a tag name |
 
 ## What is in here
 
@@ -184,7 +184,7 @@ and call this underneath.
 | `profile` | whether this DOM has a layout engine, probed rather than declared, and therefore whether geometry and computed styles are in the capture |
 | `assets` | the external URLs a document refers to, so hashes fetched over the wire have somewhere to land |
 | `stabilize` | the interventions applied to a live page, and which ones reported applying |
-| `attributed` | component names, creators, and props written onto the nodes that carry them, from values you declare rather than guesses from a tag name |
+| `attributed` | component names, creators, and props read off the nodes they are written on, from values you declare rather than guesses from a tag name |
 
 ## Component names are optional
 

@@ -15,7 +15,7 @@ one runner's own directory, or a repository a team checks out.
 Throughout, a **subject** is one named UI state you asked for and can ask for
 again — a story, a route, a component in a particular state. A stored baseline
 for one subject is two files: a PNG, and a JSON **sidecar** written beside it
-holding how that image was painted.
+recording how that image was painted.
 
 ## Requirements
 
@@ -171,7 +171,7 @@ what you approve is what you reviewed. Name subjects to promote those, `--all`
 to promote every changed one, or `--shape` to promote by **fingerprint**: the
 digest of one recurring visual change, which a report prints against every
 subject the change reached. `--message-file` writes the explanation out for the
-commit that carries the images:
+commit that adds the images:
 
 ```bash
 npx variance accept --all --message-file .variance/commit-message.txt
@@ -197,23 +197,23 @@ choice of where baselines live is yours to state.
 
 ## Choose a backend
 
-| entrypoint | requires | holds, and when you want it |
+| entrypoint | requires | gives you, and when you want it |
 |---|---|---|
 | `./durable` | a writable directory | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing shares them. |
 | `./lfs` | a writable directory and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back why a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
-| `./share` | a writable directory | a directory holding bytes a run derived — not baselines. See the last section. |
+| `./share` | a writable directory | a directory storing bytes a run derived — not baselines. See the last section. |
 
 Both store backends implement one contract, `RasterStore`, which is defined in
 `@variance-authority/raster` and installed with this package:
 
 | member | signature | answers |
 |---|---|---|
-| `find` | `(key, identity) => Promise<Found \| null>` | the baseline for `{ subject, label? }`, looked up under any identity that has ever written one; `null` only when none has. `Found` carries the `raster`, whether it is `comparable` (written by the identity asking), and `storedUnder` (the identity that actually wrote it). |
-| `describe` | `(key, identity) => Promise<Described \| null>` | the same lookup without the image: `documentDigest`, `comparable`, `storedUnder`, `pictured`, `missingFonts`, and optional accessibility, component and finding data when the sidecar carries it. Cheap enough to run for every subject before deciding which ones need the image at all. |
+| `find` | `(key, identity) => Promise<Found \| null>` | the baseline for `{ subject, label? }`, looked up under any identity that has ever written one; `null` only when none has. `Found` has the `raster`, whether it is `comparable` (written by the identity asking), and `storedUnder` (the identity that actually wrote it). |
+| `describe` | `(key, identity) => Promise<Described \| null>` | the same lookup without the image: `documentDigest`, `comparable`, `storedUnder`, `pictured`, `missingFonts`, and optional accessibility, component and finding data when the sidecar includes it. Cheap enough to run for every subject before deciding which ones need the image at all. |
 | `put` | `(key, raster) => Promise<void>` | writes a baseline. |
 | `renderCache` | `{ get(documentDigest, identity), put(raster) }` | images this machine has already painted, keyed by document digest and identity, so an unchanged document is not re-rendered. A lookup or write here never throws; a miss and a failure both mean "render it". |
-| `unplanned?` | `(keys, identity) => Promise<readonly string[]>` | file names held under this identity that none of these keys addresses — the baselines left behind when a subject leaves the suite. Names an operator can find on disk, not keys. One root serving two suites reports each suite's subjects to the other. |
+| `unplanned?` | `(keys, identity) => Promise<readonly string[]>` | file names written under this identity that none of these keys addresses — the baselines left behind when a subject leaves the suite. Names an operator can find on disk, not keys. One root serving two suites reports each suite's subjects to the other. |
 | `expect?` | `(keys) => void` | an optional hint naming subjects about to be asked about; both backends here ignore it, because `describe` is already a `readFile`. |
 | `retention` | `'durable' \| 'ephemeral'` | both backends here are `'durable'`. |
 
@@ -234,9 +234,9 @@ passes all three through:
 
 | option | default | what it decides |
 |---|---|---|
-| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory holding the code it depicts — `components/Button/<identityDigest>/primary__wide.png` — so baselines arrive with the checkout and move when the component's own files move. The directory comes from the key's `path` when the plan carried one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved. A carried `path` keeps the whole subject id in the file name; an id split into directories spends its own slashes. |
+| `layout` | `flat` | `flat` puts every image for the root in one directory per identity, with the subject id percent-encoded into the file name. `beside` puts each image in the directory where its code lives — `components/Button/<identityDigest>/primary__wide.png` — so baselines arrive with the checkout and move when the component's own files move. The directory comes from the key's `path` when the plan named one, and otherwise from the subject id read as a path. Either way a `..` or an empty segment is refused rather than resolved. A `path` from the plan keeps the whole subject id in the file name; an id split into directories spends its own slashes. |
 | `cacheRoot` | `root` | where the render cache goes; a durable store doubles as one, so entries are written under `root` unless this points elsewhere. |
-| `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` holds images and nothing else. |
+| `recordRoot` | `root` | where the `.json` sidecars go. A sidecar changes whenever the document does — a class name, a build id, a font that resolved elsewhere — so sidecars beside their images put a tracked diff on every edit, including the edits that moved no pixel. Point this at an ignored directory or a CI cache and `root` ends up with images and nothing else. |
 
 Splitting the roots moves the sidecar's directory; it does not make the sidecar
 optional. Both halves are still written and both are still read, so one half
@@ -284,7 +284,7 @@ In a fresh repository that prints:
 }
 ```
 
-and leaves `.variance/baselines/.gitattributes` holding:
+and leaves `.variance/baselines/.gitattributes` reading:
 
 ```
 *.png filter=lfs diff=lfs merge=lfs -text
@@ -292,7 +292,7 @@ and leaves `.variance/baselines/.gitattributes` holding:
 
 `filter` is what git resolves the `filter` attribute to for a matching path, and
 `null` when git could not be asked at all. `diagnostics` is empty when
-everything was checked, and holds one line per thing that could not be — so an
+everything was checked, and lists one line per thing that could not be — so an
 un-smudged clone does not read as a passing run.
 
 That last case is the one worth naming. An un-smudged checkout — LFS not
@@ -305,7 +305,7 @@ subject in the suite. The store refuses a pointer file read as an image.
 | option | default | what it decides |
 |---|---|---|
 | `root` | required | baseline root, laid out exactly as the durable store lays it out |
-| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` holding the entry. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
+| `pattern` | `*.png` | which files are tracked, relative to the `.gitattributes` the entry lives in. Only images match by default; the `.json` sidecar next to each is never routed through LFS |
 | `attributesFile` | `<root>/.gitattributes` | where the tracking entry lives — the baseline root, not the repository root |
 | `cacheRoot` | `root` | where the render cache goes. Defaults to `root`, so cache entries are tracked and committed alongside baselines unless this points outside the work tree |
 | `recordRoot` | `root` | where the `.json` sidecars go, passed straight to the durable store. The reason to set it is sharpest here: `pattern` routes the images out of the object database, and the sidecars are the text left behind gaining a revision per document change |
@@ -403,7 +403,7 @@ than review.
 | `git` | `runCommand` | the `CommandRunner` git is invoked through, so this is testable without a repository |
 
 **An empty list is a real answer only when git ran, this is a repository, and no
-commit under the root carried a record.** Every other case is a refusal:
+commit under the root left a record.** Every other case is a refusal:
 `wasRead` narrows the union, and `because` names what went wrong. "No baseline
 has ever been explained" and "git could not be run" are opposite findings,
 and an operator who reads the second as the first goes hunting for a bug in the
@@ -411,7 +411,7 @@ writer.
 
 A **shallow clone** is the case that would otherwise pass silently — CI checks
 out at depth 1, so a reading there sees one commit and would report it as the
-whole history. That is not refused: the answer carries a `bounded` line saying
+whole history. That is not refused: the answer returns a `bounded` line saying
 what it could not see. `bounded` collects the same kind of line for a commit
 whose record this reader could not decode, and for a read that stopped because
 it hit `limit`.

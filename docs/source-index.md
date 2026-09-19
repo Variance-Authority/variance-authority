@@ -5,11 +5,11 @@ Two scans of the same unchanged checkout should not do the same work twice. The
 
 The index is optional cache state. A missing, incomplete or corrupt index is
 treated as absent: it can save scan work and cannot change scan evidence. It
-holds the two things a repeated scan would otherwise redo — one parse per set of
-file bytes, and one resolved record per file: that file's outgoing edges, the
-declarations it publishes, and the directories its specifiers looked in. Both
-are published together, so no scan can read a parse state and a record state
-that never existed at the same time.
+stores the two things a repeated scan would otherwise redo — one parse per set
+of file bytes, and one resolved record per file: that file's outgoing edges,
+the declarations it publishes, and the directories its specifiers looked in.
+Both are published together, so no scan can read a parse state and a record
+state that never existed at the same time.
 
 Read this page to cache the index in CI, to predict what a change to your tree
 costs, or to read the bytes from another language.
@@ -33,7 +33,7 @@ Each of those opens the index, scans, and publishes what it learned before it
 exits. The first such command on a machine pays a cold scan; every later one
 pays for what changed.
 
-When an editor, watcher or orchestrator already holds the exact changed paths,
+When an editor, watcher or orchestrator already knows the exact changed paths,
 write them one per line and hand the file to a source question:
 
 ```bash
@@ -88,10 +88,10 @@ cut from, reading both layers and writing only its own. Cache
 between them.
 
 **The index is two things on disk.** Beside `source-index.bin` is a directory
-`source-index.bin.segments/` holding the data; the file itself is only the
-pointer to which segments are current. Copy, restore and move the two together.
-The file alone names segments that are not there, and a chain whose members are
-missing is rejected whole — a cold scan, not a wrong answer.
+`source-index.bin.segments/` that contains the data; the file itself is only
+the pointer to which segments are current. Copy, restore and move the two
+together. The file alone names segments that are not there, and a chain whose
+members are missing is rejected whole — a cold scan, not a wrong answer.
 
 To force a cold scan, delete the digest directory. That is the whole recovery
 procedure, for a stale index and a corrupt one alike.
@@ -148,7 +148,7 @@ Measured on public checkouts, as the bytes on disk after a full scan:
 
 Size the index against the bytes per file record, as a range of 318 to 556 B
 rather than a constant. It varies with how many edges and names each file
-carries, not with how large the repository is, which is why Material UI has
+declares, not with how large the repository is, which is why Material UI has
 twenty times the files of this repository and is the cheapest of the three per
 file.
 
@@ -161,7 +161,7 @@ What it buys in time, on the same Material UI checkout: a first scan with no
 index costs 2,866 ms and the next unchanged run costs 357 ms. Those two are wall
 clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with a
 warm filesystem cache, so they are the fast end of the range: size a CI container
-above them rather than against them. [What a source scan costs](performance.md) carries
+above them rather than against them. [What a source scan costs](performance.md) covers
 the rest of the shapes, the machine in full, and what is left underneath both
 numbers.
 
@@ -169,7 +169,7 @@ numbers.
 
 | You change | What survives |
 | --- | --- |
-| a file's contents | everything except that file's record, and its parse when no path in any branch has held those bytes |
+| a file's contents | everything except that file's record, and its parse when no path in any branch has ever had those bytes |
 | a file added, moved or deleted | every record except those whose specifiers could have been answered from the directory that moved |
 | a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | the parses. Every record is rebuilt: one `paths` entry can redirect every bare specifier in the repository |
 | the checkout's absolute path | the parses, for the same reason |
@@ -216,11 +216,11 @@ and causes a normal scan.
 
 Each segment is a 32-bit little-endian header length, a padded UTF-8 JSON
 section table, and the sections themselves, each starting on an eight-byte
-boundary. The schema is columnar: one dictionary holding every string in that
-segment interned once, and integer columns over it — one row per parse, per
+boundary. The schema is columnar: one dictionary that interns every string in
+that segment once, and integer columns over it — one row per parse, per
 record, and per child object such as an import request or an edge, with offset
 columns connecting a parent row to the range of children it owns. Sections are
-one or four bytes wide. Optional lists carry a separate one-byte column, because
+one or four bytes wide. Optional lists add a separate one-byte column, because
 an offset range cannot distinguish a fact that is absent from a list that is
 known to be empty.
 

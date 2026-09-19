@@ -67,7 +67,7 @@ something changed.
 
 A regression does not require a failing test. It does not require a test at
 all. It is a system diverging from something you meant to preserve. A test
-codifies one such intention and tells you the moment it no longer holds;
+codifies one such intention and tells you the moment it is no longer true;
 without that assertion the change still happened, and you need another
 observation to find it.
 

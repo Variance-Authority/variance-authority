@@ -48,8 +48,9 @@ Spend that effort where it buys confidence:
   to the logic, use integration tests for the contracts between parts, and
   product journeys for whether those parts deliver the promise.
 - **Keep the protection while the risk remains.** A migration rehearsal may
-  serve one change; a regression test can hold the same mistake off for years.
-  Its lifetime follows the promise, even as implementations come and go.
+  serve one change; a regression test can keep the same mistake from returning
+  for years. Its lifetime follows the promise, even as implementations come
+  and go.
 
 Coverage settles none of this. It answers whether an execution reached code, not
 whether the test noticed the behaviour that matters, would fail when that
@@ -76,4 +77,4 @@ it landed badly.
 [Seeing what changed](changed.md) is the companion question, and
 [Variance Authority](README.md) answers it from what a run recorded beside your
 assertion — so the second answer does not become another assertion this test
-has to carry.
+has to make.

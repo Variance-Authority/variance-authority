@@ -77,7 +77,7 @@ variance ask diff
 ```
 
 `diff` compares the current report with the report the previous question was
-answered from. An MCP connection holds that state in memory for as long as it
+answered from. An MCP connection keeps that state in memory for as long as it
 lasts; a command line is a new process per question, so the report each answer
 was read from is recorded beside the configured report as `asked.json`. It is
 replaced after every successful answer and never after a refusal, which is what
@@ -110,11 +110,11 @@ variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
 it for the suite asks with nothing extra. Ask `self` first: it reports where the
-watcher is listening and what it holds, which is what separates a suite that
-reported to a different address from one that has not started. `ask diff --at`
-compares against the reading the watcher handed out last — the watcher holds
-that state rather than a file, because these questions write nothing down and
-the run lives in memory that ends with the watcher.
+watcher is listening and what it has received, which is what separates a suite
+that reported to a different address from one that has not started.
+`ask diff --at` compares against the reading the watcher handed out last — that
+state lives in the watcher rather than in a file, because these questions write
+nothing down and the run lives in memory that ends with the watcher.
 
 The suite reports to the watcher only if it extends `varianceFixtures`. That
 instrumentation, the ordering rule, and what the answers may be read to mean are
@@ -183,8 +183,7 @@ does not register the skill with Codex; skill installation is a separate step.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection
-additionally serves domains held by the integration that produced them, which is
+additionally serves domains kept by the integration that produced them, which is
 the one thing a report file cannot answer: [question retained evidence over
-MCP](agent-mcp.md). The command contracts are
-in the [`@variance-authority/cli` package
-reference](../packages/cli/README.md).
+MCP](agent-mcp.md). The command contracts are in the
+[`@variance-authority/cli` package reference](../packages/cli/README.md).

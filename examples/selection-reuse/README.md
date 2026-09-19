@@ -17,7 +17,7 @@ Two words this page uses:
 ## What it does
 
 The demo builds a throwaway git checkout in your temp directory: 304 files under
-`src/`, of which four carry the answer — `tokens.css`, `button.css` (which
+`src/`, of which four decide the answer — `tokens.css`, `button.css` (which
 imports it), `Button.tsx` (which imports `button.css`) and `Badge.tsx` (which
 imports nothing). The other 300 are filler, so the timings below are not the
 timings of four files.

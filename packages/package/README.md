@@ -103,16 +103,16 @@ name it makes available counted.
 }
 ```
 
-`declared` holds the manifest keys `OFFERED` names, present-or-absent. `names`
+`declared` lists the manifest keys `OFFERED` names, present-or-absent. `names`
 is one object per subpath the manifest opens, mapping each reachable name to
 what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
 `readHelp` is the same walk with two more questions asked of it: what was
-written above each name — its **doc**, the block comment the declaration carries
-— and which packages import it. Names come back ordered by how many packages
-import them, so the ones most consumers depend on sort first.
+written above each name — its **doc**, the block comment attached to the
+declaration — and which packages import it. Names come back ordered by how
+many packages import them, so the ones most consumers depend on sort first.
 
 ```ts
 import { readHelp, undocumented } from '@variance-authority/package/help';
@@ -132,7 +132,7 @@ for (const entry of undocumented(help)) {
 ```
 
 `openings` is the `readHelp` name for what the surface calls `names`: one entry
-per subpath the manifest opens, carrying that subpath, the source file behind
+per subpath the manifest opens, made of that subpath, the source file behind
 it, and the ranked `entries`. `skip` adds directory names the walk never
 descends into, on top of the defaults `node_modules`, `coverage`, `build`,
 `dist` and `out`; a package's own build output needs no entry, since where it
@@ -170,13 +170,13 @@ written to *show* a name in use, which is what an example is, so they answer a
 different question from a consumer and are separable without re-reading a path.
 
 `mention` is present only where `doc` is absent and the nearest `README.md`
-above the declaring file writes the name as a whole word. It carries the file,
+above the declaring file writes the name as a whole word. It gives the file,
 the line and the passage.
 
 `help.exported` is every name the repository's own files export, published or
-not. Each one carries a name, a file, a line, the package the file belongs to
-and whether it was written in source, a test or a story, and nothing else,
-because nothing else was read for it. It answers *where is the thing that does
+not. Each one has a name, a file, a line, the package the file belongs to and
+whether it was written in source, a test or a story, and nothing else, because
+nothing else was read for it. It answers *where is the thing that does
 X* for the code that was never something to publish.
 
 ```ts
@@ -222,7 +222,7 @@ readHelp('.', { usage }); // the same value, without re-reading the tree
 
 The value is JSON. Hand it to a snapshot assertion, to `jsondiffpatch`, to
 whatever you already have. Handed to `@variance-authority/core`, it gains the
-part neither a reader nor a comparison supplies: every delta carries a
+part neither a reader nor a comparison supplies: every delta gets a
 **fingerprint**, a stable identifier for the *shape* of the change rather than
 for the position it happened at, so the same edit reported twice is one finding
 and a recorded decision about it still matches next week.
@@ -271,7 +271,7 @@ stay yours, so the surface fits the release check you already run.
 
 ## Read one file
 
-The manifests and the traversal are separable. A `Reader` holds the parses and
+The manifests and the traversal are separable. A `Reader` caches the parses and
 the resolved names for one root, so two readings of two checkouts never answer
 each other's questions from a shared cache.
 
@@ -329,9 +329,9 @@ graph or its release history.
 
 `readSurface` records each name as what kind of thing it is (function,
 interface, `const`, and so on) and nothing more, so **a signature that changes
-under a name that does not is a change the surface misses**. `readHelp` carries
-the head of each declaration — everything written before the body — for a
-consumer that needs to watch signatures too.
+under a name that does not is a change the surface misses**. `readHelp`
+returns the head of each declaration — everything written before the body —
+for a consumer that needs to watch signatures too.
 
 A site is an import, not a call. `readHelp` records the line a name was brought
 into a file on, and where it is used inside that file is a question for a
@@ -339,7 +339,7 @@ language server.
 
 What neither reads is `dist`. An emitted `.d.ts` states what a compiler
 inferred; source states what somebody wrote, so `export const jsxDEV =
-runtime.jsxDEV` reads as a `const` where the emitted declaration would carry a
+runtime.jsxDEV` reads as a `const` where the emitted declaration would state a
 full type. Reading the other one costs a build as a precondition and pays in
 stale output.
 

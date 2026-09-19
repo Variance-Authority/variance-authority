@@ -15,12 +15,12 @@ A **subject** is one named UI state you capture and compare under an id you
 choose — a route, a story, or a component mounted inside a test.
 
 Every reader here goes through a **fiber**: the object `react-dom` keeps for
-each element it rendered, holding the component behind that element, its hooks,
-its context subscriptions, its reconciliation key and its place in the tree. The
-package reads those objects directly. It does not render components, import your
-React package or require the React DevTools hook. A subject must contain a live,
-client-mounted React tree; static markup and unhydrated server output have no
-fiber to read.
+each element it rendered, containing the component behind that element, its
+hooks, its context subscriptions, its reconciliation key and its place in the
+tree. The package reads those objects directly. It does not render components,
+import your React package or require the React DevTools hook. A subject must
+contain a live, client-mounted React tree; static markup and unhydrated server
+output have no fiber to read.
 
 ```sh
 npm install --save-dev @variance-authority/react
@@ -47,7 +47,7 @@ What does change by version is call-site evidence, which is not part of
 wiring: React 18 records `_debugSource`, and React 19 replaced it with a
 stack React captures inside its own element factory.
 [Attribution](attribution.md#what-each-build-already-knows) states what each
-build carries.
+build knows.
 
 ```ts
 import { detectReactRuntime } from '@variance-authority/react';
@@ -62,7 +62,7 @@ if (root !== null) detectReactRuntime(root);
 `keyFormat` is the expando convention observed on the node (`reactFiber` or
 `reactInternalInstance`), `majorHint` is the version bound that convention
 implies, and `version` is the exact `react-dom` version, present only when a
-DevTools hook exposed one. Nothing on a fiber carries a version number, so the
+DevTools hook exposed one. Nothing on a fiber records a version number, so the
 exact version is available only from a hook that may not exist. The expando
 format, the tag numbering and the field names are React internals rather than
 public API, and can change in any React release, including a patch.
@@ -76,8 +76,8 @@ compared on (structure, semantics, text and style). A component that gained a
 re-baselining of the subject.
 
 What it does change is the subject's **tree signature**: the owner chain plus
-the wiring at every node that carries one, in document order. A comparison of
-two full captures reads that signature and leads its output with a slice — a
+the wiring at every node that has one, in document order. A comparison of two
+full captures reads that signature and leads its output with a slice — a
 one-line triage verdict for the whole comparison, printed before anything about
 which property changed:
 
@@ -162,9 +162,9 @@ await capture(root, { subject: 'checkout/empty', viewport, provenanceOf, wiringO
 function wiringOf(node: Node): Wiring | undefined
 ```
 
-`wiringOf` describes how React holds the component whose root output is `node`.
+`wiringOf` describes how React wires the component whose root output is `node`.
 Component-level fields attach only to that component's root host node. A
-reconciliation key may attach to any node that carries one.
+reconciliation key may attach to any node that React keyed.
 
 ```ts
 interface Wiring {
@@ -183,7 +183,7 @@ interface Wiring {
 | `key` | The reconciliation key React assigned to the node or component boundary | One value |
 
 The result is `undefined` when no readable fiber or relevant component boundary
-is available. `{}` is different: the component boundary was read and carries no
+is available. `{}` is different: the component boundary was read and shows no
 observable hooks, wrappers, contexts or key. Read the two apart before asserting
 on an empty result — only `{}` is evidence about the component.
 
@@ -272,7 +272,7 @@ you performed is yours to decide. An absent key means no reconciliation key
 requested the rebuild.
 
 [When React changes but the rendered page does not](framework.md#remounts-what-the-document-cannot-show-you)
-carries a complete Vitest test built around this pair.
+includes a complete Vitest test built around this pair.
 
 ### Matching boundary
 
@@ -305,8 +305,8 @@ renamed.
 
 Renamed components do not break remount matching. `markRender` and
 `remountedSince` are called within one page session against one build, so both
-sides carry the same renamed identifier and the match by name, depth and ordinal
-still holds. What degrades is the name you read, not the finding.
+sides see the same renamed identifier and the match by name, depth and ordinal
+still works. What degrades is the name you read, not the finding.
 
 To get authored names out of a built bundle, keep them in the build. Vite 8
 spells the setting `build.rolldownOptions.output.keepNames`; Vite 7 and below
@@ -335,7 +335,7 @@ import { holdingOf } from '@variance-authority/react';
 const held = holdingOf(document.querySelector('[data-testid="row-3"]')!);
 ```
 
-| `Holding` field | Holds |
+| `Holding` field | Meaning |
 |---|---|
 | `cells?: readonly HeldCell[]` | One entry per hook that retains something, in authored call order |
 | `contexts?: readonly HeldValue[]` | Context values this boundary read, by the context's display name, sorted |
@@ -419,7 +419,7 @@ import { tap } from './setup.js';
 const quiet = await awaitQuiet(tap, { quietFor: 100, timeout: 2_000 });
 ```
 
-`CommitTap` carries `attached` (false when nothing was instrumented),
+`CommitTap` exposes `attached` (false when nothing was instrumented),
 `reason` (why not), `reactVersion` when a renderer has injected one, and four
 methods: `commits()` for the retained commits oldest first, `dropped()` for how
 many the retention bound discarded, `quietFor()` for milliseconds since the last

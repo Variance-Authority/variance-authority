@@ -36,7 +36,7 @@ and never because the graph said so.
 
 The graph is a parse of the repository. The component list is written beside the
 approved image by the capture that was already reading it, and what that capture
-needs is a name on each element: React carries it on the fiber and costs you
+needs is a name on each element: React puts it on the fiber and costs you
 nothing, and every other framework needs a build step that stamps it, which is
 the same step [attribution](composition.md) needs anyway.
 
@@ -267,7 +267,7 @@ all.
 
 A run reads from left to right: the harness starts it, the tests it started
 enter your code, and your code goes out into what the install provides. Selection
-lives in the middle stretch, where a file has a name the record can hold. A
+lives in the middle stretch, where a file has a name the record knows. A
 config file nothing imports and a bumped package you never wrote sit outside it,
 and they widen a run for opposite reasons —
 [changes before and beyond](changes-before-and-beyond.md) is the page about
@@ -370,7 +370,7 @@ agreement.
 
 A taint says what a file's run reaches. The record says what it did. A checkout
 that has both — taints from the mock reader or a table, a journal from an
-instrumented run — can hold one against the other, and every disagreement is a
+instrumented run — can check one against the other, and every disagreement is a
 fact about one of them.
 
 ```ts
@@ -388,9 +388,9 @@ for (const { test, module, kind, taints } of auditTaints(coverage, relations, ta
 | `added-but-not-entered` | a module a `+` row said the test imports beyond its text, which the record never saw the test in: the addition names the wrong file |
 
 None of them is a verdict. Each is the coordinate to look at, and where a taint
-said the thing the record disagrees with, the row carries **which taints** said
+said the thing the record disagrees with, the row names **which taints** said
 it — a table somebody wrote by hand and a reader over the source are corrected in
-different places. The middle row carries none: that trail is one the scan drew
+different places. The middle row has none: that trail is one the scan drew
 and no taint touched.
 
 Two things bound what a row may claim, and both are structural. Only an
@@ -414,12 +414,12 @@ the question is still what the last run painted. So a subject that would
 selected by a change to `Button`, because a component that has never appeared is
 in no baseline to be matched against. `relations` does not change it: the graph
 widens what a change reaches, and never what a subject is known to have rendered.
-No observation closes that, however closely a run is watched — a record holds
+No observation closes that, however closely a run is watched — a record shows
 what happened, and this render did not. A bundler graph over stories selects it,
 because on the subject side it too reads imports rather than a record, and this
-does not. What holds the line is the row above it: a change the selection cannot
-attribute runs everything, and a new branch usually arrives with an edit to the
-file that decides it.
+does not. What covers this gap is the row above it: a change the selection
+cannot attribute runs everything, and a new branch usually arrives with an edit
+to the file that decides it.
 
 [`unentered`](#what-a-record-knows-that-no-graph-can) names where those forks
 are, in the modules something did load: a region with source of its own that no

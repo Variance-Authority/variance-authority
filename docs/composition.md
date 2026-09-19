@@ -11,7 +11,7 @@ anywhere in it.
 > *is* a component, at a boundary; the same component appears again, with the
 > same or different props, inside larger examples.
 
-That sentence is a join key. A run holds, for every subject it observed, the
+That sentence is a join key. A run records, for every subject it observed, the
 component boundaries the document contained and a digest of what each one
 rendered.
 Once those boundaries are addressable across subjects, one commit's worth of
@@ -70,7 +70,7 @@ sharing a rendering *are* the finding, so a pair that landed in different shards
 is in neither shard's report and a union of the shard graphs would be a graph
 with every cross-shard edge missing and nothing marking where. The structure
 rows go with it. The [lexicon](lexicon.md) does not: a subject's names are a fact about one
-subject, and one subject is in one shard, so the merged report carries every
+subject, and one subject is in one shard, so the merged report includes every
 entry under the fields all the shards read. A slice run without a journal keeps
 `regions` out of the whole, and the tool says so.
 
@@ -93,15 +93,14 @@ for different halves of one answer:
   positioned by it, authored somewhere else.
 
 Boundaries are placed by owner, and by **every** level of the owner chain, not
-just its head. Three components that return one another share one `div` and hold
-three boundaries on it, so **a component that renders nothing but other
+just its head. Three components that return one another share one `div` and
+get a boundary each on it, so **a component that renders nothing but other
 components is still a component**. Reading only `owners[0]` loses exactly the two
 shapes a design system is made of: a variant wrapper (`DangerButton` returning a
 `Button`) authors no host node and would be a boundary nowhere, and a container
 would absorb its caller's content.
 
-Each boundary then carries both relations, because they answer different
-questions:
+Each boundary then has both relations, because they answer different questions:
 
 | edge | means | on todomvc's `Chip` |
 |---|---|---|
@@ -147,7 +146,7 @@ same rule in the other direction: a foundation edit is *supposed* to cross
 components, and the answer is the five that resolve through that token rather
 than everything on a page containing one.
 
-What the placeholder still carries is the *number* of children handed in, so a
+What the placeholder still counts is the *number* of children handed in, so a
 caller passing three where it passed two changes the container. The child count
 is part of the container's own structure even though the children's content is
 not.
@@ -168,14 +167,14 @@ inside, one foreign target is indistinguishable from another.
 **Geometry is left out of the joining digest.** A rect is absolute page
 coordinates, so two identical renderings in two subjects disagree on it always.
 The join key is the four content digests — structure, semantics, text, style —
-and geometry is carried beside it, where a caller comparing two instances *within*
-one subject can still read it. Framework wiring is excluded for the same reason
-in the other direction: a component that gained a `memo()` renders the same
-thing, and folding wiring in would make a performance annotation read as a visual
-regression.
+and geometry is stored beside it, where a caller comparing two instances
+*within* one subject can still read it. Framework wiring is excluded for the
+same reason in the other direction: a component that gained a `memo()` renders
+the same thing, and folding wiring in would make a performance annotation read
+as a visual regression.
 
 **Layout output is not style.** Under a profile with a layout engine the snapshot
-carries resolved values, so a block element's computed `height` is whatever its
+records resolved values, so a block element's computed `height` is whatever its
 contents made it — and a button two levels down growing by six pixels changes the
 computed height of every ancestor. These resolved layout properties belong to
 `geometry`, so their changes do not produce a different style digest and
@@ -269,7 +268,7 @@ and `Chip` have none. A change to any of the three is reviewed through whatever
 page contains it. That is one wrapper away from being fixed and it is invisible
 until the suite is joined to itself.
 
-The organism end holds the opposite result. `TodoApp` is too large to describe in
+The organism end shows the opposite result. `TodoApp` is too large to describe in
 full, and nobody would write a story for its internals. But it is a boundary with
 a hash, five instances and five examples, so it can be *watched* without being
 described, and an edit inside it resolves to the molecule that changed, not to
@@ -360,7 +359,7 @@ digests and never of where the subtree sits. Two digests per node:
 An id contributes its presence and never its value, so an identical widget with
 a different generated id is one digest. A reference — `for`, `aria-labelledby`,
 an in-page `href` — is a fact about two nodes, and it enters at the lowest node
-holding both, as the pair of paths relative to that node: a label naming the
+containing both, as the pair of paths relative to that node: a label naming the
 input beside it reads the same on every page, and a label naming something
 outside the subtree stays an unbound reference at every digest up to the one
 that contains its target. Text enters `semantics`; style enters neither.
@@ -409,8 +408,8 @@ and stops at the first matching rule:
 `edited` and `token` need [`--since`](selecting.md), and a run that did not ask
 cannot apply either. That degrades honestly, and it is checked in
 [`movement.ts`](../packages/core/src/attribute/movement.ts) rather than trusted
-to the caller: an unexplained difference in a run with no change set carries a
-sentence saying so instead of an accusation.
+to the caller: an unexplained difference in a run with no change set comes with
+a sentence saying so instead of an accusation.
 
 **The `upstream` rule checks `created by` before `within`.** The component that wrote the element is the one whose edit changed
 this component's inputs. On todomvc, an edit to `src/app/todo.tsx` explains five
@@ -466,7 +465,7 @@ shared with other subjects (7) — one diff to read, wherever it is read
 ```
 
 The rows are the `structure` section of the report, one record per composed
-subject, written by the run beside the census. A subject whose nodes carry no
+subject, written by the run beside the census. A subject whose nodes have no
 provenance gets an empty record rather than none, because *nothing attributed*
 and *never composed* are different facts. The second half is the echo list
 filtered to this subject and folded by rendering: the census keys an echo under
@@ -474,15 +473,15 @@ the props class it was found in, so one rendering reached from three props
 digests is three records there and one row here.
 
 Three absences, three sentences. A report with no structure section says the
-tier did not compose; a subject the plan held and the run did not observe says
+tier did not compose; a subject the plan listed and the run did not observe says
 so and points at `variance_explain_verdict`; an id the run never planned lists
 what it did plan and points at `variance_locate`.
 
 ### The subject you can only describe
 
-The run also writes a **lexicon**: per subject, per field, the distinct values
-the subject carried — the components it holds, who mounted them, its accessible
-names and visible text, its roles, its design tokens, the files that declare its
+The run also writes a **lexicon**: per subject, per field, the subject's
+distinct values — the components in it, who mounted them, its accessible names
+and visible text, its roles, its design tokens, the files that declare its
 components, the regions its [journey](journeys.md) entered, and the component it is the narrow
 example of. `variance_locate {query}` turns a description into ids over those
 names, printing the field and the value behind every hit and saying which fields
@@ -506,8 +505,8 @@ that lands in the artifact is sorted by code unit, not by locale, because a
 report is committed, diffed and read back on another runner, and a locale-aware
 comparison makes the byte order a promise about `LANG`.
 
-What the artifact holds is smaller than what produced it. The full graph
-carries one entry per boundary per subject — tens of thousands of objects on a real suite
+What lands in the artifact is smaller than what produced it. The full graph has
+one entry per boundary per subject — tens of thousands of objects on a real suite
 — and a report is a file people open, so the record keeps the names, the counts
 and the subject lists, and a consumer that wants the graph recomputes it from the
 snapshots. The echo list is capped at 100 and what the cap left out is counted in

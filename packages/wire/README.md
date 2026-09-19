@@ -17,7 +17,7 @@ resolution order and the status codes below are the two places that answer why.
 
 **You are writing a driver that is not
 [`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test).** That
-package already holds a listener per worker and wires both instruments to it,
+package already runs a listener per worker and wires both instruments to it,
 so you never touch this package while you use it. For a different runner, a
 watcher, or a harness of your own, this is the whole medium: one listener, one
 address per execution, three functions.

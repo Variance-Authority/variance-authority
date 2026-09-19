@@ -51,11 +51,11 @@ reading. What differs here is the last column.
 | **Fonts substituted or not loaded** | environment-key, **and reported** | You are told, and the key is why telling you is necessary. Fonts are in the key by content hash, so a run that has `Inter` and a run that does not are different baselines — but that only saves you when the two runs *differ*. When neither machine has it, the key matches, the verdict is `unchanged`, and it is a true statement about a picture of the wrong typeface. So `variance doctor` renders a probe before you record anything, and a run that painted with a substitution puts the family and the subject count on the report: *the renderer lacked `Inter` in 12 subjects; those images are of a substituted font and their metrics are not the product's*. The probe says what it cannot tell you, too — a family that measures identically to the fallback is either absent or a metric-compatible substitute, and nothing on the page distinguishes those. |
 | **Dates, clocks, dynamic content** | policy, or **construction** if you can set the clock | Both runs change; both are right. Where the test can set the value, [freeze it](#freeze-what-the-run-does-not-set) and the cause stops existing. Where it cannot — a timestamp the server stamps, a build id baked into the bundle — the difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
 | **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
-| **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, holding everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS applies to, and animated GIFs. |
+| **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, pinning everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS applies to, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. Repeated screenshots can establish agreement but cannot name what is still working. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
 | **A Suspense boundary that has not resolved** | **construction**, and **refused** | A subject read mid-arrival records a skeleton on a slow machine and its content on a fast one, with every band agreeing and both passes consistent — invisible to every other mechanism here, and to `storyRendered` and `readySelector` besides, because a component that suspends renders no markup to hang a marker on. Every collector waits on the boundary's own `memoizedState` before it reads, two clean readings deep so a waterfall cannot slip through the gap. A boundary still open at the timeout is **refused by name** rather than captured — the one escape hatch is declaring the subject a loading-state capture, which is then checked in the other direction too. |
-| **An asset whose bytes changed behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and carries the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-carries-them-too-which-is-what-the-render-skip-reads)). |
+| **An asset whose bytes changed behind its URL** | **environment-key**, on both collectors and in both keys | A re-exported logo behind an unchanged URL is a change that no markup and no computed style can see. Where your bundler content-addresses, it already fixed this and there is nothing to pay: `logo.4f2a91.svg` **is** the identity, that string is in the markup the capture already hashes, and reading the bytes would record the same fact a second time — `hashAssets: false` is the right setting and costs you nothing. It is on by default because not every URL is built that way: a file served from `public/`, a CDN path, a font behind a stable name. For those the driver hashes the response, being the only party that sees the bytes, narrowed to the URLs the subject's own subtree references, and writes the digest into the **document** as well as the capture — the capture alone is not enough, because `settle` reads the document and would skip the render ([`stabilization.md`](stabilization.md#the-document-includes-them-too-which-is-what-the-render-skip-reads)). |
 | **Animated GIFs** | **construction** | No CSS applies to a GIF, so `pin-animations` leaves a spinner spinning. The response is truncated to its first image block on the wire, before the browser decodes it — which needs no canvas and so has no cross-origin case, and returns the author's own bytes rather than a re-encode. |
 | **Random seeds, unsorted data** | **nothing**, and reported | Absorbed by nothing — this is a real change and the fixture is the bug. What it does not arrive as is a component regression: a changed subject is read twice, and one that disagrees with itself is `unstable`, named with the component and the band. The run also says whether *anything in it* explains the difference, and lists the subjects where the same component with the same props held ([`composition.md`](composition.md)). See [below](#what-still-gets-through-and-how-it-is-found). |
 | **Cross-origin stylesheets, third-party iframes** | **nothing** | A sheet we cannot read fingerprints as `unreadable` and compares equal, so a change inside one is invisible. This remains a known blind spot. |
@@ -93,7 +93,7 @@ that has nothing to do with it. [`instruments.md`](instruments.md) puts the two
 readings beside the other evidence instruments.
 
 **What it names.** Not "this subject is flaky" — that is a page to read. The two
-readings are two documents, and a document carries its component hashes, so the
+readings are two documents, and a document includes its component hashes, so the
 answer is a component and a band:
 
 ```
@@ -117,9 +117,9 @@ promoting it makes the coin flip the thing every later run is measured against.
 
 Reading a subject twice answers *did it drift on its own*. It does not answer
 *should it have changed at all*, and that second question is answerable from
-evidence the run already holds. Every component the run found to have changed is
+evidence the run already has. Every component the run found to have changed is
 walked down a ladder — an edited file, an updated token, an edited caller, a
-contradiction elsewhere in the suite — and stops at the first rung that holds
+contradiction elsewhere in the suite — and stops at the first rung that applies
 ([`composition.md`](composition.md#why-a-component-moved)). The last rung is
 **unexplained**, and it is the one worth having:
 
@@ -141,7 +141,7 @@ twice — both halves of the sentence, established by two different instruments,
 in one run. `suspect` is an unexplained difference in a subject nobody has read
 twice; it is a shortlist entry and the report says so in those words.
 
-Both are statements about a subject. Where the two readings carry component
+Both are statements about a subject. Where the two readings include component
 holdings, [`partingOf`](parting.md) makes the same accusation about a
 **boundary**: the component whose props, contexts and hook cells were all read,
 all agreed, and whose output changed anyway. That is the narrower claim, and it is
@@ -165,10 +165,10 @@ instead of accusing anybody.
 
 ### Which part of the module they took differently
 
-The ladder narrows a difference to a component, and where the two readings carry
-holdings [`partingOf`](parting.md) narrows it to a boundary. Neither says *where
-inside it*, and for the flake that only appears once a handler has run, the
-region is the fix.
+The ladder narrows a difference to a component, and where the two readings
+include holdings [`partingOf`](parting.md) narrows it to a boundary. Neither
+says *where inside it*, and for the flake that only appears once a handler has
+run, the region is the fix.
 
 Neither reading can, because neither was inside the module while it ran. The
 execution journal was. A preview built with `testSelectionProbes()` records which
@@ -213,8 +213,8 @@ named, not left to be inferred:
 | What happened | Why it is not silence |
 |---|---|
 | An observation was recorded incomplete | Dropped from the pool rather than counted as having missed — a recording that stopped early proves no absence — and counted in a note, because a pool of two that should have been three reads as agreement |
-| The journal holds no row for a subject the report names | The last recording did not paint it, or it did not exist then. Every finding is silent about it for that reason and no other |
-| Fewer than two observations survive | A parting is a disagreement between two observers of one module, so a pool that cannot hold two has not found nothing — it has not been able to look |
+| The journal has no row for a subject the report names | The last recording did not paint it, or it did not exist then. Every finding is silent about it for that reason and no other |
+| Fewer than two observations survive | A parting is a disagreement between two observers of one module, so a pool that cannot supply two has not found nothing — it has not been able to look |
 
 **`unentered` is the weaker sibling finding**: regions with source of their own
 that *no* observer in the pool entered. Not "these two renders disagree" but
@@ -357,7 +357,7 @@ smaller place than the one above it:
 | **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the [divergence](composition.md)'s parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
 | **an Act** — the step at which two executions of one [journey](journeys.md) stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
 | **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
-| **a region of source** — the lines some observers of a module entered and others did not | the [journey](journeys.md) each subject recorded | a build carrying the probes, and `variance journeys` over what they recorded |
+| **a region of source** — the lines some observers of a module entered and others did not | the [journey](journeys.md) each subject recorded | a build with the probes installed, and `variance journeys` over what they recorded |
 
 Read down until something names a thing you can change, then stop. These are not
 confidence levels on one claim; they are different claims, each from an
@@ -369,8 +369,8 @@ static says it, because it is the same file, the same import graph and the same
 props.
 
 After that the fix is ordinary: inject the clock, scope the sheet, seed the
-fixture. The finding does not come back, because nothing is holding it down. A
-retry deletes the report of a cause; a location deletes the cause.
+fixture. The finding does not come back, because nothing is producing it any
+more. A retry deletes the report of a cause; a location deletes the cause.
 
 ## Test order and shared state
 
@@ -600,7 +600,7 @@ for your suite rather than for everybody's.
 
 ## Reset what the run does own
 
-The other half is state your own code holds: a counter, a cache, a lazily built
+The other half is state your own code keeps: a counter, a cache, a lazily built
 client, a memoized value. A module-level binding outlives the test that changed
 it, so the suite passes in the order you wrote it and fails in another one — and
 the failure names the test that *read* the state rather than the one that wrote
@@ -674,7 +674,7 @@ offers no flag: `repeats` is a test option, and it means *additional* runs, so
 running the file twice answers the same question. A test that disagrees with itself
 inside one order is reading something nothing set.
 
-**Run the file in another order.** A test that holds under repetition and breaks
+**Run the file in another order.** A test that passes under repetition and breaks
 when their neighbours move is reading state a neighbour wrote. Shuffling *within*
 a file is the resolution that matters, because that is where the reads and writes
 share a module instance:
@@ -717,7 +717,7 @@ fingerprint is derived from pixels, so it is a key in pixel space — change the
 viewport and it is a different key for the same defect, move the component down
 the page and it is a different key, and two unrelated components whose diffs are
 the same blob are one key. Our recurrence key is derived from a component and a
-band, so it survives all three and carries a `file:line`. Neither is recoverable
+band, so it survives all three and names a `file:line`. Neither is recoverable
 from the other, and the direction matters: **you cannot get from the shape of the
 pixels that moved back to the component that moved them.**
 
@@ -752,7 +752,7 @@ is still not a flake until something has read the subject twice.
 The honest cost of our bet: suspicion over-reports. A coupling can exist and
 never bite, so the read-write pass alone produces findings that a confirmation
 run then clears — and a project that never calls `verify()` gets suspicion only.
-Every finding carries a `confidence` field for exactly this reason.
+Every finding has a `confidence` field for exactly this reason.
 
 ## What none of this establishes
 

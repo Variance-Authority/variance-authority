@@ -1,7 +1,7 @@
 # Interrogate a test where it stands
 
 A failure that will not reproduce by hand is only visible while the test is
-still standing in it. You can hold a Playwright test at a line you choose — page up,
+still standing in it. You can stop a Playwright test at a line you choose — page up,
 network in whatever state the test left it — and look at
 that moment from another shell, or hold a request open to see what the UI does
 with a reply that has not come.
@@ -47,7 +47,7 @@ not finished](vantage.md) covers the watcher on its own.
 
 ## Put the calls in the spec
 
-The `variance` fixture carries both, so a suite that already extends its base
+The `variance` fixture provides both, so a suite that already extends its base
 with `varianceFixtures` installs nothing further:
 
 ```ts
@@ -79,9 +79,9 @@ after the workers start belongs to the next run:
 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:54321 npx playwright test cart.spec.ts
 ```
 
-## Find the test that is holding still
+## Find the test that is standing still
 
-Ask the watcher which tests are holding still. Under MCP that is
+Ask the watcher which tests are standing still. Under MCP that is
 `variance_waiting`, which lists the stopped tests only, so a test standing still
 is not lost among the rows of a full run listing:
 
@@ -103,7 +103,7 @@ An **announcement** is a call your application code made to
 heard by a test that destructures the `events` fixture. `after N
 announcement(s)` places each note in that stream, so you can read a note against
 the work either side of it: this one was sent after the second add had opened
-and before it closed. The watcher stamps the count it held when the note
+and before it closed. The watcher stamps the count it had when the note
 arrived; the run does not count its own.
 
 ## Ask the questions the stop was for
@@ -132,7 +132,7 @@ variance_continue { "test": "t-1f4c" }
 ```
 
 Call it with no argument to release everything that is waiting. Only MCP offers
-it: `npx variance ask` runs in a process that holds no run, so there is nothing
+it: `npx variance ask` runs in a process that owns no run, so there is nothing
 in it to release.
 
 ## Stop somewhere other than the test body
@@ -179,7 +179,7 @@ test('the totals spinner outlives a slow price call', async ({ page, variance })
 
 A call in a frame nobody awaits — a React effect, a render body, a listener that
 runs without being awaited — has no await point to stop at. It sends its note
-and execution carries on past it. That is not the runner's rule; it is what
+and execution continues past it. That is not the runner's rule; it is what
 `await` means.
 
 ## Compare two moments without stopping
@@ -209,7 +209,7 @@ test('the filter narrows the list', async ({ page, variance }) => {
 A watcher keeps the hundred most recent notes per test and reports how many it
 dropped, so you can tell *nothing was sent* from *the beginning was forgotten*.
 
-## What holds while the test stands still
+## What stays true while the test stands still
 
 The runner's clock is stopped for the length of the wait and handed back
 afterwards, so a test released after two minutes has exactly the budget it had
@@ -239,7 +239,7 @@ nobody is watching goes on.
 
 With `VARIANCE_AUTHORITY_VANTAGE` unset, `observe` returns `unwatched`
 immediately and `snapshot` sends nothing, at the cost of one environment read
-per worker. A spec carrying both runs straight through in CI, which is what
+per worker. A spec that calls both runs straight through in CI, which is what
 separates the pair from the `debugger;` and `.only` they stand in for.
 
 The producing side is in the [`@variance-authority/playwright-test`

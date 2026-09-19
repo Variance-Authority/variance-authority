@@ -15,7 +15,7 @@ rebuilt from scratch each time. It is read out of an **index**: a
 content-addressed cache of the checkout that the run opens, updates with what
 changed, and writes back. This page is the reference for that index — what a
 change to your tree rebuilds, the three configurations that stop it reusing
-anything, what each structure holds and is keyed on, and what a lookup, insert
+anything, what each structure stores and is keyed on, and what a lookup, insert
 and save cost.
 
 ## Scale
@@ -50,13 +50,13 @@ the checkout it was cut from, and pays the first row once.
 
 | You change | What is rebuilt |
 | --- | --- |
-| the contents of a file | that one file's record, and its parse if no other path in any branch has ever held those exact bytes |
+| the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
 | a file added, moved or deleted | only the records whose imports could have been answered from the affected directory — 104 of 24,909 for one added file above |
 | `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | the whole index. One `paths` entry redirects every `@/` specifier in the repository, so no record survives |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
 Two more, neither of them yours to change: upgrading to a release that changes
-what a record holds rebuilds the index once, and a type-only import is not a
+what a record includes rebuilds the index once, and a type-only import is not a
 rebuild trigger for anything downstream — see [edge kinds](#can-you-choose-the-edge-kinds).
 
 ## Three ways the index silently stops working
@@ -70,9 +70,9 @@ config is the cause.
 To bound what a new file could change, the scan reads the `paths` and `baseUrl`
 patterns out of every `tsconfig.json` and `jsconfig.json` in the tree — every
 one, because resolution discovers the nearest config per file, so the bound has
-to hold for all of them. A config that is not valid JSON, or whose `extends`
+to cover all of them. A config that is not valid JSON, or whose `extends`
 names a package rather than a relative path, cannot be followed: the file it
-names lives in `node_modules`, which the scan does not hold.
+names lives in `node_modules`, which the scan does not read.
 
 One such config anywhere in the tree removes the bound for the whole tree. With
 no bound, every tracked path is folded into the configuration digest, and then
@@ -136,7 +136,7 @@ of immutable **segments** behind one manifest.
 | parse cache | content digest, and how the name said to read it | requests, exports, declared names, and why the request list may be short | in memory, persisted |
 | record cache | repository-relative path | one record | in memory, persisted |
 | config digest | none, one per generation | digest of the inputs that configure resolution | every segment; read from the newest |
-| directory map | repository-relative directory | digest of the entry names it holds | every segment |
+| directory map | repository-relative directory | digest of its entry names | every segment |
 | witness list | repository-relative path | the directories one record's specifiers could have been answered from | beside each record row |
 | immutable log | segment position, oldest to newest | one encoded layer of both maps | the manifest plus its segment directory |
 | relations graph | node id, an integer | typed adjacency in both directions | in memory, per run |
@@ -174,11 +174,11 @@ its requests, each with its bindings; its exports; the component names it
 declares; and, when the request list is not the whole set, the reason.
 
 **Key.** The content digest, joined with the two things about the file's name
-that change what its bytes mean: every extension the basename carries, which
+that change what its bytes mean: every extension the basename has, which
 picks the parser's dialect and decides whether the file is read as a stylesheet,
 and whether the name marks it as one whose declarations are not components — a
 `.test.ts` is not indexed. Nothing else about the path is in the key, so
-`src/Button.tsx` and `legacy/Button.tsx` holding one content share one entry.
+`src/Button.tsx` and `legacy/Button.tsx` with one content share one entry.
 Two files with one key had one content read one way, on any machine and in any
 branch, so an entry is never invalidated; it is dropped when a scan neither reads
 nor writes it.
@@ -209,7 +209,7 @@ position in the tree, not about bytes: the same bytes at another path resolve
 differently.
 
 **Reuse condition.** Two more values guard a hit. The record's digest must equal
-the digest the scan holds for that path now, and the tree shape the record was
+the digest the scan now has for that path, and the tree shape the record was
 built under must still answer for it. Opening the index empties the available
 record map when the configuration digest differs, deletes individual records
 whose witness directories changed, and returns a record only when its digest
@@ -224,9 +224,9 @@ Building it is O(n) for the filter and O(n log n) for the sort.
 and each sorted set digested, in O(n) over path segments. Comparing two such maps
 is the symmetric difference, O(k). On the 41,165-path tree, k is about 1,500.
 
-**Witnesses.** Each record carries the repository-relative directories that could
+**Witnesses.** Each record lists the repository-relative directories that could
 have answered its specifiers: for `./x` from `D`, `D` and `D/x` when `D/x` is a
-directory; for a resolved edge, the directory holding the answer; for a bare
+directory; for a resolved edge, the directory the answer sits in; for a bare
 request, the substitutions the tracked `paths` and `baseUrl` patterns allow. They
 are derived from the request rather than from the answer, because a request that
 resolves to nothing is the one that starts resolving when a file appears. This is
@@ -237,7 +237,7 @@ no witnesses, and the whole path set becomes one.
 asks the record cache before it asks the parse cache, so an unchanged file under
 an unchanged shape costs one lookup and no parse.
 
-**Insert.** One map write, when a shape was adopted and the record carries a
+**Insert.** One map write, when a shape was adopted and the record has a
 digest. A record whose file could not be hashed is not stored: it names no bytes,
 so nothing could later check it against the disk.
 
@@ -261,7 +261,7 @@ order, O(n log n), so two scans over one tree produce one byte sequence.
 The persisted generation is an ordered chain of immutable segments behind one
 manifest. The manifest is the commit: a segment written without it is
 unreachable, and a manifest is published only after every segment it names
-exists. Each segment reference carries the segment's content digest and byte
+exists. Each segment reference gives the segment's content digest and byte
 length, and a reader rejects the whole chain when any member is missing or does
 not hash to its name, so a cache left half-written by a killed process is
 rejected whole and the next run is cold. [The byte layout](source-index.md) is
@@ -270,7 +270,7 @@ elsewhere.
 **Key.** Position in the chain. A segment has no key of its own beyond its
 digest-derived file name; its meaning is its place in the order.
 
-**Layers.** Each decoded segment becomes one layer per map, holding the puts and
+**Layers.** Each decoded segment becomes one layer per map, made of the puts and
 the deletes that turn the previous state into the next. Parse tombstones are
 digests; record tombstones are paths.
 
@@ -282,18 +282,18 @@ layer oldest to newest, O(total rows across layers); every later iteration reads
 the materialized copy.
 
 **Save.** Only the rows this scan read or wrote are kept, so a blob no branch
-holds any more falls out of the next generation — the cache does not grow without
-bound across branch switches. The delta is computed per map against the committed
-state by deep structural equality, O(r) comparisons, and two buffers are encoded:
-the delta alone, and the complete state. Nothing is written when the shape is
-unchanged and both deltas are empty.
+contains any more falls out of the next generation — the cache does not grow
+without bound across branch switches. The delta is computed per map against the
+committed state by deep structural equality, O(r) comparisons, and two buffers
+are encoded: the delta alone, and the complete state. Nothing is written when the
+shape is unchanged and both deltas are empty.
 
 **Publish.** The segment is written under a scratch name, renamed into the segment
 directory, a scratch manifest written, and that renamed over the manifest path. A
 failure before the manifest rename unlinks the scratch files and leaves the
 previous manifest in place. Cost is O(size of the segment written).
 
-**Compaction.** The chain holds at most eight segments. The publish that would
+**Compaction.** The chain is at most eight segments long. The publish that would
 make a ninth writes the complete encoding as a single segment instead, points the
 manifest at it alone, and unlinks the segments the previous manifest named.
 Compaction restores generation-wide string interning. There is no trigger for
@@ -308,7 +308,7 @@ O(bytes), and every offset column is checked for monotonicity on the way in.
 
 The index is a private cache, not an interchange format, and nothing shipped
 prints its contents. There is no dump command and no inspect flag. If you want to
-know what it holds, delete it and watch the timings, or ask the questions it was
+know what is in it, delete it and watch the timings, or ask the questions it was
 built to answer:
 
 - `variance ask locate --from <path>` lists what a file rests on, and
@@ -338,7 +338,7 @@ kind's ids are contiguous. An id is valid only against the graph it came from.
 **Lookup by name.** An interning map read on `<kind>:<name>`, O(1). Name by id is
 an array read.
 
-**Edges.** One convention holds everywhere: `A → B` means A depends on B, so a
+**Edges.** One convention applies everywhere: `A → B` means A depends on B, so a
 change in B may affect A. Both directions are materialized as compressed sparse
 rows, the reverse built by a counting sort in O(n + m). Rows are sorted and
 deduplicated, and a value import and a type import between the same two files
@@ -355,15 +355,16 @@ one walk against the arrows from a changed file reaches every importer and every
 component in one pass.
 
 **Files with unrecorded edges.** A bitmask marks the nodes whose edges could not
-be enumerated, with the reason carried alongside. The mask is what the inner loop
+be enumerated, with the reason recorded alongside. The mask is what the inner loop
 tests; the reason is what the report prints.
 
 ## Tracing a change through the graph
 
 One walk answers what a diff affected. The seed set is every changed file the
-graph holds, plus every node whose edges could not be enumerated, because an
-unreadable file might import the one that changed. Changed paths the graph does
-not hold are returned as missing rather than as *affects nothing*, and the
+graph has a node for, plus every node whose edges could not be enumerated,
+because an unreadable file might import the one that changed. Changed paths with
+no node in the graph are returned as missing rather than as *affects nothing*,
+and the
 unreadable ones are returned separately with their reasons. Each is a refusal
 the caller acts on: the selector widens to the whole suite, and the report
 prints the refusal where the attribution would have been.

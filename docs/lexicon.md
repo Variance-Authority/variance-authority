@@ -40,8 +40,8 @@ matched what it matched, what the record costs to keep, and why there is no
 model to install.
 
 **This is not a glossary.** Terms are defined on the page that owns each one,
-and the table in [what every record means](information.md#the-words) holds the
-ones a report uses.
+and the table in [what every record means](information.md#the-words) lists
+the ones a report uses.
 
 **Nothing switches this on.** Every `variance run` that reads component
 boundaries writes the record search reads: no option, no second pass, no
@@ -61,10 +61,10 @@ reasons, finished with the readings long before you asked a question.
 
 The usual way to find a thing you can only describe is to make the machine
 understand the description: stem it, expand it through a thesaurus, embed it and
-compare vectors. Each of those bridges the same gap — the corpus holds one name
+compare vectors. Each of those bridges the same gap — the corpus knows one name
 for the thing, and you used a different one.
 
-Here the corpus does not hold one name. It holds the component name *and* the
+Here the corpus does not know one name. It knows the component name *and* the
 ARIA role *and* the accessible name *and* the visible text *and* the CSS
 variable *and* the declaring file *and* the region the handler runs in.
 
@@ -80,9 +80,9 @@ against is an inverted index, built from the names the run already wrote down.
 
 ## What the run writes down
 
-Per subject, per field: the distinct values the subject carried, code-unit
+Per subject, per field: the distinct values read from it, code-unit
 sorted, capped at 200 distinct values per field with the overflow counted. Where
-the cap fires it keeps the values the fewest other subjects hold — see [what a
+the cap fires it keeps the values the fewest other subjects share — see [what a
 deep tree does to it](#what-a-deep-tree-does-to-it). A **boundary**, below, is
 one component instance in the rendered tree.
 
@@ -124,7 +124,7 @@ So the pass that fills the bags also writes down where each thing was. A node
 earns a place when it bears a role, an accessible name, or words of its own;
 everything else is scaffolding, and a screen built out of four wrappers per
 control writes four entries rather than four hundred. Each recorded place is a
-**landmark** — this page's word, not ARIA's — and carries:
+**landmark** — this page's word, not ARIA's — and has these fields:
 
 | | |
 |---|---|
@@ -144,7 +144,7 @@ element was written on comes from the JSX-source plugin, and a build strips it �
 so on a built Storybook, which is the run you most want to ask, `file` and
 `line` are absent from every landmark. The owner chain is not stripped. The
 component that owns a thing is the source you would open to find it, and the
-run already knows which files declare which components, so the lexicon carries
+run already knows which files declare which components, so the lexicon stores
 that join once — `declaredIn`, one row per component rather than a path on each
 of ten thousand landmarks — and an answer prints a file either way.
 
@@ -166,9 +166,9 @@ exactly or by a prefix of three or more characters. Ten English function words
 ones it dropped rather than silently narrowing the question.
 
 **The lexicon is served as an inverted index.** Every value is tokenised once
-per report — token to the values holding it, values to their subject and field
-— so a question costs what its own words touch: a lookup per term, a walk over
-the prefix run for a stem, an intersection per term. It never scans the
+per report — token to the values containing it, values to their subject and
+field — so a question costs what its own words touch: a lookup per term, a walk
+over the prefix run for a stem, an intersection per term. It never scans the
 subjects. The index is built on the first question asked of a report and kept
 with it, and it is built from the same values the answer quotes, so the order
 and the fact under it are read off one structure.
@@ -191,7 +191,7 @@ Both factors are integers and the sum is an integer, so no float enters the
 sort and two machines cannot order the same hits differently.
 
 Rarity is counted per field, not once across all of them, because the fields
-hold different populations. A word can be worthless in one field and decisive in
+have different populations. A word can be worthless in one field and decisive in
 another: if every subject enters a `createCard` region, `card` as a *region*
 says nothing, while `card` in an id still picks out the two subjects named for
 it. Pooling the counts would spend the word everywhere on the strength of the
@@ -228,7 +228,7 @@ subjects than that rule and never fewer.
 boundaries tall, and then it is a choice. Code-unit order would make that choice
 by spelling: keep `Anonymous` and `Connect(Account)`, drop the one component the
 subject is about. So where a cap fires it keeps the values the fewest other
-subjects hold, and orders what survives by code unit, so the choice is by worth
+subjects share, and orders what survives by code unit, so the choice is by worth
 and the file is still byte-identical between two machines.
 
 Neither rule deletes anything from a report or hides a value from a query. A
@@ -248,20 +248,20 @@ matched, because *nothing matched* and *nothing was read* are answers with
 opposite next steps. The cap is reported on the same terms: a subject whose
 `text` was cut says how many values it lost.
 [Three answers that look alike](locate.md#three-answers-that-look-alike) is how
-to read the header that carries this.
+to read the header that says it.
 
 ## Where it is kept
 
-The run report carries it, and a report is about one run — what changed, what
+The run report includes it, and a report is about one run — what changed, what
 each subject's comparison decided, and what the run left for somebody to decide.
-The lexicon is the one section of it that is not: the names a suite holds change
+The lexicon is the one section of it that is not: the names a suite uses change
 when the suite changes, and the question *which subject do I mean* is asked far
 more often than a run happens.
 
 So the lexicon is also written to the **suite index**, the binary artifact a run
 leaves beside its report: the census, the subject denominator the census's
 shares are counted against, the lexicon, and the commit they were read at. Equal
-facts encode to equal bytes there, which is what lets a cache carry it and a
+facts encode to equal bytes there, which is what lets a cache store it and a
 second machine recognise it.
 
 That is what a second machine reads instead of deriving the same thing again.
@@ -280,7 +280,7 @@ what it adds to a run is bytes rather than a stage.
 **Storage runs 38 to 51 bytes per component boundary**, measured across suites.
 That is a spread rather than a constant, so count the boundaries your suite
 reports, multiply by the top of it, and plan for that. [What a suite costs at
-scale](scale.md) carries the per-subject figures and prices the source index and
+scale](scale.md) lists the per-subject figures and prices the source index and
 the [execution record](execution-record.md) beside them.
 
 Reading costs once. The index a question runs against is built on the first
@@ -309,7 +309,7 @@ it, and never the way somebody who has seen the index would.
 Read that as the shape it is. On a suite whose ids fit in one answer the
 ranking agrees with the author almost every time — and so does an agent that
 reads the fifteen ids and ignores the rank. On four thousand subjects the first
-hit is right for roughly a quarter of questions and the page of eight holds the
+hit is right for roughly a quarter of questions and the page of eight shows the
 answer for two fifths. **On these suites the tool narrows the field; it does not
 pick the answer.**
 
@@ -317,13 +317,13 @@ pick the answer.**
 
 The rank's second key is how rare a matched word is, and on a large suite the
 words an author uses are not rare. Of the words the product-app questions
-matched, a fifth are held by more than half of its 572 subjects — `section` by
+matched, a fifth appear in more than half of its 572 subjects — `section` by
 568, `page` by 567, `states` by 566 — at which point the word is being asked to
 distinguish between subjects that all have it.
 
 material-ui does not have this problem, and that is the more useful fact: its
-median matched word is held by 1.1% of the suite, and not one matched word is
-held by more than half. A library that names everything after exactly one
+median matched word appears in 1.1% of the suite, and not one matched word
+appears in more than half. A library that names everything after exactly one
 component has a vocabulary that is already almost unique. A product named in
 product language does not, and neither does a repository where many teams name
 similar things similarly.
@@ -353,8 +353,7 @@ without a starting point.
 
 A path is read from the root down and compared segment for whole segment. An
 absolute path is the same question asked from the root: under the repository it
-is the coordinate the tree holds, and outside the repository there is nothing
-there.
+is a coordinate in the tree, and outside the repository there is nothing there.
 
 The only thing asked of a path is whether it exists. A bare `Button.tsx` names
 a file at the root of the tree, not the one under `src/ui/` you had in mind, and
@@ -462,7 +461,7 @@ in one footer is a fact about a list and not a better match. No length
 normalisation, because the size of a subject is already a rank key.
 
 **Not evidence.** A wrong top hit costs one more call. The same wrong hit quoted
-as a finding would cost a baseline, which is why nothing here carries a verdict
+as a finding would cost a baseline, which is why nothing here returns a verdict
 — the decision a comparison made about one subject — or a pixel count, or a
 file to open. Only ids, and the tools that take them.
 

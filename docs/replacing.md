@@ -138,8 +138,8 @@ produced, and compares each image against the one you approved.
   second Playwright or Storybook suite written for them;
 - one pinned renderer for every screenshot in the project, rather than a browser
   in every unit worker;
-- a durable handoff that carries the document and its semantic evidence to the
-  rendering process;
+- a durable handoff that delivers the document and its semantic evidence to
+  the rendering process;
 - the same observation, baseline and report contracts as browser capture.
 
 **What you pay.**
@@ -194,7 +194,7 @@ reads the first `roots` selector that matches, and compares what it read.
 - rendering chosen by the CLI — local, or a remote renderer the whole team
   shares;
 - the document and its semantic evidence alongside the pixels;
-- source [attribution](attribution.md) when the application carries
+- source [attribution](attribution.md) when the application includes
   [provenance](attribution.md);
 - directory or git-LFS baseline storage behind one store contract.
 

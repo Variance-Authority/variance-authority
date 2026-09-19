@@ -141,7 +141,7 @@ you get:
 Runtime journey: supplied, but it contains no test with exact id 875862714_0.
 ```
 
-The refusal lists a few of the ids the index does hold, so the mismatch is
+The refusal lists a few of the ids the index does contain, so the mismatch is
 visible in the output rather than something to go and reconstruct.
 
 ### Arrange, Act and Assert are read, not guessed
@@ -197,7 +197,7 @@ console.log(formatDistillation(distill({ test: 'checkout submits', eyes, executi
 ```
 
 `parseExecutionIndex` validates untyped JSON at the process boundary and throws
-naming the offending field. Pass an `ExecutionIndex` you already hold and it
+naming the offending field. Pass an `ExecutionIndex` you already have and it
 returns it unchanged.
 
 ## What you get
@@ -251,7 +251,7 @@ Reading it:
   index records what each test entered across the whole test, not per phase, so
   entered files are never split across Arrange, Act and Assert.
 - **`depth`** is a call depth from the test. Every entry the Vitest recorder
-  writes carries `0`; the field exists for a recorder that measures one.
+  writes sets it to `0`; the field exists for a recorder that measures one.
 - **`sb.mock`** is Storybook's, from `storybook/test`. `vi.mock`, `jest.mock`
   and `sb.mock` are the three forms of the same substitution.
 - **The two finding lines** are the two classes of answer, below.
@@ -296,10 +296,10 @@ a measured-empty addressed surface.
 | `formatDistillation(result)` | The text above. The CLI and MCP adapters print exactly this. |
 | `parseExecutionIndex(value)` | Validates untyped execution JSON, throwing on the first bad field. |
 
-`DistillInput` carries `test` plus an optional `eyes` archive and `execution`
-index. `Distillation` is a plain data result: `attention` holds the per-phase
-`AddressedPhase` and `UpdatePhase` records, `execution` holds `EnteredFile` by
-file and `EnteredModule` region by region. A `Region` is one instrumented
+`DistillInput` is made of `test` plus an optional `eyes` archive and `execution`
+index. `Distillation` is a plain data result: `attention` is the per-phase
+`AddressedPhase` and `UpdatePhase` records, and `execution` lists `EnteredFile`
+by file and `EnteredModule` region by region. A `Region` is one instrumented
 declaration — a module's top level, or a function — with its name and line
 range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
 `loadedOnly` is the flag behind the loaded-but-not-entered finding.

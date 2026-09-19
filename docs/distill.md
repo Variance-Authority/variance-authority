@@ -65,8 +65,8 @@ the same answer; it does not open a browser, run a test, or edit source.
 ## Both recordings must key the test the same way
 
 With both files supplied, Distill joins them on **exact id**. It does not fall
-back to a title or a file, because a title is not unique and a file holds many
-cases, and a guessed join would put one test's attention beside another's
+back to a title or a file, because a title is not unique and a file contains
+many cases, and a guessed join would put one test's attention beside another's
 execution.
 
 [Sense](../packages/sense/README.md) keys a case by its coordinate: the
@@ -88,7 +88,7 @@ Runtime journey: supplied, but it contains no test with exact id 875862714_0.
 No title or file join was guessed.
 ```
 
-The refusal goes on to list a few of the ids the index does hold, so the two
+The refusal goes on to list a few of the ids the index does store, so the two
 shapes can be compared where the failure appears. Two cases in one file that
 share a coordinate are numbered, the second as `<coordinate>#1`.
 
@@ -124,7 +124,7 @@ the same root mismatch showing in part.
 ## The three readings
 
 Eyes records the selectors, locators and events a test consumed while their DOM
-targets were live. Each target carries its React owner path and source location
+targets were live. Each target has its React owner path and source location
 when that attribution exists. The test supplies `arrange`, `act` and `assert`
 markers; Eyes records those authored boundaries and never guesses a phase from
 an API name.
@@ -174,7 +174,7 @@ Entered with no addressed target attributed to the same file: 2.
 Depth is whatever the producer of the execution index recorded. The Vitest
 recorder in [Sense](../packages/sense/README.md) records every crossing at depth
 0: it reports which regions a test entered, not how many calls deep the call
-stack was when it entered them. The field carries a real number only from a
+stack was when it entered them. The field shows a real number only from a
 producer that tracks call depth, so read `depth 0` as "not recorded here" rather
 than as "called directly".
 

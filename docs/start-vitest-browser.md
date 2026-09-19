@@ -15,7 +15,7 @@ the images and look. Three differences:
 
 - **A changed region comes back named.** Each region is attributed to the
   component that rendered it, and to the `file:line` it was written at when the
-  build carries source locations. That chain — region to box to component to
+  build emits source locations. That chain — region to box to component to
   line — is described in [attribution](attribution.md).
 - **A baseline from a different machine is refused, not diffed.** A run whose
   browser build, platform, device scale factor or font stack differs from the
@@ -217,8 +217,8 @@ to keep.
 
 ### Reading the verdict yourself
 
-`Observed` carries the verdict and the evidence behind it, so a test can branch
-instead of asserting:
+`Observed` includes the verdict and the evidence behind it, so a test can
+branch instead of asserting:
 
 ```ts
 const observed = await variance(screen.container);
@@ -268,7 +268,7 @@ bytes that became the baseline are the bytes the run produced. Open the PNG it
 wrote before you commit it. Run the suite again and the subject reports
 `unchanged`.
 
-Set `accept: false` on the plugin to hold baselines out of `--update`
+Set `accept: false` on the plugin to keep baselines out of `--update`
 altogether, or `accept: true` for a job whose whole purpose is to write them.
 
 ## Read a failure
@@ -325,7 +325,7 @@ A subject still showing a Suspense fallback is refused rather than captured. The
 locator assertion above it passes against a skeleton, and a baseline taken over
 a skeleton records the wrong state: a slower machine records the skeleton, a
 faster one records the content, and the next run reports the difference as a
-regression. The refusal names the boundary and the component holding it.
+regression. The refusal names the boundary and the component that renders it.
 
 When the skeleton is the subject, declare it:
 
@@ -339,9 +339,9 @@ the machine's speed produced.
 
 Media queries resolve against the iframe the test body runs in rather than the
 browser tab, because that is the frame the component was laid out in. Animation,
-caret blink and scroll position are held still before the reading, and what held
-them is recorded in it, so two runs that stabilized differently are not silently
-compared.
+caret blink and scroll position are held still before the reading, and what
+stopped them is recorded in it, so two runs that stabilized differently are
+not silently compared.
 
 ## Go deeper
 

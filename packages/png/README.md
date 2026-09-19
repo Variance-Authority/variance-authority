@@ -17,7 +17,7 @@ A mask rather than a count, because *"5482 pixels changed"* cannot be assigned
 to anyone. A mask rather than a rendered diff picture, because somebody then has
 to open the picture and look. A count and a picture are both derivable from a
 mask; neither can produce one. So this package stops at the mask — the last
-artifact that still carries pixel *positions* — and both of the other two are
+artifact that still records pixel *positions* — and both of the other two are
 available from it.
 
 Turning those positions into named places (**region isolation**) and matching a
@@ -146,7 +146,7 @@ beside it.
 
 `pixelmatch` requires equal dimensions, and Playwright's `toHaveScreenshot` fails
 outright when they differ. Here both images are copied onto the union box,
-top-left aligned, `dimensionsChanged` is set, and `before` / `after` carry the
+top-left aligned, `dimensionsChanged` is set, and `before` / `after` report the
 original sizes — so a size change is measured rather than merely detected.
 
 A 20×20 white image against a 20×21 copy with one black row added at the bottom:
@@ -215,7 +215,7 @@ in red — for the person who does want to look. It is derived from the same byt
 and is not the comparison result.
 
 `pngSize` reads the width and height out of the IHDR without decoding, and
-returns `null` for bytes that are not a PNG or are too short to carry a header.
+returns `null` for bytes that are not a PNG or are too short for a header.
 That is the cheap way to check whether two captures are even the same shape.
 
 ## PNG bytes this project did not paint
@@ -329,7 +329,7 @@ a 5×5 black square:
 ```
 
 `severity: 0` counts every pixel, since every measured pixel differs by at least
-zero. `alphaMode` is reported as `opaque` when no pixel carries a non-opaque
+zero. `alphaMode` is reported as `opaque` when no pixel has a non-opaque
 alpha and `straight` otherwise, because that distinction changes what the metric
 does. `colorSpace` is declared and defaults to `'srgb'`; nothing is resampled or
 colour-managed, since a conversion performed here would be a difference this

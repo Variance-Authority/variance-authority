@@ -65,16 +65,16 @@ run re-read a changed subject in a world nothing else has touched, and
 
 ## Start the application the collector talks to
 
-The CLI holds no URL. Nothing in `variance.config.json` names an origin, a port,
+The CLI knows no URL. Nothing in `variance.config.json` names an origin, a port,
 or a server, so start whatever your collector talks to before you run anything,
-and let the collector carry the address:
+and let the collector own the address:
 
 - your own collector connects to the application however its code already
   does — an environment variable, a fixed loopback port, a harness it starts
   itself;
 - [`@variance-authority/storybook-collector`](../packages/storybook-collector/README.md)
   takes a `baseUrl` option for a Storybook that is already served, and otherwise
-  serves the directory holding `subjects.index` on a loopback port for the run;
+  serves the directory `subjects.index` sits in on a loopback port for the run;
 - [`@variance-authority/route-collector`](../packages/route-collector/README.md)
   takes full absolute URLs per subject in `routes`, or a `sitemap` URL, or a
   built `directory` it serves itself.
@@ -83,8 +83,8 @@ The same goes for readiness. A subject's **ready condition** is the collector's
 declaration of when that state has finished settling — for the shipped adapters
 a CSS selector per subject id, under a `ready` option with a `readyTimeoutMs`
 budget; for your own collector, whatever your harness already waits on. The CLI
-does not invent one, and a ready condition that never holds is reported as a
-collection failure for that subject rather than captured early.
+does not invent one, and a ready condition that never comes true is reported
+as a collection failure for that subject rather than captured early.
 
 ## Write the config
 
@@ -153,13 +153,13 @@ reports every subject `new` forever without ever erroring. `records` moves the
 id from producing a diff on every edit that moved no pixel.
 [Baseline placement](placement.md) covers the trade in full.
 
-`fonts` holds font identities as `family/weight/style/hash` — for example
+`fonts` lists font identities as `family/weight/style/hash` — for example
 `"Inter/400/normal/sha256-abc"`. The hash is of the font's bytes and is yours to
 supply, because a page can ask whether a family resolves and can never read the
 bytes behind it. An empty array is a complete configuration and the run proceeds:
-what you lose is font identity in the baseline key, and every subject carries an
-`unverified-fonts` warning. Warnings are recorded and do not hold the run open,
-so an empty `fonts` never turns the build red — it only means two machines can
+what you lose is font identity in the baseline key, and every subject gets an
+`unverified-fonts` warning. Warnings are recorded and do not block the run, so
+an empty `fonts` never turns the build red — it only means two machines can
 agree on the identity while painting two different cuts of the same family.
 
 ## Check the machine
@@ -216,9 +216,9 @@ page are relative to the JSON report — so write it into the same directory as
 `report.json` and keep the image directory beside it when you copy the pair into
 a CI artifact. The page needs no server and no account.
 
-The page shows one card per subject that needs a decision. Each card carries the
-subject id in its heading, the changed region with its component and `file:line`,
-and a paste-ready command block holding that id already filled in:
+The page shows one card per subject that needs a decision. Each card puts the
+subject id in its heading, the changed region with its component and
+`file:line`, and a paste-ready command block showing that id already filled in:
 
 ```
 variance accept checkout/empty
@@ -234,13 +234,13 @@ variance run --config variance.config.json
 ```
 
 `accept` copies the image the reviewed run produced, together with its
-**sidecar** — the `.json` written beside it holding that image's width, height,
-document digest, renderer identity, missing fonts and component hashes — into
-the baseline store, under the key that digest and identity make. That is why a
-later run can settle an unchanged subject on 32 hex characters without painting
-anything. `accept` opens no browser and reads no document: its inputs are the
-report and the files it points at, and a candidate whose sidecar cannot be read
-is refused by name rather than replaced.
+**sidecar** — the `.json` written beside it recording that image's width,
+height, document digest, renderer identity, missing fonts and component
+hashes — into the baseline store, under the key that digest and identity make.
+That is why a later run can settle an unchanged subject on 32 hex characters
+without painting anything. `accept` opens no browser and reads no document: its
+inputs are the report and the files it points at, and a candidate whose sidecar
+cannot be read is refused by name rather than replaced.
 
 The rerun exits `0` once the subject is `unchanged` and nothing else is open.
 

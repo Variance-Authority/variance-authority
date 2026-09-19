@@ -104,7 +104,7 @@ Start with identity, then narrow to the test:
 `VARIANCE_AUTHORITY_VANTAGE`. Ask `self` first: a suite reporting to a different
 address and a suite that never started both look quiet to every other question.
 
-The last two answer only under MCP. A shell command holds no run, so there is
+The last two answer only under MCP. A shell command owns no run, so there is
 nothing in it to release. They are the pair a test triggers with
 `variance.snapshot()` and `await variance.observe()` — see [interrogate a test
 where it stands](agent-interrogate.md).
@@ -117,7 +117,7 @@ unmatched start is the place to continue diagnosis.
 
 ## Keep the lifetime honest
 
-The watcher holds a bounded number of entries and says when older ones were
+The watcher keeps a bounded number of entries and says when older ones were
 dropped, so you can tell *nothing was announced* from *the beginning was
 forgotten*. Its state does not alter the suite's retained evidence, and a
 watcher that fails does not fail the test. Stop the watcher and the state is

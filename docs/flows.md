@@ -44,7 +44,7 @@ acquired](surface.md).
 | 2. Git LFS | Git LFS and a tracked baseline root | baseline updates should travel with the repository without ordinary PNG blobs in Git history | approval changes the repository |
 | 3. Remote baselines | a baseline endpoint, with a token when the service requires one | the baseline corpus must stay out of the repository | an unavailable store stops the run |
 | 4. Tribunal | database, object storage, two tokens, and a review adapter | reviewers need a browser page per build and a recorded decision on each subject | authentication remains the operator's responsibility |
-| 5. History | a history endpoint and token | recurrence, churn, or accumulated token drift changes the decision | a run must carry a stable run id and commit |
+| 5. History | a history endpoint and token | recurrence, churn, or accumulated token drift changes the decision | a run must report a stable run id and commit |
 
 ## Level 0 — ephemeral: compare two revisions now
 
@@ -97,12 +97,12 @@ candidate to the configured root. That root must be present for the next run; an
 empty or discarded path means the next run sees no approved baseline and reports
 `new`.
 
-[Baseline placement](placement.md) carries the tracking, layout, and
+[Baseline placement](placement.md) covers the tracking, layout, and
 render-cache details for directory and Git-backed roots.
 
 ## Level 2 — Git LFS: baselines travel with the repository
 
-Git LFS uses the same durable layout while its filter carries the image bytes:
+Git LFS uses the same durable layout while its filter stores the image bytes:
 
 ```json
 {
@@ -113,8 +113,8 @@ Git LFS uses the same durable layout while its filter carries the image bytes:
 
 Install Git LFS on every machine that checks out or accepts baselines. The store
 maintains the `.gitattributes` tracking declaration beneath its root. A checkout
-that still holds LFS pointer text where an image belongs is refused by name, so
-an unfetched pointer reads as a setup failure rather than as a changed image.
+that still contains LFS pointer text where an image belongs is refused by name,
+so an unfetched pointer reads as a setup failure rather than as a changed image.
 
 Choose this when the baseline and its reason belong in the same repository
 change as the code. Acceptance writes files into your working tree; reviewing and
@@ -189,8 +189,8 @@ npx variance push --config variance.config.json --branch "$GITHUB_REF_NAME"
 and an upload can retry without rerunning the browser.
 
 The [`@variance-authority/tribunal`
-reference](https://variance-authority.dev/reference/packages/tribunal) carries
-the Worker, Node, and Next.js deployment paths and their authorization
+reference](https://variance-authority.dev/reference/packages/tribunal)
+documents the Worker, Node, and Next.js deployment paths and their authorization
 contracts.
 
 ## Level 5 — history: recurrence, and drift across runs
@@ -262,7 +262,7 @@ A remote renderer is selected independently of baseline storage:
 [`@variance-authority/remote`](https://variance-authority.dev/reference/packages/remote)
 exposes no token setting, so keep it on a trusted network or put authentication
 in a proxy you operate. The remote machine must also be able to resolve the
-resources the captured document carries or references. A resource the renderer
+resources the captured document embeds or references. A resource the renderer
 cannot load is a collection or render failure, not an empty image.
 
 Moving the renderer to another machine does not by itself make readings
@@ -285,6 +285,6 @@ change in the subject.
   machine is an actual requirement.
 
 [Your first run](start.md) begins from the harness that already puts the app in
-that state. [Baseline placement](placement.md) carries the complete storage
-trade-offs, and [how subjects are acquired](surface.md) carries the
-collection and materialization choices.
+that state. [Baseline placement](placement.md) explains the complete storage
+trade-offs, and [how subjects are acquired](surface.md) describes the collection
+and materialization choices.

@@ -17,11 +17,11 @@ fixtures, mocks and helpers, and every screenshot in the project is painted in
 one place — which is what decides whether two screenshots can be compared at
 all.
 
-The cost is what jsdom cannot see. It has no layout engine, so a capture carries
-structure and declared style and nothing computed; the run produces pixels and a
-verdict, but a changed pixel region is reported unattributed rather than joined
-to the component that produced it. If you want the browser inside the test, use
-[Vitest browser mode](start-vitest-browser.md) instead.
+The cost is what jsdom cannot see. It has no layout engine, so a capture
+includes structure and declared style and nothing computed; the run produces
+pixels and a verdict, but a changed pixel region is reported unattributed
+rather than joined to the component that produced it. If you want the browser
+inside the test, use [Vitest browser mode](start-vitest-browser.md) instead.
 
 ## Install
 
@@ -48,7 +48,7 @@ export const CAPTURES = '.variance/captures';
 ```
 
 `writeCapture` refuses to write a second capture under a subject id that already
-has one, so a directory carried across two runs fails on the second. Empty it
+has one, so a directory reused across two runs fails on the second. Empty it
 once per run, from a once-per-run hook — never from a test file, where it races
 the other test files and deletes their captures:
 
@@ -110,7 +110,7 @@ is written beside them and compares nothing here.
 Testing Library's `container`, a node returned by `getByRole`, or something you
 built with `document.createElement` and appended. It reads the document that
 element belongs to for the stylesheets that apply to it, so an element that was
-never attached carries no styling.
+never attached gets no styling.
 
 `subject` is the id this state is stored, compared and accepted under. It is any
 string, and it has to be unique across the run — one id is one capture file, and
@@ -128,7 +128,7 @@ against these values and the result is written into the capture.
 | `deviceScaleFactor` | The pixel density of the painted image, and what `resolution` and device-pixel-ratio queries resolve against. `2` gives a 2× image of the same CSS pixels. It is part of the identity a baseline is stored under, so changing it moves the subject into a partition where nothing has been approved yet. |
 | `colorScheme` | `light` or `dark`, and what `prefers-color-scheme` resolves to. A dark reading of the same component is a second subject with an id of its own. |
 
-### What the capture has to carry
+### What the capture has to include
 
 The capture is painted in another process with no network access, so every URL
 the subtree references has to arrive as bytes inside it. If the subtree
@@ -162,7 +162,7 @@ the capture naming that one URL.
 
 CSS is read out of the document rather than fetched, so nothing has to resolve
 for it: `<style>` elements, inline `style`, and every stylesheet the document
-already holds are indexed and carried. What never lands in the document never
+already has are indexed and stored. What never lands in the document never
 lands in the capture, and that is the failure worth checking for once. A runner
 that stubs CSS imports out instead of injecting them, or a CSS-in-JS library
 that removes its `<style>` tags during teardown, leaves the class names in the
@@ -207,12 +207,12 @@ export default captureCollector({ directory: CAPTURES });
 | key | what it decides |
 | --- | --- |
 | `project` | The label this project's rows are filed under in a shared history store. Required even with no history configured, because rows written under a project nobody chose cannot be re-attributed later. |
-| `profile` | What the run is *capable* of observing. `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process carries; `chromium` adds computed style, layout and geometry, and belongs to a collector that observed inside a browser. It does not decide what paints — the configured browser paints either way — it decides what the report may claim about a change. Set it to match where the capture was taken. |
-| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). Every capture carries its own viewport and that is the one used for its subject; this value is the fallback for a subject that arrives without one. Keep it equal to the viewport your tests capture at. |
+| `profile` | What the run is *capable* of observing. `jsdom` is structure, ARIA and declared style, which is what a capture taken in a unit process contains; `chromium` adds computed style, layout and geometry, and belongs to a collector that observed inside a browser. It does not decide what paints — the configured browser paints either way — it decides what the report may claim about a change. Set it to match where the capture was taken. |
+| `viewport` | `width` and `height` in CSS pixels, plus optional `deviceScaleFactor` (default `1`) and `colorScheme`, `light` or `dark` (default `light`). Every capture records its own viewport and that is the one used for its subject; this value is the fallback for a subject that arrives without one. Keep it equal to the viewport your tests capture at. |
 | `retention` | `durable` compares against an image a previous run stored, and requires `baselines`. That is why the first run exits `1`: nothing is stored yet, so there is nothing to compare against and the candidate is waiting for review. `ephemeral` renders both sides inside one run and keeps neither, and then `baselines` must be absent — a config that sets both is refused rather than silently storing nothing. |
 | `subjects.kind` | Where the run gets its subject list. `collector` is a module like the one above. The alternatives are `storybook`, which reads a built story index, and `list`, where you write the ids down yourself. |
 | `baselines.kind` | Where approved images live: `directory` is files you commit, `lfs` is the same files through the Git LFS filter, `remote` is a deployment and a token with nothing in the repository. No default — see [baseline placement](placement.md). |
-| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. Defaults to `[]`, which asserts nothing: two machines carrying different cuts of Inter then produce the same identity, compare, and report the difference as a component change. Naming them makes that a refused comparison instead. |
+| `fonts` | Fonts this machine is asserted to have, each as `family/weight/style/hash`. The hash is of the font bytes and is yours to supply, because a page can ask whether a family resolves and can never read the file behind it. Defaults to `[]`, which asserts nothing: two machines with different cuts of Inter then produce the same identity, compare, and report the difference as a component change. Naming them makes that a refused comparison instead. |
 | `report` | Where `run` writes, and where `report` and `accept` read. Defaults to `.variance/report.json`. |
 
 ### Commit the approved images
@@ -222,7 +222,7 @@ tracked and pushed. A run that cannot read it does not fail: it finds nothing,
 reports every subject `new`, records what is on screen as the new truth, and
 exits `0`.
 
-The trap is the wildcard. `.variance/` also holds captures, a report and
+The trap is the wildcard. `.variance/` also stores captures, a report and
 candidate images that genuinely are per-run junk, and a repository that ignores
 the whole directory ignores the approved images under it too. Exclude the
 contents, so git still descends:
@@ -244,9 +244,8 @@ npx variance run --config variance.config.json
 ```
 
 `doctor` reports what this machine can do: it opens the browser that will
-paint, measures the fonts you asserted inside it, and lists
-which identities the baseline root holds and whether this machine's is one of
-them.
+paint, measures the fonts you asserted inside it, and lists which identities the
+baseline root already has and whether this machine's is one of them.
 
 The unit suite passes as it did, having written one capture per subject. The
 first durable run exits `1` and reports `button/save` as `new` — an image nobody

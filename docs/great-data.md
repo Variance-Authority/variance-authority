@@ -10,7 +10,7 @@ the diff the reading is spent. A Variance Authority run also writes down what it
 saw while it was there: which **subject** rendered — one named UI state you
 asked for and can ask for again — and which components drew which regions, at
 which `file:line`. Add a semantic snapshot, a [source index](source-index.md) or
-an execution journal to the run and the same record also holds the accessible
+an execution journal to the run and the same record also gains the accessible
 names, roles and visible text, the declaring files, the custom properties the
 cascade resolved, and the source regions the execution entered. That record
 stays readable after the verdict, and the rest of this page is what you can ask
@@ -37,7 +37,7 @@ page/footer--counts · 7 boundaries · example of TodoFooter
 No baseline was consulted and no browser opened. The answer came out of markup,
 the cascade the component boundaries resolved through, and React's owner chain,
 all of it captured during the comparison run and kept afterwards. The second
-line tells you which word classes the record holds and which it does not, so a
+line tells you which word classes the record covers and which it does not, so a
 miss reads as a reading that was never taken rather than as an absence of
 matches. [Finding a subject](locate.md) covers the whole of that entrance.
 
@@ -59,7 +59,7 @@ of 184 test files, a five-file diff confined to one subtree runs 31 of them; the
 same five files scattered across the repository run 155, because the tests
 really did enter all of that. Adjacent files share most of their audience, and a
 utility most of the library imports is a hub that correctly selects almost
-everything. [Addressing scale](scale.md) carries that arithmetic, and one
+everything. [Addressing scale](scale.md) shows that arithmetic, and one
 recording of your own suite answers it for your repository rather than for this
 one.
 
@@ -81,7 +81,7 @@ when you use it.
 | [Journeys](journeys.md) | The source regions one execution entered, joined across the processes it touched | Which lines did this subject actually go through while it painted? |
 | [Parting](parting.md) | Two recorded readings of the same component, compared back to the input where they diverged | These two renders differ — at which input did they stop agreeing? |
 | [Eyes](eyes.md) | Authored Arrange–Act–Assert phases, addressed elements, React owners, update initiators, and performed work | Which surface did this test deliberately operate, rather than merely render? |
-| [Vantage](vantage.md) | Announcements and unfinished work held while a suite is still alive | My suite is hanging — which call has not come back yet? |
+| [Vantage](vantage.md) | Announcements and unfinished work kept while a suite is still alive | My suite is hanging — which call has not come back yet? |
 | [Scenarios](scenarios.md) | Named preconditions, authored Acts, and the semantic state observed after each one | Two runs end differently — at which step did they first disagree? |
 | [Workspace API](agent-workspace-api.md) | Package manifests, TypeScript exports, imports, declarations, and call sites in the current checkout | Is this name already exported here, and who calls it? |
 | [Composition](composition.md) | Component identities and renderings joined across many subjects in one revision | Twelve subjects changed — is one component behind all of them? |
@@ -121,7 +121,7 @@ question that happens to need most of them at once.
 ## Read each answer for what it is
 
 Each reading covers a narrower claim than its output may suggest, so check which
-one you are holding before you act on it. Presentation measurements report
+one you are reading before you act on it. Presentation measurements report
 relationships, not a design decision. A journey records where an execution went,
 not why. A lexicon match orients you toward a subject; it does not confirm you
 found the right one. Source reach says what could be affected, while execution
@@ -141,10 +141,10 @@ against a different count of your own: the modules in your checkout, the modules
 your suite enters, and the subjects it captures. The scan's caches sit under
 `XDG_CACHE_HOME`, outside the work tree, so nothing about them is committed and
 `git clean` will not take them. Instruments you have not installed cost nothing:
-journeys need a build carrying the selection probes, and `openVantage()` reads
-one environment variable per worker and returns nothing when it is unset. What
-accumulates across runs lives in a service you run in your own infrastructure,
-and it stores no pixels.
+journeys need a build that includes the selection probes, and `openVantage()`
+reads one environment variable per worker and returns nothing when it is
+unset. What accumulates across runs lives in a service you run in your own
+infrastructure, and it stores no pixels.
 
 ## Get a record you can ask questions of
 

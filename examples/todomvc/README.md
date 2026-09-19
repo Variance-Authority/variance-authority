@@ -74,7 +74,7 @@ component that is byte-identical and whose box merely moved was pushed by
 something else, and is collateral.
 
 The distinction is the point. The edit swapped `Toggle`'s native checkbox for a
-styled `<div>` carrying the same classes, which moves far more of what sits
+styled `<div>` given the same classes, which moves far more of what sits
 around it than of itself: `Text` sits in the same rows, and `Stack` reflows
 around both. Ranked by area that report is **wrong** — `Stack` at 517px was
 never edited and outranks `Toggle`, which *is* the edit, by 6×. Area measures
@@ -108,7 +108,7 @@ INSTABILITY — two runs of the same commit, one thing a pipeline cannot control
 `absorbed by` names *how* each source stops costing a review, and no two rows
 use the same mechanism:
 
-- **construction** — the semantic snapshot never carried the quantity. Glyph
+- **construction** — the semantic snapshot never measured the quantity. Glyph
   rasterization is not a property of the box tree, so there is nothing to
   threshold; it is absent rather than tolerated.
 - **environment-key** — the difference is real, and `deviceScaleFactor` is part

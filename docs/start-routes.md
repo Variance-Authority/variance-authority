@@ -24,10 +24,10 @@ the login where it already works and use the [Playwright
 quickstart](start-playwright.md) instead. [Choose a starting
 point](start.md) lists the other harnesses this loop can start from.
 
-Two words carry the rest of the page. A **subject** is one named UI state a run
-captures and compares, under an id you choose; here, one route at one viewport.
-A **collector** is a module you write that tells the CLI which subjects exist
-and how to open them.
+The rest of the page rests on two words. A **subject** is one named UI state a
+run captures and compares, under an id you choose; here, one route at one
+viewport. A **collector** is a module you write that tells the CLI which
+subjects exist and how to open them.
 
 ## Before you collect
 
@@ -80,7 +80,7 @@ matches, the route is a collection failure, not an empty capture.
 **`source.dirs` is what turns a component name into a `file:line`.** It is
 optional, and everything else works without it. The collector walks those
 directories once and builds an index from component name to the file and line
-the component is *declared* on, so a changed region in the report can carry a
+the component is *declared* on, so a changed region in the report can show a
 source location instead of a bare name. Point it at the directories your
 components live in, relative to the config. If it is wrong, you do not get a
 wrong answer — a path that matches no files is refused by name rather than
@@ -188,7 +188,7 @@ answers what is on disk, and what you deploy answers with its redirects, headers
 and rewrites.
 
 A page dropped from the sitemap or the build stops being watched with no config
-diff to approve. The run does report it by id — the baseline store holds an
+diff to approve. The run does report it by id — the baseline store still has an
 approved image the plan did not contain — but you learn about it from a run
 rather than from a review. Keep the explicit `routes` form for a suite where
 removing a subject should be something somebody signs off.
@@ -275,7 +275,7 @@ behalf: accepting an unseen image would record whatever was on screen as the
 truth and report green from then on.
 
 Reviewing is you looking at that candidate. Write the report as HTML beside its
-JSON source, so its relative image links hold, and open it:
+JSON source, so its relative image links work, and open it:
 
 ```bash
 npx variance report --config variance.config.json --format html > .variance/report.html

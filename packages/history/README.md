@@ -26,7 +26,7 @@ Node 22 or newer. The package is ESM-only (`"type": "module"`) and imports
 `@variance-authority/core`, which `npm install` pulls in for you. Nothing here
 opens a socket or touches a disk; the two entrypoints are:
 
-| entrypoint | requires | holds |
+| entrypoint | requires | exports |
 |---|---|---|
 | `.` | nothing | the row contract, the drift arithmetic, the wire protocol, `createAbsentStore` |
 | `./client` | a service you can call | `createHttpHistoryStore` |
@@ -90,7 +90,7 @@ And the `TokenDrift` behind it, with the eleven `steps` abridged to two:
 }
 ```
 
-`steps` carries the commit behind every change, which is what turns `12px → 34px`
+`steps` names the commit behind every change, which is what turns `12px → 34px`
 into an investigation somebody can finish. `quantity` and `ratio` are absent when
 the values cannot be subtracted — a colour, a font stack, a shadow — and
 `unquantifiable` then says why, so a colour that changed five times stays a
@@ -131,7 +131,7 @@ A row is written only when a hash changes, and is roughly a hundred bytes: a
 itself. Quiet runs are recorded too — they are the denominator every rate divides
 by.
 
-Because the record holds resolved values rather than rasters, an answer like
+Because the record keeps resolved values rather than rasters, an answer like
 
 ```
 --va-space-3: 12px → 20px across eleven approvals
@@ -179,7 +179,7 @@ so a capped answer never reads as a complete one.
 
 ## Store the rows
 
-This package holds no storage: the row contract, the arithmetic, and the wire
+This package ships no storage: the row contract, the arithmetic, and the wire
 protocol, but no database. The database is `@variance-authority/server`, which
 you run yourself — a process, a port, and a bearer token you set.
 
@@ -194,7 +194,7 @@ VARIANCE_HISTORY_PORT=7788 \
 npx variance-authority-server
 ```
 
-The bearer token is the one you generate here and nothing else: the service holds
+The bearer token is the one you generate here and nothing else: the service has
 no accounts and no identity of its own. It refuses to start without one, and
 refuses one shorter than 16 characters. `VARIANCE_HISTORY_PORT` defaults to
 `7788` and `VARIANCE_HISTORY_HOST` to `127.0.0.1`.
@@ -218,9 +218,9 @@ In `variance.config.json`:
 }
 ```
 
-`{ "env": "NAME" }` names the variable holding the bearer token, so the secret
-stays out of the file you commit. `project` is optional and defaults to the
-config's own `project`.
+`{ "env": "NAME" }` names the variable whose value is the bearer token, so the
+secret stays out of the file you commit. `project` is optional and defaults to
+the config's own `project`.
 
 **3. Give the run an identity.** A row that cannot be joined to a build is a row
 nothing can ask about, so `variance run` writes nothing until it can name itself:
@@ -263,20 +263,20 @@ if (!isKept(answer)) {
 |---|---|---|
 | `endpoint` | required | base URL of the service you started above, e.g. `http://history.internal:7788` |
 | `token` | required | the bearer token the service was started with. It is how the service refuses a write it cannot attribute to a run you own |
-| `project` | none | scopes every query and is checked against every row written. Optional because a single-project deployment does not need it, and dangerous to omit on a shared one: unscoped queries blend two projects' `Button` into one rate and nothing in the answer would show it. Once set, a write carrying another project's rows throws rather than landing in the wrong history |
+| `project` | none | scopes every query and is checked against every row written. Optional because a single-project deployment does not need it, and dangerous to omit on a shared one: unscoped queries blend two projects' `Button` into one rate and nothing in the answer would show it. Once set, a write with another project's rows throws rather than landing in the wrong history |
 | `timeoutMs` | `10000` | a history query that hangs fails rather than stalling the run |
 | `fetch` | `globalThis.fetch` | for a caller with its own agent or proxy |
 
 Every transport failure throws — a 500, a 401, a body that parses but is not the
 shape asked for. None of them resolves to an empty result.
 
-A store you call this way holds exactly what your own code posted to it. With no
-writer, every query answers from an empty store.
+A store you call this way contains exactly what your own code posted to it. With
+no writer, every query answers from an empty store.
 
 ## When no store is configured
 
 `createAbsentStore` returns a `HistoryStore` that keeps nothing and says so, so a
-pipeline holds one type either way and the difference surfaces once, in the
+pipeline sees one type either way and the difference surfaces once, in the
 answer:
 
 ```ts

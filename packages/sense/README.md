@@ -107,7 +107,7 @@ missing snapshot, a snapshot from another machine, and a first run all leave
 - `entered` — the tests the diff reached. Never read an empty `entered` as "run
   nothing": *this diff reached nobody* and *this snapshot recorded nobody* are
   opposite facts, and `whole` is the only thing that separates them.
-- `unread` — changed paths the record holds nothing for. Non-empty means the
+- `unread` — changed paths the record says nothing about. Non-empty means the
   snapshot was never asked about some changed path, so it cannot have charged
   anyone for entering it. Clear the skip list and name the paths, so the
   operator knows the suite widened and why. The guard in the sample above is
@@ -116,7 +116,7 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   recorded over. A report rather than work: a stale module is already charged
   whole inside `entered`. It comes back empty unless you pass `sourceAt`,
   because nothing looked — which reads exactly like frames that agree.
-- `because` — one entry per selected test, in the order of `entered`, holding
+- `because` — one entry per selected test, in the order of `entered`, listing
   every reason it is there: a `region` (file, name, path and lines of the
   innermost recorded block a changed line fell in), a `precondition` by name, or
   an `importer` with the trail from the changed file to the file the test was
@@ -153,7 +153,7 @@ caller owns the inventory of current test files and the dispatch.
 to the same absolute checkout path it was written from. Nothing about the branch
 or the commit belongs in the key for correctness, but vary the key anyway so
 each job writes a new entry and starts from the newest one that exists.
-[The source index](https://variance-authority.dev/docs/source-index) carries the
+[The source index](https://variance-authority.dev/docs/source-index) gives the
 worked cache configuration; the same rules and the same directory cover the
 snapshot.
 
@@ -161,12 +161,12 @@ snapshot.
 records the identities of its own source, its configured setup, and any
 additional preconditions. Changing one of those starts a new **generation** for
 that file — its current batch of crossings against one fixed set of
-preconditions — and the inherited crossings are retired. A carried module whose
-text on disk no longer matches its rows has rows no diff can be placed in, so
-every test that entered it is marked partial and runs at the next selection. An
-observation is complete only when every leaf task in its file passes; a focused,
-skipped, or failed run is partial, contributes its crossings, and can never
-justify a skip.
+preconditions — and the inherited crossings are retired. An inherited module
+whose text on disk no longer matches its rows has rows no diff can be placed
+in, so every test that entered it is marked partial and runs at the next
+selection. An observation is complete only when every leaf task in its file
+passes; a focused, skipped, or failed run is partial, contributes its
+crossings, and can never justify a skip.
 
 **Invalidated whole** only by being unreadable: a missing, corrupt, or
 foreign-layout snapshot is treated as absent, which costs a full suite and
@@ -187,7 +187,7 @@ A changed file selects by how the snapshot records it.
 - **A module with no row at all** is `unread`. Nothing loaded it, every test
   that imports it mocked it, or it sits outside what the run instrumented — and
   the record cannot say which.
-- **A stylesheet, image, or JSON file** can hold no probe, so it never has a
+- **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
 
 The unit of a change is the **line**, in the coordinates of the diff's own base
@@ -197,13 +197,13 @@ reader was shown. Each changed line is answered by the narrowest recorded region
 containing it, and the selection is the union over lines, so one commit that
 edits an import and a click handler selects everything the module selects. A
 line that opens or closes the narrowest region charges the enclosing region too,
-out to the first region that holds the line in its interior. A line no region
+out to the first region that contains the line in its interior. A line no region
 covers widens to the whole module. A deleted file is read from its `--- a/`
 path, and a renamed file's hunks under its old name.
 
 A module the instrumenter could not parse is recorded with
 `instrumented: false`; selection widens to every test that loaded it, each of
-which holds the module as a precondition.
+which treats the module as a precondition.
 
 ### Answer a stylesheet through the import graph
 
@@ -220,7 +220,7 @@ selection and may never close a question it did not answer. A file whose own
 edges the scan could not read may reach the asset by an edge nobody saw, so its
 tests are selected and only selected.
 
-A snapshot that holds a file under another name — the built twin a sibling
+A snapshot that stores a file under another name — the built twin a sibling
 package's tests loaded — is looked up under every name `knownAs` returns for it.
 
 ### Options on the Vitest seam
@@ -241,7 +241,7 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 Configured setup files become preconditions automatically, and the runtime's own
 setup file is placed ahead of them so a setup file that loads an instrumented
 module finds the counter factory it needs. A setup entry that names a package
-rather than a file is not a precondition, since no diff carries it.
+rather than a file is not a precondition, since no diff mentions it.
 
 Under `isolate: false` a run still records every file that consumed a module as
 having entered it. A file consumes a module by running something in it: a module
@@ -427,7 +427,7 @@ attributed at all. `flush` reports what has accumulated without ending anything;
 `close` restores the global and reports the rest.
 
 The driver mints the id and the driver joins the reports, because it is the only
-participant holding `journey -> subject`:
+participant that knows `journey -> subject`:
 
 ```ts
 import { joinObservations, recordExecution } from '@variance-authority/sense/journal';
@@ -467,7 +467,7 @@ into one row per owner. Where two stores disagree about a module, that module is
 recorded as not instrumented, so unknown widens where a guess would skip.
 
 `stitchJourneys` takes `reports`, the `heads` this run declares, the `owners`
-map, and two carriers for the driver's own knowledge: `preconditions` and
+map, and two fields for the driver's own knowledge: `preconditions` and
 `incomplete`, the subjects the runner already knows did not finish. Reports for
 journeys no subject claimed are counted in `unclaimed` rather than attributed —
 a health check is not a subject. `mintJourney` produces a UUID and nothing else.
@@ -507,9 +507,9 @@ const { narrowing, distances } = await distanceByExecution(
 
 An excerpt: `relations` and `diff` are the two values the samples above and
 below produce. Without `relations` nothing can be placed. `knownAs` gives every
-name one module is held under, so a built copy in the graph and a source file in
-the record count as the same module. `faces` says where a unit's public entry
-point is; without it, every file reads as its own entry point.
+name one module goes by, so a built copy in the graph and a source file in the
+record count as the same module. `faces` says where a unit's public entry point
+is; without it, every file reads as its own entry point.
 
 Restricting the walk to entered modules is what makes the number worth reading:
 a shortest path over the graph alone can run through a module the test never
@@ -517,8 +517,8 @@ loaded — a helper behind a branch nobody took. `distanceFromView` is the same
 reading over a snapshot you already opened, and `nearestFirst` is the comparison
 both sort by.
 
-Each `TestDistance` carries a `bearing`. Four carry a hop count and two carry
-none:
+Each `TestDistance` has a `bearing`. Four of them include a hop count and two
+do not:
 
 - `precondition` — the change is the test's own source. Zero hops, and the only
   zero there is.
@@ -531,7 +531,7 @@ none:
   executed, with the rest of that run accounted for. A registry, a singleton, a
   patched prototype, a module-level assignment two files agree about and nothing
   declares.
-- `unmeasured` — the graph could not answer. It carries `because`, naming the
+- `unmeasured` — the graph could not answer. It sets `because`, naming the
   gap: a built artifact the scan does not read, a directory it was not pointed
   at, a file whose imports nothing could enumerate.
 
@@ -576,7 +576,7 @@ A test nobody could place runs with the range that has no end. So `0-2`
 then `3-` runs every placed file exactly once, and no near range is made
 expensive by everything nobody could place. A current test file that is not
 represented in `distances` remains outside both arrays; keep it selected and
-carry it in your final leg.
+run it in your final leg.
 
 `remaining` names which paths a range left behind. Every range is a smaller
 claim than the snapshot selection, which is already a smaller claim than the
@@ -632,7 +632,7 @@ never touch a disk.
 | `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
 
 `conditionNames` and `tsconfig` are accepted by the same call and control how
-specifiers become file edges; the generated declaration carries their exact
+specifiers become file edges; the generated declaration states their exact
 shapes.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
@@ -807,15 +807,15 @@ reported in `tainted.additions`. A `-` is not one edge fewer. `vi.mock('./api')`
 replaces `api.ts` for the whole of that test's run — for the test, for the
 component it imports, for anything under it — so it is the module taken out of
 the graph as seen from that file, at every level. It lands in `tainted.shadows`,
-keyed by file, and a graph built with that table carries it into every walk: a
+keyed by file, and a graph built with that table applies it to every walk: a
 file is moved by a change only when some trail from the change arrives without
 crossing one of its shadows, and what is reached only through such a file goes
 with it. `movedBy` names the files it left out this way in `shadowed`.
 
 An addition can name a file outside the directories the scan walked. That file
-comes back as a record of its own, carrying `unknown` rather than an empty edge
-list: nobody read it, so it widens a selection instead of narrowing one. Point
-the scan at its directory to have it read.
+comes back as a record of its own, marked `unknown` rather than given an empty
+edge list: nobody read it, so it widens a selection instead of narrowing one.
+Point the scan at its directory to have it read.
 
 Every shadow and every addition keeps the name of whoever said it.
 `tainted.shadowedBy` is the file, the file it never reaches, and the taints that
@@ -866,12 +866,12 @@ module specifiers. `files` is the candidate set and is never widened by Sense.
 Only literal strings and templates without substitutions become additions. A
 callback containing `import()` is left alone because the native module parser
 already records it. Call names and argument positions belong to the consumer;
-Sense does not carry a framework vocabulary.
+Sense ships no framework vocabulary.
 
 Under more than one taint the subtractions are unioned and so are the additions,
 and the two never contend: an edge one taint adds to a file another taint
 shadows is an edge into a node the file's run never enters, and the shadow
-holds, the way the mock holds at runtime.
+wins, the way the mock wins at runtime.
 
 Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
 opened or parsed a second time — a reader's answer is a fact about the file's
@@ -884,10 +884,10 @@ const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: s
 await source.save();
 ```
 
-### Hold a taint against the record
+### Check a taint against the record
 
 A taint says what a file's run reaches; a coverage record says what it did.
-Where both exist, `auditTaints` holds one against the other and names every
+Where both exist, `auditTaints` compares one with the other and names every
 disagreement as a coordinate to look at:
 
 ```ts
@@ -908,8 +908,8 @@ shadows and nobody entered for it: an import the run never loaded, or a mock no
 taint knows about yet. `added-but-not-entered` is an addition the record never
 saw the test in. Only an instrumented module testifies, and only a complete
 observation testifies to absence. Where a taint said the thing the record
-disagrees with, the deviation carries its `taints` — the table or reader to go
-and correct. Pass `knownAs` when the record holds a module under a built name.
+disagrees with, the deviation names its `taints` — the table or reader to go
+and correct. Pass `knownAs` when the record lists a module under a built name.
 
 ## Read the record yourself
 
@@ -943,15 +943,15 @@ your own runs produced rather than the two summaries above. `writeTestCoverage`
 is the other direction — the same shape, landed whole under a rename, where
 `readTestCoverage` and every runner seam will find it.
 
-Crossings here name **test files** and carry no call-stack depth. That is the
+Crossings here name **test files** and record no call-stack depth. That is the
 recorded granularity, not a limit of this reader; see
 [Record which case entered a region](#record-which-case-entered-a-region).
 
-The snapshot also carries the commit it was recorded at.
+The snapshot also notes the commit it was recorded at.
 `readTestCoverage(file)` hands it back under `commit`, so a caller can
 `git diff <commit> HEAD` for the distance from the recording to the working
 tree. A recording made outside a checkout has no commit, and an index that
-cannot say where it is has nothing to diff against, so a caller holding one runs
+cannot say where it is has nothing to diff against, so a caller with one runs
 the suite it would have run anyway.
 
 ## Fold shards into one snapshot
@@ -1001,8 +1001,8 @@ A fold is a fan-in and `mergeCoverage` is a layer; they are not interchangeable.
 A layer positions the result where the newer side stands and retires what that
 side re-recorded whole, which is what landing a run over a baseline means and
 would make a fold depend on the order its shards were named in. A test the newer
-side did not run is carried as it was, unless a region it entered was rewritten
-underneath it: then it is carried incomplete and runs at the next selection.
+side did not run is kept as it was, unless a region it entered was rewritten
+underneath it: then it is kept incomplete and runs at the next selection.
 
 ## Instrument one module
 
@@ -1235,9 +1235,9 @@ cases are in flight at once and a bracket credits every one of them with what
 the others did. Work a case started and did not await is charged to the case
 that started it, however late it settles.
 
-Crossings carry `distance: 0`: the recording says which case entered a region,
-not how it got there, so every answer is ordered by identity rather than by
-depth. Anything a file entered before its first case — imports, `beforeAll`,
+Every crossing has `distance: 0`: the recording says which case entered a
+region, not how it got there, so every answer is ordered by identity rather
+than by depth. Anything a file entered before its first case — imports, `beforeAll`,
 top-level evaluation — is credited to every case in that file.
 
 **Turn cases on for a local loop, not for the repository index.** The case axis

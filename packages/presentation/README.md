@@ -129,7 +129,7 @@ the nine entries:
 
 Read `F9` as: the six records are one repeated pattern, the median gap between
 two records is 4px, the median gap inside a record is 4px, and their ratio is 1
-— so the boundary between records carries no more separation than the boundary
+— so the boundary between records gives no more separation than the boundary
 between a record's own heading and body.
 
 `id` is stable within one report and means nothing across two. `owner` and
@@ -156,7 +156,7 @@ own:
 Every finding is one of two shapes. A **collapse** is a distinction that should
 be present disappearing — a gap that should separate repeated records, a size
 difference that should separate a heading from body text. A **drift** is one
-instance diverging from the pattern its peers hold.
+instance diverging from the pattern its peers share.
 
 | `rule` | Shape | Reported when |
 | --- | --- | --- |
@@ -283,7 +283,7 @@ reading.
 | Option | What it does |
 | --- | --- |
 | `subjectId`, `title` | Name the sensed boundary in the returned report. Defaults to `presentation` with no title. |
-| `fonts` | Font identities you established for this capture. The report carries them back, and a substitution changes `report.digest` while `report.contentDigest` holds. |
+| `fonts` | Font identities you established for this capture. The report returns them, and a substitution changes `report.digest` while `report.contentDigest` stays the same. |
 | `suspense` | `{ timeoutMs }` for settling React boundaries before reading. |
 | `stabilize` | Replaces the default stabilization recipe. |
 | `paint` | `true`, or a list of the layers above. |
@@ -291,16 +291,16 @@ reading.
 
 **Content identity** is `report.contentDigest`: a digest of semantic classes,
 names, text, state and the browser ARIA reading, with no layout in it. It is
-what lets you say the words and structure held while the presentation moved, and
-it is derived before layout analysis, so it is present even for a capture whose
-layout was never observed.
+what lets you say the words and structure did not change while the presentation
+moved, and it is derived before layout analysis, so it is present even for a
+capture whose layout was never observed.
 
 A **stabilization recipe** is a list of named interventions applied to the page
 before it is read. The default here is the standard collection recipe —
 `pin-animations`, `hide-scrollbars`, `hide-caret` and `wait-for-fonts` — with
 `wait-for-images` narrowed to images inside your subject and its React portals,
-so an unrelated hero image elsewhere in the document does not hold the read
-open. The other ids you can name are `hold-animations`, `wait-for-images` and
+so an unrelated hero image elsewhere in the document does not keep the read
+waiting. The other ids you can name are `hold-animations`, `wait-for-images` and
 `hide-presentational-images`; an id nothing answers to fails the read rather
 than being skipped. Pass `stabilize: ['pin-animations']` to run only some of
 them, and `stabilize: []` only for a static document you own, such as an MHTML
@@ -399,7 +399,7 @@ await paintPresentationHierarchy(page, hierarchy);
 ```
 
 Roles are ordered outside-in and may not repeat. Every relationship must be a
-measured separation inside the declared owner, and one pair cannot hold two
+measured separation inside the declared owner, and one pair cannot fill two
 roles. Two adjacent roles that share a spacing cluster, or whose median gaps
 differ by 1.15x or less, produce a `SPACING_HIERARCHY_COLLISION` — its ids are
 `H1`, `H2`, … within this reading, separate from the report's own `F` ids. The
@@ -438,7 +438,7 @@ instructions are absent rather than empty. A layout-capable capture that omits
 an element rect is refused.
 
 `patterns` describe repeated semantic shapes and their dominant presentation
-signature. `findings` carry measurements before prose: the nodes involved, the
+signature. `findings` list measurements before prose: the nodes involved, the
 pattern, coordinates, ratios, distances, cluster identities.
 
 ## Re-read after an edit
@@ -454,11 +454,11 @@ console.log(change.findings, change.information);
 your change. `change.findings` gives a per-rule before/after/delta count;
 `change.information` gives the content identity plus element, character and
 repeated-object counts. They are reported separately and never folded into a
-score. A matching content identity proves the content held while presentation
-moved, so a re-read can report findings resolved alongside unchanged content.
-No stored baseline is involved.
+score. A matching content identity proves the content stayed the same while
+presentation moved, so a re-read can report findings resolved alongside
+unchanged content. No stored baseline is involved.
 
-## Carry the consequence into a run report
+## Record the consequence in a run report
 
 Use `presentationSignal` when the same consequence must survive the browser
 session and travel with a general regression report.

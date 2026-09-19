@@ -68,14 +68,14 @@ said was not the subject.
 against a stored baseline, so the pixel half is the half that decides its
 verdicts. The semantic half — `applyIgnores` over a pair of snapshots — applies
 where two documents are compared, which means composing `core` yourself: a stored
-baseline carries the component hashes of the document that painted it, which
+baseline keeps the component hashes of the document that painted it, which
 is enough to name the component that caused a change and not enough to re-run the
 differ. The declaration is the same either way, which is the point of resolving it
 once on the snapshot.
 
 There is no coordinate form. A rectangle stops covering the thing it was drawn
 around the first time the layout moves. Existing rasters enter through the
-library seam, not the CLI configuration path, and carry no document element for
+library seam, not the CLI configuration path, and have no document element for
 a selector to follow ([`comparison.md`](comparison.md)).
 
 ### By shape — a fingerprint
@@ -90,7 +90,7 @@ There are two, and `variance run` publishes and matches the *pixel* one — the
 change mask cropped to its own bounding box, resampled onto a fixed grid, with
 its aspect and its magnitude bucketed alongside. It knows shape and size and
 knows nothing about which component produced it, so two unrelated components
-whose residue looks alike collide. The *semantic* fingerprint, which does carry
+whose residue looks alike collide. The *semantic* fingerprint, which does include
 the component, is `fingerprintOfRoot` and applies where two documents are
 compared — the library path, not the binary's.
 
@@ -106,8 +106,8 @@ compared — the library path, not the binary's.
 }
 ```
 
-You do not invent these. Every region a run reports carries its own fingerprint,
-so the way to write one is to copy it off the run that annoyed you.
+You do not invent these. Every region a run reports comes with its own
+fingerprint, so the way to write one is to copy it off the run that annoyed you.
 
 The reason to prefer it: **a fingerprint ignore does not blind the region it
 covers.** A different regression in the same place has a different shape or a
@@ -205,7 +205,7 @@ Add `subjects`. It composes with either form.
 
 ### Wherever a story says it applies
 
-Add `tags`, and let the story declare itself. Storybook's built index carries a
+Add `tags`, and let the story declare itself. Storybook's built index lists a
 story's `tags`, so this works with no central list of ids to keep in step:
 
 ```jsx
@@ -229,12 +229,12 @@ export const LiveFeed = {
 file is stale the moment somebody renames one. What a word *means* belongs
 somewhere a typo can be caught, which markup is not.
 
-`tags` and `subjects` **intersect**: a rule naming both applies where both hold.
-An ignore is the one setting that makes a run less observant, so where two
+`tags` and `subjects` **intersect**: a rule naming both applies where both are
+true. An ignore is the one setting that makes a run less observant, so where two
 readings exist the narrower one is correct, and a union is two rules.
 
-A tag no subject carries is reported by name at the end of the run, with the
-carried tag it is one edit away from:
+A tag no subject declares is reported by name at the end of the run, alongside the
+tag it is one edit away from:
 
 ```
   [unworn] live-feed — no subject in this run carries `volatle`
@@ -243,10 +243,9 @@ carried tag it is one edit away from:
 
 That line is the only defence a tag has. A misspelled *key* is refused by name,
 because every object in the config is closed; a misspelled *tag* is a legal word
-that matches nothing. Story parameters would be a richer surface and are
-not offered: a built `index.json` carries `tags` and does not carry
-`parameters`, so a declaration written there does not survive the build that
-`variance run` reads.
+that matches nothing. Story parameters would be a richer surface and are not
+offered: a built `index.json` records `tags` and not `parameters`, so a
+declaration written there does not survive the build that `variance run` reads.
 
 ### Only until the fix lands
 
@@ -262,7 +261,7 @@ reported, and whatever it was hiding comes back with no further action from you.
 }
 ```
 
-`until` is the last day the rule holds, not the first day it does not.
+`until` is the last day the rule applies, not the first day it does not.
 
 An expiry is the difference between an ignore and a decision nobody revisits. The
 default lifetime of a blind spot should be "until somebody decides again", and
@@ -305,10 +304,10 @@ Each line asks for a different action:
 | `[dead]` … `absorbed nothing` | it found its element and there was no difference in it | consider deleting it; the flake may be fixed |
 | `[dead]` … `matched nothing in any subject` | the selector resolved nowhere | fix or delete it — you believe something is silenced and it is not |
 | `[expired]` | past its `until` | the differences are being reported again; decide again |
-| `[unworn]` | the rule is scoped to tags no subject in this run carries | check the spelling against the run's vocabulary, which the line offers |
-| … `none of which was compared this run` | it found its element, and no subject carrying it was compared | nothing yet — this run says nothing either way |
+| `[unworn]` | the rule is scoped to tags no subject in this run has | check the spelling against the run's vocabulary, which the line offers |
+| … `none of which was compared this run` | it found its element, and no subject with that tag was compared | nothing yet — this run says nothing either way |
 
-Coordinate masks cannot distinguish a rule whose target held steady from one
+Coordinate masks cannot distinguish a rule whose target did not change from one
 whose target disappeared, which is why a masked suite rots silently.
 
 ## `ignored` is not `unchanged`
@@ -363,7 +362,7 @@ The same fingerprint serves both, which is the point of having one:
 variance accept --shape v1:2c4f9a1e0b7d3856a91c4e2f8b06d735
 ```
 
-The command selects subjects whose complete region list carries only the
+The command selects subjects whose complete region list contains only the
 requested fingerprints, then applies the normal baseline-promotion checks.
 Matching a fingerprint alone does not authorize promotion.
 

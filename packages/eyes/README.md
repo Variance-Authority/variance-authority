@@ -77,7 +77,7 @@ tapCommits();
 Keep this in its own file and import nothing from Testing Library in it: a
 module's imports are evaluated before its own statements, so a file that
 imports `@testing-library/react` loads `react-dom` before its first line runs.
-Skip this step and everything below still works — every journal then carries a
+Skip this step and everything below still works — every journal then records a
 `react-tap-refused` entry with the reason, rather than looking like a page that
 rendered nothing.
 
@@ -113,16 +113,16 @@ afterEach(async () => {
 });
 ```
 
-Two cases in one file may carry the same coordinate. Sense numbers the repeat —
+Two cases in one file may share the same coordinate. Sense numbers the repeat —
 the second is `<coordinate>#1` — so give a deliberate duplicate a name of its
 own rather than matching that suffix by hand.
 
 **4. Clear the directory when the run starts, fold it when the run ends.** A run
-spreads tests over worker processes, so no object in memory holds what the run
-saw: each test publishes its own journal, and the archive is what folding the
-directory produces. Journals are named by test id, so the directory must hold
-one run. `resetEyesJournals` belongs in the runner's once-per-run hook and never
-in a test file, where it races the other workers.
+spreads tests over worker processes, so no object in memory collects what the
+run saw: each test publishes its own journal, and the archive is what folding
+the directory produces. Journals are named by test id, so the directory must
+belong to one run. `resetEyesJournals` goes in the runner's once-per-run hook,
+never in a test file, where it races the other workers.
 
 ```ts
 // vitest.globalSetup.eyes.ts
@@ -207,7 +207,7 @@ role, and clicked it, where the click handler removed the button:
 }
 ```
 
-The `document-event` entry above is abridged: every target carries the same
+The `document-event` entry above is abridged: every target uses the same
 `provenance` shape as the query target, and a real pointer produces the
 `pointerdown`, `pointerup` and `focusin` around the click as well. A
 `react-commit` entry names the components that performed render work and the
@@ -335,8 +335,8 @@ must be the coordinate Sense keys the same case by. Adding an attempt number
 satisfies the first and breaks the second.
 
 `EYES_JOURNAL_SUFFIX` (`.va-eyes.json`) is what tells a journal apart from
-anything else in the directory; `resetEyesJournals` deletes only files carrying
-it.
+anything else in the directory; `resetEyesJournals` deletes only files whose
+name ends with it.
 
 `@variance-authority/eyes/collect` is a separate entrypoint because it imports
 `node:fs`, while `/rtl` is imported by test files a bundler may follow into a

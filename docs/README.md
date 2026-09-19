@@ -4,7 +4,7 @@ Pick the question that brought you here. Each path below tells you what evidence
 it needs, what answer it can produce, and where that answer stops. Use one path
 on its own or combine several as the investigation grows.
 
-**Variance Authority** holds fine-grained evidence of what your code did —
+**Variance Authority** keeps fine-grained evidence of what your code did —
 across hundreds of thousands of files and tests, over time — so that a question
 is answered from that record instead of by running the whole suite again to find
 out. The record has several readings, and none of them is the centre the others
@@ -22,7 +22,7 @@ depend on.
 <a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
 <span>Live test</span>
 <strong>Find out why this test is stuck</strong>
-<p>Hold a Playwright test at a line you chose and inspect the page and announced work while that exact test is still running.</p>
+<p>Stop a Playwright test at a line you chose and inspect the page and announced work while that exact test is still running.</p>
 <em>Interrogate the test →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="selecting.md">
@@ -54,7 +54,7 @@ depend on.
 ## Give your coding agent the same evidence
 
 The agent does not need a special runner or editor. Variance exposes source and
-observations through the shell and MCP; its skills carry common investigations
+observations through the shell and MCP; its skills take common investigations
 through an edit and a check.
 
 <div class="doc-link-grid doc-link-grid--capabilities">
@@ -72,7 +72,7 @@ through an edit and a check.
 </a>
 <a class="doc-link-card doc-link-card--compact" href="agent-workflows.md">
 <span>Agent workflows</span>
-<strong>Carry the work through a check</strong>
+<strong>Take the work through a check</strong>
 <p>Choose a guided workflow for source discovery, live investigation, UI review, test selection, or test reduction.</p>
 <em>Choose an agent workflow →</em>
 </a>

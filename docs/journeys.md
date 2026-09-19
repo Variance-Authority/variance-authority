@@ -5,14 +5,14 @@ a region the other two have never been inside — same file, same import graph,
 same props — and no reading of the file can tell the three apart, because the
 difference is not in the file. It is in what each execution did with it.
 
-A build carrying `testSelectionProbes()` from `@variance-authority/sense/journal`
-records that. A probe sits at every region of the instrumented source where
-control can arrive — a function body, a branch, a `case`, a loop body, a `catch`
-or `finally`, the code after a decision, the resumption after an `await` — and
-each observed UI state's record is the set of regions it entered while it was
-painted. That record is the subject's
-**journey**: the path one execution took through the source, in every process
-the execution touched.
+A build instrumented with `testSelectionProbes()` from
+`@variance-authority/sense/journal` records that. A probe sits at every region
+of the instrumented source where control can arrive — a function body, a
+branch, a `case`, a loop body, a `catch` or `finally`, the code after a
+decision, the resumption after an `await` — and each observed UI state's record
+is the set of regions it entered while it was painted. That record is the
+subject's **journey**: the path one execution took through the source, in every
+process the execution touched.
 
 ## What narrowing a run does without this
 
@@ -66,8 +66,8 @@ running the test — and set on the browser context before the first navigation.
 was already going to send. A service instrumented by its own build reads the id
 off the request and reports what it entered under that id, to an address it also
 read off the cookie. The subject's *name* never leaves the driver: it is the only
-party holding `journey → subject`, so it is the only party that can join, and a
-report cannot claim an execution by writing one down.
+party that knows `journey → subject`, so it is the only party that can join,
+and a report cannot claim an execution by writing one down.
 
 ```ts
 import { collectJourneys } from '@variance-authority/sense/journey';
@@ -140,7 +140,7 @@ look once something else has said that something changed.
 
 ## What reads it
 
-- The [run report](../packages/report/README.md#the-shape) carries the partings
+- The [run report](../packages/report/README.md#the-shape) records the partings
   among the run's own subjects, answered where the journal is. The readers this
   section is for — the pull-request comment, the MCP tools, the review service —
   are on machines without one, so the run asks once and writes the answer beside

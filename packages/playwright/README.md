@@ -111,7 +111,7 @@ three transports later.
 
 ## Entrypoints
 
-| entrypoint | holds | note |
+| entrypoint | exports | note |
 |---|---|---|
 | `.` | the harness and the network observation | needs `playwright` |
 | `@variance-authority/playwright/renderer` | `createPlaywrightRenderer` | the renderer alone, without the harness |
@@ -133,7 +133,7 @@ cost **7.5 ms a capture against 205 ms** when each capture launched a browser
 first: 27x, reproduced across three runs. Absolute numbers vary with the
 machine; the ratio is the reason for the shape.
 
-The harness carries no knowledge of subjects, stories or frameworks, so the same
+The harness knows nothing about subjects, stories or frameworks, so the same
 harness serves a fixture page, a Storybook, or a route.
 
 `capture` is sequential by contract. Two concurrent calls would render two
@@ -198,7 +198,7 @@ Only the party that watched the network response knows otherwise.
 | `hashCeilingBytes` | 8 MiB | above this an asset is recorded as `size:<n>` rather than by content. A ceiling, not a cliff — the weaker claim still changes the key when the file changes, and says in the value that it is weaker. Skipping it silently would leave a hole in the key, and a hole in this key is a false `unchanged` |
 | `freezeAnimatedImages` | `true` | serve animated GIFs as their first frame, on the wire rather than in the page |
 | `blank` | none | `BlankRule[]`: images served as nothing, at their own size. The stronger relative of an ignore mask, and stronger because it happens *first* — a mask hides pixels after the page has fetched the image, laid out around it and folded its bytes into the key. It knows the URL and the intrinsic size, and does not know the DOM |
-| `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and held long enough to digest, so a portable document costs a map and not a second crawl |
+| `retainResources` | `false` | keep the bytes, not just the digest, so the document can be painted somewhere with no route to this origin. Retention rather than acquisition: every hashed body is already fetched and buffered long enough to digest, so a portable document costs a map and not a second crawl |
 
 `retainResources` keeps **what was served** — the blank an image became, the
 single frame a GIF was truncated to. Keeping what *arrived* would paint a
@@ -214,7 +214,7 @@ back exactly what disappeared.
 
 A source scan answers a name: every declaration in the configured directories
 that spells `Button`, and when two do, the name is ambiguous and the report says
-so. The page holds something better than a name. The fiber carries the function
+so. The page has something better than a name. The fiber points at the function
 React called, and V8 knows where every function it compiled begins. So the page
 agent keeps the functions it met, and `createDeclarationReader(page)` asks
 Chromium over CDP for each one's `[[FunctionLocation]]`, then maps the position
@@ -320,7 +320,7 @@ the flags are load-bearing for Chromium and absent for the other two. Measured i
 are unaffected because the flags were never passed to them.
 
 **So a WebKit or Firefox raster is comparable only to one from the same host.**
-`RenderIdentity` carries `platform`, so a laptop's baseline and a container's are
+`RenderIdentity` includes `platform`, so a laptop's baseline and a container's are
 separate baselines and a run says `incomparable` rather than comparing them. That
 is the safe failure, not a solution: neither answers for the other. If rasters are
 produced in a container, produce them only there — a local WebKit renderer records
@@ -377,7 +377,7 @@ node node_modules/@variance-authority/playwright/scripts/host.mjs 60 --out ./nat
 ```
 
 To find out whether another host's pixels are interchangeable with these, run
-that same file there. The Playwright image already carries the browsers, and the
+that same file there. The Playwright image already ships the browsers, and the
 script is the only thing you mount:
 
 ```bash

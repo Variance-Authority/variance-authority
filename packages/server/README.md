@@ -10,7 +10,7 @@ Run this package when your pipeline needs to keep what it saw. A single run
 answers *did this change*. It cannot answer *how often does this component
 change*, *has this page been reading differently from itself for a month*, or
 *what has `--va-space-3` drifted to across eleven approved edits* — those are
-questions about a record, and this is the process that holds one.
+questions about a record, and this is the process that keeps one.
 
 A **run** — one execution of the pipeline, recorded whether or not anything
 changed — posts **observations** (one row per component whose rendered hash
@@ -180,8 +180,8 @@ parameter on every route, for a service shared across projects.
 | `GET /v1/reach?project=&component=&since=&until=&limit=` | `component` required | `200` — subjects the component appeared in, and which of those are newly arrived |
 
 `since` and `until` are ISO-8601 instants and `limit` a positive integer; all
-three are optional on every `GET`. They are matched against the `at` each row
-carried when it was written — the posting machine's clock, not the service's —
+three are optional on every `GET`. They are matched against the `at` stamped on
+each row when it was written — the posting machine's clock, not the service's —
 so a CI agent with a skewed clock writes rows that land in the wrong window.
 
 There is no cursor. `limit` caps the rows a query reads, and whatever it
@@ -327,14 +327,14 @@ run that was not quiet.
 It speaks plain HTTP. There is no TLS in this process and no option to add one,
 and the bearer token is sent in a header — so anything other than
 `VARIANCE_HISTORY_HOST=127.0.0.1` needs TLS terminated in front of it. Put it
-behind a reverse proxy and let the proxy hold the certificate.
+behind a reverse proxy and let the proxy own the certificate.
 
-The token is one shared static string. It carries no identity: it answers *is
+The token is one shared static string. It names no one: it answers *is
 this write attributable to this deployment*, not *who are you*. There is one of
 them, there are no read-only tokens, and rotating it means restarting the
-process with a new value — during which clients holding the old one get `401`.
+process with a new value — during which clients still using the old one get `401`.
 The `project` query parameter scopes what a query reads; it does not scope
-access, so anyone holding the token reads every project in the database.
+access, so anyone with the token reads every project in the database.
 
 ## What it keeps
 
@@ -359,7 +359,7 @@ sidecars, owned by one process.
 
 ## Upgrading
 
-The stored shape carries a version number in `PRAGMA user_version`, exported as
+The stored shape records a version number in `PRAGMA user_version`, exported as
 `SCHEMA_VERSION` from `@variance-authority/server/sqlite`. On startup the
 service compares the file against the build, and there are four outcomes:
 
@@ -378,7 +378,7 @@ A refusal is a process that exits with a sentence, never a service that starts
 and answers wrongly. Since a downgrade is refused and a migration is one-way,
 copy the file before you upgrade the package.
 
-An SQLite file that holds tables but no version of ours is refused too, rather
+An SQLite file with tables but no version of ours is refused too, rather
 than adopted.
 
 ## Implementing another backend
@@ -461,7 +461,7 @@ closing the backend is separate, and yours.
 
 ## Entrypoints
 
-| entrypoint | requires | holds |
+| entrypoint | requires | exports |
 |---|---|---|
 | `.` | a socket | `HistoryBackend`, the shared arithmetic, `serveHistory`, `createBackedStore` |
 | `./sqlite` | `node:sqlite` | `createSqliteBackend`, `SCHEMA_VERSION` |
@@ -473,7 +473,7 @@ loads `./sqlite`.
 ## Who writes to it
 
 A configured CLI, or a client you call yourself. `variance run` posts the run
-and its observations when the config carries a `history` block:
+and its observations when the config includes a `history` block:
 
 ```jsonc
 {
@@ -504,9 +504,9 @@ its report.
 That is the usual reason a configured database is empty on day one. The other
 is that nothing has posted yet.
 
-`@variance-authority/history` holds the other half of this: the wire contract
+`@variance-authority/history` ships the other half of this: the wire contract
 both ends agree on, the HTTP client `variance run` uses, and the arithmetic that
-folds a token's recorded values into a drift total. This package holds the
+folds a token's recorded values into a drift total. This package owns the
 database, the socket, and the row-to-answer arithmetic every backend shares.
 
 - **[What accumulates](https://variance-authority.dev/docs/history)** — what

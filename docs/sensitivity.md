@@ -17,9 +17,9 @@ A **sensitivity** declares which bands a subject asserts on. A band is the kind
 of change a comparison found, not its size. There are five, loudest first:
 `a11y` (a role, accessible name or ARIA state changed), `geometry` (boxes
 appeared, vanished, moved or resized), `token` (style values changed while
-structure held), `content` (text changed and nothing else did), and `texture`
-(sub-pixel raster noise). A sensitivity names the bands that matter for a given
-subject, never a size or a percentage. It is not an
+structure stayed the same), `content` (text changed and nothing else did), and
+`texture` (sub-pixel raster noise). A sensitivity names the bands that matter
+for a given subject, never a size or a percentage. It is not an
 [ignore](ignores.md): an ignore excludes a named place or difference shape;
 a sensitivity states the kinds of change that matter for a named set of
 subjects.
@@ -94,7 +94,7 @@ Run the suite with `npx variance run`; the rules are read from the config on
 every run.
 
 The last matching rule wins. Sensitivities answer how much of one subject is
-under test, so two contradictory answers cannot both hold. Put the broad rule
+under test, so two contradictory answers cannot both be true. Put the broad rule
 first and its exception after it. Ignores behave the other way
 round: two matching ignore rules exclude more than either one alone.
 
@@ -102,8 +102,8 @@ A non-`strict` rule that names neither `subjects` nor `tags` is refused. There i
 no run-wide sensitivity setting. `strict` may omit both because it relaxes
 nothing and exists to restore the default inside a broader rule.
 
-`subjects` uses exact ids or `*` wildcards. `tags` matches tags carried by the
-subject plan. When a rule names both, both must match. Rule ids are unique; a
+`subjects` uses exact ids or `*` wildcards. `tags` matches the tags the subject
+plan declares. When a rule names both, both must match. Rule ids are unique; a
 duplicate is refused.
 
 ## How it decides, and what it costs
@@ -111,7 +111,7 @@ duplicate is refused.
 When both revisions were captured in full, the comparison reads the two
 documents directly. `npx variance run` usually has only an image and a stored
 baseline instead, and it makes the same absorb-or-report decision from the
-per-component hashes the baseline carries, split by band:
+per-component hashes the baseline stores, split by band:
 
 | digest | band |
 |---|---|
@@ -122,7 +122,7 @@ per-component hashes the baseline carries, split by band:
 | `style` — declared values and custom properties | `token` |
 
 The run asks the baseline and candidate **sidecars** — the small JSON record
-written beside each image, holding the per-component hashes and none of the
+written beside each image, containing the per-component hashes and none of the
 pixels — which bands disagree. It absorbs the subject only when every differing
 band falls outside the subject's declared sensitivity. Both routes resolve a
 level to the same set of bands, so what a level absorbs does not depend on which
@@ -136,7 +136,7 @@ runs. The sensitivity decision happens before any of that, so a route that a
 rebrand only repaints never pays to cluster its mask, attribute its regions, or
 fingerprint them. It pays one hash comparison instead.
 
-A baseline carrying no component hashes absorbs nothing, and the subject is
+A baseline with no component hashes absorbs nothing, and the subject is
 reported in full. A declaration that cannot be evaluated is not satisfied.
 
 `texture` has no document digest. It is raster residue, so the document-side
@@ -146,4 +146,4 @@ comparison leaves that band absent rather than silently absorbing it.
 
 **Further:** [Ignores](ignores.md) for excluding a named place or difference
 shape · [Composition](composition.md#what-a-boundary-hashes) for the
-per-component evidence carried into comparison.
+per-component evidence passed into comparison.
