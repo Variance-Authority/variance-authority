@@ -156,7 +156,7 @@ npx variance accept --config variance.config.json story:checkout--empty story:ch
 `--shape` takes a **fingerprint** — an identifier every changed region in the
 report carries, naming *what* changed rather than which screenshots it landed
 in. Accepting one covers every subject where that shape is the whole change, and
-refuses by name any subject where something else moved too.
+refuses by name any subject where something else changed too.
 
 ### What you get
 
@@ -216,7 +216,7 @@ Everything below is passed to `storybookCollector(...)` in the module from step
 
 A **band** is the severity category a change is filed under. Loudest first:
 `a11y`, `geometry`, `token`, `content`, `texture`. A role or accessible name that
-moved outranks a box that moved, which outranks a style value, which outranks
+changed outranks a box that moved, which outranks a style value, which outranks
 text, which outranks sub-pixel noise.
 
 The package exports `StorybookCollectorOptions` plus the collector contract

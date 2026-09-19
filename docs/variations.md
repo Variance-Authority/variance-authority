@@ -29,14 +29,15 @@ story:checkout--new-flow ← story:checkout--default (content, structure)
 ```
 
 The digest is the part worth reading twice. It is taken over the difference
-itself, so it holds still when *both* sides move the same way — a token edit
-that turns the whole suite red leaves it exactly where it was — and it moves
-when the variation gains or loses something its parent does not have.
+itself, so it holds still when *both* sides change the same way — a token
+edit that turns the whole suite red leaves it exactly where it was — and it
+changes when the variation gains or loses something its parent does not
+have.
 
 That distinguishes two events a reviewer currently has to tell apart by hand:
 
-- **everything moved**, and the flag still does what it did — already approved,
-  nothing new to look at;
+- **everything changed**, and the flag still does what it did — already
+  approved, nothing new to look at;
 - **the flag now does something else**, which is a review nobody has done.
 
 A variation that renders identically to its parent says so. It means the flag

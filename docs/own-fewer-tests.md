@@ -141,7 +141,7 @@ larger set of solitary tests earns its count only where the local variation is
 itself the risk. Tests at two levels are not duplicates when they can fail for
 different reasons and send the repair to different owners.
 
-### A next move: let the test expose the seam
+### A next step: let the test expose the seam
 
 [Eyes](eyes.md) records the elements a test addresses during
 [Arrange, Act and Assert (AAA)](eyes.md#read-the-test-at-the-level-it-was-written),
@@ -176,7 +176,7 @@ uncertainty, migration or defect-specific decision is gone.
 
 Keep a test for the long term when it protects a durable promise or a failure
 likely to recur. Put it with the owner of that promise, not with whichever line
-happened to break. Implementations move; an API contract, policy rule or
+happened to break. Implementations change; an API contract, policy rule or
 product journey can survive several of them. A test placed at the enduring
 boundary is less likely to become an accidental constraint on the old design.
 
@@ -191,7 +191,7 @@ A test is valuable while it can reveal an actionable failure sooner or more
 clearly than the alternatives. That value deteriorates when:
 
 - another test protects the same promise more directly;
-- the risk moved to a different boundary;
+- the risk is now at a different boundary;
 - the implementation can no longer fail in the way the test distinguishes;
 - failures are routinely ignored, retried or diagnosed somewhere else;
 - the assertion survives while the behaviour it was meant to protect no

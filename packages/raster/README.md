@@ -16,7 +16,7 @@ never agreed, a font stack that is always slightly off, a compression pass that
 always softens an edge — none of those has to be eliminated before you can watch
 it, because what gets measured is the disagreement rather than either side of
 it. `observeDifference` records the difference as it stands today;
-`compareDifferenceObservations` tells you how it moved since you last recorded
+`compareDifferenceObservations` tells you how it changed since you last recorded
 it.
 
 **Keeping severity and amount apart.** A pixel count collapses them into one
@@ -247,8 +247,8 @@ the library cannot know yours. Two ways to pick:
   argued about.
 - **From a colour change you are about to make.** `severityBetweenColors` gives
   the severity two opaque colours differ by without rendering anything — a
-  design token moving `#2d6cdf → #b5179e` is severity `0.153`, so you can put a
-  level either side of it before the change lands.
+  design token changing `#2d6cdf → #b5179e` is severity `0.153`, so you can
+  put a level either side of it before the change lands.
 
 Levels are sorted and de-duplicated for you; a negative or non-finite level
 throws.
@@ -271,7 +271,7 @@ throws.
 and so does a `data` array whose length is not `width * height * 4`. A subject
 that grew by a row is a finding, and compositing it onto a union box would
 decide on your behalf that it was not one — align or resize upstream, where
-something knows whether the movement was intended.
+something knows whether the change was intended.
 
 The one transform available is opt-in. `flattenOnto` names an opaque colour —
 `observeDifference({ normalization: { flattenOnto: { red, green, blue } } })`
@@ -347,8 +347,8 @@ verdict resting on a comparison nobody made. Nothing here retries and nothing
 here renders an image.
 
 Pass a `snapshot` alongside each digest and an unstable verdict carries an
-`instability` naming the component and the property that moved, rather than only
-saying that something did:
+`instability` naming the component and the property that changed, rather than
+only saying that something did:
 
 ```js
 gateStability([
@@ -417,7 +417,7 @@ packages named in the table above.
 - **`defaultPlan(options)`, `DEFAULT_PLAN`, `defaultPlanIdentity(options)`** — a
   plan is the ordered list of tool declarations a pipeline runs, and its combined
   digest is the key everything the pipeline produces is stored under. Swap a
-  tool and that digest moves, so a baseline made by the old arrangement is
+  tool and that digest changes, so a baseline made by the old arrangement is
   reported `incomparable` rather than compared and the difference blamed on a
   component. `defaultPlan` takes `policy` (which `DiffPolicy` the comparison
   step declares), `cell` (the grid size in pixels at which neighbouring changed
@@ -427,13 +427,13 @@ packages named in the table above.
 
 Stabilization recipes — the fixed sequence of tricks that holds a subject still
 before capture, such as pausing animations and freezing carets — live in
-`@variance-authority/core/format`, not here. An animation in flight moves
+`@variance-authority/core/format`, not here. An animation in flight changes
 `transform`, which the document already carries, so the recipe changes what the
 comparison sees at every stage rather than only at the image, and its digest is
 part of the environment key that decides whether two captures are comparable at
 all. What this package holds is
 `defaultPlan({ stabilization })`, which folds that digest into the plan
-identity, so retuning the tricks moves the key everything they produced is
+identity, so retuning the tricks changes the key everything they produced is
 stored under. [Hold a subject still](https://variance-authority.dev/docs/stabilization)
 covers the recipes themselves.
 

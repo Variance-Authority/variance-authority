@@ -1038,7 +1038,7 @@ file outside it was never claimed to affect a render. `relations: true` reads
 what imports what, so `tokens.css` is answered by walking to the components that
 rest on it instead of running the suite — it costs one scan of the tree,
 which is cached by content and by tree shape and so is paid once. The graph
-reads the mocks as it goes: a test that calls `vi.mock('./api')` is not moved
+reads the mocks as it goes: a test that calls `vi.mock('./api')` is not reached
 by a change to `api.ts`, at any depth, because its run never enters that module.
 `taints` names JSON tables that say what else a file imports beyond, or short
 of, its text — a framework's own import notation, a module loaded under a name

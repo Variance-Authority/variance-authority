@@ -92,9 +92,9 @@ should is a standing assignment rather than a test run.
 
 What separates the products is where intelligence sits relative to the spend.
 Perceptual match levels and hosted review queues read a comparison that has
-already been captured, rendered, and metered, so they move the review bill rather
-than the meter. TurboSnap prunes earlier — before the capture, from the static
-module graph.
+already been captured, rendered, and metered, so they change the review bill
+rather than the meter. TurboSnap prunes earlier — before the capture, from the
+static module graph.
 
 This project prunes twice, and neither prune is a prediction. `--since` skips a
 subject when its stored baseline lists none of the components the change reached,
@@ -288,7 +288,7 @@ documents and render caches make that separation useful across reruns.
 A comparison sorts what changed into five **bands** — `a11y` (accessible name,
 role, ARIA state), `geometry` (position and size), `token` (design-token values),
 `content` (text), and `texture` (raster residue with no document counterpart).
-The band is what a report names when it says which *kind* of thing moved, and
+The band is what a report names when it says which *kind* of thing changed, and
 [sensitivity](sensitivity.md) is where a subject declares which bands it asserts
 on. A band the run could not observe is reported `unobserved`; it is not
 converted into an empty result or a pass.
@@ -323,13 +323,13 @@ story:checkout--new-flow ← story:checkout--default (content, structure)
 
 That hash is taken over the difference between the two subjects, not over either
 subject. A token edit that repaints both of them leaves it exactly where it was,
-and it moves only when the variation gains or loses something its parent does not
-have. So *everything moved and the flag still does what it did* arrives as a hash
-that did not move, and *the flag now does something else* arrives as a hash that
-did — a distinction a reviewer otherwise draws by hand, on every diff. Nothing on
-this axis reaches the exit code, `variance accept`, or the baseline store. See
-[subjects that are other subjects on purpose](variations.md) and [the suite
-compared to itself](composition.md).
+and it changes only when the variation gains or loses something its parent does
+not have. So *everything changed and the flag still does what it did* arrives as
+a hash that did not change, and *the flag now does something else* arrives as a
+hash that did — a distinction a reviewer otherwise draws by hand, on every diff.
+Nothing on this axis reaches the exit code, `variance accept`, or the baseline
+store. See [subjects that are other subjects on purpose](variations.md) and [the
+suite compared to itself](composition.md).
 
 A changed subject is also read a second time, and there are two second readings.
 `again` holds the world and advances time; `alone` rebuilds the world and holds
@@ -353,7 +353,7 @@ still being applied. That is what a fix can be aimed at. See [how an unstable
 subject is found](flakiness.md).
 
 Both of these cut the same bill, and it is the labour one. A difference a hash
-has already settled, and a movement already named as one unstable component, are
+has already settled, and one already named as an unstable component, are
 two things nobody is asked to look at twice.
 
 ## 4. Operational boundaries
@@ -369,13 +369,13 @@ residency, or vendor-operated retention.
 under the `@variance-authority` scope, and the licence grants use, modification
 and redistribution, including commercially. They share a single version line —
 `0.2.0` across the CLI, the collectors, the Playwright package and the review
-service — so the pieces move together and a half-upgraded install is not a state
-you can arrive in. The repository and these pages are the support.
+service — so the pieces change together and a half-upgraded install is not a
+state you can arrive in. The repository and these pages are the support.
 
 That ownership is also where data placement is decided. Remote rendering and
 storage use operator-supplied endpoints. Portable documents may cross that
 boundary; in-place raster capture can keep DOM material inside the test
-environment and move only pixels to later systems.
+environment and send only pixels to later systems.
 
 The CLI supports Storybook, explicit routes and static directories, artifact-backed
 unit capture, and custom collectors. The additive Playwright package operates

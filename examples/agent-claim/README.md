@@ -1,11 +1,11 @@
 # Agent claim
 
 You edit a design system and you want to know whether the edit did what you said
-it would. A list of what moved cannot tell you that `Card`, which you believe you
-just edited, did not move at all — an absence only becomes a finding once
+it would. A list of what changed cannot tell you that `Card`, which you believe
+you just edited, did not change at all — an absence only becomes a finding once
 something declared it should have been there. This example declares the intent
 first, runs the change, and reads the run back against that declaration: each
-component you named gets a verdict, and anything that moved without being named
+component you named gets a verdict, and anything that changed without being named
 is called out on its own line.
 
 Two words this page uses throughout:
@@ -47,7 +47,7 @@ change produces the fifth line an adjudication can print:
 | `component:Badge` | `delivered` | It changed, within an undeclared bound |
 | `component:Card` | `undelivered` | It rendered in two subjects and held still |
 | `component:Tooltip` | `unobservable` | This run never rendered it, so nothing here is evidence |
-| `Avatar` — undeclared | `unclaimed` | It moved, and no claim covers it |
+| `Avatar` — undeclared | `unclaimed` | It changed, and no claim covers it |
 
 `Button` is the pair worth reading together: an agent that over-claims to avoid
 the `unclaimed` line walks into `overreached`, and an agent that under-claims to

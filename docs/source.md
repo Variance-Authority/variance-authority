@@ -282,7 +282,7 @@ both its size and the configured cap.
 **The scan recognises React components only.** It reads no other framework's
 component model, so on a Vue, Svelte, Angular or Solid codebase `declares` is
 empty, no `declared-in` edge exists, and `moved.components` comes back empty.
-File-level reach is unaffected: you still get which files a change can move.
+File-level reach is unaffected: you still get which files a change can reach.
 
 A component is one the source spells as a `function`, `const`, `let` or `class`
 declaration whose name begins with an uppercase letter, exported or not. Those

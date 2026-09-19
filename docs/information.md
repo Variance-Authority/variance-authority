@@ -34,7 +34,7 @@ several sections.
 | **subject** | One named UI state you asked for and can ask for again — a story, route, fixture, or value — under an id that survives a rename. `story:components-button--primary` is one. |
 | **observation profile** | What the capture surface was *able* to see, independent of what it found. Two ship: `jsdom` resolves roles, accessible names and author-declared style but has no layout engine and paints nothing; `chromium` adds the resolved cascade, real box geometry and pixels. Set it with `--profile` or in configuration. A profile that cannot see a band says so rather than reporting the band `unchanged`. |
 | **painter** | The machine-and-software identity that produced an image: renderer (`playwright-chromium@1.49.0`, `remote:render.internal`), engine build, OS and architecture, device scale factor, the fonts the renderer actually had, and digests of what it did to the page before reading it and of its pixel-affecting launch settings. Every field is hashed into one **identity digest**. A *painter partition* is the set of images stored under one such digest — two painters never diff against each other. `variance doctor` prints your identity and every identity your baseline root and render cache already hold. |
-| **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never moves and is a defect when it does; anti-aliasing moves constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
+| **band** | The kind of difference a change lands in. There are five, ordered loudest first: `a11y`, `geometry`, `token`, `content`, `texture`. The order is rarity — an accessible name almost never changes and is a defect when it does; anti-aliasing changes constantly and never matters. A set of bands collapses to the loudest one present, never to a default. |
 
 ### Things a run records
 
@@ -49,14 +49,14 @@ several sections.
 | **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline carries these so a later run can settle a subject on hashes instead of pixels. |
 
 The digests are not the bands, and the two lists do not line up one for one.
-Each digest that moved contributes a band: `semantics` gives `a11y`, `text`
+Each digest that changed contributes a band: `semantics` gives `a11y`, `text`
 gives `content`, `style` gives `token`, and `structure` and `geometry` both give
 `geometry`. Five digests, four bands — `texture` has no digest at all, because
 sub-pixel rendering variance is only visible in pixels. Because two digests
 share the `geometry` band, a component that edited its own tree and one that was
 merely pushed by a neighbour read the same after the mapping; that is why each
-moved component also records whether its **own** content moved, as against only
-its box.
+changed component also records whether its **own** content changed, as against
+only its box.
 
 ### Keys you will meet in `report.json`
 
@@ -69,11 +69,11 @@ one is absent — not empty — when that input was not there.
 | `composition` | The suite compared to *itself* at one commit: many subjects, one revision, joined on the components they share. The one section with no baseline anywhere in it. See [composition](composition.md). |
 | `lexicon` | Every name the run held for each subject — component names, roles, accessible names, visible text, tokens, files — written down per field so you can ask for a subject you can only describe. See [the lexicon](lexicon.md). |
 | `variations` | Subjects that declared themselves a variant of another subject. Each is compared against that parent *in the same run*, so what the variant exists for becomes a value with an identity. See [variations](variations.md). |
-| `reach` | What the commit reaches: which components the changed files can possibly have moved, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject moved with nothing in the commit reaching it. |
+| `reach` | What the commit reaches: which components the changed files can possibly have altered, and by which chain. Crossed against the verdicts, it is what lets a report say an edit reached a subject and changed nothing, or that a subject changed with nothing in the commit reaching it. |
 | `journeys` | Where this run's subjects parted in the source, read off the execution journal the build's probes wrote. See [journeys](journeys.md). |
 | `flakiness` | How often each subject this run found unstable has read differently before, and whether it has happened in the last few sweeps. See [flakiness](flakiness.md). |
-| `churn` | How often each component this run named as a cause has changed before. A comparison answers *what moved*; this answers *how often this moves*. |
-| `drift` | Design tokens whose value moved in this run, and what they have drifted to across every approved change in the window. Eleven correct approvals of 2px each are a 22px no single review ever saw. |
+| `churn` | How often each component this run named as a cause has changed before. A comparison answers *what changed*; this answers *how often this changes*. |
+| `drift` | Design tokens whose value changed in this run, and what they have drifted to across every approved change in the window. Eleven correct approvals of 2px each are a 22px no single review ever saw. |
 | `narrowing` | What this run narrowed by — the ref `--since` named — and what it could have narrowed by: where the recorded execution index stands and how many files the working tree differs from it by. |
 | `ignores`, `sensitivities` | What each declaration did, rule by rule: which regions an [ignore](ignores.md) removed and which assertions a [sensitivity](sensitivity.md) relaxed, so *has this mask grown over a regression?* is answerable months later. |
 

@@ -75,10 +75,10 @@ CHANGED  story:card
 ```
 
 `band` there is the kind of change, not its size. There are five, loudest
-first: `a11y` (a role, accessible name or ARIA state moved), `geometry` (boxes
-appeared, vanished, moved or resized), `token` (style values moved while
-structure held), `content` (text changed and nothing else did), `texture`
-(sub-pixel raster noise).
+first: `a11y` (a role, accessible name or ARIA state changed), `geometry`
+(boxes appeared, vanished, moved or resized), `token` (style values changed
+while structure held), `content` (text changed and nothing else did),
+`texture` (sub-pixel raster noise).
 
 That is a false alarm wearing a name badge. A plain pixel differ would have told
 you *1530 pixels moved* and you would have shrugged and hit re-run; this tells
@@ -87,10 +87,10 @@ a false alarm credible**, which is why this project can afford flakiness less
 than a pixel differ can.
 
 It happens because the computed-style allowlist admits `transform`, `opacity`,
-`filter`, `color` and every geometric longhand — and an animation in flight moves
-all of them. The allowlist *excludes* `animation-*` and `transition-*` on the
-stated grounds that a snapshot is taken with animations already disabled, which
-makes disabling them a precondition, not a nicety.
+`filter`, `color` and every geometric longhand — and an animation in flight
+changes all of them. The allowlist *excludes* `animation-*` and `transition-*` on
+the stated grounds that a snapshot is taken with animations already disabled,
+which makes disabling them a precondition, not a nicety.
 The stabilization recipe meets that precondition before observation begins.
 
 ---
@@ -686,17 +686,17 @@ return at the third row: a document byte-identical to the one the baseline was
 painted from is not photographed again, and on a suite where nothing changed
 that is the whole value of a run.
 
-**The converse is where the findings are.** A row moving while the row above it
-holds is not a wasted check, it is the fact somebody wanted:
+**The converse is where the findings are.** A row changing while the row above
+it holds is not a wasted check, it is the fact somebody wanted:
 
-- **The fiber moved and the document did not.** The components re-rendered and
-  the page did not follow — `refactor` in [parting](parting.md), read
+- **The fiber changed and the document did not.** The components re-rendered
+  and the page did not follow — `refactor` in [parting](parting.md), read
   across a moment instead of across a commit. This is the receipt a refactor
   never gets, and no pixel differ can reach it.
-- **The document moved and the image did not.** Something reached the renderer
-  and the renderer absorbed it: sub-pixel geometry, a repeated colour, a rule
-  that lost the cascade.
-- **Nothing that was read moved and the image did.** Every input the run
+- **The document changed and the image did not.** Something reached the
+  renderer and the renderer absorbed it: sub-pixel geometry, a repeated
+  colour, a rule that lost the cascade.
+- **Nothing that was read changed and the image did.** Every input the run
   actually looked at agreed and the picture changed anyway — `flake`, which is
   an accusation, and only safe to make because `unread` exists to carry the case
   where nothing was read at all.

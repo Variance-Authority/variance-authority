@@ -10,7 +10,7 @@ Three stages, and they are not equally expensive here:
 
 | stage          | the question                                      | what it costs                                                                                                             |
 | -------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| **detect**     | did anything move?                                | almost nothing — a subject whose document digest equals the one its baseline was painted from is settled without a render |
+| **detect**     | did anything change?                              | almost nothing — a subject whose document digest equals the one its baseline was painted from is settled without a render |
 | **adjudicate** | is the difference real, and is it _this_ subject's? | one collection per changed subject, and never a paint                                                                   |
 | **attribute**  | what caused it, and where is it written?          | a fold over digests the run already produced                                                                              |
 
@@ -21,7 +21,7 @@ is affordable at all.
 
 ## Every instrument varies one thing
 
-There is one move underneath all of them: **hold everything still, vary exactly
+There is one rule underneath all of them: **hold everything still, vary exactly
 one thing, and read a representation cheap enough to read again.** A semantic
 snapshot is text. In the todomvc Chromium benchmark, reading the document takes
 3.0 ms and painting the same page in the same process takes 54.0 ms: **roughly
@@ -33,7 +33,7 @@ performance guarantee.
 
 Two words below carry most of the report's meaning. A **band** is a category of
 visual difference — `a11y`, `geometry`, `token`, `content`, `texture` — so
-`Clock (content)` says a string moved inside `Clock` and nothing else did. A
+`Clock (content)` says a string changed inside `Clock` and nothing else did. A
 **tier** is a level of observation: the structure-and-style reading of a
 document, which any DOM host produces without a browser, and the painted image,
 which only a browser can. A tier declares the dimensions it cannot see instead
@@ -45,7 +45,7 @@ style, and Chromium adds geometry and the raster.
 | **baseline comparison**                                                 | the revision            | the subject, the world | a component, a band, a `file:line`                                            |
 | **[`again`](flakiness.md#what-still-gets-through-and-how-it-is-found)** | time                    | the world              | `unstable`, with the component and band that changed                          |
 | **[`alone`](flakiness.md#test-order-and-shared-state)**                 | the world               | time                   | `order-dependent`, and `accept` refuses it                                    |
-| **[composition](composition.md)**                                       | the subject             | the revision           | echoes, divergences, and why each component moved                             |
+| **[composition](composition.md)**                                       | the subject             | the revision           | echoes, divergences, and why each component changed                           |
 | **[variation](variations.md)**                                          | the subject, on purpose | the revision           | what a declared variant changes, and whether that changed                     |
 | **[history](history.md)**                                               | the run                 | the subject            | recurrence, sweeps-since, and [drift](history.md#how-far-a-token-has-drifted) |
 | **the engine**                                                          | the observer            | everything             | which tier can decide, and which cannot see it                                |
@@ -111,7 +111,7 @@ baselines:
 | **[remounts](framework-reference.md#markrender-and-remountedsince)** — an instance destroyed and rebuilt rather than updated | identical `outerHTML`, identical `rendering`, identical `wiring`. What differs is the state, the focus and what the user typed | **measured** — the remount row in the table below, plus a first mount, a freshly mounted page and a subtree that bailed out without committing, none of which is reported as a remount |
 | **[wiring](framework-reference.md#wiringof)** — a lost `memo`, an unkeyed list, a context subscription | two byte-identical documents that are two different components | **measured** — the wiring row in the table below |
 | **[a Suspense boundary still open](stabilization.md#pendingsuspense--the-boundary-that-has-not-arrived-by-name)** | a component that suspends renders no markup for a marker to attach to, and both runs agree on a skeleton | **measured** — a waiting boundary reads `pending`, names the components above it and the one that created it, counts how many boundaries enclose a nested one, carries the author's key, and reads `resolved` from the same walk once the promise settles. A boundary outside the subject is not reported, and a node React never rendered returns nothing rather than a guess |
-| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)** | no markup and no computed style can see a re-exported logo | **measured in Chromium** — an image changing behind an unchanged URL moves the environment key; the digests cover only the assets the subject itself references, reach the document as well as the capture, and are visibly empty rather than absent when the watch is off |
+| **[asset bytes behind an unchanged URL](stabilization.md#a-url-your-build-did-not-name-is-hashed-on-the-wire)** | no markup and no computed style can see a re-exported logo | **measured in Chromium** — an image changing behind an unchanged URL changes the environment key; the digests cover only the assets the subject itself references, reach the document as well as the capture, and are visibly empty rather than absent when the watch is off |
 | **[a substituted font](stabilization.md#what-runs-and-what-it-absorbs)** | two runs of the substitution compare `unchanged` — true, and worthless | **measured** — the probe reports a family it could not resolve and refuses to call it absent; with no browser, fonts read as `unprobed` rather than as none missing, and neither outcome fails the exit code |
 
 The last row of that table is the one worth stating separately, because it is
@@ -166,12 +166,12 @@ rather than three separate tools.
 | --- | --- |
 | A diff names a cause, a place and a file, against a real incumbent's runner | Eight edits to one component tree, declared in a file owned by neither arm before either arm ran, and graded on _must a reviewer be told?_ rather than on _did the image change_: **6 hit, 1 false alarm, 1 deferral** against 3 hit, 3 miss. The incumbent is Playwright's own `toHaveScreenshot`, executed by `playwright test` in its own process on the same page; its comparator is `pixelmatch`, the one behind most of the market. One Mac, one Chromium, eight scenarios — a scoreboard, not a win rate |
 | Both tiers agree on the dimensions both can observe | Forty declared cases, scored in one run so it compares two observers rather than two runs: 38/38 agreed under jsdom, 39/39 under Chromium, no real change reported as unchanged on either. The totals differ by one case whose wrapper dimension the jsdom profile declares it cannot see, which is scored under Chromium and left undecidable under jsdom; a fortieth case is held out ungraded because the two defensible readings of portalled content give opposite verdicts |
-| A component's hash covers its own nodes, so one edit changes one component | Two edits across a twelve-component design system, each read over the whole suite rather than one story, because a containment failure shows up where the component is nested deepest. A padding change to `Button` moves `Button` and no ancestor of any `Button`; a border-radius token change moves the five components that resolve through the token and leaves the other seven unmoved, including five that enclose the ones that moved |
+| A component's hash covers its own nodes, so one edit changes one component | Two edits across a twelve-component design system, each read over the whole suite rather than one story, because a containment failure shows up where the component is nested deepest. A padding change to `Button` changes `Button` and no ancestor of any `Button`; a border-radius token change changes the five components that resolve through the token and leaves the other seven unchanged, including five that enclose the ones that changed |
 | The suite shares renderings, and which examples watch the same bytes | 26 echoes, every one of them crossing a subject boundary, with one chip story matching four pages byte for byte, and 0 divergences. Three button stories report no echo at all, which is the finding rather than a gap |
-| Wiring separates two byte-identical documents | Two components emitting identical HTML agree on every hash the collector records for them — `rendering`, `structure`, `semantics`, `text`, `style` — and differ in the wiring band: `useState` and `useContext`, a `memo` wrapper and a theme context on one, an empty wiring on the other. Empty, not absent: a page no adapter could read must not compare equal to one read and found to declare nothing. Read again after a re-render, the wiring holds while text and rendering move, which is what qualifies it as a band rather than a flake generator |
+| Wiring separates two byte-identical documents | Two components emitting identical HTML agree on every hash the collector records for them — `rendering`, `structure`, `semantics`, `text`, `style` — and differ in the wiring band: `useState` and `useContext`, a `memo` wrapper and a theme context on one, an empty wiring on the other. Empty, not absent: a page no adapter could read must not compare equal to one read and found to declare nothing. Read again after a re-render, the wiring holds while text and rendering change, which is what qualifies it as a band rather than a flake generator |
 | A remount is invisible to the document | The two renders serialize identically while the UI reads `1 of 1` against `0 of 1` — one page kept the click, the other threw it away. The finding names the rebuilt component and the owner that rebuilt it, and reports the author's `key` where there was one instead of filtering itself away |
-| A subject already settled by its digest is not painted | On a document digest equal to the one the baseline was painted from, the verdict is `unchanged` with no render. A moved document renders, an absent baseline renders so the subject can be accepted at all, and a baseline another machine painted refuses the shortcut rather than reusing it |
-| Detecting cross-pollution beats rinsing it away | Thirty subjects through one jsdom world against thirty rebuilt worlds, 300 CSS rules apiece: one world built against thirty, ~68% of the rebuild regime's clock spent building worlds, ~2% of the session's own clock spent on the probes that replace the rinse. Those three are re-measured every run and bounded away from the current reading — exactly one world, over half, under 15% — so none can rot silently. The end-to-end speedup that follows is printed and gated by nothing: it divides two separately-timed runs, and load alone moves it from 3.2× on an idle machine to ~1.1× under a parallel suite |
+| A subject already settled by its digest is not painted | On a document digest equal to the one the baseline was painted from, the verdict is `unchanged` with no render. A changed document renders, an absent baseline renders so the subject can be accepted at all, and a baseline another machine painted refuses the shortcut rather than reusing it |
+| Detecting cross-pollution beats rinsing it away | Thirty subjects through one jsdom world against thirty rebuilt worlds, 300 CSS rules apiece: one world built against thirty, ~68% of the rebuild regime's clock spent building worlds, ~2% of the session's own clock spent on the probes that replace the rinse. Those three are re-measured every run and bounded away from the current reading — exactly one world, over half, under 15% — so none can rot silently. The end-to-end speedup that follows is printed and gated by nothing: it divides two separately-timed runs, and load alone takes it from 3.2× on an idle machine to ~1.1× under a parallel suite |
 | Which bands a single prop reaches | Seven props of one small design system reach five distinct sets of bands, from one band to three, asserted as a single shape because the shape is the finding. Under jsdom the reading reports geometry as unavailable rather than as unmoved |
 
 ## What none of this establishes
@@ -196,7 +196,7 @@ else's page cannot guarantee that. Random seeds and unsorted data — a real
 change, where the fixture is the bug. Cross-origin stylesheets and third-party
 iframes — a sheet nobody can read fingerprints as `unreadable` and compares
 equal, so a change inside one is invisible. And JSX reindented inside a block,
-which renders identically and moves this tool's hash, where a pixel differ gets
+which renders identically and changes this tool's hash, where a pixel differ gets
 it right. [`flakiness.md`](flakiness.md#the-causes-and-who-deals-with-each)
 carries the full taxonomy and what each of the other causes is absorbed by.
 

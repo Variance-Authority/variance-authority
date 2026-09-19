@@ -6,9 +6,9 @@ touched to the components that rest on them, and prints the chain it walked:
 
 > `Button` is affected because `src/tokens.css` → `src/button.css` → `src/Button.tsx`
 
-Without that walk, a changed file that declares no component could have moved
-anything, so it moves everything — which is every token file, every theme, every
-shared hook.
+Without that walk, a changed file that declares no component could have affected
+anything, so it affects everything — which is every token file, every theme,
+every shared hook.
 
 The walk is cheap enough to run before every suite because the file graph is not
 rebuilt from scratch each time. It is read out of an **index**: a
@@ -109,7 +109,7 @@ A file whose own imports cannot be enumerated — a dynamic `import('./' + name)
 a `require` whose argument is not a literal, a parse that did not finish, a file
 that could not be opened — gets a record with the reason recorded and no edges.
 It is then traversed **as though it changed** on every diff, because it might
-import the file that moved.
+import the file that changed.
 
 This one is not silent: the run names those files in its report with the reason,
 under the walk's refusals. It is the only one of the three you can see happening,
@@ -212,7 +212,7 @@ differently.
 the digest the scan holds for that path now, and the tree shape the record was
 built under must still answer for it. Opening the index empties the available
 record map when the configuration digest differs, deletes individual records
-whose witness directories moved, and returns a record only when its digest
+whose witness directories changed, and returns a record only when its digest
 matches.
 
 **The configuration digest.** A digest of one text: a version line, the root, the
@@ -339,7 +339,7 @@ kind's ids are contiguous. An id is valid only against the graph it came from.
 an array read.
 
 **Edges.** One convention holds everywhere: `A → B` means A depends on B, so a
-change in B may move A. Both directions are materialized as compressed sparse
+change in B may affect A. Both directions are materialized as compressed sparse
 rows, the reverse built by a counting sort in O(n + m). Rows are sorted and
 deduplicated, and a value import and a type import between the same two files
 remain two edges.
@@ -360,13 +360,13 @@ tests; the reason is what the report prints.
 
 ## Tracing a change through the graph
 
-One walk answers what a diff moved. The seed set is every changed file the graph
-holds, plus every node whose edges could not be enumerated, because an unreadable
-file might import the one that changed. Changed paths the graph does not hold are
-returned as missing rather than as *affects nothing*, and the unreadable ones are
-returned separately with their reasons. Each is a refusal the caller acts on: the
-selector widens to the whole suite, and the report prints the refusal where the
-attribution would have been.
+One walk answers what a diff affected. The seed set is every changed file the
+graph holds, plus every node whose edges could not be enumerated, because an
+unreadable file might import the one that changed. Changed paths the graph does
+not hold are returned as missing rather than as *affects nothing*, and the
+unreadable ones are returned separately with their reasons. Each is a refusal
+the caller acts on: the selector widens to the whole suite, and the report
+prints the refusal where the attribution would have been.
 
 **The walk.** One breadth-first search from every seed at once, against the
 arrows, with a visited bitmask and an array recording the node each one was
@@ -383,13 +383,13 @@ the sets are fixed:
 
 | Question | Kinds walked |
 | --- | --- |
-| what a diff moved — the selection walk | every kind but `type` |
+| what a diff affected — the selection walk | every kind but `type` |
 | what a subject's digest folds | every kind but `type` |
 | what a file's neighbourhood is — `variance ask locate` | every kind, `type` included |
 | which module imports a file no probe can sit in | `asset` alone |
 
 `type` is out of the first two because a type-only import is erased before
-anything runs, so a change behind one reaches no importer and moves no digest.
+anything runs, so a change behind one reaches no importer and changes no digest.
 It is in the third because a reader asking where something lives is asking about
 source, and a type a component imports is in its neighbourhood by any reading a
 person would recognise. The [execution record](execution-record.md) agrees by
@@ -419,7 +419,7 @@ is O(degree).
 | compaction | one complete segment | the publish that would make a ninth segment; no user trigger |
 | build the graph | O(n log n + m log m) | once per run, in memory |
 | node by name, name by id | O(1) | per question asked of the graph |
-| what a change moved | O(n + m), any number of seeds | `variance run --since <ref>` or `--against <ref>` |
+| what a change affected | O(n + m), any number of seeds | `variance run --since <ref>` or `--against <ref>` |
 | why a node was reached | O(length of the chain) | per *affected because* line printed |
 
 **Further:** [`source.md`](source.md) for what the scan reads and where it stops ·

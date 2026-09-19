@@ -5,7 +5,7 @@ const STAGES = [
   ["confirm", "Next reading", "unchanged"],
 ] as const;
 
-/** One state moving through the durable review loop without changing its host. */
+/** One state passing through the durable review loop without changing its host. */
 export default function ReviewLoop() {
   return (
     <div className="overflow-hidden rounded-2xl border border-hairline bg-panel p-5 sm:p-7">

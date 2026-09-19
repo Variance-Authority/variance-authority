@@ -1,6 +1,6 @@
 # Sensitivity
 
-A route test that goes red every time a colour token moves is a route test
+A route test that goes red every time a colour token changes is a route test
 nobody reads, and the usual cure — a looser threshold — also stops it noticing
 that the sidebar collapsed. A **sensitivity** is the other answer: it names the
 kinds of change a subject is under test for, so a route test and a component
@@ -15,8 +15,8 @@ does not collapse, and the regions do not overlap.
 
 A **sensitivity** declares which bands a subject asserts on. A band is the kind
 of change a comparison found, not its size. There are five, loudest first:
-`a11y` (a role, accessible name or ARIA state moved), `geometry` (boxes
-appeared, vanished, moved or resized), `token` (style values moved while
+`a11y` (a role, accessible name or ARIA state changed), `geometry` (boxes
+appeared, vanished, moved or resized), `token` (style values changed while
 structure held), `content` (text changed and nothing else did), and `texture`
 (sub-pixel raster noise). A sensitivity names the bands that matter for a given
 subject, never a size or a percentage. It is not an

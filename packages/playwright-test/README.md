@@ -180,7 +180,7 @@ laid over yours: a name Chromium located replaces your candidates for it, and a
 name it never met keeps them.
 
 Both mechanisms name a declaration. If the report must distinguish *which
-instance* of a component moved, and the subject is a production React build,
+instance* of a component changed, and the subject is a production React build,
 `@variance-authority/jsx-source` is the build instrumentation that carries each
 JSX element's own line as far as the fiber. Development React builds already
 carry it.
@@ -293,7 +293,7 @@ by.
 | `source` | Failure output should resolve components to `file:line` on an engine that cannot be asked — WebKit, Firefox, or a component that did not render. | Omitted; regions can still name components. A `SourceIndex`, built as above. |
 | `loading` | The subtree's *fallback* is the state you intend to review. | `false`. Waits for nothing, and throws if the subtree turns out to have settled (stopped showing its fallback). |
 | `suspenseTimeoutMs` | The subtree legitimately needs longer than five seconds to arrive. | `5000`. `0` skips the wait and keeps the reading. |
-| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop moved* can be said about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
+| `wiring` | Off for a page that is not React, where walking the fiber tree visits every node and finds nothing. | `true`. Reads props, context, hook cells and keys, so *a prop changed* can be said about a subtree whose markup did not. Its own band; turning it off changes no stored digest. |
 | `holdings` | Application values behind the nodes are evidence you want carried. | `false`. Changes `structureHash` — an inert wrapper survives the collapse — so both sides of a comparison must be read the same way. |
 | `sensitivity` | This subject is not asserted on in full — a themed embed, a route under an active rebrand. | Undeclared: everything is asserted on. Takes the rule that applies here, already matched: `{ rule, reason, level }`. `level` is `strict`, `layout` (asserts on `a11y` and `geometry`) or `content` (asserts on `a11y` and `content`); the rest are absorbed however large they are, and the verdict is `ignored` with the rule's id in it — which is why it is not a threshold. |
 
@@ -673,7 +673,7 @@ create a renderer, store, or acceptance lifecycle on their own.
 
 ## Watch the run from outside it
 
-Everything above is spent inside the worker: a wait settles, the test moves on,
+Everything above is spent inside the worker: a wait settles, the test continues,
 and what it heard is discarded. That is right for a wait and useless to anybody —
 a person or an agent — trying to understand a suite that is *still going*.
 

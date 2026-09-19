@@ -187,7 +187,7 @@ look once something else has said that something changed.
   region and cross a process on one cookie.
 - **Not history.** A journey is one execution. What the same subject did over
   the last forty runs is [history](history.md), and the two answer different
-  questions: history says *this keeps moving*, a journey says *here is where it
-  went this time*.
+  questions: history says *this keeps changing*, a journey says *here is
+  where it went this time*.
 - **Not a baseline.** Nothing is approved, nothing is compared against an
   earlier revision, and nothing exits non-zero.

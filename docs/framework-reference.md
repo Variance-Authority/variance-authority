@@ -40,12 +40,12 @@ creates, and the numeric work tags on the fiber behind it.
 
 There is no version check and no compatibility shim, so 16, 17 and 18 run the same
 code 19 does. The risk on them is a field that is not populated yet rather than
-a refusal. The work-tag numbers this reads have not moved since React 16, and
-the expando prefix has not moved since 17.
+a refusal. The work-tag numbers this reads have not changed since React 16, and
+the expando prefix has not changed since 17.
 
-What does move by version is call-site evidence, which is not part of wiring:
-React 18 records `_debugSource`, and React 19 replaced it with a stack React
-captures inside its own element factory.
+What does change by version is call-site evidence, which is not part of
+wiring: React 18 records `_debugSource`, and React 19 replaced it with a
+stack React captures inside its own element factory.
 [Attribution](attribution.md#what-each-build-already-knows) states what each
 build carries.
 
@@ -79,13 +79,13 @@ What it does change is the subject's **tree signature**: the owner chain plus
 the wiring at every node that carries one, in document order. A comparison of
 two full captures reads that signature and leads its output with a slice — a
 one-line triage verdict for the whole comparison, printed before anything about
-which property moved:
+which property changed:
 
 | What you did | The line the comparison prints |
 |---|---|
 | Rewrote the components, page unchanged | `refactor — the component tree changed and the page did not` |
 | Tree is a different tree and the page followed, with every input agreeing | `reshaped — the component tree is a different tree and the page followed` |
-| Nothing moved at all | `settled — the component tree, its inputs and its output all held` |
+| Nothing changed at all | `settled — the component tree, its inputs and its output all held` |
 
 So a wiring-only edit produces `refactor`: the screenshots match, which is all
 a pixel differ can tell you, and the components underneath are confirmed
@@ -94,8 +94,8 @@ notices. [Parting](parting.md#what-kind-of-difference-this-is) lists all
 eight slices and what decides between them.
 
 Two things stay out of that signature on purpose. Hook *values* — a timer, an
-animation frame, a state cell — move between two valid readings of one revision,
-so they are digested only as one-way evidence by
+animation frame, a state cell — change between two valid readings of one
+revision, so they are digested only as one-way evidence by
 [`holdingOf`](parting.md#what-it-reads), outside every hash. And remounts,
 which are a property of an interval rather than of a revision, are a finding you
 ask for around an action rather than part of any digest.
@@ -207,7 +207,7 @@ test('row 3 is keyed by its item id', () => {
 
   const wiring = wiringOf(row);
 
-  // A list keyed by array position rather than by item id: a reorder moves each
+  // A list keyed by array position rather than by item id: a reorder puts each
   // row's state onto its neighbour, and both orders serialize identically.
   expect(wiring?.key).not.toBe('2');
 
@@ -278,7 +278,7 @@ carries a complete Vitest test built around this pair.
 
 Instances across the interval match by component name, fiber depth and ordinal
 among components with the same name and depth — not by fiber identity, which a
-remount replaces, and not by component function identity, which moves on every
+remount replaces, and not by component function identity, which changes on every
 parent render for a component declared inside another function.
 
 Two unkeyed siblings with the same component name at the same depth can be

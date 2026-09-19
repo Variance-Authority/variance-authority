@@ -30,7 +30,7 @@ Here:
   graph. See [test selection](selecting.md).
 - **A difference can be told from a flake.** [Parting](parting.md) reads two
   renderings of one story and names the input that changed, or says every input
-  agreed and the output moved anyway.
+  agreed and the output changed anyway.
 
 [Comparison](comparison.md) sets the four hosted products side by side.
 
@@ -202,7 +202,7 @@ Keep `--all` for that first run and for deliberate re-baselines. It cannot tell
 a story nobody has looked at from one that changed, so after setup name subject
 ids, or use `--shape <fingerprint>` to promote one category of difference
 wherever it accounts for the whole change and refuse by name any story where
-something else moved too.
+something else changed too.
 
 ## Running this in CI
 

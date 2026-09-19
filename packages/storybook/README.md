@@ -88,7 +88,7 @@ thing in this package that touches a filesystem.
 
 ## Drive a preview page you own
 
-`collectStories` moves an already-open preview from story to story over
+`collectStories` takes an already-open preview from story to story over
 Storybook's `postMessage` channel — the same `setCurrentStory` the manager
 sidebar sends — instead of reloading for each one. N stories cost one
 navigation.

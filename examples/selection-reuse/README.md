@@ -58,8 +58,8 @@ CACHED SOURCE SELECTION — one changed token
 ```
 
 Those milliseconds are 304 files on an Apple M4 Max under Node 26.7; yours will
-differ, and the ratio moves less than the absolute numbers do. A second run here
-gave 64.8 ms cold and 28.8 ms warm — the same 2.3×.
+differ, and the ratio changes less than the absolute numbers do. A second run
+here gave 64.8 ms cold and 28.8 ms warm — the same 2.3×.
 
 Three hundred files is a demo, not a repository. For the same scan at real
 scale, [what a source scan costs](../../docs/performance.md) prices it on a

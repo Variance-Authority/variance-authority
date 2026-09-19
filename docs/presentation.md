@@ -1,6 +1,6 @@
 # Inspect presentation relationships during a UI edit
 
-You make a UI edit and the screenshot moves, which tells you the interface
+You make a UI edit and the screenshot changes, which tells you the interface
 changed without saying what changed about the way it reads. One repeated row may
 have drifted from its peers, a heading may no longer stand apart from its body,
 or two groups may have become hard to tell apart even though every word is still
@@ -171,8 +171,9 @@ another distinction matters more, and whether the edit should ship.
 
 An unchanged finding means the attempted edit did not resolve the measured
 relationship. A changed content identity means presentation and information
-moved together, so the product task must justify both. If either report lacks
-layout evidence, the relationship comparison is unavailable rather than clean.
+changed together, so the product task must justify both. If either report
+lacks layout evidence, the relationship comparison is unavailable rather than
+clean.
 
 ## What this path can and cannot establish
 

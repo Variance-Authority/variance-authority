@@ -38,7 +38,7 @@ clone of that checkout.
 
 The cache starts warm: the floor stage reads all 24,519 module files before the
 first run is timed, so even the cold-index row runs against a warm filesystem.
-Milliseconds move with the machine; the ratios between rows move much less.
+Milliseconds change with the machine; the ratios between rows change much less.
 
 The git rows and the floor rows are each the median of five timings. **Each row
 of the run table is one timing of one run.** Read the column for its shape and
@@ -219,9 +219,9 @@ git config core.untrackedCache true
 
 The monitor answers for tracked files, and it is what takes `status` from 84 ms to
 45 here. The untracked cache answers the other half of the same question — what is
-on disk that the index has never heard of — and it does not move this row, because
-these figures require a clean checkout and the walk it spares finds nothing. On
-a working tree with build output in it, that is the half that costs.
+on disk that the index has never heard of — and it does not change this row,
+because these figures require a clean checkout and the walk it spares finds
+nothing. On a working tree with build output in it, that is the half that costs.
 
 Both scale with the checkout rather than with the diff, so they matter more the
 larger the working tree gets.

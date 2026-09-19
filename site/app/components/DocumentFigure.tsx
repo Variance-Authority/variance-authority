@@ -26,7 +26,7 @@ const CAPTIONS: Record<string, string> = {
   reasoning:
     "The useful result is either one action supported by the observation or a precise account of what evidence the next question needs.",
   "evidence-field":
-    "One question chooses the evidence it needs. The result carries only the move and limit that evidence supports.",
+    "One question chooses the evidence it needs. The result carries only the action and limit that evidence supports.",
   "great-data":
     "Selected runs renew the evidence that selected them. That record also supports distillation, fewer tests, visual review, and tools with other jobs.",
   start:

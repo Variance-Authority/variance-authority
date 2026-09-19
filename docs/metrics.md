@@ -25,7 +25,7 @@ ground truth, a declared corpus, a second machine or a history of approvals —
 
 [Variance Authority](README.md) reads structure, component ownership and source
 [provenance](attribution.md) alongside pixels. That evidence is meant to replace
-_an image moved_ with a smaller decision: whether the change is real, what
+_an image changed_ with a smaller decision: whether the change is real, what
 caused it, where it is written, and which other changed regions share that
 cause.
 
@@ -124,7 +124,7 @@ independent ground truth the metric requires.
 | Can the verdict be trusted? | Intentional product changes are not missed, environment changes are not called product changes, and unavailable evidence remains visible | M4, M5, M9 |
 | Does the explanation reduce review? | A declared changed file and the responsible component rank ahead of collateral movement, and one cause can cover several regions without false grouping | M1, M2, M7 |
 | Is the evidence affordable to obtain? | Machine cost, integration work and external prerequisites are counted together rather than inferred from one fast operation | M3, M6 |
-| Does retained evidence add value over time? | Individually accepted changes can still reveal cumulative movement | M8 |
+| Does retained evidence add value over time? | Individually accepted changes can still reveal cumulative drift | M8 |
 
 No row substitutes for another. Accurate attribution does not excuse a false
 `unchanged`; fast comparison does not establish low adoption cost; review
@@ -207,7 +207,7 @@ transfers.
 ### M4a. False alarms
 
 **Question:** does an unchanged product report `changed` because the rendering
-environment moved?
+environment changed?
 
 Synthetic cases vary one input at a time: text rasterization, scale, browser
 engine, font declaration, scrollbar behavior and capture order. A correctly
@@ -273,7 +273,7 @@ unattributed regions. Area is the null ranking model: a ranking must outperform
 ## M8. Accumulated drift
 
 **Question:** can a sequence of individually approved changes reveal cumulative
-movement of a token in a component?
+drift of a token in a component?
 
 **Unit:** one token-and-component pair across approved revisions.
 

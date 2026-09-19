@@ -96,8 +96,9 @@ test-retention decisions read.
 Visual regression asks whether a rendered state differs from an accepted one. To
 act on that answer you need more than the two images: which subject was
 rendered, whether the state had finished arriving, what semantic and
-accessibility information moved, which component owned the changed region, which
-source could have reached it, and whether several diffs are echoes of one cause.
+accessibility information changed, which component owned the changed region,
+which source could have reached it, and whether several diffs are echoes of one
+cause.
 
 That is the same [evidence field](evidence-field.md) the readings above draw on:
 

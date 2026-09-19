@@ -105,7 +105,7 @@ distances in the token's own unit.
 | option | default | what it decides |
 |---|---|---|
 | `minSteps` | `2` | fewest value changes that can constitute a journey. Below it, this is one edit somebody made on purpose and already reviewed |
-| `minRatio` | `2` | least ratio of total travel to the largest single step. The ratio *is* the finding — it says how thinly the change was spread, which is exactly how it got past eleven correct reviews. A token that moved 8px in one 8px step has a ratio of 1 and nothing to report |
+| `minRatio` | `2` | least ratio of total travel to the largest single step. The ratio *is* the finding — it says how thinly the change was spread, which is exactly how it got past eleven correct reviews. A token that changed by 8px in one 8px step has a ratio of 1 and nothing to report |
 
 `null` means the values were recorded, they were read, and they did not add up to
 a journey. One case never answers `null`: a journey whose `limit` excluded values
@@ -121,12 +121,12 @@ pixels, never images, never coordinates.**
   output begins. A component rendered three times in a subject has three.
 - A **band hash** is a digest of one part of what a boundary rendered:
   `structure`, `style`, or `geometry`. Three bands, three digests, taken from the
-  semantic snapshot rather than from the image — so the hash moves when the
-  component's own code moves, and it means the same thing on every machine.
+  semantic snapshot rather than from the image — so the hash changes when the
+  component's own code changes, and it means the same thing on every machine.
 - A **subject** is one named UI state you asked for and can ask for again: a
   story, a route, a fixture, a value.
 
-A row is written only when a hash moves, and is roughly a hundred bytes: a
+A row is written only when a hash changes, and is roughly a hundred bytes: a
 300-subject run in which two components changed writes two rows plus the run
 itself. Quiet runs are recorded too — they are the denominator every rate divides
 by.

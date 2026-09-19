@@ -10,8 +10,8 @@ Your jsdom tests already mount components and assert on them. This package
 writes each mounted state to disk as a *capture*: the markup, the CSS that
 applies to it, and the bytes of every resource it references. One later
 `variance run` opens Chromium once, paints every capture the suite produced,
-compares each image against the one you approved, and reports what moved. You
-get visual coverage of the components you already cover, without a second
+compares each image against the one you approved, and reports what changed.
+You get visual coverage of the components you already cover, without a second
 Playwright or Storybook suite for them.
 
 Each comparison is keyed by a **subject id** — one named UI state you asked for

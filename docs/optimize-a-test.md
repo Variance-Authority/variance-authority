@@ -5,9 +5,9 @@ them costs while it runs, and it does not change how often the next edit reaches
 it. Both of those are properties of the boundary the test loads.
 
 A test that imports a module runs that module's top level whether or not it ever
-calls into it. You pay for the load on every run, and the file graph moves the
-test whenever that module changes — so an import nothing exercises is a cost in
-both halves of this chapter at once.
+calls into it. You pay for the load on every run, and the file graph selects
+the test whenever that module changes — so an import nothing exercises is a
+cost in both halves of this chapter at once.
 
 ## What to read before you change a boundary
 

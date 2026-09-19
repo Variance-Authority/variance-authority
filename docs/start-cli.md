@@ -273,7 +273,7 @@ Three exit codes, and a verdict never shares one with a crash:
 | `1` | the run completed and found something a person must decide about. |
 | `2` | the run did not happen as configured — bad config, missing browser, unreachable store. Never a statement about your UI. |
 
-Six things move a completed run to `1`: a `changed`, `new` or `incomparable`
+Six things take a completed run to `1`: a `changed`, `new` or `incomparable`
 verdict; a subject the run meant to observe and could not; a subject that was
 read twice with nothing changed in between and disagreed with itself, outside
 what it declared it asserts on; and an `error` diagnostic, which means the run

@@ -51,7 +51,7 @@ theory — after the evidence of what happened has gone.
 A useful model of a change is not just before and after.
 
 The exact pieces differ by system; the shape does not. Something starts in one
-condition, something acts on it, work happens, state moves, and an observable
+condition, something acts on it, work happens, state changes, and an observable
 result appears.
 
 A regression can enter anywhere along that path. The wrong state may be
@@ -66,7 +66,7 @@ something changed.
 ## Variance comes before regression
 
 A regression does not require a failing test. It does not require a test at
-all. It is a system moving away from something you meant to preserve. A test
+all. It is a system diverging from something you meant to preserve. A test
 codifies one such intention and tells you the moment it no longer holds;
 without that assertion the change still happened, and you need another
 observation to find it.
@@ -88,7 +88,7 @@ intention, change the system, look at what happened, adjust your understanding,
 and change it again. Sometimes you are building something new, sometimes
 repairing damage, sometimes bending an existing abstraction until it serves
 another case, sometimes removing code while proving that nothing anyone depends
-on moved with it.
+on changed with it.
 
 The question is the same every time: what did this change actually do? The
 faster and more precisely you can answer it, the safer it becomes to change the
@@ -97,8 +97,8 @@ system again.
 Driven by inference, that loop is read the diff, run something, look at the
 page, search the code, add a log, run it again. Driven by evidence, those
 become readings of one change: what source could be reached, what execution
-entered, what state moved, what the interface exposed, and where the difference
-came from.
+entered, what state changed, what the interface exposed, and where the
+difference came from.
 
 The goal is not to collect everything. It is to retain enough of the path that
 the next question can be answered without recreating the event from scratch.
@@ -108,7 +108,7 @@ the next question can be answered without recreating the event from scratch.
 No single observation describes a whole change.
 
 Source tells you what could be connected. Execution tells you what was actually
-entered. State tells you what moved inside the running system. The interface
+entered. State tells you what changed inside the running system. The interface
 tells you what became externally distinguishable. History tells you whether the
 same thing has happened before. Each is partial; together they connect cause to
 effect.
@@ -136,10 +136,10 @@ Kept at depth — fine-grained evidence of what code did, across hundreds of
 thousands of files and tests, over time — that middle answers a question from
 the record, instead of sending you to run the whole suite again to find out.
 
-## Observe enough to make the next move
+## Observe enough to choose what to do next
 
-The point of observing a change is not a larger report. It is a defensible next
-move.
+The point of observing a change is not a larger report. It is a defensible
+choice of what to do next.
 
 Maybe the effect is exactly what you intended and you continue. Maybe one
 changed component explains twenty changed states. Maybe the visible symptom
@@ -155,4 +155,4 @@ another point of observation.
 Software changes by moving through paths. Tests preserve [the ones you cared
 enough to codify](tests.md#high-level-is-a-strength-and-a-blind-spot). That is
 their strength. Keeping the rest is what prevents that strength becoming a
-blind spot, and lets you explain what happened while the system moved.
+blind spot, and lets you explain what happened while the system ran.

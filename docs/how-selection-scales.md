@@ -145,7 +145,7 @@ of exact numbers is a run of small gaps, which compresses.
 The database keeps one promise you can rely on: **adding a file never changes
 the number of a file that already has one.** Add a module in the middle of a
 directory, rename a sibling, grow the repository by a thousand paths — nothing
-already numbered moves.
+already numbered is renumbered.
 
 Paths are stored in sorted order, so a lookup can binary-search them and so
 neighbouring paths share a prefix worth front-coding away; on 200,000 monorepo
@@ -265,7 +265,7 @@ ceiling you can afford to hit deliberately.
 ## The source index keeps the answer honest
 
 Runtime evidence describes the source the tests actually ran. It cannot, by
-itself, know that today's edit introduced a new import path or moved a
+itself, know that today's edit introduced a new import path or changed a
 relationship the previous run never observed.
 
 The [source index](source-index.md) supplies that other half:

@@ -41,7 +41,7 @@ const MIDDLE = [
   },
   {
     label: "state",
-    detail: "what moved inside",
+    detail: "what changed inside",
     mark: (
       <>
         <rect x="8" y="9" width="25" height="7" rx="2" fill="none" stroke="#756d67" strokeWidth="1.5" />
@@ -67,7 +67,7 @@ const MIDDLE = [
 const READINGS = [
   { label: "source", question: "what could be reached", tone: "quiet" },
   { label: "execution", question: "what was entered", tone: "orange" },
-  { label: "state", question: "what moved", tone: "orange" },
+  { label: "state", question: "what changed", tone: "orange" },
   { label: "interface", question: "what became observable", tone: "ivory" },
 ] as const;
 
@@ -141,7 +141,7 @@ export function ChangePath() {
     <div
       className="overflow-hidden rounded-2xl border border-hairline bg-panel p-5 sm:p-7"
       role="img"
-      aria-label="A change begins in one condition and ends in another. Between them, retained evidence records the stimulus, execution path, changed state, and observable effect. A test can report that its promised path held while the change reading reports that something else moved."
+      aria-label="A change begins in one condition and ends in another. Between them, retained evidence records the stimulus, execution path, changed state, and observable effect. A test can report that its promised path held while the change reading reports that something else changed."
     >
       <div className="grid items-center gap-3 lg:grid-cols-[0.7fr_auto_3fr_auto_0.7fr]">
         <Endpoint label="beginning" side="start" />
@@ -179,7 +179,7 @@ export function ChangePath() {
         <div className="flex items-center gap-3 bg-deep px-4 py-3">
           <span className="h-2 w-2 shrink-0 rotate-45 bg-orange" />
           <p className="!m-0 font-mono text-[10px] tracking-[0.08em] text-quiet">
-            change reading · something else moved
+            change reading · something else changed
           </p>
         </div>
       </div>
@@ -193,7 +193,7 @@ export function EvidencePath() {
     <div
       className="overflow-hidden rounded-2xl border border-hairline bg-panel p-5 sm:p-7"
       role="img"
-      aria-label="Source, execution, state, and interface are separate readings along one change. Source says what could be reached, execution says what was entered, state says what moved, and the interface says what became observable."
+      aria-label="Source, execution, state, and interface are separate readings along one change. Source says what could be reached, execution says what was entered, state says what changed, and the interface says what became observable."
     >
       <div className="hidden items-center sm:flex">
         {READINGS.map((reading, index) => (

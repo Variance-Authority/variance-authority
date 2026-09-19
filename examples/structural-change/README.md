@@ -50,7 +50,7 @@ yarn vitest run examples/structural-change/src/structural.chromium.test.ts --rep
 ## Does a finding like this fail the build?
 
 It is reported as a change, and a change holds the run open. A role or
-accessible-name move lands in the `a11y` band — the loudest of the frequency
+accessible-name change lands in the `a11y` band — the loudest of the frequency
 bands that decide how a kind of change is reported — and `variance run` exits
 `1`, which the CLI reserves for *the run happened and found something a person
 must decide about*. Exit `2` is reserved for *the run did not happen as

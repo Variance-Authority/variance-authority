@@ -87,8 +87,8 @@ page:
 
 | slice | the edge was |
 | --- | --- |
-| `variation` | the Act moved state and the page followed. It did what it meant to |
-| `absorbed` | an input moved and the page did not. The Act landed on nothing |
+| `variation` | the Act changed state and the page followed. It did what it meant to |
+| `absorbed` | an input changed and the page did not. The Act landed on nothing |
 | `reshaped` | a different component tree from the same inputs — a boundary resolved |
 
 *Snapshot, click, snapshot* and *snapshot, wait for a boundary, snapshot* reach

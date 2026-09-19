@@ -174,8 +174,8 @@ is `entry`.
 each child region replaced by a `NUL`-framed `kind:name:path` placeholder. So
 the digest changes when the block's own statements change and does not
 change when a nested region's body does: the condition of an `if` belongs to
-the region around it, and editing the condition moves that region's digest
-while editing one arm moves only the arm's. A synthesized region, an `else`
+the region around it, and editing the condition changes that region's digest
+while editing one arm changes only the arm's. A synthesized region, an `else`
 nobody wrote or a `default` nobody wrote, has zero width and digests to its
 kind alone.
 
@@ -230,9 +230,9 @@ The eight blocks, with the owner chain that gives each its identity:
 Block 5 is the `else` nobody wrote: zero width, and still a place control
 reached. Block 3's text spans from the statement after the loop to the end of
 the function, and its digest is computed with blocks 4, 5 and 6 replaced by
-their placeholders, so an edit to `return sum * 0.9` moves block 4's digest
+their placeholders, so an edit to `return sum * 0.9` changes block 4's digest
 and leaves block 3's alone. The loop header `for (const item of items)` is
-block 1's text, so editing it moves the function's entry digest.
+block 1's text, so editing it changes the function's entry digest.
 
 Ordinals run on through the module: `label` is block 7 because seven blocks
 were opened before its body, and a third function would take 8. Both
@@ -270,7 +270,7 @@ deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
 is demoted to incomplete and selected whole next time.
 
-**A digest that moved is selection's business, not the merge's.** It says the
+**A digest that changed is selection's business, not the merge's.** It says the
 region's own text changed, and the tests to run are the ones recorded against
 that region — which is the crossing. Reading a digest as a reason to discard
 the crossing would throw away the evidence the change is about to be answered
@@ -285,11 +285,12 @@ retire every crossing in the file.
 | `total` renamed | those of the root and `label` | whole |
 
 **A module the run did not load** is carried, and its rows are lines of the
-text it had when it was recorded. When that text has since moved, the regions
-are read out of the text standing there now and each crossing is carried onto
-the region with its address, so the rows are in coordinates the next diff will
-be in. A module whose text cannot be read as source has no table to place them
-in: it is carried as it was, and every test that entered it is demoted.
+text it had when it was recorded. When that text has since changed, the
+regions are read out of the text standing there now and each crossing is
+carried onto the region with its address, so the rows are in coordinates the
+next diff will be in. A module whose text cannot be read as source has no
+table to place them in: it is carried as it was, and every test that entered
+it is demoted.
 
 ### From a crossing back to a line
 
@@ -337,9 +338,9 @@ every importer of the module consumed.
 
 The file you located above carries two numbers. One is the
 model version: what `TestCoverage` means, stated by a producer and carried
-through a merge. The other is the byte layout, which moves when the model does
-not; a file written under another layout is refused rather than reinterpreted.
-The container is a `u32` little-endian
+through a merge. The other is the byte layout, which changes when the model
+does not; a file written under another layout is refused rather than
+reinterpreted. The container is a `u32` little-endian
 header length, a JSON header `{ version, sections }` padded with `NUL` so the
 payload starts on an 8-byte boundary, and then the sections. Each entry in
 `sections` carries `name`, `offset` from the start of the payload, `length` in
@@ -457,7 +458,7 @@ fifteen entries. On two hundred thousand monorepo paths that is 22 bytes a path
 against 50 stored plainly. The id is a column beside the entries rather than
 the position of one, which is what lets storage order be the sorted order:
 nothing about where a path sits decides what it is called, so a file added
-today moves nobody numbered before it.
+today renumbers nobody numbered before it.
 
 **Growth.** The table rides the immutable log
 ([`source-structures.md`](source-structures.md) has its shape): an append is a
@@ -583,7 +584,7 @@ below is one stage of that call.
    two rows, and the answer is all of them. Every changed path is also asked of
    the precondition table, O(P), whatever its rows say: a row answers which
    tests entered which regions, a precondition says the observation is void if
-   the file's text moves at all, and the two are not the same sentence. A row
+   the file's text changes at all, and the two are not the same sentence. A row
    does buy the path out of *unread*, which is why a module nothing declares is
    still measured.
 5. **Files the record cannot see.** Hand the relations graph in through
@@ -824,7 +825,7 @@ did not observe. When the instrumentation id differs the previous record is
 dropped whole. A test the run observed replaces its previous row. A test the
 run did not observe keeps its row, unless the new table holds no region it
 crossed at all, in which case it is demoted to incomplete and re-runs on its
-next selection. A carried module whose text on disk moved has its rows re-cut
+next selection. A carried module whose text on disk changed has its rows re-cut
 over that text, one parse per such module, and only a module whose text cannot
 be parsed demotes every test that crossed it. Both sides are indexed before the
 walk — modules by path, blocks by their address, name path and structural path
@@ -900,7 +901,7 @@ file costs you one full run and never a narrowed one.
 | number what a run met | O(M log M), the compaction it publishes beside the delta | the fold, at the end of a run |
 | record drained subjects | O(hits + modules reported) | `recordExecution` |
 | merge with the previous record | O(M_prev + M_cur + Σ B) | `mergeCoverage` |
-| re-cut a carried module's rows | O(module length) | `mergeCoverage`, per moved module |
+| re-cut a carried module's rows | O(module length) | `mergeCoverage`, per changed module |
 | fold shards | O(Σ shard rows) | `foldTestCoverage` |
 | encode | O(r log r) | `writeTestCoverage` |
 

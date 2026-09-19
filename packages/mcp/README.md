@@ -83,7 +83,8 @@ from the one loaded at startup.
 ## What an answer looks like
 
 Every tool returns text, not JSON. `variance_changes` on a run where a brand
-colour moved in `Button` and a radius token moved in `Card`, across 35 stories:
+colour changed in `Button` and a radius token changed in `Card`, across 35
+stories:
 
 ```
 35 subject(s) changed, and they are 2 distinct change(s) — 2 of which can be decided in one action
@@ -229,7 +230,7 @@ three different people:
 
 | label | what happened | what to do |
 |---|---|---|
-| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what moves between readings; the named component and band say where. Do not review the pixel regions — which ones appear was decided by a race |
+| `unstable` | read twice, seconds apart, nothing changed in between, and the two readings disagreed | fix what changes between readings; the named component and band say where. Do not review the pixel regions — which ones appear was decided by a race |
 | `order-dependent` | the difference is gone when the subject is collected with nothing else in the world | do not change the component; bisect run order to find the subject that writes the state this one reads |
 | `changed` | it survived both | review it |
 
@@ -383,7 +384,7 @@ stopped and where, and prints whatever they sent from those points;
 `variance_continue` takes one id, or nothing at all to release everything.
 
 Neither is offered by `variance ask`. A shell command holds no run, so there is
-nothing in it to release, and one that reported success while nothing moved
+nothing in it to release, and one that reported success while nothing happened
 would be worse than a missing one.
 
 `variance_test_signals` is the one a timeout cannot give. A runner reports what a test

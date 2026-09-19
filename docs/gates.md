@@ -46,11 +46,11 @@ the run to `1`:
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |
 | an observation carries an `error` diagnostic | the run looked at less than the subject — a stylesheet it could not reach, say — so the images agree about something smaller than what you asked for |
 
-Three things deliberately do not move it: an `ignored` verdict, where every
-moved pixel fell inside a subtree you excluded; a subject your own configuration
-excluded; and a `warn` diagnostic, which states a standing limit of the
-configuration rather than a finding. All three are recorded either way; what
-changes is whether they hold the build open.
+Three things deliberately do not take it there: an `ignored` verdict, where
+every moved pixel fell inside a subtree you excluded; a subject your own
+configuration excluded; and a `warn` diagnostic, which states a standing limit
+of the configuration rather than a finding. All three are recorded either way;
+what changes is whether they hold the build open.
 
 Posting the result to the pull request is not part of the gate. `npx variance
 comment` writes a comment body and posts nothing — the posting stays with

@@ -109,8 +109,8 @@ happened.
 | | when | roughly |
 |---|---|---|
 | The run itself | always, including runs where nothing changed | one row |
-| A component hash | when it changes | one row per `(subject, component, band, profile)` that moved — a **band** is the kind of difference (`a11y`, `geometry`, `token`, `content`, `texture`), a **profile** is the named browser and engine setup the run captured it under |
-| A resolved token | when a token's value moved | one row per token |
+| A component hash | when it changes | one row per `(subject, component, band, profile)` that changed — a **band** is the kind of difference (`a11y`, `geometry`, `token`, `content`, `texture`), a **profile** is the named browser and engine setup the run captured it under |
+| A resolved token | when a token's value changed | one row per token |
 | An instability | every time a subject fails to read the same way twice | one row per named cause |
 
 **Quiet runs are recorded.** Churn is a fraction, and a store that only hears
@@ -119,7 +119,7 @@ from runs in which something changed has no denominator — it would report
 
 A row is roughly a hundred bytes. A 300-subject run in which two components
 changed writes two of them, plus the run: each run reads what is already
-recorded before it writes, and sends only movement.
+recorded before it writes, and sends only what changed.
 
 ## What you get back
 

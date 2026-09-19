@@ -92,8 +92,8 @@ fingerprint at all; they are never folded into a catch-all.
 
 ### What you get
 
-For a run where a brand accent moved `Button` in two stories and on the checkout
-route, and spacing moved `Card` on that same route:
+For a run where a brand accent changed `Button` in two stories and on the
+checkout route, and spacing moved `Card` on that same route:
 
 ```
 3 subject(s) changed, and they are 2 distinct change(s) — 1 of which can be decided in one action
@@ -174,10 +174,10 @@ Three further fields are present only when the run had something to put in them:
   carries the second half alone, which is what makes the option visible to a
   reader who never passed one. Absent `index` means there is nothing to diff
   from; it never means the index is current, which is `changed: 0`.
-- `drift` — design tokens whose value moved in this run, each with what it moved
-  from, what it moved to, and how many approved steps it took to get there. This
-  is what a single comparison structurally cannot reach: eleven correct 2px
-  approvals sum to a 22px move nobody reviewed.
+- `drift` — design tokens whose value changed in this run, each with what it
+  changed from, what it changed to, and how many approved steps it took to get
+  there. This is what a single comparison structurally cannot reach: eleven
+  correct 2px approvals sum to a 22px move nobody reviewed.
 - `journeys` — for a build instrumented with `testSelectionProbes()` from
   `@variance-authority/sense`, the modules where the run's subjects entered
   different regions of the source, plus the pool of subjects that answer is drawn

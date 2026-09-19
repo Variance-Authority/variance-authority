@@ -41,8 +41,8 @@ Two of those attention lines are not verdicts about a component:
 
 - `[unstable]` — the subject was read twice, seconds apart, with nothing changed
   in between, and the two readings disagreed. The line names the component that
-  moved and the band it moved in (`content`, `geometry`, `token`, `a11y` or
-  `texture`), and `accept` refuses the subject.
+  differed and the band it differed in (`content`, `geometry`, `token`, `a11y`
+  or `texture`), and `accept` refuses the subject.
 - `[order-dependent]` — the subject changed under the shared session and matched
   its baseline when collected alone. The writer of the shared state is not
   named; module-level state is outside anything a render can see.
@@ -104,7 +104,8 @@ Applitools.
 Observation does not decide by itself. Rules and approvals state what the
 evidence permits; [changelog](changelog.md) retains why an accepted baseline
 changed; [history](history.md) finds causes that recur; and [sharing](sharing.md)
-moves evidence between systems without moving the authority to interpret it.
+moves evidence between systems without handing over the authority to
+interpret it.
 
 The answer can arrive as a report, a test failure, the CLI, MCP, or a workspace
 API. [Agent workflows](agent-workflows.md) route a question to retained evidence, a live

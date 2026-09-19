@@ -14,7 +14,7 @@ React components put it there:
 - the **owner chain** — the composite components enclosing the node, innermost
   first;
 - a **props digest** at each of them — a hash of that component's own props,
-  excluding `children`, so a change below a component does not move its digest;
+  excluding `children`, so a change below a component does not alter its digest;
 - **`createdBy`** — the component whose JSX authored the element, which differs
   from the innermost owner whenever a component is passed as a prop;
 - the file and line, when the build recorded one, or a shortlist of candidate
@@ -128,7 +128,7 @@ the duration of one capture. Owner chains overlap heavily, so the same props
 object is otherwise digested once per descendant: measured on MUI's
 `docs-product-x/XHero`, 27,950 calls over 1,470 distinct objects. Create one per
 capture and never reuse it across two, since React keeps a prop's identity while
-its contents move.
+its contents change.
 
 ```ts
 import { digestPass, provenanceOf } from '@variance-authority/react';

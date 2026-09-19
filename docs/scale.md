@@ -309,7 +309,7 @@ carried linearly to a size no one has measured.
 | a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.1 GB | ~770 MB, a floor |
 
 The index column is a range, not a point, because the rate is: across the three
-real projects above it runs 318 B to 556 B per file, and what moves it is edges
+real projects above it runs 318 B to 556 B per file, and what sets it is edges
 per file. Carried to 200,000 files that is 60 MB to 110 MB, and to 2,000,000 it
 is ten times that. The 67.3 MB the synthetic shape measured sits inside the
 range, near its floor.
@@ -565,7 +565,7 @@ at twenty thousand subjects a saturated word means ranking tens of thousands of
 entries, and no amount of index structure makes a word that fails to
 distinguish distinguish. That is a ranking problem rather than a storage one,
 and [what a starting point is worth](lexicon.md#what-a-starting-point-is-worth)
-is the measurement of the lever that moves it.
+is the measurement of what changes it.
 
 ## What these numbers are, and are not
 
@@ -595,8 +595,8 @@ would have failed.
   runs the suite, correctly, and that is not an improvement over running the
   suite.
 - **A suite whose cost is not in the tests.** If the wall clock is build,
-  install and container start, skipping most of the test files moves very
+  install and container start, skipping most of the test files saves very
   little.
 - **A tree that never gets recorded over.** Line ranges are coordinates in the
-  text the suite ran over, and a module whose text has moved since is charged
-  whole.
+  text the suite ran over, and a module whose text has changed since is
+  charged whole.

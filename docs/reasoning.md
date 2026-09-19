@@ -96,8 +96,8 @@ select work, attribute a cause, guide an investigation, or show that another
 observation is needed. The result carries its subject, conditions, provenance,
 and boundary so the next person can understand why it is useful.
 
-The goal is enough confidence for one defensible move, with no claim about the
-parts of the codebase that were not observed.
+The goal is enough confidence for one defensible decision, with no claim about
+the parts of the codebase that were not observed.
 [Information model](information.md) defines how the question and its boundaries
 survive in retained evidence. [Metrics](metrics.md) defines the population and
 denominator behind every measured claim.
@@ -109,7 +109,7 @@ An unavailable reading is absent, never an empty result. A first observation is
 `incomparable`, not different. A capability that did not observe a band reports
 it as unobserved rather than silently clearing it.
 
-When the evidence cannot carry the intended decision, the next move is one of:
+When the evidence cannot carry the intended decision, the next step is one of:
 
 - narrow the claim to what was observed;
 - widen the observation;

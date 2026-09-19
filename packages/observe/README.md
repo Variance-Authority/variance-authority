@@ -244,12 +244,12 @@ as a mismatch between the acquired subject size and the painted image.
 
 `moved` and `relaxed` report **bands** — the kind of change, not its size.
 There are five, loudest first: `a11y` (a role, accessible name or ARIA state
-moved), `geometry` (boxes appeared, vanished, moved or resized), `token` (style
-values moved while structure held), `content` (text changed and nothing else
-did), `texture` (sub-pixel raster noise). A band is the unit a sensitivity is
-declared against: a rule that absorbs `texture` and `token` still reports a
-`geometry` move, and `relaxed` names the rule, the level and the bands it
-actually absorbed here.
+changed), `geometry` (boxes appeared, vanished, moved or resized), `token`
+(style values changed while structure held), `content` (text changed and
+nothing else did), `texture` (sub-pixel raster noise). A band is the unit a
+sensitivity is declared against: a rule that absorbs `texture` and `token`
+still reports a `geometry` change, and `relaxed` names the rule, the level and
+the bands it actually absorbed here.
 
 `causes` and `moved` are absent whenever neither side carries component hashes — a
 baseline written before they existed, a store that dropped them, or a run with

@@ -126,8 +126,8 @@ records, not a compilation, and the module records come from the source index
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 keeps: git names each file's content without opening it, the digest names what
 parsing that content produced, and a file that did not change is never opened
-twice. A repository where nothing moved answers out of that index; one where ten
-files moved parses ten files.
+twice. A repository where nothing changed answers out of that index; one where
+ten files changed parses ten files.
 
 ### Say where you are standing
 
@@ -425,7 +425,7 @@ mixed into the answer to the word you typed. A README passage is returned only w
 as a whole word, and it arrives labelled with the file it came from.
 
 It does not serve source. `uses` names the story, the test and the file, with
-the line to open; reading them is your move, against the file as it is rather
+the line to open; reading them is your job, against the file as it is rather
 than as it was when the reading was taken.
 
 It does not rank on prose. `search` is a case-insensitive substring match over

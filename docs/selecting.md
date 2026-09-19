@@ -123,8 +123,8 @@ a file in. A changed file inside them that the scan did not read is a gap and
 forces a whole run. A changed file outside them is ignored when another in-scope
 change gives selection an answer; when the whole diff is outside the graph or
 the declared directories, the run is whole because the diff says nothing about
-which component moved. That is why `README.md` beside a component edit does not
-widen the run, while a diff containing only `README.md` does.
+which component changed. That is why `README.md` beside a component edit does
+not widen the run, while a diff containing only `README.md` does.
 
 ## A change nothing has been seen rendering
 
@@ -202,7 +202,7 @@ The graph trusts the text, and the text is wrong in one known way: a test that
 calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
 scan reads those calls off test, story and setup files as it goes, and the
 mocked module is taken out of the graph as seen from that file at every level —
-the test is not moved by a change to the module it replaced, nor by one to
+the test is not selected by a change to the module it replaced, nor by one to
 anything only that module reaches. A `source.taints` table says the same for
 what no reader can see, a framework's own import notation, in the other
 direction as well: `+` rows for imports the text does not write.
@@ -298,8 +298,8 @@ flowchart LR
 
 **Beyond reach** is the far right: a dependency bump. Nothing in the diff names
 a file you wrote, and yet the code that imports the bumped package renders
-differently. That end is reachable, because the thing that moved has a name and
-your files say the name.
+differently. That end is reachable, because the thing that changed has a name
+and your files say the name.
 
 **Before reach** is the far left: the node version, the harness config, the
 bundler setup. Nothing imports them and they change everything downstream of
@@ -315,11 +315,11 @@ by the same walk, from a seed at the other end of the line.
 
 | The diff says | Selection does |
 | --- | --- |
-| `@mui/material` moved | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
-| `jsdom` moved, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
-| `@mui/material` moved and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
-| Only a `type` import reaches the moved package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
-| A file that imports the moved package was never measured | The whole suite runs. The record cannot say what entered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
+| `@mui/material` bumped | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
+| `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
+| `@mui/material` bumped and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
+| Only a `type` import reaches the bumped package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
+| A file that imports the bumped package was never measured | The whole suite runs. The record cannot say what entered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
 
 Which **copy** of a package an importer got is not asked. A specifier names
 `@mui/material`; which of the installed instances a resolver hands it is
@@ -332,9 +332,9 @@ direction.
 `package.json` is a request, the lockfile is the answer, and neither is a
 changed file here. They are read at two revisions — the base and the working
 tree — and compared as installs, which is a different question from *did this
-file's bytes move*:
+file's bytes change*:
 
-- A workspace edit rewrites `yarn.lock` and moves no package. Counted as a
+- A workspace edit rewrites `yarn.lock` and changes no package. Counted as a
   changed path it would widen the run; compared as an install it contributes
   nothing.
 - A resolution or an override changes what `^4.17.21` means without changing the
@@ -355,7 +355,7 @@ along and no answer smaller than the whole suite. That much is decided for you.
 What is not decided is whether the run notices.
 
 A diff that is *only* a config file already runs everything, because a diff no
-part of which is in the graph says nothing about which component moved. That
+part of which is in the graph says nothing about which component changed. That
 stops holding the moment anything else is in the diff. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
@@ -373,8 +373,8 @@ Name the files the run rests on and it stops being an accident:
 ```
 
 Each entry is matched against the diff by path, so naming a directory of
-workflows is one line rather than one per file. When one of them moves, the run
-is whole and the report says which file put it there.
+workflows is one line rather than one per file. When one of them changes, the
+run is whole and the report says which file put it there.
 
 Which paths govern a run is a fact about your repository, and no rule derives
 it. *Every changed path the graph does not hold* would be the README, the
@@ -430,7 +430,7 @@ the run says so in a note.
 
 The cost is real and it is yours to spend. A config that imports your bundler
 rests on everything that bundler rests on, so a bump inside that set widens the
-run. That is the correct answer, because the harness did move; a repository
+run. That is the correct answer, because the harness did change; a repository
 that finds it too wide narrows what it declares.
 
 ### Where the two ends meet
@@ -481,7 +481,7 @@ nothing else.
 
 There is one bounded exception to that invalidation rule. Git-ignored generated
 files do not enter the digest map, so one can appear or disappear and shadow a
-resolution without moving the recorded directory membership. Track the file
+resolution without changing the recorded directory membership. Track the file
 when it participates in source resolution, or set `digests: false` to disable
 record reuse for a scan that must observe that generated layout directly.
 

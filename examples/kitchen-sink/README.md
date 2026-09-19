@@ -5,9 +5,9 @@ that produces them. It holds a small component library and a table of 40 cases
 over 8 subjects. A **subject** is one named UI state you can ask for again —
 here one component composition, such as `button` or `dialog`. A **case** is two
 renders of one subject plus the answer they should produce: `hash-stable` where
-nothing a user could perceive moved, `hash-changed` where something did. Because
-the answer came first, a run that agrees is evidence and a run that disagrees is
-a defect report rather than a discussion.
+nothing a user could perceive changed, `hash-changed` where something did.
+Because the answer came first, a run that agrees is evidence and a run that
+disagrees is a defect report rather than a discussion.
 
 What is being scored is **normalization** — the pass that turns a raw DOM
 capture into the semantic snapshot a verdict is decided from: ids replaced by
@@ -174,7 +174,7 @@ token overrides applied inline on the subject root routed around a hole where
 | Path | What it is |
 | --- | --- |
 | [`src/corpus.ts`](src/corpus.ts) | Assembles the 40 cases and resolves a row against a collection path |
-| [`src/corpus-stable.ts`](src/corpus-stable.ts) | The no-op refactors — expected not to move the hash |
+| [`src/corpus-stable.ts`](src/corpus-stable.ts) | The no-op refactors — expected not to change the hash |
 | [`src/corpus-restyled.ts`](src/corpus-restyled.ts), [`src/corpus-restructured.ts`](src/corpus-restructured.ts) | The real changes, each with a declared band |
 | [`src/subjects.tsx`](src/subjects.tsx), [`src/variants.ts`](src/variants.ts) | The 8 subjects, and the complete description of how one was rendered |
 | [`src/components/`](src/components) | The library under test — `Button`, `Card`, `Dialog`, `Field`, `Hero`, `ItemList`, `Tabs`, `Wrappers` |

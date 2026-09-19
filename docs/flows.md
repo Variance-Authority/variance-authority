@@ -115,7 +115,7 @@ maintains the `.gitattributes` tracking declaration beneath its root. A checkout
 that still holds LFS pointer text where an image belongs is refused by name, so
 an unfetched pointer reads as a setup failure rather than as a changed image.
 
-Choose this when the baseline and its reason should move in the same repository
+Choose this when the baseline and its reason belong in the same repository
 change as the code. Acceptance writes files into your working tree; reviewing and
 committing them is yours, and no CI credential does it for you.
 

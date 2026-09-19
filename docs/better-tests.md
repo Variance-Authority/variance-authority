@@ -10,7 +10,7 @@ This page is about spending that record on the rest of your suite. A suite that
 grows usually gives you longer waits, failures nobody trusts, and a larger CI
 bill, and the usual answers are more machines, more retries, and rebuilding the
 environment between tests. What the previous run recorded buys you four other
-moves: reusing an open page instead of starting a browser per capture,
+answers: reusing an open page instead of starting a browser per capture,
 separating a timing flake from a shared-state one, running the tests a change
 actually reached, and finding the dependencies a test loads but never calls.
 

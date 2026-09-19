@@ -181,8 +181,8 @@ Into somebody else's package, nothing. A memoized value inside a dependency you
 do not author has no place to put a handler, and the answer there is to observe
 the coupling rather than to clear it — `npx variance run` reads a changed
 subject (one named UI state you asked for and can ask for again) twice and names
-both the component that moved and the band it moved in: the kind of thing that
-changed, such as text, geometry or accessible name.
+both the component that changed and the band it changed in: the kind of thing
+that changed, such as text, geometry or accessible name.
 
 ## Why the gate is the driver and not the build mode
 

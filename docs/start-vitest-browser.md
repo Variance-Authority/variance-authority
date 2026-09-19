@@ -42,7 +42,7 @@ You review images. Two separate things are involved in producing one:
   a PNG, and the approved PNG is what the next run compares against. It is
   stored with a JSON sidecar recording the renderer identity that painted it and
   the per-component hashes of the reading, which is what lets a later diff rank
-  regions by which component's own content moved.
+  regions by which component's own content changed.
 
 Reading the mount rather than screenshotting the tab is what lets the same
 subject be painted again later and compared byte for byte, and what lets the

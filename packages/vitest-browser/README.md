@@ -317,12 +317,12 @@ carrying different cuts of one family produce different identities and report
 Splitting one `useState` into two changes this reading, and it does not make
 your subject `changed`. The verdict on this path comes from the two images:
 either pixels differ or they do not. The per-component hashes stored beside a
-baseline — the ones that let a later run rank a region by which component's own
-content moved — are built from structure, semantics, text, style and geometry,
-and wiring is deliberately not among them. A component that gained a `memo()`
-renders the same thing, and folding the annotation into the content hashes would
-make a performance change read as a visual regression and re-baseline every
-subject the first time the reading was switched on.
+baseline — the ones that let a later run rank a region by which component's
+own content changed — are built from structure, semantics, text, style and
+geometry, and wiring is deliberately not among them. A component that gained a
+`memo()` renders the same thing, and folding the annotation into the content
+hashes would make a performance change read as a visual regression and
+re-baseline every subject the first time the reading was switched on.
 
 What wiring buys is the record: hook shape, the `memo`/`forwardRef` chain around
 a component, the contexts it subscribes to and its reconciliation key, carried

@@ -196,7 +196,7 @@ Reading it:
 - Each entry in `transitions` carries the left recording's effect, the right
   one's, and whether they agree. `firstDivergence` names the earliest act where
   they did not.
-- `bands` names the dimension that moved, from `a11y`, `geometry`, `token`,
+- `bands` names the dimension that changed, from `a11y`, `geometry`, `token`,
   `content`, `texture`. `blindSides` lists bands the profile on a side could not
   decide at all, so a blind side is never reported as agreement.
 - `parting` says which input separated the two readings — a component's own
@@ -209,7 +209,7 @@ before and after snapshot, not the frame's own **render hash** — the exact
 content digest of what rendered. The two answer different questions. Editing a
 shared token changes every frame's render hash, yet leaves the effect digest
 stable, because the edit is present in an act's before and after frame alike.
-Changing the delete handler does move the effect digest at that act, because
+Changing the delete handler does change the effect digest at that act, because
 that is the comparison the delta is taken from.
 
 Acts align by `(key, occurrence)` along their common ordered prefix. An inserted,

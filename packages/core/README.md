@@ -178,16 +178,16 @@ changes which baselines the run can see.
 
 A **band** is the kind of change a delta is, and which band a delta lands in
 decides how loudly it is reported. Change frequency and change importance run
-opposite each other: an accessible name almost never moves and is a defect when
-it does, while anti-aliasing moves constantly and never matters. There are five,
-loudest first:
+opposite each other: an accessible name almost never changes and is a defect
+when it does, while anti-aliasing changes constantly and never matters. There
+are five, loudest first:
 
-| band | what moved | example delta kinds |
+| band | what changed | example delta kinds |
 |---|---|---|
 | `a11y` | a role, accessible name, description or ARIA state | `role-changed`, `name-changed`, `state-changed` |
 | `geometry` | boxes appeared, vanished, moved or resized | `node-added`, `node-moved`, `rect-changed`, `attribute-changed` |
-| `token` | style values moved while structure held | `style-changed`, `token-changed` |
-| `content` | text moved and nothing else did | `text-changed` |
+| `token` | style values changed while structure held | `style-changed`, `token-changed` |
+| `content` | text changed and nothing else did | `text-changed` |
 | `texture` | sub-semantic rendering variance | `raster-residue` |
 
 `bandOf(kind)` performs that assignment and is the default rather than the
@@ -261,29 +261,29 @@ observation profiles differ.
 | report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |
 | screenshot stabilization | `animations` and `caret` are explicit intervention settings; omitted means the caller did not assert either intervention |
 
-## Which input moved
+## Which input changed
 
 `compare` says what changed. `judge` says whether anyone should mind. Between
-them, `partingOf` says which input moved.
+them, `partingOf` says which input changed.
 
 Given two snapshots carrying holdings — the inputs a collector recorded at each
 component boundary — it walks the boundaries for the shallowest one whose inputs
-agreed and whose output did not, and reports that as the origin: a moved prop, a
-context, an external store, or a hook cell by call position. `explainParting`
+agreed and whose output did not, and reports that as the origin: a changed prop,
+a context, an external store, or a hook cell by call position. `explainParting`
 turns the result into lines a person reads.
 
 It leads with a slice, so you know whether to open the rest:
 
 | slice | means |
 |---|---|
-| `settled` | nothing moved: not the tree, not an input, not the output |
-| `variation` | an input moved and the output followed — the ordinary case, and the only one where the detail below is worth reading |
-| `absorbed` | an input moved and the output did not; the component ignored it |
-| `refactor` | the component tree moved and the output did not |
-| `reshaped` | the tree is a different tree, no input moved, and the output followed |
-| `flake` | every input agreed, the tree held, and the output moved anyway |
+| `settled` | nothing changed: not the tree, not an input, not the output |
+| `variation` | an input changed and the output followed — the ordinary case, and the only one where the detail below is worth reading |
+| `absorbed` | an input changed and the output did not; the component ignored it |
+| `refactor` | the component tree changed and the output did not |
+| `reshaped` | the tree is a different tree, no input changed, and the output followed |
+| `flake` | every input agreed, the tree held, and the output changed anyway |
 | `placed` | the same, but between two readings taken in different places |
-| `unread` | the output moved and what would explain it was not read |
+| `unread` | the output changed and what would explain it was not read |
 
 `flake` is an accusation against a page, so it is never returned on silence. A
 run that recorded no component provenance gets `unread` instead.

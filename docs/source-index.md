@@ -31,7 +31,7 @@ variance ask "<question>" --to src/lib/precision.ts
 
 Each of those opens the index, scans, and publishes what it learned before it
 exits. The first such command on a machine pays a cold scan; every later one
-pays for what moved.
+pays for what changed.
 
 When an editor, watcher or orchestrator already holds the exact changed paths,
 write them one per line and hand the file to a source question:
@@ -119,10 +119,10 @@ tree. There is nothing to invalidate on merge.
 
 **Vary the key anyway, so the cache is written again.** A cache key that never
 changes is saved once and restored forever: every later job restores the index
-as it was on the day it was first written and re-scans everything that has moved
-since, which looks like a warm cache and costs a cold one. Put the commit in the
-key and the stable part in the restore prefix, so each job saves its own entry
-and starts from the newest one that exists:
+as it was on the day it was first written and re-scans everything that has
+changed since, which looks like a warm cache and costs a cold one. Put the
+commit in the key and the stable part in the restore prefix, so each job saves
+its own entry and starts from the newest one that exists:
 
 ```yaml
 - uses: actions/cache@v4
@@ -147,7 +147,7 @@ Measured on public checkouts, as the bytes on disk after a full scan:
 | This repository | 1,236 | 687,539 B | 556 B |
 
 Size the index against the bytes per file record, as a range of 318 to 556 B
-rather than a constant. It moves with how many edges and names each file
+rather than a constant. It varies with how many edges and names each file
 carries, not with how large the repository is, which is why Material UI has
 twenty times the files of this repository and is the cheapest of the three per
 file.

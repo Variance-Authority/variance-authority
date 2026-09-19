@@ -130,7 +130,7 @@ launch, navigate, inject, collect, close — and it ships so that the comparison
 measures one capture path on both sides. Over 48 distinct `(subject, variant)`
 renders on an Apple-silicon Mac with `chromium@151.0.7922.34`, the reused page
 cost **7.5 ms a capture against 205 ms** when each capture launched a browser
-first: 27x, reproduced across three runs. Absolute numbers move with the
+first: 27x, reproduced across three runs. Absolute numbers vary with the
 machine; the ratio is the reason for the shape.
 
 The harness carries no knowledge of subjects, stories or frameworks, so the same

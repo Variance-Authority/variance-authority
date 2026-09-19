@@ -313,7 +313,7 @@ there is no geometry, so there is no join, and every region says so.
 reading source, and where two files declare the name, both are reported.
 
 **A `file:line` is not a cause.** It is where the element that occupies a changed
-region is written. What *caused* the movement is a different question, answered
+region is written. What *caused* the change is a different question, answered
 by [the ladder from the change set, the tokens and the
 callers](composition.md).
 

@@ -1,6 +1,6 @@
 # Dynamic route flake
 
-Two things move between two readings of the same card: one of them you wrote,
+Two things change between two readings of the same card: one of them you wrote,
 and the other cannot be blamed on any file. This example runs that case and
 shows where the two answers part — the authored edit resolved to the component
 and the line it was written at, the unstable half reported with no location at

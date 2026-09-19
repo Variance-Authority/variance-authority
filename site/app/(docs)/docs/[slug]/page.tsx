@@ -73,7 +73,7 @@ export default async function Page({ params }: PageProps) {
                 <ChangePath />
                 <figcaption>
                   The test can prove its promised path held. Stimulus,
-                  execution, state, and effect show what moved beside it.
+                  execution, state, and effect show what changed beside it.
                 </figcaption>
               </figure>
             ),

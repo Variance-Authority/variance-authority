@@ -14,7 +14,7 @@ questions about a record, and this is the process that holds one.
 
 A **run** — one execution of the pipeline, recorded whether or not anything
 changed — posts **observations** (one row per component whose rendered hash
-moved, on a **subject**: one named UI state you asked for and can ask for
+changed, on a **subject**: one named UI state you asked for and can ask for
 again) and **approvals** (a reviewer accepting one subject's observations for
 one run). It stores both, and answers eight HTTP questions over them.
 
@@ -86,8 +86,8 @@ curl -sS -H "Authorization: Bearer $VARIANCE_HISTORY_TOKEN" \
 
 ### Write a run and read it back
 
-A run posts itself, its moved rows and the token values it resolved in one
-request. `204` means the whole write landed.
+A run posts itself, its changed rows and the token values it resolved in
+one request. `204` means the whole write landed.
 
 ```bash
 curl -sS -X POST -H "Authorization: Bearer $VARIANCE_HISTORY_TOKEN" \
@@ -136,8 +136,8 @@ Four of them are this project's, and every route below uses at least one.
 
 **Band** — which part of a component was hashed: `structure` (the rendered
 tree), `style` (the resolved declarations), `geometry` (the box). A change is
-assigned to whichever of the three hashes moved, so one edit can produce up to
-three rows for one component. `structure` is portable and is counted across
+assigned to whichever of the three hashes changed, so one edit can produce up
+to three rows for one component. `structure` is portable and is counted across
 every profile; `style` and `geometry` are only ever compared within one, so
 `churn` reports them per profile and `structure` once.
 
@@ -199,8 +199,8 @@ splits a longer list and concatenates the results.
 
 ### What you get
 
-Three runs, one of which moved `Button`'s structure, all three approved, with
-one occurrence on `checkout` and `--va-space-3` moving to `14px`.
+Three runs, one of which changed `Button`'s structure, all three approved,
+with one occurrence on `checkout` and `--va-space-3` changing to `14px`.
 
 `GET /v1/churn?component=Button`:
 
@@ -347,9 +347,9 @@ brings back the merge problem the store exists to escape.
 What that costs per run, so you can size it:
 
 - one row per `(run, profile)`, quiet runs included — this is the denominator;
-- one observation row per component and band whose hash **moved**, so a quiet
+- one observation row per component and band whose hash **changed**, so a quiet
   run writes none;
-- one token row per custom property the run resolved, **every run**, moved or
+- one token row per custom property the run resolved, **every run**, changed or
   not — this is the row that grows fastest;
 - one instability row per occurrence, which is rare by definition;
 - one approval row per subject somebody accepted.

@@ -264,7 +264,7 @@ npx variance report --config variance.config.json --format html > .variance/repo
 Open `.variance/report.html` in a browser. It is one self-contained file that
 fetches nothing, so it works the same from your machine or from a CI artifact.
 The top says which run it is and what painted it; the subjects that need review
-are listed first, grouped by what they have in common when several moved the
+are listed first, grouped by what they have in common when several changed the
 same way.
 
 Each subject is a picture you can work: the approved image, the difference, and

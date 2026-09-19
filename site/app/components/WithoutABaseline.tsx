@@ -166,7 +166,7 @@ export default function WithoutABaseline() {
           <p className="mt-5 text-sm leading-6 text-quiet">
             Alignment stops at the first Act that was inserted, missing or
             repeated, and prints the values that did not match. It never shifts
-            the later ordinals to make the rest agree, which is the move that
+            the later ordinals to make the rest agree, which is the choice that
             turns one inserted step into <em>everything after this changed</em>.
           </p>
           <a

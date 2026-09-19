@@ -27,7 +27,7 @@ presentation, execution, component state, dependencies, or an unasserted part of
 the interface changed. That can be harmless, intended, or damage, and the pass
 alone cannot separate the three.
 
-The pass has answered the question it was written to answer. To ask what moved
+The pass has answered the question it was written to answer. To ask what changed
 beside that promise, keep [the middle of the change](changed.md#the-middle-carries-the-explanation)
 rather than weakening the assertion until it notices everything.
 

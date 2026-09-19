@@ -463,7 +463,7 @@ Four flags:
 | Flag | What it does |
 | --- | --- |
 | `--all` | Promotes every changed candidate in the report. Keep it for a first run and for deliberate re-baselines: it cannot tell a candidate somebody reviewed from one nobody opened. |
-| `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also moved. Copy a fingerprint out of a report; every region carries its own. |
+| `--shape <fingerprint>[,…]` | Promotes one category of difference wherever it accounts for the *whole* change, and refuses by name any subject where something else also changed. Copy a fingerprint out of a report; every region carries its own. |
 | `--message-file <path>` | Writes a commit message for the baseline update to that path, for `git commit -F`. It commits nothing itself. |
 | `--message <text>` | The subject line of that message. Only meaningful with `--message-file`. |
 

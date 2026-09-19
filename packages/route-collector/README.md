@@ -11,7 +11,7 @@ Part of [Variance Authority](https://variance-authority.dev).
 You already run a server that renders your pages. This package points a browser
 at URLs you name, reads a subtree of each page, and hands the result to
 `@variance-authority/cli` to compare against the image you approved last time.
-When something moved, the report names the component that drew it and the
+When something changed, the report names the component that drew it and the
 `file:line` it was written at.
 
 A **subject** is one named UI state you asked for and can ask for again — here,
@@ -192,7 +192,7 @@ approved image is a diff in the pull request. If your repository ignores
 
 ### What you get
 
-`.variance/report.json`, abridged — one route whose padding moved:
+`.variance/report.json`, abridged — one route whose padding changed:
 
 ```json
 {
@@ -305,7 +305,7 @@ export default routeCollector({
 Each width becomes its own subject — `home@375` and `home@1280` — with its own
 navigation, baseline, and verdict. The page is navigated at the requested width
 so code that reads `matchMedia` during mount makes the correct decision. The
-height stays the run's; only the width moves. The suffix is part of the id, so
+height stays the run's; only the width changes. The suffix is part of the id, so
 `--subjects 'home@375'` selects exactly one and an `ignore` rule globbing
 `home*` still matches both.
 

@@ -98,10 +98,10 @@ config key for one — so the last column is where each shows up in what you rea
 Two of these need a host — a DOM to acquire from, a browser to render in. Three
 need nothing at all, which is what makes the cheap gate above cheap.
 
-**prepare** is a set rather than a stage. A **trick** is one named move that holds
-part of the page still: a reset puts the page into a known state, a hold stops
-something that would keep moving, a wait blocks until something outside the
-page's control lands, a support removes something present that must not be
+**prepare** is a set rather than a stage. A **trick** is one named action that
+holds part of the page still: a reset puts the page into a known state, a hold
+stops something that would keep moving, a wait blocks until something outside
+the page's control lands, a support removes something present that must not be
 measured. Each trick declares the cheapest tier that can observe its effect and
 the one property it governs, and a **recipe** is the list of tricks a run applies
 ([holding a page still](stabilization.md)). Two tricks over one property is a
@@ -177,7 +177,7 @@ stability, but every scheduled read counts and any disagreement refuses the
 candidate rather than taking the attempt that happened to agree. So a retry
 budget will not turn a red build green for you, and a subject that disagrees with
 itself surfaces as `[unstable]` with the component, the `file:line` and the bands
-that moved — on the cheapest tier that could see it.
+that changed — on the cheapest tier that could see it.
 
 **5. Order is yours.** Tools compose in whatever order their types allow. The
 three compositions above are supported offerings, not one mandatory pipeline.
@@ -201,7 +201,7 @@ before anything else.**
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to reach or a directory to serve | pages an application already serves, opened and collected |
 | `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
-| `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node moves |
+| `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node changes |
 | `distill` | portable [Eyes](eyes.md) attention and/or a [Sense](../packages/sense) [execution index](execution-record.md) | deterministic reduction opportunities for one exact test identity |
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |
 | `dom` | a live DOM | extraction, and CSS applicability pruning |

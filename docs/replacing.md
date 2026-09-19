@@ -1,6 +1,6 @@
 # Add Variance Authority to what you already use
 
-Moving a suite off Percy, Chromatic or Argos is not one decision but one per
+Taking a suite off Percy, Chromatic or Argos is not one decision but one per
 harness, and the `toHaveScreenshot` assertions that already work are usually
 worth keeping. This page takes one harness at a time and says what stays yours,
 what you add, what the change buys and what it costs, so you can adopt at a

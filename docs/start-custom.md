@@ -23,8 +23,8 @@ other integration.
 The only precondition is that rendering is a function of the state's name and
 nothing else. Render `receipt/empty` twice in one process, and again tomorrow on
 another machine, and the markup and the applicable CSS have to come back
-identical byte for byte. A byte that moves on its own is not tolerated as noise;
-it becomes a `changed` verdict on every run until somebody removes it.
+identical byte for byte. A byte that changes on its own is not tolerated as
+noise; it becomes a `changed` verdict on every run until somebody removes it.
 
 In practice that rules out, inside the rendered output:
 
@@ -396,7 +396,7 @@ there is no suite to re-run first. The rerun exits `0` with both subjects
 
 From here the loop is: edit the template, run `variance run`. Change
 `font-weight: 700` to `400` in the harness and the next run exits `1` with both
-receipts `changed` and the region that moved named in the report.
+receipts `changed` and the region that changed named in the report.
 
 Exit codes are three, and they mean different things to different people: `0`
 nothing to review, `1` the run happened and found something a person must decide
@@ -425,7 +425,7 @@ belongs to the CLI you are not using.
 - [baseline placement](placement.md) — `directory`, `lfs` and `remote`, and what
   each costs when acquisition and rendering run on different machines.
 - [stabilization](stabilization.md) — what to do about a subject that is
-  deterministic in your harness and moves once a browser paints it.
+  deterministic in your harness and changes once a browser paints it.
 - [composition](composition.md) — which evidence to add when a pixel verdict is
   not the question you have.
 - [`@variance-authority/dom`](../packages/dom/README.md) — `acquireDocument` in

@@ -268,11 +268,11 @@ drawing a review page holds the review token. `/v1/observations` and
 `/v1/approvals` are the ingest token's because they write; `/v1/current` is the
 ingest token's because its caller is a run deciding what to write.
 
-`api` is the wire contract, not the package version — it moves when what a client
-may send or expect changes. `variance push` asks before it uploads and says so
-when the two disagree, because a CLI newer than its deployment is not an error:
-it works, sends more than it needs to, and until something prints both numbers it
-looks like a slow network.
+`api` is the wire contract, not the package version — it changes when what a
+client may send or expect changes. `variance push` asks before it uploads and
+says so when the two disagree, because a CLI newer than its deployment is not an
+error: it works, sends more than it needs to, and until something prints both
+numbers it looks like a slow network.
 
 ## What a reviewer sees
 

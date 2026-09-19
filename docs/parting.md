@@ -127,12 +127,12 @@ neither case has a changed input for attribution to name.
 
 `placed` is the fourth fact: *were the two readings taken at one address*. A
 subject read twice — across two revisions, or across two moments of one scenario
-— is `same`, and an output that moved with every input holding is called a flake.
-Two instances lifted out of two subjects at one commit are `elsewhere`, and there
-the same evidence means something else. Where a component sits is decided by the
-boxes around it, and no component receives its own position as a prop: two
-instances that agreed on every input and landed at different coordinates have
-contradicted nothing, so they are never reported as a flake.
+— is `same`, and an output that changed with every input holding is called a
+flake. Two instances lifted out of two subjects at one commit are `elsewhere`,
+and there the same evidence means something else. Where a component sits is
+decided by the boxes around it, and no component receives its own position as
+a prop: two instances that agreed on every input and landed at different
+coordinates have contradicted nothing, so they are never reported as a flake.
 
 `unread` is what makes `flake` safe to say. **Unread** means the evidence was
 never collected: a run that read no component boundaries has not found the

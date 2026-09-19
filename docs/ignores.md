@@ -351,8 +351,8 @@ dead-rule accounting.
 
 A recurring difference has two honest answers, and only one of them is an ignore.
 
-- **It is noise.** The subject moves and nothing about the product changed. That
-  is an ignore, with the same accounting, scope, and expiry contract.
+- **It is noise.** The subject changes and nothing about the product changed.
+  That is an ignore, with the same accounting, scope, and expiry contract.
 - **It is the new truth.** The change is real, you have read it, and it landed in
   forty screenshots. That is an *acceptance*, and silencing it would be a
   permanent blind spot bought to save forty clicks.

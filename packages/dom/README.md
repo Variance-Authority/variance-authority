@@ -145,7 +145,7 @@ reach the mounted element, keeping only what could style it.
 
 On a single-button subject mounted under Storybook chrome — a preview reset,
 dead utility classes, CSS-in-JS accretion — pruning reduced 1,010 parsed rules
-to the one that could reach the subject. Without it, a baseline moves when a
+to the one that could reach the subject. Without it, a baseline changes when a
 stylesheet the subject never touched does.
 
 ## Use this package when

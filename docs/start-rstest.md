@@ -209,7 +209,7 @@ identity is what decides whether two images may be compared at all.
 
 `colorScheme` and `deviceScaleFactor` are read off this config by the adapter
 and become part of the partition a baseline is stored under. Changing either
-moves every subject into a partition where nothing has been approved yet.
+puts every subject into a partition where nothing has been approved yet.
 
 ### Observe inside the test
 
@@ -311,8 +311,8 @@ CLI through both loops and asserts on what each process printed.
   each costs when the capture and render jobs run on different machines.
 - [attribution](attribution.md) — what a report can name a change by, and what
   each hop needs to succeed.
-- [stabilization](stabilization.md) — what else moves between two runs of the
-  same page, and what is done about it.
+- [stabilization](stabilization.md) — what else changes between two runs of
+  the same page, and what is done about it.
 - [`@variance-authority/playwright-test`](../packages/playwright-test/README.md)
   — the observation API, and the adapter's own reference.
 - [`@variance-authority/unit-test`](../packages/unit-test/README.md) — the

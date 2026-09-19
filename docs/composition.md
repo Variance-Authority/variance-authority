@@ -23,8 +23,8 @@ snapshots answers three questions no per-subject comparison can reach:
 - **Which of them disagree at this commit.** Not a regression — there is no
   baseline in it — but proof that something outside a component's own inputs
   decides part of its output.
-- **What, in this run, explains each thing that moved.** An edited file, an updated
-  token, an edited *caller* — or nothing, which is a finding of its own.
+- **What, in this run, explains each thing that changed.** An edited file, an
+  updated token, an edited *caller* — or nothing, which is a finding of its own.
 
 No second render, no second image, no store. It is a fold over digests the
 collection already produced.

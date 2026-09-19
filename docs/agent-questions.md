@@ -58,7 +58,7 @@ screenshot or rerun a test. Follow the dependency between answers:
    edit reaching many stories remains one decision.
 3. `adjudicate --claims <path>` compares an edit with intent declared before
    the diff was read. Skip it when reviewing somebody else's run.
-4. `composition` explains movement and separates a subject read twice that
+4. `composition` explains a change and separates a subject read twice that
    differed from one never read twice. `variations` compares intentional peers.
 5. [`locate --query <words>`](locate.md) finds the subject when the agent has a
    description rather than an id. It searches every name the run wrote down —

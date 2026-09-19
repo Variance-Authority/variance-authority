@@ -466,7 +466,7 @@ await page.clock.setFixedTime(new Date('2024-01-01T00:00:00Z'));
 ```
 
 `clock.install()` followed by `clock.pauseAt()` is the other call, for a component
-whose timers read `Date.now()` and misbehave when it does not move. Either call
+whose timers read `Date.now()` and misbehave when it does not advance. Either call
 has to run before `page.goto()`: they patch the page's clock, and a script that
 read the time while the page was loading has already read the real one.
 
@@ -529,12 +529,12 @@ A proxy rather than a `Date` subclass, because the subclass covers less than it
 looks: `Date()` called without `new` returns a string, and a class constructor
 throws.
 
-Whichever you use, pick an instant and keep it. A frozen clock that moves when
+Whichever you use, pick an instant and keep it. A frozen clock that changes when
 somebody edits the setup file re-dates every baseline at once.
 
 ### The rest of the family
 
-A clock is the one everybody hits, and the others take the same move: find where
+A clock is the one everybody hits, and the others take the same fix: find where
 the value enters, and set it.
 
 **A random seed.** Seed the generator your fixture already uses — `faker.seed(1)`
@@ -594,7 +594,7 @@ them: they are in the environment key, so a run on a different engine is a
 separate baseline rather than a difference, and the
 [table above](#the-causes-and-who-deals-with-each) has the rest.
 
-This moves the `Dates, clocks, dynamic content` row
+This changes the `Dates, clocks, dynamic content` row
 [above](#the-causes-and-who-deals-with-each) from **policy** to **construction**,
 for your suite rather than for everybody's.
 
@@ -612,7 +612,7 @@ also re-imports the graph, so a singleton two modules were sharing becomes two
 objects. Reaching into a module's internals from a test file is cheaper, but it
 makes the test know something the module never promised: the name of a variable,
 which is free to change under a refactor that kept every behaviour. Exporting a
-`reset()` from each module keeps that promise honest and moves the problem to the
+`reset()` from each module keeps that promise honest and hands the problem to the
 setup file, which now has to import every module that has one — and to be updated
 by whoever adds the next.
 
@@ -657,8 +657,8 @@ covers both.
 
 What this does not reach is a memoized value inside a package you do not author.
 There is nowhere to put a handler, and the answer stays observation rather than
-cleanup: a changed subject is read twice, and the component and band that moved
-are named.
+cleanup: a changed subject is read twice, and the component and band that
+changed are named.
 
 ## Which of the two it is
 
@@ -708,7 +708,7 @@ that method for shape-scoped ignore rules: tolerant equality in pixel space,
 not approximate similarity. The derived key groups observations without
 deciding whether they are acceptable.
 
-That is the same move as
+That is the same derivation as
 [differencing two renders that vary in one prop](composition.md) to learn what
 that prop controls, and the same as deriving a component's `wiring` from the
 fiber to separate two byte-identical documents. What each

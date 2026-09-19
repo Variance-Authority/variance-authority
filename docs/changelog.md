@@ -82,8 +82,9 @@ Variance-Change: v1 eyJmaW5nZXJwcmludCI6InYxOjJjNGY5YTFlMGI3ZDM4…
 ```
 
 The block holds the operator's line if one was written, one line per change,
-one line per **drift** — a design token and the two values it moved between,
-summed over every approval that moved it — and one line for the run.
+one line per **drift** — a design token and the two values it changed
+between, summed over every approval that changed it — and one line for the
+run.
 
 **A change line leads with the fingerprint** because that string is the argument
 `accept --shape` takes. A **shape** is a fingerprint computed from the diff

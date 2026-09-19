@@ -643,8 +643,8 @@ source imports it — `@mui/material`, never a version and never a resolution �
 so a dependency bump can be seeded by name. Which copy a resolver handed any
 one importer is not recorded, because answering that means reproducing the
 resolver, and a selector that guessed would skip on the guess.
-[Read the install](#read-which-packages-the-install-moved) to find out which
-names to seed.
+[Read the install](#read-which-packages-the-install-changed) to find out
+which names to seed.
 
 A file over `largestFile` is marked opaque rather than parsed, because a file
 that size is nearly always generated output and a single one of them can cost a
@@ -712,7 +712,7 @@ await scanRelations({
 });
 ```
 
-## Read which packages the install moved
+## Read which packages the install changed
 
 `@variance-authority/sense/lock` turns lockfile text into the two facts a
 selector needs: which packages are not the packages that were there, and which
@@ -729,8 +729,8 @@ changedPackages(before, after); // ['jsdom', 'whatwg-url']
 packageRelations(after);        // [['jest-environment-jsdom', 'jsdom'], …]
 ```
 
-Feed `packageRelations` to the graph as `depends`, and the moved names to the
-selector as seeds:
+Feed `packageRelations` to the graph as `depends`, and the changed names to
+the selector as seeds:
 
 ```ts
 const relations = relationsOfFiles(records, { depends: packageRelations(after) });
@@ -1222,8 +1222,8 @@ test/checkout.test.tsx > checkout > submits
 ```
 
 A name is the coordinate, so the identity is the name and not the runner's
-positional id, which moves the moment a case is inserted above it. Two cases in
-one file may share a coordinate; the repeat is numbered, so the second reads
+positional id, which changes the moment a case is inserted above it. Two cases
+in one file may share a coordinate; the repeat is numbered, so the second reads
 `<coordinate>#1`. Any other producer of an `ExecutionIndex` — and anything
 joining against one, such as an Eyes journal read by `variance distill` — has to
 key the same test by the same string.
@@ -1260,7 +1260,7 @@ is.
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
-| `@variance-authority/sense/lock` | reading which packages an install moved between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
+| `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
 | `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |

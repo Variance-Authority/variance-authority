@@ -19,7 +19,7 @@ export default function EvidenceMap() {
     <div
       className="rounded-2xl border border-hairline bg-panel px-5 py-8 sm:px-8"
       role="img"
-      aria-label="One question chooses source, execution, interface, or history evidence. That evidence supports one move and makes its limit visible."
+      aria-label="One question chooses source, execution, interface, or history evidence. That evidence supports one action and makes its limit visible."
     >
       <div className="grid items-center justify-center md:grid-cols-[12rem_auto_minmax(16rem,1fr)_auto_12rem] md:gap-4">
         <section className="mx-auto flex h-40 w-40 flex-col items-center justify-center rounded-full border-2 border-orange bg-deep text-center">
@@ -44,7 +44,7 @@ export default function EvidenceMap() {
         <Arrow />
 
         <section className="mx-auto flex h-40 w-40 flex-col items-center justify-center rounded-xl border border-green/70 bg-green/[0.04] text-center">
-          <p className="!m-0 font-mono text-[10px] tracking-[0.16em] text-green uppercase">supported move</p>
+          <p className="!m-0 font-mono text-[10px] tracking-[0.16em] text-green uppercase">supported action</p>
           <p className="!m-0 max-w-[7rem] pt-2 text-base font-semibold leading-6 text-ivory">with a visible limit</p>
         </section>
       </div>

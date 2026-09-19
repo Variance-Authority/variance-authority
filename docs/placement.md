@@ -183,10 +183,10 @@ rather than as a miss, so a first run costs one request too.
 The declaration is a hint, not a requirement. A store that does not serve
 `/baseline/working-set` answers it with a 404 and the client falls back to one
 request per key, which is what a deployment of
-[`tribunal`](../packages/tribunal/README.md) does. No **verdict** moves either
-way — the verdict is the one word a run carries per subject, `unchanged`,
-`changed`, `new`, `incomparable` or `ignored`, and it is decided by the
-comparison rather than by how many requests fetched the baseline.
+[`tribunal`](../packages/tribunal/README.md) does. No **verdict** changes
+either way — the verdict is the one word a run carries per subject,
+`unchanged`, `changed`, `new`, `incomparable` or `ignored`, and it is decided
+by the comparison rather than by how many requests fetched the baseline.
 
 Anything else the store cannot answer — an unreachable endpoint, a refused token,
 a 500, a body that is not an answer — **throws**. It is never a miss, because

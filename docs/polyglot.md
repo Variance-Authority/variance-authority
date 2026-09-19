@@ -43,9 +43,9 @@ guessing a ref there would be guessing what a build is about to skip.
 
 An import is permission, not proof. `import { total } from './total'` says this
 file *may* depend on `total.ts`, and most of the time it depends on one function
-in it. So a graph built from imports names more than a change really moved, and
-that is the direction to be wrong in: the cost of a file you did not need is a
-test run, and the cost of a file you missed is a green build over code nobody
+in it. So a graph built from imports names more than a change really reached,
+and that is the direction to be wrong in: the cost of a file you did not need is
+a test run, and the cost of a file you missed is a green build over code nobody
 looked at.
 
 Everything that narrows below the graph narrows from evidence. An
@@ -58,7 +58,7 @@ import anything.
 Type-level references are the one thing the walk does not follow, because they
 are erased before anything runs. A TypeScript `import type`, a Python
 `if TYPE_CHECKING:` block and a Kotlin import that only names a signature are
-recorded as edges and skipped by a walk that asks what a change can move at
+recorded as edges and skipped by a walk that asks what a change can reach at
 runtime. The `else:` branch of that Python block is the runtime half and is
 followed.
 
@@ -151,10 +151,10 @@ in the same list as the Python module reached through a package.
 
 `variance reach` answers from structure alone, which is why it needs nothing
 from you but a ref. The [source index](source-index.md) is where a repeated scan
-keeps what it learned, so the second answer over a tree that did not move costs
-a fraction of the first. [Sense](../packages/sense) is the package that does the
-reading, and can be used directly when you want the records rather than a list
-of paths.
+keeps what it learned, so the second answer over a tree that did not change
+costs a fraction of the first. [Sense](../packages/sense) is the package that
+does the reading, and can be used directly when you want the records rather
+than a list of paths.
 
 Below the graph, `variance select` answers from what runs recorded — a narrower
 list, and one that exists only where a run has been recorded. The graph needs no

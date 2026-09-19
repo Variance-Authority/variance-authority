@@ -111,8 +111,8 @@ session.dispose();
 A **render hash** is the content hash of the subject's normalized tree — its
 structure and its resolved styles, under the session's identity. It is not a
 pixel hash and not a hash of raw markup: ids have become structural aliases and
-class attributes are gone by the time it is taken, so a hash that moved means
-the rendering moved.
+class attributes are gone by the time it is taken, so a hash that changed means
+the rendering changed.
 
 `sheet:<style:0>` is a shared-state key. `<style:N>` is this session's own
 counter over stylesheets that have no `href`, numbered in the order the probe
@@ -173,9 +173,9 @@ renders them as the block above, confirmed first, defaulting to `findings()`.
 
 | property | type | what it names |
 |---|---|---|
-| `confidence` | `'suspected' \| 'confirmed'` | overlap alone, or a hash that actually moved |
+| `confidence` | `'suspected' \| 'confirmed'` | overlap alone, or a hash that actually changed |
 | `victim` | `string` | the affected subject's id |
-| `culprit` | `string \| undefined` | the subject that wrote the shared state; absent when a hash moved and no earlier writer explains it |
+| `culprit` | `string \| undefined` | the subject that wrote the shared state; absent when a hash changed and no earlier writer explains it |
 | `key` | `string` | the shared-state key both subjects touched |
 | `evidence` | `string` | how the tool knows |
 | `remedy` | `string` | what to change |

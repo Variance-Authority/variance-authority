@@ -45,10 +45,10 @@ Equal facts encode to equal bytes, so two machines composing the same suite
 write the same file byte for byte — which is what lets a content-addressed
 transport skip the upload and a reader recognise what it already has.
 
-No images are in it, and nothing a single run decided is: what moved, what each
-comparison concluded, and what a person still has to review all stay in that
-run's report, because a reading of one commit's captures is not true anywhere
-else.
+No images are in it, and nothing a single run decided is: what changed, what
+each comparison concluded, and what a person still has to review all stay in
+that run's report, because a reading of one commit's captures is not true
+anywhere else.
 
 ### What it exposes
 
@@ -119,12 +119,12 @@ at ~/.cache/variance-authority/suite/web/3f1c9a2….bin
 
 What it found is kept on disk under that commit, so nothing on this machine asks
 twice — and because the address is a commit rather than a branch, a checkout
-that moves between branches accumulates both evaluations instead of overwriting
-one with the other.
+that switches between branches accumulates both evaluations instead of
+overwriting one with the other.
 
 The lineage walk is bounded by `depth`, fifty commits by default. A branch that
 has fallen further behind mainline than that gets no hit and derives its own
-index, which is the right answer: mainline's names have moved on.
+index, which is the right answer: mainline's names have changed since.
 
 ## Configuring one
 
@@ -191,9 +191,9 @@ so `endpoint` must be a URL that already works as given: sign it, or presign it,
 wherever the credentials live.
 
 `mainline` takes a ref rather than a branch name, since a runner's checkout
-often has no local branches at all. A ref that moves between two runs costs
-nothing: the lookup reports the commit it found. Override it for one command
-with `npx variance share --ref <ref>`.
+often has no local branches at all. A ref that changes between two runs
+costs nothing: the lookup reports the commit it found. Override it for one
+command with `npx variance share --ref <ref>`.
 
 ## GitHub Actions
 

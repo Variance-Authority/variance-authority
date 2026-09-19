@@ -2,7 +2,7 @@ const STEPS = [
   ["question", "Name the decision"],
   ["observe", "Read the evidence"],
   ["relate", "Connect what agrees"],
-  ["decide", "Make one supported move"],
+  ["decide", "Make one supported choice"],
 ] as const;
 
 function StepMark({ index }: { index: number }) {

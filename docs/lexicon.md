@@ -252,9 +252,9 @@ to read the header that carries this.
 
 ## Where it is kept
 
-The run report carries it, and a report is about one run — what moved, what each
-subject's comparison decided, and what the run left for somebody to decide. The
-lexicon is the one section of it that is not: the names a suite holds change
+The run report carries it, and a report is about one run — what changed, what
+each subject's comparison decided, and what the run left for somebody to decide.
+The lexicon is the one section of it that is not: the names a suite holds change
 when the suite changes, and the question *which subject do I mean* is asked far
 more often than a run happens.
 
@@ -449,10 +449,10 @@ of the material-ui questions describe components the suite does not contain, and
 those are counted as misses against the denominator rather than removed from it.
 
 Twenty-five questions cannot separate two rankings that differ slightly — a
-single question moving is a twenty-fifth of the score. They are enough to
-separate *scoping* from *not scoping*, which moves several questions at once,
-and they are not enough to tune a weight. No weight in this page was chosen by
-fitting these questions.
+single question changing is a twenty-fifth of the score. They are enough to
+separate *scoping* from *not scoping*, which changes several questions at
+once, and they are not enough to tune a weight. No weight in this page was
+chosen by fitting these questions.
 
 ## What it refuses to be
 

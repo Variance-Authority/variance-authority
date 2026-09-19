@@ -160,7 +160,7 @@ all. `compareRasters` decodes its pair concurrently for exactly this reason, so
 a pair costs about what one image costs.
 
 Reproduce it on the machine you care about, because addon load, image shape,
-concurrency and pool size all move the result:
+concurrency and pool size all change the result:
 
 ```sh
 node node_modules/@variance-authority/png-sharp/scripts/bench.mjs
