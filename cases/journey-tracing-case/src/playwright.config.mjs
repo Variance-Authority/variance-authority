@@ -1,6 +1,7 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from '@playwright/test';
+import { withTestSelection } from '@variance-authority/playwright-test';
 
 const port = process.env.VA_PORT;
 // The case root, not the config's directory: the driver and the service must
@@ -8,18 +9,15 @@ const port = process.env.VA_PORT;
 // `webServer` runs beside this file rather than beside the specs it serves.
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
-export default defineConfig({
+export default defineConfig(withTestSelection({
   testDir: './spec',
   outputDir: process.env.VA_RESULTS,
   workers: 2,
   fullyParallel: true,
-  reporter: 'list',
+  reporter: [['list']],
   use: {
     baseURL: `http://localhost:${port}`,
     browserName: 'chromium',
-    // The page is not instrumented, and nothing here pretends it is. Everything
-    // this run records was executed in another process.
-    varianceExecution: { root, heads: ['pricing'], coverageFile: process.env.VA_COVERAGE },
   },
   webServer: {
     command: 'node server.mjs',
@@ -34,4 +32,11 @@ export default defineConfig({
       VARIANCE_AUTHORITY_HEAD: 'pricing',
     },
   },
-});
+}, {
+  // The page is not instrumented, and nothing here pretends it is. Everything
+  // this run records was executed in another process — one place to say it,
+  // read by the fixtures in every worker and by the fold at the end.
+  root,
+  heads: ['pricing'],
+  coverageFile: process.env.VA_COVERAGE,
+}));
