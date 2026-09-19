@@ -57,5 +57,6 @@ export {
   type TaintSubject,
   type TaintTable,
 } from './taint/index.js';
+export { moduleCallsTaint, type ModuleCallsTaintOptions } from './taint/calls.js';
 export { mockTaint, type MockTaintOptions } from './taint/mocks.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';

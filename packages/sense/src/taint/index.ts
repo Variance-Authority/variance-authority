@@ -91,6 +91,7 @@ import { rememberDiff, rememberedDiff } from './cache.js';
 import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
 
 export type { Node };
+export { moduleCallsTaint, type ModuleCallsTaintOptions } from './calls.js';
 
 /** What one file imports beyond, or short of, what its text says. */
 export interface ImportDiff {
@@ -279,9 +280,31 @@ async function saidOf(
   readers: readonly Taint[],
   cache: ParseCache | undefined,
 ): Promise<Sides | undefined> {
+  const file = record.file;
+  let hasStatic = false;
+  for (const taint of taints) {
+    if (taint.diffs?.has(file) === true) {
+      hasStatic = true;
+      break;
+    }
+  }
+
+  let asked: Taint[] | undefined;
+  for (const taint of readers) {
+    // Ask the cheap, caller-supplied candidate test before computing an
+    // extension. A sparse reader should cost one Set lookup on the files it
+    // rejects, not path parsing and an empty array allocation as well.
+    if (taint.files !== undefined && !taint.files(file)) continue;
+    if (!MODULE_EXTENSIONS.includes(extname(file))) continue;
+    (asked ??= []).push(taint);
+  }
+
+  // The common case on a large repository. Do not allocate the two result maps
+  // for a file no table and no reader names.
+  if (!hasStatic && asked === undefined) return undefined;
+
   const minus = new Map<string, Set<string>>();
   const plus = new Map<string, Set<string>>();
-  const file = record.file;
 
   const fold = (name: string, diff: ImportDiff | undefined): void => {
     for (const value of diff?.minus ?? []) add(minus, value, name);
@@ -290,10 +313,7 @@ async function saidOf(
 
   for (const taint of taints) fold(taint.name, taint.diffs?.get(file));
 
-  const asked = readers.filter(
-    (taint) => MODULE_EXTENSIONS.includes(extname(file)) && (taint.files?.(file) ?? true),
-  );
-  await readEach(asked, record, root, cache, fold);
+  if (asked !== undefined) await readEach(asked, record, root, cache, fold);
 
   return minus.size === 0 && plus.size === 0 ? undefined : { minus, plus };
 }

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { idOf, movedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { memoryParseCache } from '../cache.js';
 import { scanRelations } from '../scan.js';
+import { moduleCallsTaint } from './calls.js';
 import { taintFile, taintRecords, taintTable, type Taint, type Tainted } from './index.js';
 import { isTestLike, mockTaint } from './mocks.js';
 
@@ -61,6 +62,19 @@ beforeAll(async () => {
     "import { vi } from 'vitest';\nimport { api } from './api';\nvi.doMock('./api');\nexport const t = api;",
   );
   await write(root, 'src/relay.ts', "declare const jsresource: (name: string) => unknown;\nexport const lazy = jsresource('./panel');");
+  await write(
+    root,
+    'src/loaders.ts',
+    [
+      "declare const JSResourceForUserVisible: <T>(path: string | (() => Promise<T>)) => unknown;",
+      "declare const importCond: (gate: string, yes: string, no: string) => unknown;",
+      "declare const name: string;",
+      "JSResourceForUserVisible<unknown>('./panel');",
+      "JSResourceForUserVisible(() => import('./card'));",
+      "importCond('gate', './api', `./panel`);",
+      "importCond('computed', './api', `./${name}`);",
+    ].join('\n'),
+  );
   // Outside `src`, so the scan never walks to it and only a taint can name it.
   await write(root, 'outside/tool.ts', "import { api } from '../src/api';\nexport const tool = api;");
   records = await scanRelations({ root, dirs: ['src'], digests: false });
@@ -140,6 +154,30 @@ describe('a static taint table', () => {
     await writeFile(path, '["src/a.ts"]', 'utf8');
 
     await expect(taintFile(path)).rejects.toThrow(/not a taint table/);
+  });
+});
+
+describe('configured module calls', () => {
+  const configured = (files: readonly string[]) =>
+    moduleCallsTaint({
+      name: 'framework-loaders-v1',
+      files: new Set(files),
+      calls: { JSResourceForUserVisible: 0, importCond: [1, 2] },
+    });
+
+  it('adds literal module arguments and leaves native import expressions alone', async () => {
+    const record = await edgesOf([configured(['src/loaders.ts'])], 'src/loaders.ts');
+    expect(targets(record)).toEqual(['src/api.ts', 'src/card.ts', 'src/panel.ts']);
+  });
+
+  it('opens no file outside the caller-supplied candidate set', async () => {
+    const record = await edgesOf([configured([])], 'src/loaders.ts');
+    expect(targets(record)).toEqual(['src/card.ts']);
+  });
+
+  it('ignores a computed template rather than inventing a path', async () => {
+    const tainted = await under([configured(['src/loaders.ts'])]);
+    expect(tainted.records.find((record) => record.file === 'src/loaders.ts')?.unresolved).toBeUndefined();
   });
 });
 

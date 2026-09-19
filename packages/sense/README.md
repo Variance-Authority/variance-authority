@@ -764,6 +764,32 @@ already in memory:
 }
 ```
 
+For framework calls that name modules as string arguments, `moduleCallsTaint`
+parses only a caller-supplied candidate set. The set is required: finding a rare
+convention must not open every module merely to run a text check. Bootstrap it
+with the repository's text search, then maintain it from editor, watcher or
+changed-file events.
+
+```ts
+import { moduleCallsTaint } from '@variance-authority/sense/taint';
+
+const loaders = moduleCallsTaint({
+  name: 'application-loaders-v1',
+  files: new Set(['src/routes/orders.entrypoint.tsx']),
+  calls: { JSResourceForUserVisible: 0, importCond: [1, 2] },
+});
+```
+
+`name` is the cache and report identity; change it when the rule changes so an
+old answer cannot be reused under new semantics. `calls` maps each exact callee
+identifier to the zero-based argument position, or positions, that contain
+module specifiers. `files` is the candidate set and is never widened by Sense.
+
+Only literal strings and templates without substitutions become additions. A
+callback containing `import()` is left alone because the native module parser
+already records it. Call names and argument positions belong to the consumer;
+Sense does not carry a framework vocabulary.
+
 Under more than one taint the subtractions are unioned and so are the additions,
 and the two never contend: an edge one taint adds to a file another taint
 shadows is an edge into a node the file's run never enters, and the shadow
