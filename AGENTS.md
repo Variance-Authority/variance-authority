@@ -152,67 +152,82 @@ held by review, which is why it reads as direction rather than as rules.
 
 ### The register
 
-This defines the language every published sentence is written in. It is stated
-as four conditions on a sentence, the expectations that hold across a page, and
-the boundary of what it does not govern.
+Every published sentence is written for one reader: an engineer who has shipped
+software, does not know this codebase, and for whom English is often a second
+language. That last part is not a small adjustment. It decides the words.
 
-**A sentence is in register when all four of these hold.**
+**A sentence is in register when all five of these hold.**
 
-1. **Speaker — the engineer who built the thing, speaking now.** Not a narrator
-   of how it got here, not the project as an institution, not the software
-   describing itself. This fixes the tense as present indicative and rules out
-   the passive that exists to avoid naming who acts.
-2. **Addressee — one engineer who has shipped software and is deciding whether
-   to use this.** Singular and present. They know the craft and not this
-   codebase, so nothing foundational is explained and nothing private is
-   assumed.
-3. **Licence — the sentence is true because of the artifact.** Code, output, a
-   measurement, a recorded run. **No sentence is licensed by another sentence
-   in the document.** A page is not an argument and carries no inferential
-   chain; each paragraph stands on the product directly. This is the whole
-   reason *it does not follow that*, *hence*, *therefore*, *it holds that* and
-   *it suffices to* are out — each asserts a derivation between sentences, and
-   there are none here to assert.
-4. **Literalness — every word is meant at face value.** A term of art satisfies
-   this: `import`, `closure`, `resolution`, `graph`, `hydration` mean exactly
-   what they say, and there is no limit on them. A figure of speech does not: it
-   is a word whose intended sense is not its literal sense. There are none. One
-   clause disposes of *it does not follow* (nothing follows anything),
-   *seamless* (no seam), *powerful* (no power), *simply* (a claim about the
-   reader's feelings, not about the software), and the inverted clause whose
-   shape carries what its words do not.
+1. **Who speaks — the engineer who built the thing, now.** Not a story about how
+   it got here, not the project as a company, not the software talking about
+   itself. This keeps the tense present, and it keeps out the passive that hides
+   who acts.
+2. **Who is spoken to — one engineer deciding whether to use this.** One person,
+   not an audience. They know software. They do not know our words, our history,
+   or the arguments behind either.
+3. **What makes it true — the thing itself.** Code, output, a measurement, a
+   recorded run. **No sentence is true because of another sentence in the
+   document.** A page is not an argument. Every paragraph stands on the product
+   directly. This is why *it does not follow that*, *hence*, *therefore*, *it
+   holds that* and *it suffices to* are out: each one says this sentence comes
+   out of the last one, and none of them do.
+4. **Words mean what they say.** A term of art passes — `import`, `closure`,
+   `graph`, `hydration` mean exactly what they mean, and there is no limit on
+   how many a page uses. A figure of speech does not: it is a word used for some
+   sense other than its own, and there are none. That one line removes *it does
+   not follow* (nothing follows anything), *seamless* (there is no seam),
+   *powerful* (there is no power), *simply* (a claim about how the reader feels,
+   not about the software), and the pretty inverted title whose shape carries
+   what its words do not.
+5. **Plain words, plain sentences.** Outside terms of art, use the most common
+   word that still means it, and the plainest sentence that still carries it.
+   *Use*, not *utilise*. *Enough*, not *sufficient*. *So*, not *hence*. *But*,
+   not *albeit*. *About*, not *regarding*. *For example*, not *e.g.* Subject,
+   verb, object. One idea per clause. No clause nested in a dash inside another
+   dash. No idiom, no irony, no understatement, no cultural reference — those
+   are the hardest things to read in a second language, and they carry nothing a
+   plain sentence cannot.
+
+   The line is sharp: **a hard word is allowed when it is a name, not when it is
+   style.** `hydration` is a name. It has a page that owns it, it is linked the
+   first time it appears, and a reader learns it once and keeps it. *Sufficient*
+   is style. There is nothing to learn — it is *enough* wearing a suit.
 
 **Expectations.** These hold across a page rather than inside one sentence.
 
-- One word, one job. A word means the same thing from the title to the last
-  line, and a name this project coined is introduced on the page that owns it
-  before any page uses it.
-- Every claim is checkable. The reader can reach the code, the output or the
-  number — and a number carries the machine it was measured on.
-- A limitation is a present-tense boundary of the product, never an absence and
-  never the story of an attempt.
-- The reader is the grammatical subject. Second person, task first.
+- **One word, one job — and never a second word for the same job.** Swapping in
+  a synonym to avoid repeating yourself is a habit from literary English. To a
+  reader translating as they go, a new word means a new thing.
+- **Every claim is checkable.** The reader can reach the code, the output or the
+  number, and a number carries the machine it was measured on.
+- **A limitation is a present-tense boundary of the product**, never an absence
+  and never the story of an attempt.
+- **The reader is the subject of the sentence.** Second person, task first.
+- **A name this project made up is introduced on the page that owns it**, before
+  any other page uses it.
 
 **Boundaries — what this does not govern.**
 
-- **Difficulty.** This is not a plain-language rule. There is no cap on terms of
-  art, no ceiling on what one paragraph may reason through, and no distinction
-  is ever dropped to shorten a sentence. Register and depth are independent;
-  prose that trades depth for plainness has failed this, not passed it.
-- **Length.** A long sentence in register beats two short ones out of it.
+- **The subject.** Plain English is not a plain subject. There is no cap on
+  terms of art, no ceiling on what one paragraph may work through, and no
+  distinction is ever dropped to make a sentence shorter. The language is plain;
+  the thinking is not. A page that gave up a distinction to read more easily has
+  failed this, not passed it.
+- **Length.** A sentence may be long when every part of it is plain and it
+  carries one idea. Two short sentences are usually better, and neither is a
+  reason to lose the idea.
 - **Warmth.** Direct is not cold. Condition 1 puts a person in the prose and
   keeps them there.
-- **Scope.** All four conditions apply to every published surface: the root
-  `README.md`, `docs/`, package and example `README.md` files, the site, CLI
-  output and error messages. `docs/context/` and `docs/specs/` are internal and
-  may cite themselves freely, but the conditions hold there too — an ADR is an
-  engineer stating a decision, not proving one.
+- **Scope.** All five apply to every published surface: the root `README.md`,
+  `docs/`, package and example `README.md` files, the site, CLI output and error
+  messages. `docs/context/` and `docs/specs/` are internal and may cite
+  themselves freely, but the five hold there too. An ADR is an engineer stating
+  a decision, not proving one.
 
-**Procedure.** Given a sentence, answer three questions: who is saying it, what
-makes it true, and which word in it is not meant literally. A sentence with no
-answer to the first two, or an answer to the third, is out of register. Nothing
-here is mechanically checked and it is unlikely that it can be; it is held by
-asking those three questions out loud.
+**How to check a sentence.** Ask four things. Who says this. What makes it true.
+Which word is not meant literally. Which word would a good non-native speaker
+have to look up — and is that word a name, or is it style. Nothing here is
+checked by a test, and it is unlikely that it can be.
 
 ## The project reports on itself in code
 
