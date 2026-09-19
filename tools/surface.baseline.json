@@ -1416,6 +1416,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./rstest": {
+          "types": "./dist/rstest.d.ts",
+          "default": "./dist/rstest.js"
         }
       },
       "files": [
@@ -1475,6 +1479,13 @@
         "varianceMatchers": "const",
         "varianceVantageFixtures": "const",
         "varianceWireFixtures": "const"
+      },
+      "./rstest": {
+        "RstestContext": "interface",
+        "RstestExpect": "interface",
+        "RstestPlaywrightOptions": "interface",
+        "RstestTask": "interface",
+        "runOf": "function"
       }
     }
   },
@@ -1792,6 +1803,8 @@
         "FiberTag": "const",
         "FiberWalkOptions": "interface",
         "FiberWalkResult": "interface",
+        "HydrationSettlement": "interface",
+        "HydrationWaitOptions": "interface",
         "LoadingDeclaration": "interface",
         "MemoizedUpdatersResult": "interface",
         "NO_FIBER": "const",
@@ -1813,6 +1826,7 @@
         "TapOptions": "interface",
         "TapRefusal": "type",
         "UNMOUNTED": "const",
+        "awaitHydration": "function",
         "awaitQuiet": "function",
         "awaitSuspense": "function",
         "componentFiberOf": "function",

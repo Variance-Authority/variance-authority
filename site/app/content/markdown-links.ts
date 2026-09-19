@@ -33,6 +33,7 @@ const DOCUMENT_ROUTES: Readonly<Record<string, string>> = {
   "start-cli": "/start/cli",
   "start-custom": "/start/custom",
   "start-playwright": "/start/playwright",
+  "start-rstest": "/start/rstest",
   "start-routes": "/start/routes",
   "start-storybook": "/start/storybook",
   "start-unit": "/start/unit",

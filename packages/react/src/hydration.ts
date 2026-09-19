@@ -61,6 +61,16 @@ export interface HydrationWaitOptions {
   readonly confirmations?: number;
 }
 
+/**
+ * What a wait for React to finish hydrating found, whether or not it did.
+ *
+ * Returned rather than thrown on, because a page that never hydrates is a
+ * result and not an error: a collector reads `hydrated` to decide whether the
+ * DOM it is about to capture is the one React committed or the one the server
+ * sent, and reports the difference instead of guessing. The remaining fields
+ * are the evidence behind that answer: how many fibers were found, and how
+ * long the wait actually took before it settled or gave up.
+ */
 export interface HydrationSettlement {
   /** True when the fiber count at or under the root came to rest above zero. */
   readonly hydrated: boolean;

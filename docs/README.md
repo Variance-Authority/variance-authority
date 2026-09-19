@@ -114,8 +114,8 @@ it, rather than turned into a failure.
 Start from the harness that already reaches the state you want to review:
 [Playwright](start-playwright.md), [Storybook](start-storybook.md),
 [application routes](start-routes.md), [Jest or Vitest](start-unit.md),
-[Vitest browser mode](start-vitest-browser.md), [a custom
-collector](start-custom.md), or [the CLI lifecycle](start-cli.md).
+[Vitest browser mode](start-vitest-browser.md), [Rstest](start-rstest.md), [a
+custom collector](start-custom.md), or [the CLI lifecycle](start-cli.md).
 
 Or enter by the question in front of you: [find the subject you
 mean](locate.md), [trace a visible change to source](attribution.md), [trace
