@@ -1,7 +1,7 @@
 # How different languages are handled
 
 [Variance Authority](README.md) is built for React frontends, and that is what
-most of these pages are about. It does not follow that it only reads JavaScript.
+most of these pages are about. That does not mean it only reads JavaScript.
 Its own checkout is TypeScript over a Rust scanner, so the first repository it
 could not read in full was its own — and it now reads JavaScript and TypeScript
 in every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift. One reader
