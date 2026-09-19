@@ -51,6 +51,7 @@ fixtures in a second harness.
 | A served application, sitemap, or static build | [`@variance-authority/route-collector`](start-routes.md) | The application route, not an isolated component, is what you review. |
 | Jest or Vitest with a mounted jsdom tree | [`@variance-authority/unit-test`](start-unit.md) | The unit run must not start a browser; a later CLI process renders what it captured. |
 | Vitest browser mode with a mounted component | [`@variance-authority/vitest-browser`](start-vitest-browser.md) | The component is mounted in a real browser by the Vitest run itself. |
+| An Rstest suite, in `jsdom` or under `@rstest/playwright` | [Rstest, both ways](start-rstest.md) | One runner covers both adoptions, and the page is the choice between them. |
 | Another harness | [A custom collector or `@variance-authority/observe`](start-custom.md) | Nothing above owns the state lifecycle. |
 
 If you have both a Playwright suite and a Storybook, both rows apply and you can

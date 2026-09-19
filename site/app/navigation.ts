@@ -97,6 +97,11 @@ export const NAVIGATION = [
         alternative: true,
       },
       {
+        href: "/start/rstest",
+        label: "Adopt an Rstest suite",
+        alternative: true,
+      },
+      {
         href: "/start/custom",
         label: "Build a custom integration",
         alternative: true,

@@ -224,6 +224,24 @@ Take `packages` first. `entrypoint` needs a specifier you do not have yet, and i
 a checkout that publishes nothing neither verb has anything to report — there,
 nothing back from `search` is the final answer.
 
+A third section appears when, and only when, your words reach a name that does
+not contain them — a word typed wrong, or two words written about a name but not
+beside each other:
+
+```
+$ variance-authority-help search "numbers order"
+Nothing in this repository is named or documented with `numbers order`.
+
+1 more name matches loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.
+
+alpha · Span [type] 0 packages, 0 imports — Two numbers, in order.
+```
+
+Read it as a suggestion and not as an answer. It never changes the sections
+above it, it never returns a name they already gave you, and it obeys `--from`
+and `--to` exactly as they do. A name under that heading is not a match for what
+you asked; it is the nearest thing that is worth a look before you rephrase.
+
 ### 6. `gaps`
 
 Names other packages import with nothing written above the declaration. A work
@@ -326,9 +344,9 @@ file as it is, rather than a copy taken when the reading was.
   question for a language server.
 - Nothing here reads `dist`. A `types` target under an output directory is mapped
   back to the source it was compiled from.
-- `search` caps its published section at 40 and its unpublished section at 25,
-  and says so in the answer when it cut. A list with no such line is the whole
-  list.
+- `search` caps its published section at 40, its unpublished section at 25 and
+  its loose section at 15, and says so in the answer when it cut. A list with no
+  such line is the whole list.
 
 ## The cache cannot change an answer
 

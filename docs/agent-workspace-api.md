@@ -84,7 +84,10 @@ serve the text, so what you read is the file as it is now.
 
 Use `docs_search` only when the name is unknown: it performs a
 case-insensitive substring match over names and documentation, not semantic
-ranking.
+ranking. Where your words reach a name that does not contain them — a word typed
+wrong, or two words written about a name but not beside each other — those names
+follow under a heading of their own, after the substring answer and never inside
+it.
 
 ## Bound a search to where you are working
 
@@ -128,8 +131,9 @@ is an import of the name, not a call to it — where the name is used inside tha
 file is a question for your editor's language server.
 
 Missing documentation remains missing, and a search with no exact substring
-match returns no substitute. Those absences are source facts, not prompts for
-the server to infer an answer.
+match says so before it offers anything near it. Those absences are source
+facts, not prompts for the server to infer an answer: a looser reading of your
+own words can add names below the answer, and nothing can promote one into it.
 
 Where nothing is written above a declaration, the server may quote the nearest
 `README.md` that names the symbol, labelled with the file and line it came from.

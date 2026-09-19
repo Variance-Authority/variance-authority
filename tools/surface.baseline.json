@@ -1419,6 +1419,10 @@
         ".": {
           "types": "./dist/index.d.ts",
           "default": "./dist/index.js"
+        },
+        "./rstest": {
+          "types": "./dist/rstest.d.ts",
+          "default": "./dist/rstest.js"
         }
       },
       "files": [
@@ -1478,6 +1482,13 @@
         "varianceMatchers": "const",
         "varianceVantageFixtures": "const",
         "varianceWireFixtures": "const"
+      },
+      "./rstest": {
+        "RstestContext": "interface",
+        "RstestExpect": "interface",
+        "RstestPlaywrightOptions": "interface",
+        "RstestTask": "interface",
+        "runOf": "function"
       }
     }
   },

@@ -70,6 +70,16 @@ export interface Manifest {
   readonly bin?: Readonly<Record<string, string>>;
 }
 
+/**
+ * Directories that hold what a build wrote, rather than what anybody imports.
+ *
+ * Only consulted where the scan is widened to a whole workspace — a case — and
+ * it has to be, because `cases/incumbent-case` keeps a `dist/` of its own and
+ * an installed tree lives under `node_modules/`. Reading either would attribute
+ * a bundler's own requirements to the case that ran it.
+ */
+const OUTPUT = new Set(['node_modules', 'dist', 'coverage', 'storybook-static']);
+
 export function sourceFiles(dir: string, out: string[] = []): string[] {
   if (!existsSync(dir)) return out;
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -181,7 +191,20 @@ export function workspaces(): readonly Workspace[] {
       // `esbuild` and four workspace packages with **nothing checking any of
       // them** — the exact class of failure rule 1 exists to catch, in the one
       // directory this repository points at when asked what adoption costs.
-      const roots = [join(dir, 'src'), join(dir, 'collector')];
+      // And, for a case, every other directory it holds. A case is adopter code
+      // by construction — the external runner's own config and specs, driven by
+      // that runner's own binary — and it keeps them in directories named after
+      // what they drive: `capture/`, `e2e/`, `page/`, `scripts/`. None of those
+      // is `src`, so `cases/rstest-case` could declare `@rstest/playwright` and
+      // `@variance-authority/playwright-test` with nothing checking either. A
+      // package is not widened the same way: its non-`src` directories are build
+      // scaffolding rather than the box, and the box is what rule 1 is about.
+      const roots =
+        group === 'cases'
+          ? readdirSync(dir, { withFileTypes: true })
+              .filter((entry) => entry.isDirectory() && !OUTPUT.has(entry.name) && !entry.name.startsWith('.'))
+              .map((entry) => join(dir, entry.name))
+          : [join(dir, 'src'), join(dir, 'collector')];
       const foreign = roots.flatMap((root) => nestedManifests(root));
 
       for (const file of roots.flatMap((root) => sourceFiles(root))) {
@@ -195,8 +218,19 @@ export function workspaces(): readonly Workspace[] {
         // holding it to the production rule would put a second test runner in a
         // workspace's `dependencies`; a measurement builds its own worlds with
         // `jsdom` for the same reason a test does, and ships to nobody.
+        //
+        // A case's widened directories count as development whatever they are
+        // named. `e2e/rstest.config.mjs` and `scripts/build.mjs` are not test
+        // files by any pattern, and they are not production either: nothing
+        // imports them but the external runner this case drives, during this
+        // case. `collector/` is the exception that stays production, because
+        // the CLI `import()`s one in an adopter's own process.
         const isTest =
-          /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) || file.includes('__fixtures__');
+          /\.(test|spec|measure)\.(ts|tsx|js|jsx)$/.test(file) ||
+          file.includes('__fixtures__') ||
+          (group === 'cases' &&
+            !file.startsWith(`${join(dir, 'src')}/`) &&
+            !file.startsWith(`${join(dir, 'collector')}/`));
         for (const specifier of specifiersIn(file, readFileSync(file, 'utf8'))) {
           const owner = packageOf(specifier);
           if (owner === null || owner === manifest.name) continue;

@@ -393,6 +393,49 @@ const variance = await createVariance(page, {
 `runOf(testInfo)` is the same reading, exported for a suite that wants to take
 Playwright's answer and override one field.
 
+#### An Rstest suite
+
+[Rstest](https://rstest.rs) drives Playwright through `@rstest/playwright`,
+which hands the test body a real `Page` and no `TestInfo`. The five facts are
+still there, spread across three of the values the body destructures, and
+`@variance-authority/playwright-test/rstest` reads them:
+
+```ts
+import { createVariance, CHROMIUM_RASTER_ARGS } from '@variance-authority/playwright-test';
+import { runOf } from '@variance-authority/playwright-test/rstest';
+import { test } from '@rstest/playwright';
+
+test('cart', async ({ page, task, expect, playwright }) => {
+  await page.goto('/cart');
+  const variance = await createVariance(page, runOf({ task, expect, playwright }), {
+    materialization: {
+      kind: 'in-place',
+      browser: { headless: true, launchArgs: CHROMIUM_RASTER_ARGS },
+    },
+  });
+
+  try {
+    expect((await variance.observe(page.locator('#cart'))).verdict).toBe('unchanged');
+  } finally {
+    await variance.close();
+  }
+});
+```
+
+The three are passed separately because Rstest requires a test body's first
+parameter to be an object pattern, so there is no whole context to hand over.
+`expect` is the one the body was handed, which saves importing a second.
+`id` is the test's title path, `owner` is the spec relative to the project root,
+the raster partition — colour scheme, scale factor and base URL — is read off
+the `playwright` fixture's `contextOptions`, whatever `definePlaywrightConfig`
+resolved them to, and `accepting` is `rstest run -u` — Rstest's default writes
+snapshots that have none yet, which is an absence and not an approval.
+
+An Rstest test that runs in `node` or `jsdom` and starts no browser is the other
+adoption: it writes a capture with
+[`@variance-authority/unit-test`](../unit-test/README.md) and a later CLI run
+paints it. That path reaches nothing here.
+
 `materialization` selects how pixels are produced; its `kind` field picks the
 strategy. `kind: 'in-place'` requires `browser`, the declared launch of the
 suite's own Chromium (`headless` and the ordered `launchArgs`), which is what

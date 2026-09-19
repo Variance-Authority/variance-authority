@@ -135,12 +135,15 @@ variance ask packages
 
 `search` answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
-publishing. Every question takes a question: a word, a name or a specifier.
-`packages` is the one that takes none, and it answers with the specifiers the
-others take, so it is where a reader who has none of those starts. `symbol` prints one name's import line, declaration, signature,
-documentation and consumers; `uses` prints every call site, ordered by how much
-path it shares with `--from`; `entrypoint` lists what one import specifier
-opens; `gaps` lists the published names anybody imports that nothing documents.
+publishing. A third follows only when your words reach a name that does not
+contain them, labelled as the looser reading it is. Every question takes a
+question: a word, a name or a specifier. `packages` is the one that takes none,
+and it answers with the specifiers the others take, so it is where a reader who
+has none of those starts. `symbol` prints one name's import line, declaration,
+signature, documentation and consumers; `uses` prints every call site, ordered
+by how much path it shares with `--from`; `entrypoint` lists what one import
+specifier opens; `gaps` lists the published names anybody imports that nothing
+documents.
 
 These questions read the checkout under the working directory and nothing else:
 no report has to exist and `variance.config.json` is not opened. `--from` and
