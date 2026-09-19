@@ -305,6 +305,16 @@ language. That last part is not a small adjustment. It decides the words.
   reader there is the next agent, not an engineer meeting this project for the
   first time, and the cost the five conditions buy is not worth paying twice.
 
+**Counting instead of noticing.** Both worked examples above started with
+somebody reading a page and finding the same word three times. `node
+tools/register-histogram.mjs` does that part by measuring: it reads the
+published prose with its fences and inline code taken out, groups words into
+families, and prints how often each is said, on how many pages, and whether the
+program says it too. A family high in that list and absent from the source is
+the next candidate — there is no page that owns it, so it is style rather than
+vocabulary. `--word=<x>` prints one family with every sentence it appears in,
+which is what the judgement is made on.
+
 **Habits to cut.** Each of these falls out of the five conditions, and each one
 is easy to miss while writing.
 
