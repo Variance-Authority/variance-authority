@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers four whole commands, and narrows them out of the
+ * `withoutConfig` covers five whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -23,18 +23,23 @@ import type { Parsed } from '../parse.js';
 import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
+import { covering, formatCovering } from './covering.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { reachOutput } from './reach-command.js';
 import { selectOutput } from './select-command.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The four commands that read no project configuration at all. */
-export type Configless = Extract<Parsed, { command: 'watch' | 'distill' | 'select' | 'reach' }>;
+/** The five commands that read no project configuration at all. */
+export type Configless = Extract<
+  Parsed,
+  { command: 'watch' | 'distill' | 'covering' | 'select' | 'reach' }
+>;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
   return (
     parsed.command === 'watch'
     || parsed.command === 'distill'
+    || parsed.command === 'covering'
     || parsed.command === 'select'
     || parsed.command === 'reach'
   );
@@ -103,6 +108,16 @@ export async function answerConfigless(
     // still be handed a pair of files somebody else recorded.
     case 'distill': {
       streams.out(formatDistill(await distillFiles(parsed), parsed.format));
+      return EXIT_CLEAN;
+    }
+
+    // `distill`'s reason again, with the path made optional. The index this
+    // reads is written where a recorded run puts it, so the question an agent
+    // asks most — which tests entered the line I am about to change — is one
+    // flag long and needs nothing configured. Naming the file is still allowed,
+    // for the run that happened somewhere else.
+    case 'covering': {
+      streams.out(formatCovering(await covering(parsed), parsed.format));
       return EXIT_CLEAN;
     }
 

@@ -5,6 +5,7 @@ import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
 import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand, synopsisFor } from './usage.js';
 import { didYouMean } from './nearest.js';
+import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
@@ -98,7 +99,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedSelect | ParsedReach | ParsedShare
+  | ParsedDistill | ParsedCovering | ParsedSelect | ParsedReach | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -267,6 +268,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'ask': return parseAskArgs(flags, config);
 
     case 'distill': return parseDistill(flags);
+    case 'covering': return parseCoveringArgs(flags);
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);

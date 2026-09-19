@@ -43,7 +43,7 @@ Check each of these before spending a question:
    a missing file is exit `2` with `cannot read the config file
    variance.config.json`. This is true of the live questions too — `ask self
    --at <address>` loads a config it never reads. Every command below except
-   `watch` and `distill` needs one.
+   `watch`, `distill` and `covering` needs one.
 3. **A run has finished.** `variance ask` reads the file the run left at the
    config's `report` path, which defaults to `.variance/report.json`. No question
    re-runs anything, so an absent report is an absent answer, not a stale one.
@@ -60,8 +60,8 @@ Check each of these before spending a question:
 7. **The suite is React**, for update initiators and `createdBy`. Search is
    absent altogether on a raster-only capture and on a suite that is not React.
 
-`watch`, `distill` and `select` are the exceptions: they read no project
-configuration at all.
+`watch`, `distill`, `covering` and `select` are the exceptions: they read no
+project configuration at all.
 
 `locate --from` and `locate --to` additionally need **`@variance-authority/sense`**
 installed — a start point is a path in the source tree, and that is the package
@@ -438,12 +438,13 @@ none of it:
   infer them from query or click names. The Playwright fixture installs the React commit tap
   before navigation. RTL needs the tap installed before `react-dom` loads. Read
   `@variance-authority/eyes`'s README before wiring either adapter.
-- **Runtime journey:** `variance_source_tests` and `variance_distill` require an
-  `ExecutionIndex` with stable per-test ids. `@variance-authority/sense` ships
-  this query contract but no per-test producer; its test-selection snapshot is
-  per test file and cannot substitute. Supply the index from a runner, debugger,
-  editor integration, or another collector that already owns per-test
-  crossings.
+- **Runtime journey:** `variance covering`, `variance_source_tests` and
+  `variance_distill` require an `ExecutionIndex` with stable per-test ids. Under
+  Vitest, `withTestSelection(config, { cases: true })` from
+  `@variance-authority/sense/vitest` writes one; without `cases` the
+  test-selection snapshot is per test *file* and cannot substitute. Any runner,
+  debugger, editor integration or other collector that owns per-test crossings
+  can supply the index instead.
 - **Live journey/events:** compose `varianceFixtures` from
   `@variance-authority/playwright-test`, start `npx variance watch` or
   `npx variance-authority-mcp --watch` first, then start the suite with the exact
@@ -468,6 +469,28 @@ none of it:
 The public integration guides are under
 `https://variance-authority.dev/reference/packages/`; the cross-entrance routing
 is at `https://variance-authority.dev/agents/questions`.
+
+## Which tests entered this line
+
+`variance covering` is the question to ask before changing a line, and the one
+to ask about a test that may no longer earn its place. It reads the per-case
+execution index and names the tests that went through a file, a line or a
+function, nearest first.
+
+```bash
+npx variance covering --file src/checkout/total.ts --line 48
+npx variance covering --file src/checkout/total.ts --function applyDiscount --format json
+npx variance covering --file src/checkout/total.ts        # per recorded range
+```
+
+The index is read from where a recorded run writes it, so `--file` is usually
+the whole command; `--execution <path>` names one recorded elsewhere and
+`--root <path>` the project root it was recorded against. Depth is the shortest
+call-stack distance observed between the test and that region: depth 1 addressed
+the code, depth 7 passed through it. Neither is a verdict — execution says where
+a test went, never why the trip was worth taking. A missing index is refused
+rather than answered empty, because an empty list reads as *no test covers this
+line*.
 
 ## Distill, then verify
 

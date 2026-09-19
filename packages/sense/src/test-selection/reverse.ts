@@ -58,6 +58,16 @@ export interface CoveringTest extends ExecutionTest {
   readonly distance: number;
 }
 
+/**
+ * A run of adjacent lines every named test agrees on, and the tests themselves.
+ *
+ * The answer to *what does the suite claim about this file* has to be per range
+ * rather than per line, because a file of four hundred lines and one boundary is
+ * two answers and not four hundred. Adjacent ranges whose test lists are
+ * identical are folded into one, so a range boundary is a place where the claim
+ * on the code actually changes — including the change from several tests to
+ * none, which is how an unclaimed region is seen at all.
+ */
 export interface SourceTestRange {
   readonly startLine: number;
   readonly endLine: number;

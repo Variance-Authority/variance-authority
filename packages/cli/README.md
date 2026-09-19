@@ -146,6 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance select  [--since <ref>] [--format plain|json|vitest|jest]
 variance reach   --since <ref> [--format plain|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -166,6 +167,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
+| `covering` | names the tests that entered one source file, line or function, nearest first |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
@@ -280,6 +282,45 @@ forms are shown in the synopsis above.
 `--format json` returns the same ordered analysis as data. The command always
 reads: a distillation opportunity is not a verdict that a file is safe to mock.
 The verification workflow is in [distill a test](https://variance-authority.dev/docs/distill).
+
+### Covering: which tests entered this line
+
+`covering` reads the same execution index `distill` does, and asks it the
+question a reader has while looking at code rather than at a test: which named
+tests went through here.
+
+```bash
+variance covering --file src/checkout/total.ts
+variance covering --file src/checkout/total.ts --line 48
+variance covering --file src/checkout/total.ts --function applyDiscount --format json
+```
+
+```text
+3 named tests reached line 48 of src/checkout/total.ts, nearest first:
+  depth 1 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+  depth 4 — renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
+  depth 7 — checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
+```
+
+Depth is the shortest call-stack distance the recording saw between the test and
+that region, and it orders the list because it is the one thing the record knows
+about nearness: the test at depth 1 addressed this code, the one at depth 7
+passed through it on the way somewhere else. Neither is a verdict. Execution
+says where a test went, never why the trip was worth taking, so three tests on
+one line is the beginning of the question *why do all three need this code* and
+not the answer to it.
+
+Given `--file` alone the answer is per range rather than per test: the recorded
+regions of the file, each with the tests shared by every line in it, which is
+where an unclaimed region shows up as one.
+
+The index comes from a run wrapped in `withTestSelection(config, { cases: true })`
+and is read from where that run writes it, so an agent holding a line number
+needs no flag but `--file`. `--execution <path>` names an index recorded
+somewhere else, and `--root <path>` names the project root the run recorded
+against. A missing index is refused rather than answered empty, because an empty
+list here reads as *no test covers this line* — the sentence that gets a test
+deleted.
 
 ### Watch: ask about a suite that has not finished
 
