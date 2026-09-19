@@ -1,15 +1,10 @@
 # Cases
 
-**[Variance Authority](../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-A case runs it against software the project does not control: a real Storybook
-build, a real Playwright Test CLI, a real screenshot comparator, a real HTTP
-service. Unlike [`examples/`](../examples), cases do not let the project define
-every input and expected output for itself. The external tool's runner, its
-artifacts and its failure messages are what the case reads.
+A case runs this project against software it does not control: a real Storybook
+build, a real Playwright Test CLI, a real screenshot comparator, a real Rstest
+CLI, a real HTTP service. Unlike [`examples/`](../examples), cases do not let
+the project define every input and expected output for itself. The external
+tool's runner, its artifacts and its failure messages are what the case reads.
 
 Every package here is `"private": true`. Nothing in this directory is published;
 these exist to be run in a checkout.

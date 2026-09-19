@@ -73,8 +73,7 @@ Neither substitutes for the other. Preserving the path while producing no effect
 means the work did not land. Producing the effect while breaking the path means
 it landed badly.
 
-[Seeing what changed](changed.md) is the companion question. [Variance
-Authority](README.md) observes beside the assertion and retains what changed in
-the interface, execution, component state and source, so the second answer can
-be read back from that record instead of becoming another assertion this test
+[Seeing what changed](changed.md) is the companion question, and
+[Variance Authority](README.md) answers it from what a run recorded beside your
+assertion — so the second answer does not become another assertion this test
 has to carry.

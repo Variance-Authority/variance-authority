@@ -1,13 +1,8 @@
-# incumbent-case
+# Head to head with the screenshot tool most teams already have
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This case puts it head to head with the screenshot tool most teams already have:
-a real `toHaveScreenshot`, run by a real `playwright test`, on the same page
-Variance Authority reads.
+This case runs a real `toHaveScreenshot`, driven by a real `playwright test`, on
+the same page Variance Authority reads, and scores both sides against ground
+truth declared before either of them ran.
 
 Not our model of a competitor. `@playwright/test` is installed here, its runner
 executes [`src/incumbent.spec.ts`](src/incumbent.spec.ts) in its own process, and

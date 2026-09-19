@@ -4,6 +4,12 @@ Pick the question that brought you here. Each path below tells you what evidence
 it needs, what answer it can produce, and where that answer stops. Use one path
 on its own or combine several as the investigation grows.
 
+**Variance Authority** holds fine-grained evidence of what your code did —
+across hundreds of thousands of files and tests, over time — so that a question
+is answered from that record instead of by running the whole suite again to find
+out. The record has several readings, and none of them is the centre the others
+hang off.
+
 ## What do you need to do?
 
 <div class="doc-link-grid doc-link-grid--capabilities">

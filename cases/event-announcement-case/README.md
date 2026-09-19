@@ -1,20 +1,15 @@
 # Waiting on a decision instead of on a repaint
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
+This case exercises
+[`@variance-authority/event`](../../packages/event/README.md) in a real browser,
+against a real HTTP service, through the actual Playwright Test CLI — not a
+harness written to make the point.
 
-This case exercises one part of it that compares no images,
-[`@variance-authority/event`](../../packages/event/README.md). An
-**announcement** is a call the application source makes at the moment it decides
-something: three coordinates — `location`, `subject`, `action` — and no payload.
-It says *when*, never *what*. A test names the same three coordinates back and
-waits for the call, rather than waiting for the screen to change.
-
-What this case demonstrates is that the branch where nothing is drawn becomes
-assertable, in a real browser, against a real HTTP service, through the actual
-Playwright Test CLI — not a harness written to make the point.
+An **announcement** is a call the application source makes at the moment it
+decides something: three coordinates — `location`, `subject`, `action` — and no
+payload. It says *when*, never *what*. A test names the same three coordinates
+back and waits for the call. That makes the branch where nothing is drawn
+assertable, because the wait no longer depends on anything appearing.
 
 The application decides whether to show a modal only after a request whose
 latency varies by hundreds of milliseconds — the kind of wait that makes a
@@ -148,7 +143,7 @@ It exits 1. That is the point of it.
 ## Scope
 
 This case runs on one Chromium, on one machine, over an HTTP server of a few
-dozen lines. It covers the announcement and the wait, and nothing about image
-comparison — no baseline is recorded here and no pixel is read. The package is
-`"private": true` and has no scripts of its own; the Vitest file above is the
+dozen lines. It covers the announcement and the wait, and nothing else: no
+artifact outlives the run except Playwright's own results directory. The package
+is `"private": true` and has no scripts of its own; the Vitest file above is the
 whole entry point.

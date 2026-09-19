@@ -132,15 +132,9 @@ to be captured while it exists — not because every execution deserves a
 permanent archive, but because useful evidence is cheapest at the moment the
 system already knows it. The expensive version is reconstructing it afterwards.
 
-[Variance Authority](README.md) is that retention, worked to depth: holding
-fine-grained evidence of what code did, across hundreds of thousands of files
-and tests, over time, so a question is answered from the record instead of by
-running the whole suite again to find out. That evidence has several readings,
-and none of them is the centre the others hang off. It reads the public API a
-workspace exposes, inspects a test while it is running, records which tests
-entered which regions of which files, selects the tests an edit can reach,
-measures a rendered interface, compares a rendered state against a baseline you
-approved, and reads previous runs for what has been moving.
+Kept at depth — fine-grained evidence of what code did, across hundreds of
+thousands of files and tests, over time — that middle answers a question from
+the record, instead of sending you to run the whole suite again to find out.
 
 ## Observe enough to make the next move
 

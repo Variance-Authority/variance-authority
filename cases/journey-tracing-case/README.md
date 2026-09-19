@@ -1,15 +1,13 @@
-# Journey tracing case
+# One execution followed into a service
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. This case exercises a
-second instrument in that system — the one that records what a run *executed* —
-across a process boundary the test driver cannot see through.
+This case records what a run *executed* across a process boundary the test
+driver cannot see through. The execution starts in a Chromium page and finishes
+inside an HTTP service, and the service is where the code that decides actually
+lives.
 
-A **journey** is the set of source regions one execution entered: which function
-bodies and which branches it was inside, in every process it touched. Here the
-execution starts in a Chromium page and finishes inside an HTTP service, and the
-service is where the code that decides actually lives.
+What is recorded is a **journey**: the set of source regions one execution
+entered — which function bodies and which branches it was inside, in every
+process it touched.
 
 ## What this demonstrates
 
@@ -94,9 +92,9 @@ because the service reported home under the id the driver minted.
 
 ## Scope
 
-Nothing here writes a report or compares an image; the page itself is not
-instrumented, and everything recorded was executed in the other process. The
-only artifact is the coverage index the driver merges into at teardown, written
-into a temporary directory the outer file creates and removes. The head
-inventory the service's build writes is keyed by repository, so the outer file's
-`XDG_CACHE_HOME` is the whole of what keeps this run out of your own cache.
+Nothing here writes a report; the page itself is not instrumented, and
+everything recorded was executed in the other process. The only artifact is the
+coverage index the driver merges into at teardown, written into a temporary
+directory the outer file creates and removes. The head inventory the service's
+build writes is keyed by repository, so the outer file's `XDG_CACHE_HOME` is the
+whole of what keeps this run out of your own cache.

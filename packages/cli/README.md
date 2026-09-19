@@ -4,9 +4,7 @@
 
 > Run the Variance Authority workflow from a project config: collect subjects, compare, render what changed, report, accept.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 `variance` is the executable. It captures every **subject** your project asked
 for — one named UI state you asked for and can ask for again: one story, one

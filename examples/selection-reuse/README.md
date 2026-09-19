@@ -1,21 +1,15 @@
 # Selection reuse
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-Before it renders anything, it has to decide which UI states a code change could
-have reached. This example shows that decision being made from the source graph,
-and the on-disk index that keeps the second decision from costing what the first
-one did.
+Before a run does any work, something has to decide which UI states a code
+change could have reached. This example makes that decision from the source
+graph, then makes it twice more — warm from the index the first scan wrote, and
+again after editing a file — so you can see what the second answer costs once
+the first has been paid for.
 
 Two words this page uses:
 
-- A **subject** is one named UI state you asked for and can ask for again — one
-  Storybook story, one route at one viewport, one component mounted in a test —
-  captured and compared under an id you choose. The demo has two, `story:catalog`
-  and `story:account`.
+- A **subject** is one named UI state you asked for and can ask for again, under
+  an id you choose. The demo has two, `story:catalog` and `story:account`.
 - A **record** is one source file's resolved imports, as the scan stored them.
   The selection answer is computed from records, and a record survives until the
   content of its file changes.

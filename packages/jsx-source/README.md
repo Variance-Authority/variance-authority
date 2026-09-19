@@ -4,22 +4,21 @@
 
 > Carry the file and line that wrote a JSX element as far as the rendered DOM node.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 ## What this is for
 
-Variance Authority reports what changed in a **subject** — one named UI state you
-asked for and can ask for again — and names the source behind each change. It
-reads exact JSX call sites out of React development builds by itself: no plugin,
-no custom JSX runtime, no build change.
+A tool holding a rendered DOM node can ask which JSX expression wrote it, and in
+a React development build the answer is already there — read straight off the
+fiber, with no plugin, no custom JSX runtime and no build change. A production
+build keeps no such record, and neither does React 18 compiled by an unchanged
+classic transform.
 
 Install this package only when a *production*-built React artifact has to name
-the JSX expression that wrote each changed element. A built Storybook or a
-statically served application is the common case. Rendering, comparison and
-component attribution all work without it — what a report loses is the element's
-own line, falling back to the line where its component is declared.
+the JSX expression that wrote each element. A built Storybook or a statically
+served application is the common case. Everything else works without it — what
+is lost is the element's own line, falling back to the line where its component
+is declared.
 
 This is build instrumentation, not an application dependency. Application code
 never imports it.
@@ -82,8 +81,8 @@ recovered.
 This package supplies that last hop. Its `jsxDEV` wrapper writes the transform's
 location onto props under a symbol, then hands the element to React. The symbol
 arrives at `fiber.memoizedProps`, where `@variance-authority/react` reads it. It
-survives minification, never reaches the document, and is not digested, so it
-moves nothing a baseline compares.
+survives minification, never reaches the document, and is not digested, so
+nothing about the page the browser draws changes.
 
 It does not intercept `React.createElement`. React 18 with an unchanged classic
 transform therefore remains uninstrumented: development emission alone does not
@@ -438,7 +437,7 @@ any build with the setting on, installed or not. What this package adds is that
 location on the props object — the same strings the compiler already wrote, no
 new ones, and nothing that reaches the document.
 
-So instrument the artifact you compare, not the artifact you serve to the
+So instrument the artifact you observe, not the artifact you serve to the
 public. A built Storybook or a preview build is the subject either way; a
 public-facing bundle built with development emission on carries your build
 machine's directory layout to everyone who loads it.

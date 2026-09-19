@@ -4,9 +4,7 @@
 
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 This package supplies one of those readings, and it is the one that never
 renders anything. It reads a TypeScript workspace's public API as data: a

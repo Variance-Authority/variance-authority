@@ -60,11 +60,12 @@ whichever commenting action you already use.
 
 Percy, Argos and Chromatic each sell one subscription that bundles browser
 capture, comparison and a hosted review page, with a managed browser fleet and
-a support contract behind it. Variance Authority is not a hosted product. It is
-a library and a CLI you run yourself. A **collector** — the adapter that knows
-one host, such as a built Storybook or a served application — finds the
-**subjects** that host has. A subject is one named UI state you asked for and
-can ask for again, identified by a stable id like `story:checkout--empty`.
+a support contract behind it. Here there is no subscription and no fleet: the
+same three jobs run as a library and a CLI inside your own build. A
+**collector** — the adapter that knows one host, such as a built Storybook or a
+served application — finds the **subjects** that host has. A subject is one
+named UI state you asked for and can ask for again, identified by a stable id
+like `story:checkout--empty`.
 `npx variance run` captures each one, compares it against its baseline, and
 writes a report you review where you like.
 

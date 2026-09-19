@@ -1,11 +1,7 @@
 # Capture in jsdom, paint in Chromium later
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
-
 This case is the end-to-end check that a jsdom unit test can put a component
-into that review without a browser anywhere near it. An ordinary Vitest process
+into review without a browser anywhere near it. An ordinary Vitest process
 mounts a button and writes a **capture** — the markup, the CSS that applies to
 it, and the bytes of every resource it references, so a later renderer needs no
 access to the origin it came from. A second, separate CLI process reads that

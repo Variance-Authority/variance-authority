@@ -1,14 +1,9 @@
 # Adding Variance Authority to a Playwright Test suite
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This case adds it to a Playwright Test suite and shows what the suite gives up:
-nothing. The consumer spec imports `test` and `expect` from `@playwright/test`,
-adds one observation call and one assertion, and is run by the real
-`playwright test` CLI in a child process — not by a harness this project wrote.
+The suite gives up nothing, and this case is where you check that. The consumer
+spec imports `test` and `expect` from `@playwright/test`, adds one observation
+call and one assertion, and is run by the real `playwright test` CLI in a child
+process — not by a harness this project wrote.
 
 ## What "additive" means here, exactly
 

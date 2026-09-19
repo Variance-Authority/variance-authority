@@ -1,13 +1,10 @@
 # How search finds a subject
 
 `grep`, ripgrep and find-in-files search the text of your files. This searches
-what a run observed. [Variance Authority](README.md) is a visual regression
-system you run yourself: it renders a UI state, compares it against the baseline
-you approved, and reports what changed in the vocabulary of your source. While
-it compares, it writes down — per subject — the ids, component names, accessible
-names, visible text, roles, declaring files, custom properties and entered
-regions it saw. That per-subject record of the words a subject answered to is
-the **lexicon**, and search runs against it.
+what a run observed. Each run writes down — per subject — the ids, component
+names, accessible names, visible text, roles, declaring files, custom
+properties and entered regions it saw. That per-subject record of the words a
+subject answered to is the **lexicon**, and search runs against it.
 
 A **subject** is one named UI state you asked for and can ask for again, such as
 `cart/empty`. So `checkbox` finds a toggle whose source never spells the word,

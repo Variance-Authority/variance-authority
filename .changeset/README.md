@@ -4,12 +4,10 @@ A changeset is one file that says what a change does to the published packages,
 written by the person who made it and merged with it. Versions and changelogs
 are then derived from those files rather than decided at release time.
 
-[**Variance Authority**](../README.md) — a visual regression system you run
-yourself, which renders a UI state, compares it against the baseline you
-approved, and reports what changed in the vocabulary of your source — publishes
-its `@variance-authority/*` packages from this workspace. This directory holds
-the pending changesets and [`config.json`](config.json), the settings the
-`changesets` CLI reads.
+The `@variance-authority/*` packages are published from this workspace. This
+directory holds the changesets still waiting for a release, and
+[`config.json`](config.json) — the settings the `changesets` CLI reads, which
+are unusual enough here to be worth reading before you write your first one.
 
 ## When you need one
 

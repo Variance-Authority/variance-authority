@@ -4,9 +4,7 @@
 
 > Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.
 
-Part of [Variance Authority](https://variance-authority.dev), which retains what
-a test run knows — what it rendered, which code it entered, what the workspace
-exposes — so the next question is answered from the record, not another run.
+Part of [Variance Authority](https://variance-authority.dev).
 
 This package is where those approved images sit. It gives you two backends —
 a plain directory, and a directory whose images are tracked by git-LFS — plus

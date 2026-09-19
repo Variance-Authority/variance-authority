@@ -1,15 +1,11 @@
-# storybook-case
+# A Storybook that Storybook built, collected from the outside
 
-**[Variance Authority](../../README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-This case is the Storybook adapter run against a real Storybook, built by
-Storybook, read from the outside. Not a fixture shaped like one: `storybook build`
-produces `storybook-static/` and the adapter is pointed at the `index.json` that
-Storybook wrote — because an adapter tested against an index *we* wrote is an
-adapter tested against our own assumptions about the format.
+This case runs the Storybook adapter against a real Storybook, built by
+Storybook, read from the outside. Not a fixture shaped like one:
+`storybook build` produces `storybook-static/` and the adapter is pointed at
+the `index.json` that Storybook wrote — because an adapter tested against an
+index *we* wrote is an adapter tested against our own assumptions about the
+format.
 
 Run it and you will see a built Storybook collected through its own index, a
 ticking story diagnosed through `--flakes`, an unstable story refused by name,
