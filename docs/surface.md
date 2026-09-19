@@ -37,7 +37,7 @@ boundary.
 | Built or served Storybook | `@variance-authority/cli` and `@variance-authority/storybook-collector` | A render document, painted afterwards; a remote renderer needs the same access to your resources that the run had. |
 | Served routes or a static directory | `@variance-authority/cli` and `@variance-authority/route-collector` | A render document that can be closed over its resources on request, so a remote renderer needs no access to your origin. |
 | Existing Playwright Test | `@variance-authority/playwright-test` | A render document by default, or — when you ask for it — a raster taken in place from the page your test already owns. |
-| Jest or Vitest with jsdom | `@variance-authority/unit-test` and `@variance-authority/cli` | A resource-closed document archive written in the unit process and painted by a later CLI process. |
+| Jest, Vitest or Rstest with jsdom | `@variance-authority/unit-test` and `@variance-authority/cli` | A resource-closed document archive written in the unit process and painted by a later CLI process. |
 | Vitest browser mode | `@variance-authority/vitest-browser` | A document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Whichever you already use, through a store you inject and — for documents — a renderer you supply. |
 
@@ -324,10 +324,11 @@ The package exports neither `test` nor `expect`. Fixtures and matcher parts are
 unbound values, for suites that already own a shared extension module. The
 walkthrough is [start with Playwright](start-playwright.md).
 
-### Jest and Vitest
+### Jest, Vitest and Rstest
 
 The acquisition half installs into the test runner, with the DOM environment it
-uses:
+uses. It imports no runner, so any of the three that gives it a DOM is the same
+install:
 
 ```bash
 npm install --save-dev @variance-authority/unit-test jsdom
@@ -342,9 +343,9 @@ npx playwright install chromium
 ```
 
 Vitest needs `// @vitest-environment jsdom` at the top of the test file, or the
-equivalent project setting; Jest needs its normal `jsdom` test environment.
-Plain Jest or Vitest has a DOM and no rasterizer, so the unit surface does
-acquisition only:
+equivalent project setting; Jest needs its normal `jsdom` test environment, and
+Rstest `testEnvironment: 'jsdom'`. A runner with a DOM and no rasterizer is what
+this surface is for, so it does acquisition only:
 
 ```ts
 import { test, expect } from 'vitest';
@@ -490,7 +491,36 @@ a refused comparison rather than as a component regression. Choose between a
 committed directory, Git LFS and a remote store in
 [where baselines live](placement.md), which also covers what each costs.
 
-## 5. Writing a surface for a host that has none
+## 5. What each surface reaches
+
+Every surface ends in the same comparison and the same report, and they do not
+all carry the same evidence into it. Some of what you get follows the host you
+already have rather than anything you configure, so read the row you need most
+before you pick.
+
+| What you get | Storybook | Served routes | Playwright Test | jsdom unit | Vitest browser | `observe` |
+| --- | --- | --- | --- | --- | --- | --- |
+| Component names behind changed pixels | Read from the preview | Read from the page | Read from the page | Pass `provenanceOf` | Read from the tab | Whatever you supply |
+| `file:line` beside each name | When the build keeps names and sources | When the build keeps names and sources | Pass a `source` index | Carried by the reader you pass | When the build keeps names and sources | Whatever you supply |
+| Wiring band, and holdings on request | Yes | Yes | Yes | Pass `wiringOf` and `holdingOf` | Yes | Whatever you supply |
+| Sensitivity levels | Named in the run configuration | Named in the run configuration | Declared per observation | Named in the configuration of the painting run | Declared per observation | Declared per observation |
+| Subject held still before it is read | Yes | Yes | Yes, and one still moving is re-read until it rests | You hold it, and the recipe's digest joins the capture | Yes | You hold it |
+| Before, after and diff images | Written by the report | Written by the report | Written beside the verdict | Written by the report | Not written | You hold both images |
+| Approving a change | `variance accept` | `variance accept` | Promoted in the run that observed it | `variance accept` | Vitest's own `--update` | Your store |
+| The same subject across runs | Kept, with a `history` endpoint configured | Kept, with a `history` endpoint configured | Not kept from this path | Kept, with a `history` endpoint configured | Not kept from this path | Your store |
+| Which tests to run after a diff | Per story | Not recorded | Per spec file, and per test | Per test file, and per case | Not recorded | Not recorded |
+| `parted` and `unentered` findings | Yes | Not recorded | Yes | Yes | Not recorded | Not recorded |
+| One execution followed into a service | No | No | Yes | No | No | No |
+
+The last three rows are written by your runner rather than by the surface, so
+they arrive on a different install and answer a different question — not *did
+this subject change* but *which tests could this commit have moved*. A jsdom
+suite gets them from the Vitest, Jest or Rstest integration and a Playwright
+suite from the recording fixtures beside its observations; [what each host
+records](execution-record.md#what-each-host-records) is the per-runner detail,
+and [own fewer tests](own-fewer-tests.md) is the loop they serve.
+
+## 6. Writing a surface for a host that has none
 
 A custom integration names a subject, acquires its state, and chooses where the
 resulting document or raster goes. The surfaces above remove one or more of
@@ -548,7 +578,7 @@ Absence reduces [attribution](attribution.md); it does not prevent capture or
 pixel comparison. React and emitted `data-*` metadata are supported provenance
 sources. The surface decides which one is available before acquisition.
 
-## 6. Bringing pixels this system did not paint
+## 7. Bringing pixels this system did not paint
 
 ```bash
 npm install --save-dev @variance-authority/observe

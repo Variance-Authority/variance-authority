@@ -61,6 +61,18 @@ leaves it, over whatever protocol the runner gives its test body. The judging
 half stays outside, because a baseline and a paint are the two things that realm
 does not have.
 
+What a surface reaches is decided by where the run sits rather than by which
+host it names. A surface that hands **subject**s to a run composes with every
+block that run owns, and reads what it needs — the sensitivity that applies, the
+baselines to compare against, the history to place this reading in — from
+configuration that outlives any one observation. A surface inside the adopter's
+suite has no such run: there is one observation at a time and nothing to hold a
+second one against, so anything scoped wider than a single reading is declared
+at the call or is not available. That asymmetry is the shape of the family, and
+the individual answers missing from one member of it — images a reviewer looks
+at, a row kept across runs — are defects against the member, not properties of
+being embedded.
+
 ## Implementation coordinates
 
 - `packages/playwright-test/src/acquire.ts` — `acquireFrom`, portal accessibility roots

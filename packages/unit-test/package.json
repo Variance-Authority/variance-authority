@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/unit-test",
   "version": "0.2.0",
-  "description": "Capture a mounted DOM subject in a browserless Jest or Vitest process, then render and observe it later.",
+  "description": "Capture a mounted DOM subject in a browserless Jest, Vitest or Rstest process, then render and observe it later.",
   "keywords": [
     "variance-authority",
     "visual-regression",

@@ -413,7 +413,7 @@ capped by `alone.limit`. The result is reported as `order-dependent` rather than
 `changed`, and **`accept` refuses it** — promoting it would make the leak the
 baseline, and the subject would compare clean for as long as the leak survived.
 The clean world is the collector's to build, like the shared one: a fourth method
-on [the contract](surface.md#5-writing-a-surface-for-a-host-that-has-none), optional because a
+on [the contract](surface.md#6-writing-a-surface-for-a-host-that-has-none), optional because a
 collector handed somebody else's live page has no world of its own to rebuild.
 Holding one page open across a run is not that case — a preview can be opened
 twice — and both shipped collectors build the second world from the same recipe

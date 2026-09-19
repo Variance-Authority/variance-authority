@@ -2,7 +2,7 @@
 
 # @variance-authority/unit-test
 
-> Put the states your Vitest suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
+> Put the states your unit suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
 
 Part of [Variance Authority](https://variance-authority.dev).
 
@@ -38,7 +38,10 @@ npm install --save-dev @variance-authority/unit-test jsdom
 ```
 
 Vitest needs `// @vitest-environment jsdom` at the top of the test file, or the
-equivalent project setting. This package configures no runner.
+equivalent project setting; Jest needs its normal `jsdom` test environment, and
+Rstest `testEnvironment: 'jsdom'`. Nothing here imports a runner, so a DOM and a
+writable directory are the whole requirement. This package configures no
+runner.
 
 In the job that paints — a separate process, and the only place a browser is
 launched:
