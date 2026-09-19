@@ -150,6 +150,58 @@ better expression of the ideas, not simplification of them.
 Apart from the scoping rule above, nothing in this section is checked. It is
 held by review, which is why it reads as direction rather than as rules.
 
+### The register
+
+Everything this project publishes is written in one register: **what an engineer
+says out loud to another engineer.** That is the whole definition. The
+expectations and the boundaries below are consequences of it.
+
+**The test.** Read the sentence aloud as if the reader were at the desk beside
+you. If you would not say it to their face in those words, it is the wrong
+register — regardless of whether it is correct, precise, or good English.
+
+**What the register is not.** Three neighbouring registers are close enough to
+reach for by accident. None of them is ours.
+
+- **Proof.** The vocabulary of formal logic and mathematical writing: *it does
+  not follow that*, *hence*, *thus*, *it holds that*, *the converse*, *it
+  suffices to*, *by construction*, *necessary and sufficient*. Each of these is
+  exact inside a proof and borrowed anywhere else. The cost is not stiffness, it
+  is mis-parsing: outside a proof, *follow* means to come after, to go along
+  with, or to understand, so a reader meets `it does not follow` and lands on
+  *I don't follow*. The entailment sense never arrives. Say **that does not
+  mean**, **so**, **which is why**.
+- **Literature.** Inverted clauses, appositives, epigrams, any sentence that
+  resolves into a maxim. A title is task-shaped — `How search finds a subject`,
+  `How different languages are handled` — never a poetic clause about the
+  subject. A paragraph ends when the point is made, not on a cadence.
+- **Marketing.** Superlatives, *seamless*, *powerful*, *simply*, *just*, and
+  any sentence congratulating the software for meeting its contract.
+
+**What the register is not a licence to do.** The ban is on borrowed idiom, not
+on difficulty. Nothing here says to simplify. The reader is a senior engineer,
+every term of art the domain owns stays — *import*, *closure*, *resolution*,
+*graph*, *fiber*, *hydration* — and a distinction is never dropped to shorten a
+sentence. Plain register, full depth. Those are independent axes, and prose
+that trades the second for the first has failed this rule, not passed it.
+
+**One word, one job.** Within a page a word means one thing. The project's own
+names are the strict case: a name it coined is introduced before it is used, on
+the page that owns it, and no page opens on a word the project invented.
+
+**Person.** Second person, reader as subject, task first. Not *one may*, not
+*the user should*, not the passive voice standing in for an actor the sentence
+declines to name.
+
+**Where it applies.** Every published surface — the root `README.md`, `docs/`,
+package and example `README.md` files, the site, CLI output and error messages.
+Internal writing under `docs/context/` and `docs/specs/` may be denser and may
+cite itself freely, but it is written in the same register: an ADR is an
+engineer stating a decision, not a proof of one.
+
+Nothing in this subsection is mechanically checked, and it is unlikely that it
+can be. It is held by reading the sentence aloud.
+
 ## The project reports on itself in code
 
 How far along the project is — what is written and has never run, what nobody
