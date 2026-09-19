@@ -149,8 +149,8 @@ describe('a question about the code', () => {
     const changedFile = join(await directory(), 'changed.txt');
     await writeFile(changedFile, 'src/button.tsx\nsrc/theme.ts\n');
     let received: readonly string[] | undefined;
-    const source = (_root: string, changed?: readonly string[]): Promise<Sourced> => {
-      received = changed;
+    const source = (_root: string, options?: { readonly changed?: readonly string[] }): Promise<Sourced> => {
+      received = options?.changed;
       return sourced();
     };
 
@@ -159,8 +159,27 @@ describe('a question about the code', () => {
     expect(received).toEqual(['src/button.tsx', 'src/theme.ts']);
   });
 
+  it('hands an addition-only taint table to the source reader', async () => {
+    const taintFile = join(await directory(), 'loaders.json');
+    await writeFile(taintFile, JSON.stringify({ 'src/route.ts': { '+': ['./screen'] } }));
+    let names: readonly string[] = [];
+    const source = (_root: string, options?: { readonly taints?: readonly { readonly name: string }[] }): Promise<Sourced> => {
+      names = options?.taints?.map((taint) => taint.name) ?? [];
+      return sourced();
+    };
+
+    await askSource({ question: 'search', query: 'box', taintFile, source });
+
+    expect(names).toEqual([taintFile]);
+  });
+
   it('does not silently apply a changed-file list to a report question', async () => {
     await expect(ask(asking('/nowhere/report.json', 'summary', { changedFile: '/tmp/changed.txt' })))
+      .rejects.toThrow('can only be used with a source question');
+  });
+
+  it('does not silently apply a taint table to a report question', async () => {
+    await expect(ask(asking('/nowhere/report.json', 'summary', { taintFile: '/tmp/loaders.json' })))
       .rejects.toThrow('can only be used with a source question');
   });
 

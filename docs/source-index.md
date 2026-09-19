@@ -49,6 +49,18 @@ when it is empty; a rename writes both its old and new path. Git still supplies
 the committed path set and the named paths are hashed from disk, but `git
 status` is not run to rediscover them.
 
+Declarative loaders can be supplied beside that list as a
+[Sense taint table](../packages/sense/README.md):
+
+```bash
+variance ask search --query button --from src/issue-view.tsx --taint-file /tmp/loaders.json
+```
+
+The JSON object is keyed by scan-root-relative caller file; each `+` array names
+the modules that caller loads without an ordinary import. Source-area questions
+accept additions only because a subtraction such as a mock is relative to one
+file's run and cannot be flattened into one workspace-wide source tree.
+
 From your own tooling, `openSourceIndex` and `sourceIndexPath` in
 [`@variance-authority/sense`](../packages/sense/README.md) are the same two
 halves the commands use: open the index, hand `cache` and `reuse` to

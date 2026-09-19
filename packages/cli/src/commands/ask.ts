@@ -17,6 +17,7 @@ import {
 } from './asking.js';
 import { readWorkspace } from '@variance-authority/help';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import {
   TOOLS,
   VANTAGE_TOOLS,
@@ -131,6 +132,8 @@ export interface AskRequest {
   readonly to?: string;
   /** A newline-delimited authoritative changed-file list for source questions. */
   readonly changedFile?: string;
+  /** An addition-only Sense taint table for declarative module edges. */
+  readonly taintFile?: string;
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
@@ -141,7 +144,7 @@ export interface AskRequest {
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
-  readonly source?: (root: string, changed?: readonly string[]) => Promise<Sourced>;
+  readonly source?: (root: string, options?: SourceReadOptions) => Promise<Sourced>;
 }
 
 /** The flags every question is spelled with, whichever subject answers it. */
@@ -159,7 +162,14 @@ type Flagged = Pick<
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile'> & { readonly question: string };
+export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile'> & {
+  readonly question: string;
+};
+
+export interface SourceReadOptions {
+  readonly changed?: readonly string[];
+  readonly taints?: readonly Taint[];
+}
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
 export interface Sourced {
@@ -173,8 +183,9 @@ export async function ask(request: AskRequest): Promise<string> {
 
   const question = questionFor(request.question);
   if (question.source !== undefined) return askSource({ ...request, question: request.question });
-  if (request.changedFile !== undefined) {
-    throw new OperatorError('`--changed-file` supplies source identity and can only be used with a source question');
+  if (request.changedFile !== undefined || request.taintFile !== undefined) {
+    const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
+    throw new OperatorError(`\`${flag}\` supplies source identity and can only be used with a source question`);
   }
 
   const input = await inputFrom(question, request);
@@ -201,7 +212,11 @@ export async function askSource(request: SourceRequest): Promise<string> {
 
   const input = inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
-  const sourced = await (request.source ?? readSource)(process.cwd(), changed);
+  const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
+  const sourced = await (request.source ?? readSource)(process.cwd(), {
+    ...(changed === undefined ? {} : { changed }),
+    ...(taints === undefined ? {} : { taints }),
+  });
   const tree = tool.wants?.(input) === true ? sourced.tree?.() : undefined;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
@@ -223,16 +238,25 @@ export async function askSource(request: SourceRequest): Promise<string> {
  * the repository a second time — the same arrangement the standalone
  * `variance-authority-help` binary makes, from the same cache.
  */
-async function readSource(root: string, changed?: readonly string[]): Promise<Sourced> {
+async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
   let records: readonly FileRecord[] | undefined;
   const help = await readWorkspace(root, {
     index: join(scanCacheRoot(root), 'source-index.bin'),
-    ...(changed === undefined ? {} : { changed }),
+    ...(options.changed === undefined ? {} : { changed: options.changed }),
+    ...(options.taints === undefined ? {} : { taints: options.taints }),
     records: (drawn) => {
       records = drawn;
     },
   });
   return { help, tree: () => (records === undefined ? undefined : treeOf(records, root)) };
+}
+
+async function readTaint(path: string): Promise<Taint> {
+  try {
+    return await readTaintFile(path);
+  } catch (error) {
+    throw new OperatorError(`--taint-file ${path} could not be read: ${messageOf(error)}`, { cause: error });
+  }
 }
 
 /** Read the editor/orchestrator answer without asking Git to rediscover it. */

@@ -124,3 +124,11 @@ editor, watcher or orchestrator. The warmed Jira-scale command, including graph
 folding and the scoped query, completed in 17.60 seconds and returned the same
 44,426-file issue-view closure as discovery. The preceding discovery-backed CLI
 run took 33.13 seconds after its index had stabilized.
+
+The shell entrance also accepts an addition-only Sense table through
+`--taint-file`. A temporary Jira table generated from 2,190 text-search
+candidates held 2,024 callers and occupied 322,997 bytes. With that table and
+the authoritative clean change file, the real scoped CLI query completed in
+20.32 seconds and expanded issue-view from 44,426 to 60,360 reachable files.
+Candidate discovery and table generation remain bootstrap/user-space work; a
+question reads the bounded table rather than searching the repository again.

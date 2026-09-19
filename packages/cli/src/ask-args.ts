@@ -93,6 +93,8 @@ export interface ParsedAsk {
   readonly to?: string;
   /** `--changed-file <path>`: authoritative scan-root-relative paths, one per line. */
   readonly changedFile?: string;
+  /** `--taint-file <path>`: addition-only declarative module edges. */
+  readonly taintFile?: string;
   readonly limit?: number;
   /**
    * `--at <address>`: a running watcher to ask, instead of the last report.
@@ -132,6 +134,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const from = flags.values.get('--from');
   const to = flags.values.get('--to');
   const changedFile = flags.values.get('--changed-file');
+  const taintFile = flags.values.get('--taint-file');
   const limit = countOf(flags.values.get('--limit'), 'tests to list');
   const at = flags.values.get('--at');
 
@@ -156,6 +159,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(from !== undefined ? { from } : {}),
     ...(to !== undefined ? { to } : {}),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
+    ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(at !== undefined ? { at } : {}),
     reports: reports.map((path) => resolve(path)),

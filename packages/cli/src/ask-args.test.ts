@@ -7,7 +7,7 @@ import { flagsFor, synopsisFor } from './usage.js';
 describe('source refresh input', () => {
   it('resolves the authoritative changed-file list', () => {
     const flags = readFlags(
-      ['search', '--query', 'button', '--changed-file', 'changed.txt'],
+      ['search', '--query', 'button', '--changed-file', 'changed.txt', '--taint-file', 'loaders.json'],
       'ask',
       flagsFor('ask'),
       synopsisFor('ask'),
@@ -17,6 +17,7 @@ describe('source refresh input', () => {
       question: 'search',
       query: 'button',
       changedFile: resolve('changed.txt'),
+      taintFile: resolve('loaders.json'),
     });
   });
 });
