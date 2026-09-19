@@ -18,8 +18,8 @@ rerun that settles it.
 
 Record case identities once. `withTestSelection` wraps a Vitest configuration
 and keeps its plugins, setup files and reporters; `cases: true` writes an
-[execution index](execution-record.md) naming which individual case entered each region, beside the
-file-level snapshot the same run already writes.
+[execution index](execution-record.md) naming which individual case entered each
+region, beside the file-level snapshot the same run already writes.
 
 ```bash
 npm install --save-dev @variance-authority/sense
@@ -31,49 +31,56 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true, executionFile: '.variance-authority/cases.json' },
+  { cases: true },
 );
 ```
 
-Run the suite the way you already run it, then ask the index about the line you
-are considering:
+Run the suite the way you already run it, then ask about the line you are
+considering:
 
-```ts
-import { readFile } from 'node:fs/promises';
-import {
-  coveringTests,
-  coveringTestsInFile,
-  type ExecutionIndex,
-} from '@variance-authority/sense/test-selection';
-
-const index = JSON.parse(
-  await readFile('.variance-authority/cases.json', 'utf8'),
-) as ExecutionIndex;
-
-const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
-const decorations = coveringTestsInFile(index, 'src/cart/total.ts');
+```bash
+npx variance covering --file src/cart/total.ts --line 14
 ```
 
-Each entry in `walked` carries the case's `id`, its test `file` and its `name`,
-so every answer is a test you can open. `coveringTestsInFile` answers the whole
-indexed file at once, as ranges of lines that share the same cases. A range with
-an empty list is instrumented and unreached; a line outside the instrumented
-regions produces no range at all, which is a different statement from nobody
-reaching it.
+```text
+3 named tests reached line 14 of src/cart/total.ts, nearest first where the index carries a depth:
+  depth 0 — splits a discount — src/cart/total.test.ts [total.test.ts::splits a discount]
+  depth 0 — renders a coupon — src/cart/Cart.test.tsx [Cart.test.tsx::renders a coupon]
+  depth 0 — checks out — src/cart/flow.test.tsx [flow.test.tsx::checks out]
+```
+
+Every answer is a test you can open: the case's name, the file it is written in,
+and the id the record knows it by. `--function <name>` asks the same question
+about a whole function. `--file` on its own answers the whole recorded file at
+once, as ranges of lines that share the same cases — where a range with an empty
+list is recorded and unreached, and a line outside every recorded region
+produces no range at all, which is a different statement from nobody reaching
+it. `--format json` hands the same reading to whatever asks next, which is the
+form an agent wants when it is about to change a line and needs the tests to run
+after.
+
+The command reads no project configuration and finds the index where the
+recorded run wrote it, so the question is one flag long; `--execution <path>`
+names an index recorded somewhere else. A missing index is refused rather than
+answered empty, because an empty list here reads as *no test covers this line* —
+the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
+from `@variance-authority/sense/test-selection` answer the same two questions in
+process, for an editor or a script that wants the records rather than the text.
 
 Two limits shape how you read the list. Anything a file entered before its first
-case — imports, `beforeAll`, top-level evaluation — is credited to every case
-in that file. And case crossings carry no call-stack depth, so the answer is
-ordered by identity rather than by how near each case stood to the line; the
-file-level [execution record](execution-record.md) has that distance instead.
-Turn cases on for a local loop over the code you are changing, not for the
-repository-wide index CI reads to select files. A Jest suite wraps its own
+case — imports, `beforeAll`, top-level evaluation — is credited to every case in
+that file. And this recorder writes every crossing at depth zero rather than
+inventing a call-stack distance it did not observe, so the order is by identity;
+the file-level [execution record](execution-record.md) carries real distance
+instead, and an index from another producer that measured depth sorts nearest
+first. Turn cases on for a local loop over the code you are changing, not for
+the repository-wide index CI reads to select files. A Jest suite wraps its own
 configuration the same way and records the same regions against test files; the
 case axis is the Vitest integration.
 
 The list starts the conversation. It does not finish it, and the rest of this
-page is about what finishes it. For one candidate test rather than a
-set of them, [Distill](distill.md) separates what that test loaded, entered and
+page is about what finishes it. For one candidate test rather than a set of
+them, [Distill](distill.md) separates what that test loaded, entered and
 addressed, and names what it never witnessed.
 
 The useful unit is not a test or a covered line. It is a decision the test can
@@ -134,6 +141,15 @@ replaces collaborators and concentrates on one unit's own
 choices. It is the better place to fan out a decision table or exercise a large
 set of edge cases. Its substitutes are a boundary: it cannot prove that the
 real collaborators still agree.
+
+Which collaborators get replaced is a question this page does not settle for
+you. One school replaces at the module boundary, so every import of the subject
+is a substitute; another replaces at the domain boundary, so the unit is a
+cluster of types that belong together and only the network, the clock and the
+database are stood in for. Both are solitary, and the argument between them is
+about where a unit ends. What decides the count either way is the same: how many
+pieces are in play when the test fails. A test with two moving parts names its
+cause; a test with twenty offers you a list.
 
 Use the two shapes together without cloning the same matrix at both levels. A
 small number of social tests protect the joins and consequential paths. A

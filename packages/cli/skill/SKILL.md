@@ -486,11 +486,12 @@ npx variance covering --file src/checkout/total.ts        # per recorded range
 The index is read from where a recorded run writes it, so `--file` is usually
 the whole command; `--execution <path>` names one recorded elsewhere and
 `--root <path>` the project root it was recorded against. Depth is the shortest
-call-stack distance observed between the test and that region: depth 1 addressed
-the code, depth 7 passed through it. Neither is a verdict — execution says where
-a test went, never why the trip was worth taking. A missing index is refused
-rather than answered empty, because an empty list reads as *no test covers this
-line*.
+call-stack distance observed between the test and that region, and sorts the
+list where a producer measured one; the Vitest recorder in
+`@variance-authority/sense` writes zero everywhere, so under it the order is by
+identity. None of it is a verdict — execution says where a test went, never why
+the trip was worth taking. A missing index is refused rather than answered
+empty, because an empty list reads as *no test covers this line*.
 
 ## Distill, then verify
 

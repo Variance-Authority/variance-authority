@@ -296,19 +296,24 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 ```
 
 ```text
-3 named tests reached line 48 of src/checkout/total.ts, nearest first:
-  depth 1 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
-  depth 4 — renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-  depth 7 — checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
+3 named tests reached line 48 of src/checkout/total.ts, nearest first where the index carries a depth:
+  depth 0 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+  depth 0 — renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
+  depth 0 — checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
 ```
 
-Depth is the shortest call-stack distance the recording saw between the test and
-that region, and it orders the list because it is the one thing the record knows
-about nearness: the test at depth 1 addressed this code, the one at depth 7
-passed through it on the way somewhere else. Neither is a verdict. Execution
-says where a test went, never why the trip was worth taking, so three tests on
-one line is the beginning of the question *why do all three need this code* and
-not the answer to it.
+This is not a verdict. Execution says where a test went, never why the trip was
+worth taking, so three tests on one line is the beginning of the question *why
+do all three need this code* and not the answer to it.
+
+Depth is the shortest call-stack distance between the test and that region, and
+it sorts the list where a producer measured one. The Vitest recorder in
+`@variance-authority/sense` does not measure it — every crossing it writes is
+depth zero, and a fabricated number would sort the answer by something nothing
+observed — so under that recorder the list comes back in identity order. An
+index from a runner, debugger or editor integration that carries real depths
+sorts nearest first, and the column is printed either way so you can tell which
+kind of index you are reading.
 
 Given `--file` alone the answer is per range rather than per test: the recorded
 regions of the file, each with the tests shared by every line in it, which is

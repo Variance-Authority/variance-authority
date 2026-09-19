@@ -16,13 +16,18 @@
  * question instead.
  *
  * Execution says where a test went, never why the trip was worth taking. So
- * this prints named tests and the call-stack depth each stood at, and stops:
- * nothing here says a test is redundant, and a list of six is the beginning of
- * the question *why do all of these need this code*, not the answer to it.
- * Depth orders the list because it is the one thing the record knows about
- * nearness — a test that entered at depth 1 addressed the line, one at depth 9
- * passed through it on the way somewhere else, and those are not the same claim
- * on the code even when they are the same length of list.
+ * this prints named tests and stops: nothing here says a test is redundant, and
+ * a list of six is the beginning of the question *why do all of these need this
+ * code*, not the answer to it.
+ *
+ * Depth is printed where a producer measured one, and sorts the list when it
+ * did: a test that entered at depth 1 addressed the line, one at depth 9 passed
+ * through it on the way somewhere else, and those are not the same claim on the
+ * code even when they are the same length of list. This project's own Vitest
+ * recorder is not that producer — ADR-0056 forecloses a recorded depth, so it
+ * writes zero everywhere and the list comes back in identity order. The column
+ * is still printed, because a reader comparing two indexes has to be able to
+ * see which of them measured it.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -147,7 +152,7 @@ function text(answer: Covering): string {
   return [
     `${tests.length} named test${tests.length === 1 ? '' : 's'} reached ${where} of ${
       answer.file
-    }, nearest first:`,
+    }, nearest first where the index carries a depth:`,
     ...tests.map((test) => `  ${describe(test)}`),
   ].join('\n');
 }

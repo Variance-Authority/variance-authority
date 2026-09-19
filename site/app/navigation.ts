@@ -54,6 +54,11 @@ export const NAVIGATION = [
         cluster: "Run less of the suite",
       },
       {
+        href: "/docs/reach-ends",
+        label: "Cover both ends of a run",
+        cluster: "Run less of the suite",
+      },
+      {
         href: "/docs/how-selection-scales",
         label: "See why the test map stays small",
         cluster: "Run less of the suite",
