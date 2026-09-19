@@ -47,16 +47,17 @@ import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import { taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
+  kindOf,
   ownership,
   readOfferings,
-  usageFrom,
-  type Bound,
-  type Exported,
+  requested,
+  type Deep,
   type Help,
   type HelpOptions,
+  type Named,
   type Offering,
-  type Recorded,
   type Usage,
+  type Use,
 } from '@variance-authority/package/help';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
 
@@ -96,42 +97,54 @@ export interface IndexedUsageOptions {
   readonly records?: (records: readonly FileRecord[]) => void;
 }
 
-/**
- * One file's parse, as the usage join wants it.
- *
- * A namespace import binds no single name — `import * as fs` takes whatever is
- * there — so it contributes no entry, and the package still counts as used
- * because the request itself is recorded either way. `sense` writes that case as
- * a binding under a name no source can spell; this is where that convention
- * stops being carried.
- *
- * `unknown` is carried and the requests are kept, because in `sense` it marks a
- * reading that is incomplete rather than one that failed: the usual one is an
- * `import()` whose specifier is not a literal, in a file whose other fifteen
- * imports parsed exactly. Dropping those fifteen would turn "one edge is
- * missing" into "this file imports nothing", which is the louder of the two
- * wrong answers.
- */
-function recordedOf(at: string, by: string, parsed: Parsed): Recorded {
+/** Join cached parse facts directly, without constructing a second repository. */
+function collectingUsage(opened: ReadonlySet<string>): {
+  accept(at: string, by: string, parsed: Parsed): void;
+  read(): Usage;
+} {
+  const packages = new Set([...opened].map((key) => key.slice(0, key.indexOf(' '))));
+  const names = new Map<string, Map<string, Use[]>>();
+  const deep: Deep[] = [];
+  const exported: Named[] = [];
+  const unreadable: string[] = [];
+
   return {
-    at,
-    by,
-    ...(parsed.unknown === undefined ? {} : { unknown: parsed.unknown }),
-    // `exported` absent is `export * from './x'`: the set is whatever the other
-    // file publishes, so this file names nothing and one invented here would be
-    // a name it never wrote.
-    publishes: (parsed.exports ?? []).flatMap((published): Exported[] =>
-      published.exported === undefined
-        ? []
-        : [{ name: published.exported, line: published.line, type: published.type }],
-    ),
-    requests: parsed.requests.map((asked) => ({
-      specifier: asked.value,
-      line: asked.line,
-      names: asked.bindings
-        .filter((binding) => binding.imported !== NAMESPACE_NAME)
-        .map((binding): Bound => ({ imported: binding.imported, type: binding.type, line: binding.line })),
-    })),
+    accept(at, by, parsed) {
+      if (parsed.unknown !== undefined) unreadable.push(at);
+      const kind = kindOf(at);
+
+      for (const published of parsed.exports ?? []) {
+        if (published.exported !== undefined) {
+          exported.push({
+            name: published.exported,
+            at,
+            by,
+            line: published.line,
+            type: published.type,
+            kind,
+          });
+        }
+      }
+
+      for (const asked of parsed.requests) {
+        const key = requested(asked.value);
+        if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
+        if (!opened.has(key)) {
+          deep.push({ specifier: asked.value, by, at, line: asked.line });
+          continue;
+        }
+
+        const held = names.get(key) ?? new Map<string, Use[]>();
+        names.set(key, held);
+        for (const binding of asked.bindings) {
+          if (binding.imported === NAMESPACE_NAME) continue;
+          const uses = held.get(binding.imported) ?? [];
+          held.set(binding.imported, uses);
+          uses.push({ by, at, line: binding.line, type: binding.type, kind });
+        }
+      }
+    },
+    read: () => ({ names, deep, exported, unreadable }),
   };
 }
 
@@ -168,7 +181,7 @@ async function scanIndexed(
   const where = resolve(root);
   const index = await openSourceIndex(options.index ?? sourceIndexPath(where));
   const owner = ownership(where);
-  const files: Recorded[] = [];
+  const usage = collectingUsage(opened);
   const sources = new Map<string, IndexedSource>();
 
   const records = await scanRelations({
@@ -182,7 +195,7 @@ async function scanIndexed(
     cache: index.cache,
     reuse: index.reuse,
     parsed: (file, parsed) => {
-      files.push(recordedOf(file, owner(file), parsed));
+      usage.accept(file, owner(file), parsed);
     },
     indexed: (file, parsed, targets) => {
       sources.set(file, { parsed, targets });
@@ -198,12 +211,12 @@ async function scanIndexed(
   }
   options.records?.(tainted.records);
 
-  const usage = usageFrom(opened, files);
+  const joined = usage.read();
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
   return {
     usage: recordUnknown.length === 0
-      ? usage
-      : { ...usage, unreadable: [...usage.unreadable, ...recordUnknown] },
+      ? joined
+      : { ...joined, unreadable: [...joined.unreadable, ...recordUnknown] },
     sources,
     records: tainted.records,
     cache: index.cache,

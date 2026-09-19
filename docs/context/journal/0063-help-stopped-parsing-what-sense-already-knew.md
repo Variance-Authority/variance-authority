@@ -73,3 +73,31 @@ changed paths can bypass status discovery, and a query-shaped Help consumer can
 avoid materializing every repository export. Neither is required to remove the
 duplicate parse, and folding either into this change would conceal which saving
 was earned.
+
+## The consumer stopped copying the repository
+
+The first large-workspace measurement after adding scoped frequency looked like
+a regression: 53.70 seconds for one Help read. It was a cold reading against a
+default index path that did not exist, with saving disabled. A deliberately
+saved generation established the warm comparison instead.
+
+The warm path then exposed a consumer-side copy. `scanRelations` handed every
+cached parse to Help, Help expanded it into a `Recorded` object graph, and
+`usageFrom` immediately traversed that graph into the actual usage index. The
+temporary graph retained 300,682 file records and every request and binding long
+enough to make the join, even though the final answer already had its own compact
+shape.
+
+Help now joins the cached `Parsed` facts directly into usage while the scan
+replays them. The fixture oracle remains byte-for-byte equivalent. On the same
+saved Jira-scale generation, two unchanged readings moved from 40.5 seconds to
+26.5 and 26.4 seconds. The scan-and-consumer phase moved from 31.1 seconds to
+17.9 and 17.8 seconds; manifest discovery, published-name closure and final Help
+assembly did not move materially.
+
+This is still a repository-wide refresh, not an instant query. About sixteen
+seconds remains in the unchanged graph scan itself, including Git discovery.
+The next meaningful boundary is therefore incremental input: a caller that
+already knows the changed paths should hand them to Sense rather than asking Git
+to rediscover them. Rewriting the direct usage join in Rust would attack the
+smaller part that remains.
