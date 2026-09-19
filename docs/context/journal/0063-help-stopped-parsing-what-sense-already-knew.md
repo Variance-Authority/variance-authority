@@ -101,3 +101,19 @@ The next meaningful boundary is therefore incremental input: a caller that
 already knows the changed paths should hand them to Sense rather than asking Git
 to rediscover them. Rewriting the direct usage join in Rust would attack the
 smaller part that remains.
+
+The incremental entrance is explicit rather than heuristic. `scanRelations`
+and `readWorkspace` accept an authoritative scan-root-relative `changed` list.
+Git still supplies the committed path set and hashes those files from disk, but
+does not run status. Additions and deletions are represented by presence on disk;
+a rename names both paths. Omitting the option retains discovery, while an empty
+list asserts that the caller knows nothing moved.
+
+On the clean Jira-scale checkout, two runs through that entrance completed the
+same Help reading in 15.56 and 14.16 seconds: 300,682 graph records, 80,994
+published entries and 660,576 repository exports. The ordinary discovery path took 26.4 seconds on the same
+saved generation. The first comparison exposed one stale JavaScript oracle rule:
+it excluded tracked files below a directory named `build`, while the native Git
+seed correctly treated tracking as evidence that the directory held source. The
+oracle now keeps tracked `build` source and continues to exclude generated build
+directories during filesystem discovery.

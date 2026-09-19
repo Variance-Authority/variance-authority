@@ -334,12 +334,14 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the six answers are asked of, for a program that
 wants to ask more than one of them or to ask them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Four options, all optional: `index`, the path of the source
+and who imports it. Five options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `save`, whether to write what
 this reading learned back to that index for the next one, on unless you say
-otherwise; `taints`, addition-only Sense taints for declarative module loads the
-language's imports do not express; and `records`, a function handed the import
+otherwise; `changed`, the authoritative scan-root-relative file list an editor,
+watcher or orchestrator already has, which skips Git status discovery; `taints`,
+addition-only Sense taints for declarative module loads the language's imports
+do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
 as well as the names, so it does not scan the checkout a second time to get them.
 Taints change which files a path question reaches and never manufacture symbol

@@ -122,6 +122,54 @@ describe('digests read out of git', () => {
     expect(digests?.has('src/theme.css')).toBe(true);
   });
 
+  it('accepts an authoritative changed-file list instead of discovering status', async () => {
+    const root = await repository();
+    const committedTokens = await committed(root, 'HEAD:src/tokens.css');
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+    await write(root, 'src/tokens.css', ':root { --accent: hotpink }\n');
+
+    const digests = await gitDigests(root, ['src/Button.tsx']);
+
+    expect(digests?.get('src/Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
+    // Present means authoritative. The omitted edit is deliberately not
+    // rediscovered through status, which is the cost this entrance removes.
+    expect(digests?.get('src/tokens.css')).toBe(committedTokens);
+  });
+
+  it('spells known-change paths relative to a scan root inside the checkout', async () => {
+    const root = await repository();
+
+    const digests = await gitDigests(join(root, 'src'), []);
+
+    expect([...digests?.keys() ?? []].sort()).toEqual(['Button.tsx', 'tokens.css']);
+  });
+
+  it('applies known additions, deletions and both sides of a rename', async () => {
+    const root = await repository();
+    await unlink(join(root, 'src/Button.tsx'));
+    await git(root, ['mv', 'src/tokens.css', 'src/theme.css']);
+    await write(root, 'src/Clock.tsx', 'export const Clock = () => null\n');
+
+    const digests = await gitDigests(root, [
+      'src/Button.tsx',
+      'src/tokens.css',
+      'src/theme.css',
+      'src/Clock.tsx',
+    ]);
+
+    expect([...digests?.keys() ?? []].sort()).toEqual(['src/Clock.tsx', 'src/theme.css']);
+    expect(digests?.get('src/theme.css')).toBe(await onDisk(root, 'src/theme.css'));
+    expect(digests?.get('src/Clock.tsx')).toBe(await onDisk(root, 'src/Clock.tsx'));
+  });
+
+  it('refuses a known path that is not scan-root-relative', async () => {
+    const root = await repository();
+
+    await expect(gitDigests(root, ['../outside.ts'])).rejects.toThrow(
+      'known changed path must be scan-root-relative',
+    );
+  });
+
   it('answers nothing outside a checkout rather than failing', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-tree-'));
     made.push(root);

@@ -626,6 +626,7 @@ never touch a disk.
 | `root` | required | naming the checkout; returned paths are relative to it |
 | `dirs` | required | choosing the source directories to seed |
 | `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
+| `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
 | `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded opaque instead of parsed |
@@ -673,6 +674,13 @@ and resolution settings, because resolution can change while file bytes stay the
 same. `gitDigests` supplies content digests from Git when available, and
 `scanRelations` calls it unless `digests: false` or a caller-provided map is
 used.
+
+When an editor, watcher or orchestrator already knows the changed files, pass
+them as `changed`. Sense still reads the committed path set, hashes those paths
+from disk and treats a missing path as deleted, but it does not run `git status`
+to rediscover the same answer. The list is authoritative: include additions and
+deletions, and include both the old and new path of a rename. An empty list means
+the caller knows the working tree is unchanged.
 
 `parsed` hands you each file's parse as the scan settles it — the
 repository-relative path and what the bytes said, once per file, reused records

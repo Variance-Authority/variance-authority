@@ -92,6 +92,10 @@ describe('reading a workspace through the source index', () => {
     expect(sites(await readWorkspace(WORKSPACE, { index }))).toEqual(sites(walked));
   });
 
+  it('accepts the caller\'s exact changed-file list without changing the reading', async () => {
+    expect(await readWorkspace(WORKSPACE, { index, changed: [] })).toEqual(walked);
+  });
+
   it('leaves the index alone when asked not to save', async () => {
     const untouched = join(dirname(index), 'unsaved.bin');
     expect(sites(await readWorkspace(WORKSPACE, { index: untouched, save: false }))).toEqual(sites(walked));

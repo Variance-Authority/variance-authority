@@ -63,7 +63,10 @@ function below(file: string, prefix: string): boolean {
       : '';
   if (relative === '') return false;
   const directories = relative.split('/').slice(0, -1);
-  return !directories.some((part) => EXCLUDE_DIRS.includes(part));
+  // A tracked directory named `build` is source by Git's own evidence. The
+  // filesystem walk still excludes generated build output; only a Git-visible
+  // path reaches this predicate.
+  return !directories.some((part) => part !== 'build' && EXCLUDE_DIRS.includes(part));
 }
 
 /**

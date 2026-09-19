@@ -80,6 +80,12 @@ describe('a file too large to be worth parsing', () => {
   it('caps at a megabyte by default, which is above source people write and below output machines generate', () => {
     expect(LARGEST_FILE).toBe(1024 * 1024);
   });
+
+  it('refuses two competing sources of content identity', async () => {
+    await expect(scanRelations({ root, dirs: ['src'], changed: [], digests: false })).rejects.toThrow(
+      '`changed` supplies Git identity and cannot be combined with `digests`',
+    );
+  });
 });
 
 async function write(root: string, path: string, contents: string): Promise<void> {

@@ -69,6 +69,11 @@ export interface IndexedUsageOptions {
   /** Whether to publish what this scan learned. On, because the next question is the point. */
   readonly save?: boolean;
   /**
+   * Authoritative changed file paths, relative to the scan root.
+   * Present skips Git status discovery; renames name both paths.
+   */
+  readonly changed?: readonly string[];
+  /**
    * Additional declarative module loads to join onto the graph used by path
    * questions.
    *
@@ -194,6 +199,7 @@ async function scanIndexed(
     dirs,
     cache: index.cache,
     reuse: index.reuse,
+    ...(options.changed === undefined ? {} : { changed: options.changed }),
     parsed: (file, parsed) => {
       usage.accept(file, owner(file), parsed);
     },

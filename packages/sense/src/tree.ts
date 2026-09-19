@@ -27,6 +27,8 @@
  */
 
 import { execFile } from 'node:child_process';
+import { lstat } from 'node:fs/promises';
+import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { digestString, type Digest } from './digest.js';
 import { native, type NativeGitTree } from './native.js';
@@ -45,16 +47,21 @@ const MAX_OUTPUT = 256 * 1024 * 1024;
  * refused to run outside a repository would be useless in exactly the tarball and
  * sandbox cases it should handle quietly.
  */
-export async function gitDigests(root: string): Promise<ReadonlyMap<string, Digest> | undefined> {
+export async function gitDigests(
+  root: string,
+  changed?: readonly string[],
+): Promise<ReadonlyMap<string, Digest> | undefined> {
   let listing: string;
+  let prefix: string;
   try {
-    ({ stdout: listing } = await run('git', ['ls-tree', '-r', '-z', 'HEAD'], {
-      cwd: root,
-      maxBuffer: MAX_OUTPUT,
-    }));
+    [{ stdout: listing }, { stdout: prefix }] = await Promise.all([
+      run('git', ['ls-tree', '-r', '-z', 'HEAD', '--', '.'], { cwd: root, maxBuffer: MAX_OUTPUT }),
+      run('git', ['rev-parse', '--show-prefix'], { cwd: root, maxBuffer: MAX_OUTPUT }),
+    ]);
   } catch {
     return undefined;
   }
+  prefix = prefix.trim();
 
   const digests = new Map<string, Digest>();
   for (const entry of listing.split('\0')) {
@@ -65,12 +72,42 @@ export async function gitDigests(root: string): Promise<ReadonlyMap<string, Dige
     const fields = entry.slice(0, tab).split(' ');
     if (fields[1] !== 'blob' || fields[2] === undefined) continue;
 
-    digests.set(entry.slice(tab + 1), blob(fields[2]));
+    const path = entry.slice(tab + 1);
+    const relative = prefix === '' ? path : path.startsWith(prefix) ? path.slice(prefix.length) : path;
+    digests.set(relative, blob(fields[2]));
   }
 
-  await overlayWorkingTree(root, digests);
+  if (changed === undefined) await overlayWorkingTree(root, digests);
+  else await overlayKnownChanges(root, digests, changed);
 
   return digests;
+}
+
+/** Apply an authoritative file list without asking Git to rediscover it. */
+async function overlayKnownChanges(
+  root: string,
+  digests: Map<string, Digest>,
+  changed: readonly string[],
+): Promise<void> {
+  const paths = [...new Set(changed)];
+  for (const path of paths) {
+    if (path === '' || isAbsolute(path) || path.split('/').includes('..')) {
+      throw new Error(`known changed path must be scan-root-relative: ${path}`);
+    }
+    // Remove first: a missing hash means deletion, unreadability, or a file that
+    // vanished while the caller's event was being handled. All three must stop
+    // the committed object name from claiming the old bytes are still present.
+    digests.delete(path);
+  }
+  const present = (await Promise.all(paths.map(async (path) => {
+    try {
+      const status = await lstat(join(root, path));
+      return status.isFile() || status.isSymbolicLink() ? path : undefined;
+    } catch {
+      return undefined;
+    }
+  }))).filter((path): path is string => path !== undefined);
+  for (const [path, digest] of await hashOnDisk(root, present)) digests.set(path, digest);
 }
 
 /**
@@ -85,7 +122,18 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>): P
   try {
     ({ stdout: status } = await run(
       'git',
-      ['status', '--porcelain=v1', '-z', '--untracked-files=all'],
+      [
+        '-c',
+        'core.fsmonitor=false',
+        '-c',
+        'status.relativePaths=true',
+        'status',
+        '--porcelain=v1',
+        '-z',
+        '--untracked-files=all',
+        '--',
+        '.',
+      ],
       { cwd: root, maxBuffer: MAX_OUTPUT },
     ));
   } catch {
@@ -227,15 +275,16 @@ export interface Tree {
 export async function gitTreeOf(
   root: string,
   dirs?: readonly string[],
+  changed?: readonly string[],
 ): Promise<Tree | undefined> {
   const addon = native();
-  if (addon !== undefined) {
+  if (addon !== undefined && changed === undefined) {
     const held = dirs === undefined ? addon.gitTree(root) : addon.gitTreeFor(root, [...dirs]);
     if (held !== null) return nativeTree(held);
     return undefined;
   }
 
-  const digests = await gitDigests(root);
+  const digests = await gitDigests(root, changed);
 
   return digests === undefined ? undefined : treeOf(digests);
 }

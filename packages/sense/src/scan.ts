@@ -73,6 +73,16 @@ export interface ScanOptions extends ResolveOptions {
    */
   readonly digests?: ReadonlyMap<string, Digest> | false;
 
+  /**
+   * Every added, edited, deleted or renamed file since the last reading,
+   * relative to `root`.
+   *
+   * Present means authoritative, including an empty list. Git still supplies
+   * the committed path set, but `status` is skipped and only these paths are
+   * hashed from disk. A rename therefore names both its old and new path.
+   */
+  readonly changed?: readonly string[];
+
   /** Where parses are remembered between runs. In memory when absent. */
   readonly cache?: ParseCache;
 
@@ -151,6 +161,9 @@ export const LARGEST_FILE = 1024 * 1024;
  * one is diffable.
  */
 export async function scanRelations(options: ScanOptions): Promise<readonly FileRecord[]> {
+  if (options.changed !== undefined && options.digests !== undefined) {
+    throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
+  }
   // The real path, because resolution returns one. On macOS a temporary
   // directory is reached through `/var` and lives at `/private/var`, and a root
   // on the wrong side of that link puts every resolved file *outside* the
@@ -166,7 +179,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     options.digests === false
       ? undefined
       : options.digests === undefined
-        ? await gitTreeOf(root, options.dirs)
+        ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
 
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
