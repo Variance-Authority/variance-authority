@@ -152,55 +152,67 @@ held by review, which is why it reads as direction rather than as rules.
 
 ### The register
 
-Everything this project publishes is written in one register: **what an engineer
-says out loud to another engineer.** That is the whole definition. The
-expectations and the boundaries below are consequences of it.
+This defines the language every published sentence is written in. It is stated
+as four conditions on a sentence, the expectations that hold across a page, and
+the boundary of what it does not govern.
 
-**The test.** Read the sentence aloud as if the reader were at the desk beside
-you. If you would not say it to their face in those words, it is the wrong
-register — regardless of whether it is correct, precise, or good English.
+**A sentence is in register when all four of these hold.**
 
-**What the register is not.** Three neighbouring registers are close enough to
-reach for by accident. None of them is ours.
+1. **Speaker — the engineer who built the thing, speaking now.** Not a narrator
+   of how it got here, not the project as an institution, not the software
+   describing itself. This fixes the tense as present indicative and rules out
+   the passive that exists to avoid naming who acts.
+2. **Addressee — one engineer who has shipped software and is deciding whether
+   to use this.** Singular and present. They know the craft and not this
+   codebase, so nothing foundational is explained and nothing private is
+   assumed.
+3. **Licence — the sentence is true because of the artifact.** Code, output, a
+   measurement, a recorded run. **No sentence is licensed by another sentence
+   in the document.** A page is not an argument and carries no inferential
+   chain; each paragraph stands on the product directly. This is the whole
+   reason *it does not follow that*, *hence*, *therefore*, *it holds that* and
+   *it suffices to* are out — each asserts a derivation between sentences, and
+   there are none here to assert.
+4. **Literalness — every word is meant at face value.** A term of art satisfies
+   this: `import`, `closure`, `resolution`, `graph`, `hydration` mean exactly
+   what they say, and there is no limit on them. A figure of speech does not: it
+   is a word whose intended sense is not its literal sense. There are none. One
+   clause disposes of *it does not follow* (nothing follows anything),
+   *seamless* (no seam), *powerful* (no power), *simply* (a claim about the
+   reader's feelings, not about the software), and the inverted clause whose
+   shape carries what its words do not.
 
-- **Proof.** The vocabulary of formal logic and mathematical writing: *it does
-  not follow that*, *hence*, *thus*, *it holds that*, *the converse*, *it
-  suffices to*, *by construction*, *necessary and sufficient*. Each of these is
-  exact inside a proof and borrowed anywhere else. The cost is not stiffness, it
-  is mis-parsing: outside a proof, *follow* means to come after, to go along
-  with, or to understand, so a reader meets `it does not follow` and lands on
-  *I don't follow*. The entailment sense never arrives. Say **that does not
-  mean**, **so**, **which is why**.
-- **Literature.** Inverted clauses, appositives, epigrams, any sentence that
-  resolves into a maxim. A title is task-shaped — `How search finds a subject`,
-  `How different languages are handled` — never a poetic clause about the
-  subject. A paragraph ends when the point is made, not on a cadence.
-- **Marketing.** Superlatives, *seamless*, *powerful*, *simply*, *just*, and
-  any sentence congratulating the software for meeting its contract.
+**Expectations.** These hold across a page rather than inside one sentence.
 
-**What the register is not a licence to do.** The ban is on borrowed idiom, not
-on difficulty. Nothing here says to simplify. The reader is a senior engineer,
-every term of art the domain owns stays — *import*, *closure*, *resolution*,
-*graph*, *fiber*, *hydration* — and a distinction is never dropped to shorten a
-sentence. Plain register, full depth. Those are independent axes, and prose
-that trades the second for the first has failed this rule, not passed it.
+- One word, one job. A word means the same thing from the title to the last
+  line, and a name this project coined is introduced on the page that owns it
+  before any page uses it.
+- Every claim is checkable. The reader can reach the code, the output or the
+  number — and a number carries the machine it was measured on.
+- A limitation is a present-tense boundary of the product, never an absence and
+  never the story of an attempt.
+- The reader is the grammatical subject. Second person, task first.
 
-**One word, one job.** Within a page a word means one thing. The project's own
-names are the strict case: a name it coined is introduced before it is used, on
-the page that owns it, and no page opens on a word the project invented.
+**Boundaries — what this does not govern.**
 
-**Person.** Second person, reader as subject, task first. Not *one may*, not
-*the user should*, not the passive voice standing in for an actor the sentence
-declines to name.
+- **Difficulty.** This is not a plain-language rule. There is no cap on terms of
+  art, no ceiling on what one paragraph may reason through, and no distinction
+  is ever dropped to shorten a sentence. Register and depth are independent;
+  prose that trades depth for plainness has failed this, not passed it.
+- **Length.** A long sentence in register beats two short ones out of it.
+- **Warmth.** Direct is not cold. Condition 1 puts a person in the prose and
+  keeps them there.
+- **Scope.** All four conditions apply to every published surface: the root
+  `README.md`, `docs/`, package and example `README.md` files, the site, CLI
+  output and error messages. `docs/context/` and `docs/specs/` are internal and
+  may cite themselves freely, but the conditions hold there too — an ADR is an
+  engineer stating a decision, not proving one.
 
-**Where it applies.** Every published surface — the root `README.md`, `docs/`,
-package and example `README.md` files, the site, CLI output and error messages.
-Internal writing under `docs/context/` and `docs/specs/` may be denser and may
-cite itself freely, but it is written in the same register: an ADR is an
-engineer stating a decision, not a proof of one.
-
-Nothing in this subsection is mechanically checked, and it is unlikely that it
-can be. It is held by reading the sentence aloud.
+**Procedure.** Given a sentence, answer three questions: who is saying it, what
+makes it true, and which word in it is not meant literally. A sentence with no
+answer to the first two, or an answer to the third, is out of register. Nothing
+here is mechanically checked and it is unlikely that it can be; it is held by
+asking those three questions out loud.
 
 ## The project reports on itself in code
 
