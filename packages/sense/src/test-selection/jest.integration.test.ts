@@ -112,4 +112,71 @@ describe('the Jest integration', () => {
     expect(await written()).toEqual(before);
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
   }, 120_000);
+
+  it('names the individual cases of a file, and gives a branch only to the case that walked it', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-cases-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await execute(
+      process.execPath,
+      [jest, '--config', resolve(fixture, 'jest.cases.config.mjs'), '--watchman=false'],
+      {
+        cwd: fixture,
+        env: {
+          ...process.env,
+          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+          VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+          XDG_CACHE_HOME: directory,
+        },
+      },
+    );
+
+    // Beside the snapshot, never inside it: the file CI reads is the same file
+    // a run without `cases` writes.
+    const index = JSON.parse(await readFile(`${coverageFile}.cases.json`, 'utf8')) as {
+      tests: ReadonlyArray<{ id: string; file: string; name: string }>;
+      modules: ReadonlyArray<{
+        file: string;
+        blocks: ReadonlyArray<{
+          startLine: number;
+          endLine: number;
+          crossings: ReadonlyArray<{ test: number }>;
+        }>;
+      }>;
+    };
+    // Every case that entered a region, by the name the runner resolved. Two of
+    // `alpha.case.ts`'s three are absent for different reasons: the skipped one
+    // is never handed to the runner, so it opens no scope at all, and the one
+    // that only reads a global crossed nothing — the same rule the Vitest seam
+    // applies, since a case with an empty bucket adds a row nobody can select
+    // on.
+    expect(index.tests.map((test) => test.id)).toEqual([
+      'test/alpha.case.ts > takes the alpha path',
+      'test/beta.case.ts > takes the beta path',
+      'test/gamma.case.ts > keeps what it entered before the module registry was reset',
+    ]);
+
+    const decide = index.modules.find((module) => module.file === 'src/decide.ts');
+    expect(decide).toBeDefined();
+    const named = (test: number): string => index.tests[test]!.id;
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    // The innermost region holding the branch's line: the module's own region
+    // holds it too, and that one is the file's evaluation rather than its turn.
+    const walking = (branch: string): readonly string[] => {
+      const line = source.slice(0, source.indexOf(`return '${branch}'`)).split('\n').length;
+      const holding = decide!.blocks
+        .filter((candidate) => candidate.startLine <= line && line <= candidate.endLine)
+        .sort((left, right) => left.startLine - right.startLine);
+      const block = holding.at(-1);
+      expect(block, branch).toBeDefined();
+      return block!.crossings.map((crossing) => named(crossing.test)).sort();
+    };
+    // One branch, one case. The other cases of the same file imported the same
+    // module and never took this turn, and the ambient bucket every case is
+    // credited with holds the file's evaluation, not its branches.
+    expect(walking('A')).toEqual(['test/alpha.case.ts > takes the alpha path']);
+    expect(walking('G')).toEqual([
+      'test/gamma.case.ts > keeps what it entered before the module registry was reset',
+    ]);
+  }, 120_000);
 });

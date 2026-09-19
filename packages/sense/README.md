@@ -284,8 +284,8 @@ export default withTestSelection({
 });
 ```
 
-The second argument accepts `root`, `coverageFile`, `preconditions`, and `mode`,
-with the meanings above. There is no `include`: product source is every
+The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
+`cases`, and `executionFile`, with the meanings above. There is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
 does not name, less dependencies and built output. A setup entry that names a
 package — `dotenv/config` — is left alone. A configuration with `projects` is
@@ -1193,7 +1193,7 @@ selection spends.
 
 ### Record which case entered a region
 
-Pass `cases: true` to `withTestSelection` and the Vitest run writes an
+Pass `cases: true` to `withTestSelection` — either seam — and the run writes an
 `ExecutionIndex` beside its snapshot. The snapshot itself is byte-identical
 either way, so CI reads the same file whichever you choose:
 
@@ -1234,6 +1234,13 @@ answer usable under `test.concurrent` and `describe.concurrent`, where several
 cases are in flight at once and a bracket credits every one of them with what
 the others did. Work a case started and did not await is charged to the case
 that started it, however late it settles.
+
+Under Jest the scope is opened around the body of every injected `test` and
+`it`, since Jest has no hook that wraps a case. A file that sets
+`injectGlobals: false` and imports `test` from `@jest/globals` records as one
+bucket for the whole file — the file-level answer it already had — and a
+`test.concurrent` case is named by its declared name rather than the resolved
+one, because its body starts outside the runner's own bracket.
 
 Every crossing has `distance: 0`: the recording says which case entered a
 region, not how it got there, so every answer is ordered by identity rather

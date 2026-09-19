@@ -299,4 +299,67 @@ class Reader {
   }
 }
 
-export = { encodeJournal, decodeJournal, scanJournal };
+/** What a case frame calls the bucket no case owns. */
+const AMBIENT = '';
+
+/**
+ * One case's coordinate, packed into the one string a journal frame names
+ * itself with.
+ *
+ * A frame's first field is *who this journal belongs to*. For the file-level
+ * seam that is a path; a case is the same fact spelled longer, so the frame
+ * format is untouched and a per-case journal costs exactly what the measured
+ * varint path already costs. NUL is the separator because it is the one byte a
+ * file path and a test name cannot contain.
+ *
+ * Here rather than beside the fold in `cases.ts` because both writers are
+ * CommonJS inside somebody else's sandbox — Jest's setup file, and the module
+ * this package generates for Vitest — and this is the one file of the seam they
+ * can already reach.
+ */
+function packCase(file: string, name: string, id: string): string {
+  return `${file}\u0000${name}\u0000${id}`;
+}
+
+function unpackCase(packed: string): { file: string; name: string; id: string } {
+  const parts = packed.split('\u0000');
+  return { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
+}
+
+/**
+ * Case frames as one file, each behind its own length.
+ *
+ * A frame must be read to its exact end or it is refused, so frames cannot be
+ * concatenated bare. One file per case would be a file per case per worker —
+ * hundreds of thousands of them on the suite this is sized for — and a length
+ * in front of each costs four bytes to avoid that.
+ */
+function packFrames(frames: readonly Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const frame of frames) total += frame.length + 4;
+  const out = new Uint8Array(total);
+  const view = new DataView(out.buffer);
+  let at = 0;
+  for (const frame of frames) {
+    view.setUint32(at, frame.length, true);
+    out.set(frame, at + 4);
+    at += frame.length + 4;
+  }
+  return out;
+}
+
+function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
+  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+  const frames: Uint8Array[] = [];
+  let at = 0;
+  while (at < raw.length) {
+    if (at + 4 > raw.length) throw new Error('not a variance-authority case journal');
+    const length = view.getUint32(at, true);
+    if (at + 4 + length > raw.length) throw new Error('not a variance-authority case journal');
+    frames.push(raw.subarray(at + 4, at + 4 + length));
+    at += 4 + length;
+  }
+  return frames;
+}
+
+export = { encodeJournal, decodeJournal, scanJournal, packCase, unpackCase, packFrames, unpackFrames };

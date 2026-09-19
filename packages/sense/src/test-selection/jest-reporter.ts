@@ -16,13 +16,15 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir, rm } from 'node:fs/promises';
+import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
+import { executionIndexFrom, readCaseJournals } from './cases.js';
 import { commitOf } from './commit.js';
+import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { layeredCoverage } from './format-layer.js';
 import {
@@ -37,7 +39,12 @@ import {
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
-import { jestStore, RUN_DIRECTORY_VARIABLE, type SelectionReporterConfig } from './jest.js';
+import {
+  CASE_DIRECTORY_VARIABLE,
+  jestStore,
+  RUN_DIRECTORY_VARIABLE,
+  type SelectionReporterConfig,
+} from './jest.js';
 import {
   seedTestCoverage,
   writeCoverageBytes,
@@ -64,6 +71,8 @@ export interface JestTestContext {
 class SelectionReporter {
   readonly #config: SelectionReporterConfig;
   #runDirectory: string | undefined;
+  /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
+  #caseDirectory: string | undefined;
 
   constructor(_globalConfig: unknown, config: SelectionReporterConfig) {
     this.#config = config;
@@ -75,13 +84,19 @@ class SelectionReporter {
       `.run-${process.pid}-${randomUUID()}`,
     );
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
+    if (this.#config.cases !== true) return;
+    this.#caseDirectory = `${this.#runDirectory}-cases`;
+    process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
   }
 
   async onRunComplete(contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
     const runDirectory = this.#runDirectory;
     if (runDirectory === undefined) return;
+    const caseDirectory = this.#caseDirectory;
     delete process.env[RUN_DIRECTORY_VARIABLE];
+    delete process.env[CASE_DIRECTORY_VARIABLE];
     this.#runDirectory = undefined;
+    this.#caseDirectory = undefined;
 
     const { root, coverageFile } = this.#config;
     const instrumentation = instrumentationId(this.#config.mode);
@@ -133,6 +148,22 @@ class SelectionReporter {
       );
     });
     if (!merged.held) noteABusyIndex(coverageFile);
+    // A run that finished test files and placed no module at all is a seam that
+    // never engaged — a `transform` the configuration overwrote, an `include`
+    // that matched nothing — and the snapshot it just wrote says every one of
+    // those files may be skipped. Said once, where the run ends.
+    noteAnEmptyRecord(results.testResults.length, modules.size);
+    // Beside the snapshot, never inside it. The snapshot answers *which files
+    // must run*, its readers are unchanged, and a run that records cases writes
+    // the same bytes there as one that does not.
+    if (caseDirectory !== undefined) {
+      const frames = await readCaseJournals(caseDirectory, root);
+      await writeFile(
+        this.#config.executionFile ?? `${coverageFile}.cases.json`,
+        JSON.stringify(executionIndexFrom(frames, modules)),
+      );
+      await rm(caseDirectory, { recursive: true, force: true });
+    }
     await rm(runDirectory, { recursive: true, force: true });
   }
 }

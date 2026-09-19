@@ -91,20 +91,6 @@ export const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 /** What a case frame calls the bucket no case owns. */
 export const AMBIENT = '';
 
-/** The realm-level handle the generated setup module installs. */
-export interface CaseScope {
-  /**
-   * Run `body` as part of the case `key`, so everything it enters — including
-   * whatever it awaits — is attributed to that case and to no other.
-   */
-  readonly enter: <Result>(key: string, body: () => Result) => Result;
-}
-
-/** The scope this realm has, or nothing where per-case recording is off. */
-export function caseScope(): CaseScope | undefined {
-  return (globalThis as { [CASE_SCOPE]?: CaseScope })[CASE_SCOPE];
-}
-
 /**
  * One case's coordinate, packed into the one string a journal frame names itself
  * with.
@@ -114,23 +100,21 @@ export function caseScope(): CaseScope | undefined {
  * untouched and the per-case journals cost exactly what the measured varint path
  * already costs. NUL is the separator because it is the one byte a file path
  * and a test name cannot contain.
+ *
+ * Both writers of a case frame are CommonJS inside somebody else's sandbox, so
+ * the pair lives beside the codec and is answered for here.
  */
-export function packCase(file: string, name: string, id: string): string {
-  return `${file}\u0000${name}\u0000${id}`;
-}
+export const packCase = journalFormat.packCase;
 
 export interface UnpackedCase {
   readonly file: string;
-  /** The declaration path Vitest reports, or empty for the ambient bucket. */
+  /** The declaration path the runner reports, or empty for the ambient bucket. */
   readonly name: string;
   /** Unique within the worker; empty for the ambient bucket. */
   readonly id: string;
 }
 
-export function unpackCase(packed: string): UnpackedCase {
-  const parts = packed.split('\u0000');
-  return { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
-}
+export const unpackCase: (packed: string) => UnpackedCase = journalFormat.unpackCase;
 
 /**
  * Case frames as one file, each behind its own length.
@@ -140,32 +124,9 @@ export function unpackCase(packed: string): UnpackedCase {
  * hundreds of thousands of them on the suite this is sized for — and a length in
  * front of each costs four bytes to avoid that.
  */
-export function packFrames(frames: readonly Uint8Array[]): Uint8Array {
-  const total = frames.reduce((sum, frame) => sum + frame.length + 4, 0);
-  const out = new Uint8Array(total);
-  const view = new DataView(out.buffer);
-  let at = 0;
-  for (const frame of frames) {
-    view.setUint32(at, frame.length, true);
-    out.set(frame, at + 4);
-    at += frame.length + 4;
-  }
-  return out;
-}
+export const packFrames = journalFormat.packFrames;
 
-export function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
-  const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
-  const frames: Uint8Array[] = [];
-  let at = 0;
-  while (at < raw.length) {
-    if (at + 4 > raw.length) throw new Error('not a variance-authority case journal');
-    const length = view.getUint32(at, true);
-    if (at + 4 + length > raw.length) throw new Error('not a variance-authority case journal');
-    frames.push(raw.subarray(at + 4, at + 4 + length));
-    at += 4 + length;
-  }
-  return frames;
-}
+export const unpackFrames = journalFormat.unpackFrames;
 
 /** One case frame as the reporter reads it back, already joined to its file. */
 export interface CaseJournal {

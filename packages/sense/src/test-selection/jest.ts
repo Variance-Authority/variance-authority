@@ -40,6 +40,23 @@ export interface JestTestSelectionOptions {
    * ran before the file's first test.
    */
   readonly mode?: InstrumentMode;
+  /**
+   * Also record which individual test *cases* entered each region, beside the
+   * per-file snapshot.
+   *
+   * Off by default, and that is a measurement rather than caution: the per-case
+   * index holds one crossing per case-and-region where the file-level snapshot
+   * holds one per file-and-region, so it grows by roughly the number of cases
+   * that share a file. CI selects files to run and has no use for the
+   * difference; a local loop and a coding agent asking *which five of these two
+   * hundred cases walked the branch I changed* have nothing else to ask.
+   *
+   * The snapshot CI reads is unchanged either way — this adds a second artifact
+   * beside it, and never alters the first.
+   */
+  readonly cases?: boolean;
+  /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
+  readonly executionFile?: string;
 }
 
 /** The subset of a Jest configuration this seam reads and rewrites. */
@@ -71,10 +88,26 @@ export interface SelectionReporterConfig {
   readonly preconditions: readonly string[];
   /** The probe recipe the transforms placed; `presence` when absent. */
   readonly mode?: InstrumentMode;
+  /** Whether the run records which case entered each region, not only which file. */
+  readonly cases?: boolean;
+  /** Where the per-case execution index goes; `<coverageFile>.cases.json` when absent. */
+  readonly executionFile?: string;
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
 export const RUN_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_RUN';
+
+/**
+ * The variable that both names where case frames go and says they are wanted.
+ *
+ * Set beside the run directory, before the workers fork, and read twice in the
+ * sandbox: once by `jest-globals.cts`, which has to choose its collector before
+ * the first probe resolves, and once by `jest-setup.cts`, which writes there.
+ * One variable rather than a flag and a path, because a collector that scoped
+ * its counters and a writer with nowhere to put them is a suite paying for an
+ * answer nobody reads.
+ */
+export const CASE_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES';
 
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
@@ -143,6 +176,10 @@ export function withTestSelection(
     coverageFile,
     preconditions: [...new Set(preconditions)],
     ...(mode === undefined ? {} : { mode }),
+    ...(options.cases === true ? { cases: true } : {}),
+    ...(options.executionFile === undefined
+      ? {}
+      : { executionFile: resolve(root, options.executionFile) }),
   };
 
   return {

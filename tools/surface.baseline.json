@@ -2490,6 +2490,7 @@
         "withTestSelection": "function"
       },
       "./jest": {
+        "CASE_DIRECTORY_VARIABLE": "const",
         "JestConfig": "interface",
         "JestTestSelectionOptions": "interface",
         "RUN_DIRECTORY_VARIABLE": "const",
