@@ -83,7 +83,7 @@ const ROWS = [
         "TurboSnap uses the module graph to avoid snapshots a change cannot reach",
       ),
       doc("The screenshots your suite takes"),
-      doc("The checkpoints your SDK calls reach"),
+      doc("The checkpoints your SDK calls make"),
       doc(
         "`--since` skips a subject when its baseline lists none of the components the change reached — stories, routes and Playwright subjects alike. Instrumented test runs also select test files by what they executed",
       ),
