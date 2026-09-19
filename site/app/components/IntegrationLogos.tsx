@@ -12,21 +12,18 @@ const TOOLS = [
 /**
  * Languages the scan reads into the one file graph.
  *
- * Eight of them against eight marks, on the same eight-column grid, so the row
- * reads as the next line of the same list rather than as a paragraph that
- * happened to land underneath it. Words rather than logos: a language is not an
- * integration, and a second row of icons would read as *eight tools we work
- * with, and eight more*.
+ * A second row of marks under the first, on the same eight-column grid. The
+ * Rust mark is drawn in black and inverts, like the two agent marks above it.
  */
 const LANGUAGES = [
-  "JavaScript",
-  "TypeScript",
-  "CSS",
-  "Python",
-  "Rust",
-  "Java",
-  "Kotlin",
-  "Swift",
+  { name: "JavaScript", file: "javascript.svg", light: false },
+  { name: "TypeScript", file: "typescript.svg", light: false },
+  { name: "CSS", file: "css.svg", light: false },
+  { name: "Python", file: "python.svg", light: false },
+  { name: "Rust", file: "rust.svg", light: true },
+  { name: "Java", file: "java.svg", light: false },
+  { name: "Kotlin", file: "kotlin.svg", light: false },
+  { name: "Swift", file: "swift.svg", light: false },
 ] as const;
 
 /** The Rspack mark routes to the supported Rstest host, not a bundler plugin. */
@@ -55,15 +52,28 @@ export default function IntegrationLogos() {
           </a>
         ))}
       </nav>
-      <a
-        href="/docs/polyglot"
-        aria-label="How different languages are handled"
-        className="mt-3 grid grid-cols-4 gap-x-2 gap-y-1 text-center text-[0.7rem] text-quiet transition-colors hover:text-ivory focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange sm:grid-cols-8 sm:gap-x-6 sm:text-xs"
+      <nav
+        aria-label="Languages the source scan reads"
+        className="grid grid-cols-8 items-center gap-2 sm:gap-6"
       >
         {LANGUAGES.map((language) => (
-          <span key={language}>{language}</span>
+          <a
+            key={language.name}
+            href="/docs/polyglot"
+            title={language.name}
+            aria-label={language.name}
+            className="flex h-12 items-center justify-center rounded-md opacity-75 transition-opacity hover:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
+          >
+            <img
+              src={`/integrations/${language.file}`}
+              alt=""
+              width={36}
+              height={36}
+              className={`h-6 w-6 object-contain sm:h-9 sm:w-9 ${language.light ? "invert" : ""}`}
+            />
+          </a>
         ))}
-      </a>
+      </nav>
     </div>
   );
 }

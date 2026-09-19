@@ -13,4 +13,16 @@ Codex: https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/ico
 Claude: https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/claude-color.svg
   LobeHub Icons: MIT; see LOBEHUB-LICENSE.txt.
 
+Language marks are Devicon's original vector artwork, MIT licensed:
+https://github.com/devicons/devicon/blob/master/LICENSE
+
+JavaScript: devicon/icons/javascript/javascript-original.svg
+TypeScript: devicon/icons/typescript/typescript-original.svg
+CSS: devicon/icons/css3/css3-original.svg
+Python: devicon/icons/python/python-original.svg
+Rust: devicon/icons/rust/rust-original.svg
+Java: devicon/icons/java/java-original.svg
+Kotlin: devicon/icons/kotlin/kotlin-original.svg
+Swift: devicon/icons/swift/swift-original.svg
+
 Jest SVG viewBox trimmed to remove empty margins; logo paths unchanged.
