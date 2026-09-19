@@ -39,6 +39,7 @@
  * costs two map lookups, and a scan costs the diff rather than the repository.
  */
 
+import { access } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Digest } from './digest.js';
@@ -61,6 +62,23 @@ export interface ScanOptions extends ResolveOptions {
   readonly root: string;
   /** Where to start walking. Relative to `root`, or absolute. */
   readonly dirs: readonly string[];
+
+  /**
+   * Individual files to start from as well, repository-relative.
+   *
+   * The harness. A `vitest.config.ts` lives outside every directory anybody
+   * would point a component scan at, and what it loads — a setup module, an
+   * environment — is the part of a run nothing imports and every test rests
+   * on ([`before`](../../core/src/relate/before.ts)). Seeded here, the file and
+   * everything it reaches become ordinary nodes, and the question *what does
+   * the run rest on* becomes an ordinary walk.
+   *
+   * A path that does not exist, or that this cannot parse, is skipped rather
+   * than thrown on: a repository names its harness once and edits it for years,
+   * and an unreadable one is answered by the graph not holding it rather than
+   * by a scan that refuses to produce a graph at all.
+   */
+  readonly before?: readonly string[];
 
   /**
    * Content digests for the tree, when something already knows them.
@@ -198,6 +216,22 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     : addon === undefined
     ? [...seedFiles(root, options.dirs)]
     : addon.seedFiles(root, [...options.dirs]);
+
+  // Appended rather than merged into the directory seeds: these are exact
+  // paths, not places to walk, and the tree holds every tracked file whatever
+  // directories it was asked to seed from — so a config above `src/` has a
+  // digest here even though no walk would have found it.
+  //
+  // A path that is not there is dropped here rather than recorded as a file
+  // whose edges could not be read. The second is what a *misspelled* entry
+  // would become, and a file with unknown edges is a seed of every walk
+  // forever: one typo in the configuration would widen every run in the
+  // repository and read, in the report, as a scan that had failed.
+  for (const entry of options.before ?? []) {
+    if (!READABLE.has(extname(entry))) continue;
+    if (await readable(join(root, entry))) queue.push(entry);
+  }
+
   let nativeGraphUsed = false;
 
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
@@ -345,4 +379,12 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   const records = [...built.values()].sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 
   return records;
+}
+
+/** Whether a path is there to be opened, without opening it. */
+async function readable(file: string): Promise<boolean> {
+  return access(file).then(
+    () => true,
+    () => false,
+  );
 }

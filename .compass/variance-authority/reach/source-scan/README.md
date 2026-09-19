@@ -13,12 +13,13 @@ edges, its content digest, and the components it declares.
 
 ## Inputs and outputs
 
-In: a repository root, the directories to seed from, the installed dependencies
-and path mappings a specifier needs to resolve, and — when something already
-knows them — a map of content digests. Out: one record per file, carrying
-resolved edges, the digest the record was read from, the component names the
-file declares, specifiers that resolved nowhere, and, when the file's edges
-could not be enumerated at all, the sentence saying why.
+In: a repository root, the directories to seed from, the individual files a run
+rests on that nothing imports, the installed dependencies and path mappings a
+specifier needs to resolve, and — when something already knows them — a map of
+content digests. Out: one record per file, carrying resolved edges, the digest
+the record was read from, the component names the file declares, specifiers that
+resolved nowhere, and, when the file's edges could not be enumerated at all, the
+sentence saying why.
 
 Content digests come from the version control object store, so a file edited and
 then edited back to its committed contents lands on its committed digest and
@@ -34,7 +35,8 @@ nothing runs for it.
 ## Used by
 
 - [`relations`](../relations/README.md) — the records it folds into the graph,
-  package edges among them
+  package edges among them, and the harness records that let a walk descend from
+  a declared entry point
 - [`crossings`](../crossings/README.md) — the statically reachable files behind
   a test file, for measuring how much of them a run entered
 
@@ -54,6 +56,15 @@ is kept as an edge to the package under the name the source asked for, so a
 package [`installed`](../installed/README.md) says moved reaches the files that
 import it and no others. The name is the whole of what is recorded — no version,
 no resolution, no directory.
+
+Named files are seeded beside the directories, and they are exact paths rather
+than places to walk. A harness config lives above every directory a component
+scan would be pointed at, so no walk arrives at it and the file that decides how
+the whole suite runs has no node. Seeded by name it becomes an ordinary record,
+and so does everything it loads. A named path that is not there, or that has no
+reader, is dropped rather than recorded as a file whose edges could not be read:
+an unknown file seeds every traversal forever, so one misspelling would widen
+every run in the repository and read as a scan that had failed.
 
 It decides where a specifier points and never what counts as one; that is
 settled from syntax alone. A specifier that resolves nowhere is still a fact

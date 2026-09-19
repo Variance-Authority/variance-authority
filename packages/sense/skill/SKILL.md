@@ -260,6 +260,60 @@ and both have an address. Neither is proof of a defect's cause.
 - A test whose distance is unknown is still **selected**. Unplaced is a fact
   about the graph, not permission to skip the test.
 
+## Configure what the run rests on
+
+Some files decide how every test runs and are imported by nothing: the harness
+config, the setup it loads, the bundler setup, the node version, the CI
+workflow. No walk reaches them, so a diff that touches one beside an ordinary
+source file narrows as if it had not. Naming them is a one-time inventory, and
+it is a job for you rather than for a rule — which paths govern a run is a fact
+about the repository, and every heuristic that guessed was both too wide and
+too narrow on the same diff.
+
+Take it in this order, and read rather than assume:
+
+1. **The harness.** Whatever actually starts the suite: `vitest.config.*`,
+   `jest.config.*`, `playwright.config.*`, and any file they extend. Confirm
+   from `package.json`'s `scripts` which one runs, and follow a `--config` flag
+   if there is one.
+2. **What the harness names but does not import** — `setupFiles`,
+   `globalSetup`, `setupFilesAfterEnv`, `testEnvironment`, `moduleNameMapper`
+   targets. A config that `import`s its setup already carries it; one that
+   names it as a string does not, so that path is its own entry.
+3. **The build the tests run through.** `vite.config.*`, `next.config.*`,
+   `webpack.config.*`, `babel.config.*`, `postcss.config.*`, `tailwind.config.*`
+   — whichever the suite actually goes through. A formatter or linter config
+   does not belong here; nothing it says changes a render.
+4. **The environment.** `.nvmrc`, the `engines` block's file if there is one,
+   the CI workflow directory, a `Dockerfile` the suite runs inside.
+5. **Nothing else.** A README, a changelog, an editor setting and a fixture
+   JSON are not entry points. Adding them buys whole runs and no information.
+
+Write them into the config as repository-root-relative paths. A directory
+claims everything under it:
+
+```json
+{
+  "source": {
+    "dirs": ["src"],
+    "relations": true,
+    "before": ["vitest.config.ts", "vitest.setup.ts", ".github/workflows", ".nvmrc"]
+  }
+}
+```
+
+`source.before` needs `source.relations: true`: what a declared entry point
+buys beyond its own name is everything below it, and that is a walk down the
+file graph.
+
+Then check the answer rather than trusting the list. Run a selection over a
+diff that touches one of the named files and one ordinary component, and
+confirm the run comes back whole. A note naming entries the scan does not hold
+is normal for a `.nvmrc` or a workflow — they have nothing under them to read.
+It is not normal for the harness config: it means the setup files below it are
+still narrowing to nothing, and the usual cause is a path that does not exist
+or an extension the scan has no reader for.
+
 ## What selection refuses to narrow
 
 Selection over-includes on purpose, because skipping a test that should have run
@@ -277,7 +331,13 @@ not argue with them:
   The moved package appears under `unread` by name rather than by path.
 - A change to the harness, the bundler config or the node version does not
   narrow. Nothing imports them, so there is no edge to walk and no answer
-  smaller than the whole suite.
+  smaller than the whole suite. It is only *noticed* when the file is named in
+  `source.before` — undeclared, a config edited beside a component file is
+  invisible.
+- A file below a declared entry point — a setup module, a fixture only that
+  setup imports — does not narrow either, and neither does a package the
+  harness rests on. A `jsdom` bump reaching a jest environment reaching a
+  config is one trail, and no file in the repository spells the word.
 
 When an integration reports that it retained the whole suite, read the named
 path. That is a wiring fact about the project, and usually a fixable one.

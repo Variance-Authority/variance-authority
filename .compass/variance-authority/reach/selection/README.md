@@ -17,8 +17,9 @@ cannot answer.
 In: every **subject** the run planned; the paths a diff named and the hunks
 behind them; the graph and what it reaches; the components each **baseline**
 recorded; the execution record and what it says about the changed lines; the
-packages an install comparison says moved; and the affected projects another
-workspace tool answered with. Out: the narrowed **subject** list, the reason
+packages an install comparison says moved; what the run rests on before any
+test imports it, when entry points were declared; and the affected projects
+another workspace tool answered with. Out: the narrowed **subject** list, the reason
 each excluded **subject** was excluded, the
 reachability trail for each reached component, and one note per ground that
 declined to rule anything out.
@@ -92,6 +93,26 @@ never measured; it is named under the package's own name rather than a path,
 because *no measurement of `@mui/material`* would otherwise read as a missing
 file.
 
+One question is asked before any walk and it can only refuse. What a run rests
+on — the harness config, the setup it loads, the packages that environment is
+built on — is imported by nothing, so a walk against the arrows from one arrives
+nowhere and the honest structural answer is *no component moved*. That answer
+would skip the whole suite over the file deciding how every test in it runs. A
+diff wholly outside the graph already widened; the hole is a config edited
+*beside* an ordinary source file, where the walk has a seed and answers
+confidently about a change it never looked at. So when the diff moves one of
+these, the run is whole and the sentence names the file or the package that put
+it there.
+
+Which paths govern a run is declared rather than derived. No rule can find them:
+*every changed path the graph does not hold* is the README, the changelog and
+the editor settings — a whole run each — and an operator who switched that off
+would switch the configs off with it. What a declaration buys beyond its own
+name is everything below it, which is why it requires a graph; a declared entry
+the graph does not hold contributes only its own name, and that is the whole
+answer for a node version or a CI workflow and a symptom for a harness config,
+so it is reported as a note rather than guessed at.
+
 Three states look identical from inside a walk and mean different things: a
 changed file under the scanned roots that the graph does not hold; a diff no
 part of which is in the graph; and a diff whose files reach no component at all,
@@ -112,7 +133,10 @@ single story is the unit of execution.
 - `packages/cli/src/commands/journey.ts` — `unenteredSubjects`, the execution
   ground and the difference between *the diff reached nobody* and *the record
   recorded nobody*
-- `packages/cli/src/commands/reach.ts` — the single walk both the selector and the report read
+- `packages/cli/src/commands/reach.ts` — the single walk both the selector and
+  the report read, and the refusal asked before it
+- `packages/core/src/relate/before.ts` — what the run rests on, walked down from
+  the declared entry points, and which of a diff's own inputs it covers
 - `packages/cli/src/commands/run-select.ts` — the half with a disk and a
   subprocess: everything the narrowing needs, gathered once
 - `packages/cli/src/commands/since.ts` — the diff against the merge base, and
@@ -137,6 +161,7 @@ flowchart TB
   ACQ[acquisition] -->|the planned subjects| SEL
   TOOLS[[workspace project graph]] -->|seeds| SEL
   INS[installed] -->|the packages that moved, as seeds| SEL
+  REL -->|what the run rests on, from the declared entry points| SEL
   VCS[[version control]] -->|changed paths and hunks| SEL
   SEL -->|the narrowed subject list| ACQ
   SEL -->|not observed, and why| REP[report]

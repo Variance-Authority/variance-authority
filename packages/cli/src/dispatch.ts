@@ -152,7 +152,8 @@ export async function dispatch(
             writeArtifact: writeArtifactToDisk,
             writeReport: writeCliRunReport,
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
-            scanRelations: async (dirs) => relationsFor(process.cwd(), dirs, effective.source?.taints ?? []),
+            scanRelations: async (dirs) =>
+              relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
             readJourney: async (diff, relations) => journeyAgainst(process.cwd(), diff, relations),
             readJourneys: async (subjects) => recordedJourneys(process.cwd(), subjects),
             ...(effective.source?.changes === undefined

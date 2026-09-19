@@ -347,19 +347,100 @@ file's bytes move*:
 read. **A lockfile that cannot be read widens the run**: a comparison that could
 not be made is not a comparison that found nothing.
 
-### Why the left end cannot be narrowed
+### How the left end is declared
 
 A change to `vite.config.ts`, to the jest environment, to the node version in
-CI: none of them is imported by anything, and all of them decide how everything
-runs. There is no edge to walk, so there is no smaller answer than the whole
-suite, and the whole suite is what runs.
+CI: none of them is imported by anything, so there is no edge to walk back
+along and no answer smaller than the whole suite. That much is decided for you.
+What is not decided is whether the run notices.
 
-The two ends meet more often than they look like they should. A `jsdom` bump is
-beyond reach, and the environment it is wired into is before reach — the only
-arrow in the figure that points back to the left. Traced through the install it
-reaches `jest-environment-jsdom`; whether your harness config then hands that
-environment to every test is a fact about the config, not about any import, so
-the run widens on the config's terms rather than the graph's.
+A diff that is *only* a config file already runs everything, because a diff no
+part of which is in the graph says nothing about which component moved. That
+stops holding the moment anything else is in the diff. A CI workflow edited
+beside one component gives the walk a seed, and the run narrows to that
+component — confidently, over a change it never looked at.
+
+Name the files the run rests on and it stops being an accident:
+
+```json
+{
+  "source": {
+    "dirs": ["src"],
+    "relations": true,
+    "before": ["vitest.config.ts", ".github/workflows", ".nvmrc"]
+  }
+}
+```
+
+Each entry is matched against the diff by path, so naming a directory of
+workflows is one line rather than one per file. When one of them moves, the run
+is whole and the report says which file put it there.
+
+Which paths govern a run is a fact about your repository, and no rule derives
+it. *Every changed path the graph does not hold* would be the README, the
+changelog and the editor settings — a whole run each, forever — and switching
+that off would switch the config files off with it. Declared, it is exact.
+
+`source.before` needs `source.relations: true`, because what an entry point
+buys is everything below it.
+
+### What comes with a declared entry point
+
+The config file is one name. The setup module it loads, the fixture only that
+setup imports, the polyfill, the environment package it names: each is an
+ordinary file that nothing imports, whose change reaches no component, and
+which on its own narrows a run to nothing. Declared once at the top, they
+arrive together — the entry point is the one thing walked **along** the arrows
+instead of against them.
+
+```mermaid
+flowchart LR
+  config["vitest.config.ts<br/>declared"]
+  setup["test/setup.ts"]
+  fixtures["test/fixtures.ts"]
+  env["jest-environment-jsdom"]
+  jsdom["jsdom"]
+  theme["src/theme.ts<br/>sensed"]
+  tokens["src/tokens.css"]
+  button["Button.tsx"]
+
+  config --> setup
+  config --> env
+  setup --> fixtures
+  setup --> theme
+  env --> jsdom
+  theme --> tokens
+  button --> theme
+
+  classDef rests fill:none,stroke-width:2px;
+  classDef sensed fill:none,stroke-dasharray:4 3;
+  class config,setup,fixtures,env,jsdom rests;
+  class theme,tokens,button sensed;
+```
+
+The descent stops at the first file `source.dirs` already covers. A setup file
+that imports `src/theme.ts` does not drag it in: that file has dependents, a
+change to it is answered exactly by walking them, and pulling it in would trade
+an exact answer for a whole run. Everything below it is reached *through* it,
+so `src/tokens.css` stays out too.
+
+An entry the scan does not hold — a `.nvmrc`, a workflow, a `tsconfig` — has
+nothing under it to read. It contributes its own name, which is all it has, and
+the run says so in a note.
+
+The cost is real and it is yours to spend. A config that imports your bundler
+rests on everything that bundler rests on, so a bump inside that set widens the
+run. That is the correct answer, because the harness did move; a repository
+that finds it too wide narrows what it declares.
+
+### Where the two ends meet
+
+A `jsdom` bump is beyond reach, and the environment it is wired into is before
+reach — the only arrow in the first figure that points back to the left. The
+install comparison names `jsdom`; the harness reaches it through
+`jest-environment-jsdom`, three edges out from a config file; and no file you
+wrote ever spells the word. Undeclared, that diff narrows to whatever else it
+touched. Declared, the run is whole, and it says `jsdom`.
 
 ## What selecting costs
 

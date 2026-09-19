@@ -44,6 +44,39 @@ export interface SourceConfig {
    */
   readonly unrendered?: 'whole' | 'narrow';
 
+  /**
+   * Files the run rests on that nothing in it imports.
+   *
+   * A `vitest.config.ts`, a `jest.config.js`, a Next.js setup: the harness is
+   * the far-left end of the line a selection walks, and it is the one end with
+   * no dependents. Nothing imports a config, so nothing has an edge to it, so
+   * the walk that answers *what did this change move* reaches nothing from one
+   * and would narrow the run to nothing over the file that governs every test
+   * in it.
+   *
+   * The config file itself is already safe by accident — it lies outside the
+   * scanned directories, and a diff outside the graph runs everything. What
+   * this buys is everything *below* it: the `setup.ts` the config loads, the
+   * polyfill that setup imports, the environment package it names. Each of
+   * those is an ordinary file the scan holds and nothing imports, and today a
+   * change to one narrows to nothing.
+   *
+   * Declared, each entry is walked *along* the arrows once and what it reaches
+   * is the part of the run that sits before the tests — files and packages
+   * both, so a `jsdom` bump the install comparison names reaches the config
+   * that wires it in and the run does not narrow. The descent stops at the
+   * first file under `dirs`: that file has dependents, a change to it is
+   * answered exactly by walking them, and pulling it into the harness would
+   * trade an exact answer for a whole run.
+   *
+   * Paths relative to the repository root, as the diff spells them. An entry
+   * the scan does not hold refuses every run until it is fixed, by name:
+   * nobody computed its closure, and the files in that closure are exactly the
+   * ones that would otherwise narrow to nothing. Needs `relations`, which is
+   * the graph the descent walks.
+   */
+  readonly before?: readonly string[];
+
   /** A monorepo tool whose affected-project answer seeds the selection. */
   readonly changes?: ChangeConfig;
 
@@ -81,7 +114,7 @@ const UNRENDERED = ['whole', 'narrow'];
  * *which directories hold components* is answerable without one.
  */
 export function parseSource(value: unknown, options: ParseOptions): SourceConfig {
-  const root = object(value, 'source', ['dirs', 'relations', 'unrendered', 'changes', 'taints'], options);
+  const root = object(value, 'source', ['dirs', 'before', 'relations', 'unrendered', 'changes', 'taints'], options);
   const dirs = root['dirs'];
 
   if (!Array.isArray(dirs) || dirs.length === 0 || dirs.some((dir) => typeof dir !== 'string')) {
@@ -96,6 +129,32 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
   const relations = root['relations'];
   if (relations !== undefined && typeof relations !== 'boolean') {
     throw new ConfigError(options.source, 'source.relations', 'must be true or false');
+  }
+
+  const before = root['before'];
+  if (
+    before !== undefined &&
+    (!Array.isArray(before) || before.length === 0 || before.some((file) => typeof file !== 'string'))
+  ) {
+    throw new ConfigError(
+      options.source,
+      'source.before',
+      'must be a non-empty array of paths to the files your run rests on — the test harness ' +
+        'config, the setup it loads — spelled from the repository root',
+    );
+  }
+
+  // The descent along the arrows is a graph walk, and without the graph the
+  // closure of an entry point is unknown. Reading the key anyway would widen
+  // for the config file and silently narrow to nothing for every setup module
+  // under it, which is the exact failure the key exists to remove.
+  if (before !== undefined && relations !== true) {
+    throw new ConfigError(
+      options.source,
+      'source.before',
+      'needs `source.relations: true`: what an entry point reaches is a walk down the file ' +
+        'graph, and without one the setup files below it would still narrow a run to nothing',
+    );
   }
 
   const taints = root['taints'];
@@ -119,6 +178,7 @@ export function parseSource(value: unknown, options: ParseOptions): SourceConfig
 
   return {
     dirs: dirs as readonly string[],
+    ...(before === undefined ? {} : { before: before as readonly string[] }),
     ...(relations === undefined ? {} : { relations }),
     ...(unrendered === undefined ? {} : { unrendered: unrendered as NonNullable<SourceConfig['unrendered']> }),
     ...(root['changes'] === undefined ? {} : { changes: parseChanges(root['changes'], options) }),

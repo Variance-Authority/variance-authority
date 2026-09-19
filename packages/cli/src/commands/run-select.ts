@@ -29,6 +29,7 @@
  */
 
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import { beforeReach, type BeforeReach } from '@variance-authority/core/relate';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects } from './affected.js';
@@ -148,6 +149,15 @@ export async function selectionFor(
       ? await deps.scanRelations(config.source.dirs)
       : undefined;
 
+  // What the run rests on before any test imports it, walked once. Computed
+  // here rather than inside either caller for the reason the graph is: the
+  // selector and the report must refuse for the same reason, and two walks
+  // would let one of them refuse while the other explained.
+  const before =
+    relations === undefined || config.source.before === undefined
+      ? undefined
+      : beforeReach(relations, config.source.before, { sensed: config.source.dirs });
+
   const dirsFor = async (ref: string): Promise<readonly string[] | undefined> =>
     config.source?.changes !== undefined && deps.changedProjects !== undefined
       ? await deps.changedProjects(ref)
@@ -183,6 +193,7 @@ export async function selectionFor(
           relations,
           roots: config.source.dirs,
           baselines,
+          ...(before === undefined ? {} : { before }),
           ...(changedDirs === undefined ? {} : { changedDirs }),
           ...(explains.install === undefined ? {} : { install: explains.install }),
         });
@@ -206,6 +217,7 @@ export async function selectionFor(
     source,
     roots: config.source.dirs,
     baselines,
+    ...(before === undefined ? {} : { before }),
     ...(relations === undefined ? {} : { relations }),
     ...(config.source.unrendered === undefined ? {} : { unrendered: config.source.unrendered }),
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
@@ -244,7 +256,7 @@ export async function selectionFor(
       ...answer.skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
-    notes: notesFor(ref, answer, journey, journal?.stale ?? []),
+    notes: notesFor(ref, answer, journey, journal?.stale ?? [], before),
   };
 }
 
@@ -273,11 +285,24 @@ function notesFor(
   },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
   stale: readonly string[],
+  before: BeforeReach | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
   const unwatched = answer.unwatched ?? [];
 
+  const unread = before?.unread ?? [];
+
   return [
+    ...(unread.length === 0
+      ? []
+      : [
+          `\`source.before\` names ${many(unread.length, 'file')} the scan does not hold ` +
+            `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
+            `${unread.length === 1 ? 'it covers its own path' : 'each covers its own path'} and ` +
+            'nothing below it. That is the whole answer for a `.nvmrc` or a CI workflow, which ' +
+            'have nothing under them to read; for a harness config it means the setup files it ' +
+            'loads are still narrowing to nothing.',
+        ]),
     ...(answer.whole === undefined
       ? []
       : [`\`--since ${ref}\` did not narrow this run: ${answer.whole}`]),

@@ -338,6 +338,7 @@ export async function relationsFor(
   root: string,
   dirs: readonly string[],
   taints: readonly string[] = [],
+  before: readonly string[] = [],
 ): Promise<Relations> {
   let scanner;
   try {
@@ -359,6 +360,10 @@ export async function relationsFor(
     dirs,
     cache: source.cache,
     reuse: source.reuse,
+    // The harness, as exact paths. It lives outside every directory anybody
+    // would point a component scan at, and what it loads is the part of a run
+    // nothing imports and every test rests on.
+    ...(before.length === 0 ? {} : { before }),
   });
 
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`

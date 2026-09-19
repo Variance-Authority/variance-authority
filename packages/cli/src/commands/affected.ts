@@ -3,7 +3,7 @@ import {
   mergeSourceIndexes,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
-import type { Relations } from '@variance-authority/core/relate';
+import type { BeforeReach, Relations } from '@variance-authority/core/relate';
 import { componentsReached, many, refused, within, type InstallDiff } from './reach.js';
 
 /**
@@ -110,6 +110,18 @@ export interface AffectedInput {
    */
   readonly source: SourceIndex;
   readonly roots: readonly string[];
+
+  /**
+   * What the run rests on before any test imports it, when entry points were
+   * declared.
+   *
+   * The other side of `roots`. Those say where the files this can reason about
+   * live; this says which files govern the run from outside that set — a setup
+   * module, an environment, the packages a config rests on. Nothing has an edge
+   * to one of them, so the walk below cannot find them and cannot be allowed to
+   * answer *reaches nothing* about them.
+   */
+  readonly before?: BeforeReach;
 
   /**
    * Component names each planned subject's stored baseline recorded.
@@ -227,7 +239,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
   const narrowing =
     relations === undefined
       ? byDeclaration(changed, changedDirs, source, roots, moved)
-      : byRelation(changed, changedDirs, relations, roots, install);
+      : byRelation(changed, changedDirs, relations, roots, install, input.before);
 
   if ('whole' in narrowing) return everything(narrowing.whole);
   const { touched, how } = narrowing;
@@ -374,11 +386,12 @@ function byRelation(
   relations: Relations,
   roots: readonly string[],
   install: InstallDiff | undefined,
+  before: BeforeReach | undefined,
 ): Narrowing {
   // The same call the report makes. Two walks would let the run skip a subject
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
-  const reach = componentsReached(relations, changed, changedDirs, roots, install);
+  const reach = componentsReached(relations, changed, changedDirs, roots, install, before);
   if (refused(reach)) return { whole: reach.whole };
 
   return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };

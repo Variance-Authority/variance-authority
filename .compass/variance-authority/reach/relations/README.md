@@ -47,6 +47,16 @@ in source without changing question. A package carries no content and no digest:
 it is a name that something moved, and what a change to it means is decided by
 whoever reached it.
 
+One question is asked along the arrows instead of against them, and it is the
+only one whose subject has no dependents: *what does the run rest on*. A
+declared entry point — the harness config, and whatever it loads — is walked
+downward, and the descent stops at the first file the component scan already
+covers, because that file has dependents and a change to it is answered exactly
+by walking them. Stopping is not filtering: what lies below such a file is
+reached *through* it, so it does not arrive either. The descent crosses into the
+package layer unchanged, which is how a bump the install names arrives at a
+harness no file in the repository imports.
+
 It performs no I/O, opens no file and resolves no specifier. It distinguishes
 edge kinds — a value import, a re-export, a dynamic import with a literal
 specifier, a type-only import, a stylesheet or asset reference, a declaration, a
@@ -73,6 +83,9 @@ own; it reports what it reached and what it could not read.
 - `packages/core/src/relate/records.ts` — `relationsOfFiles`, `movedBy` and
   `explain`; the seed set is the changed files *and* every file whose edges are
   unknown, and `depends` folds the install in beside them
+- `packages/core/src/relate/before.ts` — `beforeReach` and `movedBefore`; the
+  one descent along the arrows, the sensed directories it stops at, and the
+  declared entries the graph does not hold
 
 ## Diagram
 
@@ -82,4 +95,5 @@ flowchart LR
   INS[installed] -->|which package rests on which| REL
   REL -->|the structure| CLO[closure]
   REL -->|reached files, reached components, trails, holes| SEL[selection]
+  REL -->|what the run rests on, walked down from a declared entry| SEL
 ```

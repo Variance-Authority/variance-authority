@@ -43,7 +43,15 @@
  * — would widen for the very thing it just explained.
  */
 
-import { explain, movedBy, nodesOfKind, type Relations } from '@variance-authority/core/relate';
+import {
+  explain,
+  movedBefore,
+  movedBy,
+  nodesOfKind,
+  within,
+  type BeforeReach,
+  type Relations,
+} from '@variance-authority/core/relate';
 import type { ReachHole, ReachReport, ReachedComponent, SubjectReach } from '@variance-authority/report';
 
 /** What the walk found, when it could answer. */
@@ -120,6 +128,12 @@ export function withoutManifests(
  * a seed the walk runs backwards from exactly as it does from an edited file.
  * A package name the graph has no node for is not a gap — it is a dependency no
  * file in this repository asks for, and it reaches nothing.
+ *
+ * `before` is the far-left end: what the harness rests on that nothing imports.
+ * It is asked first and it does not narrow — a walk against the arrows from a
+ * setup file the suite loads for every test reaches whatever happens to import
+ * it, which is nothing, and answering *no component* there would skip the whole
+ * suite over the file that governs it.
  */
 export function componentsReached(
   relations: Relations,
@@ -127,10 +141,26 @@ export function componentsReached(
   changedDirs: readonly string[],
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
+  before?: BeforeReach,
 ): GraphReach | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
   const files = withoutManifests(changed, install.manifests);
+
+  // Before anything is walked, and it refuses rather than narrows. A walk
+  // against the arrows from a setup file the suite loads for every test reaches
+  // whatever happens to import it, which is nothing, and answering *no
+  // component* there would skip the whole suite over the file that governs it.
+  const rests = before === undefined ? [] : [...movedBefore(before, files, install.packages)].sort(byCodeUnit);
+  if (rests.length > 0) {
+    const them = rests.length === 1 ? 'it' : 'them';
+    return {
+      whole:
+        `the run rests on ${listed(rests)} before any test imports ${them}, and this diff moves ` +
+        `${them}: nothing here has an edge to walk back from`,
+    };
+  }
+
   const expanded =
     changedDirs.length === 0
       ? []
@@ -253,6 +283,13 @@ export interface ReachInput {
   readonly roots: readonly string[];
 
   /**
+   * What the run rests on before any test imports it, when entry points were
+   * declared. Absent is *none were*, and the left end of the line stays as
+   * invisible as it has always been.
+   */
+  readonly before?: BeforeReach;
+
+  /**
    * What the diff did to the install, when the lockfile could be read at both
    * revisions. Absent is *no reading was taken*, which seeds no package and
    * leaves every manifest in the diff a changed file, exactly as before.
@@ -289,6 +326,7 @@ export function reachOf(input: ReachInput): ReachReport {
     input.changedDirs ?? [],
     roots,
     input.install ?? NO_INSTALL_DIFF,
+    input.before,
   );
 
   if (refused(walk)) {
@@ -376,13 +414,9 @@ function byCodeUnit(a: string, b: string): number {
 /**
  * Whether a changed path lies under one of the scanned roots.
  *
- * A prefix match on directory boundaries rather than on characters: `src` must
- * not claim `srcery/`, or a diff in an unrelated directory would force whole runs
- * forever and the operator would never find out why.
+ * Re-exported rather than written again: the same boundary decides what the
+ * harness walk stops at ([`before.ts`](../../../core/src/relate/before.ts)),
+ * and two spellings of *is this path under that directory* would disagree the
+ * day one of them was fixed.
  */
-export function within(file: string, roots: readonly string[]): boolean {
-  return roots.some((root) => {
-    const normalized = root.replace(/\/+$/, '');
-    return normalized === '.' || file === normalized || file.startsWith(`${normalized}/`);
-  });
-}
+export { within };

@@ -29,6 +29,14 @@ export {
 } from './graph.js';
 
 export {
+  beforeReach,
+  movedBefore,
+  within,
+  type BeforeReach,
+  type BeforeReachOptions,
+} from './before.js';
+
+export {
   dependenciesOf,
   dependentsOf,
   trailOf,

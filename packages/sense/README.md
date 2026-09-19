@@ -625,6 +625,7 @@ never touch a disk.
 |---|---|---|
 | `root` | required | naming the checkout; returned paths are relative to it |
 | `dirs` | required | choosing the source directories to seed |
+| `before` | absent | naming individual files the run rests on that nothing imports — a `vitest.config.ts`, the setup it loads — so the harness and everything below it become ordinary nodes; a path that is not there, or that this cannot parse, is skipped |
 | `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |

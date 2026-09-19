@@ -439,6 +439,24 @@ describe('parseConfig source', () => {
     expect(error.message).toContain('JSON taint tables');
   });
 
+  it('accepts the files a run rests on, and needs a graph to walk down from them', () => {
+    const config = parseConfig(
+      withField('source', { dirs: ['src'], relations: true, before: ['vitest.config.ts'] }),
+      OPTIONS,
+    );
+    expect(config.source?.before).toEqual(['vitest.config.ts']);
+
+    const empty = attempt(withField('source', { dirs: ['src'], relations: true, before: [] }));
+    expect(empty.field).toBe('source.before');
+
+    // Without the graph the entry point contributes its own name and nothing
+    // else, so every setup file it loads would still narrow a run to nothing —
+    // which is the exact failure the key exists to remove.
+    const alone = attempt(withField('source', { dirs: ['src'], before: ['vitest.config.ts'] }));
+    expect(alone.field).toBe('source.before');
+    expect(alone.message).toContain('source.relations');
+  });
+
   it('refuses a value that is neither', () => {
     const error = attempt(withField('source', { dirs: ['src'], unrendered: 'skip' }));
 

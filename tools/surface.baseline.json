@@ -505,6 +505,8 @@
       },
       "./relate": {
         "Adjacency": "interface",
+        "BeforeReach": "interface",
+        "BeforeReachOptions": "interface",
         "CLOSURE_EDGES": "const",
         "Closure": "interface",
         "ClosureInput": "interface",
@@ -527,6 +529,7 @@
         "Relation": "interface",
         "Relations": "interface",
         "RelationsOptions": "interface",
+        "beforeReach": "function",
         "closureOf": "function",
         "dependenciesOf": "function",
         "dependentsOf": "function",
@@ -534,12 +537,14 @@
         "explain": "function",
         "idOf": "function",
         "keyOf": "function",
+        "movedBefore": "function",
         "movedBy": "function",
         "nodeAt": "function",
         "nodesOfKind": "function",
         "relationsOf": "function",
         "relationsOfFiles": "function",
-        "trailOf": "function"
+        "trailOf": "function",
+        "within": "function"
       },
       "./judge": {
         "AbsorbedByRule": "interface",

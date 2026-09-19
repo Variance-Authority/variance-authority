@@ -653,6 +653,31 @@ is walked from exactly as a changed file is.
 
 [**Reach**](./DOMAIN.md#reach)
 
+## **Before reach**
+
+### Meaning
+
+What a run rests on that nothing in it imports: the test harness config, the
+setup it loads, the bundler it goes through, the node version, the CI workflow
+— and, below them, the files and packages they reach. Nothing has an edge to
+one, so no walk arrives at it and no walk starts from it; it is declared by the
+operator rather than derived, and a diff that moves one does not narrow.
+
+### Bounded context
+
+[**Reach**](./DOMAIN.md#reach)
+
+### Product appearance
+
+The reason a run is whole when the harness moved, named by the file or the
+package that moved it, rather than narrowed to whatever else the diff happened
+to touch.
+
+### Implementation aliases
+
+`beforeReach`, `movedBefore`, `BeforeReach`; `source.before` in the operator's
+config, `ScanOptions.before` where those files are seeded
+
 ## **Journey**
 
 ### Meaning
