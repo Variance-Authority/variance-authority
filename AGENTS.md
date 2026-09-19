@@ -218,11 +218,13 @@ language. That last part is not a small adjustment. It decides the words.
   reason to lose the idea.
 - **Warmth.** Direct is not cold. Condition 1 puts a person in the prose and
   keeps them there.
-- **Scope.** All five apply to every published surface: the root `README.md`,
-  `docs/`, package and example `README.md` files, the site, CLI output and error
-  messages. `docs/context/` and `docs/specs/` are internal and may cite
-  themselves freely, but the five hold there too. An ADR is an engineer stating
-  a decision, not proving one.
+- **Scope — the published surface, and nothing else.** All five apply to the
+  root `README.md`, `docs/`, package and example `README.md` files, the site,
+  CLI output and error messages. `docs/context/` and `docs/specs/` are not
+  published and are exempt. Write them in whatever language a machine can read:
+  cite themselves, prove things, compress, use every term of art they need. The
+  reader there is the next agent, not an engineer meeting this project for the
+  first time, and the cost the five conditions buy is not worth paying twice.
 
 **Habits to cut.** Each of these falls out of the five conditions, and each one
 is easy to miss while writing.
