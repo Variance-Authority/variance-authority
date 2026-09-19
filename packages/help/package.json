@@ -1,7 +1,7 @@
 {
   "name": "@variance-authority/help",
   "version": "0.2.0",
-  "description": "Find the public name, signature, documentation, consumers and call sites of an exported TypeScript workspace symbol, over MCP.",
+  "description": "Find the public name, signature, documentation, consumers and call sites of an exported workspace symbol, over MCP.",
   "keywords": [
     "variance-authority",
     "mcp",

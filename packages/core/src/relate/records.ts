@@ -129,6 +129,15 @@ export interface Hole {
   readonly because?: string;
 }
 
+/**
+ * What one backwards walk over the file graph found, and what widened it.
+ *
+ * Every field is part of one answer and none of them stands alone: `files` is
+ * the answer, `missing` and `opaque` are the two ways it is not the whole truth,
+ * and `reach` is what an explanation is read back out of. A caller that took
+ * `files` and dropped the rest would be a caller that cannot say whether the
+ * list is narrow because the diff was small or because the scan never ran.
+ */
 export interface Reached {
   /** Files the change could have moved, including the changed files themselves. */
   readonly files: readonly string[];

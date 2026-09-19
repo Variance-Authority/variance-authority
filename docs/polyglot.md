@@ -1,0 +1,138 @@
+# What a change reaches, in the language it was written in
+
+[Variance Authority](README.md) is a visual regression system you run yourself:
+it renders a UI state, compares it against the baseline you approved, and
+reports what changed in the vocabulary of your source. To decide what a change
+can affect, it reads your checkout for the file graph — and that reading is not
+limited to the language the tool is written in. JavaScript and TypeScript in
+every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift are read by one
+scan into one graph, and a diff that spans several of them is answered in one
+walk. That is what **polyglot** means here: not a plugin per language, but one
+graph with one kind of node, whatever produced it.
+
+You do not need a subject, a baseline or a configuration file to use that half.
+Ask what a diff reaches and pipe the answer at whatever runs your tests:
+
+```bash
+variance reach --since origin/main
+```
+
+```text
+src/app/checkout.py
+src/app/cart.py
+tests/test_checkout.py
+```
+
+```bash
+variance reach --since origin/main | grep '_test\.py$' | xargs pytest
+variance reach --since origin/main | grep '\.rs$' | xargs -r cargo check --
+```
+
+The list holds every file the change can reach, the changed files among them,
+one per line. `--format json` carries the same answer with what was left out of
+it beside it. No project configuration is read, and `--since` has no default:
+the command is asked by a repository whose tests something else runs, and
+guessing a ref there would be guessing what a build is about to skip.
+
+## Why an import graph is the safe half
+
+An import is permission, not proof. `import parse` says this file *may* depend
+on `parse`, and most of the time it depends on one function in it. So a graph
+built from imports names more than a change really moved, and that is the
+direction to be wrong in: the cost of a file you did not need is a test run, and
+the cost of a file you missed is a green build over code nobody looked at.
+
+Everything that narrows below the graph narrows from evidence. An
+[execution record](execution-record.md) says which regions a test actually
+entered, and [running less of the suite](selecting.md) uses it to skip work the
+graph would have summoned. Nothing narrows from absence — "I saw no import" is
+never a reason on its own, because a file whose edges could not be read may
+import anything.
+
+Type-level references are the one thing the walk declines to follow, because
+they are erased before anything runs. A TypeScript `import type`, a Python
+`if TYPE_CHECKING:` block and a Kotlin import that only names a signature are
+recorded as edges and skipped by a walk that asks what a change can move at
+runtime. The `else:` branch of that Python block is the runtime half and is
+followed.
+
+## One reader per language, one graph
+
+A language here is a reader and a resolution algorithm — what does this file ask
+for, and where does that land on this disk — and nothing above them learns a new
+type. What differs between languages is how much the syntax is willing to tell
+you.
+
+**Python.** A statement is several modules: `from a.b.c import name` runs three
+`__init__.py` on the way down and then either `c.py` or nothing, and which one is
+a fact about the disk rather than about the statement. Every module path the
+statement could have meant is emitted and resolved, so the sibling a test
+imports through its package is an edge rather than a silence. Over a 299-file
+Python codebase with 597 first-party requests, resolving only the written module
+loses 64 edges — a tenth — and the shape it loses is exactly a test importing
+three siblings from one package.
+
+**Rust.** There is no specifier that names a path. `mod order;` declares that a
+file exists, so a `mod` that resolves to nothing is a hole and is reported as
+one. `use crate::read::harvest::Harvest;` names an item, and which prefix is the
+module is again a fact about the disk; resolution takes the longest prefix that
+is a file, and a `use` that finds nothing is an external crate rather than an
+error. `#[path]` is taken as written.
+
+**Java and Kotlin.** Two syntaxes over one resolution algorithm. An import names
+a package and a thing in it, the package is a directory under a source root, and
+the source root is derived from what the files themselves declare rather than
+from a convention list — a file at `a/b/c/Thing.java` declaring `package b.c`
+sits under root `a`, and Maven and Gradle layouts fall out of that instead of
+being assumed. Types in the same package are visible with no import at all, so
+every file asks for its own package as well; on a JVM codebase those are most of
+the real edges, and leaving them out would report a class and the class beside
+it as unrelated. Kotlin adds one difference: a top-level function may live in
+any file of its package, because Kotlin has no filename rule.
+
+**Swift.** The language does not have the edge the rest of this rests on.
+`import Core` names a module, which is a whole target, and files inside a target
+see each other with no import at all. So the answer is given at the grain the
+language has and projected onto files: an import reaches every file in that
+target, and a file reaches every file beside it in its own. On a 708-file,
+51-target package the largest target is 78 files and same-target visibility is
+20,756 edges, about twenty-nine per file — affordable because targets are small
+on purpose. `Package.swift` is a program rather than a manifest format, and is
+read with the same grammar as everything else, since `path:` is frequently not
+the default and the default is only a default.
+
+## What the answer will not do
+
+**It will not answer short.** On a clean exit the list is never empty, because
+the changed files are always among the files they reach. When the walk cannot
+stand behind a list — nothing changed since the ref, nothing changed that any
+reader claims, or a changed source file the scan never reached — the command
+writes nothing to stdout, says why on stderr, and exits `2`. A run list is the
+dangerous shape to get wrong: an empty one piped into a runner runs nothing and
+looks like a fast green build.
+
+**It will not hide what it could not read.** A changed path in no language this
+build reads — a lockfile, a Dockerfile, a workflow — is taken out of the walk and
+named on stderr rather than dropped. A file whose own edges could not be
+enumerated — a parse error, a missing grammar, a computed import, a macro, a
+name resolved by reflection — is walked from as though it had changed, and
+stderr carries the sentence saying which file and why. A widening you can read
+is a work item; a widening you cannot is a tax.
+
+**It will not narrow by language.** The reach of a diff that touched Python and
+Swift is one walk over one graph, and the Swift file reached through a target is
+in the same list as the Python module reached through a package.
+
+## Where it sits
+
+`variance reach` answers from structure alone, which is why it needs nothing
+from you but a ref. The [source index](source-index.md) is where a repeated scan
+keeps what it learned, so the second answer over a tree that did not move costs
+a fraction of the first. [Sense](../packages/sense) is the package that does the
+reading, and can be used directly when you want the records rather than a list
+of paths.
+
+Below the graph, `variance select` answers from what runs recorded — a narrower
+list, and one that exists only where a run has been recorded. The graph needs no
+history, so it is the answer available on the first day, in any of the languages
+above.

@@ -147,6 +147,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance select  [--since <ref>] [--format plain|json|vitest|jest]
+variance reach   --since <ref> [--format plain|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -166,6 +167,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 |---|---|
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
+| `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
@@ -708,6 +710,51 @@ numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which carries no commit of its own.
 No `variance.config.json` is read, so a repository that uses this tool for
 nothing else can still ask.
+
+### `reach`: what a diff reaches, for a pipe
+
+`select` answers a journal about a suite this tool recorded. `reach` answers the
+import graph about a checkout it has never run anything in, and its languages are
+JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. It prints the files
+a diff reaches, one per line, and it is meant to be piped:
+
+```bash
+variance reach --since origin/main | grep '_test\.py$' | xargs pytest
+variance reach --since origin/main | grep '\.rs$' | xargs -r cargo check --
+```
+
+What counts as a test, and how your runner takes a list of them, stays in your
+shell — where it is already written, in a form matching the repository you have.
+
+An import over-approximates: `import x` means this file *may* depend on that one,
+so everything reached is a superset of everything affected. That is what makes
+the graph alone enough to answer from with nothing recorded, and it is the same
+direction of error every narrowing in this tool is allowed.
+
+This one prints a **run** list, which is the dangerous shape, so it has no short
+answer at all. Either stdout holds every file the diff reaches — the changed
+files themselves always among them — or the command writes nothing to stdout and
+exits `2`. It refuses when the diff is empty, when a changed file in a language
+it reads is not in the graph, and when no changed file is in the graph:
+
+```
+$ variance reach --since origin/main
+none of the 2 changed files is in the file graph, so this diff says nothing about
+what it reaches. Rather than print a file list this cannot stand behind, `reach`
+stops here: a short list piped into a runner is a green build over a change
+nobody read.
+```
+
+Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile —
+are left out of the walk and named on stderr, so you can see the part of your
+diff the answer is not about. Everything else a person needs goes there too,
+including how many files were reached from how many, and which files were
+traversed because their own imports could not be read. `--format json` carries
+the same facts for something that wants to decide for itself.
+
+No `variance.config.json` is read, and there is no default for `--since`: without
+a ref there is no diff, and the honest answer would be every file in the
+checkout.
 
 ### Sharding: `report` takes more than one file
 

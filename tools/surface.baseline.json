@@ -2248,6 +2248,8 @@
       ".": {
         "HarvestSubject": "interface",
         "ImportDiff": "interface",
+        "LANGUAGES": "const",
+        "LanguageId": "type",
         "MockTaintOptions": "interface",
         "ModuleCallsTaintOptions": "interface",
         "ParseCache": "interface",
@@ -2255,6 +2257,7 @@
         "PersistentParseCache": "interface",
         "PersistentRecordCache": "interface",
         "PersistentSourceIndex": "interface",
+        "READABLE": "const",
         "RecordCache": "interface",
         "ScanOptions": "interface",
         "SourceSymbol": "interface",
@@ -2272,6 +2275,8 @@
         "auditTaints": "function",
         "enrichSources": "function",
         "gitDigests": "function",
+        "grainOf": "function",
+        "languageOf": "function",
         "memoryParseCache": "function",
         "memoryRecordCache": "function",
         "mockTaint": "function",
@@ -2294,9 +2299,9 @@
         "NAMESPACE_NAME": "const",
         "Read": "interface",
         "Request": "interface",
-        "STYLE_EXTENSIONS": "const",
-        "readModule": "function",
-        "readStyle": "function"
+        "isExternal": "function",
+        "linesOf": "function",
+        "readModule": "function"
       },
       "./taint": {
         "ImportDiff": "interface",

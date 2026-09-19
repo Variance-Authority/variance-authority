@@ -32,6 +32,7 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'source index', pattern: /\bsource index\b/i, owner: 'docs/source-index.md' },
   { name: 'execution record', pattern: /\bexecution (?:record|index)\b/i, owner: 'docs/execution-record.md' },
   { name: 'lexicon', pattern: /\blexicon\b/i, owner: 'docs/lexicon.md' },
+  { name: 'polyglot', pattern: /\bpolyglot\b/i, owner: 'docs/polyglot.md' },
   { name: 'runtime scenario', pattern: /\bruntime scenarios?\b/i, owner: 'docs/scenarios.md' },
 ];
 

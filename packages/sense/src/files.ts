@@ -3,10 +3,10 @@
  *
  * Everything here is answered by a path, before a byte is opened: which paths
  * exist under the configured roots, which of them are worth reading at all, and
- * what a name implies about the bytes behind it — the dialect the parser is
- * handed, whether the file is read as a stylesheet, whether its declarations
- * count as components. [`scan.ts`](./scan.ts) asks; the answers live here
- * because they are about naming and walking rather than about the graph.
+ * what a name implies about the bytes behind it — the language it is read as,
+ * the dialect that language's parser is handed, whether its declarations count
+ * as components. [`scan.ts`](./scan.ts) asks; the answers live here because they
+ * are about naming and walking rather than about the graph.
  *
  * The distinction this file draws is the one the parse cache is keyed on. Two
  * files holding one content are the same parse only if their names said to read
@@ -19,11 +19,11 @@ import { readdirSync, type Dirent } from 'node:fs';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import type { Digest } from './digest.js';
 import type { ParseKey } from './cache.js';
-import { MODULE_EXTENSIONS, STYLE_EXTENSIONS } from './read.js';
+import { languageOf, READABLE, type LanguageId } from './language.js';
 import { EXCLUDE_DIRS, toRepoPath } from './resolve.js';
 
-/** The extensions a scan opens: every module dialect, and every stylesheet. */
-export const READABLE = new Set([...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS]);
+/** The extensions a scan opens: every language some reader claims. */
+export { READABLE } from './language.js';
 
 /** Every readable file under the configured roots, named the way the scan keys them. */
 export function seedFiles(root: string, dirs: readonly string[]): readonly string[] {
@@ -109,9 +109,9 @@ const NOT_DECLARING = ['.test.', '.spec.', '.stories.', '.d.ts'];
 /**
  * Everything about a path that changes what its bytes mean, and nothing else.
  *
- * There are two things. The name picks the dialect handed to the parser and
- * decides whether the file is read as a stylesheet at all, and it decides
- * separately whether the file is indexed for component declarations — a
+ * There are two things. The name picks the language it is read as and the
+ * dialect handed to that language's parser, and it decides separately whether
+ * the file is indexed for component declarations — a
  * `.test.ts` is not. Read once, here, and carried to both the cache key and the
  * parse: a key and a parse that each work the path out for themselves is the
  * shape that lets them disagree, and the disagreement is silent.
@@ -135,13 +135,16 @@ export function parseWay(file: string): ParseWay {
 }
 
 /**
- * Whether this is read as a stylesheet, which the suffix already decided.
+ * Which language this is read as, which the suffix already decided.
  *
  * Derived rather than carried, because the answer is wanted only where a file is
- * actually opened and the way is built for every file in the repository.
+ * actually opened and the way is built for every file in the repository. Nothing
+ * is the answer for a suffix no reader claims ([`language.ts`](./language.ts)),
+ * which a walk seeded from {@link READABLE} cannot produce but a caller handed a
+ * path from somewhere else can.
  */
-export function isStyle(way: ParseWay): boolean {
-  return STYLE_EXTENSIONS.includes(way.suffix.slice(way.suffix.lastIndexOf('.')));
+export function languageFor(way: ParseWay): LanguageId | undefined {
+  return languageOf(way.suffix);
 }
 
 /**

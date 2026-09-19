@@ -116,11 +116,28 @@ describe('the platform packages', () => {
     );
   });
 
+  /**
+   * Asked of the platform packages among the optional dependencies, not of the
+   * whole list.
+   *
+   * `optionalDependencies` holds two different arrangements that happen to share
+   * a manifest key. The platform packages are one decision spread over four
+   * places and are what this file exists to hold together. The tree-sitter
+   * grammars are the other: a grammar that is not installed makes its language
+   * *unreadable* rather than edgeless, which
+   * [`grammar.ts`](../packages/sense/src/grammar.ts) reports as `unknown` and
+   * every consumer widens on (ADR-0066). That is a supported state, so a
+   * grammar belongs here — and a rule that read the key as a whole would refuse
+   * every language added after the first.
+   */
   it('is what the manifest declares optional', () => {
-    expect(Object.keys(sense.optionalDependencies ?? {}).sort()).toEqual(Object.values(PLATFORMS).sort());
-    expect(Object.values(sense.optionalDependencies ?? {})).toEqual(
-      Object.values(PLATFORMS).map(() => 'workspace:*'),
+    const optional = sense.optionalDependencies ?? {};
+    const platforms = Object.values(PLATFORMS);
+
+    expect(Object.keys(optional).filter((name) => name.startsWith(`${STEM}-`)).sort()).toEqual(
+      [...platforms].sort(),
     );
+    expect(platforms.map((name) => optional[name])).toEqual(platforms.map(() => 'workspace:*'));
   });
 
   it('is keyed by the platform that loads it', () => {

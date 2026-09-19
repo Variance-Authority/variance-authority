@@ -26,7 +26,14 @@ import { realpathSync } from 'node:fs';
 import { basename, extname, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory } from 'oxc-resolver';
 import type { EdgeKind } from '@variance-authority/core/relate';
-import { MODULE_EXTENSIONS, STYLE_EXTENSIONS } from './read.js';
+import { resolveJvm } from './jvm.js';
+import { carriesCode, languageOf, type LanguageId } from './language.js';
+import { isPythonRelative, resolvePython } from './python.js';
+import { MODULE_EXTENSIONS } from './read.js';
+import { STYLE_EXTENSIONS, styleRequests } from './style.js';
+import { isRustRelative, resolveRust } from './rust.js';
+import { isSwiftRelative, resolveSwift } from './swift.js';
+import type { TreeWorld } from './world.js';
 
 /** What a caller may say about resolution, and nothing about what to scan. */
 export interface ResolveOptions {
@@ -75,6 +82,22 @@ export interface Resolvers {
   against: string | undefined;
   /** What the file currently being resolved has already asked. */
   readonly asking: Asking;
+  /**
+   * The tree itself, once a scan has walked it ([`world.ts`](./world.ts)).
+   *
+   * Nothing to do with `oxc-resolver`, which is why it sits beside the three
+   * rather than among them. Every language after JavaScript resolves by asking
+   * about the tree rather than by walking the disk: Python has no `node_modules`
+   * chain and no manifest to consult per request, Rust has a module tree, and
+   * Java, Kotlin and Swift turn a name into a directory. The scan already holds
+   * the answer for the whole tree — so asking it costs a map lookup where a
+   * `stat` would cost a syscall, seventy-six times per specifier on a namespace
+   * package spread across nineteen roots.
+   *
+   * Absent until a caller names a tree, and a request in one of those languages
+   * asked before then resolves to nothing rather than to a guess.
+   */
+  tree: TreeWorld | undefined;
 }
 
 /**
@@ -137,8 +160,15 @@ export interface Landing {
 export interface Asking {
   /** The file every answer is about. Nothing until the first question. */
   file: string | undefined;
-  /** `style`-and-specifier → where it landed, or `null` for nowhere. */
-  readonly answers: Map<string, string | null>;
+  /**
+   * Language-and-specifier → where it landed, or `null` for nowhere.
+   *
+   * The language is in the key and not merely along for the ride: the same
+   * string asked from two languages is two questions, and `./colors` is the
+   * standing example — from a stylesheet it may land on `_colors.scss`, from a
+   * module it must not.
+   */
+  readonly answers: Map<string, readonly string[]>;
 }
 
 export function resolversFor(options: ResolveOptions): Resolvers {
@@ -172,6 +202,7 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     canonical: new Map(),
     against: undefined,
     asking: { file: undefined, answers: new Map() },
+    tree: undefined,
   };
 }
 
@@ -183,8 +214,8 @@ export interface Request {
   readonly from: string;
   /** The specifier, already reduced to something resolvable by `requestOf`. */
   readonly request: string;
-  /** Whether the importing file is a stylesheet. */
-  readonly style: boolean;
+  /** The language the importing file was read as, which picks the algorithm. */
+  readonly language: LanguageId;
 }
 
 /**
@@ -195,7 +226,19 @@ export interface Request {
  * reached. None of them can be in a diff of this repository.
  */
 export function resolveTo(input: Request): string | undefined {
-  const { resolvers, root, from, request, style } = input;
+  return resolveAll(input)[0];
+}
+
+/**
+ * Every file a specifier reaches, in the order a caller should prefer them.
+ *
+ * One answer is the JavaScript, stylesheet, Python and Rust shape: a specifier
+ * names a file. Java, Kotlin and Swift have no such shape — `import a.b.*` is a
+ * package, and `import Core` is a whole Swift target — so the general answer is
+ * a list, and the languages that can only ever return one return one.
+ */
+export function resolveAll(input: Request): readonly string[] {
+  const { resolvers, root, from, request, language } = input;
 
   // The importing file, not its directory. Under project references the config
   // that governs a file is chosen by matching the file against each referenced
@@ -213,12 +256,12 @@ export function resolveTo(input: Request): string | undefined {
     asking.answers.clear();
   }
 
-  const key = `${style ? 's' : 'm'}\0${request}`;
+  const key = `${language}\0${request}`;
   const known = asking.answers.get(key);
-  if (known !== undefined) return known ?? undefined;
+  if (known !== undefined) return known;
 
-  const answer = resolved({ resolvers, root, from, request, style });
-  asking.answers.set(key, answer ?? null);
+  const answer = resolved({ resolvers, root, from, request, language });
+  asking.answers.set(key, answer);
   return answer;
 }
 
@@ -227,10 +270,23 @@ function resolved(input: {
   readonly root: string;
   readonly from: string;
   readonly request: string;
-  readonly style: boolean;
-}): string | undefined {
-  const { resolvers, root, from, request, style } = input;
+  readonly language: LanguageId;
+}): readonly string[] {
+  const { resolvers, root, from, request, language } = input;
 
+  if (OVER_THE_TREE.has(language)) {
+    const world = resolvers.tree;
+    const file = toRepoPath(root, from);
+    if (world === undefined || file === undefined) return [];
+    switch (language) {
+      case 'python': return resolvePython({ from: file, request, world });
+      case 'rust': return resolveRust({ from: file, request, world });
+      case 'swift': return resolveSwift({ from: file, request, world });
+      default: return resolveJvm({ from: file, request, world });
+    }
+  }
+
+  const style = language === 'style';
   const attempts = style ? styleRequests(request) : [request];
   const order = style
     ? [resolvers.styles, resolvers.modules]
@@ -254,12 +310,27 @@ function resolved(input: {
       const { disk, file } = landed(resolvers, root, result.path);
       if (caseFolded(attempt, disk)) continue;
 
-      if (file !== undefined) return file;
+      if (file !== undefined) return [file];
     }
   }
 
-  return undefined;
+  return [];
 }
+
+/**
+ * The languages that resolve by asking about the tree rather than walking disk.
+ *
+ * Everything but JavaScript and stylesheets, which is to say everything added
+ * after this package's first shape. They share the one
+ * [`TreeWorld`](./world.ts) and differ only in what they ask it.
+ */
+const OVER_THE_TREE: ReadonlySet<LanguageId> = new Set<LanguageId>([
+  'python',
+  'rust',
+  'java',
+  'kotlin',
+  'swift',
+]);
 
 /**
  * Whether a resolution only succeeded because the filesystem ignores case.
@@ -326,22 +397,6 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
 }
 
 /**
- * The forms one stylesheet specifier can take.
- *
- * Sass resolves `./colors` to `_colors.scss`, and the partial convention is a
- * naming rule rather than a resolution option, so it is tried as a second
- * request. The leading `~` of the webpack era means "from `node_modules`", which
- * is the plain bare specifier here.
- */
-function styleRequests(request: string): readonly string[] {
-  const bare = request.startsWith('~') ? request.slice(1) : request;
-  const cut = bare.lastIndexOf('/');
-  const partial = `${bare.slice(0, cut + 1)}_${bare.slice(cut + 1)}`;
-
-  return bare === request ? [bare, partial] : [bare, partial, request];
-}
-
-/**
  * A specifier as a resolvable request, or nothing when it cannot be one.
  *
  * Query and fragment suffixes are a build-tool convention — `?raw`, `?url`,
@@ -364,9 +419,30 @@ function indexOr(value: string, mark: string): number {
   return at === -1 ? value.length : at;
 }
 
-/** Whether a request names a path in this repository rather than a package. */
-export function isRelative(request: string): boolean {
-  return request.startsWith('./') || request.startsWith('../') || request === '.' || request === '..';
+/**
+ * Whether a request names a path in this repository rather than a package.
+ *
+ * The language decides, because the syntax does. `.foo` is a bare package name
+ * in JavaScript and a sibling module in Python, and getting it wrong in either
+ * direction matters: a relative specifier that resolves to nothing is a hole —
+ * a file this file depends on that nobody could find — and a bare one that does
+ * is an ordinary third-party dependency.
+ */
+export function isRelative(request: string, language: LanguageId = 'module'): boolean {
+  switch (language) {
+    case 'python': return isPythonRelative(request);
+    case 'rust': return isRustRelative(request);
+    // Neither has a syntax that separates this repository from the platform:
+    // `import java.util.List` and `import Foundation` are written exactly the
+    // way a first-party import is, so nothing they fail to find is a hole
+    // ([`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts)).
+    case 'java':
+    case 'kotlin':
+    case 'swift': return isSwiftRelative();
+    default:
+      return request.startsWith('./') || request.startsWith('../')
+        || request === '.' || request === '..';
+  }
 }
 
 /**
@@ -381,7 +457,10 @@ export function isRelative(request: string): boolean {
 export function kindFor(kind: EdgeKind, target: string): EdgeKind {
   if (kind === 'type') return 'type';
 
-  return MODULE_EXTENSIONS.includes(extname(target)) ? kind : 'asset';
+  // What the target is read as, not whether it is JavaScript: a `.py` file is
+  // code that carries a change the same way a `.ts` file is, and calling it an
+  // asset would hide it from every traversal that asks for code only.
+  return carriesCode(languageOf(extname(target)) ?? 'style') ? kind : 'asset';
 }
 
 /**

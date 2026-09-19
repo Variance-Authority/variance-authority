@@ -69,6 +69,8 @@ lifecycle, not that one was skipped.
 
 | Was | Lifted into |
 |---|---|
+| A language other than JavaScript | [ADR-0066 — a language is a reader, not a Sense of its own](../context/adr/0066-a-language-is-a-reader-not-a-sense.md) |
+| What a diff reaches, on stdout | [ADR-0067 — a run list refuses where a skip list degrades](../context/adr/0067-a-run-list-refuses-where-a-skip-list-degrades.md) |
 | Runtime scenarios over named preconditions | [ADR-0047 — a runtime scenario is a witnessed path](../context/adr/0047-a-runtime-scenario-is-a-witnessed-path.md), [ADR-0048 — a scenario archive holds semantic objects](../context/adr/0048-a-scenario-archive-holds-semantic-objects.md), and [`scenarios.md`](../scenarios.md) |
 | Cause-first ranking on every path | [ADR-0027 — a baseline carries what its document said](../context/adr/0027-a-baseline-carries-what-its-document-said.md) |
 | An ignore is a declaration, not a blind spot | [ADR-0025 — an ignore names a place or a shape](../context/adr/0025-an-ignore-names-a-place-or-a-shape.md), [ADR-0026 — `ignored` is not `unchanged`](../context/adr/0026-ignored-is-not-unchanged.md) |

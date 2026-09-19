@@ -39,7 +39,11 @@ export function targetFrom(file: string, root: string, resolvers: Resolvers): Ta
 
   return (value) => {
     const request = requestOf(value);
-    return request === undefined ? undefined : resolveTo({ resolvers, root, from, request, style: false });
+    // Always `module`: taint follows the JavaScript import graph, and the caller
+    // has already filtered to module extensions before it gets here.
+    return request === undefined
+      ? undefined
+      : resolveTo({ resolvers, root, from, request, language: 'module' });
   };
 }
 

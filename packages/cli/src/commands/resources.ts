@@ -307,6 +307,19 @@ export async function scanSourceDirs(
   return indexOf(contents);
 }
 
+/** Why a caller wants the file graph, and what they can do when there is none. */
+export interface GraphAsk {
+  /** The clause before "and the scanner could not be loaded". */
+  readonly why: string;
+  /** What to do about it, as a whole sentence. */
+  readonly fix: string;
+}
+
+const BY_CONFIG: GraphAsk = {
+  why: 'config sets `source.relations`',
+  fix: 'Install `@variance-authority/sense`, or remove the key to select by declaration alone.',
+};
+
 /**
  * The file graph, from the same directories the component index walks.
  *
@@ -321,6 +334,12 @@ export async function scanSourceDirs(
  * `undefined` only when the operator asked for no graph at all — that is a
  * choice, and the selector already knows how to work without one.
  *
+ * {@link GraphAsk} is who wanted the graph and what they can do about not
+ * having it, and it is a parameter because the two differ: a run reached here
+ * through a config key an operator can take back out, and `reach` reached here
+ * through the command they typed, which has no key to remove. Advice to edit a
+ * file they do not have is the kind of message that costs an afternoon.
+ *
  * Both caches are opened unasked, because a scan is on the path of every run that
  * selects and the first one is the only one that should cost a repository. They
  * are keyed by content and by tree shape, so the worst a bad one can do is a full
@@ -330,15 +349,14 @@ export async function relationsFor(
   root: string,
   dirs: readonly string[],
   taints: readonly string[] = [],
+  asked: GraphAsk = BY_CONFIG,
 ): Promise<Relations> {
   let scanner;
   try {
     scanner = await import('@variance-authority/sense');
   } catch (error) {
     throw new OperatorError(
-      'config sets `source.relations` and the scanner could not be loaded: ' +
-        `${messageOf(error)}. Install \`@variance-authority/sense\`, or remove the key to ` +
-        'select by declaration alone.',
+      `${asked.why} and the scanner could not be loaded: ${messageOf(error)}. ${asked.fix}`,
       { cause: error },
     );
   }

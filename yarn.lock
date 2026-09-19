@@ -4572,6 +4572,11 @@ __metadata:
     oxc-parser: "npm:^0.144.0"
     oxc-resolver: "npm:^11.24.2"
     picomatch: "npm:^4.0.7"
+    tree-sitter-java: "npm:^0.23.5"
+    tree-sitter-python: "npm:^0.25.0"
+    tree-sitter-rust: "npm:^0.24.0"
+    tree-sitter-wasms: "npm:^0.1.13"
+    web-tree-sitter: "npm:^0.25.10"
   peerDependencies:
     vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
   dependenciesMeta:
@@ -4580,6 +4585,14 @@ __metadata:
     "@variance-authority/sense-linux-x64-gnu":
       optional: true
     "@variance-authority/sense-win32-x64-msvc":
+      optional: true
+    tree-sitter-java:
+      optional: true
+    tree-sitter-python:
+      optional: true
+    tree-sitter-rust:
+      optional: true
+    tree-sitter-wasms:
       optional: true
   peerDependenciesMeta:
     vitest:
@@ -7383,6 +7396,26 @@ __metadata:
   languageName: node
   linkType: hard
 
+"node-addon-api@npm:^8.2.2, node-addon-api@npm:^8.5.0":
+  version: 8.9.2
+  resolution: "node-addon-api@npm:8.9.2"
+  dependencies:
+    node-gyp: "npm:latest"
+  checksum: 10c0/5cf5231e0da22b22862e6b593982a0e390ca89d022a9ac666c83deceecf20378cb8afe47c456ac1a58a9f62ef60099c950aec05814a287fdfd751d9d154fb12d
+  languageName: node
+  linkType: hard
+
+"node-gyp-build@npm:^4.8.2, node-gyp-build@npm:^4.8.4":
+  version: 4.8.4
+  resolution: "node-gyp-build@npm:4.8.4"
+  bin:
+    node-gyp-build: bin.js
+    node-gyp-build-optional: optional.js
+    node-gyp-build-test: build-test.js
+  checksum: 10c0/444e189907ece2081fe60e75368784f7782cfddb554b60123743dfb89509df89f1f29c03bbfa16b3a3e0be3f48799a4783f487da6203245fa5bed239ba7407e1
+  languageName: node
+  linkType: hard
+
 "node-gyp@npm:latest":
   version: 13.0.1
   resolution: "node-gyp@npm:13.0.1"
@@ -8961,6 +8994,63 @@ __metadata:
   languageName: node
   linkType: hard
 
+"tree-sitter-java@npm:^0.23.5":
+  version: 0.23.5
+  resolution: "tree-sitter-java@npm:0.23.5"
+  dependencies:
+    node-addon-api: "npm:^8.2.2"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.2"
+  peerDependencies:
+    tree-sitter: ^0.21.1
+  peerDependenciesMeta:
+    tree-sitter:
+      optional: true
+  checksum: 10c0/526ea766a1f6803ffa6491e10dc5e265e31a48659be82a95c080724305b142877de28f4bc79e6ae5a0aed16fafa04a9f48c6b1180c7f8b130078a6211fe870f6
+  languageName: node
+  linkType: hard
+
+"tree-sitter-python@npm:^0.25.0":
+  version: 0.25.0
+  resolution: "tree-sitter-python@npm:0.25.0"
+  dependencies:
+    node-addon-api: "npm:^8.5.0"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.4"
+  peerDependencies:
+    tree-sitter: ^0.25.0
+  peerDependenciesMeta:
+    tree-sitter:
+      optional: true
+  checksum: 10c0/c047648655b4d605bfa052ec11146286711f6d01e1064940f12fe09afae247b2f2ea9af0c46fa50f986d2c3e8600d67e5e540a2cc2d426e1325204a9941e223f
+  languageName: node
+  linkType: hard
+
+"tree-sitter-rust@npm:^0.24.0":
+  version: 0.24.0
+  resolution: "tree-sitter-rust@npm:0.24.0"
+  dependencies:
+    node-addon-api: "npm:^8.2.2"
+    node-gyp: "npm:latest"
+    node-gyp-build: "npm:^4.8.4"
+  peerDependencies:
+    tree-sitter: ^0.22.1
+  peerDependenciesMeta:
+    tree-sitter:
+      optional: true
+  checksum: 10c0/b2a75344b957e4a5ac3999454922e1d22a52d24d4313cb4a479f9ed5f3ef94d86e6d24b362086f50500afb1745487c788594a27d18c89c104befceeeef713015
+  languageName: node
+  linkType: hard
+
+"tree-sitter-wasms@npm:^0.1.11, tree-sitter-wasms@npm:^0.1.13":
+  version: 0.1.13
+  resolution: "tree-sitter-wasms@npm:0.1.13"
+  dependencies:
+    tree-sitter-wasms: "npm:^0.1.11"
+  checksum: 10c0/d3e72cff8d83e70344613f2c116a35b6d81cfb2f30c54fd1204e5c8dbd47c28e3434437fc6b7c5d0a1612455e8ca928044257e4903c79afea932ed6a0b234a7a
+  languageName: node
+  linkType: hard
+
 "ts-dedent@npm:^2.0.0":
   version: 2.3.0
   resolution: "ts-dedent@npm:2.3.0"
@@ -9475,6 +9565,18 @@ __metadata:
   dependencies:
     xml-name-validator: "npm:^5.0.0"
   checksum: 10c0/8712774c1aeb62dec22928bf1cdfd11426c2c9383a1a63f2bcae18db87ca574165a0fbe96b312b73652149167ac6c7f4cf5409f2eb101d9c805efe0e4bae798b
+  languageName: node
+  linkType: hard
+
+"web-tree-sitter@npm:^0.25.10":
+  version: 0.25.10
+  resolution: "web-tree-sitter@npm:0.25.10"
+  peerDependencies:
+    "@types/emscripten": ^1.40.0
+  peerDependenciesMeta:
+    "@types/emscripten":
+      optional: true
+  checksum: 10c0/8056263c75f59c8f992584386f85675fdce94f67eec506970f49d203a7d25effa96a4736eee5b06f06dc4d8f01339f68d9d4e97d713a6517d19db1f1c0954e06
   languageName: node
   linkType: hard
 

@@ -7,6 +7,7 @@ import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand, synopsisFor } fro
 import { didYouMean } from './nearest.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
+import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
@@ -97,7 +98,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedSelect | ParsedShare
+  | ParsedDistill | ParsedSelect | ParsedReach | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -267,6 +268,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'distill': return parseDistill(flags);
     case 'select': return parseSelectArgs(flags);
+    case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
 
     case 'adjudicate': {

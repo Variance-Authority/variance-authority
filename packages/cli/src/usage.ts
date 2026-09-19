@@ -17,6 +17,7 @@
 export const COMMANDS = [
   'run',
   'select',
+  'reach',
   'report',
   'ask',
   'distill',
@@ -50,6 +51,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--exit-zero-on-changes',
   ],
   select: ['--since', '--format'],
+  reach: ['--since', '--format'],
   report: ['--format', '--subject', '--exit-zero-on-changes'],
   ask: [
     '--subject',
@@ -95,6 +97,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance select  [--since <ref>] [--format plain|json|vitest|jest]',
+  'variance reach   --since <ref> [--format plain|json]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]',
   'variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]',
@@ -117,12 +120,12 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill` and `select` do not read project configuration. One holds a
- * live listener; the second reads evidence paths named on the command line; the
- * third is asked by a repository whose tests another runner runs, and which may
- * have configured this tool for nothing else.
+ * `watch`, `distill`, `select` and `reach` do not read project configuration.
+ * One holds a live listener; the second reads evidence paths named on the
+ * command line; the last two are asked by a repository whose tests another
+ * runner runs, and which may have configured this tool for nothing else.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'select'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'select', 'reach'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
@@ -135,7 +138,7 @@ export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] 
  *
  * What a refusal about a command shows instead of the whole table. A reader who
  * typed `variance ask --quer` is not choosing a command — they have chosen it,
- * and the other fourteen lines are fourteen things to read past. That matters
+ * and the other fifteen lines are fifteen things to read past. That matters
  * most to the reader who cannot skim: an agent recovering from a typo should get
  * back the shape of the command it is already running and nothing else.
  *
@@ -146,7 +149,7 @@ export function synopsisFor(command: (typeof COMMANDS)[number]): string {
   // The command name, then either padding or the end of the line: `watch` takes
   // no flags and its synopsis is the bare `variance watch`, which a trailing
   // space would miss — and the fallback below would then answer a reader who
-  // asked about one command with all fifteen.
+  // asked about one command with all sixteen.
   return (
     USAGE.split('\n').find((line) => /^variance (\w+)/.exec(line)?.[1] === command) ?? USAGE
   );
@@ -168,7 +171,7 @@ const REVIEWS: readonly string[] = ['run', 'report', 'adjudicate'];
 /**
  * What `variance <command> --help` prints: that command, and nothing else.
  *
- * Assembled from the tables above rather than written out a sixteenth time, so a
+ * Assembled from the tables above rather than written out a seventeenth time, so a
  * flag added to `PER_COMMAND` appears here the same day. A reader who typed a
  * command has already chosen it; answering with the whole table is answering a
  * question they did not ask, and the exit codes are repeated because they are the

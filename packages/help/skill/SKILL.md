@@ -1,11 +1,11 @@
 ---
 name: variance-workspace-api
-description: Use when you need what a TypeScript workspace publishes — where a symbol is declared, what it is documented as, who imports it, and the stories, tests and call sites that already use it.
+description: Use when you need what a workspace publishes — where a symbol is declared, what it is documented as, who imports it, and the stories, tests and call sites that already use it.
 ---
 
 # Workspace public API
 
-`variance-authority-help` reads a workspace's manifests and TypeScript source and
+`variance-authority-help` reads a workspace's manifests and source and
 answers what it publishes. Every answer describes the checkout as it is now, not
 a build and not a generated site.
 
@@ -102,7 +102,7 @@ the only thing that works: those are PATH lookups, not registry lookups.
 The target needs no manifest at its root, no `workspaces` field and no build. A
 repository that publishes nothing answers entirely out of the exported half:
 every name its own files hand out, with the file and the line. That is the usual
-shape of a checkout that is not a monorepo — an application with its TypeScript
+shape of a checkout that is not a monorepo — an application with its source
 in one subdirectory — and it is the case where `search` is the only verb worth
 asking, because `packages` and `entrypoint` have nothing to report.
 
@@ -115,6 +115,11 @@ Every block below is real output from this checkout, abridged in length only.
 Every import specifier the workspace publishes, with how heavily used and how
 well documented each one is. It takes no argument and returns the argument every
 other verb wants, so start here unless you already hold an exact specifier.
+
+A published specifier comes from a `package.json` `exports` field, so this verb
+and `entrypoint` answer for the JavaScript half of a mixed repository. The other
+four verbs read the source and answer for every language: ask `search` or
+`symbol` for a Python, Rust, Java, Kotlin or Swift name.
 
 ```
 $ variance-authority-help packages

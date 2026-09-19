@@ -3,7 +3,7 @@
     "name": "Viewport",
     "kind": "interface",
     "at": "packages/core/src/format/environment.ts",
-    "packages": 16
+    "packages": 17
   },
   {
     "name": "collect",
@@ -21,7 +21,7 @@
     "name": "SubjectRef",
     "kind": "interface",
     "at": "packages/core/src/format/capture.ts",
-    "packages": 10
+    "packages": 11
   },
   {
     "name": "createHarness",
@@ -48,27 +48,33 @@
     "packages": 8
   },
   {
+    "name": "BaselineKey",
+    "kind": "interface",
+    "at": "packages/raster/src/store.ts",
+    "packages": 7
+  },
+  {
     "name": "Harness",
     "kind": "interface",
     "at": "packages/playwright/src/harness.ts",
     "packages": 7
   },
   {
-    "name": "BaselineKey",
+    "name": "RasterStore",
     "kind": "interface",
     "at": "packages/raster/src/store.ts",
+    "packages": 7
+  },
+  {
+    "name": "Diagnostic",
+    "kind": "interface",
+    "at": "packages/core/src/format/capture.ts",
     "packages": 6
   },
   {
     "name": "ProfileId",
     "kind": "type",
     "at": "packages/core/src/format/profile.ts",
-    "packages": 6
-  },
-  {
-    "name": "RasterStore",
-    "kind": "interface",
-    "at": "packages/raster/src/store.ts",
     "packages": 6
   },
   {
@@ -84,12 +90,6 @@
     "packages": 6
   },
   {
-    "name": "Diagnostic",
-    "kind": "interface",
-    "at": "packages/core/src/format/capture.ts",
-    "packages": 5
-  },
-  {
     "name": "Found",
     "kind": "interface",
     "at": "packages/raster/src/store.ts",
@@ -102,21 +102,21 @@
     "packages": 5
   },
   {
-    "name": "CallSiteResolver",
-    "kind": "interface",
-    "at": "packages/core/src/attribute/call-site.ts",
-    "packages": 4
-  },
-  {
     "name": "createDurableStore",
     "kind": "function",
     "at": "packages/store/src/durable.ts",
-    "packages": 4
+    "packages": 5
   },
   {
     "name": "createPlaywrightRenderer",
     "kind": "function",
     "at": "packages/playwright/src/renderer.ts",
+    "packages": 5
+  },
+  {
+    "name": "CallSiteResolver",
+    "kind": "interface",
+    "at": "packages/core/src/attribute/call-site.ts",
     "packages": 4
   },
   {
@@ -156,6 +156,12 @@
     "packages": 3
   },
   {
+    "name": "Observation",
+    "kind": "interface",
+    "at": "packages/observe/src/observe.ts",
+    "packages": 3
+  },
+  {
     "name": "ObservationRecord",
     "kind": "interface",
     "at": "packages/report/src/format.ts",
@@ -165,6 +171,12 @@
     "name": "Recipe",
     "kind": "type",
     "at": "packages/core/src/format/stabilize.ts",
+    "packages": 3
+  },
+  {
+    "name": "Relations",
+    "kind": "interface",
+    "at": "packages/core/src/relate/graph.ts",
     "packages": 3
   },
   {
@@ -234,6 +246,18 @@
     "packages": 2
   },
   {
+    "name": "FileRecord",
+    "kind": "interface",
+    "at": "packages/core/src/relate/records.ts",
+    "packages": 2
+  },
+  {
+    "name": "FileRecord",
+    "kind": "interface",
+    "at": "packages/core/src/relate/records.ts",
+    "packages": 2
+  },
+  {
     "name": "HistoryStore",
     "kind": "interface",
     "at": "packages/history/src/store.ts",
@@ -258,12 +282,6 @@
     "packages": 2
   },
   {
-    "name": "Observation",
-    "kind": "interface",
-    "at": "packages/observe/src/observe.ts",
-    "packages": 2
-  },
-  {
     "name": "OwnerFrame",
     "kind": "interface",
     "at": "packages/core/src/format/provenance.ts",
@@ -285,12 +303,6 @@
     "name": "RasterComparison",
     "kind": "interface",
     "at": "packages/raster/src/policy.ts",
-    "packages": 2
-  },
-  {
-    "name": "Relations",
-    "kind": "interface",
-    "at": "packages/core/src/relate/graph.ts",
     "packages": 2
   },
   {
@@ -427,12 +439,6 @@
   },
   {
     "name": "FileEdge",
-    "kind": "interface",
-    "at": "packages/core/src/relate/records.ts",
-    "packages": 1
-  },
-  {
-    "name": "FileRecord",
     "kind": "interface",
     "at": "packages/core/src/relate/records.ts",
     "packages": 1

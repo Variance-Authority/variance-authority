@@ -5,15 +5,21 @@ import { indexSource } from '@variance-authority/core/attribute';
 import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
-import { isStyle, keyFor, parseWay, type ParseWay } from './files.js';
-import { readModule, readStyle } from './read.js';
+import { keyFor, languageFor, parseWay, type ParseWay } from './files.js';
+import { readJava, readKotlin } from './jvm.js';
+import { indexesComponents, type LanguageId } from './language.js';
+import { readPython } from './python.js';
+import { readModule, type Read } from './read.js';
+import { readStyle } from './style.js';
 import {
   isRelative,
   kindFor,
   requestOf,
-  resolveTo,
+  resolveAll,
   type Resolvers,
 } from './resolve.js';
+import { readRust } from './rust.js';
+import { readSwift } from './swift.js';
 import { witnessesOf, type Aliases } from './witness.js';
 
 export interface RecordSubject {
@@ -46,7 +52,20 @@ export interface BuiltRecord {
 export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   const { absolute, file, root, resolvers, cache, largestFile } = subject;
   const way = parseWay(file);
-  const style = isStyle(way);
+  const language = languageFor(way);
+
+  // No reader claims this name. That is not the same as a file with no edges,
+  // and saying so is the whole rule this package is built on: a repository
+  // whose files nobody read must not read as a repository with nothing in it.
+  if (language === undefined) {
+    return {
+      record: {
+        file,
+        unknown: `${file} is written in a language this build has no reader for, so what it asks for is unknown.`,
+      },
+      witnesses: [],
+    };
+  }
 
   // A digest from git names a cache entry before the file is opened; only a
   // miss falls through to I/O.
@@ -79,7 +98,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
     }
 
     digest ??= digestString(contents);
-    read = parsedFrom(file, contents, way, style);
+    read = parsedFrom(file, contents, way, language);
     cache.set(keyFor(digest, way), read);
   }
 
@@ -95,14 +114,25 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       continue;
     }
 
-    const target = resolveTo({ resolvers, root, from: absolute, request, style });
+    // Every file the specifier reaches, which for Java, Kotlin and Swift is a
+    // whole package or a whole target. `targets` stays one entry per request —
+    // the source index is keyed by that alignment — and carries the first,
+    // while every one of them becomes an edge.
+    const reached = resolveAll({ resolvers, root, from: absolute, request, language });
+    const target = reached[0];
     targets.push(target);
     if (target === undefined) {
+      // A guess that lands is an edge; a guess that does not is silence. The
+      // reader derived it precisely because the language would not say whether
+      // it names anything ([`read.ts`](./read.ts)), so its absence is an answer
+      // and not a gap — recording it as unresolved would report every Python
+      // package in the tree as depending on modules nobody ever wrote.
+      if (asked.guessed === true) continue;
       unresolved.push(asked.value);
-      if (isRelative(request)) holes.push(asked.value);
+      if (isRelative(request, language)) holes.push(asked.value);
       continue;
     }
-    edges.push({ to: target, kind: kindFor(asked.kind, target) });
+    for (const to of reached) edges.push({ to, kind: kindFor(asked.kind, to) });
   }
 
   const reasons = [
@@ -146,9 +176,11 @@ async function sized(absolute: string): Promise<number | undefined> {
 }
 
 /** Everything one file's bytes say before anything about where it sits. */
-function parsedFrom(file: string, contents: string, way: ParseWay, style: boolean): Parsed {
-  const read = style ? readStyle(file, contents) : readModule(file, contents);
-  const declares = style || !way.declaring ? [] : Object.keys(indexSource(file, contents));
+function parsedFrom(file: string, contents: string, way: ParseWay, language: LanguageId): Parsed {
+  const read = readerFor(language)(file, contents);
+  const declares = way.declaring && indexesComponents(language)
+    ? Object.keys(indexSource(file, contents))
+    : [];
   return {
     requests: read.requests,
     ...(read.exports === undefined ? {} : { exports: read.exports }),
@@ -157,6 +189,19 @@ function parsedFrom(file: string, contents: string, way: ParseWay, style: boolea
     ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
   };
+}
+
+/** The reader each language is read by. Every one of them answers the same shape. */
+function readerFor(language: LanguageId): (file: string, contents: string) => Read {
+  switch (language) {
+    case 'style': return readStyle;
+    case 'python': return readPython;
+    case 'rust': return readRust;
+    case 'java': return readJava;
+    case 'kotlin': return readKotlin;
+    case 'swift': return readSwift;
+    default: return readModule;
+  }
 }
 
 function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {

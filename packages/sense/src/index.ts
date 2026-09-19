@@ -23,6 +23,16 @@
 
 export { scanRelations, type ScanOptions } from './scan.js';
 
+/**
+ * Which languages this build reads, and every extension a scan will open.
+ *
+ * Published because *what was read* is a fact callers act on: a tool handed a
+ * changed path has to know whether the graph was ever going to hold it, and the
+ * alternative is a caller carrying its own extension list that drifts from this
+ * one the first time a language is added.
+ */
+export { LANGUAGES, READABLE, languageOf, grainOf, type LanguageId } from './language.js';
+
 export {
   memoryParseCache,
   openParseCache,

@@ -48,7 +48,17 @@ import { shapeOf, type RecordCache } from './reuse.js';
 import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
 import type { IndexedRecord } from './source-index-format.js';
-import { READABLE, isStyle, keyFor, parseWay, seedFiles, seedPaths, type ParseWay } from './files.js';
+import {
+  READABLE,
+  keyFor,
+  languageFor,
+  parseWay,
+  seedFiles,
+  seedPaths,
+  type ParseWay,
+} from './files.js';
+import { loadGrammars } from './grammar.js';
+import { worldIn, worldOn } from './world.js';
 import { recordFor } from './record.js';
 import {
   realPath,
@@ -182,6 +192,16 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
         ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
 
+  // Once, before anything is opened. Every grammar initialises asynchronously
+  // and parses synchronously, and a reader is called from behind a digest-keyed
+  // cache that cannot await — so the awaiting happens here or nowhere.
+  await loadGrammars();
+
+  // Every language but JavaScript resolves by asking about the tree rather
+  // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
+  // scan already holds the answer for every path it knows.
+  resolvers.tree = tree === undefined ? worldOn(root) : worldIn(tree.paths(), root);
+
   // No digests, no reuse. Not a policy — a record that names no bytes cannot be
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = tree === undefined ? undefined : options.reuse;
@@ -260,7 +280,11 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
         acceptRemembered(file, digest, way, remembered);
         continue;
       }
-      if (addon !== undefined && !isStyle(way)) {
+      // The native side reads modules and nothing else, so what it is handed is
+      // named positively rather than as everything that is not a stylesheet: a
+      // language it has never heard of must go down the JavaScript path, not be
+      // passed to it because it failed to be CSS.
+      if (addon !== undefined && languageFor(way) === 'module') {
         pending.push(file);
         pendingDigests.push(digest);
         pendingSet.add(file);

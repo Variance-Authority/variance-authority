@@ -2,7 +2,7 @@
 
 # @variance-authority/help
 
-> Find the public name, signature, documentation, consumers and call sites of an exported TypeScript workspace symbol, over MCP.
+> Find the public name, signature, documentation, consumers and call sites of an exported workspace symbol, over MCP.
 
 Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
 yourself: it renders a UI state, compares it against the baseline you approved,
@@ -10,12 +10,14 @@ and reports what changed in the vocabulary of your source.
 
 ## What this is for
 
-Install this if you maintain a TypeScript repository and want a person or a
+Install this if you maintain a repository and want a person or a
 coding agent to be able to ask what a name in it is, where it is declared, who
 imports it, and where the repository already writes it.
 
-It reads TypeScript source off disk and answers six questions about exported
-names. Nothing has to be built first, no documentation is generated ahead of
+It reads source off disk and answers six questions about exported names. It
+reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift; the two
+verbs that answer for a *published* specifier read a `package.json`, so in a
+repository with none they answer out of what the files themselves export. Nothing has to be built first, no documentation is generated ahead of
 time, and the repository does not have to be one of yours: point it at any
 checkout with `--root`.
 

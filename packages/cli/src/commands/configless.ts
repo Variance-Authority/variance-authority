@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers three whole commands, and narrows them out of the
+ * `withoutConfig` covers four whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -24,14 +24,20 @@ import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
 import { distillFiles, formatDistill } from './distill.js';
+import { reachOutput } from './reach-command.js';
 import { selectOutput } from './select-command.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The three commands that read no project configuration at all. */
-export type Configless = Extract<Parsed, { command: 'watch' | 'distill' | 'select' }>;
+/** The four commands that read no project configuration at all. */
+export type Configless = Extract<Parsed, { command: 'watch' | 'distill' | 'select' | 'reach' }>;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
-  return parsed.command === 'watch' || parsed.command === 'distill' || parsed.command === 'select';
+  return (
+    parsed.command === 'watch'
+    || parsed.command === 'distill'
+    || parsed.command === 'select'
+    || parsed.command === 'reach'
+  );
 }
 
 /**
@@ -117,6 +123,23 @@ export async function answerConfigless(
         cwd: process.cwd(),
         format: parsed.format,
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
+      });
+      streams.err(said.err);
+      streams.out(said.out);
+      return EXIT_CLEAN;
+    }
+
+    // `select`'s reason, with the streams carrying opposite risks. A skip list
+    // that comes out short costs a suite; this list comes out as the suite, and
+    // an empty one piped into `xargs` runs nothing and looks like a fast green
+    // build. So `reach` has no short answer: either stdout holds every file the
+    // diff reaches — the changed files among them, always — or the command
+    // failed and wrote nothing at all.
+    case 'reach': {
+      const said = await reachOutput({
+        cwd: process.cwd(),
+        since: parsed.since,
+        format: parsed.format,
       });
       streams.err(said.err);
       streams.out(said.out);

@@ -31,7 +31,13 @@
  * attribution would have been. Neither guesses.
  */
 
-import { explain, movedBy, nodesOfKind, type Relations } from '@variance-authority/core/relate';
+import {
+  explain,
+  movedBy,
+  nodesOfKind,
+  type Reached,
+  type Relations,
+} from '@variance-authority/core/relate';
 import type { ReachHole, ReachReport, ReachedComponent, SubjectReach } from '@variance-authority/report';
 
 /** What the walk found, when it could answer. */
@@ -54,24 +60,35 @@ export interface GraphRefusal {
   readonly unscanned?: readonly string[];
 }
 
-export function refused(reach: GraphReach | GraphRefusal): reach is GraphRefusal {
+/**
+ * Whether the walk refused, whichever of its answers was asked for.
+ *
+ * Generic over the answer because the same refusals are returned by the
+ * component walk, the file walk, and the shared seeding step between them, and
+ * a caller that had to name which one it asked would be a caller that could
+ * name the wrong one.
+ */
+export function refused<T extends object>(reach: T | GraphRefusal): reach is GraphRefusal {
   return 'whole' in reach;
 }
 
 /**
- * Walk the graph backwards from every changed file, or refuse and say why.
+ * The backwards walk and the two refusals that are about the *diff* rather than
+ * about what the caller wanted out of it.
  *
- * `changedDirs` is a monorepo tool's coarser answer — whole packages `nx` or
- * `turbo` called affected — and it enters as ordinary seeds rather than as the
- * selection, so the graph narrows outwards from them exactly as it does from a
- * file somebody edited.
+ * Both callers below refuse the same two readings — a changed file the scan
+ * should hold and does not, and a diff no part of which is in the graph — and
+ * they are written here once. A tool that ruled a subject out on one reading
+ * and printed a file list on the other would be two tools wearing one name,
+ * which is the same argument that keeps the selector and the report on a single
+ * walk.
  */
-export function componentsReached(
+function seedsOf(
   relations: Relations,
   changed: readonly string[],
   changedDirs: readonly string[],
   roots: readonly string[],
-): GraphReach | GraphRefusal {
+): { readonly moved: Reached; readonly seeded: number } | GraphRefusal {
   const expanded =
     changedDirs.length === 0
       ? []
@@ -98,9 +115,79 @@ export function componentsReached(
     return {
       whole:
         `none of the ${many(changed.length, 'changed file')} is in the file graph, so this diff ` +
-        'says nothing about which components moved',
+        'says nothing about what it reaches',
     };
   }
+
+  return { moved, seeded };
+}
+
+/** What the file walk found, when it could answer. */
+export interface FilesReach {
+  /** Every file the diff reaches, the changed files among them, sorted. */
+  readonly files: readonly string[];
+  /** How many of the diff's own paths the graph actually holds. */
+  readonly seeded: number;
+  /** Files in the graph whose own edges could not be read. */
+  readonly opaque: readonly ReachHole[];
+  /** One sentence naming the size of the answer and what widened it. */
+  readonly how: string;
+}
+
+/**
+ * Every file a diff reaches, or a refusal — the answer a foreign runner is given.
+ *
+ * The same walk {@link componentsReached} makes, stopped one step earlier. It
+ * has no third refusal of its own, and that is the property the command over it
+ * rests on: *reaches no component* is a real thing a diff can do, while
+ * *reaches no file* is not, because `movedBy` returns the seeds among the files
+ * it reached. So an answer that gets past {@link seedsOf} holds at least the
+ * changed files themselves, and a caller substituting this into a command line
+ * can never be handed an empty list that means `run nothing`.
+ */
+export function filesReached(
+  relations: Relations,
+  changed: readonly string[],
+  roots: readonly string[],
+  changedDirs: readonly string[] = [],
+): FilesReach | GraphRefusal {
+  const walk = seedsOf(relations, changed, changedDirs, roots);
+  if (refused(walk)) return walk;
+
+  const { moved, seeded } = walk;
+  const widened =
+    moved.opaque.length === 0
+      ? ''
+      : `, ${moved.opaque.length} of them reached because their own imports could not be read ` +
+        `(${sample(moved.opaque.map(holeOf))})`;
+
+  return {
+    files: [...moved.files].sort(byCodeUnit),
+    seeded,
+    opaque: moved.opaque,
+    how: `${many(moved.files.length, 'file')} reached from ${many(seeded, 'changed file')}${widened}`,
+  };
+}
+
+/**
+ * Every component a diff reaches, or a refusal — the answer the report prints.
+ *
+ * {@link seedsOf}'s two refusals, and one of its own: a diff that reaches no
+ * component at all. `changedDirs` is a monorepo tool's coarser answer — whole
+ * packages `nx` or `turbo` called affected — and it enters as ordinary seeds
+ * rather than as the selection, so the graph narrows outwards from them exactly
+ * as it does from a file somebody edited.
+ */
+export function componentsReached(
+  relations: Relations,
+  changed: readonly string[],
+  changedDirs: readonly string[],
+  roots: readonly string[],
+): GraphReach | GraphRefusal {
+  const walk = seedsOf(relations, changed, changedDirs, roots);
+  if (refused(walk)) return walk;
+
+  const { moved, seeded } = walk;
 
   if (moved.components.length === 0) {
     return {

@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { readModule, readStyle } from './read.js';
+import { readModule } from './read.js';
+import { readStyle } from './style.js';
 import { scanRelations } from './scan.js';
 
 /**

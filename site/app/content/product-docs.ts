@@ -40,6 +40,7 @@ import ownFewerTests from "../../../docs/own-fewer-tests.md?raw";
 import optimizeATest from "../../../docs/optimize-a-test.md?raw";
 import parting from "../../../docs/parting.md?raw";
 import placement from "../../../docs/placement.md?raw";
+import polyglot from "../../../docs/polyglot.md?raw";
 import presentation from "../../../docs/presentation.md?raw";
 import presentationReference from "../../../docs/presentation-reference.md?raw";
 import performance from "../../../docs/performance.md?raw";
@@ -138,6 +139,7 @@ const documents = [
   ["journeys", journeys, "docs/journeys.md"],
   ["locate", locate, "docs/locate.md"],
   ["lexicon", lexicon, "docs/lexicon.md"],
+  ["polyglot", polyglot, "docs/polyglot.md"],
   ["presentation", presentation, "docs/presentation.md"],
   [
     "presentation-reference",

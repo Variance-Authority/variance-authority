@@ -1,11 +1,14 @@
 /**
  * One file's outgoing requests and published names, without resolving anything.
  *
- * Two readers — a module reader and a stylesheet reader — and the boundary
- * between "this file says it depends on `./x`" and "`./x` is that file over
- * there" is deliberate: resolution needs a disk and a resolution algorithm, and
- * this needs neither, so every rule about what counts as an edge is assertable
- * against a string.
+ * The {@link Read} every language reader fills, and the module reader `oxc`
+ * backs. The boundary between "this file says it depends on `./x`" and "`./x` is
+ * that file over there" is deliberate: resolution needs a disk and a resolution
+ * algorithm, and this needs neither, so every rule about what counts as an edge
+ * is assertable against a string. The other readers sit beside this one —
+ * [`style.ts`](./style.ts), [`python.ts`](./python.ts), [`rust.ts`](./rust.ts),
+ * [`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts) — and everything below the
+ * headings here is about the module one.
  *
  * ## A request is not a name
  *
@@ -132,6 +135,26 @@ export interface Request {
    * per-binding truth stays in `bindings` for anything that needs to disagree.
    */
   readonly line: number;
+
+  /**
+   * Whether the reader derived this specifier rather than read it.
+   *
+   * Python is the language that needs it: `from a.b import c` names three
+   * modules that might exist — `a`, `a.b`, and `a.b.c` if `c` is a submodule
+   * rather than a name `a/b/__init__.py` defines — and nothing in the statement
+   * says which. Emitting only what is written misses a tenth of the first-party
+   * edges in a real repository ([`python.ts`](./python.ts) records the count),
+   * so the rest are derived and marked.
+   *
+   * A guess that resolves is an ordinary edge. A guess that does not is
+   * **silence**: not an unresolved specifier, not a hole, not an `unknown`.
+   * That is the whole point of the flag — {@link Read.unknown} exists because a
+   * specifier nobody could follow means a surface nobody looked at, and a guess
+   * nobody could follow means only that the reader guessed, which is not a
+   * surface at all. Setting it on anything a file actually wrote would turn a
+   * real hole into a silent one, which is the failure this package refuses.
+   */
+  readonly guessed?: boolean;
 }
 
 export interface Export {
@@ -189,9 +212,6 @@ export interface Read {
 /** Extensions the module reader claims. Everything else is somebody else's. */
 export const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 
-/** Extensions the stylesheet reader claims. */
-export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
-
 /**
  * Static imports, re-exports, published names and literal dynamic imports.
  *
@@ -208,7 +228,7 @@ export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
  * exactly the largest files. The same structure, for the same reason, is behind
  * [`package/doc.ts`](../../package/src/doc.ts).
  */
-function linesOf(contents: string): (offset: number) => number {
+export function linesOf(contents: string): (offset: number) => number {
   const starts: number[] = [0];
   for (let at = contents.indexOf('\n'); at !== -1; at = contents.indexOf('\n', at + 1)) starts.push(at + 1);
 
@@ -340,47 +360,6 @@ export function readModule(file: string, contents: string): Read {
 }
 
 /**
- * `@import`, `@use`, `@forward` and `url()`, from a stylesheet.
- *
- * A scan of the text rather than a parse, because `oxc` reads JavaScript and
- * there is no CSS grammar in this dependency. That is a real limit and it is the
- * cheap half of a large saving: the file every visual-regression suite is most
- * afraid of is a token stylesheet, and *which components resolve through this
- * token file* is the question a component-declaration scan cannot ask at all.
- *
- * It over-reads rather than under-reads. A specifier inside a CSS comment becomes
- * an edge that is not real, which costs a collection; a specifier this failed to
- * see would cost a subject nobody observed.
- *
- * Nothing here binds a name. A stylesheet request is a whole-file dependency,
- * and `composes` is the one shape that names anything — a class rather than an
- * exported binding, which is not the same kind of name.
- */
-export function readStyle(_file: string, contents: string): Read {
-  const requests: Request[] = [];
-  const lineAt = linesOf(contents);
-
-  for (const pattern of [AT_RULE, URL, COMPOSES]) {
-    for (const match of contents.matchAll(pattern)) {
-      const value = (match[1] ?? match[2] ?? match[3] ?? '').trim();
-      if (value === '' || isExternal(value)) continue;
-      requests.push({ value, kind: 'asset', bindings: [], line: lineAt(match.index) });
-    }
-  }
-
-  return { requests };
-}
-
-/** `@import "x"`, `@import url("x")`, `@use "x"`, `@forward "x"`. */
-const AT_RULE = /@(?:import|use|forward)\s+(?:url\(\s*)?(?:'([^']*)'|"([^"]*)")/g;
-
-/** `url(x)` unquoted, and the quoted forms `url('x')` / `url("x")`. */
-const URL = /\burl\(\s*(?:'([^']*)'|"([^"]*)"|([^)'"]+))\s*\)/g;
-
-/** CSS Modules: `composes: name from './other.css'`. */
-const COMPOSES = /\bcomposes\s*:[^;]*?\bfrom\s+(?:'([^']*)'|"([^"]*)")/g;
-
-/**
  * Literal `require` calls, and whether any call was not one.
  *
  * The module record cannot see `require`, so this is a text scan, and it is
@@ -484,7 +463,7 @@ function quoted(text: string): string | undefined {
 }
 
 /** A specifier no repository file can be behind. */
-function isExternal(value: string): boolean {
+export function isExternal(value: string): boolean {
   return (
     value.startsWith('data:') ||
     value.startsWith('http:') ||
