@@ -893,6 +893,7 @@
         "WorkspaceOptions": "interface",
         "Written": "interface",
         "readWorkspace": "function",
+        "refreshWorkspace": "function",
         "serveWorkspace": "function",
         "writePages": "function"
       },

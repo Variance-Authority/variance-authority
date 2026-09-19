@@ -28,7 +28,7 @@
  * on — into a list of the names that are silent in front of an audience.
  */
 
-export { readWorkspace } from './read.js';
+export { readWorkspace, refreshWorkspace } from './read.js';
 export type { ReadingOptions } from './read.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';

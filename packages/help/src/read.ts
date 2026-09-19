@@ -34,6 +34,7 @@
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/mcp/tools';
 import {
   enrichSources,
@@ -246,6 +247,38 @@ async function scanIndexed(
  * wants `readHelp` and should keep having it.
  */
 export async function readWorkspace(root: string, options: ReadingOptions = {}): Promise<Help> {
+  const read = await scanWorkspace(root, options);
+  return documentWorkspace(read, options);
+}
+
+/**
+ * Refresh volatile source facts while retaining a previously documented surface.
+ *
+ * Usage, exported names, unreadable files and the graph are always taken from
+ * the new Sense scan. Signatures, comments and README mentions stay on the
+ * supplied reading until its published or exported name set changes; a new or
+ * removed symbol therefore rebuilds documentation immediately rather than
+ * waiting for the caller's slower documentation cadence.
+ */
+export async function refreshWorkspace(
+  root: string,
+  documented: Help,
+  options: ReadingOptions = {},
+): Promise<Help> {
+  const read = await scanWorkspace(root, options);
+  if (!sameSurface(read, documented)) return documentWorkspace(read, options);
+  if (options.save !== false) await read.scanned.save();
+  return joinUsage(documented, read.offerings, read.scanned.usage);
+}
+
+interface WorkspaceScan {
+  readonly root: string;
+  readonly offerings: readonly Offering[];
+  readonly scanned: Awaited<ReturnType<typeof scanIndexed>>;
+  readonly changed?: readonly string[];
+}
+
+async function scanWorkspace(root: string, options: ReadingOptions): Promise<WorkspaceScan> {
   const where = resolve(root);
   const offerings = readOfferings(where, { ...options, tolerant: options.tolerant ?? true });
   const scope = scanScope(where, offerings);
@@ -256,17 +289,96 @@ export async function readWorkspace(root: string, options: ReadingOptions = {}):
   );
 
   const scanned = await scanIndexed(scope.root, opened, options, scope.dirs);
+  return {
+    root: scope.root,
+    offerings,
+    scanned,
+    ...(options.changed === undefined ? {} : { changed: options.changed }),
+  };
+}
+
+async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
+  const { root, offerings, scanned } = read;
   const byFile = new Map(scanned.records.map((record) => [record.file, record]));
-  const names = await indexedNames(scope.root, offerings, scanned.sources, async (files) => {
+  const names = await indexedNames(root, offerings, scanned.sources, async (files) => {
     const subjects = files.flatMap((file) => {
       const digest = byFile.get(file)?.digest;
       return digest === undefined ? [] : [{ file, digest }];
     });
-    return enrichSources(scope.root, subjects, scanned.cache);
+    return enrichSources(root, subjects, scanned.cache);
   });
   if (options.save !== false) await scanned.save();
 
-  return assembleHelp(scope.root, offerings, scanned.usage, names);
+  return assembleHelp(root, offerings, scanned.usage, names);
+}
+
+function sameSurface(read: WorkspaceScan, documented: Help): boolean {
+  const shape = read.offerings.map((offering) => ({
+    name: offering.name,
+    declared: offering.declared,
+    openings: offering.entrypoints.map((entry) => ({
+      subpath: entry.subpath,
+      source: relative(read.root, entry.source),
+    })),
+  }));
+  const previous = documented.packages.map((published) => ({
+    name: published.name,
+    declared: published.declared,
+    openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
+  }));
+  return isDeepStrictEqual(shape, previous) && sameExportedSurface(read, documented);
+}
+
+function sameExportedSurface(read: WorkspaceScan, documented: Help): boolean {
+  if (read.changed?.length === 0) return true;
+  const changed = read.changed === undefined ? undefined : new Set(read.changed);
+  const keys = (values: Help['exported']): Set<string> => new Set(
+    values
+      .filter((value) => changed === undefined || changed.has(value.at))
+      .map((value) => `${value.at}\0${value.name}\0${value.kind}\0${Number(value.type)}`),
+  );
+  const before = keys(documented.exported);
+  const after = keys(read.scanned.usage.exported);
+  return before.size === after.size && [...before].every((key) => after.has(key));
+}
+
+function reachedFrom(usage: Usage, key: string, name: string, owner: string): {
+  readonly usedBy: readonly string[];
+  readonly uses: number;
+  readonly sites: readonly Use[];
+} {
+  const sites = usage.names.get(key)?.get(name) ?? [];
+  const usedBy: string[] = [];
+  for (const use of sites) {
+    if (use.by !== owner && !usedBy.includes(use.by)) usedBy.push(use.by);
+  }
+  return { usedBy, uses: sites.length, sites };
+}
+
+function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
+  const packages = documented.packages.map((published) => ({
+    ...published,
+    openings: published.openings.map((opening) => ({
+      ...opening,
+      entries: opening.entries
+        .map((entry) => ({
+          ...entry,
+          ...reachedFrom(usage, `${published.name} ${opening.subpath}`, entry.name, published.name),
+        }))
+        .sort(
+          (a, b) =>
+            b.usedBy.length - a.usedBy.length ||
+            b.uses - a.uses ||
+            (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
+        ),
+    })),
+  }));
+  return {
+    packages,
+    deep: usage.deep,
+    exported: usage.exported,
+    unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
+  };
 }
 
 function scanScope(root: string, offerings: readonly Offering[]): { readonly root: string; readonly dirs: readonly string[] } {

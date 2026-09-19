@@ -3,7 +3,7 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { readWorkspace, type ReadingOptions } from './read.js';
+import { readWorkspace, refreshWorkspace, type ReadingOptions } from './read.js';
 import { HELP } from './tools.js';
 
 /**
@@ -30,6 +30,12 @@ import { HELP } from './tools.js';
 export interface WorkspaceOptions extends ReadingOptions {
   readonly input?: Readable;
   readonly output?: Writable;
+  /**
+   * How long signatures, comments and README mentions may be reused, in
+   * milliseconds. Source usage and the file graph are refreshed per request.
+   * Defaults to one day; zero rebuilds documentation on every request.
+   */
+  readonly documentationRefreshMs?: number;
 }
 
 /**
@@ -42,7 +48,10 @@ export interface WorkspaceOptions extends ReadingOptions {
  * question an agent happens to ask first.
  */
 export function serveWorkspace(root: string, options: WorkspaceOptions = {}): () => void {
-  const { input, output, ...reading } = options;
+  const { input, output, documentationRefreshMs = 24 * 60 * 60 * 1000, ...reading } = options;
+  if (!Number.isFinite(documentationRefreshMs) || documentationRefreshMs < 0) {
+    throw new Error('documentationRefreshMs must be a finite, non-negative number');
+  }
 
   // The manifests, before serving anything: a path that is not a workspace should
   // fail at startup rather than on whichever request happens to arrive first.
@@ -52,6 +61,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   readOfferings(root, { ...reading, tolerant: reading.tolerant ?? true });
 
   let cached: Help | undefined;
+  let refreshDocumentationAt = 0;
 
   // The graph the reading already drew, and the tree built out of it.
   //
@@ -79,12 +89,23 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     },
     subject: async () => {
       try {
-        cached = await readWorkspace(root, {
+        const now = Date.now();
+        const previous = cached;
+        const document = previous === undefined || now >= refreshDocumentationAt;
+        let nextRecords: readonly FileRecord[] | undefined;
+        const options = {
           ...reading,
-          records: (drawn) => {
-            records = drawn;
+          records: (drawn: readonly FileRecord[]) => {
+            nextRecords = drawn;
           },
-        });
+        };
+        if (previous === undefined || now >= refreshDocumentationAt) {
+          cached = await readWorkspace(root, options);
+        } else {
+          cached = await refreshWorkspace(root, previous, options);
+        }
+        records = nextRecords;
+        if (document) refreshDocumentationAt = now + documentationRefreshMs;
       } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is

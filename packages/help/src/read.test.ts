@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
-import { readWorkspace } from './read.js';
+import { readWorkspace, refreshWorkspace } from './read.js';
 import { search } from './tools/search.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -45,6 +46,27 @@ function exported(help: Help): readonly string[] {
   return help.exported
     .map((name) => `${name.name} <- ${name.by} ${name.at}:${name.line} ${name.kind}${name.type ? ' type' : ''}`)
     .sort();
+}
+
+function entryNamed(help: Help, name: string) {
+  return help.packages
+    .flatMap((published) => published.openings)
+    .flatMap((opening) => opening.entries)
+    .find((entry) => entry.name === name);
+}
+
+async function copyWorkspace(prefix: string): Promise<{ readonly root: string; readonly temporary: string }> {
+  const temporary = await mkdtemp(join(tmpdir(), prefix));
+  const root = join(temporary, 'workspace');
+  await cp(WORKSPACE, root, { recursive: true });
+  execFileSync('git', ['init', '--quiet'], { cwd: root });
+  execFileSync('git', ['add', '.'], { cwd: root });
+  execFileSync(
+    'git',
+    ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'fixture'],
+    { cwd: root },
+  );
+  return { root, temporary };
 }
 
 describe('reading a workspace through the source index', () => {
@@ -90,6 +112,58 @@ describe('reading a workspace through the source index', () => {
     // checked is that the second reading is the same reading, because a cache
     // that answers differently on a hit is worse than no cache.
     expect(sites(await readWorkspace(WORKSPACE, { index }))).toEqual(sites(walked));
+  });
+
+  it('refreshes usage without rebuilding stable documentation', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-');
+    try {
+      const where = join(root, 'packages/alpha/src/values.ts');
+      const first = await readWorkspace(root, { index: join(root, '.index') });
+      const source = await readFile(where, 'utf8');
+      await writeFile(where, source.replace('Measures the thing', 'Fresh words about the thing'));
+      await writeFile(
+        join(root, 'packages/beta/src/other.ts'),
+        "import { measure } from 'alpha';\nmeasure(2);\n",
+      );
+
+      const refreshed = await refreshWorkspace(root, first, {
+        index: join(root, '.index'),
+        changed: ['packages/alpha/src/values.ts', 'packages/beta/src/other.ts'],
+      });
+      const measure = entryNamed(refreshed, 'measure');
+      expect(measure?.doc).toContain('Measures the thing');
+      expect(measure?.doc).not.toContain('Fresh words');
+      expect(measure?.uses).toBe((entryNamed(first, 'measure')?.uses ?? 0) + 1);
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('rebuilds documentation when a changed file introduces a symbol', async () => {
+    const { root, temporary } = await copyWorkspace('help-refresh-symbol-');
+    try {
+      const index = join(root, '.index');
+      const first = await readWorkspace(root, { index });
+      const values = join(root, 'packages/alpha/src/values.ts');
+      const barrel = join(root, 'packages/alpha/src/index.ts');
+      await writeFile(
+        values,
+        `${await readFile(values, 'utf8')}\n/** New on this turn. */\nexport const introduced = true;\n`,
+      );
+      await writeFile(
+        barrel,
+        `${await readFile(barrel, 'utf8')}\nexport { introduced } from './values.js';\n`,
+      );
+
+      const refreshed = await refreshWorkspace(root, first, {
+        index,
+        changed: ['packages/alpha/src/index.ts', 'packages/alpha/src/values.ts'],
+      });
+      const introduced = entryNamed(refreshed, 'introduced');
+      expect(introduced?.doc).toBe('New on this turn.');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
   });
 
   it('accepts the caller\'s exact changed-file list without changing the reading', async () => {

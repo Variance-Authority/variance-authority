@@ -358,9 +358,20 @@ console.log(search.run(workspace, { query: 'viewport' }));
 console.log(symbol.run(workspace, { name: 'Viewport' }));
 ```
 
+`refreshWorkspace` takes a previous reading and refreshes its volatile half:
+symbol usage, exported names, unreadable files and the source graph all come
+from a new Sense scan. Signatures, comments and README mentions are retained.
+A manifest change or an added or removed exported name rebuilds that retained
+documentation immediately, so a symbol introduced by the current edit is
+available on the same reading. Call `readWorkspace` again when edits to existing
+documentation must be visible immediately.
+
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
-to this process's own; override them when the host owns the transport.
+to this process's own; override them when the host owns the transport. It runs
+the volatile refresh before every tool call and rebuilds retained documentation
+once per day by default. `documentationRefreshMs` changes that interval; zero
+rebuilds documentation on every request.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';
