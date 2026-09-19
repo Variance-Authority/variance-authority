@@ -1,12 +1,9 @@
 # Instruments
 
-[**Variance Authority**](README.md) renders each **subject** — a story, a route, a fixture,
-or a value — compares it against its baseline, and records what changed and
-why. When a **run** (one execution of `variance run`) marks a subject
-`changed`, that has answered only the first of three questions: did anything
-move, is the difference real, and what caused it. This page catalogs the
-**instruments** that answer the second and third — each one a repeatable
-technique that holds everything still, varies exactly one thing, and reads a
+A subject came back `changed`. Whether that difference is real, and what caused
+it, are two further questions, and by eye they are answered one image at a
+time. The **instruments** catalogued here are the repeatable alternative:
+each one holds everything still, varies exactly one thing, and reads a
 representation cheap enough to read again.
 
 Three stages, and they are not equally expensive here:

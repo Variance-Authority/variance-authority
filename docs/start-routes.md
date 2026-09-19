@@ -1,10 +1,9 @@
 # Put one served route through review
 
-[Variance Authority](README.md) navigates a page your application already serves, compares
-what it renders against an approved baseline image, and tells you which
-component drew the part that changed. This page takes one route through that
-loop end to end: name the route, run it, approve the first image, and watch the
-second run come back `unchanged`.
+A server owns your routing and page state here, and the route as it ships —
+not a component mounted alone — is what you want under an approved image. Name
+one URL, run it, approve the first image, and watch the second run come back
+`unchanged`. That loop is the whole of this page.
 
 What you get here that Percy, Argos or Playwright's `toHaveScreenshot` do not
 give you is the two steps after the diff. Those hand back a count of differing

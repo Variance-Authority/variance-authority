@@ -17,6 +17,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
 import { OperatorError } from '../exit.js';
+import { installDiff, type DiffPoint } from './installed.js';
+import type { InstallDiff } from './reach.js';
 
 /**
  * Files a diff against `ref` touched, named the way the run names files.
@@ -276,6 +278,62 @@ export async function indexPosition(
 
 
 /**
+ * Where a diff against `ref` is measured from, for a reader that needs a file's
+ * **contents** at that point rather than its name.
+ *
+ * The same two coordinates `changedSince` resolves — the checkout, and the merge
+ * base — handed out so that the install can be read at both revisions without a
+ * second opinion about which commit *before* means. A run whose file list was
+ * measured from one commit and whose lockfile was read at another would report
+ * package bumps nobody made, every time `main` moved.
+ *
+ * `undefined` rather than a throw. The file list is resolved first and has
+ * already refused with a sentence naming the ref the operator typed.
+ */
+export async function diffPoint(
+  ref: string,
+  roots: readonly string[] = [],
+): Promise<DiffPoint | undefined> {
+  const run = promisify(execFile);
+  const here = process.cwd();
+
+  try {
+    const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+    const base = await mergeBase(run, ref, repository);
+    return { repository, base, at: (path) => fileAt(repository, base, path) };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * One file's contents at a revision, or `undefined` when that revision has no
+ * such file.
+ *
+ * The two are told apart by the caller and mean different things: a lockfile
+ * that was not there before is an install this cannot compare, and one that is
+ * there at both ends is one it can.
+ */
+async function fileAt(
+  repository: string,
+  revision: string,
+  path: string,
+): Promise<string | undefined> {
+  const run = promisify(execFile);
+
+  try {
+    const { stdout } = await run('git', [...PLAIN, 'show', `${revision}:${path}`], {
+      cwd: repository,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return stdout;
+  } catch {
+    return undefined;
+  }
+}
+
+
+/**
  * The checkout a directory belongs to, or the run's own directory when none does.
  *
  * A failure here is deliberately not raised. `rev-parse` fails for one uninteresting
@@ -331,19 +389,34 @@ export async function narrowingFor(
   request: NarrowingRequest,
   dirs: readonly string[],
 ): Promise<{
-  readonly since?: { readonly ref: string; readonly changed: readonly string[]; readonly diff?: string };
-  readonly against?: { readonly ref: string; readonly changed: readonly string[] };
+  readonly since?: {
+    readonly ref: string;
+    readonly changed: readonly string[];
+    readonly install?: InstallDiff;
+    readonly diff?: string;
+  };
+  readonly against?: {
+    readonly ref: string;
+    readonly changed: readonly string[];
+    readonly install?: InstallDiff;
+  };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
   const index = await indexPosition(process.cwd(), dirs);
   const diff =
     request.since === undefined ? undefined : await diffSince(request.since, dirs, index?.commit);
+  // The install is read at the same point the file list is measured from. A
+  // diff of files against the merge base beside a diff of packages against
+  // anything else would report bumps nobody made every time `main` moved.
+  const installed =
+    request.since === undefined ? undefined : await installDiff(await diffPoint(request.since, dirs));
   const since =
     request.since === undefined
       ? undefined
       : {
           ref: request.since,
           changed: await changedSince(request.since, dirs),
+          ...(installed === undefined ? {} : { install: installed }),
           ...(diff === undefined ? {} : { diff }),
         };
   const againstRef = request.against ?? (request.relations ? request.since : undefined);
@@ -351,8 +424,17 @@ export async function narrowingFor(
     againstRef === undefined
       ? undefined
       : againstRef === since?.ref
-        ? { ref: againstRef, changed: since.changed }
-        : { ref: againstRef, changed: await changedSince(againstRef, dirs) };
+        ? { ref: againstRef, changed: since.changed, ...(installed === undefined ? {} : { install: installed }) }
+        : {
+            ref: againstRef,
+            changed: await changedSince(againstRef, dirs),
+            // A second ref is a second install. Explaining a run by one diff's
+            // packages while narrowing it by another's would put a bump in the
+            // report that no selected subject was selected for.
+            ...(await installDiff(await diffPoint(againstRef, dirs)).then((read) =>
+              read === undefined ? {} : { install: read },
+            )),
+          };
 
   return {
     ...(since === undefined ? {} : { since }),

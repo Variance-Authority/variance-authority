@@ -1,10 +1,9 @@
 # Source scan reference
 
-[**Variance Authority**](README.md) is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. To decide which work
-a change can affect, it first has to know which files that change can reach.
-The **source scan** is the part that reads your checkout and answers.
+The **source scan** is what stands behind a report that names a component your
+change did not obviously touch. It reads your checkout without executing any of
+it, and everything that decides what work a change can affect walks what it
+wrote.
 
 The scan turns a checkout into one stable record per file: resolved outgoing
 edges, component declarations, content identity, and any reason the edge list is

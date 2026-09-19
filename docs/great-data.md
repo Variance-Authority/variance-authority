@@ -1,9 +1,8 @@
 # Ask one run more than whether it passed
 
-[Variance Authority](README.md) is a visual regression system you run yourself:
-it renders a UI state, compares it against the baseline you approved, and
-reports what changed in the vocabulary of your source. This page is about the
-rest of what that run leaves behind.
+Your build went green, or you approved the diff and closed the report. Nothing a
+[Variance Authority](README.md) run observed while getting there has gone
+anywhere, and most of what you can now ask it has nothing to do with pixels.
 
 `toHaveScreenshot`, Percy, Chromatic and Argos end at the comparison. They
 answer a red build with a pixel count and two images, and once you have reviewed

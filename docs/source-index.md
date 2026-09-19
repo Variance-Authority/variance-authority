@@ -1,11 +1,7 @@
 # The source index format
 
-[**Variance Authority**](README.md) is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. To decide which work
-a change can affect, it scans your checkout for the file graph. The **source
-index** is where that scan keeps what it learned, so the next scan over a tree
-that did not move does not read it again.
+Two scans of the same unchanged checkout should not do the same work twice. The
+**source index** is where the first one leaves its answer for the second.
 
 The index is optional cache state. A missing, incomplete or corrupt index is
 treated as absent: it can save scan work and cannot change scan evidence. It

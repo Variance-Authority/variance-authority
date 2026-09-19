@@ -4,9 +4,9 @@
 
 > Put the states your Vitest suite already mounts in jsdom into visual regression review, without launching a browser in the test process.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 Your jsdom tests already mount components and assert on them. This package
 writes each mounted state to disk as a *capture*: the markup, the CSS that

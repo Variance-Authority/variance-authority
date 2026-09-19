@@ -4,11 +4,11 @@
 
 > Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
-This package supplies part of that vocabulary, and it is the part that never
+This package supplies one of those readings, and it is the one that never
 renders anything. It reads a TypeScript workspace's public API as data: a
 **surface**. For each package it records which subpaths a manifest opens — an
 **entrypoint** — and which exported identifiers, or **names**, each entrypoint

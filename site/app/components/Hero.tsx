@@ -2,7 +2,7 @@ import Timelines from "./Timelines";
 import AgentFlow from "./AgentFlow";
 import IntegrationLogos from "./IntegrationLogos";
 
-/** A first introduction, paired with a concrete agent workflow. */
+/** A first introduction, paired with the problem the project exists to solve. */
 export default function Hero() {
   return (
     <section className="relative pb-20 pt-16 sm:pt-20">

@@ -1,18 +1,11 @@
 # Choose from the state you already have
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at. A **subject** — one named UI state
-you asked for and can ask for again, under an id you choose such as
-`cart/empty` — that comes back changed is read a second time before the result
-is reported, so a change somebody authored arrives separately from a subject
-that disagrees with itself.
-
-This page is for deciding how that loop attaches to a project you already have:
-which harness supplies the state, what travels from it into the run, where the
-pixels are painted, and where baselines live. New here? Start with
-[your first run](start.md), which takes one subject through capture, review and
+The state you want to watch is already reachable: a story renders it, a
+Playwright test drives to it, a Vitest test mounts it. Which of those supplies
+it decides what travels into a run, where the pixels are painted, and what your
+baselines end up named, so the choice below starts from the lifecycle you
+already trust. New to [Variance Authority](README.md)?
+[Your first run](start.md) takes one UI state through capture, review and
 acceptance end to end.
 
 Every path below shares one CLI, installed as a devDependency and invoked

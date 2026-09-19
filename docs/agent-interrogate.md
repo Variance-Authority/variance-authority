@@ -1,15 +1,10 @@
 # Interrogate a test where it stands
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page covers a different half of the same toolkit: holding a running
-Playwright test still, with its page up and its network in whatever state the
-test left it, so you can look at that moment rather than at a screenshot of it.
-Read it when a failure does not reproduce by hand, or when you want to see what
-the UI does with a reply that has not come.
+A failure that will not reproduce by hand is only visible while the test is still
+standing in it. You can hold a Playwright test at a line you choose — page up,
+network in whatever state the test left it — and look at that moment from another
+shell, or hold a request open to see what the UI does with a reply that has not
+come.
 
 New here? Start with [your first run](start.md).
 

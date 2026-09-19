@@ -1,10 +1,9 @@
 # Native code
 
-Installing [Variance Authority](README.md), a visual regression system you run
-yourself, does not need a compiler. There is no `cargo`, no `rustc`, no
-`node-gyp` and no build step on install: the compiled code arrives as prebuilt
-binaries that your package manager downloads for your platform, and no package
-in this product runs an install or postinstall script.
+Installing [Variance Authority](README.md) does not need a compiler. There is no
+`cargo`, no `rustc`, no `node-gyp` and no build step on install: the compiled
+code arrives as prebuilt binaries that your package manager downloads for your
+platform, and no package in this product runs an install or postinstall script.
 
 This page says what lands on your disk, on which platforms, what your CI image
 needs, and what happens on a machine where a binary does not arrive.
@@ -29,10 +28,9 @@ directly instead of the CLI, that choice is yours to make:
 `@variance-authority/png` alone needs only `Buffer`, and `png-sharp` is a
 separate install.
 
-Measured on macOS arm64, the compiled addons come to roughly 25 MB —
-libvips is 15 MB of it, the two oxc bindings are about 1.5 MB each, and the
-scanner is 3.4 MB.
-Your package manager unpacks one platform's binaries, not the matrix.
+Measured on macOS arm64, the compiled addons come to roughly 25 MB — libvips is
+15 MB of it, the two oxc bindings are about 1.5 MB each, and the scanner is
+3.4 MB. Your package manager unpacks one platform's binaries, not the matrix.
 Playwright's Chromium dwarfs all of it at a few hundred megabytes, and it is
 downloaded into Playwright's own cache rather than into `node_modules`.
 
@@ -50,10 +48,6 @@ The scanner ships three: **macOS arm64**, **Linux x64 against glibc**, and
 **Windows x64**. That covers an Apple Silicon laptop, a GitHub or Bitbucket
 Linux runner, and a Windows desktop, and it is a short list because it can
 afford to be — see *When a binary does not arrive* below.
-
-One binary per platform, built for the oldest machine that platform runs on. On
-Apple Silicon that is the M1 instruction set, and an M4 loads the same file:
-what a faster machine gives the scan is cores, which it reads at runtime.
 
 `oxc-parser`, `oxc-resolver` and `sharp` each publish a musl build for x64 and
 arm64, so on Alpine and other musl images the usual failure — an addon that

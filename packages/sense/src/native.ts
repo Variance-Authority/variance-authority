@@ -18,7 +18,8 @@ import type { EdgeKind, FileEdge, FileRecord } from '@variance-authority/core/re
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import { keyFor, parseWay } from './files.js';
-import { isRelative, kindFor, requestOf, type ResolveOptions } from './resolve.js';
+import { type ResolveOptions } from './resolve.js';
+import { isRelative, kindFor, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
 import { witnessesOf } from './witness.js';
 

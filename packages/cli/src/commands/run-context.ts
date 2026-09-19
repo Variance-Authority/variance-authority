@@ -8,6 +8,7 @@ import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
 import type { JourneyReading } from './journeys.js';
+import type { InstallDiff } from './reach.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
@@ -172,6 +173,18 @@ export interface RunOptions {
      * is not consulted, which narrows nothing.
      */
     readonly diff?: string;
+
+    /**
+     * What the same diff did to the **install**, read from the lockfile at both
+     * revisions rather than from the list of files it changed.
+     *
+     * A changed lockfile says nothing — a workspace version bump rewrites one
+     * and installs nothing — and a bumped package says everything, so the two
+     * ends of the diff are read separately and joined in the same graph. Absent
+     * is *no reading was taken*, which seeds no package and leaves a manifest
+     * in the diff an ordinary unplaceable changed file.
+     */
+    readonly install?: InstallDiff;
   };
 
   /**
@@ -189,6 +202,8 @@ export interface RunOptions {
   readonly against?: {
     readonly changed: readonly string[];
     readonly ref: string;
+    /** What that diff did to the install, read the same way `since` reads it. */
+    readonly install?: InstallDiff;
   };
 
   /**

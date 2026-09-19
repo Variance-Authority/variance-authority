@@ -1,12 +1,12 @@
 # Choose the operating model that fits
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. It arrives as
-MIT-licensed npm packages and a `variance` command you install into a test suite
-you already have. This page sets it beside Playwright's built-in
-`toHaveScreenshot`, Percy, Chromatic, Argos and Applitools, and
-[§6](#6-start-beside-the-tool-you-have) is where you install it.
+You are weighing Playwright's built-in `toHaveScreenshot`, Percy, Chromatic,
+Argos, Applitools and [Variance Authority](README.md) against each other, and
+their own pages do not agree on which axes decide it. This page sets the six
+side by side on what each captures for a subject, where its pixels are painted,
+who approves a diff, and what that costs in privacy, browser coverage and
+money. [§6](#6-start-beside-the-tool-you-have) is where you install beside the
+tool you already have.
 
 **Decide first whether you want to operate it.** There is no hosted service, no
 account, and no per-screenshot bill, and the price of that absent meter is that

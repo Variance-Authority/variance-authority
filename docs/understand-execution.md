@@ -1,15 +1,11 @@
 # Understand an execution
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
+A comparison or an assertion has told you *that* something changed, and now you
+need to find out *where*. This page indexes what the same run kept about the
+**execution** behind that answer: one test's work, from the moment your runner
+starts it to the moment it ends, across every process it touched.
 
-This page indexes a second reading the same run keeps. Not the comparison, but
-the **execution** behind it: one test's work, from the moment your runner starts
-it to the moment it ends, across every process it touched. Read this page when a
-comparison or an assertion has already told you *that* something changed and you
-need to find out *where*. New here? Start with [your first run](start.md).
+New here? Start with [your first run](start.md).
 
 An assertion records one answer to one question you chose before the run. An
 execution knows more than that answer: which elements the test operated, which

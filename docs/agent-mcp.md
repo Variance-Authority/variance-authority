@@ -1,15 +1,10 @@
 # Ask an agent about a finished run over MCP
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page connects an MCP client to a run that has already finished, so an agent
-can ask what changed without you pasting a report into it. Read it if you have a
-report on disk and an agent in the loop that speaks MCP. The server answers from
-evidence it is handed; it never runs a test, re-renders a state, or promotes a
-baseline.
+A finished run leaves `.variance/report.json`, and an agent handed that file by
+copy and paste only ever sees the part you pasted. Connected over MCP it reads
+the whole report itself — what changed, and what changed it. The server answers
+only from the report it is given: it never runs a test, re-renders a state, or
+promotes a baseline.
 
 New here? Start with [your first run](start.md).
 

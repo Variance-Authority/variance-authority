@@ -37,7 +37,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, normalize } from 'node:path/posix';
 import { basename } from 'node:path';
 import { digestString, type Digest } from './digest.js';
-import { isRelative, requestOf } from './resolve.js';
+import { isRelative, requestOf } from './specifier.js';
 
 /** Where a non-relative specifier could land, lexically. */
 export interface Aliases {

@@ -20,8 +20,3 @@ acceleration of it, held to the same answers by differential tests, so a Linux
 arm64 runner or an Alpine image builds the same source index and pays what the
 TypeScript scan costs. Adding a platform is a decision about a machine somebody
 ships from, not a completeness exercise.
-
-**One binary per platform, built for the floor of it.** On Apple Silicon that is
-the M1 instruction set, which every Apple Silicon Mac runs, and a newer Mac
-loads the same file. What a faster machine gives the scan is cores, which it
-reads at runtime rather than at download.

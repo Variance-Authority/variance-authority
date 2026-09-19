@@ -4,9 +4,9 @@
 
 > Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 Your component test in Vitest browser mode has already mounted the component in
 a real engine with the real stylesheets, and the locator it awaited is proof the

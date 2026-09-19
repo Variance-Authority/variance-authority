@@ -1,16 +1,11 @@
 # Where baselines live
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is the reference for where those approved images are kept between
-runs, one per **subject**: one named UI state you asked for and can ask for
-again, identified by a stable id such as `story:checkout--empty`. Read it when
-you are setting up a project and have to decide whether the images are
-committed, tracked through git-LFS, or held by a service. New here? Start with
-[your first run](start.md).
+Approved images have to sit somewhere between runs, one per **subject** — the
+named UI state a baseline belongs to, such as `story:checkout--empty` — and
+there are three places to put them: committed to the repository, tracked
+through git-LFS, or held by a service. They differ in what a clone costs, who
+can approve a change, and what happens to the repository as history grows. This
+page is the reference for choosing one while you set a project up.
 
 ```bash
 npm install --save-dev @variance-authority/cli

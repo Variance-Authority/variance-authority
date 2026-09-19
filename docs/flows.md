@@ -1,13 +1,10 @@
 # Choose an operating flow
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is for whoever decides how that comparison is deployed: where approved
-baselines are kept, who reviews a change, and which machine paints the images.
-New here? Start with [your first run](start.md).
+Six levels run from comparing two revisions inside a single run up to keeping a
+history that can tell a recurring flake from a slow drift, and each step costs
+infrastructure somebody has to operate. Pick the smallest one that
+answers the question your team actually asks: where approved baselines are
+kept, who reviews a change, and which machine paints the images.
 
 ```bash
 npm install --save-dev @variance-authority/cli

@@ -14,8 +14,9 @@
 // compass: variance-authority.reach
 
 import { join } from 'node:path';
-import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
-import { isRelative, kindFor, requestOf, resolveTo, type Resolvers } from '../resolve.js';
+import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
+import { resolveTo, type Resolvers } from '../resolve.js';
+import { isRelative, kindFor, packageOf, requestOf } from '../specifier.js';
 
 /** Specifiers a taint named, each with the taints that named it. */
 export type Said = ReadonlyMap<string, ReadonlySet<string>>;
@@ -82,6 +83,18 @@ export function applied(record: FileRecord, plus: Reached): FileRecord {
   // The target says what it is: a stylesheet is an asset however it was named.
   for (const to of plus.targets) edges.push({ to, kind: kindFor('imports', to) });
 
+  // A tainted specifier that named a package lands here for the same reason the
+  // scan's own does: it resolved to nothing inside the repository because it
+  // resolves to an install. A table saying a file reaches `@mui/material` is
+  // exactly as good a reason to seed that file on a `@mui/material` bump as the
+  // import statement would have been.
+  const packages: PackageEdge[] = [...(record.packages ?? [])];
+  for (const value of plus.missed) {
+    const request = requestOf(value);
+    const named = request === undefined ? undefined : packageOf(request);
+    if (named !== undefined) packages.push({ to: named, kind: 'imports' });
+  }
+
   const reasons = [
     ...(record.unknown === undefined ? [] : [record.unknown]),
     ...(holes.length === 0
@@ -89,17 +102,18 @@ export function applied(record: FileRecord, plus: Reached): FileRecord {
       : [`${holes.length} tainted relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
   ];
 
-  const { edges: _edges, unresolved: _unresolved, unknown: _unknown, ...rest } = record;
+  const { edges: _edges, packages: _packages, unresolved: _unresolved, unknown: _unknown, ...rest } = record;
 
   return {
     ...rest,
     ...(edges.length > 0 ? { edges: dedupe(edges) } : {}),
+    ...(packages.length > 0 ? { packages: dedupe(packages) } : {}),
     ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(byCodeUnit) } : {}),
     ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
 }
 
-function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {
+function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
   const seen = new Set<string>();
 
   return edges

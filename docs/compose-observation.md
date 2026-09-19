@@ -1,17 +1,10 @@
 # Compose an observation
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
-
-Wiring it into a suite you already have is four separate decisions: which of
-your harnesses reaches the state, what gets captured and where the pixels are
-painted, where the answer is consumed and how long it is kept, and who holds the
-baseline between runs. This page is the index to those four, for when you have
-decided you want the tool and are deciding how it should sit in your suite.
-
-New here? Start with [your first run](start.md), which takes one UI state
+Wiring an observation into a suite you already have is four separate decisions:
+which of your harnesses reaches the state, what gets captured and where the
+pixels are painted, where the answer is consumed and how long it is kept, and
+who holds the baseline between runs. This page is the index to those four. If
+you have not run anything yet, [your first run](start.md) takes one UI state
 through capture, review and acceptance end to end.
 
 ## The four decisions

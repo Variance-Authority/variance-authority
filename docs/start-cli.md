@@ -1,12 +1,12 @@
 # Run visual review from the command line
 
-**[Variance Authority](README.md)** renders a UI state, compares it against its
-approved baseline, and records what changed and why.
-[`@variance-authority/cli`](../packages/cli/README.md) runs that comparison as a
-command: it checks the machine, captures every state your project asked for,
-writes one report, and returns the exit code CI gates on. When pixels moved, the
-report names the component that drew them and the `file:line` it was written at,
-so nobody has to find the changed region by eye and work backwards to the source.
+Four commands make the review loop, and
+[`@variance-authority/cli`](../packages/cli/README.md) is all four: `doctor`
+checks the machine can paint reproducibly, `run` captures every subject and
+writes one report, `report` renders that report for a person, and `accept`
+promotes an image you already looked at. This page runs them in order against a
+project that already collects subjects, ending on a run that exits `0` because
+nothing moved.
 
 This page assumes you already have a **collector** — the module that mounts each
 UI state and says when it is ready to be captured. The CLI never navigates, logs

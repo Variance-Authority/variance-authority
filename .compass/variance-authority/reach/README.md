@@ -25,16 +25,18 @@ excluded is stated by name for [report](../report/README.md) to carry.
 TypeScript on Node. `oxc-parser` and `oxc-resolver` for reading and resolving
 source; interned typed-array structures in compressed-sparse-row form for the
 graph and the execution record; Git plumbing for content digests and for the
-diff; `AsyncLocalStorage` for scoping an execution inside a service process.
+diff, and for reading a lockfile at a revision; `AsyncLocalStorage` for scoping
+an execution inside a service process.
 
 ## Implementation coordinates
 
 - `packages/sense/src/` — the scan, the resolver, the durable source index
+- `packages/sense/src/lock/` — the lockfile readers and the install comparison
 - `packages/sense/src/instrument/` — the source transform that marks regions
 - `packages/sense/src/test-selection/` — the execution record and its queries
 - `packages/core/src/relate/` — the graph, its traversals, and the closure fold
 - `packages/cli/src/commands/` — `run-select.ts`, `affected.ts`, `reach.ts`,
-  `journey.ts`, `since.ts`, `changes.ts`
+  `journey.ts`, `since.ts`, `changes.ts`, `installed.ts`
 
 ## Communicates with
 
@@ -125,6 +127,7 @@ block would have to print its own.
 |---|---|
 | [source-scan](./source-scan/README.md) | Walking a checkout once and turning each file into its resolved outgoing edges, its content digest, and what it declares |
 | [source-index](./source-index/README.md) | Remembering parses and resolved records across runs so a second scan costs the diff rather than the repository |
+| [installed](./installed/README.md) | Reading the lockfile at two revisions and naming which packages the install moved, transitive bumps traced up to their parents |
 | [relations](./relations/README.md) | The typed bidirectional graph of what depends on what, and the two traversals that walk it either way |
 | [closure](./closure/README.md) | Hashing a node over everything it rests on, so sameness is proven without consulting a ref |
 | [selection](./selection/README.md) | Deciding which subjects to observe from both grounds, and refusing to narrow whenever either ground cannot answer |
@@ -144,6 +147,8 @@ flowchart TB
   subgraph reach
     SCAN[source-scan] --> INDEX[source-index]
     SCAN --> REL[relations]
+    INS[installed] --> REL
+    INS --> SEL
     REL --> CLO[closure]
     REL --> SEL[selection]
     CLO --> SEL

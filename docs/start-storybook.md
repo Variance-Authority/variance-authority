@@ -1,9 +1,9 @@
 # Compare Storybook stories against approved screenshots
 
-[Variance Authority](README.md) renders each of your stories, compares it against the
-screenshot you last approved, and reports what changed — down to the component
-that changed and the `file:line` where it is declared. This page takes one story
-through that loop: build, run, review, accept, rerun.
+Story ids already name your UI states, and `storybook-static/index.json` already
+lists every one. This page turns that list into screenshots you approved —
+build, run, review, accept, rerun — and a story whose pixels move afterwards is
+reported by the component that changed and its `file:line`.
 
 Use this path when Storybook already owns mounting, decorators, play functions
 and readiness. Those stay with Storybook; nothing here re-implements them.

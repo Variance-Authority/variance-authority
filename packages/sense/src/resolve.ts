@@ -23,16 +23,15 @@
  */
 
 import { realpathSync } from 'node:fs';
-import { basename, extname, isAbsolute, relative, sep } from 'node:path';
+import { basename, isAbsolute, relative, sep } from 'node:path';
 import { ResolverFactory } from 'oxc-resolver';
-import type { EdgeKind } from '@variance-authority/core/relate';
 import { resolveJvm } from './jvm.js';
-import { carriesCode, languageOf, type LanguageId } from './language.js';
-import { isPythonRelative, resolvePython } from './python.js';
+import type { LanguageId } from './language.js';
+import { resolvePython } from './python.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { STYLE_EXTENSIONS, styleRequests } from './style.js';
-import { isRustRelative, resolveRust } from './rust.js';
-import { isSwiftRelative, resolveSwift } from './swift.js';
+import { resolveRust } from './rust.js';
+import { resolveSwift } from './swift.js';
 import type { TreeWorld } from './world.js';
 
 /** What a caller may say about resolution, and nothing about what to scan. */
@@ -394,73 +393,6 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
   canonical.set(path, landing);
 
   return landing;
-}
-
-/**
- * A specifier as a resolvable request, or nothing when it cannot be one.
- *
- * Query and fragment suffixes are a build-tool convention — `?raw`, `?url`,
- * `?inline` — and they name the same file with different handling. Stripping
- * them is what keeps a perfectly ordinary asset import from being reported as an
- * unresolvable hole and widening the run.
- */
-export function requestOf(value: string): string | undefined {
-  const trimmed = value.trim();
-  if (trimmed === '' || trimmed.startsWith('data:') || trimmed.startsWith('node:')) return undefined;
-
-  const cut = Math.min(indexOr(trimmed, '?'), indexOr(trimmed, '#'));
-  const bare = trimmed.slice(0, cut);
-
-  return bare === '' ? undefined : bare;
-}
-
-function indexOr(value: string, mark: string): number {
-  const at = value.indexOf(mark);
-  return at === -1 ? value.length : at;
-}
-
-/**
- * Whether a request names a path in this repository rather than a package.
- *
- * The language decides, because the syntax does. `.foo` is a bare package name
- * in JavaScript and a sibling module in Python, and getting it wrong in either
- * direction matters: a relative specifier that resolves to nothing is a hole —
- * a file this file depends on that nobody could find — and a bare one that does
- * is an ordinary third-party dependency.
- */
-export function isRelative(request: string, language: LanguageId = 'module'): boolean {
-  switch (language) {
-    case 'python': return isPythonRelative(request);
-    case 'rust': return isRustRelative(request);
-    // Neither has a syntax that separates this repository from the platform:
-    // `import java.util.List` and `import Foundation` are written exactly the
-    // way a first-party import is, so nothing they fail to find is a hole
-    // ([`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts)).
-    case 'java':
-    case 'kotlin':
-    case 'swift': return isSwiftRelative();
-    default:
-      return request.startsWith('./') || request.startsWith('../')
-        || request === '.' || request === '..';
-  }
-}
-
-/**
- * The edge kind, once the target is known.
- *
- * A specifier's *syntax* says how it was written; its *target* says what it is.
- * `import './button.css'` is written as an import and is an asset, and the
- * difference is what lets a caller ask for a traversal through code only.
- * A type import stays a type import whatever it points at — nothing it names
- * survives compilation.
- */
-export function kindFor(kind: EdgeKind, target: string): EdgeKind {
-  if (kind === 'type') return 'type';
-
-  // What the target is read as, not whether it is JavaScript: a `.py` file is
-  // code that carries a change the same way a `.ts` file is, and calling it an
-  // asset would hide it from every traversal that asks for code only.
-  return carriesCode(languageOf(extname(target)) ?? 'style') ? kind : 'asset';
 }
 
 /**

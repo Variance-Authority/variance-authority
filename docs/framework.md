@@ -6,14 +6,10 @@ validation update discards what the user typed. Before that interaction, the
 stable and broken versions produce the same document. The capture describes
 what is on screen; it cannot say whether that component will survive.
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at. This page is the
-task-oriented path through the React evidence it can read beside the rendered
-document, for the failures above: the document is identical on both sides and
-the difference is in the component tree. Read it when a screenshot passes and
-the component still behaves wrongly.
+This page is the task-oriented path through the React evidence you can read
+beside the rendered document, for the failure above: the document is identical
+on both sides and the difference is in the component tree. Read it when a
+screenshot passes and the component still behaves wrongly.
 
 New here? Start with [your first run](start.md).
 

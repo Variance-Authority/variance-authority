@@ -1,16 +1,10 @@
 # Understand an interface
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is the hub for the evidence it reads *beside* the image: the measured
-relationships of the rendered layout, the elements your test actually addressed,
-and the React component that owns each of them. All three read one live page
-inside a Playwright or Vitest run you already have, and none of them needs a
-previous image, an approved baseline, or a stored comparison. New here? Start
-with [your first run](start.md).
+Three readings describe a rendered interface without comparing it to anything:
+the measured relationships of the layout, the elements your test actually
+addressed, and the React component that owns each of them. All three read one
+live page inside a Playwright or Vitest run you already have, and none of them
+needs a previous image, an approved baseline, or a stored comparison.
 
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id you choose such as `story:checkout--empty`. Each

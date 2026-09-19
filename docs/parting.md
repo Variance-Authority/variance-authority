@@ -1,22 +1,14 @@
 # Which input changed, not just which pixels
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is about the step after that report. Given two readings of one UI
-state, `partingOf` names the input behind the difference — a prop, a context
-value, an external store, or a hook cell — and the component that changed it.
-Read it when you have a difference in hand and want its cause rather than its
-coordinates. New here? Start with [your first run](start.md).
-
 A diff says a `<div>` rendered a `<p>` on one side and a `<span>` on the other.
-That is a symptom. Acting on it means opening the component, guessing which
-branch ran, and guessing why.
+That is a symptom, and acting on it means opening the component, guessing which
+branch ran, and guessing why. `partingOf` takes those two readings and names
+the input that sent them apart — a prop, a context value, an external store, or
+a hook cell — along with the component that changed it. Read on when you have a
+difference in hand and want its cause rather than its coordinates.
 
-`partingOf` takes the same two readings and returns a **parting** — the account
-of where the two readings diverged and which input sent them there:
+It returns a **parting** — the account of where the two readings diverged and
+which input sent them there:
 
 ```text
 variation — an input changed and the page followed

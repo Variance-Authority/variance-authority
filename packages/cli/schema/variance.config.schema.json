@@ -428,6 +428,12 @@
           "description": "Directories components are declared in. Directories rather than globs: a glob syntax is a small language with its own bugs, and which directories hold components is answerable without one. An empty list would silently narrow a run to nothing.",
           "items": { "type": "string", "minLength": 1 }
         },
+        "before": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Files the run rests on that nothing in it imports: the test harness config, the setup it loads, a CI workflow, a `.nvmrc`. Nothing has an edge to a config, so a walk back from one reaches no component and a diff that touches one beside a component file would narrow silently. Declared, each entry is walked down once, and the files and packages it reaches do not narrow a run. The descent stops at the first file under `dirs`, which already answers for itself. An entry the scan does not hold contributes only its own name. Needs `relations`.",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "relations": {
           "type": "boolean",
           "default": false,

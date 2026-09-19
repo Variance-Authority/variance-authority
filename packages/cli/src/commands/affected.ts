@@ -3,8 +3,8 @@ import {
   mergeSourceIndexes,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
-import type { Relations } from '@variance-authority/core/relate';
-import { componentsReached, many, refused, within } from './reach.js';
+import type { BeforeReach, Relations } from '@variance-authority/core/relate';
+import { componentsReached, many, refused, within, type InstallDiff } from './reach.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,
@@ -40,7 +40,10 @@ import { componentsReached, many, refused, within } from './reach.js';
  * - a changed source file that declares **no component** makes the whole run
  *   whole — it can be a stylesheet, a token file, a helper every component
  *   imports, and none of those name themselves in any subject;
- * - a run that cannot list its changed files at all does not narrow.
+ * - a run that cannot list its changed files at all does not narrow;
+ * - an install this cannot read at both revisions does not narrow — a bumped
+ *   package is invisible without it, and invisible is the one thing a selector
+ *   may not treat as *nothing happened*.
  *
  * ## One state this cannot resolve, and so states instead
  *
@@ -109,6 +112,18 @@ export interface AffectedInput {
   readonly roots: readonly string[];
 
   /**
+   * What the run rests on before any test imports it, when entry points were
+   * declared.
+   *
+   * The other side of `roots`. Those say where the files this can reason about
+   * live; this says which files govern the run from outside that set — a setup
+   * module, an environment, the packages a config rests on. Nothing has an edge
+   * to one of them, so the walk below cannot find them and cannot be allowed to
+   * answer *reaches nothing* about them.
+   */
+  readonly before?: BeforeReach;
+
+  /**
    * Component names each planned subject's stored baseline recorded.
    *
    * `undefined` for a subject with no baseline, and for one whose baseline
@@ -136,6 +151,23 @@ export interface AffectedInput {
    * changes nothing about which uncertainties refuse to narrow.
    */
   readonly relations?: Relations;
+
+  /**
+   * What the diff did to the **install** — the far end of the same line the
+   * graph walks, and the half a file diff cannot see.
+   *
+   * A changed lockfile is not evidence: a workspace version bump rewrites one
+   * and installs nothing. The lockfile read at both revisions *is* evidence,
+   * and it is read as package names, because which instance of `jsdom` a
+   * resolver handed a given importer is a question only that resolver can
+   * answer. Names over-include, which is the safe direction.
+   *
+   * Seeds only, exactly like `changedDirs`: the graph narrows outward from a
+   * bumped package the same way it narrows outward from an edited file, and a
+   * package no file imports reaches nothing. Absent is *no reading was taken*,
+   * and then a changed lockfile is an ordinary unreadable changed file again.
+   */
+  readonly install?: InstallDiff;
 }
 
 export interface Affected {
@@ -181,6 +213,7 @@ export interface Affected {
 export function affectedSubjects(input: AffectedInput): Affected {
   const { planned, changed, source, roots, baselines, relations } = input;
   const changedDirs = input.changedDirs ?? [];
+  const install = input.install;
 
   const everything = (whole: string): Affected => ({
     observe: planned,
@@ -189,7 +222,14 @@ export function affectedSubjects(input: AffectedInput): Affected {
     because: `every subject was observed: ${whole}`,
   });
 
-  if (changed.length === 0 && changedDirs.length === 0) {
+  // Before anything else, because it is the one uncertainty that makes the rest
+  // of the evidence untrustworthy rather than merely incomplete: a diff whose
+  // install cannot be compared may have bumped every package in it, and the
+  // changed-file list would look exactly the same.
+  if (install !== undefined && 'whole' in install) return everything(install.whole);
+
+  const moved = install === undefined ? [] : install.packages;
+  if (changed.length === 0 && changedDirs.length === 0 && moved.length === 0) {
     // Not an empty selection. A diff naming nothing is a run against a tree that
     // has not moved, and answering it with "observe nothing" would report a clean
     // suite that looked at none of it.
@@ -198,8 +238,8 @@ export function affectedSubjects(input: AffectedInput): Affected {
 
   const narrowing =
     relations === undefined
-      ? byDeclaration(changed, changedDirs, source, roots)
-      : byRelation(changed, changedDirs, relations, roots);
+      ? byDeclaration(changed, changedDirs, source, roots, moved)
+      : byRelation(changed, changedDirs, relations, roots, install, input.before);
 
   if ('whole' in narrowing) return everything(narrowing.whole);
   const { touched, how } = narrowing;
@@ -275,7 +315,21 @@ function byDeclaration(
   changedDirs: readonly string[],
   source: SourceIndex,
   roots: readonly string[],
+  moved: readonly string[],
 ): Narrowing {
+  // Reading the install is only half the answer; the other half is *which files
+  // import that package*, and that is the graph. Without one, a bumped package
+  // is a change this selector can see and cannot place — which is a whole run,
+  // and a loud one, because the fix is a single line of config.
+  if (moved.length > 0) {
+    return {
+      whole:
+        `the install moved ${many(moved.length, 'package')} (${sample(moved)}) and no file graph ` +
+        'is configured, so nothing here can say which files import them — set ' +
+        '`source: { relations: true }` to answer this exactly',
+    };
+  }
+
   const inside = changed.filter((file) => within(file, roots));
   const declaring = declaringFiles(source);
 
@@ -331,11 +385,13 @@ function byRelation(
   changedDirs: readonly string[],
   relations: Relations,
   roots: readonly string[],
+  install: InstallDiff | undefined,
+  before: BeforeReach | undefined,
 ): Narrowing {
   // The same call the report makes. Two walks would let the run skip a subject
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
-  const reach = componentsReached(relations, changed, changedDirs, roots);
+  const reach = componentsReached(relations, changed, changedDirs, roots, install, before);
   if (refused(reach)) return { whole: reach.whole };
 
   return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };

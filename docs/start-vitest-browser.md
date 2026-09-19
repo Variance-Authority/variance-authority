@@ -1,10 +1,10 @@
 # Add one baseline comparison to a Vitest browser-mode test
 
-[Variance Authority](README.md) renders a UI state, compares it against its
-approved baseline, and records what changed and why. This page adds one such
-comparison to a component test you already have in Vitest browser mode. The
-test keeps its runner, provider, mount library, locators and assertions; you add
-one call and one assertion to it.
+Vitest browser mode has already mounted your component in a real browser, which
+is the expensive part. This page spends one call and one assertion on top of
+it: the mounted subtree is read as a document rather than photographed,
+repainted by a Chromium the Vitest process owns, and compared against an image
+you approved.
 
 ## What this adds to a suite that already screenshots
 

@@ -1,12 +1,10 @@
 # Observability contracts: what a run keeps beyond pass or fail
 
-[**Variance Authority**](README.md) is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source. Each **subject** —
-one named UI state you asked for and can ask for again, whether that is a story,
-a route, a fixture or a value — is captured, compared against its baseline, and
-written into a report. A **run** is one execution of `variance run`, and the
-report it writes rests on one bit per subject: pass or fail.
+A finished **run** (one execution of `variance run`) gives you one bit per
+**subject** — one named UI state you asked for and can ask for again, whether
+that is a story, a route, a fixture or a value — and that bit is pass or fail.
+Read this page to decide which of the other things a run can keep are worth
+keeping, and what each one is and is not evidence of.
 
 The execution that produced that bit knew more. It knew which elements the test
 addressed, which components rendered, which instance scheduled each render, and

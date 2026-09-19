@@ -1,11 +1,11 @@
 # Watch a run that has not finished
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
+Your suite is still running and one test has been sitting on the same line for
+longer than it should. [Variance Authority](README.md) can tell you what that
+test has heard, and from whom, while it is still in flight rather than after
+teardown has thrown all of it away.
 
-This page covers a different half of the same toolkit: what a Playwright suite is
+This page covers a different half of the same problem: what a Playwright suite is
 saying while it is still running. Read it when a test hangs, when you want to see
 which work a test started and never finished, or when you want to stop a test and
 look at the browser it left open. New here? Start with [your first

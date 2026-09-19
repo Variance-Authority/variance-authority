@@ -1,16 +1,11 @@
 # Find out which component changed, and whether anyone changed it
 
-**[Variance Authority](README.md)** renders a UI state, compares it against its
-approved baseline, and records what changed and why. You already have a way to
-catch the pixels — `toHaveScreenshot`, Chromatic, Percy, `jest-image-snapshot` —
-and what any of them hands back on a red build is a count of differing pixels
-and two images. Somebody then opens the diff, finds the changed region by eye,
-works out which component drew it, and decides whether that change was authored
-or whether the test is just unstable. Variance Authority answers those last two
-from the run itself: a changed region resolves to the component that drew it and
-the `file:line` it was written at, and a subject that changed is read again
-before it is reported, so a change somebody authored arrives separately from a
-subject that disagrees with itself.
+One question picks your guide: which harness already reaches the UI state you
+want to review — a Playwright spec, a built Storybook, a served route, a jsdom
+unit test, Vitest browser mode, an Rstest suite, or a mount nobody else owns.
+Whichever row of the table below you land on ends the same way: that state
+gets a baseline image you approved, and a later run that moves pixels reports
+the component that drew them and the `file:line` it was written at.
 
 This page takes one UI state through that loop end to end, so you can see the
 whole review cycle before deciding how much of the suite belongs in it.
@@ -22,8 +17,8 @@ Storybook story, one route at one viewport, one component mounted in a test —
 captured and compared under an id you choose. Pick a first subject whose state
 a harness you already trust can reach: a Playwright spec, a Storybook story, a
 served route. Navigation, fixtures, authentication, and readiness stay with that
-harness. Variance Authority either keeps the document for later rendering or
-takes an image the caller already painted.
+harness. [Variance Authority](README.md) either keeps the document for later
+rendering or takes an image the caller already painted.
 
 The recipes below all use **durable retention**: the approved baseline image is
 written to a store and read back by the next run, instead of being rendered and

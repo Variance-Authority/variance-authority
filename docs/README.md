@@ -1,125 +1,101 @@
-# See what changed in the UI, and what changed it
+# Start with the question in front of you
 
-**Variance Authority** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source. `toHaveScreenshot`, Percy,
-Chromatic and Argos answer a red build with a pixel count and two images, which
-leaves somebody to find the changed region by eye, work out which component drew
-it, and guess whether a person authored that change or the state is simply
-unstable. Here a changed region carries the component that rendered it and the
-`file:line` it was written at; a state that changed is captured a second time
-before the result is reported, so an authored change arrives separately from one
-that disagrees with itself; and an image painted under a different browser,
-platform, scale factor or font stack comes back `incomparable`, naming what
-differs, instead of as a page of red pixels you triage by hand.
+Pick the question that brought you here. Each path below tells you what evidence
+it needs, what answer it can produce, and where that answer stops. Use one path
+on its own or combine several as the investigation grows.
 
-## Try it on one state
-
-Each comparison is keyed by a **subject id** — one named UI state you can ask
-for again, such as `cart/empty`. In a Playwright test you already have, add one
-call and one assertion; the test keeps its runner, navigation, fixtures and
-existing assertions.
-
-```bash
-npm install --save-dev @variance-authority/playwright-test @playwright/test
-npx playwright install chromium
-```
-
-```ts
-import { test } from '@playwright/test';
-import { assertUnchanged, observe } from '@variance-authority/playwright-test';
-
-test('the cart survives an empty basket', async ({ page }, testInfo) => {
-  await page.goto('https://example.test/cart');
-  await page.getByRole('button', { name: 'Clear' }).click();
-
-  const observation = await observe(page, page.getByTestId('cart'), testInfo, {
-    subjectId: 'cart/empty',
-  });
-
-  assertUnchanged(observation);
-});
-```
-
-The first run reports `new`, because no baseline has been approved for that id
-yet. Promote the image that run produced, and the next run reports `unchanged`.
-Nothing accepts a first baseline on your behalf.
-
-Storybook, application routes, unit tests and custom collectors run the same
-loop from the CLI instead:
-
-```bash
-variance run --config variance.config.json
-variance accept --config variance.config.json cart/empty
-```
-
-[Observe one state](start.md) takes one subject through capture, review and
-acceptance end to end, and chooses the harness to start from.
-
-## Why a passing test is not the whole answer
-
-A good test describes behaviour at a level that survives implementation changes.
-It does not fail because a function moved or a component was wrapped.
-[Test Desiderata](https://testdesiderata.com/) names that balance through
-properties such as behavioural, structure-insensitive and predictive.
-
-The same restraint leaves a blind spot. A high-level assertion passes while
-presentation, execution, component state, dependencies, or an unasserted part of
-the interface changed. That can be harmless, intentional, or damage, and the
-pass alone does not separate them.
-
-So after changing code you need two answers, and neither substitutes for the
-other: the codified path still holds, and the edit produced the effect you
-intended. Preserving the path while producing no effect means the work did not
-land; producing the effect while breaking the path means it landed badly. A
-passing assertion supplies the first answer only.
-
-Variance Authority observes beside the assertion and retains what changed in the
-interface, execution, component state and source. The rendered comparison
-establishes the effect. [Attribution](attribution.md) connects that effect to the
-component and line that caused it, and [composition](composition.md) shows every
-other observed state the same component reached. The test stays readable and
-structure-insensitive; the nuance is available when a person or an agent needs
-it, rather than turned into a failure.
-
-## Where to go next
+## What do you need to do?
 
 <div class="doc-link-grid doc-link-grid--capabilities">
-<a class="doc-link-card doc-link-card--compact" href="better-tests.md">
-<span>Improve</span>
-<strong>Make the suite earn its cost</strong>
-<p>Keep useful work and evidence; remove work that serves no decision.</p>
-<em>Build better tests →</em>
+<a class="doc-link-card doc-link-card--compact" href="agent-workspace-api.md">
+<span>Source</span>
+<strong>Help an agent understand this codebase</strong>
+<p>Read the packages a TypeScript workspace publishes, their symbols and signatures, and the places those symbols are already used.</p>
+<em>Inspect the workspace API →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact" href="run-relevant-work.md">
-<span>Select</span>
-<strong>Run what the change can reach</strong>
-<p>Use source reach and recorded execution to choose the work that matters.</p>
-<em>Run relevant work →</em>
+<a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
+<span>Live test</span>
+<strong>Find out why this test is stuck</strong>
+<p>Hold a Playwright test at a line you chose and inspect the page and announced work while that exact test is still running.</p>
+<em>Interrogate the test →</em>
 </a>
-<a class="doc-link-card doc-link-card--compact" href="evidence-field.md">
-<span>Understand</span>
-<strong>Ask more of a run</strong>
-<p>Read source, execution, interface and history without forcing one pipeline.</p>
-<em>Use the available evidence →</em>
+<a class="doc-link-card doc-link-card--compact" href="selecting.md">
+<span>Selection</span>
+<strong>Run the tests this edit can reach</strong>
+<p>Combine source relationships with recorded execution to select affected test files and explain every selection.</p>
+<em>Focus the next run →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="distill.md">
+<span>Test reduction</span>
+<strong>Make one test smaller</strong>
+<p>Find loaded modules and rendered components the test did not use, try one substitution, and confirm it with the same test.</p>
+<em>Distil a test →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="presentation.md">
+<span>Interface</span>
+<strong>Measure what a UI edit changed</strong>
+<p>Inspect grouping, spacing, alignment, emphasis, and repetition on the live page before and after an edit.</p>
+<em>Inspect presentation →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="explain-variance.md">
-<span>Explain</span>
-<strong>Connect effect, cause and impact</strong>
-<p>Find where readings parted, what caused the fork, and how far it reached.</p>
-<em>Explain variance →</em>
+<span>Change investigation</span>
+<strong>Explain a visible change</strong>
+<p>Keep text, accessibility, layout, styles, and pixels separate, then trace the changed region to its component and source.</p>
+<em>Explain the variance →</em>
 </a>
 </div>
 
-Start from the harness that already reaches the state you want to review:
-[Playwright](start-playwright.md), [Storybook](start-storybook.md),
-[application routes](start-routes.md), [Jest or Vitest](start-unit.md),
-[Vitest browser mode](start-vitest-browser.md), [Rstest](start-rstest.md), [a
-custom collector](start-custom.md), or [the CLI lifecycle](start-cli.md).
+## Give your coding agent the same evidence
 
-Or enter by the question in front of you: [find the subject you
-mean](locate.md), [trace a visible change to source](attribution.md), [trace
-instability to its owner](flakiness.md), [fit into an existing screenshot
-suite](replacing.md), [compare operating models](comparison.md) against Percy,
-Chromatic, Argos and Applitools, or follow [the reasoning
-loop](reasoning.md) from a question to a bounded observation.
+The agent does not need a special runner or editor. Variance exposes source and
+observations through the shell and MCP; its skills carry common investigations
+through an edit and a check.
+
+<div class="doc-link-grid doc-link-grid--capabilities">
+<a class="doc-link-card doc-link-card--compact" href="agent-cli.md">
+<span>CLI</span>
+<strong>Ask from the shell</strong>
+<p>Query the current workspace, a completed report, or a live watcher from the command line the agent already has.</p>
+<em>Use the command line →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="agent-mcp.md">
+<span>MCP</span>
+<strong>Keep the investigation connected</strong>
+<p>Expose the observations you supply as callable tools, including a test paused at an authored inspection point.</p>
+<em>Connect an MCP client →</em>
+</a>
+<a class="doc-link-card doc-link-card--compact" href="agent-workflows.md">
+<span>Agent workflows</span>
+<strong>Carry the work through a check</strong>
+<p>Choose a guided workflow for source discovery, live investigation, UI review, test selection, or test reduction.</p>
+<em>Choose an agent workflow →</em>
+</a>
+</div>
+
+## Start from the tools you already use
+
+For rendered comparison, keep the harness that already reaches the state:
+[Playwright](start-playwright.md), [Storybook](start-storybook.md), [application
+routes](start-routes.md), [Jest or Vitest](start-unit.md), [Vitest browser
+mode](start-vitest-browser.md), [Rstest](start-rstest.md), or [a custom
+collector](start-custom.md). [Observe one state](start.md) takes a single UI
+state through capture, review, and explicit acceptance before you decide how
+much of the suite belongs in the workflow.
+
+Source discovery needs only a readable TypeScript checkout. Test selection and
+reduction need an [execution record](execution-record.md). Live investigation
+needs a watcher running before the suite starts. Each guide states the evidence
+it can read and leaves an unavailable reading absent instead of turning it into
+a result.
+
+## Understand the model when you need it
+
+[Tests preserve the paths we care about](tests.md) explains what a passing test
+can and cannot establish. [See what changed](changed.md) explains why Variance
+keeps the beginning, middle, and end of a change available. [The reasoning
+loop](reasoning.md) shows how to choose the smallest reading that can answer a
+question, and [the evidence field](evidence-field.md) maps the readings a run
+can leave behind.
+
+For exact package contracts, use the [package reference](../packages). For the
+system boundaries and ownership model, use [architecture](architecture.md).

@@ -644,12 +644,39 @@ the reachability trail, which explains it. Cycles are condensed, never broken.
 
 ### Meaning
 
-What another build tool contributes to a selection: more changed input, never a
-second opinion, and never a selection.
+Anything that enters a selection as more changed input, never as a second
+opinion and never as a selection itself: the projects another build tool calls
+affected, and the packages a lockfile comparison says the install moved. A seed
+is walked from exactly as a changed file is.
 
 ### Bounded context
 
 [**Reach**](./DOMAIN.md#reach)
+
+## **Before reach**
+
+### Meaning
+
+What a run rests on that nothing in it imports: the test harness config, the
+setup it loads, the bundler it goes through, the node version, the CI workflow
+— and, below them, the files and packages they reach. Nothing has an edge to
+one, so no walk arrives at it and no walk starts from it; it is declared by the
+operator rather than derived, and a diff that moves one does not narrow.
+
+### Bounded context
+
+[**Reach**](./DOMAIN.md#reach)
+
+### Product appearance
+
+The reason a run is whole when the harness moved, named by the file or the
+package that moved it, rather than narrowed to whatever else the diff happened
+to touch.
+
+### Implementation aliases
+
+`beforeReach`, `movedBefore`, `BeforeReach`; `source.before` in the operator's
+config, `ScanOptions.before` where those files are seeded
 
 ## **Journey**
 

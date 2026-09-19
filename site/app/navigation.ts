@@ -4,6 +4,13 @@ export interface NavigationItem {
   readonly cluster?: string;
   readonly clusterOverview?: boolean;
   readonly alternative?: boolean;
+  /**
+   * Published, and still walked by the sitemap, `llms.txt` and search, but not
+   * drawn as a row in the sidebar. The documentation home is reached from the
+   * masthead and from the pages that point back at it; listing it above its own
+   * children reads as one of them.
+   */
+  readonly unlisted?: boolean;
 }
 
 export interface NavigationSection {
@@ -16,7 +23,9 @@ export const NAVIGATION = [
   {
     label: "Overview",
     items: [
-      { href: "/docs", label: "See what changed in the UI" },
+      { href: "/docs", label: "Documentation home", unlisted: true },
+      { href: "/docs/tests", label: "Tests preserve the paths we care about" },
+      { href: "/docs/changed", label: "See what changed" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
       { href: "/docs/great-data", label: "What one run leaves you" },

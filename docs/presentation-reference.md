@@ -1,12 +1,7 @@
 # Presentation evidence reference
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page is the field reference for its **presentation evidence**: measurements
-of how one rendered interface groups, separates, aligns, repeats, paints and
+This page is the field reference for **presentation evidence**: measurements of
+how one rendered interface groups, separates, aligns, repeats, paints and
 emphasizes its content. Read it when you are choosing an entry point, reading a
 field of a report, or working out which rule fired and on what measurement. The
 evidence gives a person or a coding agent numbers they can inspect and

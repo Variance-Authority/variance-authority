@@ -1,12 +1,9 @@
 # Addressing scale
 
-[Variance Authority](README.md) is a visual regression system you run yourself:
-it renders a UI state, compares it against the baseline you approved, and
-reports what changed in the vocabulary of your source. Along the way it records
-which tests entered which code, and uses that record to decide which of your
-tests a change can skip. This page keeps the measurements behind that and their
-boundaries: what the files cost, what a question costs, and where the answer
-stops being worth having.
+You are sizing this for a repository of several hundred thousand files and want
+to know whether it fits before you commit to it. Deciding which tests a change
+can skip obliges you to keep files on disk; below are what they weigh, what a
+question against them costs, and where the answer stops being worth having.
 
 **Three files are priced here, and each is priced against a different count of
 your own.** Have these three numbers to hand before you read any table below:

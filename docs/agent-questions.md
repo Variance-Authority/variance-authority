@@ -1,6 +1,7 @@
 # Everything an agent can ask
 
-[Variance Authority](README.md) has three entrances, not three products:
+Start from what you kept — a finished report, a watcher still holding the suite,
+an [Eyes](eyes.md) archive, or a checkout alone — and take the entrance you have:
 
 - the CLI reads files and live watchers from a shell;
 - MCP exposes the same readings when a producer already owns a connection;
@@ -9,8 +10,7 @@
 - the `variance-workspace-api` skill routes the source-reading questions, which
   need no run and no evidence at all.
 
-The evidence decides which question is available. A missing domain is
-unavailable, never an empty measurement.
+A missing domain is unavailable, never an empty measurement.
 
 ## Route from the evidence
 

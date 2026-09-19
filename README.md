@@ -6,15 +6,15 @@
 
 # Variance Authority
 
-**Find what varied, what caused it, and what it reached.**
+While your tests are running, the whole picture exists: which test entered which
+code, what an interface rendered, what a workspace exports. The moment the run
+ends it is discarded, and your next question costs another full run. Variance
+Authority retains that evidence — hundreds of thousands of files and tests, over
+time — so you can ask the record instead of running everything again. Nothing is
+hosted; compute, storage, browser capacity, credentials, and deployment stay
+yours.
 
-Variance Authority is a visual regression system you run yourself: it renders a
-UI state, compares it against the baseline you approved, and reports what
-changed in the vocabulary of your source — the component that drew the pixels
-and the `file:line` it was written at. Nothing is hosted; compute, storage,
-browser capacity, credentials, and deployment stay yours.
-
-## One result, end to end
+## One change, traced end to end
 
 This example changes only the `background-color` of one `Button`:
 
@@ -114,11 +114,11 @@ npx variance run --config variance.config.json
 The first durable run exits `1` because its subjects are `new`. Accept the
 subject ids you meant, then rerun; an unchanged run exits `0`.
 
-## Other questions the same evidence answers
+## What else the same evidence answers
 
 Once a run records what it rendered, what it executed, and what the source says,
-a few neighbouring questions become answerable from the same material. None of
-these is required to compare UI; use the one that answers your question.
+the questions below are answerable from the same material. None of them sits
+under another, and none requires the rest; take the one you are holding.
 
 | What do you need to know? | Start here |
 | --- | --- |

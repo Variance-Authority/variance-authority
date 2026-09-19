@@ -4,9 +4,9 @@
 
 > Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 Use this package to cut a test run down to the files a diff can actually affect.
 It adds probes to your product source while your tests run, records which test
@@ -625,6 +625,7 @@ never touch a disk.
 |---|---|---|
 | `root` | required | naming the checkout; returned paths are relative to it |
 | `dirs` | required | choosing the source directories to seed |
+| `before` | absent | naming individual files the run rests on that nothing imports — a `vitest.config.ts`, the setup it loads — so the harness and everything below it become ordinary nodes; a path that is not there, or that this cannot parse, is skipped |
 | `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
@@ -637,9 +638,15 @@ specifiers become file edges; the generated declaration carries their exact
 shapes.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
-still enters the graph. Edges into `node_modules`, a sibling package's built
-output, or another path outside `root` are omitted — add package-level affected
-seeds yourself from your workspace's project graph, such as Nx or Turborepo.
+still enters the graph. Edges into a sibling package's built output, or another
+path outside `root`, are omitted. An import of an installed package is not
+omitted: it is recorded as an edge to a **package node** named the way the
+source imports it — `@mui/material`, never a version and never a resolution —
+so a dependency bump can be seeded by name. Which copy a resolver handed any
+one importer is not recorded, because answering that means reproducing the
+resolver, and a selector that guessed would skip on the guess.
+[Read the install](#read-which-packages-the-install-moved) to find out which
+names to seed.
 
 A file over `largestFile` is marked opaque rather than parsed, because a file
 that size is nearly always generated output and a single one of them can cost a
@@ -647,8 +654,10 @@ scan hundreds of megabytes. Raise it when you mean to read one anyway.
 
 An unreadable or unresolved relative edge marks its file **opaque**: its true
 edges are unknown, so the file stays in the selection instead of being dropped,
-and `selection.opaque` lists exactly these files. A missing bare package is
-recorded without that widening, because it lies outside the repository's diff.
+and `selection.opaque` lists exactly these files. A bare specifier that resolves
+to nothing on disk is recorded as a package edge without that widening: the name
+is what a bump is seeded by, and whether the package is installed here decides
+nothing about which files import it.
 
 ### Keep repeated scans cheap
 
@@ -704,6 +713,69 @@ await scanRelations({
   parsed: (file, parse) => { exports.set(file, parse.exports); },
 });
 ```
+
+## Read which packages the install moved
+
+`@variance-authority/sense/lock` turns lockfile text into the two facts a
+selector needs: which packages are not the packages that were there, and which
+package rests on which. Text in, data out, no file system — you supply the two
+revisions you want compared, and the git in that sentence is yours.
+
+```ts
+import { changedPackages, packageRelations, readLockfile } from '@variance-authority/sense/lock';
+
+const before = readLockfile('yarn.lock', atBase);
+const after = readLockfile('yarn.lock', atHead);
+
+changedPackages(before, after); // ['jsdom', 'whatwg-url']
+packageRelations(after);        // [['jest-environment-jsdom', 'jsdom'], …]
+```
+
+Feed `packageRelations` to the graph as `depends`, and the moved names to the
+selector as seeds:
+
+```ts
+const relations = relationsOfFiles(records, { depends: packageRelations(after) });
+const selection = movedBy(relations, changedPackages(before, after));
+```
+
+A bump then reaches your code by the same backwards walk an edited file takes,
+and stops at the files that import the thing: a transitive `jsdom` bump arrives
+at whoever imports `jest-environment-jsdom`, and nowhere else. A `type` import
+is not walked, so `import type { Theme } from '@mui/material'` selects nothing
+on a `@mui/material` bump — the import is erased before anything runs.
+
+`LOCKFILES` is the names to look for, in the order to look: a repository with
+two has switched managers and not finished. `readLockfile` takes a path or a
+bare name and reads its last segment. `packageNameOf` is the descriptor rule the
+formats agree on, exported because a caller reading its own manifests needs the
+same one.
+
+**The lockfile is a source read at two revisions, never a changed path.** Those
+are different claims and only one of them is useful. In a diff, a lockfile is
+one of the most expensive paths there is: a workspace version bump rewrites
+hundreds of its lines and moves no installed byte, so a selector that treats it
+as a changed file repaints the whole suite for nothing. The difference between
+two reads of it says exactly what arrived. Drop the lockfile and every
+`package.json` from your changed-file list once you have compared the two —
+`package.json` is the request and the lockfile is the answer, and counting
+either again widens for the very thing it just explained.
+
+`readLockfile` throws `Unreadable` with a sentence naming what stopped it — a
+format version this build does not read, a YAML construct it will not guess at.
+Catch it and observe everything: a dependency bump is invisible without the
+comparison, and invisible is the one thing a selector may not treat as *nothing
+happened*. Nothing here reads `node_modules`, so pnpm's store and Yarn PnP cost
+it nothing.
+
+| reader | format |
+|---|---|
+| `yarn.lock` | Yarn classic (v1) and Yarn Berry (`__metadata.version` 4 through 8) |
+| `pnpm-lock.yaml` | pnpm lockfile 5.x, 6.x, 9.x |
+| `package-lock.json`, `npm-shrinkwrap.json` | npm lockfile 2 and 3 |
+
+Workspace entries are excluded by every reader. A workspace package is your own
+source, and your own source arrives as changed files.
 
 ## Correct what a file's text claims to import
 
@@ -1190,6 +1262,7 @@ is.
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
+| `@variance-authority/sense/lock` | reading which packages an install moved between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
 | `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |

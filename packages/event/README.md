@@ -4,9 +4,9 @@
 
 > Announce what the code decided, so a test waits for the decision instead of guessing when it was made.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 This package compares no images and needs none of the rest of that system. It
 gives your application source one call that says *the code has just decided

@@ -17,6 +17,7 @@
 
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { openSourceIndex, scanRelations } from '@variance-authority/sense';
+import { LOCKFILES, changedPackages, packageRelations, readLockfile } from '@variance-authority/sense/lock';
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
@@ -218,6 +219,75 @@ export function packageFaces(packages, stemOf, named) {
   };
 }
 
+/**
+ * The install, as this repository's own lockfile records it.
+ *
+ * The far end of the same graph. A package is a node, an import of one is an
+ * edge to it, and a package the install resolved beneath another is an edge
+ * between them — so a bump three levels down reaches our code by the same
+ * backwards walk an edited file does, and stops at the files that actually
+ * import the thing.
+ *
+ * No lockfile is an empty layer rather than a refusal: the graph is then the
+ * one it always was, and {@link movedPackages} is the half that widens.
+ */
+export function installDepends(root) {
+  const found = lockfileAt(root);
+  return found === undefined ? [] : packageRelations(readLockfile(found.name, found.text));
+}
+
+/**
+ * Which packages are not the packages that were there, between a revision and
+ * the working tree.
+ *
+ * The lockfile is read at two revisions, never counted as a changed path: a
+ * workspace version rewrite moves hundreds of its lines and no installed byte,
+ * and a transitive bump moves real code behind a line nobody reads. `undefined`
+ * says the comparison could not be made — no lockfile, no such revision, a
+ * format this build does not know — and a caller that cannot compare an install
+ * cannot report success over a package it never looked at.
+ */
+export function movedPackages(root, base, git) {
+  const found = lockfileAt(root);
+  if (found === undefined) return [];
+  let before;
+  try {
+    before = git('show', `${base}:${found.name}`);
+  } catch {
+    return undefined;
+  }
+  if (before === found.text) return [];
+  try {
+    return changedPackages(readLockfile(found.name, before), readLockfile(found.name, found.text));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * A path whose meaning the install comparison already read.
+ *
+ * `package.json` is a request and the lockfile is the answer, and both are
+ * dropped once the two installs have been compared, so neither is counted
+ * twice. Matched on the last segment, because every workspace has one.
+ */
+export function isManifest(path) {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name === 'package.json' || LOCKFILES.includes(name);
+}
+
+/** The names a lockfile in this repository's root may go by, and the first one there. */
+function lockfileAt(root) {
+  for (const name of LOCKFILES) {
+    try {
+      return { name, text: readFileSync(join(root, name), 'utf8') };
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+}
+
 /** The graph, scanned from the same directories `yarn test` collects. */
 export async function importGraph({ root, snapshotFile, stemOf, dirs = ['packages', 'tools', 'cases', 'examples'] }) {
   const index = await openSourceIndex(resolve(dirname(snapshotFile), 'source-index.bin'));
@@ -232,7 +302,7 @@ export async function importGraph({ root, snapshotFile, stemOf, dirs = ['package
   const packages = manifests(root, ['packages', 'cases', 'examples']);
   const { records: folded, enumerated, named } = foldBuilt(bridgeWorkspace(records, packages), stemOf);
   return {
-    relations: relationsOfFiles(folded),
+    relations: relationsOfFiles(folded, { depends: installDepends(root) }),
     enumerated,
     named,
     faces: packageFaces(packages, stemOf, named),

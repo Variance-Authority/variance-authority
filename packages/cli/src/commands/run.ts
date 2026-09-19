@@ -82,12 +82,11 @@ export {
   historyFor,
   journeyAgainst,
   recordedJourneys,
-  relationsFor,
   renderCacheRoot,
-  scanSourceDirs,
   storeFor,
   writeArtifactToDisk,
 } from './resources.js';
+export { relationsFor, scanSourceDirs } from './source-graph.js';
 export { changedSince, diffSince, indexPosition, narrowingFor } from './since.js';
 export { affectedProjects, type AffectedProjects, type ChangeSource, type ChangeTool } from './changes.js';
 export { readCliRunReport, subjectsInReport, writeCliRunReport } from './run-report.js';

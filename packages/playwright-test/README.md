@@ -4,9 +4,9 @@
 
 > Add a source-aware visual observation to a Playwright test that already knows how to reach the state.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 Your Playwright test already knows how to navigate, authenticate, mount data and
 wait for the application. This package adds one call to that test. The call

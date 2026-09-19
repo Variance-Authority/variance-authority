@@ -1,15 +1,10 @@
 # Holding a page still
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-This page covers the layer underneath that comparison: what a run does to your
-page before it reads it, so that two readings of an unchanged UI agree. Read it
-when a subject reports a change your code did not make, when you want to know
-what was done to your page before it was captured, or when you are deciding
-whether to trust a system that reaches into the page at all.
+A spinner caught mid-turn, a web font that arrived late, a scrollbar one machine
+draws and another does not: any of them reports a change your code did not make.
+A run holds your page still before it reads it, so that two readings of an
+unchanged UI agree. Read on for what it does to reach that state, what you can
+change about it, and how far into your page it reaches.
 
 New here? Start with [your first run](start.md).
 

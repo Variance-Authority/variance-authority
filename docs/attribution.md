@@ -1,15 +1,10 @@
 # From a pixel to a line
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
-
-Attribution is the part that produces that second half. A pixel differ answers
-one question — how many pixels differ — and *5482* cannot be read, cannot be
-assigned, and leaves you opening the image to look, which is the expensive act
-the tool was supposed to replace. Attribution turns the count into **this
-region, inside `Toggle`, in `main → region "Todos" → item 2 of 3`, written at
+A pixel differ answers one question — how many pixels differ — and *5482*
+cannot be read, cannot be assigned, and leaves you opening the image to look,
+which is the expensive act the tool was supposed to replace. Attribution turns
+the count into **this region, inside `Toggle`, in
+`main → region "Todos" → item 2 of 3`, written at
 `examples/todomvc/src/ds/components.tsx:107`.**
 
 Read this page to find out how a changed region gets a component name and a

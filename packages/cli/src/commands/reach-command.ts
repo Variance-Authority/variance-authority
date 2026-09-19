@@ -32,7 +32,7 @@
 
 import { OperatorError } from '../exit.js';
 import { filesReached, refused } from './reach.js';
-import { relationsFor } from './resources.js';
+import { relationsFor } from './source-graph.js';
 import { changedSince } from './since.js';
 
 /** How the file list is written. `plain` is what a pipe wants. */
@@ -71,7 +71,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
     );
   }
 
-  const relations = await relationsFor(request.cwd, ['.'], [], {
+  const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: '`reach` answers from the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   });

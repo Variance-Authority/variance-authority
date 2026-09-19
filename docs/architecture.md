@@ -1,11 +1,10 @@
 # Architecture
 
-[**Variance Authority**](README.md) renders the **subjects** you point it at — a
-story, a route, a fixture, or a value such as a JSON body or a schema — compares
-each capture against its own stored baseline, and records what changed and why.
-It ships as a set of tools with explicit contracts rather than one pipeline you
-must run end to end: a team can use a single tool inside an existing workflow, or
-compose several into a pipeline that fits its own environment.
+Three questions decide how much machinery you need: is there anything to do at
+all, what exactly changed, and will this **subject** — one named UI state you
+point the tools at, a story, a route, a fixture or a value — even hold still.
+One set of tools covers all three, and this page is how they fit together and
+which package holds each.
 
 The unit you adopt is the tool: a named capability you can understand, replace
 and compose without learning the implementation of the others. Lifecycle,

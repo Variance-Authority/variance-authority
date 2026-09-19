@@ -2,7 +2,7 @@
 
 import { readFile, stat } from 'node:fs/promises';
 import { indexSource } from '@variance-authority/core/attribute';
-import type { FileEdge, FileRecord } from '@variance-authority/core/relate';
+import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
 import { keyFor, languageFor, parseWay, type ParseWay } from './files.js';
@@ -11,13 +11,8 @@ import { indexesComponents, type LanguageId } from './language.js';
 import { readPython } from './python.js';
 import { readModule, type Read } from './read.js';
 import { readStyle } from './style.js';
-import {
-  isRelative,
-  kindFor,
-  requestOf,
-  resolveAll,
-  type Resolvers,
-} from './resolve.js';
+import { resolveAll, type Resolvers } from './resolve.js';
+import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import { readRust } from './rust.js';
 import { readSwift } from './swift.js';
 import { witnessesOf, type Aliases } from './witness.js';
@@ -103,6 +98,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
   }
 
   const edges: FileEdge[] = [];
+  const packages: PackageEdge[] = [];
   const unresolved: string[] = [];
   const holes: string[] = [];
   const targets: (string | undefined)[] = [];
@@ -129,6 +125,18 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       // package in the tree as depending on modules nobody ever wrote.
       if (asked.guessed === true) continue;
       unresolved.push(asked.value);
+
+      // A bare specifier that does not resolve is a package, and the scan has no
+      // business finding *where* it went: under pnpm's store or Yarn PnP there
+      // may be no path, and under a custom resolver the path would be a fact
+      // about one machine. The name is the node, and the lockfile says what is
+      // currently under it ([`lock`](./lock/index.ts)).
+      const named = packageOf(request);
+      if (named !== undefined) packages.push({ to: named, kind: asked.kind });
+
+      // A *relative* one names a path inside this repository and could not be
+      // identified, which is a hole in the edge list rather than an absence of
+      // one — so the file widens instead of narrowing.
       if (isRelative(request, language)) holes.push(asked.value);
       continue;
     }
@@ -147,6 +155,7 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
       file,
       ...(digest === undefined ? {} : { digest }),
       ...(edges.length === 0 ? {} : { edges: dedupe(edges) }),
+      ...(packages.length === 0 ? {} : { packages: dedupe(packages) }),
       ...(read.declares === undefined ? {} : { declares: read.declares }),
       ...(unresolved.length === 0
         ? {}
@@ -204,7 +213,7 @@ function readerFor(language: LanguageId): (file: string, contents: string) => Re
   }
 }
 
-function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {
+function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
   const seen = new Set<string>();
   return edges
     .filter((edge) => {

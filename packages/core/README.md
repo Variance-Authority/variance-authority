@@ -4,9 +4,9 @@
 
 > The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.
 
-Part of [Variance Authority](https://variance-authority.dev), a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source.
+Part of [Variance Authority](https://variance-authority.dev), which retains what
+a test run knows — what it rendered, which code it entered, what the workspace
+exposes — so the next question is answered from the record, not another run.
 
 ## What this is for
 
@@ -256,7 +256,8 @@ observation profiles differ.
 | `isolateRegions` / `attributeRegions` | `cell` and `limit` bound mask work; `origin` and `containment` describe the coordinate origin and how much a node must contain a region |
 | `fingerprintOfMask` | `grid` controls the shape sample and `coverage` the minimum occupied share |
 | `compareLocales` / ignore validation | `slack` permits a declared locale distance; `sites` supplies resolved ignore locations and `now` evaluates expiry |
-| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows |
+| `buildDocket` / dependency reach | `sampleSize` limits review examples; `through` selects graph edge kinds, `avoid` names nodes a walk never enters, and `shadows` carries per file the modules its run never reaches, so `movedBy` leaves out a file every trail to which crosses one of its own shadows; `depends` adds the install — which package rests on which — so a dependency bump is a seed like any other and reaches only the files that import it |
+| `beforeReach` | `sensed` names the directories the scan already answers for, and the descent from a declared entry point stops at the first file under one of them rather than dragging the repository's own source in behind the harness |
 | `sharedClosures` | `floor` drops a shared subtree below a node count |
 | `lexiconOf` | `examples`, `declaredIn` and `regions` supply what the instances cannot: which components a subject is the example of, the files declaring each component, and the regions its journey entered |
 | report summaries | `source` maps component names to files when `summarizeAdjudication` or `summarizeFindings` needs an actionable path |

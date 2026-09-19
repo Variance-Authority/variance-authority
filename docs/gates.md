@@ -1,9 +1,8 @@
 # Gate a build on what changed, and decide who runs the rest
 
-**[Variance Authority](README.md)** is a visual regression system you run
-yourself: it renders a UI state, compares it against the baseline you approved,
-and reports what changed in the vocabulary of your source — the component that
-drew the pixels and the `file:line` it was written at.
+A hosted visual-regression service bills per snapshot and keeps your baselines on
+its side of the network. [Variance Authority](README.md) runs that comparison in
+your own build job, against baselines in your own repository.
 
 This page is for a team that pays Percy, Argos or Chromatic, or is about to. It
 states how the build gate works — the command CI runs and the integer it reads
