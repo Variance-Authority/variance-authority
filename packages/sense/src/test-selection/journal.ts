@@ -45,7 +45,7 @@ import { readFile, rename, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { executionIndexFrom } from './cases.js';
 import {
@@ -55,6 +55,7 @@ import {
   type ObservedSubject,
 } from './observed.js';
 import { commitOf } from './commit.js';
+import { noteAnEmptyRecord } from './finished-files.js';
 import { layeredCoverage } from './format-layer.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
@@ -93,6 +94,9 @@ export {
 
 /** What a module reports itself as, for a driver that writes its own journal. */
 export type { ModuleId };
+
+/** The probe recipe both halves of this seam have to agree on. */
+export type { InstrumentMode };
 
 // What a driver observed, and how a run recorded by several processes is
 // joined: both are the journal seam's surface, and neither is this file's
@@ -170,6 +174,25 @@ export interface RecordExecutionOptions {
    */
   readonly commit?: string;
   /**
+   * The probe recipe the build placed, matching {@link testSelectionProbes}'s
+   * `mode`. `presence` when absent, as it is there.
+   *
+   * A journal cut by another recipe is refused rather than joined, and the
+   * snapshot is stamped with this one: a driver that records `entries` into an
+   * index a `presence` seam also writes would otherwise have each run retire
+   * the other's evidence.
+   */
+  readonly mode?: InstrumentMode;
+  /**
+   * Additional files whose contents are preconditions of every subject here.
+   *
+   * The seam's own configuration is what this is for — a Storybook `preview`
+   * file, a Playwright `globalSetup` — since nothing *enters* them and so no
+   * module row answers for them. Repository-relative or absolute; a file that
+   * cannot be read is left out rather than failing the recording.
+   */
+  readonly preconditions?: readonly string[];
+  /**
    * The individual cases the run could tell apart, for the execution index.
    *
    * Empty is the default and stays the default. The index answers *which cases
@@ -226,6 +249,7 @@ export async function recordExecution(
   // page to its heads, it is idempotent, and doing it here rather than in each
   // collector is what makes the invariant hold for collectors not yet written.
   const subjects = joinObservations([options.subjects]);
+  const instrumentation = instrumentationId(options.mode);
   const coverageFile =
     options.coverageFile === undefined
       ? testCoverageFile(root)
@@ -236,28 +260,8 @@ export async function recordExecution(
     recordStores(root, label, options.cacheRoot),
   );
 
-  // Only the modules the journals name. A module nothing entered this run keeps
-  // whatever the index already says about it, which is the merge's job and not
-  // this call's, and asking the store for the rest would be reading a whole
-  // build back out of a place that never holds one.
-  const ids = new Set(
-    subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
-  );
-  const byId = await readRecords(stores, ids);
-  if (ids.size > 0 && byId.size === 0) {
-    return {
-      recorded: false,
-      coverageFile,
-      subjects: 0,
-      because:
-        `no source identity for any of the ${ids.size} modules the run reported, in ` +
-        `${stores.join(', ')}: add \`testSelectionProbes()\` to the build this run drives, ` +
-        'and build it with the same version of this package',
-    };
-  }
-
   const foreign = subjects.find(
-    (subject) => subject.journal.instrumentation !== INSTRUMENTATION_ID,
+    (subject) => subject.journal.instrumentation !== instrumentation,
   );
   if (foreign !== undefined) {
     return {
@@ -266,7 +270,29 @@ export async function recordExecution(
       subjects: 0,
       because:
         `the page reported probe recipe ${foreign.journal.instrumentation} and this driver ` +
-        `records ${INSTRUMENTATION_ID}: the build and the driver are different versions`,
+        `records ${instrumentation}: the build and the driver are different versions, or they ` +
+        'were given different `mode` values',
+    };
+  }
+
+  // Only the modules the journals name. A module nothing entered this run keeps
+  // whatever the index already says about it, which is the merge's job and not
+  // this call's, and asking the store for the rest would be reading a whole
+  // build back out of a place that never holds one.
+  const ids = new Set(
+    subjects.flatMap((subject) => subject.journal.modules.map((module) => module.id)),
+  );
+  const byId = await readRecords(stores, ids, instrumentation);
+  if (ids.size > 0 && byId.size === 0) {
+    return {
+      recorded: false,
+      coverageFile,
+      subjects: 0,
+      because:
+        `no source identity for any of the ${ids.size} modules the run reported, in ` +
+        `${stores.join(', ')}: add \`testSelectionProbes()\` to the build this run drives, ` +
+        `build it with the same version of this package, and give it the same \`mode\` this ` +
+        `fold reads records under (${instrumentation})`,
     };
   }
 
@@ -276,6 +302,11 @@ export async function recordExecution(
   // subject's window it was first needed — is every subject's.
   const everyOwner = new Set<string>(owners);
   const crossings = new Map<ModuleId, Map<number, Set<string>>>();
+  // The subset of those crossings that happened while a module was evaluating.
+  // Every subject is credited with them and none of them ran a subject: that
+  // is what `loadedBy` says on a block, and saying it is what lets a reader
+  // tell a region a story walked from one it merely imported.
+  const loaded = new Map<ModuleId, Set<number>>();
   // What the instrument could not see inside, by the subject that depends on it.
   const opaque = new Map<string, Map<string, string>>();
 
@@ -306,13 +337,25 @@ export async function recordExecution(
       const byOrdinal = crossings.get(module.id) ?? new Map<number, Set<string>>();
       for (const ordinal of module.hits) {
         const holders = byOrdinal.get(ordinal) ?? new Set<string>();
-        if (evaluating.has(ordinal)) for (const owner of everyOwner) holders.add(owner);
-        else holders.add(subject.owner);
+        if (evaluating.has(ordinal)) {
+          for (const owner of everyOwner) holders.add(owner);
+          const early = loaded.get(module.id) ?? new Set<number>();
+          early.add(ordinal);
+          loaded.set(module.id, early);
+        } else holders.add(subject.owner);
         byOrdinal.set(ordinal, holders);
       }
       crossings.set(module.id, byOrdinal);
     }
   }
+
+  // Declared once for the whole recording, digested once, and written onto
+  // every row: the seam's own configuration is a precondition of everything it
+  // observed, and a file that has gone missing is left out rather than losing
+  // the run the snapshot it just earned.
+  const declared = (
+    await Promise.all((options.preconditions ?? []).map((file) => preconditionOf(root, file)))
+  ).filter((precondition): precondition is CoveragePrecondition => precondition !== undefined);
 
   const tests: readonly CoverageTest[] = subjects
     .map((subject): CoverageTest => {
@@ -335,7 +378,7 @@ export async function recordExecution(
       // question the row answers precisely: read beside the row it would hand
       // a one-branch edit to every subject that ever loaded the module.
       const held = new Map<string, string>(
-        (subject.preconditions ?? []).map((precondition) => [
+        [...declared, ...(subject.preconditions ?? [])].map((precondition) => [
           precondition.name,
           precondition.digest,
         ]),
@@ -356,12 +399,16 @@ export async function recordExecution(
   const commit = options.commit ?? (await commitOf(root));
   const current: TestCoverage = {
     version: 3,
-    instrumentation: INSTRUMENTATION_ID,
+    instrumentation,
     ...(commit === undefined ? {} : { commit }),
     tests,
     modules: [...byId]
       .map(([id, module]) =>
-        coverageModule(module, (block) => [...(crossings.get(id)?.get(block.ordinal) ?? [])]),
+        coverageModule(
+          module,
+          (block) => [...(crossings.get(id)?.get(block.ordinal) ?? [])],
+          (block) => (loaded.get(id)?.has(block.ordinal) === true ? [...everyOwner] : []),
+        ),
       )
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
   };
@@ -396,6 +443,13 @@ export async function recordExecution(
       because: busyIndex(coverageFile),
     };
   }
+
+  // A run that observed subjects and placed no module at all is a seam that
+  // never engaged — a plugin the configuration dropped, an `include` that
+  // matched nothing — and the snapshot it just wrote says every one of those
+  // subjects reaches no source. Said once, where the recording ends, as the
+  // Vitest and Jest seams say it.
+  noteAnEmptyRecord(subjects.length, byId.size);
 
   // Beside the snapshot, never inside it, and only for a driver that asked. A
   // run that records cases writes the same bytes into the snapshot as one that

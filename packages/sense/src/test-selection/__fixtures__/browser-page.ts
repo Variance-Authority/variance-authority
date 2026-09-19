@@ -20,6 +20,7 @@ import {
   EXECUTION_GLOBAL,
   executionCollectorSource,
   type ExecutionCollector,
+  type InstrumentMode,
 } from '../journal.js';
 
 /** A module with one decision in it, and no export, so a test can evaluate it. */
@@ -75,7 +76,7 @@ export interface Realm {
  * global only while page code is running: the module body, and each call into
  * it. Everything between belongs to the runner, and reports to the runner.
  */
-export function evaluate(transformed: string): Realm {
+export function evaluate(transformed: string, mode?: InstrumentMode): Realm {
   const global = globalThis as unknown as Record<string, unknown>;
   const runner = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
   const asRunner = (): void => {
@@ -86,7 +87,7 @@ export function evaluate(transformed: string): Realm {
   delete global['__VA__'];
   let page: PropertyDescriptor;
   try {
-    new Function(executionCollectorSource())();
+    new Function(executionCollectorSource(mode))();
     page = Object.getOwnPropertyDescriptor(globalThis, '__VA__')!;
     new Function(transformed.replace(/^import "[^"]+";/, ''))();
   } finally {

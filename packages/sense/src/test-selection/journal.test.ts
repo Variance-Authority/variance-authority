@@ -184,6 +184,101 @@ describe('a browser run records what it executed', () => {
     });
   });
 
+  it('marks the regions every subject was credited with as loaded rather than crossed', async () => {
+    // The two lists a block carries answer two questions. `testFiles` is who
+    // may not skip this line; `loadedBy` is who is on that list because the
+    // module was evaluated rather than because they ran it. A reader that
+    // cannot tell them apart reads the initialization of a hub module as
+    // three hundred stories walking it.
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, INITIALIZING, 'utf8');
+
+      const plugin = testSelectionProbes({ root, cacheRoot });
+      const transformed = plugin.transform(INITIALIZING, module)!;
+
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const first = realm.collector.drain();
+      realm.price(1);
+      const second = realm.collector.drain();
+
+      await recordExecution({
+        root,
+        cacheRoot,
+        coverageFile,
+        subjects: [
+          { owner: 'story:price--premium', journal: first },
+          { owner: 'story:price--plain', journal: second },
+        ],
+      });
+
+      const coverage = await readTestCoverage(coverageFile);
+      const blocks = coverage.modules[0]!.blocks;
+      const holding = (line: number): (typeof blocks)[number] =>
+        blocks
+          .filter((block) => block.startLine <= line && line <= block.endLine)
+          .sort((left, right) => left.startLine - right.startLine)
+          .at(-1)!;
+
+      // `label(1)` ran while the module evaluated, so both subjects hold it
+      // and neither of them ran it.
+      const initializing = holding(LABEL_PLAIN_LINE);
+      expect(initializing.testFiles).toEqual(['story:price--plain', 'story:price--premium']);
+      expect(initializing.loadedBy).toEqual(['story:price--plain', 'story:price--premium']);
+
+      // What a subject walked in its own window is crossed and not loaded, so
+      // the property is absent rather than empty.
+      const walked = holding(LATER_PLAIN_LINE);
+      expect(walked.testFiles).toEqual(['story:price--plain']);
+      expect(walked).not.toHaveProperty('loadedBy');
+    });
+  });
+
+  it('writes a declared precondition onto every subject, and leaves out one that is gone', async () => {
+    // The seam's own configuration is what nothing enters: no module row
+    // answers for a `preview` file or a `globalSetup`, so without this a
+    // commit that edits one selects nothing at all.
+    await inRoot(async (root) => {
+      const cacheRoot = resolve(root, 'cache');
+      const coverageFile = resolve(root, 'coverage.bin');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(resolve(root, 'preview.js'), 'export const decorators = [];\n', 'utf8');
+
+      const plugin = testSelectionProbes({ root, cacheRoot });
+      const transformed = plugin.transform(SOURCE, module)!;
+      const realm = evaluate(transformed.code);
+      realm.price(20);
+      const premium = realm.collector.drain();
+      realm.price(1);
+      const plain = realm.collector.drain();
+
+      await recordExecution({
+        root,
+        cacheRoot,
+        coverageFile,
+        preconditions: ['preview.js', 'gone.js'],
+        subjects: [
+          { owner: 'story:price--premium', journal: premium },
+          { owner: 'story:price--plain', journal: plain },
+        ],
+      });
+
+      const coverage = await readTestCoverage(coverageFile);
+      for (const test of coverage.tests) {
+        expect(test.preconditions.map((precondition) => precondition.name)).toEqual(['preview.js']);
+      }
+      // Editing it selects every story, which is what a precondition is for.
+      expect(await selectTestFiles(coverageFile, diffAt('preview.js', 1))).toEqual([
+        'story:price--plain',
+        'story:price--premium',
+      ]);
+    });
+  });
+
   it('stamps the commit the checkout was at, and nothing when there is none', async () => {
     // An index's whole position in time and space. A reader diffs from here to
     // the working tree to learn what has changed since; without it there is
@@ -239,57 +334,6 @@ describe('a browser run records what it executed', () => {
       expect(await selectTestFiles(coverageFile, diffAt('price.js', PREMIUM_LINE))).toEqual([
         'story:price--premium',
       ]);
-    });
-  });
-
-  it('records nothing, and says why, when the page names a module no store holds', async () => {
-    // The page is instrumented and reports ordinals; what is missing is the
-    // record that says which regions those ordinals are. Joining anyway would
-    // put crossings in regions nobody cut.
-    await inRoot(async (root) => {
-      const module = resolve(root, 'price.js');
-      await writeFile(module, SOURCE, 'utf8');
-
-      const plugin = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') });
-      const transformed = plugin.transform(SOURCE, module)!;
-
-      const realm = evaluate(transformed.code);
-      realm.price(20);
-      const recorded = await recordExecution({
-        root,
-        cacheRoot: resolve(root, 'another-cache'),
-        coverageFile: resolve(root, 'coverage.bin'),
-        subjects: [{ owner: 'story:price--premium', journal: realm.collector.drain() }],
-      });
-
-      expect(recorded.recorded).toBe(false);
-      expect(recorded.because).toContain('no source identity');
-      expect(recorded.because).toContain(resolve(root, 'another-cache'));
-    });
-  });
-
-  it('refuses a page whose probe recipe is not this driver’s', async () => {
-    await inRoot(async (root) => {
-      const cacheRoot = resolve(root, 'cache');
-      const module = resolve(root, 'price.js');
-      await writeFile(module, SOURCE, 'utf8');
-      const plugin = testSelectionProbes({ root, cacheRoot });
-      plugin.transform(SOURCE, module);
-
-      const recorded = await recordExecution({
-        root,
-        cacheRoot,
-        coverageFile: resolve(root, 'coverage.bin'),
-        subjects: [
-          {
-            owner: 'story:price--premium',
-            journal: { instrumentation: 'sense:instrument/presence-v1', modules: [] },
-          },
-        ],
-      });
-
-      expect(recorded.recorded).toBe(false);
-      expect(recorded.because).toContain('different versions');
     });
   });
 

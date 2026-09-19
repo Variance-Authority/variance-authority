@@ -10,7 +10,13 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { EVALUATING, INSTRUMENTATION_ID, instrument, type ModuleId } from '../instrument/index.js';
+import {
+  EVALUATING,
+  instrument,
+  instrumentationId,
+  type InstrumentMode,
+  type ModuleId,
+} from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
   cleanId,
@@ -79,6 +85,17 @@ export interface TestSelectionProbeOptions {
   readonly label?: string;
   /** Where the module records go. Defaults to the user cache. */
   readonly cacheRoot?: string;
+  /**
+   * `presence` probes every arrival region; `entries` probes modules and
+   * functions only, and costs a fraction of it.
+   *
+   * It is the same choice the Vitest and Jest seams offer, and it has to be
+   * the same *answer* in a repository whose seams share a coverage file: a
+   * snapshot names the recipe its ordinals were cut by, and a merge discards
+   * a layer cut by another one. Two seams recording one index under two modes
+   * would each wipe the other every run.
+   */
+  readonly mode?: InstrumentMode;
 }
 
 /**
@@ -158,7 +175,8 @@ export function testSelectionProbes(
   // needs the record for what it just executed. A build with a warm cache has no
   // end either, in the sense that matters — it never holds the modules it did
   // not transform, so it must never write a document that claims to.
-  const records = openRecords(recordStore(root, options.label, options.cacheRoot));
+  const instrumentation = instrumentationId(options.mode);
+  const records = openRecords(recordStore(root, options.label, options.cacheRoot), instrumentation);
   const persist = (captured: CapturedModule): void => {
     writeRecord(records, captured);
   };
@@ -172,7 +190,7 @@ export function testSelectionProbes(
     name: 'variance-authority:test-selection-probes',
     enforce: 'post',
     resolveId: (id) => (id === VIRTUAL_COLLECTOR || id === RESOLVED_COLLECTOR ? RESOLVED_COLLECTOR : null),
-    load: (id) => (id === RESOLVED_COLLECTOR ? executionCollectorSource() : null),
+    load: (id) => (id === RESOLVED_COLLECTOR ? executionCollectorSource(options.mode) : null),
 
     transform(code, specifier) {
       const source = cleanId(specifier);
@@ -193,7 +211,7 @@ export function testSelectionProbes(
       // module the bundle ships.
       const file = projectPath(root, source);
       const id = names.idOf(file) ?? file;
-      const done = instrument(code, file, id);
+      const done = instrument(code, file, id, options.mode === undefined ? {} : { mode: options.mode });
       if (done === undefined) {
         persist({ file, id, sourceDigest, instrumented: false, blocks: [] });
         return null;
@@ -224,7 +242,8 @@ export function testSelectionProbes(
  * so a reset that replaced the factory would cost every module a re-registration
  * — and a module that never runs again would never re-register at all.
  */
-export function executionCollectorSource(): string {
+export function executionCollectorSource(mode?: InstrumentMode): string {
+  const instrumentation = instrumentationId(mode);
   return `
 const modules = new Map();
 const factory = (id, count) => {
@@ -242,7 +261,7 @@ const factory = (id, count) => {
 if (globalThis.__VA__ === undefined) globalThis.__VA__ = factory;
 globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
   version: 1,
-  instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)},
+  instrumentation: ${JSON.stringify(instrumentation)},
   drain() {
     const entered = [];
     for (const [id, counters] of modules) {
@@ -257,7 +276,7 @@ globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
       }
       if (hits.length > 0) entered.push({ id, hits, shared });
     }
-    return { instrumentation: ${JSON.stringify(INSTRUMENTATION_ID)}, modules: entered };
+    return { instrumentation: ${JSON.stringify(instrumentation)}, modules: entered };
   },
   reset() {
     for (const counters of modules.values()) counters.fill(0);

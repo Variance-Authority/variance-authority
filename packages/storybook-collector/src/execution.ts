@@ -19,6 +19,7 @@ import {
   preconditionOf,
   recordExecution,
   type EvaluatingPage,
+  type InstrumentMode,
   type ObservedCase,
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
@@ -52,6 +53,36 @@ export interface StoryExecutionOptions {
   readonly cases?: boolean;
   /** Where that index goes. Defaults beside the snapshot, as the Vitest seam's does. */
   readonly executionFile?: string;
+  /**
+   * The probe recipe the preview was built with, matching
+   * `testSelectionProbes()`'s `mode`. `presence` when absent, as it is there.
+   *
+   * Both sides answer the same or neither works: a journal cut by one recipe
+   * and folded as another is refused, and a snapshot a runner seam also writes
+   * under a different recipe has each run retire the other's evidence.
+   */
+  readonly mode?: InstrumentMode;
+  /**
+   * Files whose contents are preconditions of every story this run recorded.
+   *
+   * A `.storybook/preview` file, a theme module every decorator reads — a
+   * story *file* is already a precondition of its own stories, and this is for
+   * the ones no story declares and nothing enters.
+   */
+  readonly preconditions?: readonly string[];
+  /**
+   * Other builds this same run drove, by the label each instrumented under.
+   *
+   * A preview and the application behind it are two builds of overlapping
+   * source, and a story that reaches both is one observation. Their stores
+   * join this recording rather than getting one of their own.
+   */
+  readonly heads?: readonly string[];
+  /**
+   * Where this recording stands. Defaults to the checkout's `HEAD`, which is
+   * the answer in every case except a caller that already knows better.
+   */
+  readonly commit?: string;
 }
 
 /** One run's accumulation: a window per story, written once at the end. */
@@ -133,6 +164,14 @@ export async function createStoryRecorder(
           ...(options.label === undefined ? {} : { label: options.label }),
           ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
           ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
+          ...(options.mode === undefined ? {} : { mode: options.mode }),
+          ...(options.preconditions === undefined
+            ? {}
+            : { preconditions: options.preconditions }),
+          ...(options.heads === undefined || options.heads.length === 0
+            ? {}
+            : { heads: options.heads }),
+          ...(options.commit === undefined ? {} : { commit: options.commit }),
           ...(cases.length === 0 ? {} : { cases }),
           ...(options.executionFile === undefined
             ? {}

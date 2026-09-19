@@ -31,6 +31,7 @@ import {
   stageExecution,
   stagingDirectory,
   type ExecutedModule,
+  type InstrumentMode,
   type ModuleId,
   type ObservedCase,
   type ObservedSubject,
@@ -91,6 +92,28 @@ export interface ExecutionRecording {
    * the index is folded once, by the process that saw the whole run.
    */
   readonly cases?: boolean;
+  /**
+   * Where that index goes, for the worker that has no reporter to fold it.
+   * Defaults beside the snapshot: `<coverage file>.cases.json`.
+   */
+  readonly executionFile?: string;
+  /**
+   * The probe recipe the build placed, matching `testSelectionProbes()`'s
+   * `mode`. `presence` when absent, as it is there.
+   *
+   * The same answer on both sides or neither works: a journal cut by one
+   * recipe and folded as another is refused, and a snapshot two seams write
+   * under two recipes has each run retire the other's evidence.
+   */
+  readonly mode?: InstrumentMode;
+  /**
+   * Files whose contents are preconditions of every spec this run recorded.
+   *
+   * A `globalSetup`, a fixture module the specs share, a seeded dump —
+   * nothing *enters* them, so no module row answers for them, and without
+   * this a commit that edits one selects nothing at all.
+   */
+  readonly preconditions?: readonly string[];
 }
 
 /** One worker's accumulation, drained per observation and written once. */
@@ -450,8 +473,15 @@ export function createExecutionRecorder(
       ...(recording.label === undefined ? {} : { label: recording.label }),
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
+      ...(recording.mode === undefined ? {} : { mode: recording.mode }),
+      ...(recording.preconditions === undefined
+        ? {}
+        : { preconditions: recording.preconditions }),
       ...(stitched.heads.size === 0 ? {} : { heads: [...stitched.heads.keys()] }),
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
+      ...(recording.executionFile === undefined
+        ? {}
+        : { executionFile: recording.executionFile }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

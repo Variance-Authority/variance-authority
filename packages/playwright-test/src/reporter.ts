@@ -32,6 +32,7 @@ import {
   openStage,
   recordExecution,
   stagingDirectory,
+  type InstrumentMode,
 } from '@variance-authority/sense/journal';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
@@ -54,6 +55,23 @@ export interface ExecutionReporterOptions {
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
+  /**
+   * The probe recipe the build placed, matching `testSelectionProbes()`'s
+   * `mode`. `presence` when absent, as it is there.
+   *
+   * It has to be the same answer on both sides: a snapshot names the recipe
+   * its ordinals were cut by, and a fold that claims another one refuses every
+   * journal the run collected.
+   */
+  readonly mode?: InstrumentMode;
+  /**
+   * Files whose contents are preconditions of every spec this run recorded.
+   *
+   * A `globalSetup`, a fixture module the specs share, a seeded database
+   * dump — nothing *enters* them, so no module row answers for them, and
+   * without this a commit that edits one selects nothing at all.
+   */
+  readonly preconditions?: readonly string[];
   /**
    * Also write the execution index: which individual test entered which region.
    *
@@ -118,6 +136,10 @@ export default class implements Reporter {
         ...(this.#options.coverageFile === undefined
           ? {}
           : { coverageFile: this.#options.coverageFile }),
+        ...(this.#options.mode === undefined ? {} : { mode: this.#options.mode }),
+        ...(this.#options.preconditions === undefined
+          ? {}
+          : { preconditions: this.#options.preconditions }),
         ...(staged.heads === undefined || staged.heads.length === 0
           ? {}
           : { heads: staged.heads }),

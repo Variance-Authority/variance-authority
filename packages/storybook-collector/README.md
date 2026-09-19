@@ -377,6 +377,17 @@ recorded paths are relative to, and `cacheRoot` and `coverageFile` override the
 repository-keyed cache paths for the block records and the coverage index.
 Without a collector in the page, the run says so on stderr and records nothing.
 
+`mode` is the probe recipe, and it has to be the one the preview was built
+under: a snapshot names the recipe its ordinals were cut by, and a merge
+discards a layer cut by another one, so a preview probing under `entries` and a
+run folding under `presence` would each wipe the other. `preconditions` names
+files whose contents are a precondition of every story's observation — a
+`preview.js` that decides what renders belongs there, because a change to it
+invalidates every reading and no crossing will ever say so. `heads` and
+`commit` stamp the snapshot with the branch tips this recording stands on and
+the commit it was taken at, which is what lets a later run tell a stale layer
+from a current one.
+
 A story is its own owner in the recorded index — Storybook is an execution
 surface this tool drives one subject at a time — and a story that did not render
 still contributes its crossings while never justifying a later skip.
