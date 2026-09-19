@@ -12,7 +12,8 @@ const FOOTER = [
   {
     title: "on this page",
     links: [
-      { href: "/#questions", label: "Start with a question" },
+      { href: "/#questions", label: "What are you working on?" },
+      { href: "/#agents", label: "Equip your agent" },
       { href: "/#visual-review", label: "Causal visual review" },
       { href: "/#selection", label: "Selection + reuse" },
       { href: "/#integrate", label: "Integrate" },
@@ -45,9 +46,9 @@ export default function SiteFooter() {
             </span>
           </div>
           <p className="mt-4 max-w-xs text-sm leading-6 text-quiet">
-            Visual regression you run yourself. A changed region arrives with
-            the component that drew it and the <code>file:line</code> it was
-            written at.
+            Tools for developers and coding agents to understand code,
+            investigate behavior, and check their work. Open source, running
+            in your infrastructure.
           </p>
         </div>
         {FOOTER.map((col) => (

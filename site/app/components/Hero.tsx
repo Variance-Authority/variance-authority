@@ -1,7 +1,8 @@
 import Timelines from "./Timelines";
-import Verdict from "./Verdict";
+import AgentFlow from "./AgentFlow";
+import IntegrationLogos from "./IntegrationLogos";
 
-/** The product boundary, with one concrete composition beside it. */
+/** A first introduction, paired with a concrete agent workflow. */
 export default function Hero() {
   return (
     <section className="relative pb-20 pt-16 sm:pt-20">
@@ -15,12 +16,13 @@ export default function Hero() {
       </div>
       <div className="rise relative">
         <p className="mb-6 font-mono text-xs uppercase tracking-[0.18em] text-orange">
-          evidence tools for software that changes
+          developer tools for you and your coding agent
         </p>
         <h1 className="max-w-4xl text-4xl font-bold leading-[1.06] tracking-tight text-ivory sm:text-6xl lg:text-[4.25rem]">
-          <span className="block">Find what varied.</span>
+          <span className="block">Understand the code.</span>
+          <span className="block">Investigate the behavior.</span>
           <span className="block bg-gradient-to-br from-orange to-fold bg-clip-text text-transparent">
-            What caused it. What it reached.
+            Check the work.
           </span>
         </h1>
       </div>
@@ -29,26 +31,29 @@ export default function Hero() {
       <div className="mt-10 grid items-start gap-10 lg:mt-12 lg:grid-cols-[1fr_1.06fr] lg:gap-12 [&>*]:min-w-0">
         <div className="rise" style={{ animationDelay: "0.1s" }}>
           <p className="leading-7 text-quiet sm:text-lg sm:leading-8">
-            Variance Authority records evidence from source, execution,
-            rendered interfaces, and public API surfaces. Each instrument
-            answers one question and names the boundary of its answer. Compose
-            them when a decision needs the chain. Visual review is one such
-            composition, not the product boundary.
+            Find the APIs your project already uses. Inspect a test while it
+            runs. Trace a changed interface back to its source. Give your coding
+            agent the tools to investigate, focus its tests, and check whether
+            an edit achieved what you intended.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
               href="#questions"
               className="rounded-lg bg-gradient-to-t from-fold to-orange px-5 py-2.5 text-sm font-semibold text-deep shadow-lg shadow-orange/25 ring-1 ring-inset ring-white/20 transition-transform hover:-translate-y-0.5"
             >
-              Start with a question
+              See what you can do
             </a>
             <a
-              href="#visual-review"
+              href="#agents"
               className="rounded-lg border border-hairline px-5 py-2.5 text-sm font-medium text-ivory transition-colors hover:border-orange/60"
             >
-              See one composition
+              Equip your agent
             </a>
           </div>
+          <p className="mt-6 max-w-lg text-sm leading-6 text-quiet">
+            Open source · CLI, libraries, MCP, and agent skills · Runs in your
+            infrastructure
+          </p>
 
           {/* A phone opens a narrower window onto the fork. */}
           <div className="relative mt-10 h-28 sm:h-40 lg:hidden">
@@ -57,9 +62,10 @@ export default function Hero() {
           </div>
         </div>
         <div className="rise" style={{ animationDelay: "0.2s" }}>
-          <Verdict />
+          <AgentFlow />
         </div>
       </div>
+      <IntegrationLogos />
     </section>
   );
 }

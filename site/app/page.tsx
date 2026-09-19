@@ -1,3 +1,4 @@
+import AgentWorkflows from "./components/AgentWorkflows";
 import ClosingCall from "./components/ClosingCall";
 import EvidenceSlices from "./components/EvidenceSlices";
 import Hero from "./components/Hero";
@@ -28,18 +29,23 @@ export default function Page() {
         </Reveal>
 
         <Reveal>
+          <AgentWorkflows />
+        </Reveal>
+
+        <Reveal>
           <section
             id="visual-review"
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
               n="01"
-              label="one composition"
-              title="A changed screen becomes a cause you can inspect."
+              label="visual review"
+              title="You changed one component. Several screens noticed."
             >
-              Visual review connects independent UI readings to runtime
-              ownership and source. A repeated cause is decided once; a state
-              with additional or missing evidence remains open.
+              Follow differences in text, accessibility, layout, styles, and
+              pixels back to the component and source location when the capture
+              provides them. Accept a matching change across the states it
+              reached; states with additional differences stay open.
             </SectionHead>
 
             <div className="mt-12">
@@ -100,12 +106,12 @@ export default function Page() {
             <SectionHead
               n="02"
               label="selection + reuse"
-              title="Run the states and tests the change actually reached."
+              title="Your test suite can remember where it’s been."
             >
-              Static source relations establish what an edit could affect.
-              Recorded execution narrows that answer to UI states and test
-              files that entered the changed code. Uncertainty always selects
-              more work, never less.
+              A shared file may be imported by hundreds of tests. Only some
+              enter the branch you edited. Recorded execution and source
+              relationships help select the test files and UI states a change
+              reaches, with a reason for each selection.
             </SectionHead>
             <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-hairline bg-hairline md:grid-cols-3">
               {[
@@ -154,14 +160,14 @@ export default function Page() {
             className="scroll-mt-24 border-t border-hairline py-20"
           >
             <SectionHead
-              n="04"
+              n="03"
               label="the bargain"
-              title="Control the evidence stack. Own the cost of operating it."
+              title="Your tools. Your observations. Your infrastructure."
             >
-              Variance Authority is open source and runs in infrastructure you
-              control. That buys composability and removes a vendor meter; it
-              also leaves browser capacity, storage, deployment, and operation
-              with the adopter.
+              Variance is MIT licensed and runs in infrastructure you control.
+              Use it directly or give your coding agent access to the same
+              source facts and observations. You choose what to record, retain,
+              and review.
             </SectionHead>
             <div className="mt-12">
               <OperatingBargain />

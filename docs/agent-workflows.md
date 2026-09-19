@@ -1,19 +1,16 @@
 # Choose an agent workflow
 
-**[Variance Authority](README.md)** is a visual regression system you run yourself: it
-renders a UI state, compares it against the baseline you approved, and reports
-what changed in the vocabulary of your source — the component that drew the
-pixels and the `file:line` it was written at.
+[Variance Authority](README.md) gives coding agents tools to read a workspace,
+inspect a running test, investigate UI changes, and check proposed test
+simplifications. Choose the workflow for the question in front of you. Source
+questions need a readable checkout; questions about execution or the interface
+need the corresponding observation or recording.
 
-This page is the entrance to the agent side of it. Pick the question you want
-answered and it sends you to the guide that answers it. What an agent gets here
-that a pixel diff does not give it: a run report it can query by name rather
-than look at, and two live entrances no report file has — a suite that is still
-executing, and a test held at one line with its page still up.
-
-Every answer below is keyed by a **subject** — one named UI state you asked for
-and can ask for again, identified by a stable id such as `checkout/empty` or
-`story:checkout--empty`.
+The CLI and MCP expose the readings. The shipped skills guide how an agent
+uses them alongside its own editor, shell, and test runner. In the
+[test reduction workflow](distill.md#the-agent-loop), the agent tries one
+reversible substitution, reruns the exact test, and compares what it still
+exercises before keeping the change.
 
 ## Get a shell entrance in three commands
 

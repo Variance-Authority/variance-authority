@@ -1,103 +1,86 @@
 const QUESTIONS = [
   {
-    question: "Why did this UI change?",
-    answer:
-      "Keep text, accessibility, layout, styles, pixels, React ownership, and source as separate evidence; group repeated effects by cause.",
-    href: "#visual-review",
-    route: "causal visual review",
-  },
-  {
-    question: "What is happening in this interface?",
-    answer:
-      "Read presentation relationships, the elements a test addressed, and the component instances that initiated an update.",
-    href: "/docs/observability",
-    route: "evidence without a baseline",
-  },
-  {
-    question: "Where did two executions part?",
-    answer:
-      "Compare witnessed scenario steps, component renderings, and the source regions each execution entered at one commit.",
-    href: "/docs/scenarios",
-    route: "scenarios and journeys",
-  },
-  {
-    question: "What could this edit reach?",
-    answer:
-      "Join static source relations with recorded execution to select affected UI states and test files, widening when evidence is incomplete.",
-    href: "#selection",
-    route: "change-driven selection",
-  },
-  {
-    question: "What does this workspace publish?",
-    answer:
-      "Read TypeScript entrypoints, exported names, signatures, documentation, and consumers directly from source.",
+    question: "Help my agent work in this codebase.",
+    answer: "Discover published APIs, signatures, documentation, and existing usages from the current source. Give your agent relevant names and examples to work with.",
     href: "/agents/workspace-api",
-    route: "public API evidence",
+    route: "source intelligence",
+    action: "Explore the workspace API",
   },
   {
-    question: "What is a run saying right now?",
-    answer:
-      "Inspect announcements from the page and its services, including bounded work that opened and never closed, while the suite is still running.",
-    href: "/agents/live-run",
-    route: "live-run evidence",
+    question: "Find out why this test is stuck.",
+    answer: "Inspect application announcements and unfinished work while the suite runs. Hold a test at an inspection point, investigate with its page still open, then let it continue.",
+    href: "/agents/interrogate",
+    route: "live investigation",
+    action: "Inspect a running test",
+  },
+  {
+    question: "Make this test smaller.",
+    answer: "Compare what a test loads and executes with what it interacts with. Try one substitution, rerun the test, and check the behavior it still exercises before keeping the edit.",
+    href: "/docs/distill",
+    route: "test improvement",
+    action: "Find what a test can shed",
+  },
+  {
+    question: "Run the tests this edit needs.",
+    answer: "Use recorded execution and source relationships to select affected test files and see why each was selected. Missing evidence expands the run.",
+    href: "#selection",
+    route: "test selection",
+    action: "Focus the next run",
+  },
+  {
+    question: "Understand this interface.",
+    answer: "Measure grouping, spacing, alignment, emphasis, and repetition. Highlight the relationships on the live page, make an edit, and measure again.",
+    href: "/docs/presentation",
+    route: "UI analysis",
+    action: "Inspect the rendered layout",
+  },
+  {
+    question: "Explain what changed.",
+    answer: "Inspect visual and semantic differences, component attribution, and shared causes. Compare related UI states and find where recorded executions diverge.",
+    href: "#visual-review",
+    route: "change investigation",
+    action: "Follow a UI change",
+  },
+  {
+    question: "Check whether the work did what we intended.",
+    answer: "Compare intentions declared before an edit is assessed with its observed effects. Identify what landed, what was not delivered, and what changed outside the declared scope.",
+    href: "/docs/reasoning",
+    route: "verification and review",
+    action: "Follow intent through review",
   },
 ] as const;
 
-/** A short route into the evidence family, organized by the reader's question. */
 export default function QuestionMap() {
   return (
-    <section
-      id="questions"
-      className="scroll-mt-24 border-t border-hairline py-20"
-    >
-      <div className="grid gap-x-12 gap-y-5 lg:grid-cols-[1.05fr_1fr] lg:items-start [&>*]:min-w-0">
-        <div>
-          <p className="mb-4 font-mono text-xs tracking-[0.2em] text-orange uppercase">
-            start with the question
-          </p>
-          <h2 className="text-2xl font-bold tracking-tight text-balance text-ivory sm:text-4xl">
-            One evidence family. Several independent answers.
-          </h2>
-        </div>
-        <p className="leading-7 text-quiet lg:pt-8">
-          There is no mandatory pipeline. Use the instrument that answers the
-          question in front of you; compose readings only when the decision
-          needs the chain between them.
-        </p>
-      </div>
-
-      <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-hairline bg-hairline md:grid-cols-2 lg:grid-cols-3">
-        {QUESTIONS.map((item) => (
+    <section id="questions" className="scroll-mt-24 border-t border-hairline py-20">
+      <p className="mb-4 font-mono text-xs uppercase tracking-[0.2em] text-orange">
+        start with your work
+      </p>
+      <h2 className="text-3xl font-bold tracking-tight text-ivory sm:text-4xl">
+        What are you working on?
+      </h2>
+      <p className="mt-5 max-w-2xl leading-7 text-quiet">
+        Start with the question costing you time. Use the tools that answer it,
+        then connect more of them as the investigation grows.
+      </p>
+      <div className="mt-10 grid gap-px overflow-hidden rounded-sm border border-hairline bg-hairline md:grid-cols-2">
+        {QUESTIONS.map((item, index) => (
           <a
             key={item.question}
             href={item.href}
-            className="group bg-panel p-6 transition-colors hover:bg-orange/[0.05]"
+            className={`group flex flex-col bg-panel p-6 transition-colors hover:bg-deep sm:p-8 ${index === QUESTIONS.length - 1 ? "md:col-span-2" : ""}`}
           >
-            <p className="font-mono text-[10px] tracking-[0.14em] text-orange uppercase">
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-orange">
               {item.route}
             </p>
-            <h3 className="mt-3 text-lg font-semibold text-ivory">
-              {item.question}
-            </h3>
-            <p className="mt-3 text-sm leading-6 text-quiet">{item.answer}</p>
-            <p className="mt-5 font-mono text-xs text-orange transition-colors group-hover:text-ivory">
-              follow this question →
+            <h3 className="mt-3 text-xl font-semibold tracking-tight text-ivory">{item.question}</h3>
+            <p className="mt-3 mb-6 max-w-3xl text-sm leading-6 text-quiet">{item.answer}</p>
+            <p className="mt-auto text-sm text-orange transition-colors group-hover:text-ivory">
+              {item.action} →
             </p>
           </a>
         ))}
       </div>
-
-      <p className="mt-6 max-w-3xl text-sm leading-6 text-quiet">
-        A person, a test, or a coding agent can read the same retained evidence.
-        The instrument records what it observed and where its knowledge stops;
-        the reader decides what to do with it. {" "}
-        <a
-          href="/docs/information"
-          className="text-orange transition-colors hover:text-ivory"
-        >
-          See how the evidence fits together →
-        </a>
-      </p>
     </section>
   );
 }

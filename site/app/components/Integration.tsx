@@ -1,160 +1,79 @@
-import { GITHUB } from "../links";
-import SectionHead from "./SectionHead";
-
-const RECIPES = [
+const STARTS = [
   {
-    key: "playwright",
-    title: "Existing Playwright suite",
-    install:
-      "@variance-authority/playwright-test @playwright/test · Chromium",
-    requires: "A Playwright test and a bounded Locator.",
-    result: "The observation and verdict live in Playwright test output.",
-    href: GITHUB + "/tree/main/packages/playwright-test",
+    title: "Explore your TypeScript workspace",
+    requires: "A readable checkout. No build or test recording needed.",
+    result: "Published names, signatures, documentation, and the files that use them.",
+    href: "/agents/workspace-api",
+    action: "Start with source",
   },
   {
-    key: "storybook",
-    title: "Built or served Storybook",
-    install:
-      "@variance-authority/cli @variance-authority/storybook-collector · Chromium",
-    requires: "A reachable Storybook index and its stories.",
-    result: "The CLI writes candidate baselines and one review report.",
-    href: GITHUB + "/tree/main/packages/storybook-collector",
+    title: "Focus a Vitest or Jest run",
+    requires: "The test-selection integration and a recorded suite run.",
+    result: "Test files the next diff reaches, with the reasons they were selected.",
+    href: "/reference/packages/sense",
+    action: "Set up test selection",
   },
   {
-    key: "routes",
-    title: "Running app or static build",
-    install:
-      "@variance-authority/cli @variance-authority/route-collector · Chromium",
-    requires:
-      "An explicit route list or sitemap. Authenticated routes are outside this path; drive those from the Playwright suite.",
-    result: "Each route and viewport becomes a separately reviewable UI state.",
-    href: GITHUB + "/tree/main/packages/route-collector",
+    title: "Investigate a live Playwright test",
+    requires: "Variance fixtures and a watcher started before the suite. Application announcements add detail.",
+    result: "The suite’s progress, unfinished announced work, and authored inspection points.",
+    href: "/agents/live-run",
+    action: "Connect a live run",
   },
   {
-    key: "vitest-browser",
-    title: "Vitest browser mode",
-    install:
-      "@variance-authority/vitest-browser vitest-browser-react · Chromium",
-    requires: "A component test that already mounts in a browser.",
-    result:
-      "The verdict returns to the test body; the Vitest process paints and keeps the baseline.",
-    href: GITHUB + "/tree/main/packages/vitest-browser",
-  },
-  {
-    key: "jsdom",
-    title: "Vitest or Jest under jsdom",
-    install:
-      "@variance-authority/unit-test jsdom · CLI and Chromium in the render job",
-    requires: "A capture job and a later browser render job.",
-    result: "The test writes a document capture; the CLI renders and compares it.",
-    href: GITHUB + "/tree/main/packages/unit-test",
+    title: "Inspect or compare an interface",
+    requires: "A live page for layout measurements, or a supported capture path for visual review.",
+    result: "Measured presentation relationships or a comparison with an approved baseline.",
+    href: "/docs/presentation",
+    action: "Measure an interface",
   },
 ] as const;
 
-/** Pick the integration by the process that already owns the UI. */
+const CAPTURES = [
+  ["Playwright", "Observe a state inside an existing test; Playwright owns execution and snapshot approval.", "/start/playwright"],
+  ["Rstest / Rspack", "Capture in jsdom for a later render, or observe a live page through @rstest/playwright.", "/start/rstest"],
+  ["Storybook", "Collect a served or built Storybook; the CLI writes candidates for a separate acceptance step.", "/start/storybook"],
+  ["Application routes", "Collect an explicit route list or sitemap. Drive authenticated states from your Playwright suite.", "/start/routes"],
+  ["Vitest browser mode", "Observe a mounted component; the Vitest process renders and keeps the baseline.", "/reference/packages/vitest-browser"],
+  ["Vitest or Jest under jsdom", "Capture a document in the test, then render and compare it in a separate browser job.", "/start/unit"],
+] as const;
+
 export default function Integration() {
   return (
-    <section
-      id="integrate"
-      className="relative scroll-mt-24 border-t border-hairline py-20"
-    >
-      <span
-        id="packages"
-        aria-hidden="true"
-        className="absolute -top-24"
-      />
-      <SectionHead
-        n="03"
-        label="start here"
-        title="Start where the UI already runs."
-      >
-        All five paths share observation and reporting contracts. Available signals
-        depend on the capture method and instrumentation. The paths also differ
-        in which tool drives the run, what you have to stand up, and
-        where baseline approval happens. Pick the one that matches the host your
-        UI already runs in.
-      </SectionHead>
-
-      <div className="mt-12 grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
-        {RECIPES.map((recipe) => (
-          <a
-            key={recipe.key}
-            href={recipe.href}
-            className="group rounded-2xl border border-hairline bg-panel p-6 transition-all hover:-translate-y-1 hover:border-orange/50"
-          >
-            <p className="text-base font-semibold text-ivory">{recipe.title}</p>
-            <p className="mt-4 font-mono text-[11px] leading-5 text-orange">
-              {recipe.install}
-            </p>
-            <dl className="mt-5 space-y-3 border-t border-hairline pt-4 text-sm leading-6">
-              <div>
-                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-warm">
-                  requires
-                </dt>
-                <dd className="mt-1 text-quiet">{recipe.requires}</dd>
-              </div>
-              <div>
-                <dt className="font-mono text-[10px] uppercase tracking-[0.12em] text-warm">
-                  first result
-                </dt>
-                <dd className="mt-1 text-quiet">{recipe.result}</dd>
-              </div>
-            </dl>
-            <p className="mt-5 font-mono text-xs text-orange transition-colors group-hover:text-ivory">
-              setup and boundaries →
-            </p>
+    <section id="integrate" className="relative scroll-mt-24 border-t border-hairline py-20">
+      <span id="packages" aria-hidden="true" className="absolute -top-24" />
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-orange">start here</p>
+      <h2 className="mt-4 text-3xl font-bold tracking-tight text-ivory sm:text-4xl">Start with one useful answer.</h2>
+      <p className="mt-5 max-w-2xl leading-7 text-quiet">
+        Choose the part that fits the work in front of you. Source discovery,
+        test selection, live inspection, and UI analysis have independent entry
+        points. Install what that path needs.
+      </p>
+      <div className="mt-10 grid gap-4 sm:grid-cols-2">
+        {STARTS.map((start) => (
+          <a key={start.title} href={start.href} className="group flex flex-col rounded-2xl border border-hairline bg-panel p-6 transition-colors hover:border-orange/50">
+            <h3 className="text-lg font-semibold text-ivory">{start.title}</h3>
+            <p className="mt-4 text-sm leading-6 text-quiet">{start.requires}</p>
+            <p className="mt-3 mb-6 text-sm leading-6 text-ivory">{start.result}</p>
+            <p className="mt-auto text-sm text-orange group-hover:text-ivory">{start.action} →</p>
           </a>
         ))}
       </div>
-
-      <p className="mt-6 font-mono text-xs text-quiet">
-        These five are the entry points. Every package behind them is listed
-        in{" "}
-        <a
-          href="/docs/architecture"
-          className="text-orange transition-colors hover:text-ivory"
-        >
-          architecture.md →
-        </a>
-      </p>
-
-      <div className="mt-10 grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
-        <div className="rounded-2xl border border-hairline bg-panel">
-          <p className="border-b border-hairline px-5 py-3 font-mono text-xs text-quiet">
-            Playwright owns execution and approval
-          </p>
-          <pre className="overflow-x-auto px-5 py-4 font-mono text-[12px] leading-7 text-ivory">
-            <code>
-              <span className="text-quiet">$</span> npx playwright test{"\n"}
-              <span className="text-quiet">$</span> npx playwright test
-              --update-snapshots=all
-            </code>
-          </pre>
-          <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
-            Variance Authority observes and asserts inside the Playwright test.
-            Baselines only change when you run Playwright’s explicit snapshot
-            update.
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-hairline bg-panel">
-          <p className="border-b border-hairline px-5 py-3 font-mono text-xs text-quiet">
-            Collected suites use the CLI lifecycle
-          </p>
-          <pre className="overflow-x-auto px-5 py-4 font-mono text-[12px] leading-7 text-ivory">
-            <code>
-              <span className="text-quiet">$</span> variance run{"\n"}
-              <span className="text-quiet">$</span> variance report --format html
-              {"\n"}
-              <span className="text-quiet">$</span> variance accept &lt;subject&gt;
-            </code>
-          </pre>
-          <p className="border-t border-hairline px-5 py-4 text-sm leading-6 text-quiet">
-            Storybook, route, and captured-document paths write candidate
-            baselines first. You accept them with a separate CLI command.
-          </p>
-        </div>
-      </div>
+      <details className="mt-6 rounded-2xl border border-hairline bg-panel p-6">
+        <summary className="cursor-pointer font-semibold text-ivory">Choose a visual review integration</summary>
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-quiet">
+          Capture methods differ in what they can observe, where rendering runs,
+          and how baselines are approved. Start from the host your UI already uses.
+        </p>
+        <ul className="mt-5 divide-y divide-hairline">
+          {CAPTURES.map(([title, body, href]) => (
+            <li key={title} className="py-4">
+              <a href={href} className="text-sm font-semibold text-orange hover:text-ivory">{title} →</a>
+              <p className="mt-1 text-sm leading-6 text-quiet">{body}</p>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }

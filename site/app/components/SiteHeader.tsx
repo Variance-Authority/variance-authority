@@ -8,10 +8,10 @@ import SiteSearch from "./SiteSearch";
  * header; the rest arrive when there is room for them.
  */
 const SECTIONS = [
-  { href: "/#questions", label: "Questions", wide: false },
-  { href: "/#visual-review", label: "Visual review", wide: false },
-  { href: "/#selection", label: "Selection", wide: true },
-  { href: "/#integrate", label: "Integrate", wide: true },
+  { href: "/#questions", label: "Explore", wide: false },
+  { href: "/#agents", label: "For agents", wide: false },
+  { href: "/#visual-review", label: "Visual review", wide: true },
+  { href: "/#integrate", label: "Start here", wide: true },
   { href: "/#fit", label: "Fit", wide: true },
   { href: "/docs", label: "Docs", wide: false },
 ] as const;
