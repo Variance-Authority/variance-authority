@@ -12,10 +12,11 @@ const TOOLS = [
 /**
  * Languages the scan reads into the one file graph.
  *
- * A second line under the marks, and words rather than logos: these are not
- * integrations, and a row of language icons would read as *eight tools we work
- * with, and seven more*. What they say is narrower and worth its own line —
- * a diff in any of them is answered by the same walk.
+ * Eight of them against eight marks, on the same eight-column grid, so the row
+ * reads as the next line of the same list rather than as a paragraph that
+ * happened to land underneath it. Words rather than logos: a language is not an
+ * integration, and a second row of icons would read as *eight tools we work
+ * with, and eight more*.
  */
 const LANGUAGES = [
   "JavaScript",
@@ -31,10 +32,10 @@ const LANGUAGES = [
 /** The Rspack mark routes to the supported Rstest host, not a bundler plugin. */
 export default function IntegrationLogos() {
   return (
-    <div className="mt-12">
+    <div className="mx-auto mt-12 max-w-4xl">
       <nav
         aria-label="Supported tools and agent integrations"
-        className="mx-auto grid max-w-4xl grid-cols-8 items-center gap-2 sm:gap-6"
+        className="grid grid-cols-8 items-center gap-2 sm:gap-6"
       >
         {TOOLS.map((tool) => (
           <a
@@ -56,10 +57,9 @@ export default function IntegrationLogos() {
       </nav>
       <a
         href="/docs/polyglot"
-        aria-label="The languages one scan reads"
-        className="mx-auto mt-4 flex max-w-4xl flex-wrap items-baseline justify-center gap-x-3 gap-y-1 text-xs text-quiet transition-colors hover:text-ivory focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange sm:gap-x-4 sm:text-sm"
+        aria-label="How different languages are handled"
+        className="mt-3 grid grid-cols-4 gap-x-2 gap-y-1 text-center text-[0.7rem] text-quiet transition-colors hover:text-ivory focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange sm:grid-cols-8 sm:gap-x-6 sm:text-xs"
       >
-        <span className="font-mono text-xs uppercase tracking-[0.18em] text-orange">reads</span>
         {LANGUAGES.map((language) => (
           <span key={language}>{language}</span>
         ))}
