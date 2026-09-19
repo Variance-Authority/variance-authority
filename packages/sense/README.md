@@ -25,7 +25,9 @@ It answers four questions:
   or a coding agent asks.
 
 The first three work today from a wrapped runner. The fourth needs a recording
-made with `cases: true`, which this package writes only under Vitest.
+made with `cases: true`, which every host this package reaches writes —
+[what each one gives the recording](#what-each-host-gives-the-recording) is one
+table.
 
 Skip this package if your tests run somewhere it cannot instrument, or if you
 need to exclude individual test cases rather than whole files: selection returns
@@ -1227,13 +1229,13 @@ distances into inclusive ranges; an indexed but unreached range has an empty
 range. Missing source returns no claim; an invalid test reference or distance
 throws.
 
-The Vitest seam is the only recorder here that writes an `ExecutionIndex`. It
-attributes crossings to whole test files otherwise, which is the granularity
+Every seam here writes an `ExecutionIndex` when it is asked for one. Without
+`cases: true` a crossing joins the whole test file, which is the granularity
 selection spends.
 
 ### Record which case entered a region
 
-Pass `cases: true` to `withTestSelection` — either seam — and the run writes an
+Pass `cases: true` to `withTestSelection` — any seam — and the run writes an
 `ExecutionIndex` beside its snapshot. The snapshot itself is byte-identical
 either way, so CI reads the same file whichever you choose:
 
@@ -1296,6 +1298,32 @@ the JSON above against a 681 KB snapshot. So it is the right axis for a coding
 agent asking which five of two hundred cases walked the branch you just changed,
 and the wrong one for the index CI reads to select files over every region there
 is.
+
+## What each host gives the recording
+
+Every seam records the same three things — which regions the transform cut,
+which of them an observer entered, and whether that observation was whole — into
+one snapshot format. What differs is the unit an observation is attributed to,
+which is whatever the host schedules, and where the per-case bracket goes.
+
+| Host | A crossing joins | The bracket `cases: true` installs |
+|---|---|---|
+| Vitest | the test file | the asynchronous scope of each case, so cases in flight together stay apart |
+| Jest | the test file | the body of every injected `it` and `test`; a file with `injectGlobals: false` records as one bucket for the file |
+| Rstest | the test file | `it` and `test` on the realm and on `globalThis['@rstest/core']`, so an importing suite and a `globals: true` suite record alike |
+| Playwright | the spec file | the test, which is already the window the driver closes |
+| Storybook | the story | the story, which is already the subject the preview shows |
+
+None of the five asks the project to turn on a runner option to buy the case
+axis, and each writes the index beside the snapshot it was already writing.
+
+Two answers are properties of the record rather than of a host, so they read the
+same under all five. A run that transforms nothing because every module came
+from a warm cache still attributes what its tests entered: what a region means
+is stored per module under a content key, and a run joins those records rather
+than producing them. And an observation that did not finish is dropped from the
+pool rather than counted as a miss, so nothing a host retries or interrupts can
+justify a skip.
 
 ## Entrypoints
 

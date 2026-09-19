@@ -36,8 +36,8 @@ repository already recorded instead of re-transforming it.
 **Do not commit it, and add nothing to `.gitignore` for it.** The default path
 is outside your work tree: `git status` never sees it, `git clean` never takes
 it, and it never lands in a pull request. The one case that needs an ignore
-entry is one you create — pass `coverageFile` to the Vitest or Jest integration
-to put the snapshot at a path you name, typically inside the repository so CI
+entry is one you create — pass `coverageFile` to a runner integration to put
+the snapshot at a path you name, typically inside the repository so CI
 can upload it as an artifact, and then ignore that path. Turning on `cases`
 writes a second file at `<coverageFile>.cases.json`, under the same rule.
 
@@ -52,6 +52,35 @@ are discarded together.
 Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
 whole suite instead of narrowing on damage.
+
+## What each host records
+
+Five hosts write this file, and they write the same structures into it. What
+differs is the owner of an observation — the key a crossing joins, which is
+whatever that host schedules — and where the bracket goes when you turn `cases`
+on.
+
+| Host | An observation is owned by | `cases` brackets |
+|---|---|---|
+| Vitest | the test file | the asynchronous scope of each case, so cases in flight together stay apart |
+| Jest | the test file | the body of every injected `it` and `test`; a file that sets `injectGlobals: false` records one bucket for the whole file |
+| Rstest | the test file | `it` and `test` wherever the suite reads them — off the realm, or off the object an import of `@rstest/core` compiles to |
+| Playwright | the spec file | the test, which is already the window the driver closes |
+| Storybook | the story | the story, which is already the unit the preview shows |
+
+None of them asks you to change a runner option to record cases, and the
+snapshot is byte-identical whether you record them or not — the case axis is a
+second file beside it.
+[Own fewer tests](own-fewer-tests.md#ask-which-tests-claim-a-line) is the
+question that reads it.
+
+Two answers are properties of this file rather than of a host, so they read the
+same under all five. A run that transformed nothing, because every module came
+from a warm cache, still records what its tests entered: what a region means is
+stored per module under a content key, and a run joins those records rather
+than producing them. And an observation that did not finish is dropped from the
+pool rather than counted as a miss, so nothing a host retries or interrupts can
+justify a skip.
 
 ## Reading the snapshot yourself
 
@@ -497,8 +526,8 @@ takes. Persistence is a saving, never a new way for a run to fail.
 ## Keys
 
 **Test.** The owner of an observation: the test file's repository-relative
-path under a Vitest, Jest or Playwright run, because the runner's unit of
-scheduling is the file, and a story id under Storybook, because a story is
+path under a Vitest, Jest, Rstest or Playwright run, because the runner's unit
+of scheduling is the file, and a story id under Storybook, because a story is
 selected on its own. Two observations of one owner in one write are refused as
 a duplicate.
 
@@ -644,7 +673,7 @@ the observation instead of keeping it over text nobody has seen.
 
 Every runner seam records what one process saw and leaves the fold to the
 writer. Read this section when you are wiring a runner yourself; a suite using
-the shipped Vitest, Jest, Playwright or Storybook seams never sees a journal.
+the shipped Vitest, Jest, Rstest, Playwright or Storybook seams never sees one.
 Three journal shapes exist, and each includes a list of `ExecutedModule`; the
 record that gives their ordinals meaning is the fourth shape here:
 
@@ -664,9 +693,9 @@ the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between — and every reader refuses a journal, record or
 snapshot cut under the other.
 
-**Worker journal.** Written by the setup file of a Vitest or Jest worker in its
-`afterAll`, one per test file, as `<pid>-<uuid>.va` under the run directory
-`.run-<pid>-<uuid>` beside the coverage file. It is the one of the three that is
+**Worker journal.** Written by the setup file of a Vitest, Jest or Rstest
+worker in its `afterAll`, one per test file, as `<pid>-<uuid>.va` under the
+run directory `.run-<pid>-<uuid>` beside the coverage file. It is the one of the three that is
 never built as those objects: the encoder walks the counter arrays the probes
 increment and writes the ordinals out as the gaps between them, so a worker pays
 one pass over each array and the reporter reads bytes.
@@ -802,8 +831,8 @@ silent, reported another instrumentation id, or lost an account.
 
 Four ways bytes land in the file. Each is reachable from the imports above.
 
-**Append from a worker run.** The Vitest and Jest reporters read every worker
-journal in the run directory, fold the `hits` and `loaded` columns into
+**Append from a worker run.** The Vitest, Jest and Rstest reporters read every
+worker journal in the run directory, fold the `hits` and `loaded` columns into
 crossings, merge into the coverage file and remove the run directory. O(sum of
 journal sizes).
 
@@ -897,7 +926,7 @@ file costs you one full run and never a narrowed one.
 | graph walk, when a graph is supplied | O(n + m) per changed file | `selectTestFiles` with `options.relations` |
 | blocks a test crossed | O(C) | the crossings column |
 | tests covering a line | O(M + B²) | `coveringTests` |
-| fold worker journals | O(journal bytes) | the Vitest or Jest reporter |
+| fold worker journals | O(journal bytes) | the reporter of a runner seam |
 | read the names table | one read of at most eight immutable files | the transform, per build |
 | a path's number | O(log M) per segment, then at most fifteen entries | the names table lookup |
 | number what a run met | O(M log M), the compaction it publishes beside the delta | the fold, at the end of a run |

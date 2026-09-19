@@ -74,9 +74,12 @@ than inventing a call-stack distance it did not observe, so the order is by
 identity; the file-level [execution record](execution-record.md) stores real
 distance instead, and an index from another producer that measured depth sorts
 nearest first. Turn cases on for a local loop over the code you are changing,
-not for the repository-wide index CI reads to select files. A Jest suite wraps
-its own configuration the same way and records the same regions against test
-files; the case axis is the Vitest integration.
+not for the repository-wide index CI reads to select files. A Jest, Rstest,
+Playwright or Storybook suite wraps its own configuration the same way and
+records the same regions; each writes the case axis against the unit it
+schedules, and
+[what each host records](execution-record.md#what-each-host-records) is that
+one table.
 
 The list starts the conversation. It does not finish it, and the rest of this
 page is about what finishes it. For one candidate test rather than a set of
