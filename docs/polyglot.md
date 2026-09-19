@@ -1,15 +1,12 @@
 # How different languages are handled
 
-Your diff touched a Python module, a Kotlin class and a stylesheet. Ask what
-those changes reach and you get one list. [Variance Authority](README.md) is a
-visual regression system you run yourself: it renders a UI state, compares it
-against the baseline you approved, and reports what changed in the vocabulary of
-your source. To decide what a change can affect it reads your checkout, and that
-reading is not limited to the language the tool is written in: JavaScript and
-TypeScript in every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift.
-One reader per language writing into one graph with one kind of node is what
-**polyglot** means here, and a diff that spans several languages is answered in
-one walk.
+[Variance Authority](README.md) is built for React frontends, and that is what
+most of these pages are about. It does not follow that it only reads JavaScript.
+Its own checkout is TypeScript over a Rust scanner, so the first repository it
+could not read in full was its own — and it now reads JavaScript and TypeScript
+in every dialect, stylesheets, Python, Rust, Java, Kotlin and Swift. One reader
+per language writing into one graph with one kind of node is what **polyglot**
+means here, and a diff that spans several of them is answered in one walk.
 
 You do not need a subject, a baseline or a configuration file to use that half.
 Ask what a diff reaches and pipe the answer at whatever runs your tests:
