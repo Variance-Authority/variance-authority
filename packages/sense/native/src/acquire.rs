@@ -259,6 +259,15 @@ fn open_all<'a>(
     }
 }
 
+// FIXME: parsing runs on the global rayon pool, which sizes itself from every
+// core it can see — including efficiency cores, and without knowing that six
+// readers are already running beside it under the `join` above. On an M4 Pro
+// (10 performance, 4 efficiency) that is 6 + 14 runnable workers on 10 fast
+// cores: a 306,694-file scan takes 10.9 s wall and 58.0 s user at the default
+// width against 8.8 s and 48.9 s with the parser pool bounded to four. What it
+// wants is a private pool per stage, sized from the performance-core count, not
+// a global width shared with the readers. `READERS = 6` was measured against
+// this same global pool and should be re-read in the same pass.
 fn parse_all(
     opened: Vec<(&str, Opened, String)>,
     arenas: &AllocatorPool,
