@@ -11,10 +11,10 @@ import {
 } from '@variance-authority/sense/journal';
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
+import { varianceCompletedFixtures } from './completed.js';
 import {
   createExecutionRecorder,
   testOf,
-  varianceCompletedFixtures,
   type ExecutionRecorder,
 } from './execution.js';
 
@@ -61,6 +61,7 @@ async function instrumented(
  */
 async function ended(
   recorder: ExecutionRecorder,
+  root: string,
   owner: string,
   status: TestInfo['status'],
 ): Promise<void> {
@@ -73,7 +74,7 @@ async function ended(
     { auto?: boolean },
   ];
   await declared[0]({ varianceRecorder: recorder }, async () => {}, {
-    file: resolve(process.cwd(), owner),
+    file: resolve(root, owner),
     status,
   } as TestInfo);
 }
@@ -140,7 +141,7 @@ describe('a Playwright worker records what its specs executed', () => {
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
         owner,
       );
-      await ended(recorder, owner, 'failed');
+      await ended(recorder, root, owner, 'failed');
       await recorder.close();
 
       expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(false);
@@ -158,10 +159,67 @@ describe('a Playwright worker records what its specs executed', () => {
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
         owner,
       );
-      await ended(recorder, owner, 'passed');
+      await ended(recorder, root, owner, 'passed');
       await recorder.close();
 
       expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(true);
+    });
+  });
+
+  it('leaves a spec whose remaining tests were skipped whole', async () => {
+    // A skipped test entered nothing, and every way it stops being skipped
+    // edits the spec file or a module the file already reaches — both of which
+    // select it. Retiring the file for it would cost the run its narrowing over
+    // a test that did not run.
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
+        owner,
+      );
+      await ended(recorder, root, owner, 'passed');
+      await ended(recorder, root, owner, 'skipped');
+      await recorder.close();
+
+      expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(true);
+    });
+  });
+
+  it('retires a spec the runner interrupted', async () => {
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot, id } = await instrumented(root);
+      const owner = 'tests/checkout.spec.ts';
+
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [0] }] }),
+        owner,
+      );
+      await ended(recorder, root, owner, 'interrupted');
+      await recorder.close();
+
+      expect((await readTestCoverage(coverageFile)).tests[0]!.complete).toBe(false);
+    });
+  });
+
+  it('spells the owner against the configured root, not the directory it was started from', async () => {
+    // The verdict and the crossings have to name one file. They used to be
+    // computed against two roots — the recorder's and the cwd — so a run
+    // configured with a root of its own retired an owner nothing had recorded
+    // and left the real one standing whole.
+    await inRoot(async (root) => {
+      const coverageFile = resolve(root, 'coverage.bin');
+      const { cacheRoot } = await instrumented(root);
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
+
+      expect(
+        recorder.owner({ file: resolve(root, 'tests/checkout.spec.ts') } as TestInfo),
+      ).toBe('tests/checkout.spec.ts');
     });
   });
 

@@ -1463,6 +1463,8 @@
         "MaterializationOptions": "type",
         "Observed": "interface",
         "ObservedTest": "interface",
+        "PlaywrightSelectionConfig": "interface",
+        "SELECTION_REPORTER": "const",
         "UnchangedOptions": "interface",
         "VarianceDesk": "interface",
         "VarianceEventFixtures": "interface",
@@ -1493,7 +1495,8 @@
         "varianceFixtures": "const",
         "varianceMatchers": "const",
         "varianceVantageFixtures": "const",
-        "varianceWireFixtures": "const"
+        "varianceWireFixtures": "const",
+        "withTestSelection": "function"
       },
       "./reporter": {
         "ExecutionReporterOptions": "interface",

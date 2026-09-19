@@ -31,8 +31,7 @@ import {
 import { mintJourney } from '@variance-authority/sense/journey';
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { WIRE_REPORT, wireCarrierSource, type Wire } from '@variance-authority/wire/listen';
-import type { RecorderFixture } from './execution.js';
-import { ownerOf } from './execution.js';
+import type { RecorderFixture } from './completed.js';
 import type { VarianceVantageWorkerFixtures } from './vantage.js';
 import type { VarianceWireFixtures } from './wire.js';
 
@@ -126,7 +125,7 @@ export const varianceEventFixtures: Fixtures<
     const joined =
       varianceRecorder === undefined
         ? undefined
-        : await varianceRecorder.join(page, ownerOf(process.cwd(), testInfo), origin);
+        : await varianceRecorder.join(page, varianceRecorder.owner(testInfo), origin);
     if (joined !== undefined || origin === undefined || !expectsHeads(varianceEvents)) {
       await use(joined);
       return;

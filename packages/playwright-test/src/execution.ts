@@ -16,13 +16,7 @@
  * file is what gets selected.
  */
 
-import type {
-  Fixtures,
-  Page,
-  PlaywrightTestArgs,
-  PlaywrightWorkerArgs,
-  TestInfo,
-} from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 import {
   drainExecution,
   joinObservations,
@@ -140,6 +134,16 @@ export interface ExecutionRecorder {
    * rather than minting a second and overwriting the first.
    */
   readonly join: (page: Page, owner: string, origin?: string) => Promise<string | undefined>;
+  /**
+   * The owner key for one test, against the root this recorder was given.
+   *
+   * Every half of the seam has to spell a file the same way or it is two
+   * owners: one the crossings went to, one the verdict retired, and neither
+   * complete. The root is the recorder's because the recorder is what writes,
+   * and a configuration that set `root` meant it for the paths that land in
+   * the index — not only for the ones the closing fold happens to compute.
+   */
+  readonly owner: (testInfo: TestInfo) => string;
   /** Say whether this owner's tests finished; an incomplete owner never excludes. */
   readonly mark: (owner: string, complete: boolean) => void;
   /** Merge this worker's contribution into the index, or explain the silence. */
@@ -180,60 +184,6 @@ export function ownerOf(root: string, testInfo: TestInfo): string {
   return relative(resolve(root), testInfo.file).split(sep).join('/');
 }
 
-/** The worker fixture the recorder lives on, for the halves that report to it. */
-export interface RecorderFixture {
-  readonly varianceRecorder: ExecutionRecorder | undefined;
-}
-
-export interface VarianceCompletedFixtures {
-  /**
-   * Nothing a test reads. It is here to be torn down.
-   *
-   * A spec that ends early has executed some of what it would have executed,
-   * and the difference is invisible from inside: the crossings it never reached
-   * look exactly like crossings it does not need. So the runner's verdict is
-   * the only thing that can retire the file's claim, and it has to arrive for
-   * every test — including the ones that destructured nothing from this
-   * package.
-   */
-  readonly varianceCompleted: void;
-}
-
-/**
- * Hand the runner's verdict to the recorder, once per test.
- *
- * `auto`, for the same reason `varianceWatched` is: a spec records through
- * whichever fixture suits it — `variance` for a subtree it compares, `events`
- * for a service that answers for itself, both, or neither at all while a head
- * reports against the file — so a verdict read in any one of those teardowns is
- * a verdict the other routes never produce. What a missing verdict costs is not
- * a lost run: the spec is written with the reach it managed before it died, and
- * a record that says whole is believed, so every region past the failure is
- * excluded from each later `--since` that touches it. That is the skip nobody
- * asked for, and it is the one {@link ExecutionRecorder.mark} exists to refuse.
- *
- * It costs a setup and a teardown per test and nothing else: the recorder is
- * the worker's, `mark` is a set insertion, and a run with recording off has no
- * recorder to tell.
- */
-export const varianceCompletedFixtures: Fixtures<
-  VarianceCompletedFixtures,
-  RecorderFixture,
-  PlaywrightTestArgs,
-  PlaywrightWorkerArgs
-> = {
-  varianceCompleted: [
-    async ({ varianceRecorder }, use, testInfo) => {
-      await use();
-      // After `use`, which is where the runner has already decided this test.
-      // Automatic fixtures are set up before the ones a test asked for, so this
-      // is torn down after them and reads the status they have already settled.
-      if (varianceRecorder === undefined) return;
-      varianceRecorder.mark(ownerOf(process.cwd(), testInfo), testInfo.status === 'passed');
-    },
-    { auto: true },
-  ],
-};
 
 /**
  * Collect one worker's crossings.
@@ -280,6 +230,7 @@ export function createExecutionRecorder(
   };
 
   return {
+    owner: (testInfo) => ownerOf(root, testInfo),
     note: async (page, owner, subject) => {
       const journal = await drainExecution(page);
       if (journal === undefined) return;

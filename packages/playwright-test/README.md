@@ -461,8 +461,11 @@ Recording joins every observation in one spec file to that file: the runner's
 unit of execution is the file, so an attribution finer than that is one no
 selector could spend. A worker accumulates and writes once at teardown, under a
 lock on the index, so parallel workers do not overwrite each other. A spec whose
-test failed is recorded as incomplete — its crossings still count, and it can
-never justify skipping itself later.
+test failed, timed out or was interrupted is recorded as incomplete — its
+crossings still count, and it can never justify skipping itself later. A
+skipped test leaves the file whole: it entered nothing, and every way it stops
+being skipped edits either the spec file or a module the file already reaches,
+both of which select it anyway.
 
 ### Fold what the workers recorded
 
@@ -491,7 +494,29 @@ contribute costs a file write it would have spent on the merge anyway.
 The reporter takes the same values the fixture was given, and they have to
 match — the workers stage crossings recorded against one root and one build's
 records, and a mismatch is not an error anybody sees but a record written under
-paths no later run will ask about.
+paths no later run will ask about. `withTestSelection` is the way to say them
+once: it sets `varianceExecution` on the configuration and on each of its
+projects, and adds the reporter with the same values.
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+import { withTestSelection } from '@variance-authority/playwright-test';
+
+export default defineConfig(
+  withTestSelection(
+    { projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }] },
+    { label: 'app', preconditions: ['playwright/fixtures.ts'] },
+  ),
+);
+```
+
+Every project is given the recording, because a project is another run of the
+same specs and one the wrapper skipped would drive the page without draining
+it. The reporter is added once, at the top, because Playwright folds once and
+ignores a project's reporters. Your own reporters keep their order, and a
+configuration that named none keeps Playwright's default rather than losing it
+to an array of one.
 
 | Option | Purpose | Default |
 | --- | --- | --- |

@@ -30,16 +30,14 @@ import { bundlePageAgent } from './bundle.js';
 import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
+import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
 import {
   createExecutionRecorder,
-  ownerOf,
   testOf,
-  varianceCompletedFixtures,
   type ExecutionRecorder,
   type ExecutionRecording,
-  type VarianceCompletedFixtures,
 } from './execution.js';
 import {
   varianceEventFixtures,
@@ -265,7 +263,7 @@ export const varianceFixtures: Fixtures<
   ) => {
     void varianceJourney;
     await page.addInitScript(varianceBundle);
-    const owner = varianceRecorder === undefined ? undefined : ownerOf(process.cwd(), testInfo);
+    const owner = varianceRecorder?.owner(testInfo);
     const declared = createDeclarationReader(page, { global: AGENT });
     const observing = async (locator: Locator, options?: VarianceOptions) => {
       try {

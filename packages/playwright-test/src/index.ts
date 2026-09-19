@@ -23,6 +23,8 @@ export type {
   VarianceEventWorkerFixtures,
 } from './events.js';
 export type { ExecutionRecorder, ExecutionRecording, ObservedTest } from './execution.js';
+export { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
+export type { PlaywrightSelectionConfig } from './with-test-selection.js';
 export { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';
 export type {
   DeskOptions,
