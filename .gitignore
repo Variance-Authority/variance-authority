@@ -36,6 +36,9 @@ packages/sense/.overhead-*
 
 # Test + capture artifacts
 .variance/
+# The seam's setup shim, written per run and named by pid and uuid: a file
+# a run makes for itself and no later run can use.
+.variance-authority/
 coverage/
 packages/react/browser-check/www/bundle.js
 
