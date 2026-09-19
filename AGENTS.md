@@ -224,6 +224,42 @@ language. That last part is not a small adjustment. It decides the words.
   themselves freely, but the five hold there too. An ADR is an engineer stating
   a decision, not proving one.
 
+**Habits to cut.** Each of these falls out of the five conditions, and each one
+is easy to miss while writing.
+
+- **Over-compression.** Write whole sentences, with their articles and their
+  verbs. Spell out arrows and abbreviations. `Parser rejects bad date → exit 2,
+  no write` becomes *the parser rejects a bad date, exits with code 2, and
+  writes nothing*. A reader translating as they go has to decode the first one
+  before they can read it.
+- **An adverb holding up a weak verb.** *Runs quickly* is *is fast*, or better,
+  the number. *Significantly improves* is the measured difference. If the adverb
+  is carrying the sentence, the verb is the wrong verb.
+- **A fancy way to say is.** *Serves as*, *stands as*, *boasts*, *features*. Say
+  **is** or **has**.
+- **Filler.** *In order to* is *to*. *Due to the fact that* is *because*. *It is
+  important to note that* is deleted. So is a trailing clause that adds nothing:
+  *ensuring correctness*, *highlighting the difference*, *reflecting the change*.
+- **Stacked hedges.** *Could potentially possibly be argued that it might* is
+  *may*. One hedge, or none.
+- **Forced structure.** Three items because three sounds right. *From X to Y*
+  where X and Y are not on one scale. Use the real number and name the real
+  things.
+- **Not just X, but Y.** Say Y.
+- **A bold label that restates its own line.** **Performance:** performance
+  improved. A bold lead-in is right when it names the item and what follows is
+  new.
+- **An ending that could end any page.** *The future looks bright.* A specific
+  fact, or nothing.
+- **A sentence that would be true of some other project's docs.** It says
+  nothing about this one. Cut it.
+
+Two well-known rules of this kind are deliberately not ours. Em dashes stay;
+they are part of how this project sounds. And no word is cut for sounding
+abstract when it is a name this project owns: `vantage`, `surface` and
+`harness` each have a page, and condition 5 already separates a name from
+style. Do not raise either again.
+
 **How to check a sentence.** Ask four things. Who says this. What makes it true.
 Which word is not meant literally. Which word would a good non-native speaker
 have to look up — and is that word a name, or is it style. Nothing here is
