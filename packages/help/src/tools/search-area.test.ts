@@ -48,9 +48,12 @@ function ask(args: Record<string, unknown>, walked: Tree | typeof NONE = TREE): 
 }
 
 describe('a start point', () => {
-  it('answers with the names in reach and not the ones out of it', () => {
+  it('answers with published names actually imported in the area', () => {
     const text = ask({ query: 'e', from: 'packages/beta/src/again.ts' });
-    expect(text).toContain('measure');
+    expect(text).toContain('Reading');
+    // The same barrel declares `measure`, but this branch never imports that
+    // name. File reachability alone would report it as part of the vocabulary.
+    expect(text).not.toContain('alpha · measure');
     // `behind` is one import away from beta's own index, and nothing `again.ts`
     // imports reaches it. A prefix rule over `packages/alpha/` would let it
     // through, which is exactly the rule this is not.
@@ -63,10 +66,21 @@ describe('a start point', () => {
     expect(text).not.toContain('measure');
   });
 
+  it('ranks and counts published names by use inside the area', () => {
+    const text = ask({ query: 'e', from: 'packages/beta/src/' });
+    expect(text).toContain('2 files, 2 imports in this area');
+    expect(text).toContain('files by distance: 0: 2');
+    expect(text).toContain('globally 1 package, 4 imports');
+    expect(text.indexOf('behind')).toBeLessThan(text.indexOf('Reading'));
+    expect(text.indexOf('Reading')).toBeLessThan(text.indexOf('measure'));
+  });
+
   it('answers the other direction with what reaches the destination', () => {
     const text = ask({ query: 'e', to: 'packages/alpha/src/deep.ts' });
     expect(text).toContain('deeper');
-    expect(text).not.toContain('measure');
+    // beta's index reaches the destination through `behind` and imports
+    // `measure` itself. A use-scoped answer therefore includes both names.
+    expect(text).toContain('measure');
   });
 
   it('unions the two directions rather than intersecting them', () => {

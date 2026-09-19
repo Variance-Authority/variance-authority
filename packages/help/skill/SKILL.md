@@ -247,11 +247,14 @@ carried — which part of the repository you are in:
 variance-authority-help search order --from src/fulfilment/
 ```
 
-`--from` answers only from the files that path reaches along the imports, at any
-depth. `--to` is the other direction and answers only from the files that reach
-it — reach for it when you hold the helper and want its callers. Give both and
-you get both areas together, combined rather than intersected: two entry points
-of one application usually share no file.
+`--from` follows the imports at any depth and answers with published names those
+files actually import, ordered by the number of importing files in that area.
+Each result reports those files by import distance from the start point beside
+the workspace-wide count. `--to` walks the other direction and does the same for
+files that reach the path — reach for it when you hold the helper and want its
+callers. Give both and you get both areas together, combined rather than
+intersected: two entry points of one application usually share no file. Internal
+exports have no import-site count, so they are admitted by the declaring file.
 
 A start point is a path in the checkout, at three widths and no others:
 `src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is

@@ -85,7 +85,8 @@ describe('a verb that names a path', () => {
   it('is handed the source tree, so `--from` means the same from a shell as over the wire', () => {
     const text = ask(READING, 'search', ['e', '--from', 'packages/beta/src/again.ts'], walk);
     expect(text).toContain('reachable from `packages/beta/src/again.ts`');
-    expect(text).toContain('measure');
+    expect(text).toContain('Reading');
+    expect(text).not.toContain('alpha · measure');
     expect(text).not.toContain('behind');
   });
 

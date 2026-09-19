@@ -1,6 +1,6 @@
 import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Entry, Help, Named } from '@variance-authority/package/help';
+import type { Entry, Help, Named, Use } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
 import { areaLine, areaOf } from './area.js';
 import { specifierOf } from './find.js';
@@ -40,8 +40,11 @@ import { line } from './format.js';
  * reader wanted the nine in one service, and the text cannot tell those apart
  * because the text is the same. What separates them is a fact the caller holds
  * and the query never carried — which part of the repository they are standing
- * in — so `from` and `to` take it as a path and the closure decides what may be
- * answered. See [`area.ts`](./area.ts): a boundary, not a preference.
+ * in — so `from` and `to` take it as a path. Published names are admitted only
+ * when a file in that closure imports them, then ranked by the number of
+ * importing files there. Internal exports have no import-site rows, so their
+ * declaring file remains the fact that admits them. See [`area.ts`](./area.ts):
+ * a boundary, not a preference.
  */
 
 /** Published matches shown before the answer says it stopped. */
@@ -52,6 +55,37 @@ const ELSEWHERE_CAP = 25;
 
 function matches(entry: Entry, query: string): boolean {
   return entry.name.toLowerCase().includes(query) || (entry.doc ?? '').toLowerCase().includes(query);
+}
+
+interface ScopedUse {
+  readonly sites: readonly Use[];
+  readonly files: number;
+  readonly byDistance: readonly (readonly [number, number])[];
+}
+
+/** Import sites of one published name that are actually written in the area. */
+function usedWithin(entry: Entry, area: ReturnType<typeof areaOf>): ScopedUse {
+  const sites = entry.sites.filter((site) => area.files.has(site.at));
+  const files = new Set(sites.map((site) => site.at));
+  const distance = new Map<number, number>();
+  for (const file of files) {
+    const hops = area.distance.get(file);
+    if (hops !== undefined) distance.set(hops, (distance.get(hops) ?? 0) + 1);
+  }
+  return { sites, files: files.size, byDistance: [...distance].sort(([a], [b]) => a - b) };
+}
+
+function scopedLine(entry: Entry, scoped: ScopedUse): string {
+  const said = entry.doc === undefined ? 'UNDOCUMENTED' : entry.doc.split('\n')[0];
+  const distances = scoped.byDistance.map(([at, files]) => `${at}: ${files}`).join(', ');
+  const fileWord = scoped.files === 1 ? 'file' : 'files';
+  const importWord = scoped.sites.length === 1 ? 'import' : 'imports';
+  const packageWord = entry.usedBy.length === 1 ? 'package' : 'packages';
+  const globalImportWord = entry.uses === 1 ? 'import' : 'imports';
+  return (
+    `${entry.name} [${entry.kind}] ${scoped.files} ${fileWord}, ${scoped.sites.length} ${importWord} in this area ` +
+    `(files by distance: ${distances}); globally ${entry.usedBy.length} ${packageWord}, ${entry.uses} ${globalImportWord} — ${said}`
+  );
 }
 
 /**
@@ -112,9 +146,10 @@ export const search: Tool<Help> = {
     'is published from so it can be passed straight to docs_symbol. Names the repository exports ' +
     'but does not publish follow, with the file and line that exports them. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
-    'you are standing: `from` a path answers only from the files that path reaches along the ' +
-    'imports, `to` a path only from the files that reach it. That removes names rather than ' +
-    'ranking them down, so an empty answer is a fact about the area.',
+    'you are standing: `from` a path answers with published names imported by the files that ' +
+    'path reaches, ordered by the importing files in that area; `to` does the same for files ' +
+    'that reach the path. Internal exports are filtered by their declaring file. An empty ' +
+    'answer is a fact about the area.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -155,17 +190,21 @@ export const search: Tool<Help> = {
     if (area?.refused !== undefined) return areaLine(area);
     const within = area?.files;
 
-    const found = [...everyEntry(help)]
+    const published = [...everyEntry(help)];
+    const found = published
       .filter(([, , entry]) => matches(entry, query))
-      .filter(([, , entry]) => within === undefined || within.has(entry.at))
+      .map(([owner, held, entry]) => [owner, held, entry, area === undefined ? undefined : usedWithin(entry, area)] as const)
+      .filter(([, , , scoped]) => scoped === undefined || scoped.sites.length > 0)
       .sort(
-        ([, , a], [, , b]) =>
+        ([, , a, scopedA], [, , b, scopedB]) =>
+          (scopedB?.files ?? 0) - (scopedA?.files ?? 0) ||
+          (scopedB?.sites.length ?? 0) - (scopedA?.sites.length ?? 0) ||
           b.usedBy.length - a.usedBy.length ||
           b.uses - a.uses ||
           (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
       );
 
-    const rest = elsewhere(help, query, new Set(found.map(([, , entry]) => entry.name)), within);
+    const rest = elsewhere(help, query, new Set(published.map(([, , entry]) => entry.name)), within);
 
     // Said before the counts and before the emptiness, because it is what the
     // counts are counts *of*. A reader told `nothing matches` without being told
@@ -192,7 +231,9 @@ export const search: Tool<Help> = {
         : [
             `${found.length} published ${found.length === 1 ? 'match' : 'matches'} for \`${query}\``,
             '',
-            ...shown.map(([owner, held, entry]) => `${specifierOf(owner, held)} · ${line(entry)}`),
+            ...shown.map(([owner, held, entry, scoped]) =>
+              `${specifierOf(owner, held)} · ${scoped === undefined ? line(entry) : scopedLine(entry, scoped)}`,
+            ),
             ...more,
           ];
 

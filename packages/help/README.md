@@ -142,12 +142,15 @@ part of the repository you are in. So `docs_search` takes it as a path:
 docs_search  query: order  from: src/fulfilment/
 ```
 
-`from` answers only from the files that path reaches along the imports, at any
-depth. `to` is the other direction, and answers only from the files that reach
-it — the one to reach for when you have the helper and want its callers. Give
-both and you get both areas, unioned: two entry points of one application share
-almost no file, so intersecting them would answer nothing about a question that
-named two places.
+`from` follows the imports at any depth, then answers with published names those
+files actually import. Results are ordered by the number of importing files in
+that area, and each line reports those files by import distance from the start
+point beside the workspace-wide count. `to` walks the other direction and does
+the same for files that reach the path — the one to reach for when you have the
+helper and want its callers. Give both and you get both areas, unioned: two entry
+points of one application share almost no file, so intersecting them would
+answer nothing about a question that named two places. Internal exports have no
+import-site count, so they are admitted by the declaring file instead.
 
 A path is a path, at three widths and no others — `src/a/File.ts` is that file,
 `src/a/*` is that folder's own files, `src/a/` is everything under it. A path

@@ -59,6 +59,8 @@ export interface Area {
   readonly entries: number;
   /** The closure: every file in reach, entry points included. */
   readonly files: ReadonlySet<string>;
+  /** Minimum import distance from either start point to every file in the closure. */
+  readonly distance: ReadonlyMap<string, number>;
   /** Files in it whose own imports the scan could not enumerate. */
   readonly unresolved: readonly string[];
   /** Why it was not resolved. Absent when it was. */
@@ -70,6 +72,7 @@ const NOWHERE = {
   to: [] as readonly string[],
   entries: 0,
   files: new Set<string>() as ReadonlySet<string>,
+  distance: new Map<string, number>() as ReadonlyMap<string, number>,
   unresolved: [] as readonly string[],
 };
 
@@ -105,13 +108,19 @@ export function areaOf(
   const refused = refusalFor([...down.unmatched, ...up.unmatched]);
   if (refused !== undefined) return { ...NOWHERE, from: down.found, to: up.found, refused };
 
-  const files = new Set([...tree.reachedFrom(down.files), ...tree.reaching(up.files)]);
+  const distance = new Map(tree.distanceFrom(down.files));
+  for (const [file, hops] of tree.distanceTo(up.files)) {
+    const held = distance.get(file);
+    if (held === undefined || hops < held) distance.set(file, hops);
+  }
+  const files = new Set(distance.keys());
 
   return {
     from: down.found,
     to: up.found,
     entries: new Set([...down.files, ...up.files]).size,
     files,
+    distance,
     unresolved: tree.unknownAmong(files),
   };
 }

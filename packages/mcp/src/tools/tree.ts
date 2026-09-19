@@ -69,6 +69,16 @@ export interface Tree {
    */
   reaching(seeds: Iterable<string>): ReadonlySet<string>;
   /**
+   * Minimum import distance from the seeds to every reachable file.
+   *
+   * A seed is at zero and every arrow adds one. This is deliberately not the
+   * weighted hop cost below: distance is a quantity a caller can check by
+   * counting imports, while cost is a ranking signal.
+   */
+  distanceFrom(seeds: Iterable<string>): ReadonlyMap<string, number>;
+  /** The same minimum distance against the arrows. */
+  distanceTo(seeds: Iterable<string>): ReadonlyMap<string, number>;
+  /**
    * Files whose imports could not be enumerated — an unreadable file, a
    * specifier nothing resolved.
    *
@@ -121,10 +131,49 @@ export function treeOf(
     files,
     reachedFrom: (seeds) => walk(relations, seeds, dependenciesOf),
     reaching: (seeds) => walk(relations, seeds, dependentsOf),
+    distanceFrom: (seeds) => distances(relations, seeds, dependenciesOf),
+    distanceTo: (seeds) => distances(relations, seeds, dependentsOf),
     unknownAmong: (among) => unknownAmong(relations, among),
     hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
     hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
   };
+}
+
+/** Minimum edge count to every reached file, recovered from the BFS forest. */
+function distances(
+  relations: Relations,
+  seeds: Iterable<string>,
+  direction: Direction,
+): ReadonlyMap<string, number> {
+  const reach = direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
+  const depths = new Int32Array(relations.names.length).fill(-1);
+  const found = new Map<string, number>();
+
+  for (const id of reach.reached) {
+    if (depths[id] === -1) {
+      const pending: NodeId[] = [];
+      let at: NodeId = id;
+      while (depths[at] === -1 && reach.via[at] !== -1) {
+        pending.push(at);
+        at = reach.via[at]!;
+      }
+
+      let depth = depths[at]!;
+      if (depth === -1) {
+        depth = 0;
+        depths[at] = depth;
+      }
+      while (pending.length > 0) {
+        const next = pending.pop()!;
+        depth += 1;
+        depths[next] = depth;
+      }
+    }
+
+    if (nodeAt(relations, id)?.kind === 'file') found.set(relations.names[id]!, depths[id]!);
+  }
+
+  return found;
 }
 
 function idsOf(relations: Relations, seeds: Iterable<string>): readonly NodeId[] {

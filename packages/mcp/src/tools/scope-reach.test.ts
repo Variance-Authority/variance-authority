@@ -402,6 +402,18 @@ describe('a start point reaches the arrangement too', () => {
 });
 
 describe('how far in, recorded beside the closure', () => {
+  it('counts ordinary import distance separately from weighted hop cost', () => {
+    const distance = TREE.distanceFrom(['src/billing/InvoiceTable.tsx']);
+    expect(distance.get('src/billing/InvoiceTable.tsx')).toBe(0);
+    expect(distance.get('src/billing/total.ts')).toBe(1);
+    expect(distance.get('src/lib/round.ts')).toBe(2);
+    expect(distance.get('src/lib/precision.ts')).toBe(3);
+  });
+
+  it('counts the same number of arrows against the graph', () => {
+    expect(TREE.distanceTo(['src/lib/precision.ts']).get('src/billing/InvoiceTable.tsx')).toBe(3);
+  });
+
   it('sums the arrows along the way, in half-hops', () => {
     // `InvoiceTable.tsx` → `total.ts` is the same folder, 1. `total.ts` →
     // `src/lib/round.ts` is sideways, 1.5. `round.ts` → `precision.ts` is the
