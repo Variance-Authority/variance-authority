@@ -145,14 +145,17 @@ async function scan(label) {
     counted.parsed += 1;
     session.cache.set(digest, parsed);
   };
-  const reuse = {
-    under: (shape) => session.reuse.under(shape),
-    get: (file, digest) => {
-      const record = session.reuse.get(file, digest);
-      counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
-      return record;
-    },
-    set: (record, witnesses) => session.reuse.set(record, witnesses),
+  // Delegated for the same reason the parse cache above is, and not merely for
+  // tidiness: written out as a literal, this wrapper forwarded a `set` of two
+  // arguments to a `set` that takes three and dropped every resolved target on
+  // the way through, and it had no `getIndexed` at all once the scan started
+  // asking for one. A counter belongs on the door, not in front of the wall.
+  const reuse = Object.create(session.reuse);
+  reuse.getIndexed = (file, digest) => {
+    const record = session.reuse.getIndexed(file, digest);
+    counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
+
+    return record;
   };
   const [scanning, records] = await took(() => scanRelations({ root: REPO, dirs: DIRS, cache, reuse }));
   const [saving] = await took(() => session.save());

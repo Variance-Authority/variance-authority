@@ -65,22 +65,33 @@ async function scan(root, cacheRoot) {
 function meter(cache) {
   const stats = { lookups: 0, hits: 0, writes: 0 };
 
-  return {
-    stats,
-    cache: {
-      get(...args) {
-        stats.lookups += 1;
-        const value = cache.get(...args);
-        if (value !== undefined) stats.hits += 1;
-        return value;
-      },
-      set(...args) {
-        stats.writes += 1;
-        return cache.set(...args);
-      },
-      ...(cache.under === undefined ? {} : { under: (...args) => cache.under(...args) }),
-    },
+  // Delegation rather than a list of forwarded methods. A wrapper that
+  // enumerates what it passes through silently drops whatever the interface
+  // grows next, and the scan sees a cache missing a method rather than a
+  // counter missing a case.
+  const counted = Object.create(cache);
+
+  // Both reads are counted into one pair of numbers because they are one
+  // question asked twice over: `get` wants the record, `getIndexed` wants the
+  // record and what resolved it. A scan asks whichever it needs, and what this
+  // demo reports is how often the cache answered.
+  const reading = (name) => (...args) => {
+    stats.lookups += 1;
+    const value = cache[name](...args);
+    if (value !== undefined) stats.hits += 1;
+
+    return value;
   };
+
+  counted.get = reading('get');
+  if (cache.getIndexed !== undefined) counted.getIndexed = reading('getIndexed');
+  counted.set = (...args) => {
+    stats.writes += 1;
+
+    return cache.set(...args);
+  };
+
+  return { stats, cache: counted };
 }
 
 export async function runDemo() {
