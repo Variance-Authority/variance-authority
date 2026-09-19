@@ -4,15 +4,36 @@
  * Build the native scanner, and put it where the loader looks.
  *
  * `cargo` produces a `cdylib` under its own name and extension; Node loads a
- * `.node`, which is the same Mach-O or ELF object under a different suffix. The
- * copy is the whole build step — there is no bundler here, no generated
- * bindings and no platform packages, because the addon is internal to this
- * package and is loaded only when it is there.
+ * `.node`, which is the same Mach-O, ELF or PE object under a different suffix.
+ * The copy is the whole build step — there is no bundler here and no generated
+ * bindings.
+ *
+ * Where the copy lands is the one decision this script makes. A platform we
+ * publish for has a package under `npm/`, and the binary goes into it: that is
+ * the same directory a consumer's package manager unpacks, so this checkout and
+ * an install resolve the addon by the identical path and there is no
+ * development-only loading path to keep working. A platform we do not publish
+ * for has nowhere like that to write, so the binary goes to `dist/native/`,
+ * which is the loader's second attempt and this script's only reason to have
+ * one: somebody on Linux arm64 who compiles gets an accelerated scan without a
+ * package existing for them.
+ *
+ * `--target <triple>` cross-compiles, which is how the release matrix fills the
+ * three packages from three runners.
+ *
+ * One binary per platform, built for the floor of it: `rustc` builds
+ * `aarch64-apple-darwin` for `apple-m1`, which every Apple Silicon Mac runs.
+ * Narrowing that to a later core was measured and did not pay — what a newer
+ * machine wants is a different number of workers, which is a runtime decision.
+ *
+ * `SENSE_TARGET_CPU` appends a `-C target-cpu`, which is the knob that says so
+ * again when a generation lands; `scripts/tuned-cost.mjs` is what drives it.
  *
  * A missing toolchain is not a failure. The JavaScript scanner is the
  * implementation of record and the native one is an acceleration of it, so a
  * checkout without `cargo` builds, tests and scans — it scans slower, and
- * `native.test.ts` says which half ran.
+ * `native.test.ts` says which half ran. A missing toolchain for a target that
+ * was *asked for* is a failure, because somebody asking for one wanted it.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -22,33 +43,96 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** Where `cargo` writes, and what it calls the artifact on this platform. */
-const ARTIFACT = {
+/**
+ * Every target we publish a package for, by the Rust triple that builds it.
+ *
+ * `package` is the directory under `npm/`, and `tools/native-packages.check.ts`
+ * holds it against the manifest's `optionalDependencies` and the loader's own
+ * table. `artifact` is what `cargo` calls the `cdylib` on that platform.
+ */
+const TARGETS = {
+  'aarch64-apple-darwin': { package: 'darwin-arm64', artifact: 'libsense_native.dylib' },
+  'x86_64-unknown-linux-gnu': { package: 'linux-x64-gnu', artifact: 'libsense_native.so' },
+  'x86_64-pc-windows-msvc': { package: 'win32-x64-msvc', artifact: 'sense_native.dll' },
+};
+
+/** What `cargo` calls the artifact on this host, for a target nobody named. */
+const HOST_ARTIFACT = {
   darwin: 'libsense_native.dylib',
   linux: 'libsense_native.so',
   win32: 'sense_native.dll',
 }[process.platform];
 
-const cargo = process.env['CARGO'] ?? join(process.env['HOME'] ?? '', '.cargo', 'bin', 'cargo');
-const found = spawnSync(cargo, ['--version'], { stdio: 'ignore' });
+const at = process.argv.indexOf('--target');
+const target = at === -1 ? undefined : process.argv[at + 1];
 
-if (found.status !== 0) {
+if (at !== -1 && (target === undefined || !(target in TARGETS))) {
+  console.error(`sense: no such target \`${target}\` — one of ${Object.keys(TARGETS).join(', ')}`);
+  process.exit(1);
+}
+
+/**
+ * `cargo`, from `PATH` first and from rustup's own directory second.
+ *
+ * The second is what a `yarn build` in a shell that never sourced
+ * `~/.cargo/env` needs, and the first is what a CI runner with rustup already
+ * on `PATH` has — including Windows, where `HOME` is not the variable holding
+ * the home directory and the constructed path is not one.
+ */
+const cargo = [process.env['CARGO'], 'cargo', join(process.env['HOME'] ?? '', '.cargo', 'bin', 'cargo')]
+  .filter((candidate) => candidate !== undefined && candidate !== '')
+  .find((candidate) => spawnSync(candidate, ['--version'], { stdio: 'ignore' }).status === 0);
+
+if (cargo === undefined) {
+  if (target !== undefined) {
+    console.error(`sense: no cargo, so ${target} cannot be built`);
+    process.exit(1);
+  }
   console.log('sense: no cargo on PATH, skipping the native scanner');
   process.exit(0);
 }
 
-if (ARTIFACT === undefined) {
+if (target === undefined && HOST_ARTIFACT === undefined) {
   console.log(`sense: no native scanner for ${process.platform}, skipping`);
   process.exit(0);
 }
 
-const built = spawnSync(cargo, ['build', '--release'], { cwd: here, stdio: 'inherit' });
-if (built.status !== 0) process.exit(built.status ?? 1);
+/**
+ * One `cargo build --release`, optionally narrowed to a microarchitecture.
+ *
+ * A `target-cpu` changes the code for every crate in the graph, so cargo treats
+ * it as a different build and the two do not share artifacts. That is what a
+ * measurement of one costs: a full build, not a relink.
+ */
+function build(cpu) {
+  const flags = [process.env['RUSTFLAGS'] ?? '', cpu === undefined ? '' : `-C target-cpu=${cpu}`]
+    .filter((part) => part !== '')
+    .join(' ');
+  const run = spawnSync(
+    cargo,
+    ['build', '--release', ...(target === undefined ? [] : ['--target', target])],
+    { cwd: here, stdio: 'inherit', env: { ...process.env, ...(flags === '' ? {} : { RUSTFLAGS: flags }) } },
+  );
+  if (run.status !== 0) process.exit(run.status ?? 1);
 
-const from = join(here, 'target', 'release', ARTIFACT);
-const into = join(here, '..', 'dist', 'native');
+  const artifact = target === undefined ? HOST_ARTIFACT : TARGETS[target].artifact;
+
+  return join(here, 'target', ...(target === undefined ? [] : [target]), 'release', artifact);
+}
+
+const from = build(process.env['SENSE_TARGET_CPU']);
+
+// A host build lands in its own package when we publish one for this host, and
+// in `dist/native/` when we do not.
+const forHost = Object.values(TARGETS).find(({ package: name }) =>
+  name.startsWith(`${process.platform}-${process.arch}`),
+);
+const published = target === undefined ? forHost?.package : TARGETS[target].package;
+const into =
+  published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
+
 mkdirSync(into, { recursive: true });
 copyFileSync(from, join(into, 'scan.node'));
 
-console.log(`sense: native scanner at ${join(into, 'scan.node')}`);
 if (!existsSync(join(into, 'scan.node'))) process.exit(1);
+console.log(`sense: native scanner at ${join(into, 'scan.node')}`);

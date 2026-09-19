@@ -11,12 +11,13 @@ needs, and what happens on a machine where a binary does not arrive.
 
 ## What installs
 
-Four pieces of compiled code sit under a run, and three of them arrive with the
+Five pieces of compiled code sit under a run, and four of them arrive with the
 install.
 
 | Piece | What it does | How it arrives |
 |---|---|---|
 | [oxc](https://oxc.rs) — `oxc-parser`, `oxc-resolver` | parses and resolves every module in the [source index](source-index.md) | prebuilt `.node` addon, chosen by a per-platform optional dependency of each package |
+| the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript | the same way: one optional dependency per platform, named for the platform it carries |
 | `sharp`, through [`@variance-authority/png-sharp`](../packages/png-sharp) | decodes screenshots for the raster comparison | the same way: `sharp` resolves one prebuilt libvips addon for your platform |
 | zstd, SHA-256 | compresses the selection index, digests documents | already in Node, as `node:zlib` and `node:crypto` |
 | Chromium | paints the pages you compare | `npx playwright install chromium`, a separate step you already run |
@@ -28,8 +29,9 @@ directly instead of the CLI, that choice is yours to make:
 `@variance-authority/png` alone needs only `Buffer`, and `png-sharp` is a
 separate install.
 
-Measured on macOS arm64, the compiled addons come to roughly 18 MB —
-libvips is 15 MB of it, and the two oxc bindings are about 1.5 MB each.
+Measured on macOS arm64, the compiled addons come to roughly 25 MB —
+libvips is 15 MB of it, the two oxc bindings are about 1.5 MB each, and the
+scanner is 3.4 MB.
 Your package manager unpacks one platform's binaries, not the matrix.
 Playwright's Chromium dwarfs all of it at a few hundred megabytes, and it is
 downloaded into Playwright's own cache rather than into `node_modules`.
@@ -40,9 +42,18 @@ middle option to reach for.
 
 ### Platforms and architectures
 
-The addons ship binaries for macOS on arm64 and x64, Linux on x64 and arm64
-against both glibc and musl, and Windows on x64 and arm64. oxc also publishes
-FreeBSD x64, 32-bit Windows, and Linux on ppc64, riscv64 and s390x.
+The third-party addons ship binaries for macOS on arm64 and x64, Linux on x64
+and arm64 against both glibc and musl, and Windows on x64 and arm64. oxc also
+publishes FreeBSD x64, 32-bit Windows, and Linux on ppc64, riscv64 and s390x.
+
+The scanner ships three: **macOS arm64**, **Linux x64 against glibc**, and
+**Windows x64**. That covers an Apple Silicon laptop, a GitHub or Bitbucket
+Linux runner, and a Windows desktop, and it is a short list because it can
+afford to be — see *When a binary does not arrive* below.
+
+One binary per platform, built for the oldest machine that platform runs on. On
+Apple Silicon that is the M1 instruction set, and an M4 loads the same file:
+what a faster machine gives the scan is cores, which it reads at runtime.
 
 `oxc-parser`, `oxc-resolver` and `sharp` each publish a musl build for x64 and
 arm64, so on Alpine and other musl images the usual failure — an addon that
@@ -74,13 +85,18 @@ comparable to each other, so where you paint is a choice with consequences.
 Two installs skip optional dependencies: `npm install --omit=optional`, and a
 lockfile resolved on one platform and installed on another without that
 platform's entries in it. Both leave the JavaScript wrappers in place and the
-`.node` files missing, and they split the two addons apart:
+`.node` files missing, and what that costs is not the same for each addon:
 
 - **Decoding degrades.** The default `decoder: "auto"` catches the failed load
   and uses `pngjs` — the same verdicts, a slower run. `decoder: "sharp"` fails
   the run by name and says the addon would not load.
 - **Parsing does not degrade.** oxc has no fallback, so a command that builds
   the source index fails rather than building a smaller one.
+- **Scanning degrades.** The TypeScript scanner is the implementation of record
+  and the addon is an acceleration of it, held to the same answers by
+  differential tests. A machine outside the three platforms — a Linux arm64
+  runner, an Alpine image, an Intel Mac — builds the same source index from the
+  same checkout, and pays what the TypeScript scan costs to build it.
 
 If you want the binaries, install without `--omit=optional` and resolve your
 lockfile so it carries entries for every platform you install on. If you want

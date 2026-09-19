@@ -22,6 +22,13 @@ dist
 *.tsbuildinfo
 docs-examples
 
+# The prebuilt scanner, per platform package — one binary for the floor of the
+# platform and, where there is one, a second for a newer machine. The manifests
+# beside them are the published thing and are tracked; the binaries are produced
+# by `native/build.mjs` on a machine or a release runner, and a copy in git would
+# be a fourth answer to which bytes ship.
+packages/sense/npm/*/*.node
+
 # The two copies of `dist` the probe-overhead benchmark compares. Inside the
 # package because a bare specifier only resolves from somewhere `node_modules` is
 # reachable, and removed in a `finally` — this catches an interrupted run.

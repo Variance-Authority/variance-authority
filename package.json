@@ -9,6 +9,7 @@
   },
   "workspaces": [
     "packages/*",
+    "packages/sense/npm/*",
     "examples/*",
     "cases/*"
   ],

@@ -23,6 +23,13 @@
 # Granular tokens that bypass two-factor lose the ability to publish in January
 # 2027 in any case, so a token here would be a thing to migrate off later.
 #
+# A trusted publisher is configured on a package that already exists, so the
+# first version of a *new* name — each of the three
+# `@variance-authority/sense-<platform>` packages, the next time a package is
+# added — is published by a person from a machine, once, and the publisher is
+# configured afterwards. This workflow cannot bootstrap a name it has never
+# published; it will fail the exchange and say so.
+#
 # The version itself is derived — `.changeset/config.json` holds all packages in
 # one `fixed` group, because they are one product with `workspace:^` between
 # them. `changeset publish` reads the package manager from the workspace and
@@ -85,11 +92,79 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ---------------------------------------------------------------------------
+  # On the button: compile the scanner once per platform we publish one for.
+  #
+  # Three runners, three `@variance-authority/sense-<platform>` packages, and
+  # nothing built on an adopter's machine. `sense` names all three as optional
+  # dependencies, so a package manager unpacks the one it matches and silently
+  # skips the two it does not — which is also why a broken matrix is invisible
+  # rather than red, and why `tools/native-packages.check.ts` exists.
+  #
+  # The matrix is deliberately three and not nine. The TypeScript scanner is the
+  # implementation of record (ADR-0065), so a platform outside this list runs the
+  # same scan more slowly and never a different one. That makes each addition a
+  # thing to justify with a machine somebody actually ships from, rather than a
+  # completeness exercise paid for on every release.
+  #
+  # One binary per platform, built for the oldest machine it must load on —
+  # rustc's default for `aarch64-apple-darwin` is `apple-m1`, the floor of Apple
+  # Silicon. Narrowing macOS to a later core was measured and did not pay, and it
+  # could not have been done in place: `-C target-cpu=apple-m4` produces a
+  # package that will not run on an M1 at all. What a newer Mac wants is a
+  # different number of workers, which the scanner decides at runtime.
+  # `packages/sense/scripts/tuned-cost.mjs` is what re-asks the code-generation
+  # half of that when a generation lands.
+  # ---------------------------------------------------------------------------
+  native:
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      # One platform failing to compile is a release that must not go out half
+      # built, and a matrix that keeps going would spend ten minutes proving it.
+      fail-fast: true
+      matrix:
+        include:
+          - platform: darwin-arm64
+            runner: macos-15
+            target: aarch64-apple-darwin
+          - platform: linux-x64-gnu
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - platform: win32-x64-msvc
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The runners carry rustup; the toolchain file beside the crate pins the
+      # channel. Only the target has to be asked for, and on the runner that is
+      # already native to it this is a no-op.
+      - run: rustup target add ${{ matrix.target }}
+
+      # No `yarn install`. This builds a Rust crate and copies the result — it
+      # needs neither the workspace's dependencies nor its `dist/`.
+      - run: node packages/sense/native/build.mjs --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scan-${{ matrix.platform }}
+          # Every binary the platform built, because how many there are is the
+          # build script's decision and not this file's.
+          path: packages/sense/npm/${{ matrix.platform }}/*.node
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
   # On the button: publish what the manifests already carry.
   # ---------------------------------------------------------------------------
   publish:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    needs: native
     # The environment name is load-bearing twice over: GitHub can hold the run
     # here for a reviewer, and npm's trusted publisher for every package names
     # this environment, this repository and this workflow's filename. Rename any
@@ -137,6 +212,39 @@ jobs:
       # makes the tarballs non-empty. A publish from a clean checkout without it
       # ships empty packages.
       - run: yarn build
+
+      # After the build, deliberately. `yarn build` runs the native build script,
+      # which on this runner would compile a fourth Linux binary over the one the
+      # matrix produced — so the download goes last and the bytes that ship are
+      # the bytes that were built on the platform they are for.
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: scan-*
+          path: native-artifacts
+
+      - name: Every platform package carries its binaries
+        run: |
+          wrong=()
+          for platform in darwin-arm64 linux-x64-gnu win32-x64-msvc; do
+            # Each manifest's `files` is the list, so a package that gains a
+            # second binary is guarded here without this file being edited.
+            for binary in $(node -p "require('./packages/sense/npm/$platform/package.json').files.join(' ')"); do
+              from="native-artifacts/scan-$platform/$binary"
+              # A truncated upload publishes a package that resolves and will not
+              # load, which the loader catches and nobody ever sees. The scanner
+              # is megabytes; anything under one is not one.
+              if [ ! -s "$from" ] || [ "$(wc -c <"$from")" -lt 1000000 ]; then
+                wrong+=("$platform/$binary")
+                continue
+              fi
+              cp "$from" "packages/sense/npm/$platform/$binary"
+            done
+          done
+          if [ ${#wrong[@]} -gt 0 ]; then
+            printf '%s\n' "no usable scanner was built for:" "${wrong[@]}"
+            exit 1
+          fi
+          ls -l packages/sense/npm/*/*.node
 
       - run: yarn verify
 

@@ -1,0 +1,34 @@
+{
+  "name": "@variance-authority/sense-darwin-arm64",
+  "version": "0.2.0",
+  "description": "The prebuilt source scanner @variance-authority/sense loads on macOS arm64.",
+  "keywords": [
+    "variance-authority",
+    "napi",
+    "prebuilt",
+    "darwin",
+    "arm64"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/sense",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/sense/npm/darwin-arm64"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "scan.node",
+  "files": [
+    "scan.node"
+  ]
+}

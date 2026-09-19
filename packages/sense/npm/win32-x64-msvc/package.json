@@ -1,0 +1,34 @@
+{
+  "name": "@variance-authority/sense-win32-x64-msvc",
+  "version": "0.2.0",
+  "description": "The prebuilt source scanner @variance-authority/sense loads on Windows x64.",
+  "keywords": [
+    "variance-authority",
+    "napi",
+    "prebuilt",
+    "win32",
+    "x64"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/sense",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/sense/npm/win32-x64-msvc"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "scan.node",
+  "files": [
+    "scan.node"
+  ]
+}

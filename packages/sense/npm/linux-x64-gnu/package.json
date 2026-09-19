@@ -1,0 +1,37 @@
+{
+  "name": "@variance-authority/sense-linux-x64-gnu",
+  "version": "0.2.0",
+  "description": "The prebuilt source scanner @variance-authority/sense loads on Linux x64 against glibc.",
+  "keywords": [
+    "variance-authority",
+    "napi",
+    "prebuilt",
+    "linux",
+    "x64"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/sense",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/sense/npm/linux-x64-gnu"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "main": "scan.node",
+  "files": [
+    "scan.node"
+  ]
+}

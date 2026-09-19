@@ -4537,6 +4537,24 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/sense-darwin-arm64@workspace:*, @variance-authority/sense-darwin-arm64@workspace:packages/sense/npm/darwin-arm64":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/sense-darwin-arm64@workspace:packages/sense/npm/darwin-arm64"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/sense-linux-x64-gnu@workspace:*, @variance-authority/sense-linux-x64-gnu@workspace:packages/sense/npm/linux-x64-gnu":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/sense-linux-x64-gnu@workspace:packages/sense/npm/linux-x64-gnu"
+  languageName: unknown
+  linkType: soft
+
+"@variance-authority/sense-win32-x64-msvc@workspace:*, @variance-authority/sense-win32-x64-msvc@workspace:packages/sense/npm/win32-x64-msvc":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/sense-win32-x64-msvc@workspace:packages/sense/npm/win32-x64-msvc"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/sense@workspace:^, @variance-authority/sense@workspace:packages/sense":
   version: 0.0.0-use.local
   resolution: "@variance-authority/sense@workspace:packages/sense"
@@ -4546,6 +4564,9 @@ __metadata:
     "@swc/jest": "npm:^0.2.39"
     "@types/picomatch": "npm:^4.0.3"
     "@variance-authority/core": "workspace:^"
+    "@variance-authority/sense-darwin-arm64": "workspace:*"
+    "@variance-authority/sense-linux-x64-gnu": "workspace:*"
+    "@variance-authority/sense-win32-x64-msvc": "workspace:*"
     "@variance-authority/wire": "workspace:^"
     jest: "npm:^30.5.1"
     oxc-parser: "npm:^0.144.0"
@@ -4553,6 +4574,13 @@ __metadata:
     picomatch: "npm:^4.0.7"
   peerDependencies:
     vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
+  dependenciesMeta:
+    "@variance-authority/sense-darwin-arm64":
+      optional: true
+    "@variance-authority/sense-linux-x64-gnu":
+      optional: true
+    "@variance-authority/sense-win32-x64-msvc":
+      optional: true
   peerDependenciesMeta:
     vitest:
       optional: true
