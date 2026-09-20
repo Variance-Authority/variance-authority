@@ -206,12 +206,18 @@ describe('instrumented code does what the original did', () => {
     expect(instrumented?.code.split('\n')).toHaveLength(source.split('\n').length);
   });
 
-  it('names the situation when no collector is installed', () => {
+  it('stops the run when no collector is installed', () => {
+    // The probe carries no check, so this is the engine's own throw at the
+    // module probe rather than a sentence this package wrote. What matters is
+    // unchanged: a module instrumented where the collector never arrived fails
+    // instead of quietly recording nothing.
     const source = `function f(n) { if (n) out.push('y'); } f(1); f(0);`;
     const instrumented = instrument(source, 'fixture.js');
 
+    // Matched by message rather than by constructor: the throw belongs to the
+    // realm the module ran in, and its `TypeError` is not this one.
     expect(() => runInContext(instrumented!.code, realm([]), { filename: 'fixture.js' })).toThrow(
-      /fixture\.js was instrumented for test selection, but the counter factory globalThis\.__VA__/,
+      /Cannot read properties of undefined/,
     );
   });
 

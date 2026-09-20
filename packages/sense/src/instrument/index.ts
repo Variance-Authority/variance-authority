@@ -25,13 +25,28 @@
  * reading the same file all still agree about line numbers. Columns shift, which
  * is what a source map would exist to fix, and which nothing yet needs.
  *
- * ## The runtime is a required global
+ * ## The runtime is a required global, and the probe does not check
  *
  * The emitted header resolves `globalThis.__VA__` on first use. An instrumented
- * module with no collector throws at its first probe, making an incomplete runner
- * configuration visible rather than silently dropping evidence. It names the file
- * and the situation rather than letting the absent global surface as
- * `__VA__ is not a function` — see `missing-factory.test.ts` for the sentence.
+ * module with no collector throws at its first probe, which is what makes an
+ * incomplete runner configuration visible rather than silently dropping
+ * evidence, and the throw is the engine's: `g.s` on `undefined`.
+ *
+ * There was a guarded version of this — `g && g.s`, a `typeof` on the resolved
+ * factory, and a sentence per module naming the file and the fix. It is gone
+ * on purpose. A probe runs once per region per entry and a suite runs them by
+ * the hundred million, so nothing sits in it that is not part of the
+ * observation: no test that passes on every hit but one, and no string
+ * constant per module carried through parse, compile and bundle to be read
+ * once, by nobody, in a configuration that is already broken. The states it
+ * described are still reachable and still fatal — the first probe still stops
+ * the run — and the reader gets a `TypeError` and a file name instead of a
+ * paragraph.
+ *
+ * `__va.c === undefined` went with them, and that one was never defence.
+ * `__va.r` starts `undefined`, no factory is `undefined`, so the identity test
+ * already answers the first call; the extra load and compare were redundant on
+ * every hit after it.
  *
  * ## The scope resolver, and why it is not a getter
  *
@@ -200,7 +215,7 @@ export function instrument(
   if (parsed.errors.length > 0) return undefined;
 
   const walked = walkBlocks(parsed.program, source, PROBES, mode);
-  const header = runtime(id, file, walked.blocks.length);
+  const header = runtime(id, walked.blocks.length);
 
   // The window closes after the last top-level statement, never at the end of
   // the text: a trailing comment would swallow the call. A module with no body
@@ -270,35 +285,13 @@ const PROBES = {
  * counts the module's own block once, the way evaluation would have: the file
  * entered this module, and an edit to its top level is an edit that file ran.
  */
-/**
- * What an instrumented module says when it finds no counter factory.
- *
- * The situation, not the symptom: `globalThis.__VA__ is not a function` names a
- * missing global and leaves the reader to discover that the global belongs to a
- * transform they did not ask for on a file they did not expect it on. The
- * common cause is a file that runs in a context the setup shim never
- * initialised — a Vitest `globalSetup`, a config file, a build script — and the
- * fix is to stop instrumenting it.
- *
- */
-function missingFactory(file: string): string {
-  return (
-    `${file} was instrumented for test selection, but the counter factory globalThis.__VA__ ` +
-    'is not installed in this context. An instrumented module ran outside the test environment ' +
-    'the setup shim initialises: a Vitest globalSetup file, a config file, a build script, or a ' +
-    'runner this seam does not set up. Narrow the `include` option of withTestSelection so this ' +
-    'file is not instrumented.'
-  );
-}
-
-function runtime(id: ModuleId, file: string, count: number): string {
+function runtime(id: ModuleId, count: number): string {
   const module = typeof id === 'number' ? String(id) : JSON.stringify(id);
-  const absent = JSON.stringify(missingFactory(file));
 
   return (
-    `function __va(i){const g=globalThis.__VA__;const r=g&&g.s?g.s():g;if(__va.c===undefined||__va.r!==r){if(typeof r!=='function')throw new Error(${absent});const again=__va.c!==undefined;__va.r=r;__va.c=r(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
+    `function __va(i){const g=globalThis.__VA__;const r=g.s?g.s():g;if(__va.r!==r){const again=__va.c!==undefined;__va.r=r;__va.c=r(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
     `function __vaR(v,i){__va(i);return v}` +
-    `function __vaE(){const g=globalThis.__VA__;const r=g&&g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
+    `function __vaE(){const g=globalThis.__VA__;const r=g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
     `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`
   );
 }

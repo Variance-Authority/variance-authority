@@ -92,12 +92,14 @@
     "!dist/native",
     "mark.svg",
     "scripts/overhead.mjs",
+    "scripts/probe-write.mjs",
     "skill"
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",
     "storage": "node scripts/storage.mjs",
     "overhead": "node scripts/overhead.mjs",
+    "probe-write": "node scripts/probe-write.mjs",
     "records": "node scripts/records.mjs",
     "coverage": "node scripts/coverage.mjs",
     "native": "node scripts/native.mjs",
