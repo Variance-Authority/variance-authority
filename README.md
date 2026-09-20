@@ -233,6 +233,11 @@ above.
 
 ## Related projects
 
+Two questions meet in this repository — *what did this change look like* and
+*what did this change reach* — and each has its own prior art.
+
+### Visual review
+
 - [**Chromatic**](https://www.chromatic.com/) — hosted visual review built
   around Storybook, with TurboSnap deciding from the module graph which stories
   a change can reach. We ran on it for years, and it is still the reference for
@@ -242,13 +247,41 @@ above.
   screenshot stabilization and masking is cited in
   [our own notes on flakiness](docs/flakiness.md) and
   [ignores](docs/ignores.md).
+- [**testivai**](https://testiv.ai/) — local-first visual regression that pairs
+  every screenshot with a DOM and computed-style snapshot so a diff arrives as a
+  verdict rather than red pixels. The nearest thing to this project in spirit.
+
+### Coverage, graphs, and test selection
+
+- [**Wallaby.js**](https://wallabyjs.com/) — the deepest work anyone has done on
+  per-test coverage. It instruments your source, keeps a matrix of which test
+  entered which region, and re-runs the minimal affected set as you type; a line
+  answers which tests reached it, in what order, carrying which values, and a
+  profiler and a time-travel debugger read the same instrumentation. Nothing
+  about per-test coverage or fine-grained selection is novel, and Wallaby is why.
+  The difference is what the relation is *for*: Wallaby owns a live execution
+  world and keeps it valid from keystroke to keystroke, and the
+  [execution record](docs/execution-record.md) here is the same relation written
+  down — a durable dataset a reviewer, a CI job, or a machine that never ran the
+  suite can query later.
+- [**Istanbul / nyc**](https://istanbul.js.org/) — the instrumentation and the
+  file format the rest of the ecosystem reads. This repository runs V8's
+  counters over its own suite for exactly that reason: a percentage from a
+  counter with no stake in our answer.
+- **Jest `--changedSince`, Vitest `--changed`, Playwright `--only-changed`** —
+  selection from the import graph, which needs no recording and cannot see a
+  route the graph does not carry.
+  [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
+  is where the two readings part.
+- [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
+  [**Bazel**](https://bazel.build/) — selection at the project or target grain,
+  from dependencies you declare rather than executions anyone observed. Coarse,
+  correct, and orthogonal: they decide which packages to build, and the record
+  decides which tests inside one of them had a reason to run.
 - [**TraceDecay**](https://github.com/ScriptedAlchemy/tracedecay) — source
   extraction across some sixty languages into one graph. The same appetite for
   reading a whole polyglot repository that
   [`variance reach`](docs/polyglot.md) has.
-- [**testivai**](https://testiv.ai/) — local-first visual regression that pairs
-  every screenshot with a DOM and computed-style snapshot so a diff arrives as a
-  verdict rather than red pixels. The nearest thing to this project in spirit.
 
 ## Licence
 
