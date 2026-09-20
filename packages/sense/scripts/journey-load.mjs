@@ -94,7 +94,8 @@ if (!collector.collecting) { console.error('the head did not install'); process.
  */
 const probeFor = (module) => {
   const probe = (ordinal) => {
-    const factory = globalThis.__VA__;
+    const held = globalThis.__VA__;
+    const factory = held && held.s ? held.s() : held;
     if (probe.c === undefined || probe.r !== factory) {
       probe.r = factory;
       probe.c = factory(module, counts[module]);

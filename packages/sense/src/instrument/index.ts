@@ -33,6 +33,40 @@
  * and the situation rather than letting the absent global surface as
  * `__VA__ is not a function` — see `missing-factory.test.ts` for the sentence.
  *
+ * ## The scope resolver, and why it is not a getter
+ *
+ * A collector that attributes crossings to an async scope — a test case
+ * ([`cases.ts`](../test-selection/cases.ts)) or a service journey
+ * ([`journey.ts`](../test-selection/journey.ts)) — needs a different factory per
+ * scope, and the probe's cache invalidates on the factory's identity, so the
+ * obvious install is an accessor on the realm. It is the most expensive property
+ * in the process. Measured one shape to a process, fifty million hits inside a
+ * real async scope on the machine
+ * [`docs/context`](../../../../docs/context/README.md) names: an accessor on
+ * `globalThis` that looked the factory up by the key in its store cost
+ * **12.6 ns** a hit, against **1.4 ns** for the flat probe over a data property.
+ * A global accessor defeats the inline cache the probe is otherwise entirely
+ * made of, and a probe runs once per region per entry.
+ *
+ * So `__VA__` stays a data property, and the scope lives one level in, on the
+ * factory's own `s`: a function answering *which factory owns the scope running
+ * now*. The probe calls it when it is there and answers with the factory itself
+ * when it is not, and the store holds the factory rather than a key to look one
+ * up by. That is **6.7 ns** scoped, near half the accessor's price. Every
+ * collector defines `s`, absent being spelled `undefined` rather than missing,
+ * so the load reads one shape whichever collector is installed.
+ *
+ * What is left is not ours. Of those 6.7 ns, **5.3** are
+ * `AsyncLocalStorage.getStore()` — 5.0 ns inside a frame against 0.79 ns
+ * outside any, and flat regardless of how deep the frames nest. Hand the same
+ * probe a closure variable instead of a store and it reads **1.4 ns**, the flat
+ * price: the probe is free and the continuation read is the whole cost. The one
+ * way to pay it less often is to propagate the scope ourselves through
+ * `async_hooks`, which costs **444 ns** an `await` against 23 ns unhooked, so
+ * that trade is only worth taking on a suite with far fewer awaits than
+ * crossings. Until the transform hoists the read to a function activation, one
+ * continuation read a crossing is what the case axis costs.
+ *
  * ## A probe stays in its instrumented realm
  *
  * Every inserted site calls the declarations in the generated module directly.
@@ -259,9 +293,9 @@ function runtime(id: ModuleId, file: string, count: number): string {
   const absent = JSON.stringify(missingFactory(file));
 
   return (
-    `function __va(i){const r=globalThis.__VA__;if(__va.c===undefined||__va.r!==r){if(typeof r!=='function')throw new Error(${absent});const again=__va.c!==undefined;__va.r=r;__va.c=globalThis.__VA__(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
+    `function __va(i){const g=globalThis.__VA__;const r=g&&g.s?g.s():g;if(__va.c===undefined||__va.r!==r){if(typeof r!=='function')throw new Error(${absent});const again=__va.c!==undefined;__va.r=r;__va.c=r(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
     `function __vaR(v,i){__va(i);return v}` +
-    `function __vaE(){const r=globalThis.__VA__;r.e=r.e>1?r.e-1:0}` +
+    `function __vaE(){const g=globalThis.__VA__;const r=g&&g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
     `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`
   );
 }

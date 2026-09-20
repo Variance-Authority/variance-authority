@@ -49,16 +49,26 @@
  *
  * ## The mechanism is the one the probe already has
  *
- * The emitted probe re-resolves its counter array whenever `globalThis.__VA__`
- * changes identity ([`instrument`](../instrument/index.ts)). So `__VA__` is
- * defined as a **getter** over an {@link AsyncLocalStorage}, handing back a
- * distinct factory per case. A case's probes write into that case's arrays, a
+ * The emitted probe re-resolves its counter array whenever the factory it holds
+ * changes identity ([`instrument`](../instrument/index.ts)). So the factory is
+ * minted one per case, handed out by the resolver on `globalThis.__VA__.s` over
+ * an {@link AsyncLocalStorage}. A case's probes write into that case's arrays, a
  * continuation after an `await` resolves the same store its caller did, and two
  * concurrent cases interleaving inside one module each invalidate the other's
  * cached array at exactly the crossings where they meet. No probe changes, no
  * bracket is maintained, and nothing is added to what a region records: this
  * refines *who owns a crossing*, and ADR-0056 forecloses order, counts, spans,
  * stacks and depth — not owners.
+ *
+ * The resolver hangs off the factory rather than replacing `__VA__` with an
+ * accessor, which is what this was first built as. That accessor was half the
+ * axis's cost: **12.6 ns** a probe hit against **1.4 ns** for the flat probe
+ * over a data property, and **6.7 ns** once the scope moved one level in and
+ * the store began holding the factory rather than a key to look one up by. Of
+ * what is left, 5.3 ns is `AsyncLocalStorage.getStore()` itself — the price of
+ * reading which continuation is running, not of recording anything. The
+ * reading is in [`instrument`](../instrument/index.ts), which emits the probe
+ * that pays it.
  *
  * ## What no case owns
  *

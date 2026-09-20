@@ -111,9 +111,12 @@ variance covering --since main
 ```
 
 [`tools/cases.config.mts`](tools/cases.config.mts) is the whole configuration.
-It is a separate arm rather than a flag on the first because an async context
-per case costs roughly a fifth more time inside the tests and the answer is
-wanted on almost no runs; the index it writes lands beside the snapshot as
+It is a separate arm rather than a flag on the first because the answer is
+wanted on almost no runs and the recording is not free: reading which
+continuation is running costs about five nanoseconds a crossing, which is
+around a third more time inside the tests on a compute-bound package and is
+lost in the run-to-run spread over the whole suite. The index it writes lands
+beside the snapshot as
 `<coverage file>.cases.json` and is a few tens of megabytes on this repository.
 
 `variance covering` prints the named tests that reached a line, and the depth

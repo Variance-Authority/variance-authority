@@ -224,7 +224,7 @@ describe('the Jest transformer', () => {
     const { code } = transformer.process!(SOURCE, path, options);
 
     expect(code).toContain('const flag = true;');
-    expect(code).toContain('__VA__(');
+    expect(code).toContain('globalThis.__VA__');
     expect(code).toContain(JSON.stringify('src/pick.js'));
     const record = await readRecord(
       jestStore(options.config.cacheDirectory, options.config.id),
@@ -276,7 +276,7 @@ describe('the Jest transformer', () => {
 
     expect(byGlob.code).toBe(SOURCE);
     expect(byRegex.code).toBe(SOURCE);
-    expect(product.code).toContain('__VA__(');
+    expect(product.code).toContain('globalThis.__VA__');
     await expect(stat(resolve(root, 'cache', 'variance-authority-test-selection'))).resolves.toBeDefined();
   });
 
@@ -288,7 +288,7 @@ describe('the Jest transformer', () => {
     expect(transformer.process).toBeUndefined();
     const { code } = await transformer.processAsync!(SOURCE, resolve(root, 'src/pick.js'), options);
     expect(code).toContain('const flag = 1;');
-    expect(code).toContain('__VA__(');
+    expect(code).toContain('globalThis.__VA__');
   });
 });
 

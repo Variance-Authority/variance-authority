@@ -62,6 +62,9 @@ globalThis.__VA__ = (id, count) => {
   counters.set(id, held);
   return held;
 };
+// The shipped flat collector defines this, and the probe reads it on every hit;
+// an arm measuring the probe without it measures a shape nothing installs.
+globalThis.__VA__.s = undefined;
 
 try {
   for (const copy of ['plain', 'control', 'probed']) {

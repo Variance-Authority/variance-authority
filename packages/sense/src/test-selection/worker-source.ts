@@ -76,6 +76,10 @@ globalThis.__VA__ = (id, count) => {
   }
   return counters;
 };
+// Nothing here is scoped, and the probe still asks. Every collector declares
+// \`s\`, empty spelled \`undefined\`, so that load reads one shape whichever
+// collector the realm installed.
+globalThis.__VA__.s = undefined;
 const ambient = () => modules;
 const fileModules = () => modules;
 `;
@@ -124,8 +128,14 @@ ${writeCases}});`;
  * running under jsdom.
  *
  * The ambient factory is minted eagerly so that a module evaluated before any
- * case exists finds one, and so `__vaE` — which re-reads `globalThis.__VA__` to
+ * case exists finds one, and so `__vaE` — which re-resolves the factory to
  * lower the evaluating depth — finds the same object its `__va(0)` raised it on.
+ *
+ * `__VA__` is a data property holding that ambient factory, and the scope is
+ * read through its `s` rather than through an accessor on the realm. The
+ * accessor is the shape this started as and it costs six nanoseconds a hit for
+ * nothing — [`instrument`](../instrument/index.ts) has the reading and the
+ * reason.
  */
 export function caseCollectorSource(): string {
   return `
@@ -146,16 +156,18 @@ const factoryFor = (key) => {
     }
     return counters;
   };
+  factory.s = resolve;
   factories.set(key, factory);
   return factory;
 };
-factoryFor(${JSON.stringify(AMBIENT)});
-Object.defineProperty(globalThis, '__VA__', {
-  configurable: true,
-  get: () => factoryFor(scopes.getStore() ?? ${JSON.stringify(AMBIENT)}),
-});
+const ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
+// The store holds the factory itself rather than the key it was minted under:
+// the probe asks on every hit, and a \`Map.get\` on a case coordinate is most of
+// what asking costs once the accessor is gone.
+function resolve() { return scopes.getStore() ?? ambientFactory; }
+globalThis.__VA__ = ambientFactory;
 globalThis[Symbol.for('variance-authority.test-selection.cases')] = {
-  enter: (key, body) => scopes.run(key, body),
+  enter: (key, body) => scopes.run(factoryFor(key), body),
 };
 const ambient = () => buckets.get(${JSON.stringify(AMBIENT)});
 // Presence, not arithmetic: every reader of these arrays asks only whether a

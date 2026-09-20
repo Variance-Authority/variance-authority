@@ -34,7 +34,16 @@ import async_hooks = require('node:async_hooks');
 import type { ModuleId } from '../instrument/index.js';
 
 type Counters = Map<ModuleId, Uint32Array>;
-type Factory = (id: ModuleId, count: number) => Uint32Array;
+type Factory = ((id: ModuleId, count: number) => Uint32Array) & {
+  /**
+   * Which factory owns the async scope running now, where one is scoped.
+   *
+   * The probe reads this on every hit, so every collector declares it — empty
+   * spelled `undefined` rather than missing — and that load reads one shape
+   * whichever collector is installed. `instrument/index.ts` has the reading.
+   */
+  s?: (() => Factory) | undefined;
+};
 
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
 const AMBIENT = '';
@@ -66,7 +75,7 @@ type Holder = { __VA__?: Factory; [COLLECTOR]?: Collector };
 
 /** A counter set that answers the same array for the same module and block count. */
 function countersIn(held: Counters): Factory {
-  return (id: ModuleId, count: number): Uint32Array => {
+  const factory: Factory = (id: ModuleId, count: number): Uint32Array => {
     let counters = held.get(id);
     if (counters === undefined || counters.length !== count) {
       counters = new Uint32Array(count);
@@ -74,24 +83,30 @@ function countersIn(held: Counters): Factory {
     }
     return counters;
   };
+  return factory;
 }
 
 /** One counter set for the file, installed as the factory itself. */
 function flat(holder: Holder): Collector {
   const modules: Counters = new Map();
-  holder.__VA__ = countersIn(modules);
+  const factory = countersIn(modules);
+  factory.s = undefined;
+  holder.__VA__ = factory;
   return { modules, ambient: modules, cases: undefined };
 }
 
 /**
  * One counter set per case, keyed by async context.
  *
- * The emitted probe re-resolves its counter array whenever `globalThis.__VA__`
- * changes identity, so a getter over the store is all the scope a probe needs:
- * nothing about a region changes, and no bracket is maintained.
+ * The emitted probe re-resolves its counter array whenever the factory it holds
+ * changes identity, so a resolver over the store is all the scope a probe
+ * needs: nothing about a region changes, and no bracket is maintained. It hangs
+ * off the factory rather than replacing `__VA__` with an accessor on the realm,
+ * which is where this axis spent almost all of its cost — see
+ * `instrument/index.ts`.
  */
 function scoped(holder: Holder): Collector {
-  const scopes = new async_hooks.AsyncLocalStorage<string>();
+  const scopes = new async_hooks.AsyncLocalStorage<Factory>();
   const buckets = new Map<string, Counters>();
   const factories = new Map<string, Factory>();
   const factoryFor = (key: string): Factory => {
@@ -100,17 +115,19 @@ function scoped(holder: Holder): Collector {
     const held: Counters = new Map();
     buckets.set(key, held);
     factory = countersIn(held);
+    factory.s = (): Factory => scopes.getStore() ?? ambientFactory;
     factories.set(key, factory);
     return factory;
   };
   // Minted eagerly, so a module evaluated before any case exists finds one.
-  factoryFor(AMBIENT);
-  Object.defineProperty(holder, '__VA__', {
-    configurable: true,
-    get: () => factoryFor(scopes.getStore() ?? AMBIENT),
-  });
+  const ambientFactory = factoryFor(AMBIENT);
+  holder.__VA__ = ambientFactory;
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
-    enter: <Result,>(key: string, body: () => Result): Result => scopes.run(key, body),
+    // The store holds the factory, not the key it was minted under: the probe
+    // asks on every hit, and a `Map.get` on a case coordinate is most of what
+    // asking costs once the accessor is gone.
+    enter: <Result,>(key: string, body: () => Result): Result =>
+      scopes.run(factoryFor(key), body),
   };
 
   return {

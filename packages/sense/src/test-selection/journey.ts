@@ -45,7 +45,7 @@
  *
  * The emitted probe re-resolves its counter array whenever the factory's
  * identity moves ([`instrument`](../instrument/index.ts)) — written for realm
- * reuse, and exactly right here. `globalThis.__VA__` is defined as a **getter**
+ * reuse, and exactly right here. The factory carries a **resolver** on `s`
  * over the async store, handing back a distinct factory per journey, so the
  * probe's own cache invalidates for free at precisely the crossings where two
  * journeys interleave inside one module, and nowhere else. Swapping a plain
@@ -170,7 +170,17 @@ export interface JourneyCollector {
   readonly close: () => Promise<void>;
 }
 
-type Factory = (id: ModuleId, count: number) => Uint32Array;
+type Factory = ((id: ModuleId, count: number) => Uint32Array) & {
+  /**
+   * Which factory owns the async scope running now.
+   *
+   * The probe reads this on every hit, which is why the scope hangs here rather
+   * than on an accessor over `globalThis.__VA__`: the accessor costs six
+   * nanoseconds a hit and this costs one. `instrument/index.ts` has the
+   * reading.
+   */
+  s?: (() => Factory) | undefined;
+};
 
 /**
  * Install the journey-keyed collector in this process.
@@ -225,9 +235,11 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       }
       return counted;
     };
+    factory.s = resolve;
     factories.set(journey, factory);
     return factory;
   };
+  const resolve = (): Factory => factoryFor(store.getStore() ?? UNATTRIBUTED);
 
   const report = (journey: string, over: Channel | undefined): void => {
     const modules = counters.get(journey);
@@ -297,9 +309,14 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     await Promise.all(sending);
   };
 
+  // A data property, with the scope one level in on `s`. An accessor on the
+  // realm reads the same store and defeats the inline cache the probe is made
+  // of; see `instrument/index.ts` for what that costs a hit.
   Object.defineProperty(globalThis, '__VA__', {
     configurable: true,
-    get: () => factoryFor(store.getStore() ?? UNATTRIBUTED),
+    writable: true,
+    enumerable: false,
+    value: factoryFor(UNATTRIBUTED),
   });
 
   return {

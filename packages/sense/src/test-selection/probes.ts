@@ -254,6 +254,10 @@ const factory = (id, count) => {
   }
   return counters;
 };
+// Nothing in a page is scoped, and the probe still asks on every hit. Every
+// collector declares \`s\`, empty spelled \`undefined\`, so that load reads one
+// shape whichever collector the realm installed.
+factory.s = undefined;
 // A realm that already has a factory has a collector that knows more than this
 // one: a Node head keys its counters by journey, and this page-shaped map has
 // nowhere to put a caller. Deferring is what lets one instrumented build serve

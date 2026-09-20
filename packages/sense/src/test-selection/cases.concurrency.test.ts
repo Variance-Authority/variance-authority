@@ -19,17 +19,18 @@ afterEach(async () => {
  * Copied rather than imported because the real one is text spliced into a
  * transformed file, and what is under test here is the *collector* underneath
  * it. The line that matters is the one the emitter writes: the probe caches its
- * counter array and re-resolves it only when `globalThis.__VA__` changes
- * identity, which is the whole reason a getter over an async store works at all.
+ * counter array and re-resolves it only when the factory changes identity,
+ * which is the whole reason a resolver over an async store works at all.
  */
 const PROBE = `
 const EVALUATING = 0x80000000;
 const __va = (i) => {
-  const r = globalThis.__VA__;
+  const g = globalThis.__VA__;
+  const r = g && g.s ? g.s() : g;
   if (__va.c === undefined || __va.r !== r) {
     const again = __va.c !== undefined;
     __va.r = r;
-    __va.c = globalThis.__VA__('m', 8);
+    __va.c = r('m', 8);
     if (again) __va.c[0] += 1;
   }
   __va.c[i] = (__va.c[i] + 1) | (r.e > 0 ? EVALUATING : 0);
