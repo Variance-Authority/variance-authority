@@ -51,6 +51,7 @@
   ],
   "scripts": {
     "build": "tsc --build",
+    "execute": "node scripts/execute.mjs",
     "host": "node scripts/host.mjs",
     "paint": "node scripts/paint.mjs"
   },

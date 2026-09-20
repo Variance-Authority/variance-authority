@@ -52,12 +52,17 @@ one host, or one container image, and keep it, and they are as good a painter
 as anything — [how this compares](comparison.md) sets out what else follows
 from the engine.
 
-Pinning is not the fast choice. Chromium spends most of its cost taking the
-screenshot at all — on one machine, around seven times what WebKit pays — and
-wins it back only on subjects that are expensive to draw. What you buy for it
-is a raster two machines agree on: [which engine is fastest depends on what you
-are painting](../packages/playwright/README.md#which-engine-is-fastest-depends-on-what-you-are-painting)
-has the numbers and the machine they were taken on.
+Pinning is not the fast way to take the photograph. Chromium spends most of its
+cost taking a screenshot at all — on one machine, around seven times what WebKit
+pays — and wins that back only on subjects that are expensive to draw. It is the
+fast way to do everything around the photograph: on the same machine it starts a
+process 4.4x faster than WebKit and lays out a DOM 1.8x faster, and the two
+interpreters are within a few percent. The engine that is cheapest to photograph
+with is not the engine that is cheapest to run a suite in — [what a paint
+costs](../packages/playwright/README.md#which-engine-is-fastest-depends-on-what-you-are-painting)
+and [what a run
+costs](../packages/playwright/README.md#the-engine-that-paints-fastest-does-not-run-a-suite-fastest)
+have both tables and the machine they were taken on.
 
 Which machine runs it is yours. The `npx playwright install chromium` in each
 install below is one answer among several: a pinned container image paints the

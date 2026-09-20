@@ -403,6 +403,43 @@ npm install --save-dev @variance-authority/png
 node node_modules/@variance-authority/playwright/scripts/host.mjs --compare ./native ./box
 ```
 
+### The engine that paints fastest does not run a suite fastest
+
+The row above prices photography, and it is the wrong number to pick the engine
+a suite *runs* in. Same machine and Playwright version, median of 7 rounds,
+every shape but `launch` timed by `performance.now()` inside the page:
+
+| engine | launch | cold | numeric | string | dom |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| chromium | **143** | **2.4** | **21.3** | **123** | **98.6** |
+| webkit | 625 | 3.0 | 22.0 | 126 | 177 |
+
+`launch` is a whole process: start it, open a page, get one script's answer
+back. `cold` is a fresh context running a modest script with no tier-up behind
+it. `numeric` and `string` are hot loops, optimizer in. `dom` builds and
+measures two thousand elements forty times, which is the shape a component test
+has.
+
+The two interpreters are within a few percent on the hot loops, and every gap
+that matters is outside the interpreter: WebKit costs 4.4x more to start a
+process and 1.8x more per DOM pass. On a suite that mounts components and never
+photographs them, Chromium is ahead — and furthest ahead in the ephemeral case,
+where a fast-starting engine was supposed to win. JavaScriptCore's cheap process
+start is real and is one of the things a runtime like Bun is built to exploit;
+it does not reach a browser whose startup is dominated by everything that is not
+the interpreter.
+
+So the two costs point opposite ways. WebKit photographs a text subject seven
+times cheaper than Chromium and runs the suite that produced it slower, which is
+one more reason the painter and the runner do not have to be the same process —
+see `RemoteRendererConfig` in `@variance-authority/cli`. Under reuse a suite pays
+the startup once and the DOM cost per subject, so the column that decides a long
+run is `dom` and the column that decides a one-subject CI job is `launch`.
+
+```bash
+node node_modules/@variance-authority/playwright/scripts/execute.mjs
+```
+
 ## The renderer: a document in, a raster out
 
 Excerpt — a `RenderDocument` comes from a collector:
