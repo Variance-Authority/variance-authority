@@ -94,6 +94,12 @@ const mount = (page, id, variant) =>
  */
 async function model(browser, kind, count) {
   const samples = [];
+  // Mounting is the page executing the application's own JavaScript; painting is
+  // the engine rasterizing what that produced. A per-subject total folds the two,
+  // and they do not rank the engines the same way, so the reuse models time them
+  // apart. `navigate` and `isolate` have no split to report: their cost is a load.
+  const mounts = [];
+  const paints = [];
   const images = new Map();
   const drifted = [];
   let context = null;
@@ -135,8 +141,12 @@ async function model(browser, kind, count) {
         });
         await context.clearCookies();
       }
+      const mounting = now();
       await mount(page, id, 'after');
+      const painting = now();
       bytes = await shoot(page);
+      mounts.push(painting - mounting);
+      paints.push(now() - painting);
     }
 
     samples.push(now() - started);
@@ -155,6 +165,7 @@ async function model(browser, kind, count) {
   return {
     ...stats(samples),
     total: +samples.reduce((sum, sample) => sum + sample, 0).toFixed(0),
+    ...(mounts.length === 0 ? {} : { mount: stats(mounts), paint: stats(paints) }),
     drifted,
   };
 }
@@ -378,6 +389,20 @@ if (json) {
     );
   }
   console.log('\nms per subject, median. `tax` is what Playwright\'s fixture costs over reuse.');
+
+  console.log('\nremount, split — running the subject\'s JavaScript, then rasterizing it\n');
+  console.log('engine        mount    paint');
+  for (const name of available) {
+    const it = cost[name].remount;
+    console.log(
+      `${name.padEnd(11)} ${String(it.mount.median).padStart(6)}   ${String(it.paint.median).padStart(6)}`,
+    );
+  }
+  console.log(
+    '\nmount is the page evaluating the application\'s own code and laying out the\n' +
+      'result; paint is the screenshot. An engine can lead on one and trail on the\n' +
+      'other, and a suite that never photographs anything only pays the first.',
+  );
   console.log(
     `\nclearing storage and cookies, timed alone: ${available
       .map((name) => `${name} ${cost[name].clear.toFixed(2)}ms`)
