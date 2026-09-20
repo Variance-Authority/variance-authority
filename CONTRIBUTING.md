@@ -98,6 +98,26 @@ Every run prints the whole reading before the leg it took out of it, the files a
 leg left for later, and two findings that need no red test: imports that reached
 past a unit face, and tests the change entered by no route they imported.
 
+## A second opinion on the suite
+
+Everything above is this repository's own instrument reading its own run. For a
+reading nobody here wrote:
+
+```bash
+yarn test:coverage
+```
+
+That is the same suite under V8's counters — statements, branches, functions,
+lines, per file and in total — with our probes taken away, because a provider
+reading probed output would attribute counts to lines you never wrote.
+[`tools/coverage.config.mts`](tools/coverage.config.mts) is the whole
+configuration, and it re-exports the suite rather than restating it.
+
+Nothing gates on the percentage. It is here so that a claim about what the
+record saw can be checked against a counter with no stake in the answer, and so
+that a module no test has ever entered shows up as a module no test has ever
+entered. The report lands in `coverage/`, which is not tracked.
+
 ## Reproduce the documented behavior
 
 [`cases/storybook-case`](cases/storybook-case) builds a real Storybook with
