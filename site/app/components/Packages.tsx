@@ -104,12 +104,20 @@ const PACKAGES: {
         role: "selector and locator attention during a run, retained with React attribution",
       },
       {
+        name: "distill",
+        role: "what one test loaded and ran, minus what it demonstrably addressed — the boundary that test may not need, with a substitution to try",
+      },
+      {
         name: "event",
         role: "announcements a running system makes about its own decisions, while it is still executing",
       },
       {
         name: "vantage",
         role: "what each in-flight test heard, and work that never ended",
+      },
+      {
+        name: "ioc",
+        role: "module-level state that outlives the test that wrote it, reset by the module that owns it on the runner's schedule — wiring a test run drives and a production build ignores",
       },
     ],
   },
