@@ -10,7 +10,7 @@ it and is a pointer to go and read, not evidence this project produced — which
 is why it is not mixed with the journal, where a measurement arrives with the
 command that made it ([README](README.md)).
 
-Four fields touch this project, and only one of them is the one people assume.
+Five fields touch this project, and only one of them is the one people assume.
 
 | Field | Its question | Our page |
 | --- | --- | --- |
@@ -18,6 +18,7 @@ Four fields touch this project, and only one of them is the one people assume.
 | Regression test selection | Which tests need to run for this change? | [`selecting.md`](../selecting.md), [`source.md`](../source.md) |
 | Flake detection | Is this failure about the change? | [`flakiness.md`](../flakiness.md) |
 | Fault localization | Which line caused it? | [`attribution.md`](../attribution.md) |
+| Coverage adequacy | Is this suite good enough? | [`better-tests.md`](../better-tests.md), [`tests.md`](../tests.md) |
 
 ## Test-to-code traceability
 
@@ -170,6 +171,68 @@ culprit-naming for a moved component hash should read them first. The commercial
 row — Percy, Chromatic, Argos, Applitools — is
 [`comparison.md`](../comparison.md) and stays there.
 
+## Coverage adequacy
+
+The field that asks whether a suite is good enough, as opposed to which of it to
+run. It is the one our own [journal 0067](journal/0067-a-hundred-percent-bought-one-witness-per-region.md)
+walked into: a package at 100% lines whose regions have a median of two
+witnesses, beside another at 100% where every region has one.
+
+**Coverage is necessary and not sufficient, and this is settled.** Low coverage
+proves a weak suite; high coverage proves nothing, because a test with no
+assertion executes lines exactly as well as a test with one. Once a percentage
+becomes a target it stops measuring — Goodhart, and the worthless tests written
+to clear a threshold are the standard observation.
+
+**Mutation testing** is the field's answer, and it is the strong one. Inject a
+fault, see whether the suite notices; the mutation score covers execution *and*
+assertion where coverage covers only execution. **Petrović, Ivanković, Fraser &
+Just** (ICSE-SEIP 2021) is the industrial datapoint: Google runs it inside code
+review, surfacing a selected sample of mutants in changed code as review
+findings rather than as a batch score, because the full analysis is too
+expensive to run whole. **Stryker** (JavaScript) and **PIT** (Java) are the
+tools within reach.
+
+**Checked coverage** (Schuler & Zeller, ICST 2011) is the closer relative and
+the cheaper one. It takes a dynamic backward slice from the assertions and
+counts only the code an oracle actually *checks*, so a line executed by a test
+that never looks at the result is not covered. They reported it more sensitive
+to oracle decay than mutation testing, at a fraction of the cost. It is the same
+slice **SCOTCH+** takes one field up, used for adequacy instead of traceability.
+
+**Test gap analysis** (CQSE / Teamscale) is the industrial form nearest to what
+we hold: intersect *changed since the last release* with *executed by any test*
+and report the methods in neither. Its **testwise coverage** upload format is
+per-test coverage as an interchange artifact at method granularity — the closest
+published thing to our record's rows, and the evidence that a per-test format is
+a thing somebody already needed.
+
+**Per-test coverage exists as a feature and not as a metric.** JetBrains IDEs
+track it and answer *show tests covering line*; **Parasoft Jtest** records
+covered code per test case; **Wallaby.js** puts per-line covered / not-covered /
+partially-covered indicators in the editor as you type. All three are lookup
+tools — you ask about a line and get the tests. None of them aggregates the
+inverse into a number, and none reports *this region has one witness* as a
+finding.
+
+**What it means here.** Two positions come out of that gap, and one warning.
+
+The gap is real: nobody found reports witnesses per region as a suite-level
+signal, and our record already carries what it needs — every region holds the
+test files that entered it, and those files have names. Our own numbers say the
+signal is not redundant with the one everybody quotes: over this repository's 31
+packages with fifty regions or more, the line percentage ranks with regions
+entered at ρ = 0.62 and with the single-witness share at ρ = 0.26.
+
+The warning is that **witness count is not assertion strength**, and the two
+must not be conflated on a product page. A region entered by six tests that
+assert nothing about it has six witnesses and no evidence. Schuler & Zeller
+measured the difference and Petrović et al. shipped the stronger answer; we
+record reach, not checking, and any claim that our reading beats a percentage
+has to say which of the two it is beating it on. Nothing here slices to the
+assertion, and [spec 0035](../specs/0035-a-flake-is-what-the-run-did-not-execute.md)
+is the nearest place that changes.
+
 ## Where the field contradicts us
 
 | Our position | Who measured otherwise | What it costs us |
@@ -178,6 +241,7 @@ row — Percy, Chromatic, Argos, Applitools — is
 | Observation beats prediction | STARTS: static competitive with dynamic in aggregate | The mocked-module case stands; the aggregate one does not |
 | One signal, exact, or unknown | TCTracer: the ensemble beat every single technique | Evidence against purity, on the attribution question only |
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
+| Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a
 sentence on a product page needs a measurement behind it before it is quoted as
