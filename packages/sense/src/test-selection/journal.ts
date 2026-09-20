@@ -206,8 +206,7 @@ export interface RecordExecutionOptions {
   readonly cases?: readonly ObservedCase[];
   /**
    * Where the execution index goes. Defaults beside the snapshot, as the Vitest
-   * seam's does: `<coverage file>.cases.bin`. A name ending `.json` is
-   * written as JSON instead, at the size JSON costs.
+   * seam's does: `<coverage file>.cases.bin`, or JSON for a `.json` name.
    */
   readonly executionFile?: string;
 }

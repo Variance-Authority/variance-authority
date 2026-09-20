@@ -65,7 +65,10 @@ subject, but how to *find* one. It is written per subject, which
 puts it on its own axis — the index and the record are priced in modules, and
 the lexicon is priced in subjects.
 
-This page is the arithmetic on all three, in that order.
+This page is the arithmetic on all three, in that order. A fourth file is
+optional and priced at the end: turning on [`cases`](execution-record.md) asks
+the same relation at case granularity instead of file granularity, and it is
+the only one of the four that grows on two axes at once.
 
 ## The source index
 
@@ -352,6 +355,69 @@ and the record column by column, so the resident figure stays the one measured
 above: about 120 MB for a cold answer to a 100-file diff. What a repository
 that size changes is how long a first scan takes — priced per module above —
 and how much storage you keep, not how much memory a run needs.
+
+## The per-case index, when you ask for it
+
+Everything above prices the relation at file granularity: which *test file*
+entered which region. That is what a skip list needs, and it is the only thing
+a `--since` run reads. Turn on `cases` and a second file is written beside the
+record holding the same relation at case granularity — which *case* entered
+which region — because that is what answers *which tests walk this branch* and
+what [`variance covering`](../packages/cli#covering-which-tests-entered-this-line) and
+[`distill`](distill.md) read.
+
+Its test axis is cases rather than test files, and nothing folds them, so it
+is larger than the record it sits beside and the gap widens as a suite grows
+cases faster than it grows files. Three real recordings:
+
+| cases | crossings | record | per-case index |
+|---|---|---|---|
+| 4,494 | 906,578 | 0.3 MB | 0.46 MB |
+| 2,779 | 751,667 | 0.5 MB | 0.46 MB |
+| 659 | 89,277 | 0.7 MB | 0.21 MB |
+
+Half a megabyte for nine hundred thousand crossings is **about half a byte per
+crossing**, and it gets there the same way the record does: a crossing is not
+an object with field names, it is a position in three parallel integer columns,
+and the columns are run-coded. A case axis sorted by the case that produced it
+leaves the test column as long ascending runs, and the distance column of a
+recording made by these probes is a single run of zeroes.
+
+Ask for the same index as JSON — name your `executionFile` with a `.json`
+suffix and you get it, for a reader that has to have it — and the first row
+above is **27.2 MB** instead of 0.46. That is the cost of spelling every
+crossing as `{"test":0,"distance":0}`: thirty-odd bytes for a pair of small
+integers, ninety times the file it sits next to. Take the JSON only when
+something downstream cannot be taught to read the other one.
+
+## Every CI caps what a job may upload
+
+Artifact and cache limits are not a detail to discover on the run that exceeds
+them. Every hosted runner has a cap, most of them are configurable and none of
+them are large, and a record that does not fit is a record CI cannot hand to
+the next job — at which point selection has nothing to narrow against and
+every run is a full run.
+
+So price the upload, not the disk. What travels between jobs is the record and,
+if you ask for it, the per-case index; the source index is rebuilt from the
+tree and the lexicon travels with whatever consumes it.
+
+| what you upload | 791 entered modules | 200,000 modules |
+|---|---|---|
+| execution record | 0.5 MB | 77 MB |
+
+The per-case index is not in that table because no module count predicts it.
+Its multiplier is your case count, which is a number only your suite has.
+Price it from a recording instead: it is roughly half a byte per crossing, and
+your crossing count is cases times the regions each one enters. A suite of
+20,000 cases entering 500 regions each is ten million crossings, which is
+about 5 MB. Measured, the three recordings above run 0.21 MB to 0.46 MB.
+
+Two things to do if your cap is the binding constraint. Compress the upload —
+the columns are run-coded but the file as a whole is not, and gzip takes a
+0.46 MB per-case index to 0.31 MB. And leave `cases` off
+until something asks a question that needs it: the skip list never reads that
+file, so a run that does not record it selects exactly as well.
 
 ## What decides the value is what changed, not how much
 

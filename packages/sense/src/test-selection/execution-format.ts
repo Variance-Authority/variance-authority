@@ -65,6 +65,13 @@ const UNSAID = 0;
 const CALLED = 1;
 const LOADED = 2;
 
+/**
+ * Write the index as columns: a string dictionary, parallel integer rows, and
+ * a run of crossings per region rather than a list held by one.
+ *
+ * Deterministic for a given index, so two recordings of the same run produce
+ * the same bytes.
+ */
 export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
   const strings = dictionary(index);
   const ids = new Map(strings.map((value, at) => [value, at]));
@@ -155,6 +162,14 @@ export function isEncodedExecutionIndex(bytes: Uint8Array): boolean {
   return bytes.length > 4 && bytes[0] !== 0x7b && bytes[0] !== 0x20 && bytes[0] !== 0x0a;
 }
 
+/**
+ * Read a column-encoded index back, whole.
+ *
+ * Returns the index {@link encodeExecutionIndex} was handed, field for field,
+ * the optional `loaded` included. Throws on a file this did not write, on a
+ * layout version it does not know, and on a bound that does not agree with the
+ * column it indexes.
+ */
 export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const file = resident(bytes);
   if (bytes.length < 4) throw invalid();
