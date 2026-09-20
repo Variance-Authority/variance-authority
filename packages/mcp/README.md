@@ -448,6 +448,16 @@ from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.
 
+`variance_changed_tests` is the same evidence asked at review time. It takes a
+unified `diff` — the patch the agent is already holding — and reports every
+changed source region with the named cases that entered it, counting the two
+findings a percentage cannot state: regions **no case entered**, and regions
+one case alone entered. A case that was inside a region only while its module
+was evaluating is counted apart from one that called into it. A changed test
+file has no module row, so it is answered with the named cases it declares
+rather than reported as unmeasured, and a changed path the index holds nothing
+for says exactly that — *no row* and *no test* are opposite facts.
+
 ## Serve several kinds of evidence at once
 
 A run report is one of six things this package can answer from. The others are
@@ -483,6 +493,7 @@ members. Native tools remain available on the same connection:
 | `variance_test_attention` | an **Eyes archive** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each test addressed, and which React component rendered each | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_source_tests` | a Sense execution index, as above | which named tests entered source and their minimum observed distance |
+| `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that entered it, and the ones nothing entered |
 | `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) has heard from a suite that has not finished | what an in-flight suite and one test have announced |
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |

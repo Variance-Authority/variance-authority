@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { coveringTests, coveringTestsInFile, type ExecutionIndex } from './reverse.js';
+import {
+  coveringChange,
+  coveringTests,
+  coveringTestsInFile,
+  type ExecutionIndex,
+} from './reverse.js';
 
 const index: ExecutionIndex = {
   tests: [
@@ -172,5 +177,61 @@ describe('coveringTestsInFile', () => {
 
   it('returns no claim for a file absent from the index', () => {
     expect(coveringTestsInFile(index, 'src/missing.ts')).toEqual([]);
+  });
+});
+
+/**
+ * The reading a review asks for, and the three ways a changed file has no rows.
+ *
+ * Every case here is one a reviewer would otherwise read as *covered*: a region
+ * whose only visitors were carried in by module evaluation, a file the run
+ * never loaded, and the test file the reviewer just edited — which has no
+ * module row anywhere and is the file a per-case reading is asked about most.
+ */
+describe('coveringChange', () => {
+  const changed = (file: string, start: number, end: number) =>
+    new Map([[file, [{ start, end }]]]);
+
+  it('splits the cases that called into a region from the ones evaluation carried in', () => {
+    const [file] = coveringChange({
+      tests: index.tests,
+      modules: [{
+        file: 'src/cart/total.ts',
+        blocks: [{
+          kind: 'function', name: 'priceOf', path: 'entry', startLine: 1, endLine: 10, source: true,
+          crossings: [{ test: 0, distance: 2 }, { test: 1, distance: 0, loaded: true }],
+        }],
+      }],
+    }, changed('src/cart/total.ts', 4, 4));
+
+    expect(file?.regions[0]?.tests.map((test) => test.id)).toEqual(['guest']);
+    expect(file?.regions[0]?.passengers.map((test) => test.id)).toEqual(['other-staff']);
+  });
+
+  it('reports a changed region no case entered rather than leaving it out', () => {
+    const [file] = coveringChange(index, changed('src/cart/total.ts', 12, 12));
+
+    expect(file?.regions.map((region) => [region.name, region.tests.length])).toEqual([
+      ['unreached', 0],
+    ]);
+  });
+
+  it('separates a file the run never loaded from a file whose regions nobody entered', () => {
+    const [file] = coveringChange(index, changed('src/missing.ts', 1, 3));
+
+    expect(file).toEqual({ file: 'src/missing.ts', recorded: false, regions: [], cases: [] });
+  });
+
+  it('names the cases a changed test file declares, which have no module row anywhere', () => {
+    const [file] = coveringChange(index, changed('test/cart.test.ts', 1, 40));
+
+    expect(file?.recorded).toBe(false);
+    expect(file?.cases.map((test) => test.id)).toEqual(['guest', 'staff']);
+  });
+
+  it('keeps a region the change only overlaps at one end', () => {
+    const [file] = coveringChange(index, changed('src/cart/total.ts', 10, 11));
+
+    expect(file?.regions.map((region) => [region.startLine, region.endLine])).toEqual([[1, 10]]);
   });
 });

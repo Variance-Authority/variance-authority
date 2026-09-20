@@ -107,6 +107,7 @@ walked the branch that changed — and that is a second recording:
 ```bash
 yarn test:cases
 variance covering --file packages/jsx-source/src/record.ts --line 99
+variance covering --since main
 ```
 
 [`tools/cases.config.mts`](tools/cases.config.mts) is the whole configuration.
@@ -119,6 +120,12 @@ wanted on almost no runs; the index it writes lands beside the snapshot as
 each reached it at where a producer measured one. An empty list there means *no
 case entered this region*, which is the sentence that gets a test written — but
 only when the index is current, so record before you read.
+
+`--since <ref>` asks the same of everything a diff touched, which is what a
+review wants: every changed region with the cases that entered it, counting the
+regions nothing entered and the regions one case alone entered. A changed test
+file is answered with the cases it declares rather than reported as unmeasured,
+and a changed path with no row says so.
 
 ## A second opinion on the suite
 

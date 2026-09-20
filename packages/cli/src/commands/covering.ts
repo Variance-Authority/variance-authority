@@ -31,16 +31,23 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { relative, resolve } from 'node:path';
 import { parseExecutionIndex } from '@variance-authority/distill';
 import {
+  changedLines,
+  coveringChange,
   coveringTests,
   coveringTestsInFile,
+  recordedCommit,
   testCoverageFile,
+  type CoveringChange,
   type CoveringTest,
+  type LineRange,
   type ExecutionIndex,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { diffSince } from './since.js';
 import type { ParsedCovering } from '../covering-args.js';
 
 /** How the answer is written. `text` reads; `json` is for whatever asks next. */
@@ -48,7 +55,12 @@ export type CoveringFormat = 'text' | 'json';
 
 /** What was asked, and what the record said about it. */
 export interface Covering {
-  readonly file: string;
+  /** The file the question named, absent when it named a diff. */
+  readonly file?: string;
+  /** The ref a diff was taken against, present only under `--since`. */
+  readonly since?: string;
+  /** Present when the question named a diff: one entry per changed file. */
+  readonly changed?: readonly CoveringChange[];
   /** The line or function the question named, absent when it named neither. */
   readonly target?: { readonly line: number } | { readonly function: string };
   /** Present when the question named a line or a function. */
@@ -57,6 +69,8 @@ export interface Covering {
   readonly ranges?: readonly SourceTestRange[];
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
+  /** The commit the record stands at, when it says. The diff is measured from it. */
+  readonly at?: string;
 }
 
 /**
@@ -82,14 +96,17 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     );
   }
 
-  const module = index.modules.find((candidate) => candidate.file === request.file);
+  if (request.since !== undefined) return await sinceAnswer(request.since, request.root, index, from);
+
+  const file = request.file;
+  const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
     throw new OperatorError(
-      `\`${request.file}\` is not in the index at \`${from}\`, which holds ${
+      `\`${file}\` is not in the index at \`${from}\`, which holds ${
         index.modules.length
       } file${index.modules.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
         `here, and that is a different statement from no test reaching it. ${
-          spelling(request.file, index)
+          spelling(file, index)
         }`,
     );
   }
@@ -98,15 +115,15 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     const line = request.line;
     if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
       throw new OperatorError(
-        `line ${line} of \`${request.file}\` is outside every recorded region. A blank line, an ` +
+        `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
           'import or a type declaration has no region to be entered, so there is no list to ' +
           'print — which again is not the same as nobody reaching it.',
       );
     }
     return {
-      file: request.file,
+      file: file,
       target: { line },
-      tests: coveringTests(index, { file: request.file, line }),
+      tests: coveringTests(index, { file: file, line }),
       from,
     };
   }
@@ -120,21 +137,72 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
         .filter((block) => block.source && block.kind === 'function')
         .map((block) => block.name);
       throw new OperatorError(
-        `\`${named}\` is not a recorded function of \`${request.file}\`. ` +
+        `\`${named}\` is not a recorded function of \`${file}\`. ` +
           (functions.length === 0
             ? 'That file has no recorded functions at all.'
             : `It has ${functions.join(', ')}.`),
       );
     }
     return {
-      file: request.file,
+      file: file,
       target: { function: named },
-      tests: coveringTests(index, { file: request.file, function: named }),
+      tests: coveringTests(index, { file: file, function: named }),
       from,
     };
   }
 
-  return { file: request.file, ranges: coveringTestsInFile(index, request.file), from };
+  return { file: file, ranges: coveringTestsInFile(index, file), from };
+}
+
+/**
+ * Every region a diff changed, and which named cases went there.
+ *
+ * The diff is measured from the commit the record was written at rather than
+ * from the merge base with `ref`, because the index's line ranges are in that
+ * commit's coordinates and nothing else's. The two part company as soon as the
+ * branch moves under the recording, and a hunk read at the wrong end lands on
+ * lines the index numbered for a different region — which is the one failure
+ * here nobody can see, since a wrong list of test names reads exactly like a
+ * right one.
+ *
+ * `git` names files from the repository root and the index names them from the
+ * run's, so the paths are brought into the index's coordinates before anything
+ * is looked up. Unmatched paths are reported rather than dropped: a review that
+ * silently left out half a diff is worse than one that says it cannot speak to
+ * it.
+ */
+async function sinceAnswer(
+  since: string,
+  root: string,
+  index: ExecutionIndex,
+  from: string,
+): Promise<Covering> {
+  const at = await recordedCommit(testCoverageFile(root));
+  const diff = await diffSince(since, [], at);
+  if (diff === undefined) {
+    throw new OperatorError(
+      `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +
+        'git checkout; an empty answer here would read as `your change touches nothing`.',
+    );
+  }
+
+  const here = process.cwd();
+  const changed = new Map<string, readonly LineRange[]>();
+  for (const [file, ranges] of changedLines(diff)) {
+    changed.set(here === root ? file : relative(root, resolve(here, file)), ranges);
+  }
+  if (changed.size === 0) {
+    throw new OperatorError(
+      `nothing has changed since \`${since}\`, so there is no region to ask about.`,
+    );
+  }
+
+  return {
+    since,
+    changed: coveringChange(index, changed),
+    ...(at === undefined ? {} : { at }),
+    from,
+  };
 }
 
 /** Say the answer in the shape the caller asked for. */
@@ -143,7 +211,8 @@ export function formatCovering(answer: Covering, format: CoveringFormat): string
 }
 
 function text(answer: Covering): string {
-  if (answer.ranges !== undefined) return wholeFile(answer.file, answer.from, answer.ranges);
+  if (answer.changed !== undefined) return sinceText(answer, answer.changed);
+  if (answer.ranges !== undefined) return wholeFile(answer.file ?? '', answer.from, answer.ranges);
 
   const tests = answer.tests ?? [];
   const target = answer.target ?? { function: '' };
@@ -172,6 +241,81 @@ function wholeFile(file: string, from: string, ranges: readonly SourceTestRange[
     lines.push(...(range.tests.length === 0
       ? ['  no named test reached this range']
       : range.tests.map((test) => `  ${describe(test)}`)));
+  }
+  return lines.join('\n');
+}
+
+/**
+ * The review reading: the counts first, then the regions that produced them.
+ *
+ * The header is the part a reviewer acts on, so it leads. Two numbers matter
+ * and neither is a percentage: regions the change touched that **no case
+ * entered by a route it chose**, and regions one case alone entered. The first
+ * is a hole in the evidence; the second is evidence resting on a single point,
+ * which is the reading a line count cannot express at all.
+ *
+ * A case that was only inside a region while its module evaluated is counted
+ * apart. It was present, it did not go there, and folding the two together
+ * would make every module-scope constant look as watched as the function under
+ * it.
+ */
+function sinceText(answer: Covering, changed: readonly CoveringChange[]): string {
+  const regions = changed.flatMap((file) => file.regions);
+  const blind = regions.filter((region) => region.tests.length === 0);
+  const alone = regions.filter((region) => region.tests.length === 1);
+  const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
+
+  const lines = [
+    `${changed.length} changed file${changed.length === 1 ? '' : 's'} since ${answer.since}, ` +
+      `${regions.length} changed region${regions.length === 1 ? '' : 's'}: ${blind.length} ` +
+      `nothing entered, ${alone.length} entered by one case.`,
+    `Read from ${answer.from}${answer.at === undefined ? '' : `, recorded at ${answer.at}`}.`,
+  ];
+
+  for (const file of changed) {
+    lines.push('', file.file);
+    if (file.cases.length > 0) {
+      lines.push(
+        `  a test file — ${file.cases.length} named case${file.cases.length === 1 ? '' : 's'} ` +
+          'declared here, which is what changed rather than what was reached:',
+      );
+      lines.push(...file.cases.map((test) => `    ${test.name} [${test.id}]`));
+    }
+    if (!file.recorded) {
+      if (file.cases.length === 0) {
+        lines.push('  no row — the recorded run never loaded this file, which is not the same as nobody reaching it');
+      }
+      continue;
+    }
+    if (file.regions.length === 0) {
+      lines.push('  in the index, and the change landed on no recorded region of it');
+      continue;
+    }
+    for (const region of file.regions) {
+      const carried = region.passengers.length === 0
+        ? ''
+        : ` (+${region.passengers.length} carried in while the module evaluated)`;
+      lines.push(
+        `  ${region.startLine}-${region.endLine} ${region.kind}${
+          region.name === '' ? '' : ` ${region.name}`
+        } — ${
+          region.tests.length === 0
+            ? 'no case entered this region'
+            : region.tests.length === 1
+              ? '1 case, and it is the only witness'
+              : `${region.tests.length} cases`
+        }${carried}`,
+      );
+      lines.push(...region.tests.map((test) => `    ${describe(test)}`));
+    }
+  }
+
+  if (silent.length > 0) {
+    lines.push(
+      '',
+      `${silent.length} changed path${silent.length === 1 ? ' has' : 's have'} no row here at all. ` +
+        'The reading above is about the rest of the diff.',
+    );
   }
   return lines.join('\n');
 }

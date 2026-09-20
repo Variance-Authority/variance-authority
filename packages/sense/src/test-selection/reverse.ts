@@ -188,3 +188,104 @@ function invalidTest(test: number): Error {
 function codeUnitOrder(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
+
+/**
+ * One changed region, and what the recorded run has on it.
+ *
+ * `tests` and `passengers` are the same list split by the one distinction a
+ * review turns on: a case that *called into* the region was exercising it, and a
+ * case that was in it only because the module was evaluating was merely present
+ * while it ran. Merging them would make every module-scope constant look as
+ * watched as the function beneath it.
+ *
+ * An empty `tests` is the finding. The region changed and no case entered it by
+ * a route it chose, which is the sentence a reviewer can act on — provided the
+ * index is current, which this type cannot know and its reader has to say.
+ */
+export interface CoveringRegion {
+  readonly kind: string;
+  readonly name: string;
+  readonly startLine: number;
+  readonly endLine: number;
+  /** Cases that called into the region, nearest first. */
+  readonly tests: readonly CoveringTest[];
+  /** Cases that were inside it only while its module was evaluating. */
+  readonly passengers: readonly CoveringTest[];
+}
+
+/**
+ * What one changed file's rows say, including the two ways there are none.
+ *
+ * A file the run never loaded and a file every region of which nobody entered
+ * read identically from a list of names, and they are opposite facts: the first
+ * is the index being silent, the second is the index speaking. So `recorded`
+ * carries which one it is rather than leaving a reader to infer it from an empty
+ * array.
+ *
+ * `cases` closes the third shape, which is the one a review hits constantly: a
+ * changed **test file** has no module row at all, because the run instruments
+ * what the tests import rather than the tests themselves. The index still knows
+ * every case declared in it, and those cases are the honest answer to *what did
+ * you just change* — so they are named here instead of the file being reported
+ * as unmeasured.
+ */
+export interface CoveringChange {
+  readonly file: string;
+  /** Whether the index holds a module row for this file at all. */
+  readonly recorded: boolean;
+  readonly regions: readonly CoveringRegion[];
+  /** Named cases this file declares, when it is a test file the index knows. */
+  readonly cases: readonly ExecutionTest[];
+}
+
+/**
+ * Join a diff to the cases that went where it changed.
+ *
+ * The caller supplies the changed lines rather than a diff, because
+ * {@link changedLines} is already the one parse of it that the file-grain
+ * selector uses — two parses of one diff disagree at the edges a review is
+ * least able to check, and a renamed or binary path is exactly such an edge.
+ *
+ * Files come back in the order the diff named them and every changed file comes
+ * back, silent ones included. A reader that filtered the silent ones out would
+ * print a confident report about the half of the change it happened to have
+ * measured.
+ */
+export function coveringChange(
+  index: ExecutionIndex,
+  changed: ReadonlyMap<string, readonly { readonly start: number; readonly end: number }[]>,
+): readonly CoveringChange[] {
+  const modules = new Map(index.modules.map((module) => [module.file, module]));
+  const declared = new Map<string, ExecutionTest[]>();
+  for (const test of index.tests) {
+    const already = declared.get(test.file);
+    if (already === undefined) declared.set(test.file, [test]);
+    else already.push(test);
+  }
+
+  const answers: CoveringChange[] = [];
+  for (const [file, ranges] of changed) {
+    const module = modules.get(file);
+    const cases = declared.get(file) ?? [];
+    if (module === undefined) {
+      answers.push({ file, recorded: false, regions: [], cases });
+      continue;
+    }
+
+    const regions = module.blocks
+      .filter((block) =>
+        block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
+      )
+      .map((block) => ({
+        kind: block.kind,
+        name: block.name,
+        startLine: block.startLine,
+        endLine: block.endLine,
+        tests: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => crossing.loaded !== true) }]),
+        passengers: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true) }]),
+      }));
+
+    answers.push({ file, recorded: true, regions, cases });
+  }
+  return answers;
+}

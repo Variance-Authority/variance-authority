@@ -17,6 +17,7 @@ import { attention } from './tools/attention.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
+import { changedTests } from './tools/changed-tests.js';
 import { sourceTests } from './tools/source-tests.js';
 import { runSignals } from './tools/run-signals.js';
 import { self } from './tools/self.js';
@@ -129,7 +130,7 @@ export { notObservedSentence } from './tools/subject.js';
 export { diffState };
 
 /** The source-to-named-test tool set for an MCP server over an execution index. */
-export const SOURCE_TEST_TOOLS = [sourceTests, diff as Tool<ExecutionIndex>] as const;
+export const SOURCE_TEST_TOOLS = [sourceTests, changedTests, diff as Tool<ExecutionIndex>] as const;
 
 /** Look up one source-test tool without widening it to the visual-report subject. */
 export function sourceTestToolByName(name: string): Tool<ExecutionIndex> | undefined {

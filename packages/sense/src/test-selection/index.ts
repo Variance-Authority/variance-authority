@@ -33,8 +33,11 @@ import {
 } from './select.js';
 
 export {
+  coveringChange,
   coveringTests,
   coveringTestsInFile,
+  type CoveringChange,
+  type CoveringRegion,
   type CoveringTest,
   type ExecutionBlock,
   type ExecutionCrossing,

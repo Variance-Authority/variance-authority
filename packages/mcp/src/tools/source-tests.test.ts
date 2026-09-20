@@ -51,6 +51,7 @@ describe('variance_source_tests', () => {
     );
     expect((listed!.result as { tools: { name: string }[] }).tools).toEqual([
       expect.objectContaining({ name: 'variance_source_tests' }),
+      expect.objectContaining({ name: 'variance_changed_tests' }),
       expect.objectContaining({ name: 'variance_diff' }),
     ]);
 

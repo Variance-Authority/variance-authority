@@ -1,7 +1,8 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
@@ -90,5 +91,91 @@ describe('asking which tests entered a line', () => {
     expect(() => parse(['--file', 'a.ts', '--line', '3', '--function', 'f'])).toThrow(OperatorError);
     expect(() => parse(['--file', 'a.ts', '--line', '0'])).toThrow(/positive integer/);
     expect(() => parse(['--line', '3'])).toThrow(/needs `--file <path>`/);
+  });
+});
+
+/**
+ * The review reading, over a real checkout.
+ *
+ * A fixture diff would exercise the join and prove nothing about the part that
+ * breaks: `--since` is a ref, and turning a ref into hunks in the coordinates
+ * the index spells files in goes through `git` twice and a merge base once.
+ * Every failure of that is silent — the wrong coordinate answers about a file
+ * nobody changed, and a list of test names is the same shape either way.
+ */
+describe('asking which cases a change reached', () => {
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
+  const git = (at: string, args: readonly string[]): void => {
+    execFileSync('git', args, { cwd: at, stdio: 'pipe' });
+  };
+
+  async function checkout(): Promise<{ root: string; execution: string }> {
+    const root = await mkdtemp(join(tmpdir(), 'variance-covering-since-'));
+    await mkdir(join(root, 'src'), { recursive: true });
+    git(root, ['init', '--quiet', '--initial-branch', 'main']);
+    git(root, ['config', 'user.email', 'fixture@example.test']);
+    git(root, ['config', 'user.name', 'Fixture']);
+    const body = Array.from({ length: 40 }, (_, at) => `const line${at + 1} = ${at + 1};`).join('\n');
+    await writeFile(join(root, 'src/total.ts'), `${body}\n`);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => {});\n');
+    git(root, ['add', '-A']);
+    git(root, ['commit', '--quiet', '-m', 'first']);
+    // Outside the checkout: an index written into it is an untracked file, and
+    // the diff would then report the answer as part of the change.
+    process.chdir(root);
+    return { root, execution: await indexFile() };
+  }
+
+  const edit = async (root: string, file: string, line: number): Promise<void> => {
+    const text = (await readFile(join(root, file), 'utf8')).split('\n');
+    text[line - 1] = `${text[line - 1] ?? ''} // edited`;
+    await writeFile(join(root, file), text.join('\n'));
+  };
+
+  it('names the cases that entered each changed region, and counts what nothing entered', async () => {
+    const { root, execution } = await checkout();
+    await edit(root, 'src/total.ts', 12);
+
+    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+
+    expect(answer.changed?.map((file) => file.file)).toEqual(['src/total.ts']);
+    expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length]))
+      .toEqual([['applyDiscount', 2]]);
+    expect(formatCovering(answer, 'text')).toContain(
+      '1 changed file since main, 1 changed region: 0 nothing entered, 0 entered by one case.',
+    );
+  });
+
+  it('flags a region one case alone entered, which no line count can say', async () => {
+    const { root, execution } = await checkout();
+    await edit(root, 'src/total.ts', 31);
+
+    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+
+    expect(formatCovering(answer, 'text')).toContain('30-34 function round — 1 case, and it is the only witness');
+  });
+
+  it('answers a changed test file with the cases it declares, rather than with no row', async () => {
+    const { root, execution } = await checkout();
+    await edit(root, 'total.test.ts', 1);
+
+    const answer = await covering(parse(['--since', 'main', '--execution', execution]));
+
+    expect(answer.changed?.[0]?.cases.map((test) => test.id)).toEqual(['near']);
+    expect(formatCovering(answer, 'text')).toContain('a test file — 1 named case declared here');
+  });
+
+  it('refuses a ref with no change behind it rather than reporting a clean one', async () => {
+    const { execution } = await checkout();
+
+    await expect(covering(parse(['--since', 'main', '--execution', execution])))
+      .rejects.toThrow(/nothing has changed since/);
+  });
+
+  it('refuses a diff and a place together', () => {
+    expect(() => parse(['--since', 'main', '--file', 'src/total.ts'])).toThrow(OperatorError);
+    expect(() => parse(['--since', 'main', '--line', '3'])).toThrow(/alternatives/);
   });
 });

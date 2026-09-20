@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance select  [--since <ref>] [--format plain|json|vitest|jest]
 variance reach   --since <ref> [--format plain|json]
-variance covering --file <path> [--line <n>] [--function <name>] [--execution <path>] [--root <path>] [--format text|json]
+variance covering --file <path> [--line <n>] [--function <name>] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -326,6 +326,49 @@ somewhere else, and `--root <path>` names the project root the run recorded
 against. A missing index is refused rather than answered empty, because an empty
 list here reads as *no test covers this line* — the sentence that gets a test
 deleted.
+
+### Covering a change: what a review needs before reading the diff
+
+`--since <ref>` asks the same question of everything a diff touched, which is
+the shape a review has:
+
+```bash
+variance covering --since main
+```
+
+```text
+2 changed files since main, 5 changed regions: 1 nothing entered, 2 entered by one case.
+Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases.json, recorded at 8a72c74.
+
+src/checkout/total.ts
+  41-60 function applyDiscount — 3 cases
+    depth 0 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+    ...
+  62-66 branch applyDiscount — no case entered this region
+
+src/checkout/total.test.ts
+  a test file — 4 named cases declared here, which is what changed rather than what was reached:
+    applies a percentage discount [total.test.ts::applies a percentage discount]
+    ...
+```
+
+Two of those lines are findings and neither is a percentage. A changed region
+**no case entered** is a hole in the evidence; a changed region one case alone
+entered is evidence standing on a single point, and a line count cannot tell
+the two apart from a region twenty tests cross. A case that was inside a region
+only while its module was evaluating is counted apart, because it was present
+rather than exercising anything.
+
+A changed **test file** has no module row — the run instruments what the tests
+import, not the tests themselves — so it is answered with the named cases it
+declares rather than reported as unmeasured. A changed path the index holds
+nothing for says so, in those words, because *no row* and *no test* are
+opposite facts.
+
+The diff is measured from the commit the record was written at rather than from
+the merge base with `<ref>`, since the index's line ranges are in that commit's
+coordinates and nothing else's. Record before you read: an index behind the tree
+answers fluently about regions that have moved.
 
 ### Watch: ask about a suite that has not finished
 

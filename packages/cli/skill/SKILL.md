@@ -438,7 +438,8 @@ none of it:
   infer them from query or click names. The Playwright fixture installs the React commit tap
   before navigation. RTL needs the tap installed before `react-dom` loads. Read
   `@variance-authority/eyes`'s README before wiring either adapter.
-- **Runtime journey:** `variance covering`, `variance_source_tests` and
+- **Runtime journey:** `variance covering`, `variance_source_tests`,
+  `variance_changed_tests` and
   `variance_distill` require an `ExecutionIndex` with stable per-test ids. Under
   Vitest, `withTestSelection(config, { cases: true })` from
   `@variance-authority/sense/vitest` writes one; without `cases` the
@@ -492,6 +493,21 @@ list where a producer measured one; the Vitest recorder in
 identity. None of it is a verdict — execution says where a test went, never why
 the trip was worth taking. A missing index is refused rather than answered
 empty, because an empty list reads as *no test covers this line*.
+
+At review time ask it about the whole change instead:
+
+```bash
+npx variance covering --since main
+```
+
+That reports every region the diff changed with the cases that entered it, and
+counts the two findings a percentage cannot state: regions **no case entered**,
+and regions one case alone entered. A changed test file is answered with the
+named cases it declares — it has no module row — and a changed path the index
+holds nothing for says so, since *no row* and *no test* are opposite facts. The
+diff is measured from the commit the record was written at, so record before
+you read. `variance_changed_tests` is the same answer over MCP, taking the
+unified diff as an argument.
 
 ## Distill, then verify
 
