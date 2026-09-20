@@ -352,7 +352,10 @@ describe('the Vitest integration', () => {
 
   describe('recording which case entered a region, rather than which file', () => {
     /** The fixture run once, under either recipe, with whatever it wrote. */
-    async function record(config: string): Promise<{ coverage: Buffer; index?: ExecutionIndex }> {
+    async function record(
+      config: string,
+      files?: string,
+    ): Promise<{ coverage: Buffer; index?: ExecutionIndex }> {
       const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
       temporary.push(directory);
       const coverageFile = resolve(directory, 'coverage.bin');
@@ -360,7 +363,15 @@ describe('the Vitest integration', () => {
       await execute(
         process.execPath,
         [vitest, 'run', '--config', resolve(casesFixture, config)],
-        { cwd: casesFixture, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory } },
+        {
+          cwd: casesFixture,
+          env: {
+            ...process.env,
+            VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+            XDG_CACHE_HOME: directory,
+            ...(files === undefined ? {} : { VARIANCE_AUTHORITY_FILES: files }),
+          },
+        },
       );
 
       const coverage = await readFile(coverageFile);
@@ -390,6 +401,31 @@ describe('the Vitest integration', () => {
         'decide > takes the alpha branch',
         'decide > takes the gamma branch',
       ]);
+    }, 20_000);
+
+    it('names the same cases without an async context, which is the default', async () => {
+      // No `continuations`: the case running now is a variable the probe reads
+      // out of a closure, which is what a suite that runs its cases one at a
+      // time is paying for. The answer is the one above.
+      const { index } = await record('vitest.sequential.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      expect(named(index, 3)).toEqual(['decide > takes the alpha branch']);
+      expect(named(index, 6)).toEqual(['decide > takes the gamma branch']);
+      expect(named(index, 8)).toEqual(['decide > falls through to B']);
+    }, 20_000);
+
+    it('refuses a concurrent file rather than charging one case to another', async () => {
+      // A variable cannot hold two cases, and guessing which one owns a
+      // crossing is the direction `selecting.md` forbids. So the run fails, and
+      // says which mode records it.
+      const failed = await record('vitest.sequential.config.ts', 'test/concurrent.case.ts')
+        .then(() => undefined, (error: { stdout?: string; stderr?: string }) => error);
+      if (failed === undefined) throw new Error('the concurrent fixture recorded without a scope');
+
+      const output = `${failed.stdout ?? ''}${failed.stderr ?? ''}`;
+      expect(output).toContain('takes the alpha branch while the other case is open was still running');
+      expect(output).toContain('continuations: true');
     }, 20_000);
 
     it('keeps two concurrent cases apart across the awaits they interleave on', async () => {

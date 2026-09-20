@@ -41,6 +41,7 @@ import {
 import { coverageModule } from './coverage-rows.js';
 import {
   CASE_DIRECTORY_VARIABLE,
+  CONTINUATIONS_VARIABLE,
   jestStore,
   RUN_DIRECTORY_VARIABLE,
   type SelectionReporterConfig,
@@ -87,6 +88,7 @@ class SelectionReporter {
     if (this.#config.cases !== true) return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
+    if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
   }
 
   async onRunComplete(contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
@@ -95,6 +97,7 @@ class SelectionReporter {
     const caseDirectory = this.#caseDirectory;
     delete process.env[RUN_DIRECTORY_VARIABLE];
     delete process.env[CASE_DIRECTORY_VARIABLE];
+    delete process.env[CONTINUATIONS_VARIABLE];
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 

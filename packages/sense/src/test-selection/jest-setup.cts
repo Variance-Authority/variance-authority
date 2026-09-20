@@ -66,6 +66,16 @@ afterAll(() => {
     journals.encodeJournal(testFile, collector.modules, loaded),
   );
 
+  const outlived = collector.runaways();
+  if (outlived.length > 0) {
+    console.warn(
+      `variance-authority: work outlived its case in ${testFile}:\n  ${outlived.join('\n  ')}\n` +
+        'Each of these made a crossing after it had settled. The record is right — the ' +
+        'crossing went to the case that made it — but the case is not over when the runner ' +
+        'says it is, which is what a flaky neighbour is made of.',
+    );
+  }
+
   const caseDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CASES'];
   if (collector.cases === undefined || caseDirectory === undefined) return;
   // One file per test file rather than per case: a case per file is a file per

@@ -49,8 +49,19 @@ const beta = async () => { __va(3); await nap(4); __va(4); };
 const floating = () => { void nap(30).then(() => { __va(5); __va(6); }); };
 `;
 
-/** The collector this package generates, driven through one interleaving. */
-const SCOPED = `${caseCollectorSource()}
+/** Reading the buckets out of whichever collector the source installed. */
+const REPORT = `
+const seen = {};
+for (const [key, held] of buckets) {
+  const counters = held.get('m');
+  if (counters !== undefined) seen[key === '' ? 'ambient' : key] = ordinalsOf(counters);
+}
+seen.late = runaways();
+console.log(JSON.stringify(seen));
+`;
+
+/** The async-context collector, driven through one interleaving. */
+const SCOPED = `${caseCollectorSource(true)}
 ${PROBE}
 const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
 await Promise.all([
@@ -58,12 +69,34 @@ await Promise.all([
   scope.enter('B', beta),
 ]);
 await nap(60);
-const seen = {};
-for (const [key, held] of buckets) {
-  const counters = held.get('m');
-  if (counters !== undefined) seen[key === '' ? 'ambient' : key] = ordinalsOf(counters);
+${REPORT}`;
+
+/**
+ * The default collector — one case at a time, the case running now in a
+ * variable — over three cases that never overlap, the last of which leaves work
+ * behind.
+ */
+const SEQUENTIAL = `${caseCollectorSource()}
+${PROBE}
+const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
+await scope.enter('A', alpha);
+await scope.enter('B', beta);
+// Synchronous to the harness, async underneath: the case is over the instant it
+// returns, and its work is not.
+scope.enter('C', () => { floating(); });
+await nap(60);
+${REPORT}`;
+
+/** The same default collector, handed two cases at once. */
+const REFUSED = `${caseCollectorSource()}
+${PROBE}
+const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
+try {
+  await Promise.all([scope.enter('A', alpha), scope.enter('B', beta)]);
+  console.log(JSON.stringify({ refused: null }));
+} catch (error) {
+  console.log(JSON.stringify({ refused: error.message }));
 }
-console.log(JSON.stringify(seen));
 `;
 
 /**
@@ -103,13 +136,13 @@ console.log(JSON.stringify(seen));
  * In its own process, because the collector claims `globalThis.__VA__` — and
  * this suite is itself recorded through that name.
  */
-async function attribute(source: string): Promise<Record<string, number[]>> {
+async function attribute<Seen = Record<string, number[]>>(source: string): Promise<Seen> {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-cases-'));
   temporary.push(directory);
   const file = resolve(directory, 'interleave.mjs');
   await writeFile(file, source);
   const { stdout } = await execute(process.execPath, [file]);
-  return JSON.parse(stdout) as Record<string, number[]>;
+  return JSON.parse(stdout) as Seen;
 }
 
 describe('attributing crossings while two cases are in flight', () => {
@@ -120,7 +153,30 @@ describe('attributing crossings while two cases are in flight', () => {
       // in. Nothing was held open to make that true.
       A: [1, 2, 5, 6],
       B: [3, 4],
+      // Which is also the answer to the other question this mode is turned on
+      // for: A made a crossing after A was over, so A is the runaway.
+      late: ['A'],
     });
+  });
+
+  it('gives each sequential case its own, and what came late to nobody', async () => {
+    expect(await attribute(SEQUENTIAL)).toEqual({
+      A: [1, 2],
+      B: [3, 4],
+      // C's continuation settled after C returned, and a variable has no memory
+      // of a case that closed: 5 and 6 land in the ambient bucket, which every
+      // case in the file is credited with. Over-inclusion, which is the
+      // direction `selecting.md` permits — and no case is named, which is what
+      // the async-context mode is for.
+      ambient: [5, 6],
+      late: [],
+    });
+  });
+
+  it('refuses two cases at once rather than charging one to the other', async () => {
+    const { refused } = await attribute<{ refused: string | null }>(REFUSED);
+    expect(refused).toContain('A was still running when B started');
+    expect(refused).toContain('continuations: true');
   });
 
   it('is what snapshot-and-subtract cannot do at any price', async () => {

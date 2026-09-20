@@ -51,24 +51,52 @@
  *
  * The emitted probe re-resolves its counter array whenever the factory it holds
  * changes identity ([`instrument`](../instrument/index.ts)). So the factory is
- * minted one per case, handed out by the resolver on `globalThis.__VA__.s` over
- * an {@link AsyncLocalStorage}. A case's probes write into that case's arrays, a
- * continuation after an `await` resolves the same store its caller did, and two
- * concurrent cases interleaving inside one module each invalidate the other's
- * cached array at exactly the crossings where they meet. No probe changes, no
- * bracket is maintained, and nothing is added to what a region records: this
- * refines *who owns a crossing*, and ADR-0056 forecloses order, counts, spans,
- * stacks and depth — not owners.
+ * minted one per case and handed out by a resolver on `globalThis.__VA__.s`. A
+ * case's probes write into that case's arrays; nothing else changes, no bracket
+ * is maintained, and nothing is added to what a region records. This refines
+ * *who owns a crossing*, and ADR-0056 forecloses order, counts, spans, stacks
+ * and depth — not owners.
  *
  * The resolver hangs off the factory rather than replacing `__VA__` with an
  * accessor, which is what this was first built as. That accessor was half the
  * axis's cost: **12.6 ns** a probe hit against **1.4 ns** for the flat probe
  * over a data property, and **6.7 ns** once the scope moved one level in and
- * the store began holding the factory rather than a key to look one up by. Of
- * what is left, 5.3 ns is `AsyncLocalStorage.getStore()` itself — the price of
- * reading which continuation is running, not of recording anything. The
- * reading is in [`instrument`](../instrument/index.ts), which emits the probe
- * that pays it.
+ * the store began holding the factory rather than a key to look one up by.
+ *
+ * ## What the resolver reads, and why it is usually a variable
+ *
+ * A suite runs its cases one at a time. While that holds, *the case running
+ * now* is a variable: `enter` assigns it, the body settling restores it, and
+ * the resolver is a closure read. That is the **1.4 ns** above — the scope
+ * costs nothing over the file axis, which is the shape almost every suite gets,
+ * and what the axis still pays for is a counter set per case and a re-resolve
+ * at each case boundary: a fifth more time inside a compute-bound test file.
+ *
+ * It holds until a case's work outlives the case. A test that is synchronous to
+ * the runner and asynchronous underneath returns before its work does; two
+ * cases open at once is the same fault seen from the other end. The variable
+ * cannot hold two, so a second `enter` while one is open is an error naming
+ * both, and a continuation that arrives after its case closed is charged to the
+ * ambient bucket, which every case in the file is given — over-inclusive, which
+ * is the direction [`selecting.md`](../../../../docs/selecting.md) permits, and
+ * silent.
+ *
+ * `continuations` is the mode that stops it being silent. The variable becomes
+ * an {@link AsyncLocalStorage}: a continuation after an `await` resolves the
+ * same store its caller did, two concurrent cases interleaving inside one
+ * module each invalidate the other's cached array at exactly the crossings
+ * where they meet, and a crossing resolved to a case that has already settled
+ * marks that case as one whose work outlived it — which the file prints when it
+ * ends. That is **6.7 ns** a crossing, of which 5.3 is
+ * `AsyncLocalStorage.getStore()` itself: the price of reading which
+ * continuation is running, not of recording anything. Two fifths more time
+ * inside that same file, so the scope read is about half of what the axis then
+ * costs. The reading is in
+ * [`instrument`](../instrument/index.ts), which emits the probe that pays it.
+ *
+ * So the mode is worth turning on to hunt runaway tests, and to record a suite
+ * that is deliberately concurrent. The rest of the time the variable is both
+ * cheaper and louder.
  *
  * ## What no case owns
  *

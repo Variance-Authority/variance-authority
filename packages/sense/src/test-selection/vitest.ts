@@ -54,6 +54,30 @@ export interface TestSelectionOptions {
    * beside it, and never alters the first.
    */
   readonly cases?: boolean;
+  /**
+   * Follow each case through the async context, and name the cases whose work
+   * outlived them.
+   *
+   * Without it, `cases` assumes what a suite almost always is: one case at a
+   * time. The case running now is a variable, the probe reads a closure slot
+   * for it, and per-case recording costs what the per-file recording costs. A
+   * second case opening while one is still open is then refused rather than
+   * guessed at, because the guess charges one case's crossings to another and a
+   * case credited with less than it reached is a case a change can skip.
+   *
+   * With it, each case gets an async context instead, which follows its
+   * continuations wherever they settle and gives concurrent cases a bucket
+   * each. Reading which continuation is running costs about five nanoseconds a
+   * crossing, which roughly doubles what the case axis costs: a fifth more time
+   * inside a compute-bound test file becomes two fifths. What
+   * you buy for it is the list of cases that made a crossing after they had
+   * settled, printed when the file ends: the tests that are still running when
+   * the next one starts.
+   *
+   * Turn it on to find those, and to record a suite that is deliberately
+   * concurrent. Leave it off the rest of the time.
+   */
+  readonly continuations?: boolean;
   /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
   readonly executionFile?: string;
 }
@@ -146,7 +170,12 @@ export function withTestSelection(
       // module finds the counter factory its header resolves. On disk rather
       // than virtual — see {@link writeSeamModule}.
       setupFiles: [
-        writeSeamModule(setupId, setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined)),
+        writeSeamModule(
+          setupId,
+          setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined, {
+            continuations: options.continuations === true,
+          }),
+        ),
         ...setupFiles,
       ],
       // Kept for a single-configuration project, where this config is the root

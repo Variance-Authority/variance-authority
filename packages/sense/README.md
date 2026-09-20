@@ -228,7 +228,7 @@ package's tests loaded — is looked up under every name `knownAs` returns for i
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `coverageFile`, `include`,
-`preconditions`, `mode`, `cases`, and `executionFile`.
+`preconditions`, `mode`, `cases`, `continuations`, and `executionFile`.
 
 | option | default | use it when |
 |---|---|---|
@@ -238,6 +238,7 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 | `preconditions` | the configured setup files | naming additional files whose contents govern every test, such as runner configuration |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-entered-a-region)) |
+| `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-entered-a-region)) |
 | `executionFile` | `<coverageFile>.cases.json` | choosing where the per-case recording goes |
 
 Configured setup files become preconditions automatically, and the runtime's own
@@ -287,7 +288,7 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
-`cases`, and `executionFile`, with the meanings above. There is no `include`: product source is every
+`cases`, `continuations`, and `executionFile`, with the meanings above. There is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
 does not name, less dependencies and built output. A setup entry that names a
 package — `dotenv/config` — is left alone. A configuration with `projects` is
@@ -334,7 +335,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
-`mode`, `cases`, and `executionFile`, with the meanings above. The loader runs
+`mode`, `cases`, `continuations`, and `executionFile`, with the meanings above. The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
 edited rather than the ones the transpiler emitted.
@@ -1270,12 +1271,36 @@ in one file may share a coordinate; the repeat is numbered, so the second reads
 joining against one, such as an Eyes journal read by `variance distill` — has to
 key the same test by the same string.
 
-A case owns a crossing when the probe fired inside that case's asynchronous
-scope, not inside a start-and-stop bracket around it. That is what makes the
-answer usable under `test.concurrent` and `describe.concurrent`, where several
-cases are in flight at once and a bracket credits every one of them with what
-the others did. Work a case started and did not await is charged to the case
-that started it, however late it settles.
+A case owns a crossing when the probe fired while that case was the one
+running, not inside a start-and-stop bracket around it. A suite runs its cases
+one at a time, so by default *the case running now* is a variable: the case
+that a crossing joins is a single read, and recording per case costs what
+recording per file costs. Two cases open at once cannot both be that variable,
+so the second one is refused with an error naming both.
+
+Pass `continuations: true` and each case gets an asynchronous scope instead.
+Work a case started and did not await is then charged to the case that started
+it however late it settles, several cases may be in flight at once, and
+`test.concurrent` and `describe.concurrent` record as the separate cases they
+are rather than each being credited with what the others did. Reading which
+continuation is running costs about five nanoseconds a crossing, which roughly
+doubles what the case axis costs: a fifth more time inside a compute-bound test
+file becomes two fifths.
+
+The mode also answers a question of its own. A crossing that arrives after its
+case has settled is that case still working, and the file prints the cases that
+did it when it finishes:
+
+```text
+variance-authority: work outlived its case in test/checkout.test.tsx:
+  checkout > submits
+```
+
+Those are the tests that are still running when the next one starts — the ones
+that break their neighbours. Without `continuations`, a case that returns
+before its work does simply leaves that work in the ambient bucket, which every
+case in the file is credited with: over-inclusive, which is the safe direction,
+and silent. Turn the mode on to stop it being silent.
 
 Under Jest the scope is opened around the body of every injected `test` and
 `it`, since Jest has no hook that wraps a case. A file that sets
@@ -1308,7 +1333,7 @@ which is whatever the host schedules, and where the per-case bracket goes.
 
 | Host | A crossing joins | The bracket `cases: true` installs |
 |---|---|---|
-| Vitest | the test file | the asynchronous scope of each case, so cases in flight together stay apart |
+| Vitest | the test file | the case the runner is running, or its asynchronous scope under `continuations` |
 | Jest | the test file | the body of every injected `it` and `test`; a file with `injectGlobals: false` records as one bucket for the file |
 | Rstest | the test file | `it` and `test` on the realm and on `globalThis['@rstest/core']`, so an importing suite and a `globals: true` suite record alike |
 | Playwright | the spec file | the test, which is already the window the driver closes |

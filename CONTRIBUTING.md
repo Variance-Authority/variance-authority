@@ -112,12 +112,20 @@ variance covering --since main
 
 [`tools/cases.config.mts`](tools/cases.config.mts) is the whole configuration.
 It is a separate arm rather than a flag on the first because the answer is
-wanted on almost no runs and the recording is not free: reading which
-continuation is running costs about five nanoseconds a crossing, which is
-around a third more time inside the tests on a compute-bound package and is
-lost in the run-to-run spread over the whole suite. The index it writes lands
-beside the snapshot as
-`<coverage file>.cases.json` and is a few tens of megabytes on this repository.
+wanted on almost no runs and the index it writes is large. The recording itself
+is cheap — the suite runs its cases one at a time, so the case a crossing joins
+is a variable rather than a scope to look up, and the arm spends about a fifth
+more time inside the tests on a compute-bound package. The index lands beside
+the snapshot as `<coverage file>.cases.json` and is a few tens of megabytes on
+this repository.
+
+Add `continuations: true` to that configuration when a case's work outlives the
+case — a test that is synchronous to the runner and starts something
+asynchronous underneath, which is what breaks the test after it. Each case then
+gets an async context, the file names the cases that crossed a region after
+they had settled, and the run pays about five nanoseconds a crossing for it —
+which roughly doubles the fifth above. Without it, two cases open at once is an
+error rather than a guess.
 
 `variance covering` prints the named tests that reached a line, and the depth
 each reached it at where a producer measured one. An empty list there means *no

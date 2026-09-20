@@ -8,17 +8,21 @@ const source = resolve(root, 'src');
 const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
 if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is required');
 
+// Per-case recording the way a suite gets it by default: the case running now
+// is a variable, and nothing follows a continuation. `VARIANCE_AUTHORITY_FILES`
+// picks which of the two test files run, because one of them is concurrent on
+// purpose and this recipe is the one that refuses that.
 export default withTestSelection(
   defineConfig({
     root,
-    test: { include: ['test/*.case.ts'], environment: 'node' },
+    test: {
+      include: [process.env['VARIANCE_AUTHORITY_FILES'] ?? 'test/branch.case.ts'],
+      environment: 'node',
+    },
   }),
   {
     coverageFile,
     cases: true,
-    // One of the two test files is a `describe.concurrent` on purpose, so this
-    // fixture is one of the few suites that needs the async context.
-    continuations: true,
     include: (file) => file.startsWith(source),
   },
 );

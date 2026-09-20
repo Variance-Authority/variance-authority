@@ -55,6 +55,30 @@ export interface JestTestSelectionOptions {
    * beside it, and never alters the first.
    */
   readonly cases?: boolean;
+  /**
+   * Follow each case through the async context, and name the cases whose work
+   * outlived them.
+   *
+   * Without it, `cases` assumes what a suite almost always is: one case at a
+   * time. The case running now is a variable, the probe reads a closure slot
+   * for it, and per-case recording costs what the per-file recording costs. A
+   * second case opening while one is still open is then refused rather than
+   * guessed at, because the guess charges one case's crossings to another and a
+   * case credited with less than it reached is a case a change can skip.
+   *
+   * With it, each case gets an async context instead, which follows its
+   * continuations wherever they settle and gives concurrent cases a bucket
+   * each. Reading which continuation is running costs about five nanoseconds a
+   * crossing, which roughly doubles what the case axis costs: a fifth more time
+   * inside a compute-bound test file becomes two fifths. What
+   * you buy for it is the list of cases that made a crossing after they had
+   * settled, printed when the file ends: the tests that are still running when
+   * the next one starts.
+   *
+   * Turn it on to find those, and to record a suite that is deliberately
+   * concurrent. Leave it off the rest of the time.
+   */
+  readonly continuations?: boolean;
   /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
   readonly executionFile?: string;
 }
@@ -90,6 +114,8 @@ export interface SelectionReporterConfig {
   readonly mode?: InstrumentMode;
   /** Whether the run records which case entered each region, not only which file. */
   readonly cases?: boolean;
+  /** Whether that recording follows each case through the async context, and names the runaways. */
+  readonly continuations?: boolean;
   /** Where the per-case execution index goes; `<coverageFile>.cases.json` when absent. */
   readonly executionFile?: string;
 }
@@ -108,6 +134,17 @@ export const RUN_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_RUN';
  * answer nobody reads.
  */
 export const CASE_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES';
+
+/**
+ * Set beside it when the case scope is an async context rather than a
+ * variable, read once by `jest-globals.cts` when it picks a collector.
+ *
+ * A separate variable rather than a second value in the first, because the two
+ * answer different questions — *is anything per-case recorded* and *how is the
+ * case bracket held* — and a path that also encodes a mode is a path a reader
+ * has to parse before believing.
+ */
+export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINUATIONS';
 
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
@@ -177,6 +214,7 @@ export function withTestSelection(
     preconditions: [...new Set(preconditions)],
     ...(mode === undefined ? {} : { mode }),
     ...(options.cases === true ? { cases: true } : {}),
+    ...(options.cases === true && options.continuations === true ? { continuations: true } : {}),
     ...(options.executionFile === undefined
       ? {}
       : { executionFile: resolve(root, options.executionFile) }),

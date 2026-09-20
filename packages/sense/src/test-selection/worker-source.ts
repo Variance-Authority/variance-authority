@@ -55,6 +55,15 @@ export interface SetupShim {
    * before the first hook is registered.
    */
   readonly scope?: string;
+  /**
+   * Follow each case's continuations through the async context, and name the
+   * cases whose work outlived them.
+   *
+   * Off, the case running now is a variable and a second case opening while one
+   * is still open is refused. {@link caseCollectorSource} has both modes and
+   * what each costs.
+   */
+  readonly continuations?: boolean;
 }
 
 export function setupSource(
@@ -87,7 +96,7 @@ const fileModules = () => modules;
   // One counter set per case, keyed by async context, plus the ambient bucket
   // for everything no case owns. The file-level snapshot is their union, which
   // is bit-for-bit what the flat collector above would have counted.
-  const scoped = caseCollectorSource();
+  const scoped = caseCollectorSource(shim.continuations === true);
 
   const writeCases = caseDirectory === undefined ? '' : caseWriterSource(caseDirectory);
 
@@ -117,7 +126,17 @@ afterAll(async () => {
     ${JSON.stringify(`${runDirectory}/`)} + stamp + '.va',
     journalFormat.encodeJournal(testFile, fileModules(), loaded),
   );
-${writeCases}});`;
+${caseDirectory === undefined ? '' : `  const outlived = runaways();
+  if (outlived.length > 0) {
+    console.warn(
+      'variance-authority: work outlived its case in ' + testFile + ':\\n  ' +
+      outlived.join('\\n  ') +
+      '\\nEach of these made a crossing after it had settled. The record is right — ' +
+      'the crossing went to the case that made it — but the case is not over when ' +
+      'the runner says it is, which is what a flaky neighbour is made of.',
+    );
+  }
+`}${writeCases}});`;
 }
 
 /**
@@ -136,12 +155,86 @@ ${writeCases}});`;
  * accessor is the shape this started as and it costs six nanoseconds a hit for
  * nothing — [`instrument`](../instrument/index.ts) has the reading and the
  * reason.
+ *
+ * ## Two ways to know which case is running
+ *
+ * A suite runs its cases one at a time. While that holds, the case running now
+ * is a variable: `enter` assigns it, restores it when the case settles, and the
+ * resolver reads it. That is **1.4 ns** a crossing, which is what the
+ * file-level probe costs — the scope itself is then free, and what the axis
+ * still pays for is a counter set per case and a re-resolve at each case
+ * boundary: a fifth more time inside a compute-bound test file.
+ *
+ * It holds until a case's work outlives the case, which is the same fault two
+ * cases running at once is the other end of. Two cases cannot both be one
+ * variable, so the second `enter` is refused with an error naming both rather
+ * than charging one case's crossings to the other — the direction
+ * [`selecting.md`](../../../../docs/selecting.md) forbids, because a case
+ * credited with less than it reached is a case a change can skip. A
+ * continuation that arrives after its case closed lands in the ambient bucket,
+ * which every case in the file is given: over-inclusive, which is allowed, and
+ * silent, which is the part worth fixing.
+ *
+ * So `continuations` swaps the variable for an {@link AsyncLocalStorage}, which
+ * follows a case's continuations wherever they settle and gives concurrent
+ * cases a store each. It costs **6.7 ns** a crossing, of which 5.3 is
+ * `getStore()` itself — two fifths more time inside that same file, so the
+ * scope read is about half of what the axis then costs. It is also the mode
+ * that *names* the tests whose work outlived them: a crossing resolved to a
+ * case that has already closed marks that case, and the file reports it.
+ *
+ * @param continuations Follow each case's continuations through the async
+ * context, and report the cases whose work outlived them.
  */
-export function caseCollectorSource(): string {
-  return `
-import { AsyncLocalStorage } from 'node:async_hooks';
-const scopes = new AsyncLocalStorage();
-const buckets = new Map();
+export function caseCollectorSource(continuations = false): string {
+  // A builtin import hoists above everything, so it leads; the rest of the mode
+  // follows `ambientFactory`, which it closes over.
+  const imports = continuations ? `import { AsyncLocalStorage } from 'node:async_hooks';\n` : '';
+  const mode = continuations
+    ? `const scopes = new AsyncLocalStorage();
+// The store holds the factory itself rather than the key it was minted under:
+// the probe asks on every hit, and a \`Map.get\` on a case coordinate is most of
+// what asking costs once the accessor is gone.
+//
+// \`open\` is the one thing this mode reads that a variable cannot. A crossing
+// resolved to a case that has already settled is that case still working, and
+// the file names it at the end.
+function resolve() {
+  const factory = scopes.getStore();
+  if (factory === undefined) return ambientFactory;
+  if (factory.open === false) factory.late = true;
+  return factory;
+}
+const release = (factory) => { factory.open = false; };
+const enter = (key, body) => {
+  const factory = factoryFor(key);
+  factory.open = true;
+  return scopes.run(factory, () => settling(factory, body));
+};`
+    : `// One case at a time, so the case running now is a variable and the probe
+// reads a closure slot for it — the flat price. \`continuations\` is the mode
+// that survives a case outliving itself; this one refuses to guess when it
+// does, because the guess is the unsafe direction.
+let current = ambientFactory;
+function resolve() { return current; }
+const release = (factory) => { factory.open = false; if (current === factory) current = ambientFactory; };
+const enter = (key, body) => {
+  if (current !== ambientFactory) {
+    throw new Error(
+      'variance-authority: ' + nameOf(current.key) + ' was still running when ' +
+      nameOf(key) + ' started. Per-case recording holds one case at a time, ' +
+      'which is two cases open at once — a concurrent group, or a case that ' +
+      'left work behind. Record with { cases: true, continuations: true }: it ' +
+      'follows every case through the async context and names the ones whose ' +
+      'work outlived them.',
+    );
+  }
+  const factory = factoryFor(key);
+  current = factory;
+  return settling(factory, body);
+};`;
+
+  return `${imports}const buckets = new Map();
 const factories = new Map();
 const factoryFor = (key) => {
   let factory = factories.get(key);
@@ -157,17 +250,45 @@ const factoryFor = (key) => {
     return counters;
   };
   factory.s = resolve;
+  factory.key = key;
+  factory.open = true;
+  factory.late = false;
   factories.set(key, factory);
   return factory;
 };
 const ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
-// The store holds the factory itself rather than the key it was minted under:
-// the probe asks on every hit, and a \`Map.get\` on a case coordinate is most of
-// what asking costs once the accessor is gone.
-function resolve() { return scopes.getStore() ?? ambientFactory; }
+${mode}
+// A case is over when its body settles, not when it returns: an async case
+// returns a promise at its first await and everything past that await is still
+// the case. A synchronous one has no promise and is over on return.
+const settling = (factory, body) => {
+  let answered;
+  try {
+    answered = body();
+  } catch (thrown) {
+    release(factory);
+    throw thrown;
+  }
+  if (answered === null || typeof answered !== 'object' || typeof answered.then !== 'function') {
+    release(factory);
+    return answered;
+  }
+  return answered.then(
+    (value) => { release(factory); return value; },
+    (thrown) => { release(factory); throw thrown; },
+  );
+};
+// The coordinate is \`file\\0declaration path\\0ordinal\`; a reader knows a case
+// by the middle one.
+const nameOf = (key) => key.split('\\u0000')[1] || key.split('\\u0000')[0];
 globalThis.__VA__ = ambientFactory;
-globalThis[Symbol.for('variance-authority.test-selection.cases')] = {
-  enter: (key, body) => scopes.run(factoryFor(key), body),
+globalThis[Symbol.for('variance-authority.test-selection.cases')] = { enter };
+// Empty in the mode that cannot see one: a variable has no memory of a case
+// that closed, so a late crossing lands in the ambient bucket unnamed.
+const runaways = () => {
+  const names = [];
+  for (const factory of factories.values()) if (factory.late) names.push(nameOf(factory.key));
+  return names;
 };
 const ambient = () => buckets.get(${JSON.stringify(AMBIENT)});
 // Presence, not arithmetic: every reader of these arrays asks only whether a
