@@ -41,14 +41,22 @@ boundary.
 | Vitest browser mode | `@variance-authority/vitest-browser` | A document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Whichever you already use, through a store you inject and — for documents — a renderer you supply. |
 
-Everything below paints with Chromium, and the reason it is not a choice is
-text: `--disable-lcd-text` and `--font-render-hinting=none` are flags no other
-engine accepts, so Chromium is the only engine whose rasterization you can pin
-and reproduce on a second machine. Firefox and WebKit paint text the way their
-host does, which makes their baselines the property of that host —
-[how this compares](comparison.md) sets out what else follows from the engine.
-If your suite already runs `npx playwright install chromium`, the second command
-in each install below has already happened.
+Chromium is the engine, and that is a position rather than a default:
+`--disable-lcd-text` and `--font-render-hinting=none` are flags no other engine
+accepts, so it is the only one whose text rasterization you can pin and get back
+on a second machine. Firefox and WebKit paint text the way their host does,
+which makes their baselines that host's property — [how this
+compares](comparison.md) sets out what else follows from the engine.
+
+Which machine runs it is yours. The `npx playwright install chromium` in each
+install below is one answer and the slowest one for a runner that is discarded
+afterwards: a pinned container image paints the same bytes wherever it is
+started, a `"renderer": { "endpoint": … }` in the configuration paints on a
+machine you do not provision per run, and a surface that defers painting lets
+the suite run with no browser present at all and the painting be a CI job's.
+What matters to a verdict is that one painter is pinned for laptop and CI, not
+which one — [what each choice costs](#4-what-each-choice-costs) prices them and
+[where baselines live](placement.md) covers what each does to identity.
 
 `@variance-authority/cli` supplies the `variance` binary: `variance run`,
 `variance report`, `variance accept`, `variance doctor`. The Playwright Test and
