@@ -12,7 +12,7 @@ packages, and a package-grain selector already has something to say about it.
 Zod is one package that 196 of its 202 test files import through a single
 barrel, where a package-grain selector has nothing to say at all.
 
-| | [TanStack Query](https://github.com/Variance-Authority/query) | [Zod](https://github.com/Variance-Authority/zod) |
+| | [TanStack Query](https://github.com/Variance-Authority/tanstack-query-example) | [Zod](https://github.com/Variance-Authority/zod-example) |
 | --- | --- | --- |
 | Test files | 188 | 202 |
 | Modules recorded | 259 | 122 |
@@ -137,14 +137,15 @@ Both migrations are small and both are one commit:
   subtracts, and hands the rest to the runner. Everything that makes the answer
   safe lives in the answer, not in the script.
 
-Both repositories keep the replay and census scripts they were measured with,
-untracked, so a figure on this page can be re-derived rather than believed.
+Both repositories carry the replay and census scripts they were measured with,
+under `.variance-scratch/`, so a figure on this page can be re-derived rather
+than believed.
 
 ## Reproducing either
 
 ```bash
-git clone https://github.com/Variance-Authority/zod
-cd zod && pnpm install
+git clone https://github.com/Variance-Authority/zod-example
+cd zod-example && pnpm install
 vitest run                      # records
 node .variance-scratch/replay.mjs 60 HEAD~1
 ```
