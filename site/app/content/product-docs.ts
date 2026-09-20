@@ -52,7 +52,8 @@ import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
 import selecting from "../../../docs/selecting.md?raw";
-import selectionInTheWild from "../../../docs/selection-in-the-wild.md?raw";
+import selectionTanstackQuery from "../../../docs/selection-tanstack-query.md?raw";
+import selectionZod from "../../../docs/selection-zod.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
@@ -135,10 +136,11 @@ const documents = [
   ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
   ["selecting", selecting, "docs/selecting.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
+  ["selection-zod", selectionZod, "docs/selection-zod.md"],
   [
-    "selection-in-the-wild",
-    selectionInTheWild,
-    "docs/selection-in-the-wild.md",
+    "selection-tanstack-query",
+    selectionTanstackQuery,
+    "docs/selection-tanstack-query.md",
   ],
   ["scale", scale, "docs/scale.md"],
   ["distance", distance, "docs/distance.md"],

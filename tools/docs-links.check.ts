@@ -47,6 +47,11 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/dispatch/PickupWindow.tsx': "a reader's own component, quoted from a sample answer",
   'src/checkout/Stack.tsx': "a reader's own component, quoted from a sample answer",
   'src/app/cart.tsx': "a reader's own component, quoted from a sample answer",
+  'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
+  'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
+  'packages/resolution/attw.test.ts':
+    'a test file in the Zod fork, named for why the record will not speak for it',
+  'packages/docs/content/api.mdx': 'a file in the Zod fork, read by one of its tests through `fs`',
 };
 
 

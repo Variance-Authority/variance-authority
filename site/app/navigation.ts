@@ -82,15 +82,6 @@ export const NAVIGATION = [
     ],
   },
   {
-    label: "Case studies",
-    items: [
-      {
-        href: "/docs/selection-in-the-wild",
-        label: "Selection on repositories nobody here controls",
-      },
-    ],
-  },
-  {
     label: "Rendered comparison",
     items: [
       { href: "/start", label: "Observe one state" },
@@ -305,6 +296,19 @@ export const NAVIGATION = [
         href: "/agents/workspace-api",
         label: "Inspect a workspace API",
         alternative: true,
+      },
+    ],
+  },
+  {
+    label: "Perfect is the follow-up for the good",
+    items: [
+      {
+        href: "/docs/selection-zod",
+        label: "Zod: 202 test files, 8 run",
+      },
+      {
+        href: "/docs/selection-tanstack-query",
+        label: "TanStack Query: 27 packages, 10 test files run",
       },
     ],
   },

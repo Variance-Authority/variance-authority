@@ -48,7 +48,8 @@ it and write the rest properly.
 What it writes is one markdown file in this directory — a random name, which you
 can rename to anything but `README.md` or `config.json`. It is front matter
 naming the packages and their bumps, then the text. This is a real one,
-[`an-import-is-not-a-use.md`](an-import-is-not-a-use.md), abridged:
+`an-import-is-not-a-use.md`, released and gone from this directory since,
+abridged:
 
 ```md
 ---
