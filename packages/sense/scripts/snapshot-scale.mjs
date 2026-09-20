@@ -37,7 +37,8 @@ import { writeFileSync, readFileSync, statSync, mkdirSync, readdirSync, rmSync }
 import { layerTestCoverage } from '../dist/test-selection/format-layer.js';
 import { openTestCoverage } from '../dist/test-selection/format-view.js';
 import { selectTestFilesFromView } from '../dist/test-selection/select.js';
-import { coverageModule, crossingsOf } from '../dist/test-selection/instrumented-modules.js';
+import { crossingsOf } from '../dist/test-selection/instrumented-modules.js';
+import { coverageModule } from '../dist/test-selection/coverage-rows.js';
 import { foldCrossings } from '../dist/test-selection/crossing-fold.js';
 import journalFormat from '../dist/test-selection/journal-format.cjs';
 import { encodeTestCoverage } from '../dist/test-selection/format.js';

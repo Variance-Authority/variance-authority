@@ -139,6 +139,9 @@ export function buildSnapshot() {
     }
     if ((module & 0x3fff) === 0) watch();
   }
+  // FORMAT 8 names a region's loaders out of the same pool. The fixture has no
+  // separate loaded relation, so every region points at the empty set.
+  const blockLoadedSet = new Uint32Array(blocks).fill(sets.intern(scratch.subarray(0, 0)));
   const pool = sets.pool();
   watch();
   console.log(
@@ -277,8 +280,7 @@ export function buildSnapshot() {
     'blocks.set': column(blockSet),
     'sets.blob': blob(pool.bytes, pool.offsets),
     'sets.off': column(pool.offsets),
-    'blocks.loaded': column(new Uint32Array(blocks + 1)),
-    'loaded.test': column(new Uint32Array(0)),
+    'blocks.loadedSet': column(blockLoadedSet),
   });
   watch();
   writeFileSync(FILE, bytes);
