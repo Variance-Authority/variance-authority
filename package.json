@@ -23,6 +23,7 @@
     "release:publish": "changeset publish",
     "test": "vitest run",
     "test:coverage": "vitest run --config tools/coverage.config.mts",
+    "test:cases": "vitest run --config tools/cases.config.mts",
     "test:since": "node tools/test-since.mjs",
     "test:watch": "vitest",
     "unrun": "node tools/unrun.mjs",

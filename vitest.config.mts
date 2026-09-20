@@ -106,7 +106,11 @@ export const suite = defineConfig({
   },
 });
 
-export default withTestSelection(suite, {
+/**
+ * What the instrument is pointed at, exported so a second arm can record the
+ * same suite under different options without restating any of it.
+ */
+export const selection = {
   root: ROOT,
   include: instrumentable,
   // What governs every observation rather than any one of them: the runner
@@ -117,4 +121,6 @@ export default withTestSelection(suite, {
   // workflow — has no row, and `tools/test-since.mjs` widens to the whole suite
   // rather than pretending the snapshot has an opinion about it.
   preconditions: ['vitest.config.mts', 'package.json', 'yarn.lock', 'tsconfig.base.json'],
-});
+};
+
+export default withTestSelection(suite, selection);

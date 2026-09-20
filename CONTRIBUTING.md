@@ -98,6 +98,28 @@ Every run prints the whole reading before the leg it took out of it, the files a
 leg left for later, and two findings that need no red test: imports that reached
 past a unit face, and tests the change entered by no route they imported.
 
+## Which named tests a change reached
+
+`yarn test` records at the grain CI asks about: which *files* must run. A review
+asks a narrower question — of the two hundred cases in those files, which ones
+walked the branch that changed — and that is a second recording:
+
+```bash
+yarn test:cases
+variance covering --file packages/jsx-source/src/record.ts --line 99
+```
+
+[`tools/cases.config.mts`](tools/cases.config.mts) is the whole configuration.
+It is a separate arm rather than a flag on the first because an async context
+per case costs roughly a fifth more time inside the tests and the answer is
+wanted on almost no runs; the index it writes lands beside the snapshot as
+`<coverage file>.cases.json` and is a few tens of megabytes on this repository.
+
+`variance covering` prints the named tests that reached a line, and the depth
+each reached it at where a producer measured one. An empty list there means *no
+case entered this region*, which is the sentence that gets a test written — but
+only when the index is current, so record before you read.
+
 ## A second opinion on the suite
 
 Everything above is this repository's own instrument reading its own run. For a
