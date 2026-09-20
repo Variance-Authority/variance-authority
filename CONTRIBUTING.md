@@ -120,7 +120,7 @@ cases, ten interleaved repetitions of each arm, median of the runner's own
 file-level one, and 3.5% more on TanStack Query. Instrumenting at all is the
 larger half: 6.9% on zod and 4.0% on TanStack Query over an uninstrumented
 run. The index lands beside the snapshot as
-`<coverage file>.cases.json` and is a few tens of megabytes on this
+`<coverage file>.cases.bin` and is a couple of hundred kilobytes on this
 repository.
 
 Add `continuations: true` to that configuration when a case's work outlives the

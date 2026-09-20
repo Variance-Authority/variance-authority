@@ -25,6 +25,7 @@ import {
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { executionIndexFrom, readCaseJournals } from './cases.js';
+import { executionIndexBytes } from './execution-format.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
@@ -129,7 +130,10 @@ export function foldRun(
     // the same bytes there as one that does not.
     if (run.cases) {
       const caseJournals = await readCaseJournals(caseDirectory, root);
-      await writeFile(executionFile, JSON.stringify(executionIndexFrom(caseJournals, modules)));
+      await writeFile(
+        executionFile,
+        executionIndexBytes(executionFile, executionIndexFrom(caseJournals, modules)),
+      );
     }
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });

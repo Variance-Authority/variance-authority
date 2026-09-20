@@ -48,6 +48,7 @@ import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { executionIndexFrom } from './cases.js';
+import { executionIndexBytes } from './execution-format.js';
 import {
   caseJournals,
   joinObservations,
@@ -205,7 +206,8 @@ export interface RecordExecutionOptions {
   readonly cases?: readonly ObservedCase[];
   /**
    * Where the execution index goes. Defaults beside the snapshot, as the Vitest
-   * seam's does: `<coverage file>.cases.json`.
+   * seam's does: `<coverage file>.cases.bin`. A name ending `.json` is
+   * written as JSON instead, at the size JSON costs.
    */
   readonly executionFile?: string;
 }
@@ -460,10 +462,10 @@ export async function recordExecution(
   }
   const executionFile =
     options.executionFile === undefined
-      ? `${coverageFile}.cases.json`
+      ? `${coverageFile}.cases.bin`
       : resolve(root, options.executionFile);
   const journals = caseJournals(options.cases);
-  await writeFile(executionFile, JSON.stringify(executionIndexFrom(journals, byId)));
+  await writeFile(executionFile, executionIndexBytes(executionFile, executionIndexFrom(journals, byId)));
   return {
     recorded: true,
     coverageFile,

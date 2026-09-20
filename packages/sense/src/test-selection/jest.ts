@@ -80,7 +80,10 @@ export interface JestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
-  /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
+  /**
+   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
+   * a name ending `.json` is written as JSON instead, at the size JSON costs.
+   */
   readonly executionFile?: string;
 }
 
@@ -117,7 +120,7 @@ export interface SelectionReporterConfig {
   readonly cases?: boolean;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
-  /** Where the per-case execution index goes; `<coverageFile>.cases.json` when absent. */
+  /** Where the per-case execution index goes; `<coverageFile>.cases.bin` when absent. */
   readonly executionFile?: string;
 }
 

@@ -7,6 +7,7 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
+import { decodeExecutionIndex } from './execution-format.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -133,17 +134,7 @@ describe('the Jest integration', () => {
 
     // Beside the snapshot, never inside it: the file CI reads is the same file
     // a run without `cases` writes.
-    const index = JSON.parse(await readFile(`${coverageFile}.cases.json`, 'utf8')) as {
-      tests: ReadonlyArray<{ id: string; file: string; name: string }>;
-      modules: ReadonlyArray<{
-        file: string;
-        blocks: ReadonlyArray<{
-          startLine: number;
-          endLine: number;
-          crossings: ReadonlyArray<{ test: number }>;
-        }>;
-      }>;
-    };
+    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
     // Every case that entered a region, by the name the runner resolved. Two of
     // `alpha.case.ts`'s three are absent for different reasons: the skipped one
     // is never handed to the runner, so it opens no scope at all, and the one

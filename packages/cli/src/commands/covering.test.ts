@@ -7,6 +7,7 @@ import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
+import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
 
 const INDEX = {
@@ -33,6 +34,13 @@ async function indexFile(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
   const file = join(dir, 'cases.json');
   await writeFile(file, JSON.stringify(INDEX));
+  return file;
+}
+
+async function columnIndexFile(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+  const file = join(dir, 'cases.bin');
+  await writeFile(file, encodeExecutionIndex(INDEX));
   return file;
 }
 
@@ -66,6 +74,14 @@ describe('asking which tests entered a line', () => {
 
     expect(answer.ranges?.map((range) => [range.startLine, range.endLine])).toEqual([[10, 20], [30, 34]]);
     expect(formatCovering(answer, 'text')).toContain('2 recorded ranges, 2 named tests');
+  });
+
+  it('reads a recorded index as columns and a foreign one as JSON', async () => {
+    const columns = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', await columnIndexFile()]));
+    const json = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', await indexFile()]));
+
+    expect(columns.tests?.map((test) => test.id)).toEqual(['near', 'far']);
+    expect(columns.tests).toEqual(json.tests);
   });
 
   it('refuses a missing index rather than reporting nothing covered', async () => {

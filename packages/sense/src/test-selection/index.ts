@@ -47,6 +47,13 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export {
+  EXECUTION_FORMAT,
+  decodeExecutionIndex,
+  encodeExecutionIndex,
+  executionIndexBytes,
+  isEncodedExecutionIndex,
+} from './execution-format.js';
 export type { BlockKind };
 export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };

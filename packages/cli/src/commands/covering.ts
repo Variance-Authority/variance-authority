@@ -30,9 +30,7 @@
  * on demand, off the file graph, in [`covering-reach.ts`](./covering-reach.ts).
  */
 
-import { readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
-import { parseExecutionIndex } from '@variance-authority/distill';
 import {
   changedLines,
   coveringChange,
@@ -47,6 +45,7 @@ import {
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { defaultExecutionFile, readExecutionIndex } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { diffSince } from './since.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
@@ -95,11 +94,11 @@ export interface Covering {
  * is the sentence that gets a test deleted.
  */
 export async function covering(request: ParsedCovering): Promise<Covering> {
-  const from = request.execution ?? `${testCoverageFile(request.root)}.cases.json`;
+  const from = request.execution ?? (await defaultExecutionFile(request.root));
 
   let index: ExecutionIndex;
   try {
-    index = parseExecutionIndex(JSON.parse(await readFile(from, 'utf8')));
+    index = await readExecutionIndex(from);
   } catch (error) {
     throw new OperatorError(
       `no readable per-case execution index at \`${from}\` (${

@@ -88,7 +88,8 @@ export interface ExecutionRecording {
   readonly cases?: boolean;
   /**
    * Where that index goes, for the worker that has no reporter to fold it.
-   * Defaults beside the snapshot: `<coverage file>.cases.json`.
+   * Defaults beside the snapshot: `<coverage file>.cases.bin`; a name ending
+   * `.json` is written as JSON instead, at the size JSON costs.
    */
   readonly executionFile?: string;
   /**

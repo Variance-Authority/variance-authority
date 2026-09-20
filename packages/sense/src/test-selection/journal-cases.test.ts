@@ -19,6 +19,7 @@ import {
 } from './journal.js';
 import { selectTestFiles } from './index.js';
 import { coveringTests, type ExecutionIndex } from './reverse.js';
+import { decodeExecutionIndex } from './execution-format.js';
 import {
   INITIALIZING,
   LABEL_PLAIN_LINE,
@@ -79,8 +80,7 @@ describe('a driver that can tell its cases apart', () => {
       const without = await recordExecution({ root, cacheRoot, coverageFile, subjects });
       expect(without).toMatchObject({ recorded: true });
       const snapshot = await readFile(coverageFile);
-      expect(await readFile(`${coverageFile}.cases.json`, 'utf8').catch(() => undefined))
-        .toBeUndefined();
+      expect(await readFile(`${coverageFile}.cases.bin`).catch(() => undefined)).toBeUndefined();
 
       const recorded = await recordExecution({
         root,
@@ -95,7 +95,7 @@ describe('a driver that can tell its cases apart', () => {
       expect(recorded).toMatchObject({
         recorded: true,
         cases: 2,
-        executionFile: `${coverageFile}.cases.json`,
+        executionFile: `${coverageFile}.cases.bin`,
       });
 
       // The snapshot a `--since` reads is the same bytes either way: what the
@@ -103,9 +103,7 @@ describe('a driver that can tell its cases apart', () => {
       // nothing for it.
       expect(await readFile(coverageFile)).toEqual(snapshot);
 
-      const index = JSON.parse(
-        await readFile(`${coverageFile}.cases.json`, 'utf8'),
-      ) as ExecutionIndex;
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       expect(named(index, PREMIUM_LINE)).toEqual(['charges twice above ten']);
       expect(named(index, PLAIN_LINE)).toEqual(['charges the amount below it']);
     });
@@ -129,9 +127,7 @@ describe('a driver that can tell its cases apart', () => {
         ],
       });
 
-      const index = JSON.parse(
-        await readFile(`${coverageFile}.cases.json`, 'utf8'),
-      ) as ExecutionIndex;
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       // `label(1)` ran once, while the module evaluated, before either case
       // existed. Whichever case drained first did not earn it and the other
       // ones did not miss it: a module evaluates once per realm, so the region
@@ -213,9 +209,7 @@ describe('a run recorded by more than one process', () => {
           'e2e/price.spec.ts',
         ]);
       }
-      const index = JSON.parse(
-        await readFile(`${coverageFile}.cases.json`, 'utf8'),
-      ) as ExecutionIndex;
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       expect(named(index, PREMIUM_LINE)).toEqual(['case a']);
       expect(named(index, PLAIN_LINE)).toEqual(['case b']);
 

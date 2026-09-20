@@ -15,6 +15,7 @@ import {
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import { createStoryRecorder } from './execution.js';
+import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
 const INSTRUMENTATION = 'sense:instrument/presence-v4';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
@@ -79,9 +80,7 @@ describe('a Storybook run records what each story executed', () => {
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
       await recorder.close();
 
-      const written = JSON.parse(await readFile(`${coverageFile}.cases.json`, 'utf8')) as {
-        readonly tests: readonly { readonly name: string; readonly file: string }[];
-      };
+      const written = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       // By its declaration, which is what a person reads in the sidebar and
       // what a diff touches — not by the id Storybook slugged from it.
       expect(written.tests.map((test) => test.name).sort()).toEqual([
@@ -103,7 +102,7 @@ describe('a Storybook run records what each story executed', () => {
       expect((await readTestCoverage(coverageFile)).tests.map((test) => test.file)).toEqual([
         'story:price--premium',
       ]);
-      await expect(readFile(`${coverageFile}.cases.json`, 'utf8')).rejects.toThrow();
+      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
     });
   });
 });

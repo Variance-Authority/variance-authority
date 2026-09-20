@@ -103,6 +103,8 @@ export interface Stored {
   readonly plain: Buffer;
   readonly rows: number;
   readonly packed?: Buffer;
+  /** Bytes one row occupies, which is the element width of the array it came from. */
+  readonly width: 1 | 4;
 }
 
 /**
@@ -137,24 +139,25 @@ export function kindId(kind: BlockKind): number {
 /** A column, and the runs it becomes when there is enough of it for them to pay. */
 export function column(values: Uint32Array | Uint8Array): Stored {
   const plain = bytes(values);
-  if (plain.length <= PACK_ABOVE) return { plain, rows: values.length };
+  const width = values instanceof Uint32Array ? 4 : 1;
+  if (plain.length <= PACK_ABOVE) return { plain, rows: values.length, width };
   const packed = values instanceof Uint32Array ? packWords(values) : packBytes(values);
   return packed.length < plain.length
-    ? { plain, rows: values.length, packed }
-    : { plain, rows: values.length };
+    ? { plain, rows: values.length, packed, width }
+    : { plain, rows: values.length, width };
 }
 
 /** The blob, cut into runs on the string boundaries its offset column already holds. */
 export function blob(values: Uint8Array, offsets: Uint32Array): Stored {
   const plain = bytes(values);
-  if (plain.length <= PACK_ABOVE) return { plain, rows: values.length };
+  if (plain.length <= PACK_ABOVE) return { plain, rows: values.length, width: 1 };
   const packed = packBlob(values, offsets);
   return packed.length < plain.length
-    ? { plain, rows: values.length, packed }
-    : { plain, rows: values.length };
+    ? { plain, rows: values.length, packed, width: 1 }
+    : { plain, rows: values.length, width: 1 };
 }
 
-export function sections(input: Readonly<Record<string, Stored>>): Buffer {
+export function sections(input: Readonly<Record<string, Stored>>, version = FORMAT): Buffer {
   const chunks: Buffer[] = [];
   const index: Section[] = [];
   let offset = 0;
@@ -164,13 +167,7 @@ export function sections(input: Readonly<Record<string, Stored>>): Buffer {
       name,
       offset,
       length: value.length,
-      width: name.endsWith('.kind') ||
-          name.endsWith('.complete') ||
-          name.endsWith('.instrumented') ||
-          name === 'blocks.source' ||
-          name.endsWith('.blob')
-        ? 1
-        : 4,
+      width: held.width,
       ...(held.packed === undefined ? {} : { rows: held.rows }),
     });
     chunks.push(value);
@@ -179,7 +176,7 @@ export function sections(input: Readonly<Record<string, Stored>>): Buffer {
     if (padding > 0) chunks.push(Buffer.alloc(padding));
     offset += padding;
   }
-  const encoded = Buffer.from(JSON.stringify({ version: FORMAT, sections: index }), 'utf8');
+  const encoded = Buffer.from(JSON.stringify({ version, sections: index }), 'utf8');
   const headerLength = aligned(4 + encoded.length) - 4;
   const prefix = Buffer.alloc(4);
   prefix.writeUInt32LE(headerLength);

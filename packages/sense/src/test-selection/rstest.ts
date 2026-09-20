@@ -91,7 +91,10 @@ export interface RstestTestSelectionOptions {
    * concurrent. Leave it off the rest of the time.
    */
   readonly continuations?: boolean;
-  /** Where the per-case execution index goes. Defaults to `<coverageFile>.cases.json`. */
+  /**
+   * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
+   * a name ending `.json` is written as JSON instead, at the size JSON costs.
+   */
   readonly executionFile?: string;
 }
 
@@ -172,7 +175,7 @@ export function withTestSelection(
   ]) run.preconditions.add(resolve(root, file));
 
   const executionFile = options.executionFile === undefined
-    ? `${coverageFile}.cases.json`
+    ? `${coverageFile}.cases.bin`
     : resolve(root, options.executionFile);
   const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
   const reporter = {

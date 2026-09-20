@@ -12,6 +12,7 @@ import { decodeTestCoverage } from './format.js';
 import { coveringTests, type ExecutionIndex } from './reverse.js';
 import { deviationOfTests, narrowByExecution, selectTestFiles } from './index.js';
 import { withTestSelection } from './vitest.js';
+import { decodeExecutionIndex } from './execution-format.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -375,8 +376,8 @@ describe('the Vitest integration', () => {
       );
 
       const coverage = await readFile(coverageFile);
-      const index = await readFile(`${coverageFile}.cases.json`, 'utf8').catch(() => undefined);
-      return { coverage, ...(index === undefined ? {} : { index: JSON.parse(index) as ExecutionIndex }) };
+      const index = await readFile(`${coverageFile}.cases.bin`).catch(() => undefined);
+      return { coverage, ...(index === undefined ? {} : { index: decodeExecutionIndex(index) }) };
     }
 
     const named = (index: ExecutionIndex, line: number): readonly string[] =>

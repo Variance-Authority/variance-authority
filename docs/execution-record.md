@@ -39,7 +39,7 @@ it, and it never lands in a pull request. The one case that needs an ignore
 entry is one you create — pass `coverageFile` to a runner integration to put
 the snapshot at a path you name, typically inside the repository so CI
 can upload it as an artifact, and then ignore that path. Turning on `cases`
-writes a second file at `<coverageFile>.cases.json`, under the same rule.
+writes a second file at `<coverageFile>.cases.bin`, under the same rule.
 
 Three more things live under that directory. Each instrumenting build keeps a
 store of module records under a `<label>` of its own; the module names table is

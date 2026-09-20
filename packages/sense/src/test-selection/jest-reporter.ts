@@ -23,6 +23,7 @@ import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { executionIndexFrom, readCaseJournals } from './cases.js';
+import { executionIndexBytes } from './execution-format.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
@@ -161,9 +162,10 @@ class SelectionReporter {
     // the same bytes there as one that does not.
     if (caseDirectory !== undefined) {
       const frames = await readCaseJournals(caseDirectory, root);
+      const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
       await writeFile(
-        this.#config.executionFile ?? `${coverageFile}.cases.json`,
-        JSON.stringify(executionIndexFrom(frames, modules)),
+        executionFile,
+        executionIndexBytes(executionFile, executionIndexFrom(frames, modules)),
       );
       await rm(caseDirectory, { recursive: true, force: true });
     }

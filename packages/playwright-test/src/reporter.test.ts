@@ -11,6 +11,7 @@ import {
 import { readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 import ExecutionReporter from './reporter.js';
+import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
 const INSTRUMENTATION = 'sense:instrument/presence-v4';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
@@ -67,9 +68,7 @@ describe('the reporter that folds what the workers recorded', () => {
       expect(coverage.modules[0]!.blocks.filter((block) => block.testFiles.length > 0)).toHaveLength(
         2,
       );
-      const index = JSON.parse(await readFile(`${coverageFile}.cases.json`, 'utf8')) as {
-        readonly tests: readonly { readonly name: string }[];
-      };
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       expect(index.tests.map((test) => test.name).sort()).toEqual(['case one', 'case two']);
 
       // The directory goes with the run that named it: what a killed run left
@@ -108,7 +107,7 @@ describe('the reporter that folds what the workers recorded', () => {
       // A worker offered the cases and the run never asked for them. Being
       // able to write the index is not being obliged to.
       expect((await readTestCoverage(coverageFile)).tests).toHaveLength(1);
-      await expect(readFile(`${coverageFile}.cases.json`, 'utf8')).rejects.toThrow();
+      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
     });
   });
 });

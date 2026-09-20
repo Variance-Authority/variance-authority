@@ -527,7 +527,7 @@ to an array of one.
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
 | `cases` | Also write the execution index: which individual test entered which region. | `false` |
-| `executionFile` | Where that index goes. | Beside the snapshot: `<coverage file>.cases.json`. |
+| `executionFile` | Where that index goes. | Beside the snapshot: `<coverage file>.cases.bin`. A name ending `.json` writes JSON instead. |
 
 `mode` has to be the same answer everywhere one coverage index is written:
 a snapshot names the recipe its ordinals were cut by, and a merge discards a

@@ -373,7 +373,7 @@ variance covering --since main
 
 ```text
 2 changed files since main, 5 changed regions: 1 nothing entered, 2 entered by one case.
-Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases.json, recorded at 8a72c74.
+Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases.bin, recorded at 8a72c74.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases

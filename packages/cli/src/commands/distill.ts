@@ -1,13 +1,12 @@
 // compass: variance-authority/runtime/attention
-import { readFile } from 'node:fs/promises';
 import { readEyesArchive } from '@variance-authority/eyes/archive';
 import {
   distill,
   formatDistillation,
-  parseExecutionIndex,
   type Distillation,
 } from '@variance-authority/distill';
 import { OperatorError } from '../exit.js';
+import { readExecutionIndex } from './execution-input.js';
 
 export interface DistillOptions {
   readonly test: string;
@@ -34,7 +33,7 @@ export async function distillFiles(options: DistillOptions): Promise<Distillatio
       options.eyes === undefined ? undefined : readEyesArchive(options.eyes),
       options.execution === undefined
         ? undefined
-        : readFile(options.execution, 'utf8').then((text) => parseExecutionIndex(JSON.parse(text))),
+        : readExecutionIndex(options.execution),
     ]);
     return distill({
       test: options.test,

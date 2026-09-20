@@ -239,7 +239,7 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-entered-a-region)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-entered-a-region)) |
-| `executionFile` | `<coverageFile>.cases.json` | choosing where the per-case recording goes |
+| `executionFile` | `<coverageFile>.cases.bin` | choosing where the per-case recording goes; a name ending `.json` writes JSON instead |
 
 Configured setup files become preconditions automatically, and the runtime's own
 setup file is placed ahead of them so a setup file that loads an instrumented
@@ -1244,16 +1244,29 @@ either way, so CI reads the same file whichever you choose:
 // vitest.config.ts, with the two imports of the first sample.
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true, executionFile: '.variance-authority/cases.json' },
+  { cases: true, executionFile: '.variance-authority/cases.bin' },
 );
 ```
 
 ```ts
 import { readFile } from 'node:fs/promises';
-import { coveringTests, type ExecutionIndex } from '@variance-authority/sense/test-selection';
+import {
+  coveringTests,
+  decodeExecutionIndex,
+} from '@variance-authority/sense/test-selection';
 
-const index = JSON.parse(await readFile('.variance-authority/cases.json', 'utf8')) as ExecutionIndex;
+const index = decodeExecutionIndex(await readFile('.variance-authority/cases.bin'));
 const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
+```
+
+The index is the same relation the snapshot holds, asked at case granularity
+rather than file granularity, so it grows with cases times regions. Written as
+columns it is under a megabyte for a suite whose JSON spelling of the same
+relation is twenty-seven. Name the file `.json` and you get that JSON, for a
+reader that has to have it:
+
+```ts
+{ cases: true, executionFile: '.variance-authority/cases.json' }
 ```
 
 Each entry in `index.tests` is keyed by the case's **coordinate**: the

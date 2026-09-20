@@ -17,6 +17,7 @@ import {
   testOf,
   type ExecutionRecorder,
 } from './execution.js';
+import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
 const INSTRUMENTATION = 'sense:instrument/presence-v4';
 
@@ -288,9 +289,7 @@ describe('a worker that is one of several', () => {
       );
       await recorder.close();
 
-      const index = JSON.parse(
-        await readFile(`${coverageFile}.cases.json`, 'utf8'),
-      ) as { readonly tests: readonly { readonly name: string; readonly file: string }[] };
+      const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       expect(index.tests.map((test) => test.name).sort()).toEqual([
         'pays with a new card',
         'pays with a saved card',
@@ -314,7 +313,7 @@ describe('a worker that is one of several', () => {
 
       // The coordinate was there for the taking and the run did not ask for it.
       // Being able to name a case is not being obliged to write a row for one.
-      await expect(readFile(`${coverageFile}.cases.json`, 'utf8')).rejects.toThrow();
+      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
     });
   });
 
