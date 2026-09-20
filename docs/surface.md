@@ -41,22 +41,33 @@ boundary.
 | Vitest browser mode | `@variance-authority/vitest-browser` | A document read in the tab and painted in the Vitest process, which owns the baseline and the verdict. |
 | Custom library composition | `@variance-authority/observe` | Whichever you already use, through a store you inject and — for documents — a renderer you supply. |
 
-Chromium is the engine, and that is a position rather than a default:
-`--disable-lcd-text` and `--font-render-hinting=none` are flags no other engine
-accepts, so it is the only one whose text rasterization you can pin and get back
-on a second machine. Firefox and WebKit paint text the way their host does,
-which makes their baselines that host's property — [how this
-compares](comparison.md) sets out what else follows from the engine.
+Your tests run in whichever engine they already run in; nothing here has an
+opinion about that. The engine question is about the raster that becomes a
+baseline, and it only becomes a hard one when two machines have to agree on
+that raster. `--disable-lcd-text` and `--font-render-hinting=none` are flags no
+other engine accepts, so Chromium is the only engine whose text rasterization
+you can pin and get back somewhere else; WebKit and Firefox paint text the way
+their host does, which makes their baselines that host's property. Give them
+one host, or one container image, and keep it, and they are as good a painter
+as anything — [how this compares](comparison.md) sets out what else follows
+from the engine.
+
+Pinning is not the fast choice. Chromium spends most of its cost taking the
+screenshot at all — on one machine, around seven times what WebKit pays — and
+wins it back only on subjects that are expensive to draw. What you buy for it
+is a raster two machines agree on: [which engine is fastest depends on what you
+are painting](../packages/playwright/README.md#which-engine-is-fastest-depends-on-what-you-are-painting)
+has the numbers and the machine they were taken on.
 
 Which machine runs it is yours. The `npx playwright install chromium` in each
-install below is one answer and the slowest one for a runner that is discarded
-afterwards: a pinned container image paints the same bytes wherever it is
-started, a `"renderer": { "endpoint": … }` in the configuration paints on a
-machine you do not provision per run, and a surface that defers painting lets
-the suite run with no browser present at all and the painting be a CI job's.
-What matters to a verdict is that one painter is pinned for laptop and CI, not
-which one — [what each choice costs](#4-what-each-choice-costs) prices them and
-[where baselines live](placement.md) covers what each does to identity.
+install below is one answer among several: a pinned container image paints the
+same bytes wherever it is started, a `"renderer": { "endpoint": … }` in the
+configuration paints on a machine you do not provision per run, and a surface
+that defers painting lets the suite run with no browser present at all and the
+painting be a CI job's. What matters to a verdict is that one painter is pinned
+for laptop and CI, not which one — [what each choice
+costs](#4-what-each-choice-costs) prices them and [where baselines
+live](placement.md) covers what each does to identity.
 
 `@variance-authority/cli` supplies the `variance` binary: `variance run`,
 `variance report`, `variance accept`, `variance doctor`. The Playwright Test and
