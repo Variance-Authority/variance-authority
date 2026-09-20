@@ -6,17 +6,49 @@
 
 # Variance Authority
 
-While your tests are running, the whole picture exists: which test entered which
-code, what an interface rendered, what a workspace exports. The moment the run
-ends it is discarded, and your next question costs another full run. Variance
-Authority retains that evidence — hundreds of thousands of files and tests, over
-time — so you can ask the record instead of running everything again. Nothing is
-hosted; compute, storage, browser capacity, credentials, and deployment stay
-yours.
+**Understand the code. Investigate the behavior. Check the work.**
+
+Variance Authority keeps fine-grained evidence of what your code did — across
+hundreds of thousands of files and tests, over time — so that a question is
+answered from that record instead of by running the whole suite again to find
+out. The record has several readings, and none of them is the centre the others
+depend on.
+
+Find the names a workspace already publishes. Inspect a test while it runs.
+Trace a changed interface back to its source. Select the tests an edit reaches.
+Give your coding agent the same material to work from. Nothing is hosted;
+compute, storage, browser capacity, credentials, and deployment stay yours.
+
+## What are you working on?
+
+Start with the question costing you time. Each path states the evidence it
+needs and where its answer stops; take one on its own, or connect more of them
+as the investigation grows.
+
+| What do you need to do? | Start here |
+| --- | --- |
+| Help an agent work in this codebase | [Read the packages a workspace publishes](docs/agent-workspace-api.md), their symbols and signatures, and the places those names are already used. A readable checkout is enough. |
+| Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
+| Run the tests this edit needs | [Combine source relationships with recorded execution](docs/selecting.md) to select affected test files, with the reason for each selection. Missing evidence widens the run. |
+| Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
+| Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
+| Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
+| Check whether the work did what you intended | [Compare the intentions declared before an edit](docs/reasoning.md) with its observed effects: what landed, what did not, and what changed outside the declared scope. |
+
+## Give your coding agent the same evidence
+
+Your agent keeps its editor, shell, and test runner. Variance supplies the
+source facts and observations it reads, through the interfaces it already has.
+
+- [**From the shell**](docs/agent-cli.md) — query the current workspace, a
+  completed report, or a live watcher from the command line.
+- [**Over MCP**](docs/agent-mcp.md) — the observations you supply become
+  callable tools, including a test paused at an authored inspection point.
+- [**As guided workflows**](docs/agent-workflows.md) — source discovery, live
+  investigation, UI review, test selection, and test reduction, each carried
+  through an edit and a check.
 
 ## One change, traced end to end
-
-This example changes only the `background-color` of one `Button`:
 
 | Before | After | Diff |
 | --- | --- | --- |
@@ -41,7 +73,9 @@ checkout of this repository, after `yarn install`:
 yarn workspace @variance-authority/example-readme-case generate
 ```
 
-Other examples cover [source selection](examples/selection-reuse),
+A cause that reaches several screens is decided once: accept a matching change
+across the states it reached, and states carrying additional differences stay
+open. Other examples cover [source selection](examples/selection-reuse),
 [structural changes](examples/structural-change), and
 [flake diagnosis](examples/dynamic-route-flake). The
 [external cases](cases/README.md) exercise the packages against real hosts and
@@ -196,6 +230,25 @@ The full documentation is published at
 [documentation index](docs/README.md) routes by question rather than by package;
 use it to find the contract, measurement, or limitation behind any of the paths
 above.
+
+## Related projects
+
+- [**Chromatic**](https://www.chromatic.com/) — hosted visual review built
+  around Storybook, with TurboSnap deciding from the module graph which stories
+  a change can reach. We ran on it for years, and it is still the reference for
+  what a managed review service delivers.
+- [**Argos**](https://argos-ci.com/) — visual review over the screenshots your
+  own suite already takes, with an open-source self-host path. Its work on
+  screenshot stabilization and masking is cited in
+  [our own notes on flakiness](docs/flakiness.md) and
+  [ignores](docs/ignores.md).
+- [**TraceDecay**](https://github.com/ScriptedAlchemy/tracedecay) — source
+  extraction across some sixty languages into one graph. The same appetite for
+  reading a whole polyglot repository that
+  [`variance reach`](docs/polyglot.md) has.
+- [**testivai**](https://testiv.ai/) — local-first visual regression that pairs
+  every screenshot with a DOM and computed-style snapshot so a diff arrives as a
+  verdict rather than red pixels. The nearest thing to this project in spirit.
 
 ## Licence
 
