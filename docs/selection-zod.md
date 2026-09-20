@@ -114,8 +114,9 @@ and 10 of the 13 whose coordinates are still exact.
 
 The gap between the third row and the fourth is one repository-specific list.
 Every reason a record cannot answer produces a **shorter skip list, never a
-shorter run**: a path no run ever read widens to the whole suite. 23 of the 31
-paths that widen here are a `package.json`. No run enters a manifest, so no
+shorter run**: a path no run ever read widens to the whole suite. Seventeen of
+the sixty commits widen that way, over fourteen distinct paths — and five of
+those paths are a `package.json`, accounting for 24 of the 43 sightings. No run enters a manifest, so no
 record holds one — but a manifest is a file a tool can read on its own, and
 `variance select` does not yet. That is the largest single gap this repository
 exposes.

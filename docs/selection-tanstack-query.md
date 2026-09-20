@@ -19,7 +19,7 @@ it, along with the write-up and the scripts every figure below came from.
 | --- | --- |
 | Test files | 188 |
 | Tests | 4,523 |
-| Wall clock | 14.1s |
+| Wall clock | 12.7s |
 | Modules recorded | 259 |
 | Regions recorded | 5,409 |
 | Record on disk | 332 KB |
@@ -37,7 +37,8 @@ Inside `Query.fetch` in `packages/query-core/src/query.ts`:
 +      if (observer !== undefined) {
 ```
 
-Ten test files across five packages, 780 tests, 2.8s against the suite's 12.0s.
+Ten test files across five packages, 780 tests, 2.8s against the suite's
+11.4s — 4.4s of wall clock against 12.7s.
 The graph runs 168, because every test in an invalidated project belongs to an
 invalidated project. Both answers are defensible; one of them is 16.8 times the
 other.
@@ -81,7 +82,8 @@ answer produces a **shorter skip list, never a shorter run**: a path no run
 ever read widens to the whole suite, which is why the uninformed row is worse
 than the graph. Two causes account for all of it here:
 
-- **Manifests.** 26 of the 29 widening paths are a `package.json`. No run
+- **Manifests.** Eight of the sixty commits widen, over 38 distinct paths; 27
+  of those paths are a `package.json`, accounting for 81 of the 96 sightings. No run
   enters a manifest, so no record holds one — but a manifest is a file a tool
   can read on its own, and `variance select` does not yet. That is the largest
   single gap this repository exposes.
