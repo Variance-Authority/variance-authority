@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import {
+  oneRowPerFile,
   reportedComplete,
   taskComplete,
   type ReportedModule,
@@ -98,6 +99,31 @@ describe('what a finished test file is worth', () => {
     expect(reportedComplete(reported('module verdict', 'suite errors')))
       .toBe(taskComplete(taskTree('fail')));
     expect(reportedComplete(reported())).toBe(taskComplete(taskTree('pass')));
+  });
+});
+
+describe('a test file two projects both ran', () => {
+  // Zod's shape: one project runs `packages/zod/src/**/*.test.ts`, and a second
+  // runs the same glob again with ahead-of-time compilation turned on. The
+  // runner announces each of them, and the snapshot is keyed by path.
+  const ran = (filepath: string, complete: boolean) => ({ filepath, complete });
+
+  it('is one row, because the answer it feeds is a list of paths', () => {
+    const rows = oneRowPerFile(
+      [ran('/repo/a.test.ts', true), ran('/repo/a.test.ts', true), ran('/repo/b.test.ts', true)],
+      '/repo',
+    );
+
+    expect(rows.map((row) => row.filepath)).toEqual(['/repo/a.test.ts', '/repo/b.test.ts']);
+  });
+
+  it('is worth excluding only if every project that ran it finished it', () => {
+    // The undercount is the point: a file whose compile-mode run stopped early
+    // recorded less than it reaches, and the other project passing does not put
+    // the missing regions back.
+    const [row] = oneRowPerFile([ran('/repo/a.test.ts', true), ran('/repo/a.test.ts', false)], '/repo');
+
+    expect(row?.complete).toBe(false);
   });
 });
 

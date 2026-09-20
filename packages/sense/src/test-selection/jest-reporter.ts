@@ -29,7 +29,6 @@ import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import { layeredCoverage } from './format-layer.js';
 import {
   codeUnitOrder,
-  coverageModule,
   crossingsOf,
   isMissing,
   loadedOf,
@@ -39,6 +38,7 @@ import {
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
+import { coverageModule } from './coverage-rows.js';
 import {
   CASE_DIRECTORY_VARIABLE,
   jestStore,

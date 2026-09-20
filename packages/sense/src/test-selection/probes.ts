@@ -20,7 +20,6 @@ import {
 import { readModuleNames } from '../module-names.js';
 import {
   cleanId,
-  coverageBlock,
   defaultInclude,
   openModuleNames,
   projectPath,
@@ -29,6 +28,7 @@ import {
   writeRecord,
   type CapturedModule,
 } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 
 /**

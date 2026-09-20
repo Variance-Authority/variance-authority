@@ -24,9 +24,9 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
-import { INSTRUMENTATION_ID, type Block, type ModuleId } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { cacheLayers, defaultCacheRoot, seedFromBase } from './cache-layers.js';
-import type { CoverageBlock, CoverageModule } from './index.js';
+import type { CoverageBlock } from './index.js';
 import {
   UNNUMBERED,
   decodeRecord,
@@ -320,62 +320,6 @@ export async function readRecords(
   return found;
 }
 
-
-/** The coverage row a captured module makes once its crossings are known. */
-export function coverageModule(
-  module: CapturedModule,
-  testFilesFor: (block: CoverageBlock) => readonly string[],
-  loadedByFor: (block: CoverageBlock) => readonly string[] = () => [],
-): CoverageModule {
-  return {
-    file: module.file,
-    sourceDigest: module.sourceDigest,
-    instrumented: module.instrumented,
-    blocks: module.blocks.map((block) => {
-      const loadedBy = [...loadedByFor(block)].sort(codeUnitOrder);
-      return {
-        ...block,
-        testFiles: [...testFilesFor(block)].sort(codeUnitOrder),
-        ...(loadedBy.length === 0 ? {} : { loadedBy }),
-      };
-    }),
-  };
-}
-
-/**
- * One block as coverage records it: ordinals and offsets become lines.
- *
- * `lineOf` is how the offsets get back to the file the author edited. Absent, it
- * counts newlines in whatever text the block was cut from — right for a
- * transform that moved nothing, and a different number line for one that did.
- * The seams supply the bundler's own map; see `source-lines.ts`.
- */
-export function coverageBlock(
-  source: string,
-  block: Block,
-  lineOf: (offset: number) => number = (offset) => lineAt(source, offset),
-): CoverageBlock {
-  return {
-    ordinal: block.ordinal,
-    kind: block.kind,
-    ...(block.owner === undefined ? {} : { owner: block.owner }),
-    digest: block.digest,
-    name: block.name,
-    path: block.path,
-    startLine: lineOf(block.start),
-    endLine: lineOf(block.end > block.start ? block.end - 1 : block.end),
-    source: block.end > block.start,
-    testFiles: [],
-  };
-}
-
-export function lineAt(source: string, offset: number): number {
-  let line = 1;
-  for (let index = 0; index < offset; index += 1) {
-    if (source.charCodeAt(index) === 10) line += 1;
-  }
-  return line;
-}
 
 /** Strip a bundler's query suffix: `Button.tsx?v=1` is `Button.tsx`. */
 export function cleanId(id: string): string {

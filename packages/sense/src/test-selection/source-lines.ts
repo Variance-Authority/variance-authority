@@ -22,7 +22,7 @@
  */
 
 import { digestString } from '../digest.js';
-import { lineAt } from './instrumented-modules.js';
+import { lineAt } from './coverage-rows.js';
 
 /** The two fields of a bundler's map this reads. */
 export interface TransformSourceMap {

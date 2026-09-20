@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { sourceLines } from './source-lines.js';
 import { testSelectionProbes, type TransformingContext } from './probes.js';
-import { coverageModule, readRecord, recordStore } from './instrumented-modules.js';
+import { readRecord, recordStore } from './instrumented-modules.js';
+import { coverageBlock, coverageModule } from './coverage-rows.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import { narrowByExecutionFromView } from './select.js';
@@ -78,6 +79,39 @@ describe('reading a block back to where it was written', () => {
     );
 
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
+  });
+
+  it('keeps the span when the transform moved one end above the other', () => {
+    // Solid's JSX compiler hoists every element into a `_tmpl$` above the
+    // function that returns it, so a region opening inside the template closes
+    // at a lower original line than it started on. A map answers one position
+    // at a time and both answers are right; it is the pair that has to be an
+    // extent, and an inverted one is refused when the record is read back.
+    const hoisted = ['const _tmpl$ = tpl();', 'function View() {', '  return el(_tmpl$);', '}'].join(
+      '\n',
+    );
+    // Generated line 1 came from original line 3, and lines 2-4 from 1-3.
+    const lineOf = sourceLines(
+      hoisted,
+      { sources: ['app/src/a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
+      '/repo/app/src/a.tsx',
+    );
+    const block = {
+      ordinal: 0,
+      kind: 'module' as const,
+      digest: 'd',
+      name: '',
+      path: 'module',
+      start: 0,
+      end: hoisted.indexOf('_tmpl$)') + 1,
+    };
+
+    expect(lineOf(block.start)).toBeGreaterThan(lineOf(block.end - 1));
+
+    const row = coverageBlock(hoisted, block, lineOf);
+
+    expect(row.startLine).toBe(2);
+    expect(row.endLine).toBe(3);
   });
 });
 

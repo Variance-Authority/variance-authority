@@ -17,7 +17,8 @@
 import { digestString } from '../digest.js';
 import { instrument, instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
-import { codeUnitOrder, coverageBlock } from './instrumented-modules.js';
+import { codeUnitOrder } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 
 /**
  * A row with both crossing lists replaced, each distinct and in code-unit

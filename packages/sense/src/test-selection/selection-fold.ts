@@ -18,16 +18,17 @@ import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
 import {
   codeUnitOrder,
-  coverageModule,
   crossingsOf,
   loadedOf,
   moduleNamesFile,
   projectPath,
 } from './instrumented-modules.js';
+import { coverageModule } from './coverage-rows.js';
 import { executionIndexFrom, readCaseJournals } from './cases.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
+  oneRowPerFile,
   readJournals,
   type FinishedFile,
 } from './finished-files.js';
@@ -83,8 +84,13 @@ export function foldRun(
     const observed = crossingsOf(rows);
     const early = loadedOf(rows);
 
+    // One row per path, not per project run of it: two projects that both match
+    // a file are two announcements of one test file, and the snapshot is keyed
+    // by path.
     const tests = await Promise.all(
-      files.map((file) => coverageTest(file, root, [...run.preconditions], journals, modules)),
+      oneRowPerFile(files, root).map((file) =>
+        coverageTest(file, root, [...run.preconditions], journals, modules),
+      ),
     );
     const commit = await commitOf(root);
     const current: TestCoverage = {

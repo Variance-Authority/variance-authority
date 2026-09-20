@@ -12,7 +12,7 @@ import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { encodeTestCoverage } from './format.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoveragePrecondition, TestCoverage } from './index.js';
-import { coverageBlock } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { foldTestCoverage } from './merge.js';
 import { narrowByExecutionFromView } from './select.js';
 

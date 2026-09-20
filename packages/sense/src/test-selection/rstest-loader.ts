@@ -21,7 +21,8 @@
 
 import { readFileSync } from 'node:fs';
 import { instrument } from '../instrument/index.js';
-import { cleanId, coverageBlock, projectPath } from './instrumented-modules.js';
+import { cleanId, projectPath } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 import { runOf } from './selection-run.js';
 

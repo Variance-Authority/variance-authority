@@ -7,11 +7,11 @@ import type { ModuleNames } from '../module-names.js';
 import { priorMap, type TransformingContext } from './probes.js';
 import {
   cleanId,
-  coverageBlock,
   defaultInclude,
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
   reportedComplete,

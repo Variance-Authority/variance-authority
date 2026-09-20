@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
-import { coverageBlock } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { mergeCoverage } from './merge.js';
 import type { CoverageModule, TestCoverage } from './index.js';
 

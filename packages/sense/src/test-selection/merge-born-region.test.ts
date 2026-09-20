@@ -11,7 +11,7 @@ import { encodeTestCoverage } from './format.js';
 import { layerTestCoverage } from './format-layer.js';
 import { openTestCoverage } from './format-view.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
-import { coverageBlock } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { mergeCoverage } from './merge.js';
 import { narrowByExecutionFromView } from './select.js';
 

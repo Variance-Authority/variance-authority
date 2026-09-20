@@ -60,13 +60,13 @@ import { layeredCoverage } from './format-layer.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
-  coverageModule,
   isMissing,
   moduleNamesFile,
   projectPath,
   readRecords,
   recordStores,
 } from './instrumented-modules.js';
+import { coverageModule } from './coverage-rows.js';
 import {
   seedTestCoverage,
   testCoverageFile,

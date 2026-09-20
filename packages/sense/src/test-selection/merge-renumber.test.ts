@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
 import { layerTestCoverage } from './format-layer.js';
 import { encodeTestCoverage } from './format.js';
-import { coverageBlock } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { recutRows } from './merge-carry.js';
 import { mergeCoverage } from './merge.js';
 import type { CoverageModule, TestCoverage } from './index.js';

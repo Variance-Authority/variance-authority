@@ -29,7 +29,6 @@ import picomatch from 'picomatch';
 import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
-  coverageBlock,
   defaultInclude,
   openModuleNames,
   openRecords,
@@ -38,6 +37,7 @@ import {
   type CapturedModule,
   type RecordWriter,
 } from './instrumented-modules.js';
+import { coverageBlock } from './coverage-rows.js';
 import { jestStore, type SelectionTransformerConfig } from './jest.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 

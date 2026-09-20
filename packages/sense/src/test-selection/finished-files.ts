@@ -194,6 +194,38 @@ export function reportedComplete(module: ReportedModule): boolean {
   return tests.length > 0 && tests.every((test) => usableOutcome(test.result().state));
 }
 
+/**
+ * One row per test file, however many projects ran it.
+ *
+ * A runner's projects exist to run the same files under different conditions —
+ * zod runs its whole suite a second time with ahead-of-time compilation turned
+ * on — and each project announces its own finished file for the same path. The
+ * record's unit is a path because the answer's unit is a path: a selector names
+ * files to skip, and skipping one skips it in every project that matched it, so
+ * what a file reaches is what it reached anywhere. Left as two rows it is not a
+ * richer record, it is an unwritable one — the snapshot is keyed by path, and
+ * the encode refuses a second row for a key it already holds.
+ *
+ * `complete` is the conjunction. A file whose compile-mode run failed has an
+ * undercounted record whatever its default-mode run did, and one project
+ * passing is no licence to exclude the file on the strength of it.
+ */
+export function oneRowPerFile(
+  files: readonly FinishedFile[],
+  root: string,
+): readonly FinishedFile[] {
+  const byPath = new Map<string, FinishedFile>();
+  for (const file of files) {
+    const path = projectPath(root, file.filepath);
+    const seen = byPath.get(path);
+    byPath.set(path, {
+      filepath: seen?.filepath ?? file.filepath,
+      complete: (seen?.complete ?? true) && file.complete,
+    });
+  }
+  return [...byPath.values()];
+}
+
 export async function coverageTest(
   task: FinishedFile,
   root: string,
@@ -202,9 +234,16 @@ export async function coverageTest(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
 ): Promise<CoverageTest> {
   const file = projectPath(root, task.filepath);
-  const preconditions: CoveragePrecondition[] = [];
+  // By name, because the same fact can arrive more than once: a file two
+  // projects both ran left a journal under each of them, and the modules those
+  // journals name are largely the same modules. A precondition is a name and
+  // the digest it was read at, so the second copy adds nothing and costs a row.
+  const preconditions = new Map<string, CoveragePrecondition>();
+  const require = (precondition: CoveragePrecondition): void => {
+    if (!preconditions.has(precondition.name)) preconditions.set(precondition.name, precondition);
+  };
   for (const input of [task.filepath, ...preconditionFiles]) {
-    preconditions.push({
+    require({
       name: projectPath(root, input),
       digest: digestString(await readFile(input, 'utf8')),
     });
@@ -235,10 +274,10 @@ export async function coverageTest(
       // and three million precondition rows and seven hundred and eighty-eight
       // megabytes of columns in front of a snapshot whose regions cost three.
       if (module.instrumented) continue;
-      preconditions.push({ name: module.file, digest: module.sourceDigest });
+      require({ name: module.file, digest: module.sourceDigest });
     }
   }
-  return { file, complete: task.complete && recorded, preconditions };
+  return { file, complete: task.complete && recorded, preconditions: [...preconditions.values()] };
 }
 
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
