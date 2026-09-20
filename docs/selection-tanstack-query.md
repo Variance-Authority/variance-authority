@@ -28,6 +28,22 @@ The record is one file for the whole workspace. It has to be: a `react-query`
 test entering `query-core` is the observation the whole thing rests on, and two
 separate runs cannot see it.
 
+## What the recording run cost
+
+| | median of five |
+|---|---|
+| the suite as it ships | 11.78 s |
+| recording | 12.77 s — **1.08×** |
+| `vitest --coverage`, V8 provider | 15.25 s — **1.29×** |
+
+Same pass and fail counts in all three — the 22 that fail upstream fail in each
+— with the Vite cache and the record cache cleared between runs. This suite runs
+in jsdom, so a worker holds 193 scripts against Zod's 52. A probe is paid for by
+the test that reaches it and does not notice; the engine's counters are read
+rather than fired, and a read answers with the whole isolate. Asked the question
+a selector asks — after every test, not once per worker — the same counters cost
+2.1× to 2.7× the suite, and that is with the result thrown away.
+
 ## One line, asked of the record
 
 Inside `Query.fetch` in `packages/query-core/src/query.ts`:

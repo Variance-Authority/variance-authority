@@ -321,6 +321,57 @@ separate arithmetic — how large the snapshot is at two hundred thousand module
 how much of it one answer opens, and which repositories this stops paying for —
 and it is in [addressing scale](scale.md).
 
+## What recording costs while the suite runs
+
+If you have ever turned coverage on in CI you have a number in your head for
+what instrumentation costs, and it is a large one. Check it against this before
+you carry it over, because the two instruments are not paid for in the same way.
+
+Both suites below are public and unmodified apart from the configuration that
+installs the recorder. Every figure is the median of five runs of the whole
+suite, the first discarded as warm-up, with the Vite cache and the record cache
+cleared between runs so no run is paid for by the one before it. Pass and fail
+counts are identical down all three columns. An Apple M4 Max, 64 GB, Node 26.
+
+| | the suite | recording | `--coverage`, V8 |
+|---|---|---|---|
+| [Zod](selection-zod.md) — 398 runs, 5,656 tests | 8.87 s | 9.05 s — **1.02×** | 11.56 s — **1.30×** |
+| [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 11.78 s | 12.77 s — **1.08×** | 15.25 s — **1.29×** |
+
+That is the setting `--coverage` gives you, not a pessimistic one.
+`Profiler.startPreciseCoverage` takes two independent flags — a counter per
+region rather than a bit, and block ranges rather than function entries — and
+Vitest's provider asks for both. Node's inspector exposes no cheaper mode;
+the best-effort one is d8's.
+
+A probe fires when execution reaches it, so what you pay tracks what your tests
+**ran**. The engine's counters are not fired but read, and
+`takePreciseCoverage` answers with every script the isolate has loaded, so what
+you pay tracks what the worker **had open**. For one report at the end of a
+worker that difference never surfaces, which is why native coverage is the right
+tool for the job it was built for.
+
+It surfaces for a selector, because a selector cannot use the read at the end of
+the worker. That read is one union per file — every region some test entered,
+with no record of which test — and a skip list needs the crossing. So the
+counters have to be read after every test, and each of those reads is priced by
+the environment rather than by the test. On the TanStack Query suite, where
+jsdom puts 193 scripts in a worker, the engine hands 144 of them back to every
+one of the 4,494 tests, and the run takes **2.1× to 2.7×** the suite — counters
+alone, with the result discarded rather than mapped, attributed and written. The
+same reading on Zod, which runs in `node` with 52 scripts in a worker, costs
+nothing measurable. One engine, one call, two environments.
+
+You do not have to take either figure. Time your own suite five times with the
+plugin installed and five times with that one line taken out, and compare the
+medians — one configuration with the plugin behind a flag rather than two
+configurations, because two that can drift are one and a coincidence.
+
+The second worry is size rather than time — one row per test per region sounds
+like gigabytes before it is written. What the record does instead, what it
+measures at two hundred thousand modules, and how much of it one answer opens
+is in [addressing scale](scale.md).
+
 ## What a record knows that no graph can
 
 Everything above reasons about **reach**: which components a change touches, and

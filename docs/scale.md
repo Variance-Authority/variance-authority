@@ -154,8 +154,12 @@ test. Ask for the unfolded relation, one row per
 test per region, and the multiplier is the number of test files.
 
 Two fears attach to that once a repository is large: that recording it produces
-gigabytes of data, and that reading it needs gigabytes of memory. The figures
-below come from two recordings:
+gigabytes of data, and that reading it needs gigabytes of memory. A third is
+about the clock rather than the bytes — that a suite under instrumentation
+crawls — and it is answered where the suites are timed, in
+[what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
+1.02× on Zod and 1.08× on TanStack Query, against 1.30× for the same suites
+under `--coverage`. The figures below come from two recordings:
 
 - **Material UI.** [Material UI](https://github.com/mui/material-ui)'s own
   Vitest suite, recorded with the selection probes installed: 791 modules, 184

@@ -31,6 +31,21 @@ same paths — `packages/zod/src/**/*.test.ts` runs once as itself and once unde
 a compile-mode project. A test file path is not unique within a run, and the
 record stores the union rather than letting the second run overwrite the first.
 
+## What the recording run cost
+
+| | median of five |
+|---|---|
+| the suite as it ships | 8.87 s |
+| recording | 9.05 s — **1.02×** |
+| `vitest --coverage`, V8 provider | 11.56 s — **1.30×** |
+
+Same pass and fail counts in all three, Vite cache and record cache cleared
+between runs. Zod runs in `node`, which is why the third row is the interesting
+one: the engine's counters are read per worker and answer with every script the
+isolate has loaded, and a worker here holds 52. What it buys for that is one
+union per file — every region some test entered, with no record of which test —
+and its overhead is about fifteen times the recorder's.
+
 ## One line, asked of the record
 
 Inside `getRussianPlural` in `packages/zod/src/v4/locales/ru.ts`:
