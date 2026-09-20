@@ -38,15 +38,19 @@ yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 
 ## What the edge serves
 
-Every `page.tsx` and `route.ts` declares `export const revalidate`, and
-`app/sitemap.ts` is an `async` function whose body opens with `"use cache"`.
-Those declarations are what the build renders on: a route that does not say how
-long its output stays good is rendered per request and answered
-`cache-control: no-store`, which Cloudflare will not store. With them,
-`yarn build` writes every page, RSC payload, `index.md` and the sitemap into
-`dist/server/prerendered-routes/`, the deploy warms those paths, and the edge
-answers a reader without running a render. Give a new route the same
-declaration.
+Every `page.tsx` and `route.ts` declares `export const revalidate`. That
+declaration is what the build renders on: a route that does not say how long
+its output stays good is rendered per request and answered `cache-control:
+no-store`, which Cloudflare will not store. With it, `yarn build` writes every
+page, RSC payload and `index.md` into `dist/server/prerendered-routes/`, the
+deploy warms those paths, and the edge answers a reader without running a
+render. Give a new route the same declaration.
+
+`robots.txt` and `sitemap.xml` are route handlers rather than Next's
+`robots.ts` and `sitemap.ts` metadata routes for the same reason: a metadata
+route is answered `public, max-age=0, must-revalidate` with no CDN policy
+beside it, whatever it declares, so the edge revalidates it against the worker
+on every request.
 
 ## To add or change a page
 
@@ -59,7 +63,7 @@ in each:
   fall through to GitHub.
 - `app/navigation.ts` — `NAVIGATION` is the sidebar: sections in order, items in
   order within them. Everything else derives from it. `NAVIGATION_ITEMS`
-  flattens it, `/llms.txt` and `app/sitemap.ts` walk it, previous/next
+  flattens it, `/llms.txt` and `app/sitemap.xml/route.ts` walk it, previous/next
   pagination stays inside one `cluster`, and `generateStaticParams` in
   `app/(docs)/docs/[slug]/page.tsx` builds only slugs that `NAVIGATION` lists —
   so a document added to `product-docs.ts` alone renders nowhere.
