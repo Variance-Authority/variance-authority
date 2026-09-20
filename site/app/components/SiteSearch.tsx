@@ -76,6 +76,10 @@ function SearchTrigger({
     <button
       type="button"
       onClick={onOpen}
+      /* The glyph is decorative and the word is dropped below `sm`, so the
+         button carries its own name rather than borrowing one that a phone
+         never renders. */
+      aria-label="Search the documentation"
       className="flex items-center gap-2 rounded-lg border border-hairline px-2.5 py-1.5 text-quiet transition-colors hover:border-orange/60 hover:text-ivory sm:px-3"
     >
       <SearchGlyph />

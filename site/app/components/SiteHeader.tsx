@@ -29,7 +29,10 @@ export default function SiteHeader() {
             VARIANCE&nbsp;AUTHORITY
           </span>
         </Link>
-        <nav className="flex items-center gap-2.5 text-sm text-quiet sm:gap-6">
+        <nav
+          aria-label="Site"
+          className="flex items-center gap-2.5 text-sm text-quiet sm:gap-6"
+        >
           {SECTIONS.map((section) => (
             <Link
               key={section.href}
