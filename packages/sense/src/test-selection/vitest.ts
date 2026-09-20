@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
 import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
@@ -67,12 +68,12 @@ export interface TestSelectionOptions {
    *
    * With it, each case gets an async context instead, which follows its
    * continuations wherever they settle and gives concurrent cases a bucket
-   * each. Reading which continuation is running costs about five nanoseconds a
-   * crossing, which roughly doubles what the case axis costs: a fifth more time
-   * inside a compute-bound test file becomes two fifths. What
-   * you buy for it is the list of cases that made a crossing after they had
-   * settled, printed when the file ends: the tests that are still running when
-   * the next one starts.
+   * each. Reading which continuation is running costs 4.7 nanoseconds a
+   * crossing over the variable, which a microbenchmark separates and a real
+   * suite does not: over zod's 5,656 cases the crossing count predicts 0.2%,
+   * and the runs do not resolve it. What you buy for it is the list of cases
+   * that made a crossing after they had settled, printed when the file ends:
+   * the tests that are still running when the next one starts.
    *
    * Turn it on to find those, and to record a suite that is deliberately
    * concurrent. Leave it off the rest of the time.
@@ -186,10 +187,47 @@ export function withTestSelection(
       // no bracket and records the file as one ambient bucket, which is the
       // file-level answer it already had.
       ...(options.cases === true && config.test?.runner === undefined
-        ? { runner: writeSeamModule(runnerId, caseRunnerSource()) }
+        ? {
+          runner: writeSeamModule(runnerId, caseRunnerSource({
+            module: runnerImport(root, runnerId, '@vitest/runner'),
+            utils: runnerImport(root, runnerId, '@vitest/runner/utils'),
+          })),
+        }
         : {}),
     },
   };
+}
+
+/**
+ * How the case runner should spell a package of Vitest's own.
+ *
+ * The runner is a file in the project root, and `@vitest/runner` is Vitest's
+ * dependency rather than the project's. A layout that hoists answers a bare
+ * specifier there and pnpm's does not: the import resolves to nothing, every
+ * test file fails to load, and the run reports the files that needed no runner
+ * as a pass. Measured on TanStack Query, where 25 of 188 files ran and the
+ * suite went green in a third of the time.
+ *
+ * So the specifier is resolved from Vitest — which every project that runs one
+ * can resolve — and the runner is handed a path to that file. Asking the root
+ * first is not the cheaper check it looks like: inside the process that loads a
+ * Vitest config the bare specifier resolves under pnpm as well, and the file
+ * the runner is written to still cannot resolve it.
+ *
+ * Relative rather than absolute, because a leading slash is root-relative to
+ * Vite. To the file Vitest itself loads, because a second copy of
+ * `@vitest/runner` is a second `getFn` over a different map, and that one
+ * answers `undefined` for every task.
+ */
+function runnerImport(root: string, runnerId: string, specifier: string): string {
+  try {
+    const fromRoot = createRequire(resolve(root, 'package.json'));
+    const file = createRequire(fromRoot.resolve('vitest')).resolve(specifier);
+    const path = relative(dirname(runnerId), file).split(sep).join('/');
+    return path.startsWith('.') ? path : `./${path}`;
+  } catch {
+    return specifier;
+  }
 }
 
 function selectionPlugin(
@@ -218,8 +256,11 @@ function selectionPlugin(
       // coordinates in once the prior transforms' maps are read back through —
       // and of `code`, which is what those transforms made of it, when there is
       // no map to read back through and the lines stay where they were left.
-      const { lineOf, sourceDigest } = recordedFrame(code, priorMap(this), file, () =>
-        readFileSync(file, 'utf8'),
+      const { lineOf, sourceDigest, file: wrote } = recordedFrame(
+        code,
+        priorMap(this),
+        file,
+        (at) => readFileSync(at, 'utf8'),
       );
 
       // Under its id, the same one every other seam instruments under, so a
@@ -227,7 +268,7 @@ function selectionPlugin(
       // run in this process, so the records stay in this map rather than going
       // to the store a build needs — writing two hundred thousand files to read
       // them back a second later is ceremony, not durability.
-      const name = projectPath(root, file);
+      const name = projectPath(root, wrote);
       const moduleId = names.idOf(name) ?? name;
       const done = instrument(code, name, moduleId, { mode });
       if (done === undefined) {

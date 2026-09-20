@@ -1283,9 +1283,17 @@ Work a case started and did not await is then charged to the case that started
 it however late it settles, several cases may be in flight at once, and
 `test.concurrent` and `describe.concurrent` record as the separate cases they
 are rather than each being credited with what the others did. Reading which
-continuation is running costs about five nanoseconds a crossing, which roughly
-doubles what the case axis costs: a fifth more time inside a compute-bound test
-file becomes two fifths.
+continuation is running costs 4.7 nanoseconds a crossing over the variable —
+6.3 ns against 1.6, of which 5.5 is `getStore()` itself. A microbenchmark
+separates the two modes on that; a suite does not. Over zod's 5,656 cases —
+ten interleaved repetitions of each arm — the crossing count predicts 0.2% and
+the runs do not resolve it. The case axis as a whole spends 6.1% more time
+inside the tests than the same run recorded per file, 3.5% on TanStack Query,
+and instrumenting at all costs 6.9% and 4.0% on those two suites.
+
+On Node 22 and 23 the async context is kept in a linked list rather than a
+frame; `--no-async-context-frame` on a newer runtime reproduces it and reads
+8.4 ns a crossing, 44% above the frame.
 
 The mode also answers a question of its own. A crossing that arrives after its
 case has settled is that case still working, and the file prints the cases that

@@ -68,12 +68,13 @@ export interface JestTestSelectionOptions {
    *
    * With it, each case gets an async context instead, which follows its
    * continuations wherever they settle and gives concurrent cases a bucket
-   * each. Reading which continuation is running costs about five nanoseconds a
-   * crossing, which roughly doubles what the case axis costs: a fifth more time
-   * inside a compute-bound test file becomes two fifths. What
-   * you buy for it is the list of cases that made a crossing after they had
-   * settled, printed when the file ends: the tests that are still running when
-   * the next one starts.
+   * each. Reading which continuation is running costs 4.7 nanoseconds a
+   * crossing over the variable, which a microbenchmark separates and a real
+   * suite does not: over zod's 5,656 cases the crossing count predicts 0.2%,
+   * and the runs do not resolve it. What you buy for it is the list of cases
+   * that made a crossing after they had settled, printed when the file ends:
+   * the tests
+   * that are still running when the next one starts.
    *
    * Turn it on to find those, and to record a suite that is deliberately
    * concurrent. Leave it off the rest of the time.

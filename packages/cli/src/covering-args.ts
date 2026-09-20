@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
@@ -21,6 +22,16 @@ export interface CoveringAt extends CoveringSource {
   readonly line?: number;
   /** `--function <name>`: one indexed function of it. Alternative to `--line`. */
   readonly function?: string;
+  /**
+   * `--at-distance <range>`: keep only witnesses within this many import hops.
+   *
+   * Hops from the file the question names to the test's own file, walked over
+   * the import graph. A separate reading from the crossing that put the test in
+   * the list, and a more expensive one, which is why it is a flag.
+   */
+  readonly atDistance?: { readonly from: number; readonly to: number };
+  /** `--in-package`: keep only witnesses whose test file shares the subject's package. */
+  readonly inPackage?: true;
   readonly since?: undefined;
 }
 
@@ -52,6 +63,11 @@ export type ParsedCovering = CoveringAt | CoveringSince;
  * `--file` rather than filtering it. Combined with any of the other three it is
  * refused — a diff already names its own files, and a `--file` beside it would
  * either agree and say nothing or disagree and silently answer about one of them.
+ *
+ * `--at-distance` and `--in-package` are not a fourth question but a narrowing
+ * of the answer to the first three: the witnesses stay the witnesses, and what
+ * changes is how many of them are printed. Both need one origin to measure
+ * from, so both are refused beside `--since`.
  */
 export function parseCoveringArgs(flags: Flags): ParsedCovering {
   noPositionals(flags.positionals, 'covering');
@@ -64,6 +80,14 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
       throw new OperatorError(
         `\`--since\` and \`${other}\` are alternatives. A diff names the files it changed, so ` +
           'asking it about one more is either the same question or a different one answered quietly.',
+      );
+    }
+    for (const other of ['--at-distance', '--in-package'] as const) {
+      if (!flags.present.has(other)) continue;
+      throw new OperatorError(
+        `\`--since\` and \`${other}\` do not compose. A diff is many origins, so a test has a ` +
+          'distance to each changed file and no single one to the change; ask a file or a line, ' +
+          'which is one origin and has one answer.',
       );
     }
     return { ...executionAnd(flags), since };
@@ -93,12 +117,39 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     }
   }
 
+  const atDistance = parseAtDistance(flags);
+
   return {
     ...executionAnd(flags),
     file,
     ...(line === undefined ? {} : { line }),
     ...(functionName === undefined ? {} : { function: functionName }),
+    ...(atDistance === undefined ? {} : { atDistance }),
+    ...(flags.present.has('--in-package') ? { inPackage: true as const } : {}),
   };
+}
+
+/**
+ * Read `--at-distance`, or say what it should have been.
+ *
+ * The same spelling `atDistance` ranges over — `0-3`, `2`, `3-` — because the
+ * flag is named after the quantity and the quantity is hop counts. A typo is
+ * refused rather than read as one distance: `0-e` narrowing silently to zero
+ * hops would answer *nothing is near* about a line six tests reach.
+ */
+function parseAtDistance(
+  flags: Flags,
+): { readonly from: number; readonly to: number } | undefined {
+  const raw = flags.values.get('--at-distance');
+  if (raw === undefined) return undefined;
+  const range = distanceRange(raw);
+  if (range === undefined) {
+    throw new OperatorError(
+      `--at-distance takes hop counts — \`0-3\`, \`2\`, or \`3-\` for three and beyond — not ` +
+        `\`${raw}\`.`,
+    );
+  }
+  return range;
 }
 
 /** Where to read the index, where the run was rooted, and how to write the answer. */

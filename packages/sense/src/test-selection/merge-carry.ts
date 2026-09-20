@@ -19,6 +19,7 @@ import { instrument, instrumentModeOf } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
+import { sourceLines } from './source-lines.js';
 
 /**
  * A row with both crossing lists replaced, each distinct and in code-unit
@@ -377,7 +378,10 @@ export function recutRows(
   const mode = instrumentModeOf(instrumentation);
   const fresh = mode === undefined ? undefined : instrument(source, module.file, module.file, { mode });
   if (fresh === undefined) return 'mislaid';
-  const rows = fresh.blocks.map((block) => coverageBlock(source, block));
+  // One lookup for the whole module: the default counts newlines from the top
+  // of the file on every offset, and a module re-cut here asks twice per region.
+  const lineOf = sourceLines(source, undefined, module.file);
+  const rows = fresh.blocks.map((block) => coverageBlock(source, block, lineOf));
   if (!sameNumbering(module.blocks, rows)) return 'mislaid';
   const before = new Map(addressed(module.blocks));
   // Rows by ordinal as they are decided, which is what a gained region reads its

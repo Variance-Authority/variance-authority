@@ -486,13 +486,31 @@ npx variance covering --file src/checkout/total.ts        # per recorded range
 
 The index is read from where a recorded run writes it, so `--file` is usually
 the whole command; `--execution <path>` names one recorded elsewhere and
-`--root <path>` the project root it was recorded against. Depth is the shortest
-call-stack distance observed between the test and that region, and sorts the
-list where a producer measured one; the Vitest recorder in
-`@variance-authority/sense` writes zero everywhere, so under it the order is by
-identity. None of it is a verdict — execution says where a test went, never why
-the trip was worth taking. A missing index is refused rather than answered
-empty, because an empty list reads as *no test covers this line*.
+`--root <path>` the project root it was recorded against. None of it is a
+verdict — execution says where a test went, never why the trip was worth
+taking. A missing index is refused rather than answered empty, because an empty
+list reads as *no test covers this line*.
+
+Two flags narrow the same answer to the tests that sit nearby, which is what
+you want when the list is long for structural reasons:
+
+```bash
+npx variance covering --file src/checkout/total.ts --line 48 --at-distance 0-3
+npx variance covering --file src/checkout/total.ts --line 48 --in-package
+```
+
+`--at-distance` counts import hops from the file to the test's own file, walked
+over the file graph, and takes the range spelling a distance loop takes: `0-3`,
+`2`, or `3-` for three and beyond. `--in-package` keeps the tests written under
+the same `package.json` as the file you asked about. Both print how many of the
+witnesses survived the narrowing, because a filtered list and a genuinely short
+list read the same and lead to opposite decisions, and a test the walk could
+not place is left out and counted rather than carried in. Both measure from one
+origin, so neither composes with `--since`.
+
+No call-stack depth is printed beside a test. Our recorder writes zero into
+every crossing, so the column was a constant dressed as a measurement; *how far
+away is this test* is an import count, and it is the two flags above.
 
 At review time ask it about the whole change instead:
 

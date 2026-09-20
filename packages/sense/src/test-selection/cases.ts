@@ -59,18 +59,19 @@
  *
  * The resolver hangs off the factory rather than replacing `__VA__` with an
  * accessor, which is what this was first built as. That accessor was half the
- * axis's cost: **12.6 ns** a probe hit against **1.4 ns** for the flat probe
- * over a data property, and **6.7 ns** once the scope moved one level in and
+ * axis's cost: **12.6 ns** a probe hit against **1.3 ns** for the flat probe
+ * over a data property, and **6.3 ns** once the scope moved one level in and
  * the store began holding the factory rather than a key to look one up by.
  *
  * ## What the resolver reads, and why it is usually a variable
  *
  * A suite runs its cases one at a time. While that holds, *the case running
  * now* is a variable: `enter` assigns it, the body settling restores it, and
- * the resolver is a closure read. That is the **1.4 ns** above — the scope
- * costs nothing over the file axis, which is the shape almost every suite gets,
- * and what the axis still pays for is a counter set per case and a re-resolve
- * at each case boundary: a fifth more time inside a compute-bound test file.
+ * the resolver is a closure read. That is **1.6 ns**, a fifth over the flat
+ * probe's 1.3 and the shape almost every suite gets; on top of it the axis pays
+ * for a counter set per case and a re-resolve at each case boundary, which is
+ * **6.1%** more time inside the tests over zod's suite against the same run
+ * recorded per file, and **3.5%** over TanStack Query's.
  *
  * It holds until a case's work outlives the case. A test that is synchronous to
  * the runner and asynchronous underneath returns before its work does; two
@@ -87,11 +88,12 @@
  * module each invalidate the other's cached array at exactly the crossings
  * where they meet, and a crossing resolved to a case that has already settled
  * marks that case as one whose work outlived it — which the file prints when it
- * ends. That is **6.7 ns** a crossing, of which 5.3 is
+ * ends. That is **6.3 ns** a crossing, of which 5.5 is
  * `AsyncLocalStorage.getStore()` itself: the price of reading which
- * continuation is running, not of recording anything. Two fifths more time
- * inside that same file, so the scope read is about half of what the axis then
- * costs. The reading is in
+ * continuation is running, not of recording anything. It is 4.7 ns a crossing
+ * over the variable, which a microbenchmark separates and a suite does not —
+ * over zod the crossing count predicts 0.2%, and ten interleaved repetitions
+ * cannot resolve that. The reading is in
  * [`instrument`](../instrument/index.ts), which emits the probe that pays it.
  *
  * So the mode is worth turning on to hunt runaway tests, and to record a suite

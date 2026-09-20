@@ -199,8 +199,11 @@ export function testSelectionProbes(
       // texts: the file on disk when the prior chain reads the extents back into
       // it, and `code` when there is no chain and the extents stay where the
       // transform left them.
-      const { lineOf, sourceDigest } = recordedFrame(code, priorMap(this), source, () =>
-        readFileSync(source, 'utf8'),
+      const { lineOf, sourceDigest, file: wrote } = recordedFrame(
+        code,
+        priorMap(this),
+        source,
+        (at) => readFileSync(at, 'utf8'),
       );
 
       // Instrumented under its id, which is all the page then reports. The path
@@ -209,7 +212,7 @@ export function testSelectionProbes(
       // mounted the checkout somewhere else, and a leak of a layout nobody asked
       // for. It rides in the record, once, rather than in every copy of the
       // module the bundle ships.
-      const file = projectPath(root, source);
+      const file = projectPath(root, wrote);
       const id = names.idOf(file) ?? file;
       const done = instrument(code, file, id, options.mode === undefined ? {} : { mode: options.mode });
       if (done === undefined) {

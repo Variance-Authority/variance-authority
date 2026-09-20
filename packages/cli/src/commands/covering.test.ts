@@ -179,3 +179,69 @@ describe('asking which cases a change reached', () => {
     expect(() => parse(['--since', 'main', '--line', '3'])).toThrow(/alternatives/);
   });
 });
+
+describe('narrowing the witnesses to what is nearby', () => {
+  it('reads a hop range the way a distance loop spells one', () => {
+    expect(parse(['--file', 'src/total.ts', '--at-distance', '0-3']).atDistance)
+      .toEqual({ from: 0, to: 3 });
+    expect(parse(['--file', 'src/total.ts', '--at-distance', '2']).atDistance)
+      .toEqual({ from: 2, to: 2 });
+    expect(parse(['--file', 'src/total.ts', '--at-distance', '3-']).atDistance?.from).toBe(3);
+  });
+
+  it('refuses a hop range it cannot read rather than narrowing to nothing', () => {
+    expect(() => parse(['--file', 'src/total.ts', '--at-distance', '0-e']))
+      .toThrow(/--at-distance takes hop counts/);
+  });
+
+  it('takes `--in-package` without a value', () => {
+    expect(parse(['--file', 'src/total.ts', '--in-package']).inPackage).toBe(true);
+    expect(parse(['--file', 'src/total.ts']).inPackage).toBeUndefined();
+  });
+
+  it('refuses both beside a diff, which is many origins and no one distance', () => {
+    for (const flag of [['--at-distance', '0-3'], ['--in-package']]) {
+      expect(() => parse(['--since', 'HEAD~1', ...flag])).toThrow(OperatorError);
+      expect(() => parse(['--since', 'HEAD~1', ...flag])).toThrow(/do not compose/);
+    }
+  });
+
+  it('keeps only witnesses whose test file shares the package, and says how many it dropped', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'variance-in-package-'));
+    await writeFile(join(dir, 'package.json'), '{"name":"root"}');
+    await mkdir(join(dir, 'apps', 'web'), { recursive: true });
+    await writeFile(join(dir, 'apps', 'web', 'package.json'), '{"name":"web"}');
+    const execution = join(dir, 'cases.json');
+    await writeFile(execution, JSON.stringify({
+      tests: [
+        { id: 'here', file: 'apps/web/total.test.ts', name: 'discounts' },
+        { id: 'there', file: 'flow.test.tsx', name: 'checks out' },
+      ],
+      modules: [{
+        file: 'apps/web/src/total.ts',
+        blocks: [{
+          kind: 'function', name: 'applyDiscount', path: 'entry', startLine: 10, endLine: 20,
+          source: true, crossings: [{ test: 0, distance: 0 }, { test: 1, distance: 0 }],
+        }],
+      }],
+    }));
+
+    const answer = await covering(parse([
+      '--file', 'apps/web/src/total.ts', '--line', '12',
+      '--in-package', '--root', dir, '--execution', execution,
+    ]));
+
+    expect(answer.tests?.map((test) => test.id)).toEqual(['here']);
+    expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
+    expect(formatCovering(answer, 'text'))
+      .toContain('1 of 2 named tests that reached it are inside the narrowing');
+  });
+
+  it('prints no depth beside a witness', async () => {
+    const execution = await indexFile();
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', execution]));
+
+    expect(formatCovering(answer, 'text')).not.toContain('depth');
+  });
+});

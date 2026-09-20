@@ -50,11 +50,12 @@ const ROOT = import.meta.dirname;
  * change unattributable — `core` is imported by nearly everything, and nothing
  * in a `cli` test loads `packages/core/src`.
  *
- * The recorded extents are in `src` coordinates either way. Probes are placed
- * after the runner's transform and the block spans are translated back through
- * the map that transform carried, which for a `dist` module is `tsc`'s own
- * `.js.map`. So a hunk header from `git diff` lands on the region an author
- * edited, under whichever of the two names the snapshot holds.
+ * Both shapes are recorded under the `src` path. Probes are placed after the
+ * runner's transform, and the block spans, the digest and the module's name all
+ * come back through the map that transform carried — for a `dist` module,
+ * `tsc`'s own `.js.map`. So the two shapes are one row: a hunk header from `git`
+ * diff lands on the region an author edited, and a graph walk asking how far a
+ * test sits from that module has a path the scanner has actually read.
  */
 const PRODUCT = /[/\\](?:packages|examples|cases)[/\\][^/\\]+[/\\]src[/\\]/;
 const BUILT = /[/\\]packages[/\\][^/\\]+[/\\]dist[/\\]/;

@@ -72,12 +72,12 @@ describe('variance_source_tests', () => {
     expect(result.content[0]!.text).toContain('applies the staff discount');
   });
 
-  it('answers one line with named tests nearest first', () => {
+  it('answers one line with named tests, and prints no depth beside them', () => {
     const text = sourceTests.run(INDEX, { file: 'src/cart/total.ts', line: 2 });
 
     expect(text).toContain('2 named test(s) reached line 2');
     expect(text.indexOf('applies the staff discount')).toBeLessThan(text.indexOf('uses the guest price'));
-    expect(text).toContain('depth 2');
+    expect(text).not.toContain('depth');
   });
 
   it('answers one function by its exact indexed name', () => {

@@ -22,6 +22,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -203,13 +204,13 @@ function place(
   // coordinates in once the wrapped transformer's map is read back through —
   // and of the transformed text when there is no map to read back through, so
   // the digest never vouches for a number line it did not see.
-  const { lineOf, sourceDigest } = recordedFrame(
+  const { lineOf, sourceDigest, file: wrote } = recordedFrame(
     transformed.code,
     parsedMap(transformed),
     path,
-    () => source,
+    (at) => (at === path ? source : readFileSync(at, 'utf8')),
   );
-  const file = projectPath(root, path);
+  const file = projectPath(root, wrote);
   const done = instrument(transformed.code, file, id, { mode });
   const captured: CapturedModule = done === undefined
     ? { file, id, sourceDigest, instrumented: false, blocks: [] }

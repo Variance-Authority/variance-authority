@@ -272,3 +272,58 @@ describe('a text the seam cannot map back to the file', () => {
     expect(narrowing.entered).toContain('test/beta.test.js');
   });
 });
+
+/**
+ * A module consumed as a build is recorded under the file it was written in.
+ *
+ * A host hands the transform hook whatever it resolved, and for a package
+ * imported from its build that is `dist/a.js`. The lines already follow the map
+ * home; the name did not, so the record named a path the scanner has never read
+ * an import from and every test that entered the module came back unplaced.
+ * Nobody asks *which tests cover dist*.
+ */
+describe('a module the host loaded from its build', () => {
+  const root = join(tmpdir(), `variance-built-${process.pid}`);
+  const built = async (sources: readonly string[]) => {
+    await mkdir(join(root, 'src'), { recursive: true });
+    await mkdir(join(root, 'dist'), { recursive: true });
+    await writeFile(join(root, 'src/a.ts'), ORIGINAL);
+    await writeFile(join(root, 'dist/a.js'), TRANSFORMED);
+    // `defaultInclude` refuses build output, so a suite that reaches its
+    // subject through a manifest's `exports` says so — this repository's own
+    // config is one. Recording it is the opt-in; naming it is this.
+    const plugin = testSelectionProbes({ root, cacheRoot, include: () => true });
+    const context: TransformingContext = {
+      getCombinedSourcemap: () => ({ sources: [...sources], mappings: DROPPED_BLANK.mappings }),
+    };
+    plugin.transform.call(context, TRANSFORMED, join(root, 'dist/a.js'));
+    const store = recordStore(root, 'build', cacheRoot);
+    return {
+      original: await readRecord(store, 'src/a.ts'),
+      generated: await readRecord(store, 'dist/a.js'),
+    };
+  };
+
+  afterEach(async () => {
+    await rm(root, { force: true, recursive: true });
+  });
+
+  it('names it after the source its map points at, and digests that text', async () => {
+    const { original, generated } = await built(['../src/a.ts']);
+
+    expect(generated).toBeUndefined();
+    expect(original?.file).toBe('src/a.ts');
+    expect(original?.sourceDigest).toBe(digestString(ORIGINAL));
+    expect(original?.blocks.find((block) => block.kind === 'function')?.startLine).toBe(3);
+  });
+
+  it('leaves a bundle chunk under the name the host gave it', async () => {
+    // Many sources folded into one text. There is no single file to rename it
+    // to, and the first one would be a name that joins to the wrong module
+    // rather than to none.
+    const { original, generated } = await built(['../src/a.ts', '../src/b.ts']);
+
+    expect(original).toBeUndefined();
+    expect(generated?.file).toBe('dist/a.js');
+  });
+});

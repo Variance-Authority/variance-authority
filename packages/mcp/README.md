@@ -412,10 +412,11 @@ edit — see [ask a run from the command line](https://variance-authority.dev/do
 ## Give an agent the tests for source
 
 `variance_source_tests` answers the question a coding agent needs before and
-after an edit: which named tests reached this source, and how directly? A line
-or function query returns tests ordered by minimum observed call-stack depth. A
-file query returns every indexed line as compact ranges, including ranges no
-test entered.
+after an edit: which named tests reached this source? A line or function query
+returns the tests that entered it, named and by file. A file query returns every
+indexed line as compact ranges, including ranges no test entered. To ask how far
+away those tests sit, `variance covering --at-distance <hops>` and
+`--in-package` narrow the same list by import distance on the command line.
 
 An `ExecutionIndex` is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 writes: a record, per test, of which regions of which source files that test

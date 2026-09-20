@@ -43,10 +43,10 @@ npx variance covering --file src/cart/total.ts --line 14
 ```
 
 ```text
-3 named tests reached line 14 of src/cart/total.ts, nearest first where the index carries a depth:
-  depth 0 — splits a discount — src/cart/total.test.ts [total.test.ts::splits a discount]
-  depth 0 — renders a coupon — src/cart/Cart.test.tsx [Cart.test.tsx::renders a coupon]
-  depth 0 — checks out — src/cart/flow.test.tsx [flow.test.tsx::checks out]
+3 named tests reached line 14 of src/cart/total.ts:
+  splits a discount — src/cart/total.test.ts [total.test.ts::splits a discount]
+  renders a coupon — src/cart/Cart.test.tsx [Cart.test.tsx::renders a coupon]
+  checks out — src/cart/flow.test.tsx [flow.test.tsx::checks out]
 ```
 
 Every answer is a test you can open: the case's name, the file it is written in,
@@ -67,17 +67,26 @@ the sentence that gets a test deleted. `coveringTests` and `coveringTestsInFile`
 from `@variance-authority/sense/test-selection` answer the same two questions in
 process, for an editor or a script that wants the records rather than the text.
 
-Two limits shape how you read the list. Anything a file entered before its
-first case — imports, `beforeAll`, top-level evaluation — is credited to every
-case in that file. And this recorder writes every crossing at depth zero rather
-than inventing a call-stack distance it did not observe, so the order is by
-identity; the file-level [execution record](execution-record.md) stores real
-distance instead, and an index from another producer that measured depth sorts
-nearest first. Turn cases on for a local loop over the code you are changing,
-not for the repository-wide index CI reads to select files. A Jest, Rstest,
-Playwright or Storybook suite wraps its own configuration the same way and
-records the same regions; each writes the case axis against the unit it
-schedules, and
+When the list is long, narrow it to the tests that sit near the code:
+
+```bash
+npx variance covering --file src/cart/total.ts --line 14 --at-distance 0-3
+npx variance covering --file src/cart/total.ts --line 14 --in-package
+```
+
+`--at-distance` counts import hops from the file to the test's own file, and
+takes a range: `0-3`, `2`, or `3-` for three and beyond. `--in-package` keeps
+the tests written under the same `package.json`. Both print how many witnesses
+survived the narrowing, so a filtered list never reads as a short one, and both
+measure from one origin, so neither composes with `--since`.
+
+One limit shapes how you read the list either way: anything a file entered
+before its first case — imports, `beforeAll`, top-level evaluation — is
+credited to every case in that file. Turn cases on for a local loop over the
+code you are changing, not for the repository-wide index CI reads to select
+files. A Jest, Rstest, Playwright or Storybook suite wraps its own
+configuration the same way and records the same regions; each writes the case
+axis against the unit it schedules, and
 [what each host records](execution-record.md#what-each-host-records) is that
 one table.
 
@@ -223,8 +232,8 @@ code may still provide the same answer.
 
 [Ask which tests claim a line](#ask-which-tests-claim-a-line) names the cases
 that entered a region. The file-level [execution record](execution-record.md)
-answers the same question by test file, adds the call-stack depth each test
-stood at, and says how much source that test pulls in with it. Both readings
+answers the same question by test file, and says how much source each test
+pulls in with it. Both readings
 identify a conversation rather than a verdict.
 
 For one candidate, [Distill](distill.md) can show what it loaded, entered and

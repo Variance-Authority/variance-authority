@@ -10,7 +10,10 @@ import { stringArg, type Tool } from './tool.js';
 export const sourceTests: Tool<ExecutionIndex> = {
   name: 'variance_source_tests',
   description:
-    'Find named tests that reached a source file, line, or function, ranked by observed call-stack depth.',
+    'Find named tests that reached a source file, line, or function. Tests are listed in ' +
+    'identity order; nothing here ranks them by distance. To narrow the list to tests within ' +
+    'a few imports of the file, or to tests in its own package, run `variance covering` with ' +
+    '`--at-distance` or `--in-package`, which read the file graph this index does not carry.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -90,8 +93,16 @@ function wholeFile(index: ExecutionIndex, file: string): string {
   return lines.join('\n');
 }
 
+/**
+ * One witness, with no distance beside it.
+ *
+ * `ExecutionCrossing.distance` is call-stack depth, ADR-0056 forecloses
+ * recording one, and the collector writes zero everywhere — so a depth printed
+ * here was a constant dressed as a measurement. Import hops are the quantity
+ * that answers *how far away is this test*, and they are not in this index.
+ */
 function formatTest(test: CoveringTest): string {
-  return `depth ${test.distance} — ${test.name} — ${test.file} [${test.id}]`;
+  return `${test.name} — ${test.file} [${test.id}]`;
 }
 
 function unknownFile(index: ExecutionIndex, file: string): string {

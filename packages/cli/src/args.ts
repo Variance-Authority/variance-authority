@@ -36,7 +36,14 @@ export interface Flags {
  * reading `USAGE`, where a flag shown without a placeholder is a boolean by
  * definition.
  */
-export const BOOLEAN = new Set(['--all', '--marker', '--flakes', '--publish', '--exit-zero-on-changes']);
+export const BOOLEAN = new Set([
+  '--all',
+  '--marker',
+  '--flakes',
+  '--publish',
+  '--in-package',
+  '--exit-zero-on-changes',
+]);
 
 /**
  * Whether these arguments ask for help rather than do anything.

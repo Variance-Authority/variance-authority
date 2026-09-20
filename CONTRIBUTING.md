@@ -114,23 +114,31 @@ variance covering --since main
 It is a separate arm rather than a flag on the first because the answer is
 wanted on almost no runs and the index it writes is large. The recording itself
 is cheap — the suite runs its cases one at a time, so the case a crossing joins
-is a variable rather than a scope to look up, and the arm spends about a fifth
-more time inside the tests on a compute-bound package. The index lands beside
-the snapshot as `<coverage file>.cases.json` and is a few tens of megabytes on
-this repository.
+is a variable rather than a scope to look up. Measured on zod's suite — 5,656
+cases, ten interleaved repetitions of each arm, median of the runner's own
+`tests` figure — the arm spends 6.1% more time inside the tests than the
+file-level one, and 3.5% more on TanStack Query. Instrumenting at all is the
+larger half: 6.9% on zod and 4.0% on TanStack Query over an uninstrumented
+run. The index lands beside the snapshot as
+`<coverage file>.cases.json` and is a few tens of megabytes on this
+repository.
 
 Add `continuations: true` to that configuration when a case's work outlives the
 case — a test that is synchronous to the runner and starts something
 asynchronous underneath, which is what breaks the test after it. Each case then
 gets an async context, the file names the cases that crossed a region after
-they had settled, and the run pays about five nanoseconds a crossing for it —
-which roughly doubles the fifth above. Without it, two cases open at once is an
-error rather than a guess.
+they had settled, and the run pays 4.7 nanoseconds a crossing more than the
+variable does — 6.3 ns against 1.6, of which 5.5 is `getStore()` itself. On
+the same zod measurement the two arms do not separate: the crossing count
+predicts 0.2%, and ten interleaved repetitions cannot resolve that against the
+suite's own spread. The microbenchmark separates them and a suite does not.
+Without it, two cases open at once is an error rather than a guess.
 
-`variance covering` prints the named tests that reached a line, and the depth
-each reached it at where a producer measured one. An empty list there means *no
-case entered this region*, which is the sentence that gets a test written — but
-only when the index is current, so record before you read.
+`variance covering` prints the named tests that reached a line, and
+`--at-distance <hops>` or `--in-package` narrows them to the ones written near
+it. An empty list there means *no case entered this region*, which is the
+sentence that gets a test written — but only when the index is current, so
+record before you read.
 
 `--since <ref>` asks the same of everything a diff touched, which is what a
 review wants: every changed region with the cases that entered it, counting the

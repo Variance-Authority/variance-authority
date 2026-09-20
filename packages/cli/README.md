@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance select  [--since <ref>] [--format plain|json|vitest|jest]
 variance reach   --since <ref> [--format plain|json]
-variance covering --file <path> [--line <n>] [--function <name>] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -296,24 +296,59 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 ```
 
 ```text
-3 named tests reached line 48 of src/checkout/total.ts, nearest first where the index carries a depth:
-  depth 0 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
-  depth 0 — renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-  depth 0 — checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
+3 named tests reached line 48 of src/checkout/total.ts:
+  applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+  renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
+  checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
 ```
 
 This is not a verdict. Execution says where a test went, never why the trip was
 worth taking, so three tests on one line is the beginning of the question *why
 do all three need this code* and not the answer to it.
 
-Depth is the shortest call-stack distance between the test and that region, and
-it sorts the list where a producer measured one. The Vitest recorder in
-`@variance-authority/sense` does not measure it — every crossing it writes is
-depth zero, and a fabricated number would sort the answer by something nothing
-observed — so under that recorder the list comes back in identity order. An
-index from a runner, debugger or editor integration that measures real depths
-sorts nearest first, and the column is printed either way so you can tell which
-kind of index you are reading.
+#### Narrowing the answer to what is nearby
+
+On real code the list is long, and it is long for two reasons that are
+structural rather than interesting: a test many packages away that arrived
+through a chain nobody would call a dependency, and a test in another package
+that arrived because everything arrives at a base module. Two flags cut the
+list down by where the *test* sits:
+
+```bash
+variance covering --file src/checkout/total.ts --line 48 --at-distance 0-3
+variance covering --file src/checkout/total.ts --line 48 --in-package
+```
+
+```text
+2 named tests reached line 48 of src/checkout/total.ts:
+  applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+  renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
+2 of 3 named tests that reached it are inside the narrowing.
+```
+
+`--at-distance` counts **import hops** from the file to the test's own file,
+walked over the file graph — the same quantity `variance reach` walks, spelled
+the way a distance loop spells a range: `0-3`, `2`, or `3-` for three and
+beyond. It reads the graph and the coverage snapshot, so it costs a scan the
+plain question does not; that is why it is a flag.
+
+`--in-package` keeps the tests whose file is under the same `package.json` as
+the file you asked about.
+
+The counts are printed whichever way the answer went, because a filtered list
+and a short list read identically and lead to opposite decisions. A test the
+walk could not place is left out of the band rather than carried into it, and
+counted in a note: an unmeasured distance is not a short one.
+
+Both flags need one origin to measure from, so neither composes with `--since`
+— a diff is many origins, and a test has a distance to each changed file and no
+single one to the change.
+
+No call-stack depth is printed. `ExecutionCrossing.distance` exists for a
+foreign producer that measures one; the recorder in `@variance-authority/sense`
+does not, and writes zero into every crossing, so a depth column here was a
+constant dressed as a measurement. *How far away is this test* is an import
+count, and it is the two flags above.
 
 Given `--file` alone the answer is per range rather than per test: the recorded
 regions of the file, each with the tests shared by every line in it, which is
@@ -342,7 +377,7 @@ Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
-    depth 0 — applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
+    applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
     ...
   62-66 branch applyDiscount — no case entered this region
 

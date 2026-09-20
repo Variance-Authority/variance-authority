@@ -21,13 +21,15 @@
  * generated line, which is the pre-existing behaviour rather than a guess.
  */
 
+import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
-import { lineAt } from './coverage-rows.js';
 
-/** The two fields of a bundler's map this reads. */
+/** The fields of a bundler's map this reads. */
 export interface TransformSourceMap {
   readonly mappings: string;
   readonly sources: readonly (string | null)[];
+  /** Prefixed to every relative entry in `sources`, when the producer set one. */
+  readonly sourceRoot?: string;
 }
 
 /** An offset into the transformed text, answered as a line of the original. */
@@ -54,12 +56,16 @@ export function sourceLines(
   map: TransformSourceMap | undefined,
   file: string,
 ): LineOf {
-  const generated = (offset: number): number => lineAt(code, offset);
+  // Once per module, not once per offset. A block asks twice and a module has
+  // thousands of them, so counting newlines from the top each time is quadratic
+  // in the file: over zod's source it is 268 ms, a quarter of everything the
+  // process transforming that suite does.
+  const starts = lineStarts(code);
+  const generated = (offset: number): number => lineOfStart(starts, offset) + 1;
   if (map === undefined || map.mappings === '') return generated;
 
   const only = sourceIndex(map.sources, file);
   const lines = decode(map.mappings);
-  const starts = lineStarts(code);
 
   return (offset) => {
     const line = generated(offset) - 1;
@@ -92,35 +98,86 @@ export function sourceLines(
  * charged, the tests kept, and the module named in `ExecutionNarrowing.stale`
  * where a reader can see which build has no map to give.
  *
- * `original` is a thunk: the text is wanted only when there is a map worth
- * reading it back through, and a seam whose id is not a file on disk may throw
- * rather than answer. That is the untranslatable case again and it is recorded
- * the same way.
+ * `original` is called with the file the lines landed in, which is usually the
+ * one the host named and is {@link originalFile} when the map points somewhere
+ * else. It is called only when there is a map worth reading back through, and a
+ * seam whose id is not a file on disk may throw rather than answer. That is the
+ * untranslatable case again and it is recorded the same way, under the host's
+ * name: a frame reports one file or none, never a name from one text and a
+ * digest from another.
  */
 export interface RecordedFrame {
   /** An offset into the transformed text, as a line of the digested text. */
   readonly lineOf: LineOf;
   /** Of the text {@link lineOf} answers in, which is what a record must carry. */
   readonly sourceDigest: string;
+  /** The file that text is, which is what a record must be named after. */
+  readonly file: string;
 }
 
 export function recordedFrame(
   code: string,
   map: TransformSourceMap | undefined,
   file: string,
-  original: () => string,
+  original: (path: string) => string,
 ): RecordedFrame {
   const translated = map !== undefined && map.mappings !== '';
+  const candidate = originalFile(map, file) ?? file;
   let text: string | undefined;
+  let named = file;
   if (translated) {
     try {
-      text = original();
+      text = original(candidate);
+      named = candidate;
     } catch {
       text = undefined;
     }
   }
 
-  return { lineOf: sourceLines(code, map, file), sourceDigest: digestString(text ?? code) };
+  return {
+    file: named,
+    lineOf: sourceLines(code, map, file),
+    sourceDigest: digestString(text ?? code),
+  };
+}
+
+/**
+ * The file a map says the text was written in, when it says one and only one.
+ *
+ * A host hands the transform hook whatever it was asked to load, and for a
+ * package consumed as a build that is `dist/thing.js`. Its map points back at
+ * `src/thing.ts`, and {@link sourceLines} already follows the pointer — the
+ * block extents recorded for such a module are lines of the original, not of
+ * the file the name says. Following it for the lines and not for the name
+ * leaves a record nothing can join: a graph walk asks the scanner about
+ * `dist/thing.js`, the scanner reads imports and has never seen it, and every
+ * test that entered the module comes back unplaced.
+ *
+ * So the name follows the lines, for the reason the digest does. The map is
+ * read the same way here as there and answers only where it is unambiguous:
+ * exactly one named source, resolved against the map's own directory. A bundle
+ * chunk carries many, one per module the bundler folded in, and there is no
+ * single file to rename it to — naming it after the first would trade a name
+ * nothing can join for a name that joins to the wrong thing. Those keep the
+ * name the host gave them until blocks are cut per `sources` entry.
+ *
+ * `undefined` also when the map names this file already, which is the ordinary
+ * case: a TypeScript or JSX transform emits a map whose one source is the
+ * module itself, and there is nothing to follow.
+ */
+function originalFile(map: TransformSourceMap | undefined, file: string): string | undefined {
+  if (map === undefined || map.mappings === '') return undefined;
+  if (sourceIndex(map.sources, file) !== undefined) return undefined;
+
+  const named = map.sources.filter((source): source is string => source !== null && source !== '');
+  const only = named.length === 1 ? named[0] : undefined;
+  // A virtual module's id is not a path, and an absolute URL is not this
+  // machine's. Both are names a reader cannot open, which is what the host's
+  // own name at least is.
+  if (only === undefined || only.startsWith('\0') || only.includes('://')) return undefined;
+
+  const root = map.sourceRoot ?? '';
+  return resolve(dirname(file), root === '' ? only : `${root.replace(/\/$/, '')}/${only}`);
 }
 
 /**
@@ -161,6 +218,18 @@ function sourceIndex(sources: readonly (string | null)[], file: string): number 
 function names(file: string, source: string): boolean {
   const tail = source.replace(/^(?:\.\.?\/)+/, '');
   return file === source || file.endsWith(`/${tail}`);
+}
+
+/** Which line an offset falls on, zero-based, by bisecting the line starts. */
+function lineOfStart(starts: readonly number[], offset: number): number {
+  let low = 0;
+  let high = starts.length - 1;
+  while (low < high) {
+    const mid = (low + high + 1) >> 1;
+    if ((starts[mid] ?? 0) <= offset) low = mid;
+    else high = mid - 1;
+  }
+  return low;
 }
 
 function lineStarts(code: string): readonly number[] {

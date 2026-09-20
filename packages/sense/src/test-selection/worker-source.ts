@@ -160,10 +160,11 @@ ${caseDirectory === undefined ? '' : `  const outlived = runaways();
  *
  * A suite runs its cases one at a time. While that holds, the case running now
  * is a variable: `enter` assigns it, restores it when the case settles, and the
- * resolver reads it. That is **1.4 ns** a crossing, which is what the
- * file-level probe costs — the scope itself is then free, and what the axis
- * still pays for is a counter set per case and a re-resolve at each case
- * boundary: a fifth more time inside a compute-bound test file.
+ * resolver reads it. That is **1.6 ns** a crossing against the file-level
+ * probe's 1.3, and on top of it the axis pays for a counter set per case and a
+ * re-resolve at each case boundary: **6.1%** more time inside the tests over
+ * zod's suite against the same run recorded per file, and **3.5%** over
+ * TanStack Query's.
  *
  * It holds until a case's work outlives the case, which is the same fault two
  * cases running at once is the other end of. Two cases cannot both be one
@@ -177,11 +178,12 @@ ${caseDirectory === undefined ? '' : `  const outlived = runaways();
  *
  * So `continuations` swaps the variable for an {@link AsyncLocalStorage}, which
  * follows a case's continuations wherever they settle and gives concurrent
- * cases a store each. It costs **6.7 ns** a crossing, of which 5.3 is
- * `getStore()` itself — two fifths more time inside that same file, so the
- * scope read is about half of what the axis then costs. It is also the mode
- * that *names* the tests whose work outlived them: a crossing resolved to a
- * case that has already closed marks that case, and the file reports it.
+ * cases a store each. It costs **6.3 ns** a crossing, of which 5.5 is
+ * `getStore()` itself — 4.7 ns over the variable, a separation a microbenchmark
+ * shows and a suite does not: over zod the crossing count predicts 0.2%, and
+ * ten interleaved repetitions cannot resolve that. It is also
+ * the mode that *names* the tests whose work outlived them: a crossing resolved
+ * to a case that has already closed marks that case, and the file reports it.
  *
  * @param continuations Follow each case's continuations through the async
  * context, and report the cases whose work outlived them.
@@ -367,8 +369,17 @@ export function caseWriterSource(caseDirectory: string): string {
  * `beforeEach` runs outside this, deliberately: it is called by `runTest` before
  * `runTask`, so nothing can wrap it from here. Its crossings land in the ambient
  * bucket and reach every case in the file.
+ *
+ * @param runner How this module should spell `@vitest/runner`, and its `utils`
+ * entry. The runner is a file in the project root, and `@vitest/runner` is a
+ * dependency of Vitest rather than of the project — under a node_modules layout
+ * that does not hoist, a bare specifier there resolves to nothing and every
+ * test file fails to load. The caller resolves it; see `runnerImport` in
+ * [`vitest.ts`](./vitest.ts).
  */
-export function caseRunnerSource(): string {
+export function caseRunnerSource(
+  runner: { readonly module?: string; readonly utils?: string } = {},
+): string {
   return `
 // \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
 // favour of the package root and prints a line saying so on each run, but does
@@ -376,8 +387,8 @@ export function caseRunnerSource(): string {
 // \`VitestTestRunner\` at all. The notice is the cost of the only entry that
 // answers on 2, 3 and 4 alike.
 import { VitestTestRunner } from 'vitest/runners';
-import { getFn } from '@vitest/runner';
-import { getNames } from '@vitest/runner/utils';
+import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
+import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
 
 export default class extends VitestTestRunner {
   runTask(test) {

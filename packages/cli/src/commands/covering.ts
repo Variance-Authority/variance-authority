@@ -20,14 +20,14 @@
  * a list of six is the beginning of the question *why do all of these need this
  * code*, not the answer to it.
  *
- * Depth is printed where a producer measured one, and sorts the list when it
- * did: a test that entered at depth 1 addressed the line, one at depth 9 passed
- * through it on the way somewhere else, and those are not the same claim on the
- * code even when they are the same length of list. This project's own Vitest
- * recorder is not that producer — ADR-0056 forecloses a recorded depth, so it
- * writes zero everywhere and the list comes back in identity order. The column
- * is still printed, because a reader comparing two indexes has to be able to
- * see which of them measured it.
+ * No depth is printed. `ExecutionCrossing.distance` is call-stack depth, which
+ * ADR-0056 forecloses recording, so this project's collector writes zero into
+ * it everywhere — a column of zeroes beside every witness advertised a reading
+ * nothing here has ever produced. What a reader wanted from it is *how far
+ * away is this test*, and that is import hops rather than stack frames:
+ * `--at-distance 0-3` narrows the list to tests within three imports of the
+ * file, and `--in-package` to tests that share its package. Both are measured
+ * on demand, off the file graph, in [`covering-reach.ts`](./covering-reach.ts).
  */
 
 import { readFile } from 'node:fs/promises';
@@ -47,8 +47,9 @@ import {
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { diffSince } from './since.js';
-import type { ParsedCovering } from '../covering-args.js';
+import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /** How the answer is written. `text` reads; `json` is for whatever asks next. */
 export type CoveringFormat = 'text' | 'json';
@@ -71,6 +72,18 @@ export interface Covering {
   readonly from: string;
   /** The commit the record stands at, when it says. The diff is measured from it. */
   readonly at?: string;
+  /**
+   * What a narrowing did, when one was asked for.
+   *
+   * Present only under `--at-distance` or `--in-package`, and printed whichever
+   * way the answer went: a short list and an empty one both read as *few tests
+   * go here* unless the reader is told that most of them were filtered out.
+   */
+  readonly narrowed?: {
+    readonly kept: number;
+    readonly of: number;
+    readonly notes: readonly string[];
+  };
 }
 
 /**
@@ -111,6 +124,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     );
   }
 
+  const near = await nearbyWitnesses(request as CoveringAt);
+
   if (request.line !== undefined) {
     const line = request.line;
     if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
@@ -120,11 +135,14 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
           'print — which again is not the same as nobody reaching it.',
       );
     }
+    const found = coveringTests(index, { file: file, line });
+    const kept = near.whole ? found : found.filter(near.keep);
     return {
       file: file,
       target: { line },
-      tests: coveringTests(index, { file: file, line }),
+      tests: kept,
       from,
+      ...countOf(near, kept.length, found.length),
     };
   }
 
@@ -143,15 +161,67 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
             : `It has ${functions.join(', ')}.`),
       );
     }
+    const found = coveringTests(index, { file: file, function: named });
+    const kept = near.whole ? found : found.filter(near.keep);
     return {
       file: file,
       target: { function: named },
-      tests: coveringTests(index, { file: file, function: named }),
+      tests: kept,
       from,
+      ...countOf(near, kept.length, found.length),
     };
   }
 
-  return { file: file, ranges: coveringTestsInFile(index, file), from };
+  const found = coveringTestsInFile(index, file);
+  if (near.whole) return { file: file, ranges: found, from };
+  const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
+  return {
+    file: file,
+    ranges: narrowed,
+    from,
+    ...countOf(near, identities(narrowed), identities(found)),
+  };
+}
+
+/**
+ * Re-fold ranges a filter has just changed the answer of.
+ *
+ * `coveringTestsInFile` folds adjacent lines whose witness lists are identical,
+ * so a range boundary is a place where the claim on the code changes. Filtering
+ * the lists afterwards can make two neighbours agree that did not, and leaving
+ * them apart would print a boundary where nothing happens — the one thing the
+ * folding rule exists to prevent.
+ */
+function refold(ranges: readonly SourceTestRange[]): readonly SourceTestRange[] {
+  const folded: SourceTestRange[] = [];
+  for (const range of ranges) {
+    const previous = folded.at(-1);
+    if (
+      previous !== undefined &&
+      previous.endLine + 1 === range.startLine &&
+      previous.tests.length === range.tests.length &&
+      previous.tests.every((test, at) => test.id === range.tests[at]?.id)
+    ) {
+      folded[folded.length - 1] = { ...previous, endLine: range.endLine };
+      continue;
+    }
+    folded.push(range);
+  }
+  return folded;
+}
+
+/** How many distinct named tests a set of ranges names. */
+function identities(ranges: readonly SourceTestRange[]): number {
+  return new Set(ranges.flatMap((range) => range.tests.map((test) => test.id))).size;
+}
+
+/** The narrowing's own report, when there was a narrowing. */
+function countOf(
+  near: Narrowing,
+  kept: number,
+  of: number,
+): Pick<Covering, 'narrowed'> {
+  return near.whole ? {} : { narrowed: { kept, of, notes: near.notes } };
 }
 
 /**
@@ -212,22 +282,24 @@ export function formatCovering(answer: Covering, format: CoveringFormat): string
 
 function text(answer: Covering): string {
   if (answer.changed !== undefined) return sinceText(answer, answer.changed);
-  if (answer.ranges !== undefined) return wholeFile(answer.file ?? '', answer.from, answer.ranges);
+  if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
 
   const tests = answer.tests ?? [];
   const target = answer.target ?? { function: '' };
   const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
-  if (tests.length === 0) return `No named test reached ${where} of ${answer.file}.`;
+  if (tests.length === 0) {
+    return [`No named test reached ${where} of ${answer.file}.`, ...narrowedText(answer)].join('\n');
+  }
   return [
-    `${tests.length} named test${tests.length === 1 ? '' : 's'} reached ${where} of ${
-      answer.file
-    }, nearest first where the index carries a depth:`,
+    `${tests.length} named test${tests.length === 1 ? '' : 's'} reached ${where} of ${answer.file}:`,
     ...tests.map((test) => `  ${describe(test)}`),
+    ...narrowedText(answer),
   ].join('\n');
 }
 
-function wholeFile(file: string, from: string, ranges: readonly SourceTestRange[]): string {
-  if (ranges.length === 0) return `No line of ${file} is recorded in ${from}.`;
+function wholeFile(answer: Covering, ranges: readonly SourceTestRange[]): string {
+  const file = answer.file ?? '';
+  if (ranges.length === 0) return `No line of ${file} is recorded in ${answer.from}.`;
   const named = new Set(ranges.flatMap((range) => range.tests.map((test) => test.id)));
   const lines = [
     `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${
@@ -242,7 +314,33 @@ function wholeFile(file: string, from: string, ranges: readonly SourceTestRange[
       ? ['  no named test reached this range']
       : range.tests.map((test) => `  ${describe(test)}`)));
   }
+  lines.push(...narrowedText(answer));
   return lines.join('\n');
+}
+
+/**
+ * What the narrowing removed, said out loud under every answer it shaped.
+ *
+ * A filtered list is indistinguishable from a short one, and the two lead to
+ * opposite decisions: *one test covers this line* is an argument for writing
+ * another, and *one test covers it within three hops, of eleven that cover it*
+ * is an argument about where the eleven live. So the counts are printed even
+ * when nothing was removed — a band that filtered nothing is a fact about the
+ * code, not an absent feature.
+ *
+ * The sentence says how many survived and stops there. *The rest are further
+ * out* would be a second claim, and a false one whenever the rest are tests the
+ * walk could not place at all — which on a recording made against built output
+ * is most of them. Why each one left is the notes' job, and the notes say it.
+ */
+function narrowedText(answer: Covering): readonly string[] {
+  const narrowed = answer.narrowed;
+  if (narrowed === undefined) return [];
+  return [
+    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} that reached ` +
+      'it are inside the narrowing.',
+    ...narrowed.notes.map((note) => `  ${note}`),
+  ];
 }
 
 /**
@@ -321,7 +419,7 @@ function sinceText(answer: Covering, changed: readonly CoveringChange[]): string
 }
 
 function describe(test: CoveringTest): string {
-  return `depth ${test.distance} — ${test.name} — ${test.file} [${test.id}]`;
+  return `${test.name} — ${test.file} [${test.id}]`;
 }
 
 /**

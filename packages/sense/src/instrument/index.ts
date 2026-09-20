@@ -44,7 +44,7 @@
  * real async scope on the machine
  * [`docs/context`](../../../../docs/context/README.md) names: an accessor on
  * `globalThis` that looked the factory up by the key in its store cost
- * **12.6 ns** a hit, against **1.4 ns** for the flat probe over a data property.
+ * **12.6 ns** a hit, against **1.3 ns** for the flat probe over a data property.
  * A global accessor defeats the inline cache the probe is otherwise entirely
  * made of, and a probe runs once per region per entry.
  *
@@ -52,15 +52,18 @@
  * factory's own `s`: a function answering *which factory owns the scope running
  * now*. The probe calls it when it is there and answers with the factory itself
  * when it is not, and the store holds the factory rather than a key to look one
- * up by. That is **6.7 ns** scoped, near half the accessor's price. Every
+ * up by. That is **6.3 ns** scoped, half the accessor's price. Every
  * collector defines `s`, absent being spelled `undefined` rather than missing,
  * so the load reads one shape whichever collector is installed.
  *
- * What is left is not ours. Of those 6.7 ns, **5.3** are
- * `AsyncLocalStorage.getStore()` — 5.0 ns inside a frame against 0.79 ns
- * outside any, and flat regardless of how deep the frames nest. Hand the same
- * probe a closure variable instead of a store and it reads **1.4 ns**, the flat
- * price: the probe is free and the continuation read is the whole cost. The one
+ * What is left is not ours. Of those 6.3 ns, **5.5** are
+ * `AsyncLocalStorage.getStore()`, flat regardless of how deep the frames nest.
+ * Hand the same probe a closure variable instead of a store and it reads
+ * **1.6 ns**, a fifth over the flat price: the probe is free and the
+ * continuation read is the whole cost. On Node 22 and 23 the context is a
+ * linked list rather than a frame — `--no-async-context-frame` on a newer
+ * runtime reproduces it — and the same crossing reads **8.4 ns**, 44% more.
+ * The one
  * way to pay it less often is to propagate the scope ourselves through
  * `async_hooks`, which costs **444 ns** an `await` against 23 ns unhooked, so
  * that trade is only worth taking on a suite with far fewer awaits than
