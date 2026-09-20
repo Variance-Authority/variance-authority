@@ -1,10 +1,12 @@
 import cli from "../../../packages/cli/README.md?raw";
 import core from "../../../packages/core/README.md?raw";
+import distill from "../../../packages/distill/README.md?raw";
 import dom from "../../../packages/dom/README.md?raw";
 import event from "../../../packages/event/README.md?raw";
 import eyes from "../../../packages/eyes/README.md?raw";
 import help from "../../../packages/help/README.md?raw";
 import history from "../../../packages/history/README.md?raw";
+import ioc from "../../../packages/ioc/README.md?raw";
 import jsxSource from "../../../packages/jsx-source/README.md?raw";
 import mcp from "../../../packages/mcp/README.md?raw";
 import observe from "../../../packages/observe/README.md?raw";
@@ -41,11 +43,13 @@ export interface PackageDocument {
 const packages = [
   ["cli", cli],
   ["core", core],
+  ["distill", distill],
   ["dom", dom],
   ["event", event],
   ["eyes", eyes],
   ["help", help],
   ["history", history],
+  ["ioc", ioc],
   ["jsx-source", jsxSource],
   ["mcp", mcp],
   ["observe", observe],
