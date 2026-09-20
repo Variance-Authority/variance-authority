@@ -15,6 +15,7 @@ interface PageProps {
   readonly params: Promise<{ guide: string }>;
 }
 
+export const revalidate = 3600;
 export const dynamicParams = false;
 
 /**

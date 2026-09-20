@@ -36,6 +36,18 @@ yarn start       # wrangler dev against dist/server/wrangler.json; build first
 yarn deploy      # build first, and wrangler login; deploys to Cloudflare
 ```
 
+## What the edge serves
+
+Every `page.tsx` and `route.ts` declares `export const revalidate`, and
+`app/sitemap.ts` is an `async` function whose body opens with `"use cache"`.
+Those declarations are what the build renders on: a route that does not say how
+long its output stays good is rendered per request and answered
+`cache-control: no-store`, which Cloudflare will not store. With them,
+`yarn build` writes every page, RSC payload, `index.md` and the sitemap into
+`dist/server/prerendered-routes/`, the deploy warms those paths, and the edge
+answers a reader without running a render. Give a new route the same
+declaration.
+
 ## To add or change a page
 
 Three files decide what is published and in what order, and a page needs a line

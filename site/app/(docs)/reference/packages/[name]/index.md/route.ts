@@ -5,6 +5,7 @@ interface RouteProps {
   readonly params: Promise<{ name: string }>;
 }
 
+export const revalidate = 3600;
 export const dynamicParams = false;
 
 export function generateStaticParams() {

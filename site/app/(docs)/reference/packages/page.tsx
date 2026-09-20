@@ -2,6 +2,8 @@ import DocsPage from "../../../components/DocsPage";
 import Packages from "../../../components/Packages";
 import { pageMetadata } from "../../../metadata";
 
+export const revalidate = 3600;
+
 const TITLE = "Package map";
 const DESCRIPTION =
   "Every published package, and the install command for the three most common starting points: a Playwright suite, a Storybook, and a suite you want to run less of.";

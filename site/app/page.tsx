@@ -9,6 +9,8 @@ import Reveal from "./components/Reveal";
 import SectionHead from "./components/SectionHead";
 import { EXAMPLE_BUILD } from "./links";
 
+export const revalidate = 3600;
+
 export default function Page() {
   return (
     <div className="relative overflow-x-clip">

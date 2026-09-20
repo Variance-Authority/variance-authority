@@ -4,6 +4,8 @@ import { markdownPath, routedDocument } from "../content/routed-docs";
 import { ROOT_DESCRIPTION, SITE, SITE_NAME } from "../metadata";
 import { NAVIGATION } from "../navigation";
 
+export const revalidate = 3600;
+
 /**
  * The site's index for readers that take Markdown rather than pages.
  *

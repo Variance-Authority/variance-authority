@@ -2,6 +2,8 @@ import MiniSearch from "minisearch";
 import { searchCorpus } from "../content/search-corpus";
 import { SEARCH_OPTIONS } from "../content/search-options";
 
+export const revalidate = 3600;
+
 /**
  * The search index, built from the same Markdown the pages render.
  *

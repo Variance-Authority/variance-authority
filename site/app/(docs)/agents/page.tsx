@@ -9,6 +9,8 @@ import {
 import { productDocument } from "../../content/product-docs";
 import { pageMetadata } from "../../metadata";
 
+export const revalidate = 3600;
+
 const document = productDocument("agents")!;
 const title = documentTitle(document.source);
 const description = documentDescription(document.source);

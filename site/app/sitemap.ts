@@ -4,7 +4,9 @@ import { NAVIGATION_ITEMS } from "./navigation";
 
 const SITE = process.env.SITE_URL ?? "https://variance-authority.dev";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  "use cache";
+
   const landing = {
     url: new URL("/", SITE).toString(),
     changeFrequency: "weekly" as const,

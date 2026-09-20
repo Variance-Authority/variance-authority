@@ -1,5 +1,7 @@
 import { SITE } from "../metadata";
 
+export const revalidate = 3600;
+
 /**
  * The first file a crawler asks for. The body carries the sitemap for an
  * indexer; the `Link:` header naming `/llms.txt` comes from the site's response
