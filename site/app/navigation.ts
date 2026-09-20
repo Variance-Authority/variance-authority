@@ -82,6 +82,15 @@ export const NAVIGATION = [
     ],
   },
   {
+    label: "Case studies",
+    items: [
+      {
+        href: "/docs/selection-in-the-wild",
+        label: "Selection on repositories nobody here controls",
+      },
+    ],
+  },
+  {
     label: "Rendered comparison",
     items: [
       { href: "/start", label: "Observe one state" },
