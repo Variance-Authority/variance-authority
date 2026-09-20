@@ -1,5 +1,118 @@
 # @variance-authority/cli
 
+## 0.3.0
+
+### Minor Changes
+
+- fc59417: Both halves must name the same test, and the same root
+
+  `variance distill` joins two recordings that were made by different tools, and it
+  joins them on exact equality. Two independent mismatches made that join fail, and
+  neither of them said so.
+
+  **The test id.** Sense keys a case by its coordinate — `<project-relative file> >
+  <describe path and name>` — because a name is the coordinate. Eyes takes whatever
+  id you hand it, and its collision error recommended the runner's own positional
+  task id, which is the opposite: unique within a run, and moved the moment a case
+  is inserted above it. Follow both pages and the third reading is unreachable, and
+  the refusal named only the id you asked for — never the ids it held — so there was
+  nothing in the output to compare. The refusal now prints the recorded count and up
+  to five real ids beside it, and states the contract. The collision error asks for
+  an id stable across runs and unique within one, and names where the journal will
+  be joined.
+
+  **The root.** Eyes records source provenance as absolute paths; sense records
+  project-relative module files. Compared directly, nothing matched, and *the file
+  that was addressed* therefore appeared in *the files with no addressed target* —
+  the distillation opportunity list degenerated to every file the test entered,
+  confidently and silently.
+
+  `distill` takes an optional `root` (`--root` on the CLI, defaulting to the working
+  directory) and reconciles the two shapes against it. Where it cannot, it withholds
+  the list rather than printing a wrong one: if no addressed file matches any entered
+  module under the given root, the two sides are rooted differently, and the output
+  says so and offers nothing. Suffix matching was considered and rejected — it picks
+  a winner among plausible matches and hides that it was choosing.
+
+  A withheld list is the reading working. An opportunity list built on a root that
+  does not reconcile is not a weaker answer than none; it is an answer that names
+  every file you have.
+- fc59417: `accept` refuses without a run, and `--help` tells you what each exit code means
+
+  Two ways the CLI left you to guess.
+
+  **`variance accept` before any run crashed.** There was no report to promote from,
+  and the failure surfaced as an uncaught exception — a stack trace, from a
+  situation that is ordinary the first time anyone uses the tool. It now exits `2`
+  and names the path it looked for, the config key that decides that path, and the
+  one dead end worth calling out: a `playwright-test` project records through the
+  runner and has no report here to accept.
+
+  **`variance <command> --help` printed the global usage.** The per-command block
+  existed and the flag was rejected before anything could reach it. Each command now
+  answers with its own synopsis and flags, and with the exit codes *that command*
+  can actually return. Only `run`, `report` and `adjudicate` can exit `1`, because
+  only those three reach the review path; every other command exits `0` or `2`, and
+  saying so uniformly would have been wrong for twelve of the fifteen.
+
+  The three codes keep their meanings: `0` nothing needs review, `1` the run
+  happened and found something a person must decide, `2` the run did not happen as
+  configured.
+- 05d6683: Changes before and beyond reach
+
+  A run reads left to right: the harness starts it, the tests enter your code,
+  your code goes out into the install and never comes back. Selection lives in the
+  middle, and both ends were invisible for opposite reasons.
+
+  The far right already arrived — a package is a node, a bump is a seed, the same
+  backwards walk answers it. The far left is this. Nothing imports a
+  `vitest.config.ts`, a setup module, a CI workflow or a `.nvmrc`, so no walk
+  reaches one and the honest structural answer about a change to one is *no
+  component moved*: a skipped suite over the file that decides how every test in
+  it runs. A diff that was *wholly* outside the graph already widened. The hole
+  was a config edited beside an ordinary source file, where the walk had a seed
+  and answered confidently about a change it never looked at.
+
+  `source.before` names those files, repository-root-relative, and a directory
+  claims everything under it. What a declaration buys beyond its own name is
+  everything below it: `beforeReach` in `@variance-authority/core/relate` walks
+  *along* the arrows from each entry — the one question whose subject has no
+  dependents — and collects the setup module, the fixture only that setup
+  imports, and the packages the environment rests on. The descent stops at the
+  first file `source.dirs` already covers, because that file has dependents and a
+  change to it is answered exactly by walking them; everything below it is
+  reached through it and does not arrive either.
+
+  The two ends meet there. A `jsdom` bump is named by the install comparison,
+  reaches `jest-environment-jsdom`, and reaches a config no file in the
+  repository imports — a change beyond reach arriving before it.
+
+  `scanRelations` takes `before` to seed those paths by name, since a harness
+  lives above every directory a component scan is pointed at. A named path that
+  is absent or has no reader is dropped rather than recorded unreadable: an
+  unknown file seeds every walk forever, so a typo would otherwise widen every
+  run in the repository. A declared entry the graph does not hold contributes
+  only its own name, which is the whole answer for a `.nvmrc` and a symptom for a
+  harness config, so the run reports it as a note rather than guessing.
+
+  `source.before` requires `source.relations: true`.
+
+### Patch Changes
+
+- f42e141: `select --format vitest` names each file's place on disk
+
+  A Vitest project matches an exclude pattern against its own directory, not
+  against the root the record counts from. The exclusions were printed relative to
+  that root, so in any workspace of more than one project they matched nothing:
+  the command answered, the runner accepted the arguments, and the whole suite ran
+  anyway. Nothing failed, which is the worst shape for this to take — a selector
+  that is silently ignored looks exactly like a selector with nothing to say.
+
+  `--format vitest` now resolves each path against the root it was recorded from,
+  so the argument means the same thing from wherever the runner is invoked. The
+  other formats are unchanged: `plain` and `json` are answers for you to read or
+  parse, and they stay in the record's own coordinates.
+
 ## 0.2.0
 
 ### Minor Changes

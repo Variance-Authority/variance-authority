@@ -1,5 +1,164 @@
 # @variance-authority/sense
 
+## 0.3.0
+
+### Minor Changes
+
+- fc59417: A case survives Vitest 4, and an uninstrumentable file says why
+
+  `withTestSelection({ cases: true })` reported *no tests*, wrote an execution index
+  with nothing in it, and exited zero. Green, and empty — which is the worst shape a
+  failure can take, because nothing downstream has any reason to look.
+
+  The setup shim and the case runner were virtual ids this plugin resolved and
+  loaded. Vitest 4 loads `setupFiles` and `test.runner` through Vite's module
+  runner, which resolves them *before* any plugin of the test config is consulted,
+  so both came back `ERR_MODULE_NOT_FOUND`. They are real files on disk now, at
+  absolute paths, written under `.variance-authority/` and named after the run — a
+  path needs no plugin on any major, and the per-run name keeps a watch run and a
+  CLI run over one project from writing each other's shim. The files are removed once the
+  journals are folded, though the directory itself stays; git does not track an
+  empty directory, but add `.variance-authority/` to your ignore file if you would
+  rather not see it, or if a crashed run leaves a shim behind.
+
+  The `vitest` peer range was `^2.1.9`, so installing beside Vitest 3 or 4 either
+  failed outright or required an override to attempt at all. It is now
+  `^2.1.9 || ^3.0.0 || ^4.0.0`.
+
+  **A `globalSetup` file is no longer instrumented.** It runs once, in the Vitest
+  process, before any test environment exists — the shim that installs
+  `globalThis.__VA__` is a `setupFiles` entry and has never run there. Instrumented,
+  such a file threw at its first probe and took the whole suite down before a single
+  test loaded. The resolved config names these files, so they are excluded by path
+  rather than guessed at from their names.
+
+  **And when a probe does find no factory, it says so.** `globalThis.__VA__ is not a
+  function` names a missing global and leaves you to discover that the global
+  belongs to a transform you did not ask for, on a file you did not expect it on.
+  The error now names the file, says an instrumented module ran outside the
+  environment the shim initialises, lists the contexts where that happens — a
+  `globalSetup` file, a config file, a build script — and tells you to narrow
+  `include`.
+- 208fff4: An import is not a use
+
+  Distill read an entered file and nothing smaller. Any crossing anywhere in a
+  module made the file entered, at the shortest depth observed, and which region
+  had been crossed was dropped on the way out. That is the reading test selection
+  needs and it is built to over-answer: a module's initialization is attributed to
+  every test that consumed the module, so a change cannot skip a test.
+
+  Reduction asks the opposite question. `import { A } from './B'` runs `B`'s top
+  level and nothing else — a spy answers in `A`'s place, or the branch that would
+  have rendered it is never taken — and the module root is crossed either way. Run
+  through a conservative file-level index, a component nothing rendered came back
+  as source the test reached.
+
+  `EnteredModule` is the second reading of the same crossings, one region at a
+  time. `loadedOnly` marks a module whose every crossing is a consequence of
+  loading it; `unentered` names the declarations the test never reached, at the
+  outermost declaration that owns them. A module root has no caller a test could
+  be, so both are derived from the region's own kind and ask nothing new of a
+  producer. `ExecutionCrossing.loaded` is there for a producer that watched the
+  evaluation and can say the same about a region below the root — a function the
+  top level called — and that mark is believed over the kind.
+
+  `formatDistillation` names those modules and the substitution to try against
+  each. The substitution is a candidate: mocking takes the top level with the
+  rest, and a top level that registers a handler, installs a polyfill or builds a
+  singleton is one the test may be standing on. Make it, rerun the exact test,
+  compare the witness.
+
+  `parseExecutionIndex` also stops rejecting a module root. It required every
+  block name to be non-empty, and a module root is the one region with no
+  declaration to be named after — so no index carrying one could cross the CLI's
+  JSON boundary.
+- f075738: The native scanner arrives prebuilt, for three platforms
+
+  The Rust scanner that reads, parses, resolves and records a cold checkout used
+  to exist only where somebody had a Rust toolchain and had run the build. It now
+  ships: `@variance-authority/sense-darwin-arm64`,
+  `@variance-authority/sense-linux-x64-gnu` and
+  `@variance-authority/sense-win32-x64-msvc` are optional dependencies of this
+  package, your package manager unpacks the one your machine matches, and nothing
+  compiles on install — there is no install script here and no `cargo` in the
+  picture.
+
+  **Three platforms, not nine.** An Apple Silicon laptop, a Linux x64 CI runner,
+  a Windows x64 desktop. The list is short because it can afford to be: the
+  TypeScript scanner is the implementation of record and the addon is an
+  acceleration of it, held to the same answers by differential tests, so a Linux
+  arm64 runner or an Alpine image builds the same source index and pays what the
+  TypeScript scan costs. Adding a platform is a decision about a machine somebody
+  ships from, not a completeness exercise.
+- 05d6683: Changes before and beyond reach
+
+  A run reads left to right: the harness starts it, the tests enter your code,
+  your code goes out into the install and never comes back. Selection lives in the
+  middle, and both ends were invisible for opposite reasons.
+
+  The far right already arrived — a package is a node, a bump is a seed, the same
+  backwards walk answers it. The far left is this. Nothing imports a
+  `vitest.config.ts`, a setup module, a CI workflow or a `.nvmrc`, so no walk
+  reaches one and the honest structural answer about a change to one is *no
+  component moved*: a skipped suite over the file that decides how every test in
+  it runs. A diff that was *wholly* outside the graph already widened. The hole
+  was a config edited beside an ordinary source file, where the walk had a seed
+  and answered confidently about a change it never looked at.
+
+  `source.before` names those files, repository-root-relative, and a directory
+  claims everything under it. What a declaration buys beyond its own name is
+  everything below it: `beforeReach` in `@variance-authority/core/relate` walks
+  *along* the arrows from each entry — the one question whose subject has no
+  dependents — and collects the setup module, the fixture only that setup
+  imports, and the packages the environment rests on. The descent stops at the
+  first file `source.dirs` already covers, because that file has dependents and a
+  change to it is answered exactly by walking them; everything below it is
+  reached through it and does not arrive either.
+
+  The two ends meet there. A `jsdom` bump is named by the install comparison,
+  reaches `jest-environment-jsdom`, and reaches a config no file in the
+  repository imports — a change beyond reach arriving before it.
+
+  `scanRelations` takes `before` to seed those paths by name, since a harness
+  lives above every directory a component scan is pointed at. A named path that
+  is absent or has no reader is dropped rather than recorded unreadable: an
+  unknown file seeds every walk forever, so a typo would otherwise widen every
+  run in the repository. A declared entry the graph does not hold contributes
+  only its own name, which is the whole answer for a `.nvmrc` and a symptom for a
+  harness config, so the run reports it as a note rather than guessing.
+
+  `source.before` requires `source.relations: true`.
+
+### Patch Changes
+
+- 4bf6682: A file two projects both ran is one row, and a region the transform inverted keeps its span
+
+  Two ways a recording was lost rather than narrowed, both found by recording
+  public repositories that were not written with this in mind.
+
+  **A test file matched by two projects destroyed the whole record.** A runner's
+  projects exist to run the same files under different conditions — Zod reruns its
+  entire suite with ahead-of-time compilation turned on — and each project
+  announces its own finished file for the same path. The snapshot is keyed by
+  path, so the second announcement met a key the encode already held and threw
+  `duplicate test coverage observation`. Nothing was written: one project
+  configured that way and the run produces no record at all, on a workspace where
+  selection would otherwise have been worth the most.
+
+  The unit is the path, because the unit of the answer is the path — a selector
+  names files to skip, and skipping one skips it in every project that matched it.
+  `complete` is now the conjunction of the runs: a file whose compile-mode run
+  stopped early recorded less than it reaches, and the other project passing does
+  not put the missing regions back.
+
+  **A region could close above where it opened.** Solid's JSX compiler hoists each
+  element into a template above the function that returns it, so a region opening
+  inside the template reads back to a lower original line than it started on. A
+  source map answers one position at a time and both answers are right; it is the
+  pair that has to be an extent. The record now clamps the pair, where before the
+  inverted span was refused when it was read back — quietly, and only for the
+  files a JSX transform had moved.
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/playwright-test",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Add a source-aware visual observation to a Playwright test that already knows how to reach the state.",
   "keywords": [
     "variance-authority",

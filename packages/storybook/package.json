@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/storybook",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Storybook index parsing, subject planning and a host-neutral preview driver.",
   "keywords": [
     "variance-authority",

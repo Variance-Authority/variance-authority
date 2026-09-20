@@ -1,5 +1,9 @@
 # @variance-authority/store
 
+## 0.3.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.2.0
 
 ### Minor Changes
