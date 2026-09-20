@@ -158,12 +158,19 @@ describe('what reaches the runner', () => {
   });
 
   it('writes bare paths by default, one per line, and nothing else', () => {
-    expect(formatSelection(selection, 'plain')).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(formatSelection(selection, 'plain', '/repo')).toBe(
+      'test/alpha.test.ts\ntest/gamma.test.ts\n',
+    );
   });
 
-  it('writes vitest exclusions, which vitest adds to its defaults rather than replacing them', () => {
-    expect(formatSelection(selection, 'vitest')).toBe(
-      '--exclude=test/alpha.test.ts\n--exclude=test/gamma.test.ts\n',
+  it('writes vitest exclusions against the place on disk, not the path the journal counts from', () => {
+    // A workspace is many vitest projects, and each one matches an exclude
+    // pattern against its own directory. A pattern relative to the repository
+    // root matches inside none of them, and an exclusion that matches nothing
+    // is not an error in any runner — so a narrowed run would quietly be the
+    // whole suite.
+    expect(formatSelection(selection, 'vitest', '/repo')).toBe(
+      '--exclude=/repo/test/alpha.test.ts\n--exclude=/repo/test/gamma.test.ts\n',
     );
   });
 
@@ -171,7 +178,7 @@ describe('what reaches the runner', () => {
     // `--testPathIgnorePatterns` is not additive: jest's default is
     // `["/node_modules/"]` and one on the command line takes its place. A skip
     // list that forgot it would make a narrowed run walk `node_modules`.
-    expect(formatSelection(selection, 'jest').split('\n')).toEqual([
+    expect(formatSelection(selection, 'jest', '/repo').split('\n')).toEqual([
       '--testPathIgnorePatterns=/node_modules/',
       '--testPathIgnorePatterns=/test/alpha\\.test\\.ts$',
       '--testPathIgnorePatterns=/test/gamma\\.test\\.ts$',
@@ -187,13 +194,13 @@ describe('what reaches the runner', () => {
     const widened = skippableTests({ at: '/cache/coverage.bin', ground: { kind: 'no-journal' } });
 
     for (const format of ['plain', 'vitest', 'jest'] as const) {
-      expect(formatSelection(widened, format)).toBe('');
+      expect(formatSelection(widened, format, '/repo')).toBe('');
     }
     expect(selectionNotes(widened)).toContain('skipping nothing');
   });
 
   it('carries the whole reading under json, where the field names keep the two apart', () => {
-    const said = JSON.parse(formatSelection(selection, 'json')) as {
+    const said = JSON.parse(formatSelection(selection, 'json', '/repo')) as {
       skip: readonly string[];
       journal: { at: string; commit: string; recorded: { whole: number; entered: number } };
     };

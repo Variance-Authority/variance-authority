@@ -80,6 +80,7 @@
  * could type here.
  */
 
+import { resolve } from 'node:path';
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
@@ -271,8 +272,18 @@ function recordingNotes(stale: readonly string[], commit: string | undefined): r
  * `json` is the one format where the explanation belongs on stdout, because
  * there the consumer is a program that asked for the whole reading and the
  * field names keep the two apart.
+ *
+ * `root` is where the journal's paths are relative to, and the two shell
+ * formats both need it for the same reason from opposite directions: a runner
+ * matches an ignore pattern against a place on disk, and a journal speaks in
+ * paths relative to the repository. Jest gets an anchored expression because it
+ * is handed absolute paths to match; vitest gets the absolute path itself.
  */
-export function formatSelection(selection: TestSelection, format: SelectFormat): string {
+export function formatSelection(
+  selection: TestSelection,
+  format: SelectFormat,
+  root: string,
+): string {
   if (format === 'json') return `${JSON.stringify(jsonOf(selection), null, 2)}\n`;
   if (selection.skip.length === 0) return '';
 
@@ -280,7 +291,14 @@ export function formatSelection(selection: TestSelection, format: SelectFormat):
     format === 'plain'
       ? selection.skip
       : format === 'vitest'
-        ? selection.skip.map((test) => `--exclude=${test}`)
+        ? // Absolute, because a workspace is many projects and a project matches
+          // an exclude pattern against its own directory rather than against the
+          // root the journal counts from. A path the record holds is relative to
+          // the workspace and relative to nothing any project holds, so a
+          // relative pattern matches in none of them and the narrowed run is the
+          // whole suite — silently, since an exclusion that matches nothing is
+          // not an error anywhere.
+          selection.skip.map((test) => `--exclude=${resolve(root, test)}`)
         : // `--testPathIgnorePatterns` replaces jest's default rather than adding
           // to it, so the default has to be handed back or a run that skips four
           // test files also walks `node_modules`.

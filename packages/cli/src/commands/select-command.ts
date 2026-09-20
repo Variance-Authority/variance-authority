@@ -71,7 +71,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // produce a diff — which is what an operator would see if the commit were
   // looked for first and the answer were "pass --since".
   if (!(await exists(at))) {
-    return said({ at, ground: { kind: 'no-journal' } }, request.format);
+    return said({ at, ground: { kind: 'no-journal' } }, request);
   }
 
   // The position, and nothing else decoded to reach it. A snapshot of this
@@ -102,22 +102,25 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const diff = await diffSince(request.since ?? from, [], commit);
   if (diff === undefined) {
     const ground: SelectGround = { kind: 'no-diff', from };
-    return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request.format);
+    return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
   }
 
   const narrowing = await journeyAgainst(request.cwd, diff);
   const ground: SelectGround =
     narrowing === undefined ? { kind: 'no-journal' } : { kind: 'read', narrowing };
 
-  return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request.format);
+  return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
 }
 
 function said(
   input: { readonly at: string; readonly commit?: string; readonly ground: SelectGround },
-  format: SelectFormat,
+  request: { readonly format: SelectFormat; readonly cwd: string },
 ): SelectOutput {
   const selection = skippableTests(input);
-  return { out: formatSelection(selection, format), err: selectionNotes(selection) };
+  return {
+    out: formatSelection(selection, request.format, request.cwd),
+    err: selectionNotes(selection),
+  };
 }
 
 /**
