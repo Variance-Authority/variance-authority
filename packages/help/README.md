@@ -143,6 +143,12 @@ part of the repository you are in. So `docs_search` takes it as a path:
 docs_search  query: order  from: src/fulfilment/
 ```
 
+Spelled `--from` on the command line, and the same on `variance ask search`:
+
+```bash
+npx variance-authority-help search order --from src/fulfilment/
+```
+
 `from` follows the imports at any depth, then answers with published names those
 files actually import. Results are ordered by the number of importing files in
 that area, and each line reports those files by import distance from the start
@@ -156,7 +162,10 @@ import-site count, so they are admitted by the declaring file instead.
 A path is a path, at three widths and no others — `src/a/File.ts` is that file,
 `src/a/*` is that folder's own files, `src/a/` is everything under it. A path
 that is not in the checkout is refused by name. You are never quietly answered
-about the whole repository under a heading you would read as *your area*.
+about the whole repository under a heading you would read as *your area*. That
+vocabulary is one rule for every question here that takes a path, spelled out
+in full under [say where to
+look](https://variance-authority.dev/docs/locate#say-where-to-look).
 
 This removes names rather than ranking them down, which is the point: an empty
 answer is then a fact about the area, and the answer says how many files it
@@ -219,7 +228,9 @@ depend on it. Both are pointed at rather than quoted: the path and the line are
 what an editor opens.
 
 Pass `--from` — the file you are working in — and the sites come back ordered by
-how many leading path segments they share with it:
+how many leading path segments they share with it. This is not the `--from`
+above: it is not a start point, it filters nothing, and every site of the name
+still comes back. It only decides which of them you read first.
 
 ```bash
 npx variance-authority-help uses collect --from packages/cli/src/index.ts

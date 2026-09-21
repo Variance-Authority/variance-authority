@@ -98,20 +98,22 @@ helper and want the screens or callers behind it. Pass both and you get both
 areas together; they are combined, not intersected, because two entry points of
 one application usually share no file.
 
-A start point is a path in the source tree, at one of three widths:
-`src/a/File.ts` is that file, `src/a/*` is that folder's own files, `src/a/` is
-everything under it. The path is compared from the repository root down,
-segment for whole segment, case included. A path the checkout does not contain
+A start point is a path in the source tree, said at one of three widths —
+`src/a/File.ts`, `src/a/*`, `src/a/` — and a path the checkout does not contain
 is refused by name; you never receive an unscoped answer under a scoped
-heading.
+heading. [Say where to look](locate.md#say-where-to-look) is the rule in full,
+and it is the same rule here: one path vocabulary, read by one resolver,
+whichever question names a path.
 
 Scoping removes names rather than ranking them down. An empty answer with a
 start point is a fact about that area, and the answer reports how many files it
 searched. Ask again without `from` and `to` to search the whole workspace.
 
-The same start points are available from the shell:
+The same start points are available from the shell, under whichever binary you
+have:
 
 ```bash
+variance ask search --query order --from src/fulfilment/
 variance-authority-help search order --from src/fulfilment/
 ```
 

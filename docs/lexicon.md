@@ -227,6 +227,22 @@ says nothing, while `card` in an id still picks out the two subjects named for
 it. Pooling the counts would spend the word everywhere on the strength of the
 worthless field.
 
+### A start point changes what a word is worth
+
+A question may name a start point — a path in the source tree, answered along
+the imports — and the subjects it rules out never reach the ranking. Removing
+them is the visible half. The half that belongs on this page is rarity: rarity
+is a count over subjects, so counting it inside the scope rather than over the
+suite reorders what is left. A word every screen in the application says is
+worth nothing. A word every screen *in this area* says is worth nothing *here*.
+Those are different statements, and inside an area the second one sorts.
+
+That is the only thing a start point does to the order. The vocabulary — the
+three widths a path is said at, which way each of `--from` and `--to` walks,
+and what happens to a path the checkout does not hold — is [say where to
+look](locate.md#say-where-to-look), and it is said there and nowhere else, so
+the rule cannot drift between the page that teaches it and the page behind it.
+
 ## What a deep tree does to it
 
 A subject in a real application is not two boundaries deep. It is a screen under
@@ -357,73 +373,6 @@ appears in more than half. A library that names everything after exactly one
 component has a vocabulary that is already almost unique. A product named in
 product language does not, and neither does a repository where many teams name
 similar things similarly.
-
-### Say the starting point as a path
-
-A starting point is a place, and the most exact place you have is usually the
-file already open in front of you. Give it as a path and it is read as one:
-
-```
-from: app/about-us/page.tsx    the file itself, and what it is wired to
-from: app/about-us/*           the files of that folder — the layout beside it
-from: app/about-us/            everything underneath, however deep
-```
-
-Say nothing about depth and you mean any depth, so the folder on its own is the
-wider of the two, and the trailing `*` is the one that stops. Those three forms
-are the whole vocabulary.
-
-**A path is resolved against the source tree**, read from the checkout you ask
-in, and against nothing else. The files a run recorded are not a tree: they are
-the files a run was *seen in*, and asked whether a path exists they answer
-wrongly in both directions — every real file the run never rendered reads as
-missing, and a path a build wrote down reads as present long after the file was
-deleted. Ask from a checkout of the repository the run was made in, or ask
-without a starting point.
-
-A path is read from the root down and compared segment for whole segment. An
-absolute path is the same question asked from the root: under the repository it
-is a coordinate in the tree, and outside the repository there is nothing there.
-
-The only thing asked of a path is whether it exists. A bare `Button.tsx` names
-a file at the root of the tree, not the one under `src/ui/` you had in mind, and
-where no file is there the answer is *not found*. Nothing is looked for inside a
-path: no matching tail, no run of segments found in the middle, no case folding.
-
-Segments are compared whole and literally — `page` is not `pages`, and
-`Activity.ts` is not `Activity.tsx`. A space is a character in a name rather
-than a separator, and so is a backslash, so one path is said as one string and
-several paths are said as several.
-
-**What you name is the way in, not the whole of the scope.** The imports decide
-the rest: a file is in the scope when it is reachable from an entry point, along
-the imports, at any depth, and a subject is in the scope when a file in the
-scope was seen producing it. So naming one file still hands you an area — a
-checkout page is one file and forty neighbours.
-
-The walk runs one way. What your entry point imports is in the scope; what
-imports it is not, or naming a single button would name every screen that uses
-it. You still see those screens through the run's own record, which says which
-files each subject was seen in.
-
-You say which way the walk runs. `from` is answered along the imports — what the
-file you named rests on. `to` is answered against them — what rests on the file
-you named, which is the question you have standing in a helper: *what shows
-this?* Say both and you have named two places, each answered in its own
-direction; the two closures are never crossed. To ask for everything above and
-everything below one file, say that path both ways.
-
-The walk is never shortened to save time. A cut-off would drop a file that is
-genuinely reachable, and under-answering a place you named is the one failure a
-coordinate may not have. Where the scan could not read some file's own imports,
-the answer says how many such files are in the scope, because what lies behind
-them is not enumerated.
-
-A starting point that names nothing is **refused**. The question is not quietly
-answered suite-wide instead: falling back to the rest of the suite would answer
-a question you did not ask, out of the files you ruled out, while printing a
-confident top hit. No hits inside a real place and a place that is not there are
-different answers, and only one of them means look somewhere else.
 
 ### What a starting point is worth
 
