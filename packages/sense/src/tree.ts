@@ -123,8 +123,11 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>): P
     ({ stdout: status } = await run(
       'git',
       [
-        '-c',
-        'core.fsmonitor=false',
+        // Nothing is passed for `core.fsmonitor` or `core.untrackedCache`. Both
+        // are the repository's to configure and both are what make this call
+        // cheap on a large checkout; an override here would quietly cost a user
+        // who turned them on the whole saving, and turning them on from here
+        // would start a daemon nobody asked for.
         '-c',
         'status.relativePaths=true',
         'status',

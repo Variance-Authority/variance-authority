@@ -22,6 +22,15 @@ type Requested = (usize, String, Option<Oid>);
 const READERS: usize = 6;
 /// Enough files to keep the readers busy while bounding held source bytes.
 const CHUNK: usize = 2048;
+/// How many files one `cat-file` process must answer to have been worth starting.
+///
+/// Starting one costs about 7 ms on this machine; reading a blob out of it
+/// instead of opening the file saves about 53 us, because what a worktree read
+/// costs is the descriptor rather than the bytes. The two divide to about a
+/// hundred and thirty files, and the number is rounded up rather than down: a
+/// bucket that only just clears the line saves nothing worth a process, while
+/// one that misses it pays 7 ms for a wave a disk read would have finished.
+const FILES_PER_PROCESS: usize = 160;
 
 pub(crate) fn read_git(
     root: String,
@@ -30,13 +39,20 @@ pub(crate) fn read_git(
     largest_file: Option<u32>,
     digests: Option<bool>,
     readers: Option<u32>,
+    symbols: bool,
 ) -> Vec<Answer> {
     let largest = u64::from(largest_file.unwrap_or(1024 * 1024));
     let wanted = digests.unwrap_or(false);
     let count = files.len();
+    // A wave too small to pay for one process reads from disk, where the chunked
+    // pipeline overlaps the next open with the current parse. Both paths give the
+    // same answers; this one only ever decides which is cheaper.
+    if count < FILES_PER_PROCESS {
+        return read_all(root, files, largest_file, digests, readers, symbols);
+    }
     let width = readers
         .map_or(READERS, |value| value as usize)
-        .min(count.max(1));
+        .min(count / FILES_PER_PROCESS);
     let arenas = AllocatorPool::new(width);
     let (send, receive) = mpsc::channel();
     let mut buckets: Vec<Vec<Requested>> = (0..width).map(|_| Vec::new()).collect();
@@ -50,7 +66,7 @@ pub(crate) fn read_git(
             let root = root.clone();
             let arenas = &arenas;
             scope.spawn(move || {
-                for answer in read_git_bucket(&root, bucket, largest, wanted, arenas) {
+                for answer in read_git_bucket(&root, bucket, largest, wanted, arenas, symbols) {
                     let _ = send.send(answer);
                 }
             });
@@ -66,6 +82,7 @@ fn read_git_bucket(
     largest: u64,
     digests: bool,
     arenas: &AllocatorPool,
+    symbols: bool,
 ) -> Vec<Numbered> {
     let tracked: Vec<String> = bucket
         .iter()
@@ -101,9 +118,9 @@ fn read_git_bucket(
     for (index, file, oid) in bucket {
         let answer = match (oid, reader.as_mut()) {
             (Some(_), Some(reader)) => {
-                read_blob(root, &file, reader, largest, digests, arenas, true)
+                read_blob(root, &file, reader, largest, digests, arenas, symbols)
             }
-            _ => open_and_parse(root, &file, largest, digests, arenas, true),
+            _ => open_and_parse(root, &file, largest, digests, arenas, symbols),
         };
         answers.push((index, answer));
     }

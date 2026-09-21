@@ -41,8 +41,10 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
             git(
                 root,
                 &[
-                    "-c",
-                    "core.fsmonitor=false",
+                    // `core.fsmonitor` and `core.untrackedCache` are left to the
+                    // repository, for the reason `tree.ts` gives: they are what
+                    // make this call cheap, and overriding either way spends a
+                    // user's configuration on their behalf.
                     "-c",
                     "status.relativePaths=true",
                     "status",

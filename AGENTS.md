@@ -192,6 +192,25 @@ the search with `grep -ril "<task terms>" .compass`.
   shallow — it asks whether a test *names* the export, not whether the test is
   about it — and it has no budget and no exemption list: a documented export
   nothing names is answered with a test or with a deletion.
+- **Every answer has an owner, and computing one yourself is a defect**
+  (ADR-0069). Before writing a loop, name the party that already knows: git owns
+  what files exist, what they contain and what moved; the manifest and the
+  configuration own what a specifier means; the parser owns what a module
+  declares; the recording owns what ran. Four rules follow and none of them need
+  a measurement to apply. **Carry, never recompute** — a value an upstream stage
+  produced is propagated, not derived again at the far end. **Holding an answer
+  and not using it is a bug**: `scan_graph_with_tree` computed every file's
+  object name, spelled an identity out of it, and then opened all of them off the
+  disk. **Never override an owner's configuration** — sense passed
+  `core.fsmonitor=false` to every `status` call, which is the control row of a
+  benchmark script pasted into the shipped path, and it made the watcher
+  `docs/performance.md` tells readers to enable unreachable. **Fall back, never
+  fake**: when the owner cannot answer, compute it and say so — `read_blob` drops
+  to `open_and_parse` on every failure path, and that valve is what makes the
+  other three safe to apply without hedging. The design question is *whose answer
+  are we ignoring*, which is answered by reading; neither defect above would have
+  survived it being asked, and neither was caught by three journals of
+  measurements.
 - **Performance is earned, and isolation is not how it is earned.** A session
   keeps one browser, one context and one page (ADR-0009), and switches subjects
   **in place** through the harness's own API — Storybook's story switch, never a

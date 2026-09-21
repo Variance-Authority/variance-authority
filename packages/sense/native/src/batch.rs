@@ -138,6 +138,7 @@ pub(crate) fn scan_batch_with_oids(
             largest_file,
             digests,
             readers,
+            true,
         ),
         None => read_all(
             root.clone(),
@@ -194,9 +195,14 @@ pub(crate) fn scan_graph_with_tree(
             .iter()
             .map(|oid| oid.as_ref().map(git::spell))
             .collect::<Vec<_>>();
-        let held = read_all(
+        // The wave's OIDs already name every tracked file's content, so the blobs
+        // come out of the pack rather than off the disk. `read_git` falls back to
+        // opening the file whenever a blob is missing or unreadable, which is what
+        // answers for the dirty and untracked members of the wave.
+        let held = read_git(
             root.clone(),
             wave.clone(),
+            oids,
             largest_file,
             Some(true),
             Some(readers.unwrap_or(6).max(1)),
