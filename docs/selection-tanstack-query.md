@@ -1,4 +1,4 @@
-# TanStack Query: 27 packages, 10 test files run
+# TanStack Query: 77% fewer test file runs than Nx
 
 [TanStack Query](https://github.com/TanStack/query) is 27 packages, so a
 package-grain selector already has something useful to say: change

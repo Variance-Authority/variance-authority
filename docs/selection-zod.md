@@ -1,4 +1,4 @@
-# Zod: 202 test files, 8 run
+# Zod: 51% fewer test file runs
 
 [Zod](https://github.com/colinhacks/zod) is one package, and 196 of its 202 test
 files reach the code they exercise through a single barrel. A selector that
