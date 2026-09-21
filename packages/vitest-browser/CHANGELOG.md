@@ -1,5 +1,17 @@
 # @variance-authority/vitest-browser
 
+## 0.5.0
+
+### Patch Changes
+
+  - @variance-authority/dom@0.5.0
+  - @variance-authority/observe@0.5.0
+  - @variance-authority/playwright@0.5.0
+  - @variance-authority/raster@0.5.0
+  - @variance-authority/react@0.5.0
+  - @variance-authority/store@0.5.0
+  - @variance-authority/unit-test@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes

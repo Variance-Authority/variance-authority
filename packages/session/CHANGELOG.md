@@ -1,5 +1,11 @@
 # @variance-authority/session
 
+## 0.5.0
+
+### Patch Changes
+
+  - @variance-authority/dom@0.5.0
+
 ## 0.4.1
 
 ### Patch Changes

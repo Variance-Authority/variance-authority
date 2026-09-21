@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/core",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "The Variance Authority format, rules, comparison, attribution and verdicts. Pure data in, pure data out, no DOM and no I/O.",
   "keywords": [
     "variance-authority",
