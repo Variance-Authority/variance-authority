@@ -35,8 +35,8 @@ with 81,052 published entries and 664,769 repository exports. Reproducing it
 with an authoritative empty changed-file list takes 32.31–46.85 seconds on the
 measured machine. That is producer time. Repeated separate
 `search createStore --just-answer` processes take 0.84–0.91 seconds each. With
-`--from jira/src/entry/jira-spa-issue-view.tsx`, they take 1.19–1.31 seconds
-each, including loading and walking its 101,723-file import closure.
+the measured entry file passed to `--from`, they take 1.19–1.31 seconds each,
+including loading and walking its 101,723-file import closure.
 
 The distinction matters before the structural answer does. On one warm macOS
 checkout of that repository,
@@ -46,8 +46,8 @@ A warm `git grep -l -I -F createStore HEAD --` returns 1,748 committed files in
 15.72–16.54 seconds and consumes about 31 seconds of CPU. Git is not merely a
 different spelling of grep at this scale: packed reads cut the system work by
 about seven times. Both commands still return roughly 1,700 files. The workspace
-generation finds 33 `createStore` name groups repository-wide; the issue-view
-`--from` above returns the 12 in that import closure, from relations already
+generation finds 33 `createStore` name groups repository-wide; the scoped query
+returns the 12 in that import closure, from relations already
 recorded. `--from` is reachability at any depth, not a maximum hop count; the
 answer prints import distances where it has them.
 
