@@ -330,7 +330,9 @@ export const search: Tool<Help> = {
     // its name or its doc, the rest by its name. Both are the caller's own
     // word, and offering a word back to whoever typed it is not an addition.
     const already = (name: string): boolean => answered.has(name) || name.toLowerCase().includes(query);
-    const loose = loosely(help, query, within, already);
+    const loose = found.length === 0 && rest.length === 0
+      ? loosely(help, query, within, already)
+      : new Set<string>();
     const alsoFound = loose.size === 0 ? [] : surface(help, (entry) => loose.has(entry.name), area);
     const alsoRest =
       loose.size === 0

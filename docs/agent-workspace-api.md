@@ -1,11 +1,78 @@
-# Inspect the workspace public API
+# Find code through the workspace index
 
-An agent that cannot see your workspace invents import paths and guesses
-signatures. This server hands it the real ones, read out of the checkout as it
-stands: what each package publishes, where a name is declared, what is written
-above it, and every file that already imports it — no build step and no generated
-API site in between. It answers from source, so no run and no
-`variance.config.json` need exist.
+`rg` tells you where text is written. This server tells you which exported name
+matches your words in the part of the import graph you are working in, then gives
+you its import line, declaration, signature, documentation, and existing import
+sites. It answers from a dated workspace generation — no build, run, generated
+API site, or `variance.config.json` in between.
+
+The difference matters when a checkout is too large to open again for every
+question. A [source index](source-index.md) parses and resolves a file once,
+stores its exported names and outgoing edges, and reuses that record while the
+file and its resolution inputs stay the same. A question with `from` or `to`
+then filters names through those stored edges instead of searching every file
+for another string.
+
+## Choose the cheapest entrance
+
+| You need | Start with |
+| --- | --- |
+| An exact string in arbitrary file contents | `rg`; it needs no index and reads the working tree now. |
+| An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
+| A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
+
+Text search remains the shorter route when text is the answer. It has to scan
+content again for the next word, and it does not resolve the imports it finds.
+The workspace producer pays for parsing and resolution, then publishes an
+answerable generation outside the checkout. The question path reads that value
+without scanning the repository again. Producing and answering are separate operations:
+a CI step can publish once, then every agent in that step can ask the same dated
+facts without making freshness checks part of query latency.
+
+This is the path used on Atlassian's frontend monorepo, not only on generated
+trees. One measured generation holds 301,473 file records across 1,631 packages,
+with 81,052 published entries and 664,769 repository exports. Reproducing it
+with an authoritative empty changed-file list takes 32.31–46.85 seconds on the
+measured machine. That is producer time. Repeated separate
+`search createStore --just-answer` processes take 0.84–0.91 seconds each. With
+`--from jira/src/entry/jira-spa-issue-view.tsx`, they take 1.19–1.31 seconds
+each, including loading and walking its 101,723-file import closure.
+
+The distinction matters before the structural answer does. On one warm macOS
+checkout of that repository,
+`rg -l -F createStore .` returns 1,743 files in 17.85 seconds and consumes about
+123 seconds of CPU, most of it in the kernel opening and reading separate files.
+A warm `git grep -l -I -F createStore HEAD --` returns 1,748 committed files in
+15.72–16.54 seconds and consumes about 31 seconds of CPU. Git is not merely a
+different spelling of grep at this scale: packed reads cut the system work by
+about seven times. Both commands still return roughly 1,700 files. The workspace
+generation finds 33 `createStore` name groups repository-wide; the issue-view
+`--from` above returns the 12 in that import closure, from relations already
+recorded. `--from` is reachability at any depth, not a maximum hop count; the
+answer prints import distances where it has them.
+
+That first scan is real work. The measured public checkout in [what a source
+scan costs](performance.md#after-the-first-read-you-do-not-read-it-again) takes
+586 ms with no index, 301 ms unchanged, and 320 ms with four files edited. The
+same measurements show why Git is part of the large-repository path: reading
+200,000 tracked blobs from a generated working tree takes 6.4 seconds, while
+reading them from the pack takes 660 ms. The index adds the facts that neither
+read supplies — declarations and resolved relations — and keeps them for the
+next question.
+
+Ordinary source questions reuse a generation for one hour, then refresh it.
+Pass `--just-answer` when the caller owns freshness: no Git status, generation,
+or regeneration is performed, and the answer prints the generation time. If no
+generation has been published, the command refuses instead of silently turning
+the question into production work.
+
+When an editor, watcher, or orchestrator produces a generation and already
+knows the changed paths, write their scan-root-relative paths to a newline-delimited
+file and pass that file through `--changed-file`. An empty file means the caller
+knows nothing changed. This is producer input: it replaces Git's changed-file
+discovery and cannot be combined with `--just-answer`. [Building the source
+index](source-index.md#building-one) gives the file contract and the cold-cache
+boundary.
 
 ## Point the server at the workspace
 
@@ -34,10 +101,12 @@ the working directory:
 ```bash
 npx variance ask search --query viewport
 npx variance ask symbol --name Viewport
+npx variance ask search --query viewport --from packages/app/ --just-answer
 ```
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,
-`--query`, `--from` and `--to`. [Ask a run from the command
+`--query`, `--from` and `--to`; `--just-answer` selects the last published
+generation. [Ask a run from the command
 line](agent-cli.md#ask-the-code-when-the-name-is-not-in-the-run) shows each one.
 
 The six are also tools on `variance serve`, under the same names as below, so

@@ -1,10 +1,10 @@
 const QUESTIONS = [
   {
     question: "Help my agent work in this codebase.",
-    answer: "Discover published APIs, signatures, documentation, and existing usages from the current source. Give your agent relevant names and examples to work with.",
+    answer: "Search exported names inside the import neighbourhood of the file being edited, then inspect exact signatures, documentation, and existing import sites from one dated source generation.",
     href: "/agents/workspace-api",
     route: "source intelligence",
-    action: "Explore the workspace API",
+    action: "Find code in the workspace",
   },
   {
     question: "Find out why this test is stuck.",

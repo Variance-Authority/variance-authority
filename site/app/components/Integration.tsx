@@ -1,10 +1,10 @@
 const STARTS = [
   {
-    title: "Explore your TypeScript workspace",
+    title: "Find code in your workspace",
     requires: "A readable checkout. No build or test recording needed.",
-    result: "Published names, signatures, documentation, and the files that use them.",
+    result: "Exported names inside one import neighbourhood, with signatures, documentation, and the files that import them.",
     href: "/agents/workspace-api",
-    action: "Start with source",
+    action: "Search the source index",
   },
   {
     title: "Focus a Vitest or Jest run",

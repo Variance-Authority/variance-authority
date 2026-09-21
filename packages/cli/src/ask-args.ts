@@ -95,6 +95,8 @@ export interface ParsedAsk {
   readonly changedFile?: string;
   /** `--taint-file <path>`: addition-only declarative module edges. */
   readonly taintFile?: string;
+  /** Use the last published source generation without inspecting the checkout. */
+  readonly justAnswer?: boolean;
   readonly limit?: number;
   /**
    * `--at <address>`: a running watcher to ask, instead of the last report.
@@ -135,6 +137,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const to = flags.values.get('--to');
   const changedFile = flags.values.get('--changed-file');
   const taintFile = flags.values.get('--taint-file');
+  const justAnswer = flags.present.has('--just-answer');
   const limit = countOf(flags.values.get('--limit'), 'tests to list');
   const at = flags.values.get('--at');
 
@@ -160,6 +163,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(to !== undefined ? { to } : {}),
     ...(changedFile !== undefined ? { changedFile: resolve(changedFile) } : {}),
     ...(taintFile !== undefined ? { taintFile: resolve(taintFile) } : {}),
+    ...(justAnswer ? { justAnswer: true as const } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(at !== undefined ? { at } : {}),
     reports: reports.map((path) => resolve(path)),

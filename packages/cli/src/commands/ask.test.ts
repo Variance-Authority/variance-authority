@@ -159,6 +159,26 @@ describe('a question about the code', () => {
     expect(received).toEqual(['src/button.tsx', 'src/theme.ts']);
   });
 
+  it('hands just-answer to the source reader without manufacturing changed paths', async () => {
+    let received: { readonly justAnswer?: boolean; readonly changed?: readonly string[] } | undefined;
+    const source = (_root: string, options?: typeof received): Promise<Sourced> => {
+      received = options;
+      return sourced();
+    };
+
+    await askSource({ question: 'search', query: 'box', justAnswer: true, source });
+
+    expect(received).toEqual({ justAnswer: true });
+  });
+
+  it('refuses refresh inputs in just-answer mode', async () => {
+    const changedFile = join(await directory(), 'changed.txt');
+    await writeFile(changedFile, 'src/button.tsx\n');
+    await expect(
+      askSource({ question: 'search', query: 'box', justAnswer: true, changedFile, source: sourced }),
+    ).rejects.toThrow('cannot be combined');
+  });
+
   it('hands an addition-only taint table to the source reader', async () => {
     const taintFile = join(await directory(), 'loaders.json');
     await writeFile(taintFile, JSON.stringify({ 'src/route.ts': { '+': ['./screen'] } }));

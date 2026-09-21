@@ -1,5 +1,6 @@
 import type { Served, Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { workspaceGeneration } from './read.js';
 import { entrypoint } from './tools/entrypoint.js';
 import { gaps } from './tools/gaps.js';
 import { packages } from './tools/packages.js';
@@ -28,7 +29,22 @@ import { uses } from './tools/uses.js';
  * reading that ranks it is the same reading, and an agent that has just been
  * told a name is undocumented is the agent best placed to write the paragraph.
  */
-export const HELP_TOOLS: readonly Tool<Help>[] = [packages, entrypoint, symbol, uses, search, gaps];
+function dated(tool: Tool<Help>): Tool<Help> {
+  return {
+    ...tool,
+    run(subject, input, invocation) {
+      const answer = tool.run(subject, input, invocation);
+      const at = workspaceGeneration(subject);
+      return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+    },
+  };
+}
+
+/** The source-orientation tools shared by shell dispatch and the server. */
+export const HELP_TOOLS: readonly Tool<Help>[] =
+  [packages, entrypoint, symbol, uses, search, gaps];
+
+const DATED_HELP_TOOLS = HELP_TOOLS.map(dated);
 
 export const SERVER_NAME = 'variance-authority-help';
 export const SERVER_VERSION = '0.0.0';
@@ -37,7 +53,7 @@ export const SERVER_VERSION = '0.0.0';
 export const HELP: Served<Help> = {
   name: SERVER_NAME,
   version: SERVER_VERSION,
-  tools: HELP_TOOLS,
+  tools: DATED_HELP_TOOLS,
 };
 
 export { entrypoint, gaps, packages, search, symbol, uses };

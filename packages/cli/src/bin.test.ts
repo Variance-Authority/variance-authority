@@ -132,6 +132,8 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       reports: [],
     });
+    expect(parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toMatchObject({ justAnswer: true });
+    expect(parseArgs(['serve', '--just-answer'])).toMatchObject({ justAnswer: true });
   });
 
   it('reads distillation evidence without project configuration', () => {

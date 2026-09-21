@@ -123,6 +123,15 @@ export function treeOf(
   packages: readonly string[] = [],
 ): Tree {
   const relations = relationsOfFiles(records);
+  return treeFromRelations(relations, root, packages);
+}
+
+/** Build the path-query surface from an already folded source graph. */
+export function treeFromRelations(
+  relations: Relations,
+  root = '.',
+  packages: readonly string[] = [],
+): Tree {
   const files = new Set<string>();
   for (const id of nodesOfKind(relations, 'file')) files.add(relations.names[id]!);
 

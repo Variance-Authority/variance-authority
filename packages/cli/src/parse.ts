@@ -160,7 +160,7 @@ export type Parsed =
     }
   | ParsedPush
   | { readonly command: 'watch' }
-  | { readonly command: 'serve'; readonly config: string }
+  | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
   | { readonly command: 'doctor'; readonly config: string }
   | {
       readonly command: 'comment';
@@ -397,7 +397,11 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'serve':
       noPositionals(flags.positionals, 'serve');
-      return { command: 'serve', config };
+      return {
+        command: 'serve',
+        config,
+        ...(flags.present.has('--just-answer') ? { justAnswer: true as const } : {}),
+      };
 
     case 'doctor':
       noPositionals(flags.positionals, 'doctor');

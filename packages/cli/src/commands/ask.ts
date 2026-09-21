@@ -15,15 +15,13 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { readWorkspace } from '@variance-authority/help';
+import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import {
   TOOLS,
   VANTAGE_TOOLS,
   readTree,
-  treeOf,
-  type FileRecord,
   type Tool,
   type Tree,
 } from '@variance-authority/mcp/tools';
@@ -134,6 +132,8 @@ export interface AskRequest {
   readonly changedFile?: string;
   /** An addition-only Sense taint table for declarative module edges. */
   readonly taintFile?: string;
+  /** Use the last published source generation without inspecting the checkout. */
+  readonly justAnswer?: boolean;
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
@@ -164,11 +164,14 @@ type Flagged = Pick<
  */
 export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile'> & {
   readonly question: string;
+  readonly justAnswer?: boolean;
 };
 
 export interface SourceReadOptions {
   readonly changed?: readonly string[];
   readonly taints?: readonly Taint[];
+  readonly justAnswer?: boolean;
+  readonly tree?: boolean;
 }
 
 /** A workspace, read once, and the tree its scan drew — folded only if a question names a path. */
@@ -213,9 +216,14 @@ export async function askSource(request: SourceRequest): Promise<string> {
   const input = inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
+  if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
+    throw new OperatorError('`--just-answer` reads the published source generation and cannot be combined with `--changed-file` or `--taint-file`, which request a new generation');
+  }
   const sourced = await (request.source ?? readSource)(process.cwd(), {
     ...(changed === undefined ? {} : { changed }),
     ...(taints === undefined ? {} : { taints }),
+    ...(request.justAnswer === true ? { justAnswer: true } : {}),
+    ...(tool.wants?.(input) === true ? { tree: true } : {}),
   });
   const tree = tool.wants?.(input) === true ? sourced.tree?.() : undefined;
   // A refusal is the answer here, not a crash. Every one of them names what is
@@ -224,7 +232,9 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
   // under it, the one useful line is the one a reader cannot find.
   try {
-    return `${tool.run(sourced.help, input, tree === undefined ? undefined : { tree })}\n`;
+    const answer = tool.run(sourced.help, input, tree === undefined ? undefined : { tree });
+    const at = workspaceGeneration(sourced.help);
+    return `${at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`}\n`;
   } catch (refusal) {
     throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
   }
@@ -239,16 +249,15 @@ export async function askSource(request: SourceRequest): Promise<string> {
  * `variance-authority-help` binary makes, from the same cache.
  */
 async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
-  let records: readonly FileRecord[] | undefined;
-  const help = await readWorkspace(root, {
+  let tree: Tree | undefined;
+  const help = await readWorkspaceForAnswer(root, {
     index: join(scanCacheRoot(root), 'source-index.bin'),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
-    records: (drawn) => {
-      records = drawn;
-    },
+    ...(options.justAnswer === true ? { justAnswer: true } : {}),
+    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
-  return { help, tree: () => (records === undefined ? undefined : treeOf(records, root)) };
+  return { help, tree: () => tree };
 }
 
 async function readTaint(path: string): Promise<Taint> {

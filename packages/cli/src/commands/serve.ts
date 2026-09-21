@@ -1,10 +1,10 @@
 import { serve as serveTools } from '@variance-authority/mcp';
 import { REPORTS } from '@variance-authority/mcp/protocol';
-import { readTree, type Served, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import type { Served, Tool, Tree } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { readWorkspace, refreshWorkspace } from '@variance-authority/help';
-import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import type { Config } from '../config.js';
 import { scanCacheRoot } from './resources.js';
 
@@ -40,8 +40,9 @@ import { scanCacheRoot } from './resources.js';
  * stays for the workspace that runs no visual suite and has no `variance`.
  *
  * Which half is read is decided by the question. A report is a file and is read
- * every request; a workspace reading is a scan, and it happens only when one of
- * the six is what was asked. Neither pays for the other.
+ * every request. A source question reads the last published workspace generation
+ * while it is less than an hour old; `--just-answer` removes even that expiry.
+ * Producing a generation remains separate work. Neither half pays for the other.
  */
 
 /** A run's report, and the workspace reading — whichever of them a question needed. */
@@ -85,7 +86,7 @@ const BENCH: Served<Bench> = {
   tools: [
     ...over(REPORTS.tools, (bench) => bench.report, 'no run report was read'),
     ...over(
-      HELP_TOOLS,
+      HELP.tools,
       (bench) => bench.help,
       'the workspace could not be read, so the source questions cannot be answered',
     ),
@@ -102,6 +103,8 @@ export interface ServeOptions {
   readonly report?: string;
   /** The checkout the source questions read, and the tree a start point resolves against. */
   readonly root?: string;
+  /** Use the last published workspace generation and never refresh it. */
+  readonly justAnswer?: boolean;
 }
 
 /** Returns the stop function. The caller owns the process lifetime, not this. */
@@ -116,26 +119,13 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // should not pay for a scan it never uses.
   let report = await readRunReport(path);
   let help: Help | undefined;
-  let tree: Promise<Tree | undefined> | undefined;
+  let tree: Tree | undefined;
 
   return serveTools<Bench>({
     input: process.stdin,
     output: process.stdout,
     served: BENCH,
-    tree: () => {
-      tree ??= readTree({ root, index }).catch((error: unknown) => {
-        // Said on stderr rather than swallowed. The refusal the caller reads is
-        // about their question — *no source tree was read* — and the reason the
-        // walk failed is about the setup, which is the operator's to see and not
-        // the model's to be handed mid-answer.
-        process.stderr.write(
-          `variance: the source tree at \`${root}\` could not be read, so questions with a ` +
-            `start point will be refused: ${error instanceof Error ? error.message : String(error)}\n`,
-        );
-        return undefined;
-      });
-      return tree;
-    },
+    tree: () => tree,
     // Only the report. `previous` serves the one tool that compares this request
     // with the last one, and it compares reports; cloning a whole workspace
     // reading on every successful call would buy that comparison nothing.
@@ -150,7 +140,19 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
       }
       if (asked !== undefined && SOURCE_QUESTIONS.has(asked)) {
         try {
-          help = help === undefined ? await readWorkspace(root, { index }) : await refreshWorkspace(root, help, { index });
+          const at = help === undefined ? undefined : workspaceGeneration(help);
+          const stale = at === undefined || Date.now() - Date.parse(at) > 60 * 60 * 1000;
+          if (help === undefined || (options.justAnswer !== true && stale)) {
+            let nextTree: Tree | undefined;
+            help = await readWorkspaceForAnswer(root, {
+              index,
+              justAnswer: options.justAnswer === true,
+              tree: (drawn) => {
+                nextTree = drawn;
+              },
+            });
+            tree = nextTree;
+          }
         } catch (failure) {
           // A workspace mid-edit — a manifest saved half-written, a file being
           // rewritten — must not take the server down. The previous reading is

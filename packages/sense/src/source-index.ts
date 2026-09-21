@@ -9,6 +9,7 @@
 
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
@@ -140,4 +141,15 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       }, native);
     },
   };
+}
+
+/**
+ * Read the resolved records of the committed generation without inspecting the
+ * checkout or asking Git whether it changed.
+ */
+export async function readSourceRecords(path: string): Promise<readonly FileRecord[]> {
+  const stored = (await openSourceIndexFile(path)).stored;
+  return [...stored.records.values()]
+    .map((held) => held.record)
+    .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0);
 }

@@ -35,7 +35,7 @@ import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import type { FileRecord } from '@variance-authority/mcp/tools';
+import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   enrichSources,
   openSourceIndex,
@@ -61,8 +61,62 @@ import {
   type Use,
 } from '@variance-authority/package/help';
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
+import {
+  readWorkspaceSnapshot,
+  tryPublishWorkspaceSnapshot,
+  workspaceGeneration,
+} from './snapshot.js';
+
+export { readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
+export type { SnapshotOptions } from './snapshot.js';
 
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
+
+export interface AnsweringOptions extends ReadingOptions {
+  /** Read the published generation regardless of age and perform no refresh. */
+  readonly justAnswer?: boolean;
+  /** Refresh a published generation older than this. Defaults to one hour. */
+  readonly refreshAfterMs?: number;
+}
+
+/**
+ * Answer from the published value while it is young enough, or refresh it when
+ * the caller permits. `justAnswer` is the hard no-I/O-beyond-the-artifact path.
+ */
+export async function readWorkspaceForAnswer(
+  root: string,
+  options: AnsweringOptions = {},
+): Promise<Help> {
+  const {
+    justAnswer = false,
+    refreshAfterMs = 60 * 60 * 1000,
+    ...reading
+  } = options;
+  if (!Number.isFinite(refreshAfterMs) || refreshAfterMs < 0) {
+    throw new Error('refreshAfterMs must be a finite, non-negative number');
+  }
+  if (justAnswer && (reading.changed !== undefined || reading.taints !== undefined)) {
+    throw new Error('justAnswer cannot be combined with changed paths or taints, which request a refresh');
+  }
+
+  let recorded: Help;
+  try {
+    recorded = await readWorkspaceSnapshot(root, reading);
+  } catch (error) {
+    if (justAnswer) throw error;
+    return readWorkspace(root, reading);
+  }
+
+  const at = workspaceGeneration(recorded);
+  const age = at === undefined ? Number.POSITIVE_INFINITY : Date.now() - Date.parse(at);
+  if (justAnswer || (reading.changed === undefined && reading.taints === undefined && age <= refreshAfterMs)) {
+    return recorded;
+  }
+  if (reading.changed !== undefined || reading.taints !== undefined) {
+    return refreshWorkspace(root, recorded, reading);
+  }
+  return readWorkspace(root, reading);
+}
 
 export interface IndexedUsageOptions {
   /** Where the index is kept. The checkout's own cache layer when absent. */
@@ -100,7 +154,9 @@ export interface IndexedUsageOptions {
    * this function performs, and a caller that does not want it should not be
    * handed a graph it has to ignore.
    */
-  readonly records?: (records: readonly FileRecord[]) => void;
+  readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
+  /** Handed the queryable graph when a caller asks a path-shaped question. */
+  readonly tree?: (tree: Tree) => void;
 }
 
 /** Join cached parse facts directly, without constructing a second repository. */
@@ -208,7 +264,6 @@ async function scanIndexed(
       sources.set(file, { parsed, targets });
     },
   });
-
   const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
   if (tainted.shadows.size > 0) {
     throw new Error(
@@ -216,7 +271,8 @@ async function scanIndexed(
       'Pass addition-only taints for declarative module loads.',
     );
   }
-  options.records?.(tainted.records);
+  options.records?.(tainted.records, where);
+  options.tree?.(treeOf(tainted.records, where));
 
   const joined = usage.read();
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
@@ -267,11 +323,18 @@ export async function refreshWorkspace(
 ): Promise<Help> {
   const read = await scanWorkspace(root, options);
   if (!sameSurface(read, documented)) return documentWorkspace(read, options);
-  if (options.save !== false) await read.scanned.save();
-  return joinUsage(documented, read.offerings, read.scanned.usage);
+  const help = joinUsage(documented, read.offerings, read.scanned.usage);
+  if (options.save !== false) {
+    await read.scanned.save();
+    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, options.index);
+  }
+  return help;
 }
 
 interface WorkspaceScan {
+  /** The workspace the caller asked to answer about. */
+  readonly workspace: string;
+  /** The repository root whose graph carries that workspace. */
   readonly root: string;
   readonly offerings: readonly Offering[];
   readonly scanned: Awaited<ReturnType<typeof scanIndexed>>;
@@ -290,6 +353,7 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
 
   const scanned = await scanIndexed(scope.root, opened, options, scope.dirs);
   return {
+    workspace: where,
     root: scope.root,
     offerings,
     scanned,
@@ -307,9 +371,12 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
     });
     return enrichSources(root, subjects, scanned.cache);
   });
-  if (options.save !== false) await scanned.save();
-
-  return assembleHelp(root, offerings, scanned.usage, names);
+  const help = assembleHelp(root, offerings, scanned.usage, names);
+  if (options.save !== false) {
+    await scanned.save();
+    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);
+  }
+  return help;
 }
 
 function sameSurface(read: WorkspaceScan, documented: Help): boolean {

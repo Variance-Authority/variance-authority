@@ -4,10 +4,18 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
+import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
-import { readWorkspace, refreshWorkspace } from './read.js';
+import {
+  readWorkspace,
+  readWorkspaceForAnswer,
+  readWorkspaceSnapshot,
+  refreshWorkspace,
+  workspaceGeneration,
+  workspaceSnapshotPath,
+} from './read.js';
+import { HELP } from './tools.js';
 import { search } from './tools/search.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
@@ -112,6 +120,79 @@ describe('reading a workspace through the source index', () => {
     // checked is that the second reading is the same reading, because a cache
     // that answers differently on a hit is worse than no cache.
     expect(sites(await readWorkspace(WORKSPACE, { index }))).toEqual(sites(walked));
+  });
+
+  it('answers from the published generation without inspecting a later edit', async () => {
+    const { root, temporary } = await copyWorkspace('help-snapshot-');
+    try {
+      const at = join(root, '.index');
+      const first = await readWorkspace(root, { index: at });
+      const values = join(root, 'packages/alpha/src/values.ts');
+      await writeFile(values, (await readFile(values, 'utf8')).replace('Measures the thing', 'Changed later'));
+
+      let records: readonly FileRecord[] = [];
+      let tree: Tree | undefined;
+      const recorded = await readWorkspaceForAnswer(root, {
+        index: at,
+        justAnswer: true,
+        records: (drawn) => {
+          records = drawn;
+        },
+        tree: (drawn) => {
+          tree = drawn;
+        },
+      });
+
+      expect(recorded).toEqual(first);
+      expect(entryNamed(recorded, 'measure')?.doc).toContain('Measures the thing');
+      expect(entryNamed(recorded, 'measure')?.doc).not.toContain('Changed later');
+      expect(records.length).toBeGreaterThan(0);
+      expect(tree?.files).toEqual(treeOf(records, root).files);
+      expect(workspaceGeneration(recorded)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
+      expect(tool.run(recorded, { query: 'measure' })).toContain('Source snapshot generated ');
+
+      const snapshot = await readFile(workspaceSnapshotPath(at), 'utf8');
+      const digest = /"graphDigest":"([^"]+)"/u.exec(snapshot)?.[1];
+      expect(digest).toBeDefined();
+      if (digest === undefined) throw new Error('snapshot did not name its graph');
+      await writeFile(`${at}.help-tree.${digest}.bin`, new Uint8Array([0]));
+      await expect(readWorkspaceSnapshot(root, { index: at, tree: () => undefined }))
+        .rejects.toThrow('does not belong to that generation');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses just-answer when no producer has published a generation', async () => {
+    const missing = join(dirname(index), 'missing.bin');
+    await expect(readWorkspaceSnapshot(WORKSPACE, { index: missing })).rejects.toThrow(
+      `no readable workspace snapshot at ${workspaceSnapshotPath(missing)}`,
+    );
+  });
+
+  it('refreshes an expired generation when answering is allowed to produce one', async () => {
+    const { root, temporary } = await copyWorkspace('help-expired-snapshot-');
+    try {
+      const at = join(root, '.index');
+      await readWorkspace(root, { index: at });
+      const snapshot = workspaceSnapshotPath(at);
+      await writeFile(
+        snapshot,
+        (await readFile(snapshot, 'utf8')).replace(
+          /"generatedAt":"[^"]+"/u,
+          '"generatedAt":"2000-01-01T00:00:00.000Z"',
+        ),
+      );
+      const values = join(root, 'packages/alpha/src/values.ts');
+      await writeFile(values, (await readFile(values, 'utf8')).replace('Measures the thing', 'Changed later'));
+
+      const refreshed = await readWorkspaceForAnswer(root, { index: at });
+
+      expect(entryNamed(refreshed, 'measure')?.doc).toContain('Changed later');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
   });
 
   it('refreshes usage without rebuilding stable documentation', async () => {

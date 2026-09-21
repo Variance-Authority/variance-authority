@@ -148,7 +148,7 @@ variance select  [--since <ref>] [--format plain|json|vitest|jest]
 variance reach   --since <ref> [--format plain|json]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--limit <n>] [--at <address>] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -156,7 +156,7 @@ variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
 variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]]
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
-variance serve   [--config <path>]              # MCP over stdio
+variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
@@ -190,6 +190,22 @@ whole change, and refuses by name any subject where something else changed too.
 `@variance-authority/help`, so an agent can ask what changed, in which
 component and which file, and what that file's package publishes, without
 re-running anything and without a second server.
+
+For source questions, `justAnswer` and its `--just-answer` spelling read the
+last published workspace generation regardless of age. They perform no Git
+status or refresh, refuse when no generation exists, and print when the value
+was produced. Without the flag a generation is reused for one hour before the
+next source question refreshes it.
+
+A library host that injects `AskRequest.source` receives `SourceReadOptions`.
+Its `tree` field is true only when the selected source tool names a `from` or
+`to` path, so the injected reader can avoid loading the graph for every other
+question and return it through `Sourced.tree` only then.
+
+`--changed-file` takes a newline-delimited file of scan-root-relative paths an
+editor, watcher, or CI step already knows changed. It is producer input: an
+empty file states that nothing changed, it replaces Git status discovery, and
+it cannot be combined with `--just-answer`.
 
 ### Ask: the agent answers, without an agent protocol
 

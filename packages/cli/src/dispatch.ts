@@ -380,7 +380,7 @@ export async function dispatch(
     }
 
     case 'serve':
-      await serve(config);
+      await serve(config, parsed.justAnswer === true ? { justAnswer: true } : {});
       // The server owns the process from here; stdio is the protocol. Returning
       // would close it, so this resolves only when the stream does.
       await new Promise<void>(() => undefined);

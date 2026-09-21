@@ -1,6 +1,7 @@
 import { HELP_TOOLS } from './tools.js';
 import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { workspaceGeneration } from './read.js';
 
 /**
  * The six answers as shell verbs, so asking costs nothing to arrange.
@@ -98,7 +99,9 @@ export function ask(
   const tool = toolNamed(verb);
   const input = inputFrom(tool, args);
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
-  return tool.run(help, input, tree === undefined ? undefined : { tree });
+  const answer = tool.run(help, input, tree === undefined ? undefined : { tree });
+  const at = workspaceGeneration(help);
+  return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
 }
 
 /** Every verb and what it answers, for the usage text and for `--help`. */

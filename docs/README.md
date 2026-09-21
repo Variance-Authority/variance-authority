@@ -16,8 +16,8 @@ depend on.
 <a class="doc-link-card doc-link-card--compact" href="agent-workspace-api.md">
 <span>Source</span>
 <strong>Help an agent understand this codebase</strong>
-<p>Read the packages a TypeScript workspace publishes, their symbols and signatures, and the places those symbols are already used.</p>
-<em>Inspect the workspace API →</em>
+<p>Search exported names inside one import neighbourhood, then inspect exact signatures and the places those names are already used.</p>
+<em>Find code through the workspace index →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
 <span>Live test</span>

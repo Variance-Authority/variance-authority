@@ -7,7 +7,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
 import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
-import { openSourceIndex } from './source-index.js';
+import { openSourceIndex, readSourceRecords } from './source-index.js';
 import type { TreeShape } from './reuse.js';
 import { directoriesOf } from './witness.js';
 
@@ -99,6 +99,7 @@ describe('the binary source index', () => {
     expect(second.reuse.get(RECORD.file, DIGEST)).toEqual(RECORD);
     await second.save();
     expect(await readFile(file)).toEqual(bytes);
+    expect(await readSourceRecords(file)).toEqual([RECORD]);
   });
 
   it('discards the resolved half when the configuration changes without discarding parses', async () => {

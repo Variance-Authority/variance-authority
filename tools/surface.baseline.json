@@ -894,13 +894,19 @@
     },
     "names": {
       ".": {
+        "AnsweringOptions": "interface",
         "PagesOptions": "interface",
         "ReadingOptions": "interface",
+        "SnapshotOptions": "interface",
         "WorkspaceOptions": "interface",
         "Written": "interface",
         "readWorkspace": "function",
+        "readWorkspaceForAnswer": "function",
+        "readWorkspaceSnapshot": "function",
         "refreshWorkspace": "function",
         "serveWorkspace": "function",
+        "workspaceGeneration": "function",
+        "workspaceSnapshotPath": "function",
         "writePages": "function"
       },
       "./tools": {
@@ -1174,7 +1180,9 @@
         "Tree": "interface",
         "TreeOptions": "interface",
         "VANTAGE_TOOLS": "const",
+        "decodeSourceTree": "function",
         "diffState": "function",
+        "encodeSourceTree": "function",
         "entryPoints": "function",
         "eyesToolByName": "function",
         "notObservedSentence": "function",
@@ -1188,6 +1196,7 @@
         "startPointArg": "function",
         "stringArg": "function",
         "toolByName": "function",
+        "treeFromRelations": "function",
         "treeOf": "function",
         "vantageToolByName": "function"
       },
@@ -2317,6 +2326,7 @@
         "openParseCache": "function",
         "openRecordCache": "function",
         "openSourceIndex": "function",
+        "readSourceRecords": "function",
         "scanRelations": "function",
         "sourceIndexPath": "function",
         "taintFile": "function",

@@ -1,25 +1,23 @@
-import { resolve } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
-import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { readWorkspace, refreshWorkspace, type ReadingOptions } from './read.js';
+import {
+  readWorkspaceForAnswer,
+  workspaceGeneration,
+  type AnsweringOptions,
+} from './read.js';
 import { HELP } from './tools.js';
 
 /**
  * The transport, and one decision that could not go anywhere else.
  *
- * The decision is when to re-read. A server that read the workspace once at boot
- * would answer an agent's second question with the code from before its first
- * edit, which is the one sentence a documentation server must never produce
- * falsely — the agent asking is the agent that just changed the file.
- *
- * So every request re-reads, and what makes that affordable is that almost none
- * of it is read twice. The expensive third — what the whole repository imports —
- * comes out of the source index ([`read.ts`](./read.ts)), so a question about a
- * checkout where one file changed costs that one file. A server that walked and
- * parsed the repository per request would be answering in a time proportional to
- * the repository, which is the one property a repository grows out of.
+ * The decision is when to produce another generation. Asking a question is a
+ * read of the last value the producer published; it is not permission to ask
+ * Git what changed or to rebuild that value. The ordinary server refreshes a
+ * generation after one hour, while `justAnswer` keeps serving the recorded one
+ * until another process deliberately replaces it. Every answer says when that
+ * generation was produced, so freshness is evidence rather than hidden work.
  *
  * `tools/surface.check.ts` holds the shape of what is served to the recorded
  * surface. No prose in this file reaches a client — `initialize` sends a name
@@ -27,41 +25,31 @@ import { HELP } from './tools.js';
  * self-description.
  */
 
-export interface WorkspaceOptions extends ReadingOptions {
+export interface WorkspaceOptions extends AnsweringOptions {
   readonly input?: Readable;
   readonly output?: Writable;
-  /**
-   * How long signatures, comments and README mentions may be reused, in
-   * milliseconds. Source usage and the file graph are refreshed per request.
-   * Defaults to one day; zero rebuilds documentation on every request.
-   */
-  readonly documentationRefreshMs?: number;
 }
 
 /**
- * Serve one workspace over MCP, re-reading it on every request.
+ * Serve one workspace generation over MCP, refreshing it only when permitted.
  *
  * Returns the stop function because stopping is the only thing a caller can
- * usefully do to a running transport: the reading is deliberately not theirs to
- * hold, for the reason above. The workspace is read once before serving as well,
- * so a path that is not a workspace fails at startup rather than on whichever
- * question an agent happens to ask first.
+ * usefully do to a running transport. Ordinary mode checks manifests once before
+ * serving, so a path that is not a workspace fails at startup. `justAnswer`
+ * touches only the recorded generation and lets its absence be the refusal.
  */
 export function serveWorkspace(root: string, options: WorkspaceOptions = {}): () => void {
-  const { input, output, documentationRefreshMs = 24 * 60 * 60 * 1000, ...reading } = options;
-  if (!Number.isFinite(documentationRefreshMs) || documentationRefreshMs < 0) {
-    throw new Error('documentationRefreshMs must be a finite, non-negative number');
+  const { input, output, justAnswer = false, refreshAfterMs = 60 * 60 * 1000, ...reading } = options;
+  if (!Number.isFinite(refreshAfterMs) || refreshAfterMs < 0) {
+    throw new Error('refreshAfterMs must be a finite, non-negative number');
   }
 
-  // The manifests, before serving anything: a path that is not a workspace should
-  // fail at startup rather than on whichever request happens to arrive first.
-  // Only the manifests, because the rest of the reading wants the index and the
-  // index wants a turn of the event loop, and a startup check is not worth
-  // becoming a promise for.
-  readOfferings(root, { ...reading, tolerant: reading.tolerant ?? true });
+  // Ordinary mode validates the manifests before serving. Recorded mode cannot
+  // spend even that read: the published generation owns both the answer and its
+  // refusal when absent.
+  if (!justAnswer) readOfferings(root, { ...reading, tolerant: reading.tolerant ?? true });
 
   let cached: Help | undefined;
-  let refreshDocumentationAt = 0;
 
   // The graph the reading already drew, and the tree built out of it.
   //
@@ -75,37 +63,29 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
   // questions name no path, and a reading where nothing moved hands back the
   // same array, so an unchanged checkout folds the graph once however many
   // paths are asked about it.
-  let records: readonly FileRecord[] | undefined;
-  let folded: { readonly of: readonly FileRecord[]; readonly tree: Tree } | undefined;
+  let tree: Tree | undefined;
 
   return serve({
     input: input ?? process.stdin,
     output: output ?? process.stdout,
     served: HELP,
-    tree: () => {
-      if (records === undefined) return undefined;
-      if (folded?.of !== records) folded = { of: records, tree: treeOf(records, resolve(root)) };
-      return folded.tree;
-    },
+    tree: () => tree,
     subject: async () => {
       try {
-        const now = Date.now();
-        const previous = cached;
-        const document = previous === undefined || now >= refreshDocumentationAt;
-        let nextRecords: readonly FileRecord[] | undefined;
-        const options = {
-          ...reading,
-          records: (drawn: readonly FileRecord[]) => {
-            nextRecords = drawn;
-          },
-        };
-        if (previous === undefined || now >= refreshDocumentationAt) {
-          cached = await readWorkspace(root, options);
-        } else {
-          cached = await refreshWorkspace(root, previous, options);
+        const at = cached === undefined ? undefined : workspaceGeneration(cached);
+        const stale = at === undefined || Date.now() - Date.parse(at) > refreshAfterMs;
+        if (cached === undefined || (!justAnswer && stale)) {
+          let nextTree: Tree | undefined;
+          cached = await readWorkspaceForAnswer(root, {
+            ...reading,
+            justAnswer,
+            refreshAfterMs,
+            tree: (drawn: Tree) => {
+              nextTree = drawn;
+            },
+          });
+          tree = nextTree;
         }
-        records = nextRecords;
-        if (document) refreshDocumentationAt = now + documentationRefreshMs;
       } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is

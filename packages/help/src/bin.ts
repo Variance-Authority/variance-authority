@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { relative, resolve } from 'node:path';
-import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
-import { ask, toolNamed, verbs } from './ask.js';
-import { readWorkspace } from './read.js';
+import { relative } from 'node:path';
+import type { Tree } from '@variance-authority/mcp/tools';
+import { ask, inputFrom, toolNamed, verbs } from './ask.js';
+import { readWorkspaceForAnswer } from './read.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -24,14 +24,15 @@ import { writePages } from './write.js';
  */
 
 const USAGE = [
-  'usage: variance-authority-help <verb> [argument] [--root <dir>]',
-  '       variance-authority-help [root]',
+  'usage: variance-authority-help <verb> [argument] [--root <dir>] [--just-answer]',
+  '       variance-authority-help [root] [--just-answer]',
   '       variance-authority-help write [root] [--out <dir>] [--base <url>]',
   '',
   'Ask one question:',
   ...verbs().map(([verb, description]) => `  ${verb.padEnd(11)}${description.split('. ')[0]}.`),
   '',
   '  --root  The workspace to read. Default: the working directory.',
+  '  --just-answer  Use the last published generation without inspecting the checkout.',
   '',
   'Or:',
   '  serve  Answer all six over MCP on stdio. The default with no verb.',
@@ -52,6 +53,7 @@ function positional(args: readonly string[]): readonly string[] {
   for (let at = 0; at < args.length; at += 1) {
     const arg = args[at];
     if (arg === undefined) continue;
+    if (arg === '--just-answer') continue;
     if (arg.startsWith('--')) at += 1;
     else found.push(arg);
   }
@@ -72,7 +74,8 @@ function asking(word: string | undefined): boolean {
 /** `--root` and its value, removed so what is left is the verb's own arguments. */
 function withoutRoot(args: readonly string[]): readonly string[] {
   const at = args.indexOf('--root');
-  return at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
+  const rooted = at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
+  return rooted.filter((argument) => argument !== '--just-answer');
 }
 
 const [, , ...args] = process.argv;
@@ -91,16 +94,16 @@ if (asking(verb) && verb !== undefined) {
     // The scan behind every reading works out which file reaches which; taking
     // them here is what lets `search --from` mean the same thing from a shell
     // as it does over MCP, without walking the repository a second time.
-    let records: readonly FileRecord[] | undefined;
-    const help = await readWorkspace(root, {
-      records: (drawn) => {
-        records = drawn;
-      },
+    const ownArgs = withoutRoot(rest);
+    const tool = toolNamed(verb);
+    const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
+    let tree: Tree | undefined;
+    const help = await readWorkspaceForAnswer(root, {
+      justAnswer: args.includes('--just-answer'),
+      ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
     });
-    const walk = (): ReturnType<typeof treeOf> | undefined =>
-      records === undefined ? undefined : treeOf(records, resolve(root));
 
-    process.stdout.write(`${ask(help, verb, withoutRoot(rest), walk)}\n`);
+    process.stdout.write(`${ask(help, verb, ownArgs, () => tree)}\n`);
   } catch (failure) {
     // A refusal is the answer here, not a crash: every one of them names what is
     // there instead, and a stack trace above it buries the only useful line.
@@ -121,5 +124,5 @@ if (asking(verb) && verb !== undefined) {
     process.stdout.write(`${at} — ${file.bytes} bytes\n`);
   }
 } else {
-  serveWorkspace(positional(args)[0] ?? '.');
+  serveWorkspace(positional(args)[0] ?? '.', { justAnswer: args.includes('--just-answer') });
 }

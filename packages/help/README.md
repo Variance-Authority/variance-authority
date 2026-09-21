@@ -12,12 +12,29 @@ Install this if you maintain a repository and want a person or a
 coding agent to be able to ask what a name in it is, where it is declared, who
 imports it, and where the repository already writes it.
 
-It reads source off disk and answers six questions about exported names. It
-reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift; the two
-verbs that answer for a *published* specifier read a `package.json`, so in a
-repository with none they answer out of what the files themselves export. Nothing has to be built first, no documentation is generated ahead of
-time, and the repository does not have to be one of yours: point it at any
-checkout with `--root`.
+Use `rg` when the answer is an arbitrary string in a file, and `git grep
+<tree>` when the answer is an arbitrary string in committed source. Use this
+package when the answer depends on parsed names or relations: which export
+matches a description, which exact signature it has, who imports it, or which
+names are used by the files reachable from one path. `search --from` and
+`search --to` remove names outside that import closure; they do not merely put
+nearby text first.
+
+It answers from a dated generation published through a [source
+index](../../docs/source-index.md), and exposes six questions about exported
+names. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift;
+the two verbs that answer for a *published* specifier read a `package.json`, so
+in a repository with none they answer out of what the files themselves export.
+The repository itself does not have to be built and no API site is required.
+Point it at any checkout with `--root`.
+
+Producing a generation scans the checkout; answering one does not. Ordinary
+commands reuse a generation for one hour before refreshing it. `--just-answer`
+uses the last published generation regardless of age and prints when it was
+produced. It performs no Git status or refresh, and refuses if there is no
+generation to read. The detailed cost model, including why Git's packed objects
+beat opening hundreds of thousands of small files, is in [find code through the workspace
+index](../../docs/agent-workspace-api.md#choose-the-cheapest-entrance).
 
 It answers two different questions about a name. What the name is supposed to be
 comes off the declaration — its signature and the block comment above it. How
@@ -45,6 +62,7 @@ the path under `npx`:
 ```bash
 npm install --save-dev @variance-authority/help
 npx variance-authority-help search viewport
+npx variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 Six verbs, each taking the same arguments as the tool of the same name below:
@@ -121,14 +139,17 @@ stays available without taking space from the first answer.
 `packages` takes no argument and returns the import specifiers every other
 question takes as input, so it is the natural first call.
 
-Every request re-reads the repository, so an answer reflects the files on disk
-now rather than the ones read at startup. The read is manifests and module
-records, not a compilation, and the module records come from the source index
+Every answer ends with the UTC time of the generation it used. A generation is
+manifests and module records, not a compilation, and the module records come
+from the source index
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-keeps: git names each file's content without opening it, the digest names what
-parsing that content produced, and a file that did not change is never opened
-twice. A repository where nothing changed answers out of that index; one where
-ten files changed parses ten files.
+keeps. In ordinary mode a generation less than one hour old is reused; after
+that the next question refreshes it. Run the binary or server with
+`--just-answer` when a watcher or CI step owns production and a question must do
+no freshness work. On `variance ask`, `--changed-file` belongs to the producer
+side: it supplies an authoritative newline-delimited file of scan-root-relative
+changed paths and cannot be combined with `--just-answer`. An empty file states
+that nothing changed.
 
 ### Say where you are standing
 
@@ -379,7 +400,7 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the six answers are asked of, for a program that
 wants to ask more than one of them or to ask them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Five options, all optional: `index`, the path of the source
+and who imports it. Six options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `save`, whether to write what
 this reading learned back to that index for the next one, on unless you say
@@ -388,7 +409,8 @@ watcher or orchestrator already has, which skips Git status discovery; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
 graph the scan drew on the way, for a caller that needs the arrows between files
-as well as the names, so it does not scan the checkout a second time to get them.
+as well as the names, so it does not scan the checkout a second time to get them;
+and `tree`, a function handed that graph as the path-query surface directly.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.
@@ -411,17 +433,26 @@ documentation immediately, so a symbol introduced by the current edit is
 available on the same reading. Call `readWorkspace` again when edits to existing
 documentation must be visible immediately.
 
+`readWorkspaceForAnswer` reads the published generation while it is less than
+one hour old and refreshes it after that. `justAnswer` disables that expiry;
+`refreshAfterMs` changes it. `readWorkspaceSnapshot` is the unconditional
+artifact read used underneath that mode, and `workspaceGeneration` returns the
+UTC production time attached to a recorded value.
+
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
-to this process's own; override them when the host owns the transport. It runs
-the volatile refresh before every tool call and rebuilds retained documentation
-once per day by default. `documentationRefreshMs` changes that interval; zero
-rebuilds documentation on every request.
+to this process's own; override them when the host owns the transport. It uses
+the same one-hour policy, or serves only the recorded generation when
+`justAnswer` is true.
 
 ```ts
 import { serveWorkspace } from '@variance-authority/help';
 
-const stop = serveWorkspace('.', { input: process.stdin, output: process.stdout });
+const stop = serveWorkspace('.', {
+  input: process.stdin,
+  output: process.stdout,
+  justAnswer: true,
+});
 
 process.on('SIGINT', stop);
 ```

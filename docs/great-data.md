@@ -83,7 +83,7 @@ when you use it.
 | [Eyes](eyes.md) | Authored Arrange–Act–Assert phases, addressed elements, React owners, update initiators, and performed work | Which surface did this test deliberately operate, rather than merely render? |
 | [Vantage](vantage.md) | Announcements and unfinished work kept while a suite is still alive | My suite is hanging — which call has not come back yet? |
 | [Scenarios](scenarios.md) | Named preconditions, authored Acts, and the semantic state observed after each one | Two runs end differently — at which step did they first disagree? |
-| [Workspace API](agent-workspace-api.md) | Package manifests, TypeScript exports, imports, declarations, and call sites in the current checkout | Is this name already exported here, and who calls it? |
+| [Workspace API](agent-workspace-api.md) | Package manifests, exports, imports, declarations, and call sites in one dated workspace generation | Is this name already exported here, and who imports it? |
 | [Composition](composition.md) | Component identities and renderings joined across many subjects in one revision | Twelve subjects changed — is one component behind all of them? |
 | [History](history.md) | Causes, approvals, content identities, and repeated observations kept across runs | Has this been drifting for months, and did this flake start today? |
 

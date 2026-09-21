@@ -302,7 +302,7 @@ export const NAVIGATION = [
       },
       {
         href: "/agents/workspace-api",
-        label: "Inspect a workspace API",
+        label: "Find code through the workspace index",
         alternative: true,
       },
     ],

@@ -42,6 +42,7 @@ export const BOOLEAN = new Set([
   '--flakes',
   '--publish',
   '--in-package',
+  '--just-answer',
   '--exit-zero-on-changes',
 ]);
 
@@ -177,4 +178,3 @@ export function countOf(value: string | undefined, of: string): number | undefin
 
   return Number(value);
 }
-
