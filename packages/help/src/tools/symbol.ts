@@ -18,7 +18,7 @@ export const symbol: Tool<Help> = {
     'Everything known about one exported name: what it is, the import line that reaches it, the ' +
     'file and line that declares it, its full signature, its documentation — or, where nothing is ' +
     'written above it, the README passage that names it — and which packages import it. Names are ' +
-    'matched exactly; use docs_search when the exact name is not known, docs_uses for call sites.',
+    'matched exactly; use docs_search when the exact name is not known, docs_uses for import sites.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -49,7 +49,7 @@ export const symbol: Tool<Help> = {
     // What the name is, and then — once, in one line — that the other half of
     // the question has an answer. Naming the tool rather than printing the sites
     // is the budget: most callers want the signature and stop, and the ones who
-    // want the call sites want them ranked against a file this tool never asked
+    // want the import sites want them ranked against a file this tool never asked
     // for.
     const written = first[2].sites.length;
     const shown =

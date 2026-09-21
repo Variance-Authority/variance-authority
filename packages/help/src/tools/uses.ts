@@ -15,12 +15,12 @@ import { entriesNamed, isPackage, unfound } from './find.js';
  * ## Nearest, by how much of the path is shared
  *
  * Sites come back ordered by how many leading path segments they share with
- * `from` — the file the asker is working in. Not import distance: that is a
- * graph, [`@variance-authority/sense`](../../../sense) owns it, and it needs an
- * index this server deliberately does not keep. Shared segments are readable off
- * the two strings, which is the whole reason this can re-read the workspace on
- * every request. The claim it makes is the modest one it can support — *this
- * call site is written in the code you are in* — and a caller that passes no
+ * `from` — the file the asker is working in. Not import distance: this question
+ * asks where a known name is imported, and its `from` only chooses which exact
+ * sites to show first. The graph belongs to `docs_search`, where a start point
+ * removes names outside a closure. Shared segments are readable off the two
+ * strings. The claim here is the modest one it can support — *this import site
+ * is written near the code you are in* — and a caller that passes no
  * `from` is told the sites in path order rather than a made-up ranking.
  *
  * ## A story is pointed at, not quoted

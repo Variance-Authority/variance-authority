@@ -21,6 +21,40 @@ for another string.
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | This server; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
 
+## Search finds the name; the graph finds the area
+
+The workspace generation combines two different answers. Names and documentation
+find a candidate such as `createStore`. Resolved import edges decide whether that
+candidate belongs to the code in question.
+
+Carry a path into the first search whenever you have one:
+
+```bash
+variance ask search --query createStore --from src/fulfilment/ --just-answer
+```
+
+`--from` walks along imports and keeps names used inside that closure. Use
+`--to` when the known thing is a dependency or helper and the question is what
+depends on it. Both walks have no depth limit. This turns a common word that
+matches hundreds of files into a relation question over the area the path
+actually connects to.
+
+Once the search returns the name, ask `symbol` for its contract and `uses` for
+its exact import sites. `uses --from` only orders those sites by path proximity;
+it does not perform another graph traversal or remove any result.
+
+This is a resolved module graph, not a function-call graph. It records file
+imports, re-exports, literal dynamic imports, type imports and asset edges. It
+can answer what a file rests on, what rests on that file, and where an exported
+name is imported. It does not claim that one function called another at runtime;
+open the named file or use a language server for that question.
+
+No graph database service sits on the answer path. The producer publishes a
+compact graph beside the names and materializes both directions, so walking
+dependencies and dependents are the same bounded operation over the recorded
+generation. The graph is the relationship data; its storage is not another
+service an adopter has to operate.
+
 Text search remains the shorter route when text is the answer. It has to scan
 content again for the next word, and it does not resolve the imports it finds.
 The workspace producer pays for parsing and resolution, then publishes an
@@ -170,7 +204,7 @@ docs_search  query: order  from: src/fulfilment/
 
 `from` answers from the files that path reaches along the imports, at any
 depth. `to` answers from the files that reach it — use it when you start from a
-helper and want the screens or callers behind it. Pass both and you get both
+helper and want the screens or other dependents behind it. Pass both and you get both
 areas together; they are combined, not intersected, because two entry points of
 one application usually share no file.
 

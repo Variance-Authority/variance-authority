@@ -1,13 +1,13 @@
 ---
 name: variance-workspace-api
-description: Use when you need what a workspace publishes — where a symbol is declared, what it is documented as, who imports it, and the stories, tests and call sites that already use it.
+description: Use when you need what a workspace publishes — where a symbol is declared, what it is documented as, who imports it, and which related files and import sites already use it.
 ---
 
 # Workspace public API
 
 `variance-authority-help` reads a workspace's manifests and source and
-answers what it publishes. Every answer describes the checkout as it is now, not
-a build and not a generated site.
+answers what it publishes. Every answer names the UTC time of the workspace
+generation it used. It describes source, not a build or generated site.
 
 Use it for the question *what does this repository publish, and how is it already
 used here*. What a library on npm is supposed to be is a different question, and
@@ -45,8 +45,9 @@ the same code.
   in `packages/help`). An installed copy from the registry ships `dist` and needs
   no build.
 - **No run, no config, no revision requirement.** Nothing here reads a run's
-  output, and there is no config file. The answer is a function of the source on
-  disk right now.
+  output, and there is no config file. Ordinary questions reuse a published
+  generation for up to one hour; `--just-answer` uses the last generation
+  without inspecting the checkout and refuses when none exists.
 - **Working directory:** the workspace root, or pass `--root <dir>`. See the two
   argument shapes below.
 
@@ -56,6 +57,7 @@ Run a verb:
 
 ```bash
 variance-authority-help search viewport
+variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 Add `--root <dir>` when you are not standing in the workspace.
@@ -66,8 +68,8 @@ Add `--root <dir>` when you are not standing in the workspace.
 positional**:
 
 ```
-variance-authority-help <verb> [argument] [--root <dir>]
-variance-authority-help [root]                            # serve over MCP on stdio
+variance-authority-help <verb> [argument] [--root <dir>] [--just-answer]
+variance-authority-help [root] [--just-answer]            # serve over MCP on stdio
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
 
@@ -84,6 +86,10 @@ Misspellings *inside* a verb are refused, against the tool's own schema:
 $ variance-authority-help uses digestValue --form x
 `uses` takes no `--form`; it takes: name, package, from
 ```
+
+Use `--just-answer` when CI, an editor or a watcher owns generation, or when
+answer latency must contain no freshness work. The timestamp is part of the
+answer; decide from it whether the producer needs to publish again.
 
 ## Ask about a repository that does not depend on it
 
@@ -105,6 +111,22 @@ every name its own files hand out, with the file and the line. That is the usual
 shape of a checkout that is not a monorepo — an application with its source
 in one subdirectory — and it is the case where `search` is the only verb worth
 asking, because `packages` and `entrypoint` have nothing to report.
+
+## Orient through names and relations
+
+Search and graph traversal do different work. `search` turns the vocabulary you
+hold into candidate names. When the editor, ticket or stack trace already gives
+you a path, carry it into that first search: use `--from` for names used by what
+the path imports, and `--to` for names used by files that depend on the path.
+Both walk the resolved module graph at any depth.
+
+Continue with `symbol` for the selected name's contract, then `uses` for its
+exact import sites and worked examples. `uses --from` only orders the complete
+site list by path proximity; it does not walk the graph or remove results.
+
+This is a module graph, not a function-call graph. Never turn an import site
+into a claim that one function calls another. Open the named file or use a
+language server for that question.
 
 ## The six verbs, in the order to ask them
 
@@ -294,8 +316,8 @@ variance-authority-help search order --from src/fulfilment/
 files actually import, ordered by the number of importing files in that area.
 Each result reports those files by import distance from the start point beside
 the workspace-wide count. `--to` walks the other direction and does the same for
-files that reach the path — reach for it when you hold the helper and want its
-callers. Give both and you get both areas together, combined rather than
+files that reach the path — use it when you hold the helper and want its
+dependents. Give both and you get both areas together, combined rather than
 intersected: two entry points of one application usually share no file. Internal
 exports have no import-site count, so they are admitted by the declaring file.
 
@@ -373,18 +395,22 @@ file as it is, rather than a copy taken when the reading was.
   its loose section at 15, and says so in the answer when it cut. A list with no
   such line is the whole list.
 
-## The cache cannot change an answer
+## Read freshness literally
 
 The index is kept per checkout under `~/.cache/variance-authority/` — or under
 `$XDG_CACHE_HOME` when that is set — outside the tree being read, so it survives
 a throwaway install and nothing is written into somebody else's repository.
 
-It is **content-keyed**, not time-keyed. Git names each file's content without
-opening it and the digest names what parsing that content produced, so an edited
-file misses and is re-parsed on the next question. There is nothing to expire and
-no flag to force a fresh read: a missing, incompatible, incomplete or corrupt
-index behaves as an empty one, which makes the scan slower and cannot change the
-resulting answer. That is what lets this file promise the checkout as it is now.
+The source index is content-keyed. The answerable workspace generation has a
+production time: ordinary mode reuses it for one hour and refreshes it after
+that. `--just-answer` performs no Git status, scan or refresh regardless of age.
+Every answer prints that production time, so stale data is visible rather than
+silently presented as current.
+
+A missing, incompatible, incomplete or corrupt source index behaves as an empty
+cache and makes production slower; it cannot change the generation produced.
+A missing workspace generation under `--just-answer` is a refusal, not an
+implicit cold scan.
 
 If you want the cold-start timing anyway, delete the directory — it is rebuilt on
 the next question. A worktree writes to its own layer beneath the primary
@@ -413,10 +439,10 @@ the rule above does not apply to it. `args` is a bare root and no verb, which is
 exactly the form that starts a stdio server; `.` means the directory the client
 launches the process in, so use an absolute path if that is not the workspace.
 
-The server re-reads the workspace on every request, so an edit made in one turn
-is visible in the next. It reads the manifests once at startup, so a path that is
-not a workspace fails immediately rather than on whichever question you ask
-first.
+The server uses the same one-hour generation policy as the command. Add
+`--just-answer` to its arguments when the producer owns freshness and every MCP
+call must only read the published generation. Each tool response prints the
+generation time.
 
 The integration reference is
 `https://variance-authority.dev/reference/packages/help`; the routing across the

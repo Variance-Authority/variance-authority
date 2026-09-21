@@ -267,9 +267,10 @@ export const search: Tool<Help> = {
     'loosely — your words apart, or within a character of the ones written — are listed last and ' +
     'labelled, never mixed in. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
-    'you are standing: `from` a path answers with published names imported by the files that ' +
-    'path reaches, ordered by the importing files in that area; `to` does the same for files ' +
-    'that reach the path. Internal exports are filtered by their declaring file. An empty ' +
+    'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
+    'answers with published names imported by the files that path reaches; `to` does the same ' +
+    'for files that reach a known dependency. Both traverse the resolved module graph at any ' +
+    'depth. Internal exports are filtered by their declaring file. An empty ' +
     'answer is a fact about the area. Matching is the substring you typed and nothing else — no ' +
     'synonyms, no stemming, no model — so a repository that calls sign-in `CredentialGate` is ' +
     'not reached by `auth`. Supplying the likely vocabulary is your half: when a query matches ' +
@@ -295,8 +296,8 @@ export const search: Tool<Help> = {
       to: {
         ...START_POINT_SCHEMA.to,
         description:
-          `${START_POINT_SCHEMA.to.description} This is the direction that finds a caller when ` +
-          'the callee is what you have: `to` the helper, `query` the word you expect around it.',
+          `${START_POINT_SCHEMA.to.description} This is the direction that finds dependent files ` +
+          'when the dependency is what you have: `to` the helper, `query` the word you expect around it.',
       },
     },
     required: ['query'],

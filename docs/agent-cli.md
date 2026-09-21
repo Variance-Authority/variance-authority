@@ -128,6 +128,7 @@ names are in the source, and the same command reads them:
 
 ```bash
 variance ask search --query viewport
+variance ask search --query viewport --from packages/app/
 variance ask symbol --name Viewport
 variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
@@ -140,7 +141,7 @@ contain them, labelled as the looser reading it is. Every question takes a
 question: a word, a name or a specifier. `packages` is the one that takes none,
 and it answers with the specifiers the others take, so it is where a reader who
 has none of those starts. `symbol` prints one name's import line, declaration,
-signature, documentation and consumers; `uses` prints every call site, ordered
+signature, documentation and consumers; `uses` prints every import site, ordered
 by how much path it shares with `--from`; `entrypoint` lists what one import
 specifier opens; `gaps` lists the published names anybody imports that nothing
 documents.
@@ -148,8 +149,12 @@ documents.
 These questions read the checkout under the working directory and nothing else:
 no report has to exist and `variance.config.json` is not opened. `--from` and
 `--to` mean what they mean on `locate` — a path in the source tree, answered
-from what it reaches or what reaches it. The reading, its caches and what an
-answer may be taken to claim are one boundary whichever transport asks:
+from what it reaches or what reaches it. Carry the path into `search` when the
+ticket, editor or stack trace already supplied one: the words find candidate
+names and the import graph removes candidates outside that relation. Then ask
+`symbol` and `uses` only for the name that remains. The graph is at file and
+module level; it does not claim function calls. The reading, its caches and what
+an answer may be taken to claim are one boundary whichever transport asks:
 [inspect the workspace public API](agent-workspace-api.md).
 
 ## Distill one completed test

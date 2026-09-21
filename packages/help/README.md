@@ -2,7 +2,7 @@
 
 # @variance-authority/help
 
-> Find the public name, signature, documentation, consumers and call sites of an exported workspace symbol, over MCP.
+> Find the public name, signature, documentation, consumers and import sites of an exported workspace symbol, over MCP.
 
 Part of [Variance Authority](https://variance-authority.dev).
 
@@ -19,6 +19,17 @@ matches a description, which exact signature it has, who imports it, or which
 names are used by the files reachable from one path. `search --from` and
 `search --to` remove names outside that import closure; they do not merely put
 nearby text first.
+
+Search and traversal have separate jobs. The query text finds candidate names.
+`from` walks from a known path along its resolved imports; `to` walks in the
+other direction to the files that depend on a known path. Carry the path your
+editor, ticket or stack trace already supplied into the first search, then ask
+`symbol` and `uses` about the remaining name.
+
+The generation contains a compact bidirectional module graph beside the names;
+there is no graph database service to deploy. This graph records module and
+asset relations, not function calls. `uses` reports where a name is imported,
+not where code calls it at runtime.
 
 It answers from a dated generation published through a [source
 index](../../docs/source-index.md), and exposes six questions about exported
@@ -38,7 +49,7 @@ index](../../docs/agent-workspace-api.md#choose-the-cheapest-entrance).
 
 It answers two different questions about a name. What the name is supposed to be
 comes off the declaration — its signature and the block comment above it. How
-the name is actually written here comes off the call sites, and that is the
+the name enters files here comes off the import sites, and that is the
 answer a stale doc comment cannot spoil.
 
 This package has nothing to do with taking or comparing screenshots. If you came
@@ -176,7 +187,7 @@ files actually import. Results are ordered by the number of importing files in
 that area, and each line reports those files by import distance from the start
 point beside the workspace-wide count. `to` walks the other direction and does
 the same for files that reach the path — the one to use when you have the
-helper and want its callers. Give both and you get both areas, unioned: two entry
+helper and want its dependents. Give both and you get both areas, unioned: two entry
 points of one application share almost no file, so intersecting them would
 answer nothing about a question that named two places. Internal exports have no
 import-site count, so they are admitted by the declaring file instead.
@@ -274,9 +285,9 @@ packages/presentation/src/browser-agent.ts:3 — @variance-authority/presentatio
 ```
 
 That ordering is a claim about the filesystem, not about the import graph.
-Import distance is owned by
-[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense),
-and it needs an index this server does not keep.
+`uses --from` does not spend the graph merely to reorder a complete list; graph
+distance belongs to the scoped `search` answer, where it decides which names are
+admitted.
 
 ## On a repository you are passing through
 
