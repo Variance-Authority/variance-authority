@@ -118,6 +118,15 @@ export interface NativeScanner {
   ): NativeScanBatch;
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
+  /**
+   * What one file of a tree-sitter language asks for and publishes, as `Read` JSON.
+   *
+   * One file rather than a batch, because this crosses the boundary from inside
+   * the parse cache — the caller is a synchronous reader holding one file's
+   * bytes, and the batching that the module path does happens a layer above it.
+   * Nothing when the addon does not claim the language.
+   */
+  readLanguage(language: string, file: string, source: string): string | null;
 }
 
 /**

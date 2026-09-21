@@ -21,6 +21,8 @@ mod acquire;
 mod batch;
 mod digest;
 mod git;
+mod grammar;
+mod languages;
 mod harvest;
 mod index;
 mod order;
@@ -31,6 +33,18 @@ mod seed;
 mod tree;
 
 pub use seed::seed_files;
+
+/// What one file of a tree-sitter language asks for and publishes, as JSON.
+///
+/// The AST does not cross — a `Read` is a handful of specifiers and names, which
+/// is what the JavaScript readers already build per file, so this hands back the
+/// same object graph the oracle would have and no more. `null` means no reader
+/// here claims that language, and the caller falls back to its own.
+#[napi]
+pub fn read_language(language: String, file: String, source: String) -> Option<String> {
+    let read = languages::read(&language, &file, &source)?;
+    serde_json::to_string(&read).ok()
+}
 
 /// Every tracked path under a root, and the digest of the bytes on disk.
 ///
