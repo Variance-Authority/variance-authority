@@ -84,33 +84,44 @@ async function append(
   stored: StoredSourceIndex,
   encodedParses?: EncodedParseLayer,
 ): Promise<void> {
-  try {
-    const parses = differenceLayer(current.stored.parses, stored.parses, unchanged);
-    const records = differenceLayer(current.stored.records, stored.records, unchanged);
-    const directories = differenceLayer(current.stored.directories, stored.directories);
-    const native = !current.log.committed && encodedParses !== undefined
-      ? encodedParses
-      : undefined;
-    if (
-      current.log.committed &&
-      current.stored.config === stored.config &&
-      empty(parses) && empty(records) && empty(directories)
-    ) return;
+  const parses = differenceLayer(current.stored.parses, stored.parses, unchanged);
+  const records = differenceLayer(current.stored.records, stored.records, unchanged);
+  const directories = differenceLayer(current.stored.directories, stored.directories);
+  const native = !current.log.committed && encodedParses !== undefined
+    ? encodedParses
+    : undefined;
+  if (
+    current.log.committed &&
+    current.stored.config === stored.config &&
+    empty(parses) && empty(records) && empty(directories)
+  ) return;
 
-    const parseLayer = native === undefined
-      ? parses
-      : {
-          puts: new Map([...parses.puts].filter(([key]) => !native.keys.has(key))),
-          deletes: parses.deletes,
-        };
-    const delta = encodeSourceIndex(segment(stored.config, parseLayer, records, directories));
+  const parseLayer = native === undefined
+    ? parses
+    : {
+        puts: new Map([...parses.puts].filter(([key]) => !native.keys.has(key))),
+        deletes: parses.deletes,
+      };
+  const delta = encodeSourceIndex(segment(stored.config, parseLayer, records, directories));
+
+  // Persistence is a saving, never a new failure mode for the scan: a cache
+  // that cannot be written costs the next run a full scan, which is what a run
+  // without one pays anyway.
+  //
+  // The guard is around the write and not around the arithmetic above it. A
+  // delta this file computed wrongly is a defect, and swallowed here it would
+  // be indistinguishable from a full disk — the cache would simply never warm,
+  // which is the hardest failure in this file to notice. The compaction
+  // callback is the one piece of encoding left inside, because the log decides
+  // whether to call it.
+  try {
     if (native === undefined) {
       await current.log.publish(delta, () => encodeSourceIndex(stored));
     } else {
       await current.log.publishAll([native.bytes, delta], () => encodeSourceIndex(stored));
     }
   } catch {
-    // Persistence is a saving, never a new failure mode for the scan.
+    // Not written. The next scan is cold and this run's graph is unchanged.
   }
 }
 
