@@ -286,7 +286,7 @@ Repository size decides this, and it decides it in opposite directions.
 | reading the same tracked files | from the worktree | from the pack |
 | --- | --- | --- |
 | the checkout above — 27,748 modules, 30.3 MiB | 165 ms | 204 ms |
-| a generated repository — 200,000 blobs | 6.4 s wall, 76 s system | 0.66 s wall, 0.32 s system |
+| a generated repository — 200,000 blobs | 6.4 s wall, 76 s system | 660 ms wall, 320 ms system |
 
 On a small checkout the pipe costs more than the descriptors it saves, and a
 worktree read wins outright. An order of magnitude up, the same comparison is
@@ -300,8 +300,8 @@ that shape to hand, and a generated tree is the kind of thing that flatters a
 packfile: two hundred thousand similar files delta-compress beautifully. So it
 was run again against a 20,000-file incompressible tree, where they cannot, and
 the ratio survived — delta compression is not what produces that row. Of the
-0.66 s, `--batch-check` — object lookup with no content at all — is 0.21 s,
-leaving 0.23 s of inflate and 0.37 s of system time that is almost entirely
+660 ms, `--batch-check` — object lookup with no content at all — is 210 ms,
+leaving 230 ms of inflate and 370 ms of system time that is almost entirely
 67 MB crossing a pipe.
 
 So both paths ship, and what picks between them is the size of the wave — one
