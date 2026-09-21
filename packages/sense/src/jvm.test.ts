@@ -56,8 +56,15 @@ describe('what a JVM file asks for', () => {
     expect((kotlin.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing', 'parse']);
   });
 
-  it('says so when the parser stopped at an error', () => {
-    expect(readJava('Thing.java', 'class Thing { void ( }\n').unknown).toContain('did not parse cleanly');
+  it('says so when the parser stopped where an import could have been', () => {
+    expect(readJava('Thing.java', 'import a.B;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
+  });
+
+  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+    const read = readJava('Thing.java', 'import a.B;\nclass Thing { void ( }\n');
+
+    expect(read.requests.map((request) => request.value)).toEqual(['a.B']);
+    expect(read.unknown).toBeUndefined();
   });
 });
 

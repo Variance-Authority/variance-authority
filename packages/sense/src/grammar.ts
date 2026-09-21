@@ -71,6 +71,7 @@ export interface GrammarNode {
   readonly startPosition: { readonly row: number; readonly column: number };
   readonly namedChildren: readonly GrammarNode[];
   readonly hasError: boolean;
+  readonly isMissing: boolean;
   childForFieldName(name: string): GrammarNode | null;
   childrenForFieldName(name: string): readonly GrammarNode[];
   equals(other: GrammarNode): boolean;

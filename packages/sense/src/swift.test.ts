@@ -46,8 +46,15 @@ describe('what a Swift file asks for', () => {
       .toEqual(['Lens', 'Seen', 'read', 'version']);
   });
 
-  it('says so when the parser stopped at an error', () => {
-    expect(readSwift('a.swift', 'struct Lens { func ( }\n').unknown).toContain('did not parse cleanly');
+  it('says so when the parser stopped where an import could have been', () => {
+    expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
+  });
+
+  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+    const read = readSwift('a.swift', 'import Core\nstruct Lens { func ( }\n');
+
+    expect(read.requests.map((request) => request.value)).toEqual(['*', 'Core']);
+    expect(read.unknown).toBeUndefined();
   });
 
   it('is the one language whose edges are coarser than a file', () => {

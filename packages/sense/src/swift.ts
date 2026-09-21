@@ -36,9 +36,17 @@
  *
  * ## What is unknown
  *
- * A parse error, and a missing grammar. `@_exported import` re-exports a module
- * through this one and is read as an ordinary import, which under-reports the
- * transitive reach by exactly one hop.
+ * A parse error **where an import could have been**, and a missing grammar. A
+ * grammar recovers from syntax it cannot read by wrapping it in an `ERROR` node
+ * and carrying on, so one unreadable expression inside one function body costs
+ * nothing: every import in the file is still there to be read. Widening on that
+ * would let a single unsupported form — one the grammar is simply a version
+ * behind on — pull the whole repository into reach. An error hides an import
+ * only when it sits where this reader looks, which for Swift is the top level,
+ * because that is the only place an `import` is allowed.
+ *
+ * `@_exported import` re-exports a module through this one and is read as an
+ * ordinary import, which under-reports the transitive reach by exactly one hop.
  */
 
 import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
@@ -65,6 +73,7 @@ export function readSwift(file: string, source: string): Read {
   const requests: Request[] = [];
   const exports: Export[] = [];
   const seen = new Set<string>();
+  let broken = false;
 
   const want = (value: string, local: string, line: number): void => {
     if (value === '' || seen.has(value)) return;
@@ -85,7 +94,11 @@ export function readSwift(file: string, source: string): Read {
 
   for (const child of tree.rootNode.namedChildren) {
     const line = child.startPosition.row + 1;
+    // Only at this level, and only inside an import: an error anywhere else in
+    // the file cannot have swallowed one.
+    if (child.type === 'ERROR' || child.isMissing) broken = true;
     if (child.type === 'import_declaration') {
+      if (child.hasError) broken = true;
       const name = child.namedChildren.find((part) => part.type === 'identifier');
       // `import struct Answer.Lens` names the module `Answer`; the rest of the
       // path is a symbol inside it, and there is no file grain below the module.
@@ -100,7 +113,7 @@ export function readSwift(file: string, source: string): Read {
   return {
     requests,
     ...(exports.length === 0 ? {} : { exports }),
-    ...(tree.rootNode.hasError
+    ...(broken
       ? { unknown: `${file} did not parse cleanly as Swift, so what it imports may be incomplete.` }
       : {}),
   };

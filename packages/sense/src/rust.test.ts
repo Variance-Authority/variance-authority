@@ -66,8 +66,15 @@ describe('what a Rust file asks for', () => {
     expect(exported.get('Read')?.from).toBe('crate::read::Read');
   });
 
-  it('says so when the parser stopped at an error', () => {
-    expect(readRust('src/a.rs', 'fn broken( {\n').unknown).toContain('did not parse cleanly');
+  it('says so when the parser stopped where a `use` could have been', () => {
+    expect(readRust('src/a.rs', 'use self::b::C;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
+  });
+
+  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+    const read = readRust('src/a.rs', 'use self::b::C;\nfn held() { let ( ; }\n');
+
+    expect(read.requests.map((request) => request.value)).toEqual(['self::b::C']);
+    expect(read.unknown).toBeUndefined();
   });
 
   it('answers for a path this repository could own, and not for a foreign crate', () => {

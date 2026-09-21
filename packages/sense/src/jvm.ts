@@ -43,8 +43,16 @@
  *
  * ## What is unknown
  *
- * A parse error, and a missing grammar. Reflection is invisible, as it is to the
- * compiler.
+ * A parse error **where an import could have been**, and a missing grammar. A
+ * grammar recovers from syntax it cannot read by wrapping it in an `ERROR` node
+ * and carrying on, so one unreadable expression inside one function body costs
+ * nothing: every import in the file is still there to be read. Widening on that
+ * would let a single unsupported form — one the grammar is simply a version
+ * behind on — pull the whole repository into reach. An error hides an import
+ * only when it sits where this reader looks — the top level, and inside the
+ * `import_list` Kotlin wraps its imports in.
+ *
+ * Reflection is invisible, as it is to the compiler.
  */
 
 import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
@@ -79,6 +87,7 @@ function readJvm(file: string, source: string, id: 'java' | 'kotlin'): Read {
   const requests: Request[] = [];
   const exports: Export[] = [];
   const seen = new Set<string>();
+  let broken = false;
 
   const want = (value: string, local: string, line: number): void => {
     if (value === '' || seen.has(value)) return;
@@ -97,6 +106,9 @@ function readJvm(file: string, source: string, id: 'java' | 'kotlin'): Read {
   const walk = (node: GrammarNode, top: boolean): void => {
     for (const child of node.namedChildren) {
       const line = child.startPosition.row + 1;
+      // This walk descends only into `import_list`, so the levels it steps over
+      // are exactly the ones an import could have been lost from.
+      if (child.type === 'ERROR' || child.isMissing) broken = true;
       switch (child.type) {
         case 'package_declaration':
         case 'package_header': {
@@ -142,7 +154,7 @@ function readJvm(file: string, source: string, id: 'java' | 'kotlin'): Read {
   return {
     requests,
     ...(exports.length === 0 ? {} : { exports }),
-    ...(tree.rootNode.hasError
+    ...(broken
       ? { unknown: `${file} did not parse cleanly as ${id}, so what it imports may be incomplete.` }
       : {}),
   };

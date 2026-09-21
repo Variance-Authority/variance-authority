@@ -19,6 +19,7 @@ struct Gathering {
     requests: Vec<Request>,
     exports: Vec<Export>,
     seen: HashSet<String>,
+    broken: bool,
 }
 
 pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
@@ -27,6 +28,7 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
         requests: Vec::new(),
         exports: Vec::new(),
         seen: HashSet::new(),
+        broken: false,
     };
 
     // Kotlin wraps its imports in an `import_list`; Java lists them at the top.
@@ -39,7 +41,7 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
         } else {
             Some(held.exports)
         },
-        unknown: root.has_error().then(|| {
+        unknown: held.broken.then(|| {
             format!(
                 "{file} did not parse cleanly as {id}, so what it imports may be incomplete."
             )
@@ -50,6 +52,9 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
 fn walk(node: Node, source: &str, top: bool, held: &mut Gathering) {
     for child in named_children(node) {
         let line = line_of(child);
+        if child.kind() == "ERROR" || child.is_missing() {
+            held.broken = true;
+        }
         match child.kind() {
             "package_declaration" | "package_header" => {
                 // The file's own package. Visible without an import, and the

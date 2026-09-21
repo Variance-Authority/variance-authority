@@ -17,6 +17,7 @@ struct Gathering {
     requests: Vec<Request>,
     exports: Vec<Export>,
     at: HashMap<String, usize>,
+    broken: bool,
 }
 
 pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
@@ -25,6 +26,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         requests: Vec::new(),
         exports: Vec::new(),
         at: HashMap::new(),
+        broken: false,
     };
 
     block(root, source, &[], true, &mut held);
@@ -36,7 +38,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         } else {
             Some(held.exports)
         },
-        unknown: root.has_error().then(|| {
+        unknown: held.broken.then(|| {
             format!("{file} did not parse cleanly as Rust, so what it imports may be incomplete.")
         }),
     }
@@ -47,6 +49,9 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
 fn block(node: Node, source: &str, prefix: &[String], top: bool, held: &mut Gathering) {
     let children = named_children(node);
     for (at, child) in children.iter().enumerate() {
+        if child.kind() == "ERROR" || child.is_missing() {
+            held.broken = true;
+        }
         match child.kind() {
             "mod_item" => {
                 let Some(name) = child

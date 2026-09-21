@@ -33,9 +33,17 @@
  *
  * ## What is unknown
  *
- * A parse error, and a missing grammar. Nothing else: `include!` and the module
- * paths a macro expands to are invisible here, and are the reason the Rust
- * answer is a floor rather than a total.
+ * A parse error **where an import could have been**, and a missing grammar. A
+ * grammar recovers from syntax it cannot read by wrapping it in an `ERROR` node
+ * and carrying on, so one unreadable expression inside one function body costs
+ * nothing: every import in the file is still there to be read. Widening on that
+ * would let a single unsupported form — one the grammar is simply a version
+ * behind on — pull the whole repository into reach. An error hides an import
+ * only when it sits where this reader looks — the top level and the body of an
+ * inline `mod`, which is everywhere a `use` or a `mod` can be.
+ *
+ * Nothing else: `include!` and the module paths a macro expands to are invisible
+ * here, and are the reason the Rust answer is a floor rather than a total.
  */
 
 import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
@@ -62,6 +70,7 @@ export function readRust(file: string, source: string): Read {
   const requests: Request[] = [];
   const exports: Export[] = [];
   const seen = new Map<string, Request>();
+  let broken = false;
 
   const want = (request: Request): void => {
     const held = seen.get(request.value);
@@ -83,6 +92,9 @@ export function readRust(file: string, source: string): Read {
   const block = (node: GrammarNode, prefix: readonly string[], top: boolean): void => {
     const children = node.namedChildren;
     for (const [at, child] of children.entries()) {
+      // This walk visits exactly the levels a `use` or `mod` can sit at, so an
+      // error it steps over is the only kind that can have swallowed one.
+      if (child.type === 'ERROR' || child.isMissing) broken = true;
       switch (child.type) {
         case 'mod_item': {
           const name = child.childForFieldName('name')?.text;
@@ -156,7 +168,7 @@ export function readRust(file: string, source: string): Read {
   return {
     requests,
     ...(exports.length === 0 ? {} : { exports }),
-    ...(tree.rootNode.hasError
+    ...(broken
       ? { unknown: `${file} did not parse cleanly as Rust, so what it imports may be incomplete.` }
       : {}),
   };

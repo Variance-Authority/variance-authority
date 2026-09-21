@@ -22,13 +22,20 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     let mut requests: Vec<Request> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let mut exports: Vec<Export> = Vec::new();
+    let mut broken = false;
 
     // The files beside this one, which it sees with no statement of any kind.
     want(&mut requests, &mut seen, OWN_TARGET, OWN_TARGET, 1);
 
     for child in named_children(root) {
         let line = line_of(child);
+        if child.kind() == "ERROR" || child.is_missing() {
+            broken = true;
+        }
         if child.kind() == "import_declaration" {
+            if child.has_error() {
+                broken = true;
+            }
             // `import struct Answer.Lens` names the module `Answer`; the rest of
             // the path is a symbol inside it, and there is no file grain below it.
             if let Some(module) = imported(child, source) {
@@ -50,7 +57,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
     Read {
         requests,
         exports: if exports.is_empty() { None } else { Some(exports) },
-        unknown: root.has_error().then(|| {
+        unknown: broken.then(|| {
             format!("{file} did not parse cleanly as Swift, so what it imports may be incomplete.")
         }),
     }
