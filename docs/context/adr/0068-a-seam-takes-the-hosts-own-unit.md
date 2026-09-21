@@ -61,6 +61,15 @@ work around.
 absent registrar is skipped, so the cost of covering a placement nobody in this
 project uses is one `typeof` check per name.
 
+**Both spellings are also run.** A seam that misses a placement records the
+file's cases into the ambient bucket and says nothing, so the run is green, the
+index is wrong, and the way anyone finds out is by reading the page and not
+believing it. Reasoning about which placements a seam structurally cannot miss
+is not evidence; every host's fixture therefore declares one case with imported
+registrars and one with the realm's, and the integration test asserts that both
+are named in the index and hold the branch each walked. A host is not adopted
+until it has both.
+
 **What each host gives the recording is a published table**, in
 `@variance-authority/sense`'s README beside the case axis it qualifies. The
 chart states the requirement in the form that survives the runners:

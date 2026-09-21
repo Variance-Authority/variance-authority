@@ -94,8 +94,9 @@ describe('the Rstest integration', () => {
     // Beside the snapshot, never inside it: the file CI reads is the same file
     // a run without `cases` writes.
     const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
-    // Rstest has no runner option, so the bracket is around the injected `it`
-    // and the coordinate is read off `expect.getState()` at call time. Two of
+    // `globals` is off here, so the registrars under test are the ones on the
+    // object an import of `@rstest/core` compiles to, and the coordinate is
+    // read off `expect.getState()` at call time. Two of
     // `alpha.case.ts`'s three cases are absent for different reasons: the
     // skipped one never reaches the registrar's callback, and the one that only
     // reads a global crossed nothing.
@@ -123,5 +124,38 @@ describe('the Rstest integration', () => {
     // credited with holds the file's evaluation, not its branches.
     expect(walking('A')).toEqual(['test/alpha.case.ts > takes the alpha path']);
     expect(walking('B')).toEqual(['test/beta.case.ts > takes the beta path']);
+  }, 120_000);
+
+  it('names a case declared with the realm\'s registrars, the spelling the other configurations never take', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-rstest-injected-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await run('rstest.injected.config.mjs', directory);
+
+    // The seam wraps the registrars on the realm and on the object an import
+    // of `@rstest/core` compiles to. Two placements is two things to be wrong
+    // about, and a placement no configuration exercises is one that records
+    // nothing without saying so — which is how the equivalent hole in the Jest
+    // seam survived until somebody outside the project read the page.
+    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    expect(index.tests.map((test) => test.id)).toEqual([
+      'test/gamma.injected.ts > takes the gamma path with the registrars on the realm',
+    ]);
+
+    const decide = index.modules.find((module) => module.file === 'src/decide.ts');
+    expect(decide).toBeDefined();
+    const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
+    const line = source.slice(0, source.indexOf("return 'G'")).split('\n').length;
+    const block = decide!.blocks
+      .filter((candidate) => candidate.startLine <= line && line <= candidate.endLine)
+      .sort((left, right) => left.startLine - right.startLine)
+      .at(-1);
+    expect(block).toBeDefined();
+    // Named in the index *and* holding the branch it walked: a case the seam
+    // reaches halfway is worse than one it misses, because it reads as an
+    // answer.
+    expect(block!.crossings.map((crossing) => index.tests[crossing.test]!.id)).toEqual([
+      'test/gamma.injected.ts > takes the gamma path with the registrars on the realm',
+    ]);
   }, 120_000);
 });

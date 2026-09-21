@@ -472,5 +472,20 @@ describe('the Vitest integration', () => {
       expect(files).toBe(17);
       expect(countCrossings(index)).toBe(27);
     }, 20_000);
+
+    it('names a case declared with the realm\'s registrars under `globals: true`', async () => {
+      const { index } = await record('vitest.injected.config.ts');
+      if (index === undefined) throw new Error('the run wrote no execution index');
+
+      // `runTask` is handed the task by the runner, so which registrar
+      // declared a case cannot reach it — and *cannot* is a claim about the
+      // code, which is the kind of claim that had the Jest seam quietly
+      // recording nothing for a spelling nobody ran. Both spellings are run
+      // for every host now.
+      expect(index.tests.map((test) => test.name)).toEqual([
+        'takes the gamma path with the registrars on the realm',
+      ]);
+      expect(named(index, 6)).toEqual(['takes the gamma path with the registrars on the realm']);
+    }, 20_000);
   });
 });
