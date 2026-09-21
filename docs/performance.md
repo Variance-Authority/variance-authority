@@ -44,14 +44,28 @@ costs more than the parse. In JavaScript it does: every module's tree crosses
 into the runtime, is allocated there, and is collected there, and that happens
 24,519 times whatever the parser underneath is doing.
 
-So the scanner is compiled. [Sense](../packages/sense) ships a Rust addon
-that opens, parses,
-resolves and records a whole cold checkout without handing a syntax tree back
-to JavaScript — oxc for the parse and for the resolver,
-[rayon](https://docs.rs/rayon) for the pools whose widths the next three
-sections are spent arguing about, and one arena per worker rather than one per
-file. [Where the native code is](native-code.md) says what ships and what
-happens on a platform with no binary for it.
+So the scanner is compiled, and it is the only part of Variance Authority that
+had to be. Everything else here is TypeScript and stays TypeScript, because
+everything else is a decision about data — what changed, what it reached, what
+to run, what to record — and a decision costs what it costs in any language.
+This is not a decision. It is every file you have, and the only way to stop
+paying the runtime for them is to stop handing them to it.
+
+[Sense](../packages/sense) ships a Rust addon that opens, parses, resolves and
+records a whole cold checkout without handing a syntax tree back to JavaScript
+— oxc for the parse and for the resolver, [rayon](https://docs.rs/rayon) for
+the pools whose widths the next three sections are spent arguing about, and one
+arena per worker rather than one per file. It is not a rewrite: the TypeScript
+scanner is still the implementation of record, the addon is held to its answers
+by differential tests, and a machine with no binary for it builds the same
+index and pays more for it. [Where the native code is](native-code.md) says
+where that happens.
+
+Plenty of compiled code runs under a scan and none of the rest of it is ours —
+oxc's own bindings, libvips under the screenshots. Installing a native library
+is cheap. Writing one is a platform matrix, a release that can arrive without a
+binary, and a second implementation to keep honest, which is a bill worth
+paying once and only where something forces it.
 
 That is the premise of every measurement below, not their result. What it buys
 is not a faster loop; it is a scan whose remaining cost is entirely somebody
