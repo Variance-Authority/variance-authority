@@ -17,20 +17,41 @@ recording it is the reason the suite stops being run.
 
 The promise on the engine side is that coverage is free. V8 already keeps the
 counters, Node exposes them through the inspector, and nothing rewrites your
-code. The measured reality on two public suites, unmodified apart from the
+code. The measured reality on three public suites, unmodified apart from the
 configuration: Zod's 5,656 tests go from 8.87 s to 11.56 s under
-`--coverage`, and TanStack Query's 4,523 from 11.78 s to 15.25 s. That is
-**about +30%, on every run**, and what it buys is the union — a percentage,
-and a file that cannot tell you which test entered anything in it.
+`--coverage`, TanStack Query's 4,523 from 11.78 s to 15.25 s, and Material
+UI's 7,456 from 25.88 s to 32.49 s. That is **+26% to +30%, on every run**,
+and what it buys is the union — a percentage, and a file that cannot tell you
+which test entered anything in it.
 
-The same two suites with the recorder installed are 9.05 s and 12.77 s:
-**+2% and +8%**. The difference is not tuning, it is which way the
-instrument faces. A probe fires when execution reaches it, so what you pay
+**Thirty percent is not one cost, because a percentage is not a unit.** On a
+ten-second suite it is three seconds: it slows an agent loop slightly and
+nobody sensibly cares. On a suite of three minutes it is a whole minute
+back per run, and a minute is long enough to be worth spending somewhere
+that returns more than a percentage. On the suite that takes fifteen, you
+never see the 30% at all — sharding hides it, the wall clock stays roughly
+where it was, and the cost moves onto the bill instead. At that end coverage
+is not slower. It is **30% more money, every run, forever**, for a union.
+
+The same three suites with the recorder installed are 9.05 s, 12.77 s and
+26.76 s: **+2%, +8% and +3%**. The difference is not tuning, it is which way
+the instrument faces. A probe fires when execution reaches it, so what you pay
 tracks what your tests *ran*. The engine's counters are not fired but read, and
 the read hands back every script the worker had open, whether a test went near
-it or not. (Median of five runs, warm-up discarded, both caches cleared
-between runs, on an Apple M4 Max, 64 GB, Node 26. The full table and the
-arithmetic under it are in [running less of the
+it or not.
+
+Two of those suites are short enough that you should not believe a percentage
+taken off them, and that objection is why the third is here. Every Material UI
+round runs the suite plain, recorded, and plain again; the two plain arms come
+out **0.1%** apart, so a 0.9 s recording cost is a signal rather than a warm
+disk. Run the same suite on two workers, where it takes a minute and a half
+instead of half a minute, and the two baseline arms land **0.02%** apart:
+**91.56 s** plain against **93.69 s** recorded, and **110.86 s** under
+`--coverage`. Recording does not grow with the clock, and at that length the
+comparison stops being a ratio and becomes a number you can spend — **19.3
+seconds a run for the union, 2.1 seconds for the relation**. (Medians, warm-up
+discarded, both caches cleared between runs, on an Apple M4 Max, 64 GB, Node
+26. The full table is in [running less of the
 suite](selecting.md#what-recording-costs-while-the-suite-runs).)
 
 Per test, the gap stops being a percentage and becomes the reason this axis
@@ -50,9 +71,19 @@ this feature, and it is what makes the answer something a job uploads without
 thinking about it.
 
 Those timings are the recorder writing the file-level axis; cases add an
-attribution per crossing on top of them. Price that on your own suite the way
-the table above was made — five runs with the flag, five without, compare the
-medians.
+attribution per crossing on top of them.
+
+What it costs *you* is not what it cost us. Plan around +10% and treat
+anything under that as luck: how many regions a test crosses is a property of
+your code, not of the recorder, and a suite that spends most of its time in
+one hot module pays differently from one that spends it starting workers.
+What those cycles buy, though, is the part worth putting on the other side of
+the comparison — and it is not a percentage. A run under `--coverage` ends
+with a number. A run under the recorder ends with a dataset that says which
+tests have been through which lines, and that is the input to running fewer
+of them next time. Measure both halves on your own suite: the overhead the
+way those figures were made — five runs with the recorder, five without,
+compare the medians — and then a selected run against the full one.
 
 ## What the union throws away
 

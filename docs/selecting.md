@@ -327,7 +327,7 @@ If you have ever turned coverage on in CI you have a number in your head for
 what instrumentation costs, and it is a large one. Check it against this before
 you carry it over, because the two instruments are not paid for in the same way.
 
-Both suites below are public and unmodified apart from the configuration that
+Every suite below is public and unmodified apart from the configuration that
 installs the recorder. Every figure is the median of five runs of the whole
 suite, the first discarded as warm-up, with the Vite cache and the record cache
 cleared between runs so no run is paid for by the one before it. Pass and fail
@@ -337,6 +337,24 @@ counts are identical down all three columns. An Apple M4 Max, 64 GB, Node 26.
 |---|---|---|---|
 | [Zod](selection-zod.md) — 398 runs, 5,656 tests | 8.87 s | 9.05 s — **1.02×** | 11.56 s — **1.30×** |
 | [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 11.78 s | 12.77 s — **1.08×** | 15.25 s — **1.29×** |
+| [Material UI](https://github.com/mui/material-ui), node scope — 452 files, 7,456 tests | 25.88 s | 26.76 s — **1.03×** | 32.49 s — **1.26×** |
+
+A ratio of two timed runs is only worth reading if you know what the machine
+does to an untimed one, so the Material UI rounds carry a second unrecorded
+arm. Each round runs the suite plain, recorded, and plain again, and the two
+plain arms are the band everything else is read against: their medians are
+**25.90 s and 25.88 s**, 0.1% apart over five rounds. A 0.9 s recording cost
+stands well outside that. On a suite of nine or twelve seconds it would not —
+which is the reason the largest row is here at all.
+
+The same suite pinned to two workers, so that it lasts a minute and a half
+rather than half a minute, is the check on whether any of this scales with the
+clock. Median of three rounds, two baseline arms 0.02% apart: **91.56 s**
+plain, **93.69 s** recorded — **1.02×** — and **110.86 s** under `--coverage`
+— **1.21×**. Recording does not grow when the same work is spread over fewer
+cores, because what it charges for is what the tests ran rather than how long
+they took to run. The gap between the two instruments is the figure to carry:
+on that run coverage costs 19.3 s and recording costs 2.1 s.
 
 That is the setting `--coverage` gives you, not a pessimistic one.
 `Profiler.startPreciseCoverage` takes two independent flags — a counter per
