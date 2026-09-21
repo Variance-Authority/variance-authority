@@ -1,13 +1,18 @@
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { indexSource } from '@variance-authority/core/attribute';
-import { native, nativeAvailable, type NativeReadBatch } from './native.js';
+import type { Digest } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
+import { native, nativeAvailable, nativeGraph, type NativeReadBatch } from './native.js';
 import { MODULE_EXTENSIONS, readModule } from './read.js';
 import { parseWay } from './files.js';
 import { resolveTo, resolversFor } from './resolve.js';
+import { LARGEST_FILE } from './scan.js';
+import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
 import { requestOf } from './specifier.js';
 
 /**
@@ -117,6 +122,52 @@ describe('the native reader against the JavaScript one', () => {
 
   it.runIf(available)('names its kinds the way the oracle names them', () => {
     expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type']);
+  });
+
+  /**
+   * A cold graph publishes its parse layer as a segment of its own, beside the
+   * generation the scan encodes. A segment the decoder refuses rejects the whole
+   * chain it was committed with, so a column the native encoder stops writing
+   * costs the run its records and not only its parses — and `save` absorbs I/O
+   * failure, so nothing upstream says a word about it.
+   */
+  it.runIf(available)('publishes a parse layer the source index reads back beside its own', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-native-index-'));
+    const file = join(directory, 'source-index.bin');
+    const record: FileRecord = {
+      file: 'packages/sense/src/scan.ts',
+      digest: 'git:4444444444444444444444444444444444444444' as Digest,
+      edges: [{ to: 'packages/sense/src/native.ts', kind: 'imports' }],
+    };
+
+    try {
+      const graph = nativeGraph({
+        addon: native()!,
+        tree: native()!.gitTree(root)!,
+        root,
+        files: [record.file],
+        largestFile: LARGEST_FILE,
+        digests: [undefined],
+        aliases: undefined,
+        directories: new Map(),
+        remembering: true,
+      });
+      expect(graph.parseLayer?.keys.size).toBeGreaterThan(0);
+
+      const index = await openSourceIndexFile(file);
+      await index.save({
+        parses: new Map(),
+        directories: new Map(),
+        records: new Map([[record.file, { record, witnesses: ['packages/sense/src'] }]]),
+      }, graph.parseLayer);
+
+      expect(await readdir(`${file}.segments`)).toHaveLength(2);
+      const stored = await readSourceIndex(file);
+      expect([...stored.records.keys()]).toEqual([record.file]);
+      expect([...graph.parseLayer!.keys].filter((key) => !stored.parses.has(key))).toEqual([]);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 });
 

@@ -34,6 +34,12 @@ struct Header {
 /// A complete generation containing parses and empty values for every other
 /// source-index layer. A following generation may carry records and tree shape;
 /// the existing immutable-log reader already folds those layers together.
+///
+/// Every column the decoder names has to be here, including the ones this half
+/// never has rows for. An absent section is not an empty one: the decoder
+/// rejects the segment that omits it, and a rejected segment rejects the whole
+/// chain it was committed with — the records of the generation published beside
+/// it included.
 pub fn parse_segment(
     files: &[String],
     digests: &[String],
@@ -244,6 +250,8 @@ pub fn parse_segment(
         u8s("records.edges-present", vec![]),
         u32s("records.declares", vec![0]),
         u8s("records.declares-present", vec![]),
+        u32s("records.packages", vec![0]),
+        u8s("records.packages-present", vec![]),
         u32s("records.unresolved", vec![0]),
         u8s("records.unresolved-present", vec![]),
         u32s("records.unknown", vec![]),
@@ -256,6 +264,8 @@ pub fn parse_segment(
         u32s("edges.kind", vec![]),
         u32s("record-declares.name", vec![]),
         u32s("unresolved.value", vec![]),
+        u32s("packages.to", vec![]),
+        u32s("packages.kind", vec![]),
     ])
 }
 
