@@ -245,11 +245,29 @@ module against every test, which is how you find out which of your files are
 four seconds and 322 MB. It is the ceiling, and one you can afford to hit
 deliberately.
 
+### Writing it back costs what changed
+
+A run that records does not only read the record. It lays the modules it just
+re-recorded over the ones already there and writes the file back, and that
+write is priced by the run rather than by the record. The modules your suite
+did not touch this time are never decoded, never grouped and never compared:
+the module rows are in code-unit order and so is the string dictionary above
+them, so a path's place among the strings decides its place among the rows, and
+both lookups are a binary search over integers. Four bytes is the whole of what
+carries a module from the old file into the new one.
+
+At 200,000 modules and 1,600,000 regions, laying ten re-recorded modules over
+the record takes 0.6 s and 191 MB of live memory, of which 6.7 MB is objects —
+and that 6.7 MB is flat, whatever size the record is. Everything that grows is
+the columns themselves, decompressed to be read and compressed to be written;
+peak resident is around 470 MB, and that peak is what a larger record moves.
+
 ### Which memory figure answers which question
 
 | you want to know | the figure |
 |---|---|
 | what a run needs in memory while it answers a diff | **about 120 MB resident**, cold, against the 200,000-module record |
+| what laying a run's own modules over the record and writing it back costs | 191 MB live and about 470 MB peak resident, at 200,000 modules |
 | what the record costs on disk | 77 MB at 200,000 modules; 0.5 MB on Material UI |
 | what the most expensive question in the format peaks at | 322 MB, every module against every test |
 | what building the crossing relation costs | 132 MB, for 671 million crossings folded to 3,408 distinct sets |
