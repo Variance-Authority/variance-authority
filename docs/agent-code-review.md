@@ -2,26 +2,56 @@
 
 A review has the diff, and the diff is the one thing that cannot say whether
 the changed lines are watched. Two readings answer that from the same change
-set: the execution record says which named cases entered each changed region,
-and composition says how many of the subjects that moved are one decision. Both
-join a change set against what a run recorded at **one revision**, with no
-baseline anywhere in them, which is why an agent holding a patch can ask both
-before it forms an opinion.
+set: the [execution record](execution-record.md) says which named cases
+entered each changed region, and composition says how many of the subjects
+that moved are one decision. Both join a change set against what a run
+recorded at **one revision**, with no baseline anywhere in them, which is why
+an agent holding a patch can ask both before it forms an opinion.
 
-## What the patch leaves open
+## What a review is asked, and what a diff can answer
 
-Three questions decide whether a change is safe to approve, and none of them is
-in the text of the diff:
+You are asked whether the change is safe to merge. A diff states what changed
+and can state nothing about what depended on it, so you close the gap by
+reading the surrounding code and judging whether it looks watched. That is a
+guess about a fact — and the fact was recorded, by running the suite, an hour
+ago. Three parts of the gap are worth naming separately, because each one fails
+in a different direction.
 
-- **Which changed regions nothing has entered.** A hole in the evidence is not
-  visible in a patch, and it is not visible in a coverage percentage either: a
-  file at 94% and a file at 94% differ by which 6%.
-- **How many witnesses each changed region has.** One case alone entering a
-  region is evidence standing on a single point. Ten is a different fact, and a
-  line count states neither.
-- **How much of a changed report is one edit.** Eleven changed subjects are
-  often one component, and a reviewer who does not know that reviews eleven
-  things.
+**A changed region nothing entered looks like every other changed region.**
+Usually better: the branch with no test behind it is the short one, three lines
+in an `else`, and it reads as obviously correct because there is so little of
+it to be wrong. A coverage percentage does not close this. It is a union over
+the whole suite, so two files at 94% differ by *which* 6%, and the 6% you are
+about to change is exactly the part the number does not break out. What gets
+approved this way is not code somebody decided was low risk; it is code nobody
+knew was unwatched.
+
+**A region one case entered and a region fourteen cases entered report
+identically.** They are different facts. A single witness is very often the
+case that was written from the implementation it enters — the code and its test
+are one artifact, and an edit that moves both keeps them agreeing with each
+other about something that was never checked against intent. Fourteen cases
+across nine files is an independent constraint: break it and you are told
+immediately, in a form somebody else can read. You have a fixed amount of
+attention for a review, and without the count you spread it evenly over lines
+that deserve it very unevenly.
+
+**The number of changes in a report is not the number of decisions in it.**
+Review effort is paid per finding; risk lives per decision. Eleven moved
+subjects are frequently one component edited once, which means ten of those
+readings buy nothing — and the attention they consumed is gone by the time you
+reach the subject where that same component was expected to move and did not.
+Grouping is not a convenience here. It is what makes the exception visible at
+all.
+
+Both readings work on a single revision. That matters at review time more than
+it sounds: a branch you have been handed usually has no accepted baseline,
+nothing of it has been through the pipeline yet, and a comparison against a
+previous revision would answer a question you are not asking — you already know
+what changed, you are holding the diff. What you do not have is what the code
+*did*. The record and the run both answer that from the commit in front of you,
+which is why an agent can ask them the moment a patch exists rather than after
+somebody accepts something.
 
 ## Ask the record what entered the change
 
@@ -93,9 +123,8 @@ is sized rather than what it concludes, which is why it comes last.
 
 ## Why these two belong on one page
 
-They are the same shape asked of two axes. Both take the change set you are
-reviewing, both join it against what a single run recorded, and neither
-compares anything to a previous revision:
+They are the same shape asked of two axes — the change set you are reviewing,
+joined against what one run recorded:
 
 | reading | joins the diff to | answers |
 |---|---|---|
