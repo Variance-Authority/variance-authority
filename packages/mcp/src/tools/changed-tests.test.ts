@@ -35,7 +35,7 @@ describe('variance_changed_tests', () => {
     const text = changedTests.run(INDEX, { diff: diff('src/cart/total.ts', 9) });
 
     expect(text.split('\n')[0]).toBe(
-      '1 changed file(s), 1 changed region(s): 1 that no case covered, 0 that one case alone covered.',
+      '1 changed file, 1 changed region: 1 nothing covered, 0 covered by one case.',
     );
     expect(text).toContain('8-10 branch priceOf — no case covered this region');
   });
@@ -50,13 +50,13 @@ describe('variance_changed_tests', () => {
   it('answers a changed test file with the cases it declares, not with silence', () => {
     const text = changedTests.run(INDEX, { diff: diff('test/cart.test.ts', 4) });
 
-    expect(text).toContain('a test file — 2 named case(s) declared here');
+    expect(text).toContain('a test file — 2 named cases declared here');
     expect(text).not.toContain('no row');
   });
 
   it('says a changed file has no row rather than reporting it uncovered', () => {
     expect(changedTests.run(INDEX, { diff: diff('src/cart/tax.ts', 2) }))
-      .toContain('no row — the indexed run never loaded this file');
+      .toContain('no row — the recorded run never loaded this file');
   });
 
   it('says so when a diff names no changed file, rather than reporting a clean change', () => {

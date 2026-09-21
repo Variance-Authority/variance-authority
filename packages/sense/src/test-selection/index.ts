@@ -48,6 +48,10 @@ export {
   type SourceTestRange,
 } from './reverse.js';
 export {
+  formatCoveringChange,
+  type CoveringChangeHeading,
+} from './covering-change-text.js';
+export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,
   encodeExecutionIndex,

@@ -55,7 +55,7 @@ describe('asking which tests entered a line', () => {
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', execution]));
 
     expect(answer.tests?.map((test) => [test.id, test.distance])).toEqual([['near', 1], ['far', 6]]);
-    expect(formatCovering(answer, 'text')).toContain('2 named tests reached line 12 of src/total.ts');
+    expect(formatCovering(answer, 'text')).toContain('2 named tests covered line 12 of src/total.ts');
   });
 
   it('answers a function by name and carries the same reading into JSON', async () => {
@@ -96,7 +96,7 @@ describe('asking which tests entered a line', () => {
       .rejects.toThrow(/record spells it `src\/total\.ts`/);
   });
 
-  it('separates a line nothing recorded from a line nothing reached', async () => {
+  it('separates a line nothing recorded from a line nothing covered', async () => {
     const execution = await indexFile();
 
     await expect(covering(parse(['--file', 'src/total.ts', '--line', '2', '--execution', execution])))
@@ -119,7 +119,7 @@ describe('asking which tests entered a line', () => {
  * Every failure of that is silent — the wrong coordinate answers about a file
  * nobody changed, and a list of test names is the same shape either way.
  */
-describe('asking which cases a change reached', () => {
+describe('asking which cases a change covered', () => {
   const cwd = process.cwd();
   afterEach(() => process.chdir(cwd));
 
@@ -250,7 +250,7 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.tests?.map((test) => test.id)).toEqual(['here']);
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
     expect(formatCovering(answer, 'text'))
-      .toContain('1 of 2 named tests that reached it are inside the narrowing');
+      .toContain('1 of 2 named tests that covered it are inside the narrowing');
   });
 
   it('prints no depth beside a witness', async () => {

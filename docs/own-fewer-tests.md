@@ -43,7 +43,7 @@ npx variance covering --file src/cart/total.ts --line 14
 ```
 
 ```text
-3 named tests reached line 14 of src/cart/total.ts:
+3 named tests covered line 14 of src/cart/total.ts:
   splits a discount — src/cart/total.test.ts [total.test.ts::splits a discount]
   renders a coupon — src/cart/Cart.test.tsx [Cart.test.tsx::renders a coupon]
   checks out — src/cart/flow.test.tsx [flow.test.tsx::checks out]

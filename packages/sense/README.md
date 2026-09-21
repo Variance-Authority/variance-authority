@@ -1345,6 +1345,41 @@ agent asking which five of two hundred cases walked the branch you just changed,
 and the wrong one for the index CI reads to select files over every region there
 is.
 
+### Ask the index about a diff
+
+`coveringChange` joins changed lines to the cases that went there, and
+`formatCoveringChange` writes that join the way both this project's surfaces
+write it. Pass the changed lines rather than the diff: `changedLines` is already
+the one parse of it the file-grain selector uses, and two parses of one diff
+disagree exactly at the renamed and binary paths a review is least able to
+check.
+
+```ts
+import {
+  changedLines,
+  coveringChange,
+  formatCoveringChange,
+} from '@variance-authority/sense/test-selection';
+
+const changed = coveringChange(index, changedLines(patch));
+console.log(formatCoveringChange(changed, { from: '.variance-authority/cases.bin' }));
+```
+
+Every changed file comes back, silent ones included — a reader that dropped them
+would print a confident report about the half of the change it happened to have
+measured. `recorded` separates the index being silent about a file from the
+index saying nobody covered it, and `cases` answers a changed **test** file with
+the cases it declares, since the run instruments what the tests import rather
+than the tests themselves. Within a region, `tests` called in and `passengers`
+were only present while the module evaluated.
+
+The formatter takes what the caller can honestly say about provenance — the ref
+the diff was taken against, the file the index was read from, the commit it
+stands at — and prints nothing for a field it is not given. It lives here rather
+than in either caller because the CLI's `variance covering --since` and the MCP
+tool `variance_changed_tests` both print it, and a reading with two renderers
+has two answers.
+
 ## What each host gives the recording
 
 Every seam records the same three things — which regions the transform cut,

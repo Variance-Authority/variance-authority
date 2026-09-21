@@ -296,7 +296,7 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 ```
 
 ```text
-3 named tests reached line 48 of src/checkout/total.ts:
+3 named tests covered line 48 of src/checkout/total.ts:
   applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
   checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
@@ -320,10 +320,10 @@ variance covering --file src/checkout/total.ts --line 48 --in-package
 ```
 
 ```text
-2 named tests reached line 48 of src/checkout/total.ts:
+2 named tests covered line 48 of src/checkout/total.ts:
   applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-2 of 3 named tests that reached it are inside the narrowing.
+2 of 3 named tests that covered it are inside the narrowing.
 ```
 
 `--at-distance` counts **import hops** from the file to the test's own file,

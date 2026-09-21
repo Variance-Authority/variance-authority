@@ -412,7 +412,7 @@ edit — see [ask a run from the command line](https://variance-authority.dev/do
 ## Give an agent the tests for source
 
 `variance_source_tests` answers the question a coding agent needs before and
-after an edit: which named tests reached this source? A line or function query
+after an edit: which named tests covered this source? A line or function query
 returns the tests that covered it, named and by file. A file query returns every
 indexed line as compact ranges, including ranges no test covered. To ask how far
 away those tests sit, `variance covering --at-distance <hops>` and
@@ -444,7 +444,7 @@ That is an excerpt: it exports the server but never calls it. Call
 the process alive — the returned function detaches the server from its streams.
 
 The tool takes `file` and optionally one of `line` or `function`. With neither,
-it answers the whole file. It distinguishes an indexed range reached by no test
+it answers the whole file. It distinguishes an indexed range covered by no test
 from a line absent from the execution index. The index is supplied by the test
 collector or editor integration; MCP does not manufacture coverage or control
 the test runner.

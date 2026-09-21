@@ -1,5 +1,5 @@
 /**
- * Which named tests reached this line.
+ * Which named tests covered this line.
  *
  * The inverse of [`reach`](./reach-command.ts). That one walks the import graph
  * forward from a diff and answers *what could this change touch*; this one
@@ -36,6 +36,7 @@ import {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
+  formatCoveringChange,
   recordedCommit,
   testCoverageFile,
   type CoveringChange,
@@ -117,7 +118,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       `\`${file}\` is not in the index at \`${from}\`, which holds ${
         index.modules.length
       } file${index.modules.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
-        `here, and that is a different statement from no test reaching it. ${
+        `here, and that is a different statement from no test covering it. ${
           spelling(file, index)
         }`,
     );
@@ -131,7 +132,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       throw new OperatorError(
         `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
           'import or a type declaration has no region to be covered, so there is no list to ' +
-          'print — which again is not the same as nobody reaching it.',
+          'print — which again is not the same as nobody covering it.',
       );
     }
     const found = coveringTests(index, { file: file, line });
@@ -287,10 +288,10 @@ function text(answer: Covering): string {
   const target = answer.target ?? { function: '' };
   const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
   if (tests.length === 0) {
-    return [`No named test reached ${where} of ${answer.file}.`, ...narrowedText(answer)].join('\n');
+    return [`No named test covered ${where} of ${answer.file}.`, ...narrowedText(answer)].join('\n');
   }
   return [
-    `${tests.length} named test${tests.length === 1 ? '' : 's'} reached ${where} of ${answer.file}:`,
+    `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}:`,
     ...tests.map((test) => `  ${describe(test)}`),
     ...narrowedText(answer),
   ].join('\n');
@@ -310,7 +311,7 @@ function wholeFile(answer: Covering, ranges: readonly SourceTestRange[]): string
       ? `line ${range.startLine}`
       : `lines ${range.startLine}-${range.endLine}`);
     lines.push(...(range.tests.length === 0
-      ? ['  no named test reached this range']
+      ? ['  no named test covered this range']
       : range.tests.map((test) => `  ${describe(test)}`)));
   }
   lines.push(...narrowedText(answer));
@@ -336,85 +337,27 @@ function narrowedText(answer: Covering): readonly string[] {
   const narrowed = answer.narrowed;
   if (narrowed === undefined) return [];
   return [
-    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} that reached ` +
+    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} that covered ` +
       'it are inside the narrowing.',
     ...narrowed.notes.map((note) => `  ${note}`),
   ];
 }
 
 /**
- * The review reading: the counts first, then the regions that produced them.
+ * The review reading, which `variance_changed_tests` also prints.
  *
- * The header is the part a reviewer acts on, so it leads. Two numbers matter
- * and neither is a percentage: regions the change touched that **no case
- * entered by a route it chose**, and regions one case alone entered. The first
- * is a hole in the evidence; the second is evidence resting on a single point,
- * which is the reading a line count cannot express at all.
- *
- * A case that was only inside a region while its module evaluated is counted
- * apart. It was present, it did not go there, and folding the two together
- * would make every module-scope constant look as watched as the function under
- * it.
+ * The words live in `@variance-authority/sense/test-selection` beside
+ * `coveringChange`, because two surfaces ask for them and a reading with two
+ * renderers has two answers. All this adds is the provenance the CLI is the
+ * only one able to state: the ref the diff was taken against, the file the
+ * index was read from, and the commit it stands at.
  */
 function sinceText(answer: Covering, changed: readonly CoveringChange[]): string {
-  const regions = changed.flatMap((file) => file.regions);
-  const blind = regions.filter((region) => region.tests.length === 0);
-  const alone = regions.filter((region) => region.tests.length === 1);
-  const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
-
-  const lines = [
-    `${changed.length} changed file${changed.length === 1 ? '' : 's'} since ${answer.since}, ` +
-      `${regions.length} changed region${regions.length === 1 ? '' : 's'}: ${blind.length} ` +
-      `nothing covered, ${alone.length} covered by one case.`,
-    `Read from ${answer.from}${answer.at === undefined ? '' : `, recorded at ${answer.at}`}.`,
-  ];
-
-  for (const file of changed) {
-    lines.push('', file.file);
-    if (file.cases.length > 0) {
-      lines.push(
-        `  a test file — ${file.cases.length} named case${file.cases.length === 1 ? '' : 's'} ` +
-          'declared here, which is what changed rather than what was reached:',
-      );
-      lines.push(...file.cases.map((test) => `    ${test.name} [${test.id}]`));
-    }
-    if (!file.recorded) {
-      if (file.cases.length === 0) {
-        lines.push('  no row — the recorded run never loaded this file, which is not the same as nobody reaching it');
-      }
-      continue;
-    }
-    if (file.regions.length === 0) {
-      lines.push('  in the index, and the change landed on no recorded region of it');
-      continue;
-    }
-    for (const region of file.regions) {
-      const carried = region.passengers.length === 0
-        ? ''
-        : ` (+${region.passengers.length} carried in while the module evaluated)`;
-      lines.push(
-        `  ${region.startLine}-${region.endLine} ${region.kind}${
-          region.name === '' ? '' : ` ${region.name}`
-        } — ${
-          region.tests.length === 0
-            ? 'no case covered this region'
-            : region.tests.length === 1
-              ? '1 case, and it is the only witness'
-              : `${region.tests.length} cases`
-        }${carried}`,
-      );
-      lines.push(...region.tests.map((test) => `    ${describe(test)}`));
-    }
-  }
-
-  if (silent.length > 0) {
-    lines.push(
-      '',
-      `${silent.length} changed path${silent.length === 1 ? ' has' : 's have'} no row here at all. ` +
-        'The reading above is about the rest of the diff.',
-    );
-  }
-  return lines.join('\n');
+  return formatCoveringChange(changed, {
+    ...(answer.since === undefined ? {} : { since: answer.since }),
+    from: answer.from,
+    ...(answer.at === undefined ? {} : { at: answer.at }),
+  });
 }
 
 function describe(test: CoveringTest): string {
