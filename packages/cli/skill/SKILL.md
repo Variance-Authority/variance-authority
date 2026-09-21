@@ -634,7 +634,7 @@ React update initiators: unavailable; no commit evidence was recorded.
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
 Runtime journey: 1 source file(s) entered by exact test id.
   depth 0 — src/checkout.ts
-Entered with no addressed target attributed to the same file: 1.
+Covered with no addressed target attributed to the same file: 1.
   distillation opportunity at depth 0 — src/checkout.ts
 
 Loaded but not entered: 0 module(s).

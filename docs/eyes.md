@@ -74,7 +74,7 @@ turning either into coverage:
 
 ```text
 Addressed source:  src/checkout/form.tsx
-Entered source:    src/checkout/form.tsx
+Covered source:    src/checkout/form.tsx
                    src/analytics.ts
                    src/top-nav.tsx
 

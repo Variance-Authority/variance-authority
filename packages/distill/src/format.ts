@@ -75,7 +75,7 @@ function opportunityLines(
   ];
   const missing = execution.addressedNotEntered ?? [];
   return [
-    `Entered with no addressed target attributed to the same file: ${execution.opportunities.length}.`,
+    `Covered with no addressed target attributed to the same file: ${execution.opportunities.length}.`,
     ...execution.opportunities.map(({ file, distance }) =>
       `  distillation opportunity at depth ${distance} — ${file}`),
     ...(missing.length === 0 ? [] : [
@@ -106,7 +106,7 @@ function availableLines(available: readonly string[], total: number): readonly s
 
 /**
  * The part of the reading that survives having no Eyes archive and no addressed
- * surface: which regions of an entered file this test was actually inside.
+ * surface: which regions of a covered file this test was actually inside.
  */
 function regionLines(modules: readonly EnteredModule[]): readonly string[] {
   const loaded = modules.filter((module) => module.loadedOnly);
@@ -124,7 +124,7 @@ function regionLines(modules: readonly EnteredModule[]): readonly string[] {
           `    substitution to try: vi.mock('${module.file}') — jest.mock and sb.mock say the same thing`,
         ])),
     ...(partial.length === 0 ? [] : [
-      `Entered in part: ${partial.length} module(s).`,
+      `Covered in part: ${partial.length} module(s).`,
       ...partial.flatMap((module) => [
         `  ${module.file} — covered ${module.entered.map(named).join(', ')}`,
         `    never covered: ${module.unentered.map(named).join(', ')}`,

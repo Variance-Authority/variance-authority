@@ -74,7 +74,7 @@ export function findingLines(reading) {
     ...(unexplained.length === 0
       ? []
       : [
-          'Entered the change by no route they imported:',
+          'Covered the change by no import route:',
           ...unexplained.map((distance) => `  ${distance.test}`),
           '',
         ]),

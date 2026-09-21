@@ -40,7 +40,7 @@ describe('variance_changed_tests', () => {
     expect(text).toContain('8-10 branch priceOf — no case covered this region');
   });
 
-  it('names the cases that entered a changed region, nearest first', () => {
+  it('names the cases that covered a changed region, nearest first', () => {
     const text = changedTests.run(INDEX, { diff: diff('src/cart/total.ts', 3) });
 
     expect(text).toContain('1-6 function priceOf — 2 cases');

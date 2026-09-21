@@ -271,7 +271,7 @@ React update initiators:
     outside addressed component paths: Clock
 
 Runtime journey: 4 source file(s) covered by exact test id.
-Entered with no addressed target attributed to the same file: 2.
+Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```
@@ -825,7 +825,7 @@ a config, a module your probes do not cover — and it is why the command reads
 ```
 $ variance select
 skipping nothing: the diff changes 3 files the journal holds no measurement of
-(docs/selecting.md), so it cannot say which tests enter them.
+(docs/selecting.md), so it cannot say which tests cover them.
 the execution journal was not asked, having no record of every changed file.
 ```
 

@@ -166,7 +166,7 @@ React update initiators:
     outside addressed component paths: Clock
 
 Runtime journey: 4 source file(s) covered by exact test id.
-Entered with no addressed target attributed to the same file: 2.
+Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```

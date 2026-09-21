@@ -229,7 +229,7 @@ Runtime journey: 3 source file(s) covered by exact test id.
   depth 0 — src/analytics.ts
   depth 0 — src/checkout/form.tsx
   depth 0 — src/heavy-chart.tsx
-Entered with no addressed target attributed to the same file: 2.
+Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/heavy-chart.tsx
 

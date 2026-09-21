@@ -272,7 +272,7 @@ The [source index](source-index.md) supplies that other half:
 
 ```text
 source index       what could this change reach?
-execution record   what did each test actually enter?
+execution record   what did each test actually cover?
                          ↓
                     selection
 ```
