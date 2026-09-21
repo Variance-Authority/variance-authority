@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/vitest-browser",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Observe a component against its baseline from inside a Vitest browser-mode test, without leaving the test body.",
   "keywords": [
     "variance-authority",

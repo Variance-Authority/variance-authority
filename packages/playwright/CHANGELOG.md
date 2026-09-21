@@ -1,5 +1,11 @@
 # @variance-authority/playwright
 
+## 0.4.0
+
+### Patch Changes
+
+  - @variance-authority/raster@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

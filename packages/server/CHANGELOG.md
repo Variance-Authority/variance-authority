@@ -1,5 +1,11 @@
 # @variance-authority/server
 
+## 0.4.0
+
+### Patch Changes
+
+  - @variance-authority/history@0.4.0
+
 ## 0.3.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

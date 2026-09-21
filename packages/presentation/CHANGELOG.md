@@ -1,5 +1,13 @@
 # @variance-authority/presentation
 
+## 0.4.0
+
+### Patch Changes
+
+  - @variance-authority/dom@0.4.0
+  - @variance-authority/react@0.4.0
+  - @variance-authority/report@0.4.0
+
 ## 0.3.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

@@ -1,5 +1,51 @@
 # @variance-authority/sense
 
+## 0.4.0
+
+### Minor Changes
+
+- da23004: The per-case execution index is columns, and fits a CI artifact limit
+
+  `cases: true` wrote its index as JSON, one object per crossing. On three real
+  projects that measured 31 to 37 bytes per crossing: a suite whose snapshot is
+  0.3 MB left a 27.2 MB file beside it, and every CI has a cap on what a job may
+  upload.
+
+  It goes through the same column codec the snapshot uses — a dictionary, parallel
+  integer columns, zstd run coding — and the same three projects now write 0.46 MB,
+  0.46 MB and 0.21 MB. Nothing about the model changed: `decodeExecutionIndex`
+  returns the index `encodeExecutionIndex` was handed, field for field, and the
+  optional `loaded` keeps the difference between unsaid and denied.
+
+  The default path is `<coverage file>.cases.bin`. An `executionFile` you name
+  `.json` is still written as JSON, at the size JSON costs, for a reader that has
+  to have it — and `variance covering` and `variance distill` read either, telling
+  them apart by the first byte, so a cache recorded before this still answers.
+
+### Patch Changes
+
+- 838f187: Layering a recording onto a snapshot costs the change, not the snapshot
+
+  Publishing decoded every module the snapshot held. A path string and an array
+  per row, a map from path to rows, and one object a module — so a run that
+  re-recorded ten modules of two hundred thousand still built two hundred
+  thousand of each, and the heap a publish needed grew with the file it was
+  layering onto rather than with the run it was layering.
+
+  The rows are in code-unit order and so is the dictionary above them, so a
+  path's place among the strings decides its place among the rows. Both searches
+  are now binary and integer, the modules nobody touched are never decoded or
+  compared, and the output's order is one `Int32Array` — four bytes a carried
+  module — in place of the objects. Heap is flat in snapshot size at 6.6 to 7.7
+  MB, where it was 9.4 MB at ten thousand modules and 18.6 MB at eighty
+  thousand. What still scales is the columns themselves: total live memory falls
+  from 1.07 to 0.89 MB per thousand modules.
+
+  The bytes are the bytes. This is an optimization of a function that already
+  existed, and the gate test still asserts the output is identical to the merge
+  and encode it replaces.
+  - @variance-authority/wire@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
