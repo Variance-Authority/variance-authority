@@ -229,6 +229,19 @@ export function handle<Subject>(
  * tree is a walk of the repository, so it is done for the calls that asked for
  * one and no others.
  */
+/**
+ * Which tool a request calls, where it calls one.
+ *
+ * The server knows this before it asks for a subject, and a host answering over
+ * more than one subject needs it: reading a workspace to answer a question about
+ * a report would make every question cost both.
+ */
+export function askedTool(request: JsonRpcRequest): string | undefined {
+  if (request.method !== 'tools/call') return undefined;
+  const name = (request.params ?? {})['name'];
+  return typeof name === 'string' ? name : undefined;
+}
+
 export function wantsTree<Subject>(
   request: JsonRpcRequest,
   served: Served<Subject>,

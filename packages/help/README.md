@@ -55,9 +55,10 @@ in the repository you are asking about.
 
 The same six are questions on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — so a workspace that
-runs the visual suite needs nothing from this package to ask them. This package
-is for the workspace that does not.
+is installed — `npx variance ask search --query viewport` — and the same six
+are tools on `variance serve`, beside the ones about a run. A workspace that
+runs the visual suite needs nothing from this package over either transport.
+This package is for the workspace that does not run one.
 
 ### What you get
 
@@ -296,7 +297,9 @@ npx variance-authority-help .
 
 The six tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
 `docs_uses`, `docs_search` and `docs_gaps`, and they answer in the same words as
-the six verbs above.
+the six verbs above. `variance serve` serves the same six under the same names,
+so a workspace with the CLI declares one server and asks it about both the run
+and the source.
 
 ## Write the answers to files
 

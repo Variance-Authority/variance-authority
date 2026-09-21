@@ -10,6 +10,7 @@ import {
   VANTAGE,
   createLineReader,
   handle,
+  askedTool,
   wantsTree,
   type JsonRpcRequest,
 } from './protocol.js';
@@ -43,7 +44,20 @@ export interface ServerOptions<Subject = RunReport> {
    * stale one, which is the request that matters: the agent asking is the agent
    * that just re-ran.
    */
-  readonly subject: () => Subject | Promise<Subject>;
+  readonly subject: (asked?: string) => Subject | Promise<Subject>;
+
+  /**
+   * How the subject is kept for the next request, where the default will not do.
+   *
+   * `previous` exists for the one tool that compares this request with the last
+   * one, and the default — a structured clone of the whole subject — is right
+   * while the subject is the thing being compared. A host answering over two
+   * subjects at once is the case where it is not: a workspace's whole reading
+   * would be cloned on every successful call to serve a comparison that only
+   * ever looks at the report. So a host that carries more than it diffs says
+   * here what is worth keeping.
+   */
+  readonly remember?: (subject: Subject) => Subject;
 
   /**
    * Supplies the source tree, for the calls that name a path.
@@ -81,14 +95,14 @@ export function serve<Subject>(options: ServerOptions<Subject>): () => void {
     }
 
     queue = queue.then(async () => {
-      const subject = await options.subject();
+      const subject = await options.subject(askedTool(request));
       const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
       const response = handle(request, () => subject, options.served, {
         ...(previous === undefined ? {} : { previous }),
         ...(tree === undefined ? {} : { tree }),
       });
       if (request.method === 'tools/call' && succeeded(response)) {
-        previous = structuredClone(subject);
+        previous = options.remember === undefined ? structuredClone(subject) : options.remember(subject);
       }
       if (response !== null) write(response);
     });

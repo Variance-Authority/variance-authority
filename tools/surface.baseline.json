@@ -1204,6 +1204,7 @@
         "SERVER_VERSION": "const",
         "SOURCE_TESTS": "const",
         "VANTAGE": "const",
+        "askedTool": "function",
         "createLineReader": "function",
         "handle": "function",
         "wantsTree": "function"

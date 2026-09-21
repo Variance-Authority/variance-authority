@@ -47,7 +47,11 @@ subjects with a `story:` prefix, so `card--dark` is `story:card--dark`.
 ## Serve it to a client
 
 If you installed the CLI above, no further install is needed — `variance serve`
-is that server, reading the report your config names:
+is that server, reading the report your config names. It also answers the six
+source questions of
+[`@variance-authority/help`](https://variance-authority.dev/reference/packages/help)
+from the checkout it is started in, so one declared server covers the run and
+the code behind it:
 
 ```bash
 variance serve --config variance.config.json   # MCP over stdio

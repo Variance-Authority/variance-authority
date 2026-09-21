@@ -178,7 +178,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `share` | says what the share has for mainline, or publishes what this run derived |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
-| `serve` | exposes the last run's report to an MCP client over stdio |
+| `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
 | `ask` | the same questions `serve` answers, without an MCP client |
 
 `--shape` accepts a difference **shape**: a fingerprint computed from the diff
@@ -186,9 +186,10 @@ itself, which identifies a category of visual difference so it can be matched
 across subjects. It promotes a subject wherever that shape accounts for the
 whole change, and refuses by name any subject where something else changed too.
 
-`serve` and `ask` share their questions with `@variance-authority/mcp`, so an
-agent can ask what changed, in which component and which file, without
-re-running anything.
+`serve` and `ask` share their questions with `@variance-authority/mcp` and
+`@variance-authority/help`, so an agent can ask what changed, in which
+component and which file, and what that file's package publishes, without
+re-running anything and without a second server.
 
 ### Ask: the agent answers, without an agent protocol
 
