@@ -111,7 +111,7 @@ covered module — you get no opportunity list at all:
 
 ```text
 Distillation opportunities: unavailable; none of the 1 addressed source file(s)
-matched any of the 12 entered module(s) under root /path/to/project.
+matched any of the 12 covered module(s) under root /path/to/project.
 ```
 
 Comparing paths that disagree in shape would report every covered file as an
@@ -165,7 +165,7 @@ React update initiators:
     inside addressed component paths: CheckoutForm
     outside addressed component paths: Clock
 
-Runtime journey: 4 source file(s) entered by exact test id.
+Runtime journey: 4 source file(s) covered by exact test id.
 Entered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/top-nav.tsx
@@ -207,9 +207,9 @@ marks a module whose only crossings are the consequence of loading
 it, and `unentered` names the declarations the test never reached.
 
 ```text
-Loaded but not entered: 1 module(s).
-  src/heavy-chart.tsx — the import ran its top level and this test entered nothing below it
-    never entered: HeavyChart (lines 5-8)
+Loaded but not covered: 1 module(s).
+  src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
+    never covered: HeavyChart (lines 5-8)
     substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
 ```
 

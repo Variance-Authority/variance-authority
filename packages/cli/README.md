@@ -270,7 +270,7 @@ React update initiators:
     inside addressed component paths: CheckoutForm
     outside addressed component paths: Clock
 
-Runtime journey: 4 source file(s) entered by exact test id.
+Runtime journey: 4 source file(s) covered by exact test id.
 Entered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/top-nav.tsx
@@ -372,14 +372,14 @@ variance covering --since main
 ```
 
 ```text
-2 changed files since main, 5 changed regions: 1 nothing entered, 2 entered by one case.
+2 changed files since main, 5 changed regions: 1 nothing covered, 2 covered by one case.
 Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases.bin, recorded at 8a72c74.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
     applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
     ...
-  62-66 branch applyDiscount — no case entered this region
+  62-66 branch applyDiscount — no case covered this region
 
 src/checkout/total.test.ts
   a test file — 4 named cases declared here, which is what changed rather than what was reached:

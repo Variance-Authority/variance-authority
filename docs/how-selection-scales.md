@@ -232,7 +232,7 @@ module and execution region
     ↓
 set id
     ↓
-tests that entered the region
+tests that covered the region
 ```
 
 Region boundaries matter here. An edit wholly inside a handler can select the

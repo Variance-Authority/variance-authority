@@ -225,7 +225,7 @@ React update initiators:
     outside addressed component paths: Clock
 
 Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.
-Runtime journey: 3 source file(s) entered by exact test id.
+Runtime journey: 3 source file(s) covered by exact test id.
   depth 0 — src/analytics.ts
   depth 0 — src/checkout/form.tsx
   depth 0 — src/heavy-chart.tsx
@@ -233,9 +233,9 @@ Entered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/analytics.ts
   distillation opportunity at depth 0 — src/heavy-chart.tsx
 
-Loaded but not entered: 1 module(s).
-  src/heavy-chart.tsx — the import ran its top level and this test entered nothing below it
-    never entered: HeavyChart (lines 5-8)
+Loaded but not covered: 1 module(s).
+  src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
+    never covered: HeavyChart (lines 5-8)
     substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
 ```
 

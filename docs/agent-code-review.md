@@ -60,12 +60,12 @@ variance covering --since main
 ```
 
 ```text
-2 changed files since main, 5 changed regions: 1 nothing entered, 2 entered by one case.
+2 changed files since main, 5 changed regions: 1 nothing covered, 2 covered by one case.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
     applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
-  62-66 branch applyDiscount — no case entered this region
+  62-66 branch applyDiscount — no case covered this region
 ```
 
 The two counts in the first line are the findings. A region **no case covered**

@@ -67,7 +67,7 @@ export function findingLines(reading) {
               return seen.has(key) ? false : seen.add(key);
             })
             .map(({ hop }) =>
-              `  ${hop.importer} imports ${hop.reached}; ${hop.unit} is entered at ${hop.entry}`,
+              `  ${hop.importer} imports ${hop.reached}; ${hop.unit}'s entry point is ${hop.entry}`,
             ),
           '',
         ]),
@@ -119,7 +119,7 @@ export function helpLines() {
     '',
     'Every run prints the whole reading before the leg it took out of it, the',
     'files a leg left for later, and two findings that need no red test: imports',
-    'that reached past a unit face, and tests the change entered by no route they',
+    'that reached past a unit face, and tests the change covered by no route they',
     'imported.',
   ];
 }

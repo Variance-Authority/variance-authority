@@ -156,7 +156,7 @@ names the importer, the internal file it imports, and the intended entry point:
 
 ```text
 src/report/report.tsx imports src/button/abstract-button.tsx;
-src/button is entered at src/button/index.ts
+src/button's entry point is src/button/index.ts
 ```
 
 Start with the importing line when investigating this finding.

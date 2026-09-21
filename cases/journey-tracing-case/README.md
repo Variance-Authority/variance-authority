@@ -64,8 +64,8 @@ The two specs run inside that, through the real Playwright CLI:
 ```console
 Running 2 tests using 2 workers
 
-  ✓  1 src/spec/euros.spec.mjs:6:1 › the euro branch is entered by this spec and no other (86ms)
-  ✓  2 src/spec/dollars.spec.mjs:6:1 › the dollar branch is entered by this spec and no other (88ms)
+  ✓  1 src/spec/euros.spec.mjs:6:1 › the euro branch is covered by this spec and no other (86ms)
+  ✓  2 src/spec/dollars.spec.mjs:6:1 › the dollar branch is covered by this spec and no other (88ms)
 
   2 passed (1.3s)
 ```

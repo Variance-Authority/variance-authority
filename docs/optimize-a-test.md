@@ -39,9 +39,9 @@ crossed, every declaration below it uncrossed. The reading names the module, the
 declarations nothing covered, and the substitution to try.
 
 ```text
-Loaded but not entered: 1 module(s).
-  src/heavy-chart.tsx — the import ran its top level and this test entered nothing below it
-    never entered: HeavyChart (lines 5-8)
+Loaded but not covered: 1 module(s).
+  src/heavy-chart.tsx — the import ran its top level and this test covered nothing below it
+    never covered: HeavyChart (lines 5-8)
     substitution to try: vi.mock('src/heavy-chart.tsx') — jest.mock and sb.mock say the same thing
 ```
 
