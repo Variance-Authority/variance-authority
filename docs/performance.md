@@ -45,7 +45,7 @@ into the runtime, is allocated there, and is collected there, and that happens
 24,519 times whatever the parser underneath is doing.
 
 So the scanner is compiled, and it is the only part of Variance Authority that
-had to be. Everything else here is TypeScript and stays TypeScript, because
+had to be. Everything else in it is TypeScript and stays TypeScript, because
 everything else is a decision about data — what changed, what it reached, what
 to run, what to record — and a decision costs what it costs in any language.
 This is not a decision. It is every file you have, and the only way to stop
@@ -61,9 +61,9 @@ by differential tests, and a machine with no binary for it builds the same
 index and pays more for it. [Where the native code is](native-code.md) says
 where that happens.
 
-Plenty of compiled code runs under a scan and none of the rest of it is ours —
-oxc's own bindings, libvips under the screenshots. Installing a native library
-is cheap. Writing one is a platform matrix, a release that can arrive without a
+Plenty of compiled code runs under a scan — oxc's own bindings, libvips under
+the screenshots — and all of the rest of it is somebody else's. Installing a
+native library is cheap. Writing one is a platform matrix, a release that can arrive without a
 binary, and a second implementation to keep honest, which is a bill worth
 paying once and only where something forces it.
 
@@ -121,20 +121,29 @@ Contention, not saturation. A saturated device is widened by a faster device.
 This is not.
 
 Two other readings are available and both are wrong. It is not the efficiency
-cores — this machine is twelve performance and four efficiency, so an E-core
-explanation puts the cliff at twelve, and the degradation starts before it
-while user time stays flat. It is not this scanner either, because ripgrep
+cores — the machine these were taken on is twelve performance and four
+efficiency, so an E-core explanation puts the cliff at twelve, and the
+degradation starts before it while user time stays flat. It is not the scanner either, because ripgrep
 collapses on the same curve on the same machine.
 
-**Your machine has more in that path than this one does.** Every endpoint
-security agent your organisation installs — Falcon, Defender, any filter driver
-or kernel extension that inspects file access — gets asked about an `open`
-before the filesystem does its own work, and it is asked inside the same
-contended path. What that costs is your image, your agent and your policy, so
-the number here is not transferable and the sweep that produced it is committed
-for exactly that reason — run it where the answer matters. What an agent in the
-path changes is not mainly which width to pick. It is how much a descriptor is
-worth not buying at all, which is where this ends up anyway.
+**Full-disk encryption is already in these numbers.** They were taken on a
+FileVault volume, so every byte read above came back decrypted, and the next
+section reads all 31.6 MiB of them for 34 ms on top of the opens — decryption
+included, and still nothing beside what the opens cost. Encryption is a
+per-byte cost down at the block layer, which is the half of this that is cheap.
+BitLocker and LUKS sit in the same place.
+
+**An endpoint security agent does not.** Falcon, Defender, any filter driver or
+kernel extension that inspects file access is asked about an `open` before the
+filesystem does its own work, and it is asked inside the contended path. That
+makes it a multiplier on the thing that already costs everything rather than a
+tax on the thing that costs nothing, and **your machine has more of it in that
+path than that one did.** What it comes to is your image, your agent and your
+policy, so the numbers above are not transferable and the sweep that produced
+them is committed for exactly that reason — run it where the answer matters.
+What an agent in the path changes is not mainly which width to pick. It is how
+much a descriptor is worth not buying at all, which is where this ends up
+anyway.
 
 ## The bytes are free; the descriptor is not
 
@@ -184,7 +193,7 @@ go in their own pool at a calibrated constant; parses run on the global pool at
 machine width; and each chunk's reads overlap the last chunk's parses, so a
 file is being opened while the previous batch is still being parsed.
 
-That is close to the best a schedule can do here. Acquiring these files costs
+That is close to the best a schedule can do. Acquiring those files costs
 165 ms — the worktree row of the git table below — and parsing them costs 47 ms
 once the parse is spread across the pool, so a schedule that hid one behind the
 other perfectly would finish in about 170 ms and the measured 196 is near
@@ -195,7 +204,7 @@ finely is short enough that the readers spend it starting and stopping.
 
 **Both widths belong to the machine, and both are constants that should not
 be.** The read width is the filesystem's answer, and four to six is what APFS
-admits here — the sweep above bottoms out at four reading alone, the shipped
+admitted there — the sweep above bottoms out at four reading alone, the shipped
 constant is six, and the useful claim is the range rather than either end of it.
 ext4 and XFS admit more; an overlay filesystem in a container, or anything over
 a network, usually admits fewer. The parse width is the performance
@@ -210,7 +219,7 @@ Neither number is a property of the binary, and no package manager can tell
 those machines apart: `os`, `cpu` and `libc` are the only keys it has, and none
 of them says how many performance cores are behind it. So the width is an
 argument on every batch entry point, and `read-width.mjs` is committed, so a
-guess made on this machine can be replaced with a measurement in one command on
+guess made on one machine can be replaced with a measurement in one command on
 the machine that has to live with it.
 
 ## Then stop opening the file
@@ -243,7 +252,7 @@ object lookup with no content at all — is 0.21 s, leaving 0.23 s of inflate an
 0.37 s of system time that is almost entirely 67 MB crossing a pipe.
 
 So both paths ship and the size of the wave picks between them. Starting a
-`cat-file` process costs 7.08 ms here; a blob saves about 53 µs against an
+`cat-file` process costs 7.08 ms there; a blob saves about 53 µs against an
 open; the two divide to about 134 files, and `FILES_PER_PROCESS = 160` rounds
 it up rather than down, because a bucket that only just clears the line saves
 nothing worth a process. A wave below it reads from disk, where the chunked
@@ -344,8 +353,8 @@ one does.
 Of a warm run's 301 ms, roughly 116 is decoding the index, 185 is the scan, and
 nothing at all is publishing — an unchanged tree has no segment to append. The
 scan is two things and neither is a parse: git answering what the working tree
-looks like, and about 92 ms of ours — every record in the index walked and each
-checked against its digest. Which of the two is
+looks like, and about 92 ms of the scanner's own — every record in the index
+walked and each checked against its digest. Which of the two is
 larger is decided by the accelerators below.
 
 The publish is the smallest of the three because of how little it writes. A run
@@ -390,8 +399,8 @@ container boundary. When it is, git recomputes.
 
 Everything above turns on one claim: that what a scan of this shape costs is
 acquisition, and that acquisition degrades with width for reasons that have
-nothing to do with this scanner. ripgrep is the way to check that without
-taking our word for any of it. It walks a repository's source files, opens
+nothing to do with the scanner. ripgrep is the way to check that without taking
+any of it on trust. It walks a repository's source files, opens
 every one, reads all of its bytes and reduces them to something much smaller.
 That is the same shape as this scan, minus the part that makes a scan useful:
 ripgrep runs a literal search, and this builds a syntax tree and extracts every
@@ -402,7 +411,7 @@ printing at all: the two sides differ in what they do per byte, not in what
 they are written in.
 
 A claim about the kernel should be reproducible in a program that shares none
-of this one's decisions, and `packages/sense/scripts/scan-cost.mjs` runs both
+of the scanner's decisions, and `packages/sense/scripts/scan-cost.mjs` runs both
 over the same files at the same widths. The pattern ripgrep is given never
 matches, which is its best case — the literal prefilter rejects each buffer
 without the regex engine ever starting — so what is left on its side is
@@ -468,7 +477,7 @@ checkout: `source-index.mjs` for the incremental and floor tables,
 `scan-cost.mjs` for ripgrep, `read-width.mjs` for the width sweep, all under
 `packages/sense/scripts`.
 
-Material UI is not a large repository, and none of the trees on this machine
+Material UI is not a large repository, and none of the trees measured above
 are. What these rows come to on a checkout of a serious size — and what the
 index and the [execution record](execution-record.md) weigh there — is in
 [addressing scale](scale.md).
