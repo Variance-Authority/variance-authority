@@ -22,8 +22,8 @@ import { stringArg, type Tool } from './tool.js';
  * a pull request has the patch in hand already.
  *
  * Two findings come out of it that no percentage can state. A changed region
- * **no case entered** is a hole in the evidence, and a changed region one case
- * alone entered is evidence standing on a single point. Both are named, both
+ * **no case covered** is a hole in the evidence, and a changed region one case
+ * alone covered is evidence standing on a single point. Both are named, both
  * are counted, and neither is called a failure — execution says where a case
  * went, never whether the trip was worth taking.
  */
