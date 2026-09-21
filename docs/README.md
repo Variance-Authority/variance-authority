@@ -31,6 +31,12 @@ depend on.
 <p>Combine source relationships with recorded execution to select affected test files and explain every selection.</p>
 <em>Focus the next run →</em>
 </a>
+<a class="doc-link-card doc-link-card--compact" href="test-level-coverage.md">
+<span>Coverage</span>
+<strong>Know which test covers this line</strong>
+<p>Keep the relation a coverage percentage is folded from: for each named test case, the regions of your source it walked.</p>
+<em>Record test-level coverage →</em>
+</a>
 <a class="doc-link-card doc-link-card--compact" href="distill.md">
 <span>Test reduction</span>
 <strong>Make one test smaller</strong>

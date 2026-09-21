@@ -44,7 +44,7 @@ export const NAVIGATION = [
       },
       {
         href: "/docs/test-level-coverage",
-        label: "Know which test entered a region",
+        label: "Coverage that names the test",
       },
       {
         href: "/docs/run-relevant-work",
