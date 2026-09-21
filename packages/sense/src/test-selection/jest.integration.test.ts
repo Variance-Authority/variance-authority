@@ -141,9 +141,14 @@ describe('the Jest integration', () => {
     // that only reads a global crossed nothing — the same rule the Vitest seam
     // applies, since a case with an empty bucket adds a row nobody can select
     // on.
+    // `delta.case.ts` among them, which is the placement a search of the realm
+    // cannot reach: it imported `it` from `@jest/globals`, so the binding it
+    // declared with was never the one on `globalThis`. The runner announces it
+    // like any other case and the seam takes its enclosure from the event.
     expect(index.tests.map((test) => test.id)).toEqual([
       'test/alpha.case.ts > takes the alpha path',
       'test/beta.case.ts > takes the beta path',
+      'test/delta.case.ts > takes the delta path with registrars it imported',
       'test/gamma.case.ts > keeps what it entered before the module registry was reset',
     ]);
 
@@ -168,6 +173,13 @@ describe('the Jest integration', () => {
     expect(walking('A')).toEqual(['test/alpha.case.ts > takes the alpha path']);
     expect(walking('G')).toEqual([
       'test/gamma.case.ts > keeps what it entered before the module registry was reset',
+    ]);
+    // And the imported-registrar case owns its branch alone, rather than being
+    // named in the index and then credited with the whole file: a case the seam
+    // reaches only halfway is worse than one it misses, because it reads as an
+    // answer.
+    expect(walking('D')).toEqual([
+      'test/delta.case.ts > takes the delta path with registrars it imported',
     ]);
   }, 120_000);
 });

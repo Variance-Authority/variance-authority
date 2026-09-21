@@ -1,4 +1,4 @@
-export type Outcome = 'A' | 'B' | 'G';
+export type Outcome = 'A' | 'B' | 'D' | 'G';
 
 export function decide(value: string): Outcome {
   if (value === 'alpha') {
@@ -6,6 +6,9 @@ export function decide(value: string): Outcome {
   }
   if (value === 'gamma') {
     return 'G';
+  }
+  if (value === 'delta') {
+    return 'D';
   }
   return 'B';
 }

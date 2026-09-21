@@ -18,11 +18,19 @@
  * parent's heap.
  *
  * Where the run asked for per-case crossings this file is also where a case
- * scope is opened. Jest has no seam that *wraps* a test the way Vitest's
- * `runTask` does, so the wrapping is done to `test` and `it` themselves: the
- * body a file registers is registered enclosed, which is the enclosure an
- * {@link AsyncLocalStorage} needs and the thing `beforeEach` and `afterEach`
- * can never be.
+ * scope is opened. Jest exposes no seam that *wraps* a test the way Vitest's
+ * `runTask` does, so the enclosure is taken rather than asked for: jest-circus
+ * hands every case to its event handlers before it calls the body, and the case
+ * it hands over is a mutable object whose `fn` is that body. Replacing the `fn`
+ * there is the enclosure an {@link AsyncLocalStorage} needs, and it is the one
+ * thing `beforeEach` and `afterEach` can never be.
+ *
+ * It is also inversion of control, which is why it reaches placements a search
+ * of the realm cannot. The runner announces the case; nothing here has to find
+ * the declarer that registered it. A file that imported `it` from
+ * `@jest/globals` — what `injectGlobals: false` forces, and what any file may
+ * do anyway — is bracketed by the same handler as a file using the injected
+ * one, because both arrive as the same object in the same event.
  */
 
 import globals = require('@jest/globals');
@@ -93,22 +101,77 @@ afterAll(() => {
 });
 
 /**
- * Register every case enclosed in a scope of its own.
+ * Open a scope of its own around every case, by both routes at once.
  *
- * Only the injected globals are wrapped. A project that runs with
- * `injectGlobals: false` imports `test` from `@jest/globals` directly, and the
- * binding it destructured is not one anything here can reach; that file records
- * as one ambient bucket, which is the file-level answer it already had.
+ * The runner's own event is the one that reaches everything, and the declarer
+ * wrapping stays behind it for a host that is not jest-circus. They compose
+ * because each refuses a body the other already enclosed: a declared body is
+ * marked as it is wrapped, and the handler leaves a marked one alone. Running
+ * both is not redundancy for its own sake — the handler is the only route to a
+ * case whose registrar was imported, and the declarers are the only route left
+ * if the event never arrives.
  */
 function openCaseScopes(): void {
-  const realm = globalThis as Record<string, unknown>;
   let ordinal = 0;
   const nextId = (): string => String(ordinal++);
 
+  bracketEveryCase(nextId);
+
+  const realm = globalThis as Record<string, unknown>;
   for (const name of ['test', 'it', 'fit', 'xit', 'xtest']) {
     const base = realm[name];
     if (typeof base === 'function') realm[name] = enclosing(base as Declarer, nextId);
   }
+}
+
+/** A case whose body is already enclosed, so the second route leaves it alone. */
+const bracketed = new WeakSet<CaseBody>();
+
+/** What jest-circus hands a handler: the case, with the body about to be called. */
+interface CircusEvent {
+  readonly name: string;
+  readonly test?: { fn?: unknown; name?: unknown } | undefined;
+}
+
+/**
+ * Take the enclosure from the runner rather than from the realm.
+ *
+ * `test_fn_start` is dispatched by `_callCircusTest` immediately before it
+ * reads `test.fn`, so the body assigned here is the body that runs. Later than
+ * `test_start` on purpose: a case the runner decided to skip never reaches this
+ * event, and a case with no scope is one fewer empty bucket to drop afterwards.
+ * A retry re-runs the same case object, whose `fn` is the enclosure from the
+ * first attempt; it is left as it is and the attempt takes a fresh ordinal, the
+ * same as it did when the declarer was the only route.
+ *
+ * Doing nothing silently is the failure mode, so the caller does not rely on
+ * this alone: the declarer wrapping it installs next covers the injected
+ * globals whether the event arrives or not. A host with neither reaches the
+ * scope directly — `CASE_SCOPE` and `packCase` are exported from
+ * `@variance-authority/sense/test-selection` for it — but no host Jest ships is
+ * one of those.
+ */
+function bracketEveryCase(nextId: () => string): void {
+  let circus: { addEventHandler?: unknown };
+  try {
+    // Resolved at run time, from the sandbox: jest-circus is the runner Jest
+    // has defaulted to since 27, but it is the project's to replace, and a
+    // project that replaced it must still get everything else in this file.
+    circus = require('jest-circus') as { addEventHandler?: unknown };
+  } catch {
+    return;
+  }
+  const register = circus.addEventHandler;
+  if (typeof register !== 'function') return;
+
+  (register as (handler: (event: CircusEvent) => void) => void)((event: CircusEvent): void => {
+    if (event.name !== 'test_fn_start') return;
+    const held = event.test;
+    if (held === undefined) return;
+    const body = held.fn;
+    if (typeof body !== 'function' || bracketed.has(body as CaseBody)) return;
+    held.fn = scopeCase(body as CaseBody, held.name, nextId);
+  });
 }
 
 type Declarer = ((...args: unknown[]) => unknown) & Record<string, unknown>;
@@ -118,7 +181,7 @@ function enclosing(base: Declarer, nextId: () => string): Declarer {
   const wrapped = ((...args: unknown[]): unknown => {
     const [declared, body, ...rest] = args;
     if (typeof body !== 'function') return base(...args);
-    return base(declared, enclosed(body as CaseBody, declared, nextId), ...rest);
+    return base(declared, scopeCase(body as CaseBody, declared, nextId), ...rest);
   }) as Declarer;
 
   for (const key of Object.keys(base)) {
@@ -151,7 +214,7 @@ type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
  * The arity is restored because Jest reads it: a body declared with `done` and
  * handed over with none is a callback test the runner would never call back.
  */
-function enclosed(body: CaseBody, declared: unknown, nextId: () => string): CaseBody {
+function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): CaseBody {
   const run = function (this: unknown, ...args: unknown[]): unknown {
     const scope = (globalThis as { [key: symbol]: { enter: <R>(key: string, body: () => R) => R } | undefined })[
       Symbol.for('variance-authority.test-selection.cases')
@@ -164,5 +227,6 @@ function enclosed(body: CaseBody, declared: unknown, nextId: () => string): Case
     return scope.enter(journals.packCase(testPath ?? '', name, nextId()), () => body.apply(this, args));
   };
   Object.defineProperty(run, 'length', { value: body.length, configurable: true });
+  bracketed.add(run);
   return run;
 }

@@ -1323,10 +1323,13 @@ before its work does simply leaves that work in the ambient bucket, which every
 case in the file is credited with: over-inclusive, which is the safe direction,
 and silent. Turn the mode on to stop it being silent.
 
-Under Jest the scope is opened around the body of every injected `test` and
-`it`, since Jest has no hook that wraps a case. A file that sets
-`injectGlobals: false` and imports `test` from `@jest/globals` records as one
-bucket for the whole file — the file-level answer it already had — and a
+Under Jest the scope comes from the runner rather than from the realm. Jest
+exposes no hook that wraps a case, so the seam registers a jest-circus event
+handler and replaces the body on the case object the runner is about to call.
+Which registrar declared the case does not come into it: a file that imported
+`it` from `@jest/globals` — what `injectGlobals: false` forces, and what any
+file may do regardless — is bracketed like any other. The realm's `test` and
+`it` are wrapped as well, for a project that replaced the runner. A
 `test.concurrent` case is named by its declared name rather than the resolved
 one, because its body starts outside the runner's own bracket.
 
@@ -1390,7 +1393,7 @@ which is whatever the host schedules, and where the per-case bracket goes.
 | Host | A crossing joins | The bracket `cases: true` installs |
 |---|---|---|
 | Vitest | the test file | the case the runner is running, or its asynchronous scope under `continuations` |
-| Jest | the test file | the body of every injected `it` and `test`; a file with `injectGlobals: false` records as one bucket for the file |
+| Jest | the test file | the body of every case the runner announces, whichever registrar declared it, plus `it` and `test` on the realm |
 | Rstest | the test file | `it` and `test` on the realm and on `globalThis['@rstest/core']`, so an importing suite and a `globals: true` suite record alike |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the subject the preview shows |

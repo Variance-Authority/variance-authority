@@ -40,12 +40,20 @@ placement the host supports, and wraps each one it finds. For Rstest that is
 the realm and `globalThis['@rstest/core']`, both, so an importing suite, a
 `globals: true` suite and a suite that mixes them record alike.
 
+**Where the host will announce a case, take it from there instead.** Searching
+the realm enumerates placements and can only ever reach the ones enumerated;
+Jest hands an importing file a fresh spread of `@jest/globals` from an object
+only the test environment sees, so no enumeration reaches it. A runner that
+calls out to handlers before it calls the body inverts that: jest-circus
+dispatches `test_fn_start` with the case object, and the seam replaces the `fn`
+on it. Every placement arrives as the same object in the same event, so there
+is nothing left to enumerate. The realm wrapping stays behind it for a project
+that replaced the runner, and the two compose because each leaves a body the
+other enclosed alone.
+
 **A placement a seam has not reached yet is a defect against this decision**,
 carried as one. It is not written down as a limitation the adopter is asked to
-work around. The open one is Jest with `injectGlobals: false`: a file that
-imports `test` from `@jest/globals` records one bucket for the whole file,
-because the seam wraps the realm copies and Jest hands an importing file a
-fresh spread from an object only the test environment sees.
+work around.
 
 ## Consequences
 

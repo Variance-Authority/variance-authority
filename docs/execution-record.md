@@ -63,7 +63,7 @@ on.
 | Host | An observation is owned by | `cases` brackets |
 |---|---|---|
 | Vitest | the test file | the asynchronous scope of each case, so cases in flight together stay apart |
-| Jest | the test file | the body of every injected `it` and `test`; a file that sets `injectGlobals: false` records one bucket for the whole file |
+| Jest | the test file | the body of every case the runner announces, so a file that imports `it` from `@jest/globals` is bracketed like one that does not |
 | Rstest | the test file | `it` and `test` wherever the suite reads them — off the realm, or off the object an import of `@rstest/core` compiles to |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the unit the preview shows |
