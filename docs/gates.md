@@ -40,7 +40,7 @@ the run to `1`:
 | The run exits `1` when | Because |
 | --- | --- |
 | a subject is `changed` | pixels moved outside what you excluded |
-| a subject is `new` | no baseline has been approved under that id yet, and a subject must not enter the suite unreviewed |
+| a subject is `new` | no baseline has been approved under that id yet, and a subject must not join the suite unreviewed |
 | a subject is `incomparable` | the baseline was painted under a different browser, platform, scale factor or font stack, so the comparison was refused rather than reported as agreement |
 | a subject the run meant to observe failed | a subject that cannot be observed does not silently pass |
 | two readings of one subject, seconds apart, disagreed and the subject's own declaration did not absorb that | otherwise the verdict is decided by whichever reading came first |

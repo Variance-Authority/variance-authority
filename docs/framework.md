@@ -47,10 +47,10 @@ not choose a framework for you; pass `wiringOf` explicitly.
 Wiring describes one state of a component, so it is recorded with the rest of
 the capture and compared against the baseline. A remount describes an interval
 between two points in a test, so you ask for it around an action instead and it
-enters no comparison.
+is not part of a comparison.
 
 The [reference](framework-reference.md#wiringof) defines the recorded fields,
-the absence rules, and what enters a comparison.
+the absence rules, and what is part of a comparison.
 
 ## Remounts: what the document cannot show you
 

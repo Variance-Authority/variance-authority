@@ -9,7 +9,7 @@ files first and read an answer while the edit is still fresh.
 
 What you have for this today is an import graph. A graph on its own can offer a
 short path through a module the test never loaded. Distance walks only the
-modules that test entered or loaded in a recorded run, so the count it gives you
+modules that test covered or loaded in a recorded run, so the count it gives you
 describes execution rather than possibility.
 
 Distance is an API in `@variance-authority/sense/test-selection`, not a command.
@@ -122,7 +122,7 @@ The range is measured in import hops, not positions in a list:
 
 Start at zero. Zero means the test's own source or a recorded precondition
 changed. One means the test imports the changed module directly. Larger values
-count the shortest import path through modules that test actually entered or
+count the shortest import path through modules that test actually covered or
 loaded.
 
 If the nearest measured test is five hops away, `0-2` is empty. Distance does
@@ -185,7 +185,7 @@ means the test's own source or a precondition changed.
 
 Distance combines the import graph with the record of what each test ran. It
 finds the shortest path between the changed file and the test using only modules
-that test entered or loaded. If several changed files select the same test, the
+that test covered or loaded. If several changed files select the same test, the
 nearest determines its distance.
 
 An import graph alone can suggest a shorter path through a module the test never

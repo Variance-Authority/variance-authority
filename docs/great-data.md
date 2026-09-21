@@ -12,7 +12,7 @@ asked for and can ask for again — and which components drew which regions, at
 which `file:line`. Add a semantic snapshot, a [source index](source-index.md) or
 an execution journal to the run and the same record also gains the accessible
 names, roles and visible text, the declaring files, the custom properties the
-cascade resolved, and the source regions the execution entered. That record
+cascade resolved, and the source regions the execution covered. That record
 stays readable after the verdict, and the rest of this page is what you can ask
 it once the diff is closed.
 
@@ -57,7 +57,7 @@ How much that saves is decided by where your diff sits, not by how large it is.
 Measured on [Material UI](https://github.com/mui/material-ui)'s recorded suite
 of 184 test files, a five-file diff confined to one subtree runs 31 of them; the
 same five files scattered across the repository run 155, because the tests
-really did enter all of that. Adjacent files share most of their audience, and a
+really did cover all of that. Adjacent files share most of their audience, and a
 utility most of the library imports is a hub that correctly selects almost
 everything. [Addressing scale](scale.md) shows that arithmetic, and one
 recording of your own suite answers it for your repository rather than for this
@@ -72,13 +72,13 @@ when you use it.
 | --- | --- | --- |
 | [Test selection](selecting.md) | Source reach, prior per-test execution, and rendered component identities | Which subjects does this diff make worth rendering again? |
 | [`variance select`](../packages/cli#select-what-your-own-runner-may-skip) | The same record, reported as test files rather than as subjects | Which of my test files can my own runner skip for this diff? |
-| [Distill](distill.md) | Files loaded and entered by one test, joined to the elements and components it deliberately addressed | Which parts of this test does the behavior it witnesses not need? |
+| [Distill](distill.md) | Files loaded and covered by one test, joined to the elements and components it deliberately addressed | Which parts of this test does the behavior it witnesses not need? |
 | [Own fewer tests](own-fewer-tests.md) | Distinct risks, decisions, boundaries, and confirmed distillation findings | Do these six tests protect six decisions, or one decision six times? |
 | [Source scan](source.md), read by [Sense](../packages/sense/README.md) | Imports, exports, declarations, content identities, and incomplete edges read from the checkout | If I change this file, what else is involved? |
-| [Search](lexicon.md) | Ids, component names, accessible names, visible text, roles, files, tokens, and entered regions already observed per subject | Which subjects answer to this word? |
+| [Search](lexicon.md) | Ids, component names, accessible names, visible text, roles, files, tokens, and covered regions already observed per subject | Which subjects answer to this word? |
 | [Finding a subject](locate.md) | The same per-subject words, matched against a description | I can describe the thing but I do not know its id — which subject is it? |
 | [Presentation](presentation.md) | Geometry, semantic structure, browser accessibility, grouping, alignment, repetition, and prominence from one live state | Has this row drifted out of line with the rows it repeats? |
-| [Journeys](journeys.md) | The source regions one execution entered, joined across the processes it touched | Which lines did this subject actually go through while it painted? |
+| [Journeys](journeys.md) | The source regions one execution covered, joined across the processes it touched | Which lines did this subject actually go through while it painted? |
 | [Parting](parting.md) | Two recorded readings of the same component, compared back to the input where they diverged | These two renders differ — at which input did they stop agreeing? |
 | [Eyes](eyes.md) | Authored Arrange–Act–Assert phases, addressed elements, React owners, update initiators, and performed work | Which surface did this test deliberately operate, rather than merely render? |
 | [Vantage](vantage.md) | Announcements and unfinished work kept while a suite is still alive | My suite is hanging — which call has not come back yet? |
@@ -106,7 +106,7 @@ That is the same [evidence field](evidence-field.md) the readings above draw on:
   any work.
 - Provenance and composition turn many changed images into one cause and a
   source location.
-- Journeys distinguish subjects that render the same component but enter
+- Journeys distinguish subjects that render the same component but cover
   different handlers or branches.
 - Presentation inspects grouping, spacing, alignment and repetition in one state
   without claiming a regression or asking for a baseline.
@@ -138,7 +138,7 @@ of one subject, and a suite of any size pays it once per run. The three files
 the record lives in — the source index, the [execution record](execution-record.md)
 and the [lexicon](lexicon.md) — are sized in [addressing scale](scale.md), each
 against a different count of your own: the modules in your checkout, the modules
-your suite enters, and the subjects it captures. The scan's caches sit under
+your suite covers, and the subjects it captures. The scan's caches sit under
 `XDG_CACHE_HOME`, outside the work tree, so nothing about them is committed and
 `git clean` will not take them. Instruments you have not installed cost nothing:
 journeys need a build that includes the selection probes, and `openVantage()`

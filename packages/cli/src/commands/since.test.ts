@@ -170,7 +170,7 @@ describe('narrowing a run to what a diff could have changed', () => {
    * `Button`* about both of these, because it is true of both — and the last run
    * recorded only one of them ever entering the lines this diff changed.
    */
-  describe('and what the last run recorded entering', () => {
+  describe('and what the last run recorded as covered', () => {
     const TWO: Plan = {
       ...PLAN,
       subjects: [
@@ -201,7 +201,7 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       expect(report.notObserved?.[0]?.subject).toBe('fixture:b');
       expect(report.notObserved?.[0]?.kind).toBe('unreached');
-      expect(report.notObserved?.[0]?.because).toContain('every region it entered');
+      expect(report.notObserved?.[0]?.because).toContain('every region it covered');
     });
 
     it('counts the two grounds apart', async () => {
@@ -216,7 +216,7 @@ describe('narrowing a run to what a diff could have changed', () => {
 
       expect(report.warnings?.join('\n')).toContain(
         'ruled out 2 subjects: 0 by what the diff declares and reaches, ' +
-          '2 by what the last run recorded entering',
+          '2 by what the last run recorded as covered',
       );
     });
 

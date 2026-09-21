@@ -179,7 +179,7 @@ Three further fields are present only when the run had something to put in them:
   there. This is what a single comparison structurally cannot show: eleven
   correct 2px approvals sum to a 22px move nobody reviewed.
 - `journeys` — for a build instrumented with `testSelectionProbes()` from
-  `@variance-authority/sense`, the modules where the run's subjects entered
+  `@variance-authority/sense`, the modules where the run's subjects covered
   different regions of the source, plus the pool of subjects that answer is drawn
   from. Absent means no execution journal was written — most builds have no
   probes — and never that every subject took the same path through the source.

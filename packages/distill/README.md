@@ -49,7 +49,7 @@ Neither file comes from `distill`, and neither comes from `variance run`. Your
 own test run writes them.
 
 **An execution index** — which files and which functions inside them each test
-entered, meaning ran code in rather than merely imported. Install
+covered, meaning ran code in rather than merely imported. Install
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 and wrap your Vitest config:
 
@@ -248,8 +248,8 @@ Reading it:
   code the test did not address started work during the same authored phase.
   It names an instance, not the source statement that called a setter.
 - **`Runtime phase attribution: unavailable`** is not a failure. The execution
-  index records what each test entered across the whole test, not per phase, so
-  entered files are never split across Arrange, Act and Assert.
+  index records what each test covered across the whole test, not per phase, so
+  covered files are never split across Arrange, Act and Assert.
 - **`depth`** is a call depth from the test. Every entry the Vitest recorder
   writes sets it to `0`; the field exists for a recorder that measures one.
 - **`sb.mock`** is Storybook's, from `storybook/test`. `vi.mock`, `jest.mock`
@@ -258,12 +258,12 @@ Reading it:
 
 ## The two classes of finding
 
-**A distillation opportunity** is a file the test entered with no addressed
+**A distillation opportunity** is a file the test covered with no addressed
 element attributed to it. The test ran code in that file and never touched
 anything the file rendered. That is a place to look, and not more: an
 unaddressed component can still shape the result the assertion reads.
 
-**Loaded but not entered** is the stronger reading. An import is not a use.
+**Loaded but not covered** is the stronger reading. An import is not a use.
 `import { HeavyChart } from './heavy-chart'` runs that module's top level, and
 nothing else in it runs unless something calls in — the branch that would have
 rendered it was never taken, or a spy answered in its place. Both leave one
@@ -278,8 +278,8 @@ against this one before you keep the edit.
 
 ## Without an Eyes archive
 
-Supply only an execution index and you still get the entered-source reading and
-the loaded-but-not-entered finding, which is what makes a plain Node unit test
+Supply only an execution index and you still get the covered-source reading and
+the loaded-but-not-covered finding, which is what makes a plain Node unit test
 or a non-React harness worth distilling.
 
 The opportunity comparison is then reported unavailable rather than empty. A
@@ -302,7 +302,7 @@ index. `Distillation` is a plain data result: `attention` is the per-phase
 by file and `EnteredModule` region by region. A `Region` is one instrumented
 declaration — a module's top level, or a function — with its name and line
 range. On an `EnteredModule`, `entered` and `unentered` split those regions, and
-`loadedOnly` is the flag behind the loaded-but-not-entered finding.
+`loadedOnly` is the flag behind the loaded-but-not-covered finding.
 
 Ordering is deterministic. The same two files produce the same answer.
 

@@ -1,7 +1,7 @@
 # The execution record
 
 This page is the reference for the file your suite writes when it runs. The
-record says **which parts each test actually entered**, so a changed line can
+record says **which parts each test actually covered**, so a changed line can
 select from witnessed execution instead of every test a static import graph can
 reach. Blocks, the coverage file, and journals make that distinction queryable.
 
@@ -76,7 +76,7 @@ question that reads it.
 
 Two answers are properties of this file rather than of a host, so they read the
 same under all five. A run that transformed nothing, because every module came
-from a warm cache, still records what its tests entered: what a region means is
+from a warm cache, still records what its tests covered: what a region means is
 stored per module under a content key, and a run joins those records rather
 than producing them. And an observation that did not finish is dropped from the
 pool rather than counted as a miss, so nothing a host retries or interrupts can
@@ -163,9 +163,9 @@ instrumented* and *no regions* are different facts — check for it.
 **Kinds.** `module`, `function`, `branch`, `continuation`, `resume`, `loop`,
 `case` and `handler`. In the coverage file the kind byte is that list's index,
 so read it against this order. One rule generates the set: a block is a region that control
-enters under exactly one condition, one the region around it does not imply.
-Entering a `try` body follows from entering the region around it, so it is no
-block; entering its `catch` does not, so it is.
+runs under exactly one condition, one the region around it does not imply.
+Running a `try` body follows from running the region around it, so it is no
+block; running its `catch` does not, so it is.
 Ternaries and the short-circuit operators stay inside the region that encloses
 them.
 
@@ -293,7 +293,7 @@ other way. In both the record keeps every crossing it had, because
 
 A crossing is dropped only when the new text has no region with its address:
 a function renamed, a decision deleted, an arm that is now a loop. Even that
-rarely retires a test. Arrival nests — a test reached a region by entering
+rarely retires a test. Arrival nests — a test reached a region by running
 every region around it, up to the module — so a test whose function was
 deleted still has crossings above it, and a diff at the place that function
 was reaches it through them. Only a test that loses every crossing in a module
@@ -318,7 +318,7 @@ of the text it had when it was recorded. When that text has since changed, the
 regions are read out of the text standing there now and each crossing is
 moved onto the region with its address, so the rows are in coordinates the
 next diff will be in. A module whose text cannot be read as source has no
-table to place them in: it stays as it was, and every test that entered
+table to place them in: it stays as it was, and every test that covered
 it is demoted.
 
 ### From a crossing back to a line
@@ -454,7 +454,7 @@ are cheap in both currencies and objects are expensive in both, which is why a
 query reads columns and the model is something a caller asks for by name.
 
 What makes the model expensive is repetition rather than size. A path is named
-again by every region of its module and again by every crossing that entered
+again by every region of its module and again by every crossing that covered
 one, so a decode keeps one string per id and hands that one to every use of it.
 Decoding each use on its own costs twice the time and close to three times the
 heap, for a model that says exactly the same thing.
@@ -547,7 +547,7 @@ a module and the first block is the module root.
 **Block, across files.** `name`, `path` and `kind`: the address, and what kind
 of region sits at it. `mergeCoverage` matches `name` and `path`, and then asks
 the one remaining question, whether the kinds agree. Nothing above the block
-enters the match and neither does its digest, so a block keeps its crossings through every edit that leaves it where
+is part of the match and neither is its digest, so a block keeps its crossings through every edit that leaves it where
 it is. A block with no match in the new table is gone, and what was recorded
 against it is dropped.
 
@@ -612,7 +612,7 @@ below is one stage of that call.
    of every row recorded under the path — two builds that read one module are
    two rows, and the answer is all of them. Every changed path is also asked of
    the precondition table, O(P), whatever its rows say: a row answers which
-   tests entered which regions, a precondition says the observation is void if
+   tests covered which regions, a precondition says the observation is void if
    the file's text changes at all, and the two are not the same sentence. A row
    does buy the path out of *unread*, which is why a module nothing declares is
    still measured.
@@ -686,7 +686,7 @@ until it has one — `hits` the ordinals whose counter was above zero, ascending
 and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 `loaded`, in the worker journal only, is the subset of `hits` whose counter was
 already above zero in the snapshot the setup file took before the file's first
-test: regions entered as a consequence of loading. Presence only: the counts
+test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
 under — `sense:instrument/presence-v4`, or `sense:instrument/entries-v1` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
@@ -788,7 +788,7 @@ which is the id the build instrumented them under.
 by an opaque id the driver mints and sets on the browser context before the
 first navigation. A **head** is a service process, instrumented by its own
 build, that reads the id off the requests the browser sends and reports what it
-entered under that id. [`journeys.md`](journeys.md) is their page. The type
+covered under that id. [`journeys.md`](journeys.md) is their page. The type
 `JourneyAccount` is what one head reports for one execution:
 
 ```json
@@ -845,7 +845,7 @@ instrumentation id, and folds under `<coverage>.lock`. The lock is
 exclusive-create, waited on for ten seconds at a 25 ms poll, and considered
 stale after sixty. Two stores that disagree on one module's source digest
 record it as not instrumented. A module missing from every store is dropped,
-and the subject that entered it is recorded incomplete, because a subject whose
+and the subject that covered it is recorded incomplete, because a subject whose
 crossings cannot all be placed is one a later run may not skip. The fold is
 O(hits) over every subject's journal plus O(modules reported) to build the
 rows.

@@ -287,7 +287,7 @@ reading.
 | `suspense` | `{ timeoutMs }` for settling React boundaries before reading. |
 | `stabilize` | Replaces the default stabilization recipe. |
 | `paint` | `true`, or a list of the layers above. |
-| `accessibility` | The browser-computed ARIA snapshot read beside this capture. The report keeps it as an independent semantic reading and it enters `report.contentDigest`. Leave it out only when nothing observed it. |
+| `accessibility` | The browser-computed ARIA snapshot read beside this capture. The report keeps it as an independent semantic reading and it covers `report.contentDigest`. Leave it out only when nothing observed it. |
 
 **Content identity** is `report.contentDigest`: a digest of semantic classes,
 names, text, state and the browser ARIA reading, with no layout in it. It is

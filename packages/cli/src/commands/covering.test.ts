@@ -160,7 +160,7 @@ describe('asking which cases a change reached', () => {
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length]))
       .toEqual([['applyDiscount', 2]]);
     expect(formatCovering(answer, 'text')).toContain(
-      '1 changed file since main, 1 changed region: 0 nothing entered, 0 entered by one case.',
+      '1 changed file since main, 1 changed region: 0 nothing covered, 0 covered by one case.',
     );
   });
 

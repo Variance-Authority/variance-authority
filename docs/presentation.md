@@ -22,7 +22,7 @@ Use this path when those answers would change an edit or review decision. It
 does not decide that a design is good, choose a layout, or turn density,
 whitespace, page length, or a spacing value into a target.
 
-## Where it enters the workflow
+## Where it fits in the workflow
 
 Reading begins after your existing Playwright setup has brought the page to the
 state you care about. It does not replace navigation, fixtures, authentication,

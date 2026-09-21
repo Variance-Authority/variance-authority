@@ -69,7 +69,7 @@ its own click remains attributable after it has disappeared.
 ## Distil attention against execution
 
 Eyes answers what the test addressed. [Sense](../packages/sense) can independently answer which
-source the same stable test id entered. `variance distill` joins the two without
+source the same stable test id covered. `variance distill` joins the two without
 turning either into coverage:
 
 ```text
@@ -82,7 +82,7 @@ Opportunities:     src/analytics.ts
                    src/top-nav.tsx
 ```
 
-An opportunity means that the test entered the file without addressing a target
+An opportunity means that the test covered the file without addressing a target
 attributed to it. It does not mean the file is unrelated, mockable, removable,
 or safe to skip. The agent workflow changes one dependency boundary, reruns the
 exact test, and keeps the substitution only when the witnessed behavior and
@@ -104,7 +104,7 @@ journal is an unavailable surface.
 
 - It does not infer AAA phases from testing-library calls.
 - It does not call every rendered component relevant to the assertion.
-- It does not call an unaddressed or unentered branch safe to mock.
+- It does not call an unaddressed or uncovered branch safe to mock.
 - It does not turn a partial journal into a complete empty one.
 - It does not divide by the Fiber tree: hidden, lazy, unmounted, and
   never-observed branches do not form one honest denominator.

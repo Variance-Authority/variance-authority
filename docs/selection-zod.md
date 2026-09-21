@@ -6,7 +6,7 @@ decides at the grain of a package therefore has nothing to say about it, and a
 selector that decides at the grain of a file has almost nothing: change one
 line and either one owes you the suite. Run the suite once through
 [Variance Authority](README.md) and the same edit selects 8 runs, because the
-record knows which of the files that *reach* a module entered the *lines* you
+record knows which of the files that *reach* a module covered the *lines* you
 changed.
 
 Nothing in the repository was written with this in mind and no test was changed
@@ -43,7 +43,7 @@ Same pass and fail counts in all three, Vite cache and record cache cleared
 between runs. Zod runs in `node`, which is why the third row is the interesting
 one: the engine's counters are read per worker and answer with every script the
 isolate has loaded, and a worker here holds 52. What it buys for that is one
-union per file — every region some test entered, with no record of which test —
+union per file — every region some test covered, with no record of which test —
 and its overhead is about fifteen times the recorder's.
 
 ## One line, asked of the record
@@ -64,7 +64,7 @@ for anything deciding at the grain of a file.
 
 ## Why the grain is the whole argument
 
-A module's regions are not entered uniformly, and the spread is what a graph
+A module's regions are not covered uniformly, and the spread is what a graph
 cannot see. `ru.ts` is 50 regions:
 
 ```
@@ -75,9 +75,9 @@ cannot see. `ru.ts` is 50 regions:
     0 files  128-136   error/anon#0 · switch#0/case#0
 ```
 
-Median 1, 90th percentile 2, maximum 131, and 21 of the 50 entered by nobody.
+Median 1, 90th percentile 2, maximum 131, and 21 of the 50 covered by nobody.
 The hub modules behave the same way at a larger size: `core/schemas.ts` is
-1,206 regions loaded by 130 test files with a median region entered by 7;
+1,206 regions loaded by 130 test files with a median region covered by 7;
 `core/compile.ts` is 686 regions, 130 loaders, median 4.
 
 Two orders of magnitude separate a module's top level from its interior, and
@@ -100,7 +100,7 @@ Wrapping `packages/treeshake` is one file and it is the wrong answer. It raises
 the record to 201 whole and 124 modules, but the 3,301 regions it adds are the
 *built bundle*, not the source — so an edit to `src/ru.ts` would let the
 selector skip tests that genuinely depend on that source, because what they
-entered is an artifact no diff names. Leaving those three to run every time
+covered is an artifact no diff names. Leaving those three to run every time
 costs 3 files out of 202 and is correct.
 
 ## Sixty commits, priced rather than run
@@ -131,7 +131,7 @@ The gap between the third row and the fourth is one repository-specific list.
 Every reason a record cannot answer produces a **shorter skip list, never a
 shorter run**: a path no run ever read widens to the whole suite. Seventeen of
 the sixty commits widen that way, over fourteen distinct paths — and five of
-those paths are a `package.json`, accounting for 24 of the 43 sightings. No run enters a manifest, so no
+those paths are a `package.json`, accounting for 24 of the 43 sightings. No run runs a manifest, so no
 record holds one — but a manifest is a file a tool can read on its own, and
 `variance select` does not yet. That is the largest single gap this repository
 exposes.

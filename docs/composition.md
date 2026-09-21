@@ -358,11 +358,11 @@ digests and never of where the subtree sits. Two digests per node:
 
 An id contributes its presence and never its value, so an identical widget with
 a different generated id is one digest. A reference — `for`, `aria-labelledby`,
-an in-page `href` — is a fact about two nodes, and it enters at the lowest node
+an in-page `href` — is a fact about two nodes, and it is recorded at the lowest node
 containing both, as the pair of paths relative to that node: a label naming the
 input beside it reads the same on every page, and a label naming something
 outside the subtree stays an unbound reference at every digest up to the one
-that contains its target. Text enters `semantics`; style enters neither.
+that contains its target. Text is folded into `semantics`; style into neither.
 
 ```ts
 const shared = sharedClosures([
@@ -386,7 +386,7 @@ same shape saying different things. This is a divergence at a node no component
 boundary claims. `floor` drops entries under a node count,
 and where the floor sits is the report's to choose.
 
-Neither digest enters a baseline or a join key. The component hash stays
+Neither digest is written into a baseline or a join key. The component hash stays
 own-with-holes so that an edit stays local; a
 closure is computed by a run over what it already collected and compared within
 that run.
@@ -482,7 +482,7 @@ what it did plan and points at `variance_locate`.
 The run also writes a **lexicon**: per subject, per field, the subject's
 distinct values — the components in it, who mounted them, its accessible names
 and visible text, its roles, its design tokens, the files that declare its
-components, the regions its [journey](journeys.md) entered, and the component it is the narrow
+components, the regions its [journey](journeys.md) covered, and the component it is the narrow
 example of. `variance_locate {query}` turns a description into ids over those
 names, printing the field and the value behind every hit and saying which fields
 the run could not read at all.
@@ -554,7 +554,7 @@ enough that their measurements are the claim.
 ---
 
 **Further:** [`agent-code-review.md`](agent-code-review.md) for reviewing one
-change with this beside the cases that entered it — the other single-revision
+change with this beside the cases that covered it — the other single-revision
 join over a diff ·
 [`instruments.md`](instruments.md) for where this axis sits among the
 others ·

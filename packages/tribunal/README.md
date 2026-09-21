@@ -304,8 +304,8 @@ the subjects parted**, when the build was instrumented with probes and so has
 a [journey](https://variance-authority.dev/docs/journeys) for each subject. The
 record `variance journeys` prints per module is turned round to face the subject:
 the stretches of source (a function body, a branch, a `case`) this subject
-entered that another subject of the same module did not, and the ones it missed
-that another entered, with the file and the lines. The count of subjects the
+covered that another subject of the same module did not, and the ones it missed
+that another covered, with the file and the lines. The count of subjects the
 journal covers is drawn even when nothing parted: no partings among five subjects
 is agreement, and among one it is nothing at all. A build with no journal draws
 no panel.

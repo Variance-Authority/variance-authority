@@ -42,8 +42,8 @@ several sections.
 | --- | --- |
 | **semantic snapshot** | The normalized tree a verdict is decided from, and the thing a render hash addresses. It records the subject reference, the profile and environment key it was taken under, a `renderHash` identifying the state plus separate `structureHash` and `styleHash`, the tree itself, where each winning style declaration came from, any subtrees your ignore rules excluded, and whatever the collector could not do. Ids have become structural aliases, class attributes are gone, inapplicable CSS is pruned, and the cascade is resolved to winning values — it is meant to be read. |
 | **observation** | One subject's result: its id, the verdict, one sentence saying why, the comparison, the attributed regions with their components and `file:line`, whether the image was painted or came from the cache, fonts the document declared and the renderer lacked, the independently measured signals, and what your ignores absorbed. This is what `report.observations` is a list of. |
-| **block** | One region of a module's text that control enters under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Entering a `try` body follows from entering the code around it, so it is no block; entering its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that encloses them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
-| **crossing** | One test entering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
+| **block** | One region of a module's text that control runs under exactly one condition — a condition the region around it does not imply. A function body, a branch arm, a loop body, a `catch`, the module's top level. Running a `try` body follows from running the code around it, so it is no block; running its `catch` does not, so it is. Ternaries and short-circuit operators stay inside the region that encloses them. This is not statement coverage under another name. The **block universe** is the whole set the instrument cut for one checkout under one instrumentation recipe. |
+| **crossing** | One test covering one block. The [execution record](execution-record.md) is the whole set of crossings your suite produced, in one binary file. It is a relation, not a chronology. |
 | **verdict** | The one word an observation assigns its subject: `unchanged`, `changed`, `new`, `incomparable`, or `ignored`. [Verdicts](#verdicts) below defines each one. |
 | **content digest** | A hash of bytes or of a structured value: a document digest, `<checkout-digest>`, `<repository-digest>`, an identity digest, a snapshot's `renderHash`. Equal content digests mean the same input. |
 | **component digest** | One hashed dimension of a component instance: `structure`, `semantics`, `text`, `style`, and — only under a profile with a layout engine — `geometry`. Equal component digests are a match, never a resemblance. A baseline saves these so a later run can settle a subject on hashes instead of pixels. |
@@ -387,16 +387,16 @@ of the visual run report.
 1. A **source reach trail** explains how a changed file reaches a component. It
    is derived from query views over the binary [source index](source-index.md) and is not
    independently stored.
-2. A **runtime crossing record** says which tests entered which instrumented
+2. A **runtime crossing record** says which tests covered which instrumented
    blocks. The coverage binary persists that relation. It is not a chronological
    event log, and the current query shape returns distance rather than a complete
    call path.
 3. A **scenario path** records named SUT states and Acts. It remains in the
-   session by default or enters the opt-in scenario archive as one manifest plus
+   session by default or is written into the opt-in scenario archive as one manifest plus
    content-addressed semantic snapshots.
 
 They stay separate because their edges mean different things: a source
-dependency trail says *could reach*, a crossing record says *did enter*, and a
+dependency trail says *could reach*, a crossing record says *did cover*, and a
 scenario path says *a person can walk this*. Merged into one graph, none of the
 three questions has an answer any more.
 
@@ -436,8 +436,8 @@ alongside, and which source executed. A re-rendering component counts as part
 of the element the test addressed only when its position in the React tree
 sits under that element's — sharing a component name is not enough, because
 one component name can appear in a dozen unrelated places. Source files the
-test entered that Eyes attributed to no addressed element are exactly that and
-nothing more: entered, unattributed. Neither record says they are safe to
+test covered that Eyes attributed to no addressed element are exactly that and
+nothing more: covered, unattributed. Neither record says they are safe to
 change.
 
 ### MCP view
@@ -465,7 +465,7 @@ composition readings, presentation signals, and bounded history answers.
 artifact; they do not reopen a browser or query the history service again.
 
 Full HTML, semantic trees, masks, baseline bytes, the source graph, runtime
-coverage, scenario executions, and whole presentation readings do not enter
+coverage, scenario executions, and whole presentation readings do not cover
 `RunReport`. They stay behind their own artifact or store boundary. A
 presentation signal is the exception that is not a reference: its effects,
 content identity, and information deltas are copied into the observation, while
@@ -499,7 +499,7 @@ answers:
   search that misses on that field has not missed — nothing searched.
 - **It was read, and had nothing to say about this subject.** A field listed in
   `fields` can still be absent on an individual subject's `terms`. Read an
-  execution journal, and `regions` joins `fields`; a subject that entered no
+  execution journal, and `regions` joins `fields`; a subject that covered no
   instrumented region still has no `terms.regions`. The run looked, the subject
   was outside the answer.
 

@@ -10,7 +10,7 @@ A build instrumented with `testSelectionProbes()` from
 of the instrumented source where control can arrive — a function body, a
 branch, a `case`, a loop body, a `catch` or `finally`, the code after a
 decision, the resumption after an `await` — and each observed UI state's record
-is the set of regions it entered while it was painted. That record is the
+is the set of regions it covered while it was painted. That record is the
 subject's **journey**: the path one execution took through the source, in every
 process the execution touched.
 
@@ -29,13 +29,13 @@ calls, a branch whose two sides are different products.
 
 ## A path, not a stack
 
-A journey says which regions an execution entered and nothing else. Not how deep
+A journey says which regions an execution covered and nothing else. Not how deep
 the call went, not in what order, not how many times, and never a value. Two
 subjects with one journey ran the same code; two with different journeys parted
 somewhere, and the parting is a place with lines.
 
 It is a memory of where the execution has been, not a route through the file.
-One subject can have entered both arms of one decision — a component that
+One subject can have covered both arms of one decision — a component that
 rendered twice with different state, a loop that went both ways — and the record
 keeps both. Two executions that walked the same places are one record, however
 differently they walked them.
@@ -64,7 +64,7 @@ see it runs every spec for every change to a route handler, forever.
 What crosses is one opaque id per execution, minted by the driver — the process
 running the test — and set on the browser context before the first navigation. The browser sends it on requests it
 was already going to send. A service instrumented by its own build reads the id
-off the request and reports what it entered under that id, to an address it also
+off the request and reports what it covered under that id, to an address it also
 read off the cookie. The subject's *name* never leaves the driver: it is the only
 party that knows `journey → subject`, so it is the only party that can join,
 and a report cannot claim an execution by writing one down.
@@ -118,12 +118,12 @@ note: recorded at 4f2a1c9d0b73
 ```
 
 **`parted`** is one module two of its observers — the subjects whose whole
-record entered it — went through differently. **`unentered`** is the weaker of
-the two: regions with source of their own that no subject in the pool entered
+record covered it — went through differently. **`unentered`** is the weaker of
+the two: regions with source of their own that no subject in the pool covered
 at all — not *these two disagree* but *this run never went here*, which is the
 code a visual suite is silent about however many subjects it paints.
 
-**The pool is most of the finding.** It is whoever entered a region with source
+**The pool is most of the finding.** It is whoever covered a region with source
 of its own, which is not whoever loaded the file: a module root is crossed on
 import, so every subject in a bundle crosses every module in it, and counting
 those would report one pool of everybody for every module in the app. The
@@ -149,17 +149,17 @@ look once something else has said that something changed.
   timeline per component: a line for the story nothing varies from, or the
   shortest name where none of them is a [variation](variations.md) of another,
   marked at every place its stories took different paths, in source order, and
-  a branch lit for the story that entered the region there. `cart-card--removing`
-  enters one region `cart-card--item` does not, the click handler, and branches
-  there; `product-card--sale` enters exactly what `product-card--control`
-  enters, so the [variation](variations.md) executes what it renders. A
-  `switch` whose cases different stories entered is one mark with a branch per
+  a branch lit for the story that covered the region there. `cart-card--removing`
+  covers one region `cart-card--item` does not, the click handler, and branches
+  there; `product-card--sale` covers exactly what `product-card--control`
+  covers, so the [variation](variations.md) executes what it renders. A
+  `switch` whose cases different stories covered is one mark with a branch per
   case, so a loading story, an error story and the stories that fell through
   part at one place; a chain of `if`s is a mark per `if`, in the order the code
   asks them. A region a component's own stories agree on is no mark, whatever
   other components did there.
 - The run's [lexicon](lexicon.md) indexes
-  each subject under the lexical names of the regions it entered, read off the
+  each subject under the lexical names of the regions it covered, read off the
   journal once the run is over, so `variance_locate {query: "onClick"}` finds
   the stories that ran a handler by the handler's name. A run without a journal
   has no `regions` field, and the tool names the field as unread rather than

@@ -31,7 +31,7 @@ export const changedTests: Tool<ExecutionIndex> = {
   name: 'variance_changed_tests',
   description:
     'Given a unified diff, report every changed source region with the named test cases that ' +
-    'entered it, flagging regions no case entered and regions one case alone entered.',
+    'covered it, flagging regions no case covered and regions one case alone covered.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -59,7 +59,7 @@ function report(changed: readonly CoveringChange[]): string {
 
   const lines = [
     `${changed.length} changed file(s), ${regions.length} changed region(s): ${blind} that no ` +
-      `case entered, ${alone} that one case alone entered.`,
+      `case covered, ${alone} that one case alone covered.`,
   ];
 
   for (const file of changed) {
@@ -93,7 +93,7 @@ function extent(region: CoveringChange['regions'][number]): string {
 }
 
 function claim(count: number): string {
-  if (count === 0) return 'no case entered this region';
+  if (count === 0) return 'no case covered this region';
   if (count === 1) return '1 case, and it is the only witness';
   return `${count} cases`;
 }

@@ -7,7 +7,7 @@ suite or nothing at all — and which of the two is a choice you make rather tha
 one the walk makes for you. This page is about those two changes, and
 [selection](selecting.md) is about everything between them.
 
-Read a run from left to right. The harness starts it, the tests it started enter
+Read a run from left to right. The harness starts it, the tests it started run
 your code, and your code goes out into what the install provides and never comes
 back. Selection lives in the middle stretch, where a file has a name the record
 can store. What comes before it and what lies beyond it are both outside
@@ -53,7 +53,7 @@ the whole suite.
 
 A package is a node in the graph like a file is, and an import of one is an edge
 to it. So the question a dependency bump asks is the question every change asks
-— *which subjects entered something that depends on this* — and it is answered
+— *which subjects covered something that depends on this* — and it is answered
 by the same walk, from a seed at the other end of the line.
 
 | The diff says | Selection does |
@@ -62,7 +62,7 @@ by the same walk, from a seed at the other end of the line.
 | `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
 | `@mui/material` bumped and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
 | Only a `type` import names the bumped package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
-| A file that imports the bumped package was never measured | The whole suite runs. The record cannot say what entered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
+| A file that imports the bumped package was never measured | The whole suite runs. The record cannot say what covered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
 
 Which **copy** of a package an importer got is not asked. A specifier names
 `@mui/material`; which of the installed instances a resolver hands it is

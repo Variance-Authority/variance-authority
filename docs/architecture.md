@@ -200,7 +200,7 @@ before anything else.**
 | `storybook` | a built Storybook's `index.json`, as a value | a project's own stories as a subject list |
 | `storybook-collector` | a browser, and a Storybook built or already served | the browser half: each story opened, made ready, and collected |
 | `route-collector` | a browser, and an application to open or a directory to serve | pages an application already serves, opened and collected |
-| `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run entered |
+| `sense` | a readable checkout | the source read rather than run: a row per request, per binding and per export, and the probes that mark which regions a run covered |
 | `eyes` | a live DOM, with optional RTL or Playwright host APIs | selector and locator attention with React attribution captured before the addressed node changes |
 | `distill` | portable [Eyes](eyes.md) attention and/or a [Sense](../packages/sense) [execution index](execution-record.md) | deterministic reduction opportunities for one exact test identity |
 | `package` | a readable workspace, built or not | what a package offers an adopter: every entrypoint a manifest opens, and the names behind it, read from manifests and the source they point at |

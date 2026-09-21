@@ -124,7 +124,7 @@ every row where they do is a row where one of the two tools is wrong.
 |---|---|---|
 | `label-dropped` | remove `aria-label` from an icon-only control | **yes** — the action is unreachable to anyone not looking at it |
 | `heading-demoted` | `<h2>` → styled `<div>` | **yes** — the outline loses a level |
-| `control-devolved` | row `<button>` → `<div onClick>` | **yes** — not focusable, no role, ignores Enter |
+| `control-devolved` | row `<button>` → `<div onClick>` | **yes** — not focusable, no role, ignores Cover |
 | `indicator-dropped` | remove the unsaved-changes dot | **yes** — a status affordance vanishes |
 | `space-token-nudged` | spacing token 12px → 14px | **yes** — and the question is what you are handed |
 | `row-added` | a fourth row, so the panel grows | **yes** — content changed |

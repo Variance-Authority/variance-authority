@@ -92,6 +92,6 @@ describe('what the recorded journeys rule out', () => {
     expect(skipped).toEqual([]);
     // Not a refusal: the journal answered, and the answer was *all of them*.
     expect(whole).toBeUndefined();
-    expect(because).toContain('0 subjects entered none of the changed code');
+    expect(because).toContain('0 subjects covered none of the changed code');
   });
 });

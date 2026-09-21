@@ -22,7 +22,7 @@ export function formatDistillation(result: Distillation): string {
     '',
     ...executionLines(execution, result.test.id),
     '',
-    'Opportunity rule: an entered file with no addressed target attribution is a distillation ' +
+    'Opportunity rule: a covered file with no addressed target attribution is a distillation ' +
       'opportunity only. The evidence does not establish that it is safe to mock, replace, or remove.',
   ].join('\n');
 }
@@ -41,7 +41,7 @@ function updateLines(updates: readonly UpdatePhase[]): readonly string[] {
 
 function executionLines(execution: Distillation['execution'], id: string): readonly string[] {
   if (execution === undefined) {
-    return ['Runtime journey: unavailable; no entered-versus-addressed comparison was made.'];
+    return ['Runtime journey: unavailable; no covered-versus-addressed comparison was made.'];
   }
   if (!execution.joined) return [
     `Runtime journey: supplied, but it contains no test with exact id ${id}.`,
@@ -50,7 +50,7 @@ function executionLines(execution: Distillation['execution'], id: string): reado
   ];
   return [
     'Runtime phase attribution: unavailable; ExecutionIndex retains test crossings, not AAA intervals.',
-    `Runtime journey: ${execution.entered.length} source file(s) entered by exact test id.`,
+    `Runtime journey: ${execution.entered.length} source file(s) covered by exact test id.`,
     ...(execution.entered.length === 0 ? ['  measured empty'] : execution.entered.map(({ file, distance }) =>
       `  depth ${distance} — ${file}`)),
     ...opportunityLines(execution),
@@ -79,9 +79,9 @@ function opportunityLines(
     ...execution.opportunities.map(({ file, distance }) =>
       `  distillation opportunity at depth ${distance} — ${file}`),
     ...(missing.length === 0 ? [] : [
-      `Addressed source this run never entered: ${missing.length}. ` +
+      `Addressed source this run never covered: ${missing.length}. ` +
         'Either the module is not instrumented, or the two sides are rooted differently.',
-      ...missing.map((file) => `  addressed, not entered — ${file}`),
+      ...missing.map((file) => `  addressed, not covered — ${file}`),
     ]),
   ];
 }
@@ -113,24 +113,24 @@ function regionLines(modules: readonly EnteredModule[]): readonly string[] {
   const partial = modules.filter((module) => !module.loadedOnly && module.unentered.length > 0);
   return [
     '',
-    `Loaded but not entered: ${loaded.length} module(s).`,
+    `Loaded but not covered: ${loaded.length} module(s).`,
     ...(loaded.length === 0
       ? ['  measured empty']
       : loaded.flatMap((module) => [
-          `  ${module.file} — the import ran its top level and this test entered nothing below it`,
+          `  ${module.file} — the import ran its top level and this test covered nothing below it`,
           ...(module.unentered.length === 0 ? [] : [
-            `    never entered: ${module.unentered.map(named).join(', ')}`,
+            `    never covered: ${module.unentered.map(named).join(', ')}`,
           ]),
           `    substitution to try: vi.mock('${module.file}') — jest.mock and sb.mock say the same thing`,
         ])),
     ...(partial.length === 0 ? [] : [
       `Entered in part: ${partial.length} module(s).`,
       ...partial.flatMap((module) => [
-        `  ${module.file} — entered ${module.entered.map(named).join(', ')}`,
-        `    never entered: ${module.unentered.map(named).join(', ')}`,
+        `  ${module.file} — covered ${module.entered.map(named).join(', ')}`,
+        `    never covered: ${module.unentered.map(named).join(', ')}`,
       ]),
     ]),
-    'Substitution rule: a module loaded and not entered is a boundary this test may not ' +
+    'Substitution rule: a module loaded and not covered is a boundary this test may not ' +
       'need, not one it can safely lose. Mocking removes the top level too, and a top level ' +
       'with a side effect — a registration, a polyfill, a singleton — is one the test may be ' +
       'standing on. Make the substitution, rerun the exact test, and compare the witness.',

@@ -95,7 +95,7 @@ share a coordinate are numbered, the second as `<coordinate>#1`.
 ## Both recordings must name source from the same root
 
 Eyes names a component's source with the path the bundler handed over, which is
-absolute. Sense names an entered module relative to the project root. Distill
+absolute. Sense names a covered module relative to the project root. Distill
 brings the two to one shape against `--root`, which defaults to the directory
 you run it in. Pass `--root <path>` when you run it from somewhere else:
 
@@ -107,18 +107,18 @@ variance distill --test '<recorded-test-id>' \
 ```
 
 When the root cannot reconcile the two — no addressed source file matches any
-entered module — you get no opportunity list at all:
+covered module — you get no opportunity list at all:
 
 ```text
 Distillation opportunities: unavailable; none of the 1 addressed source file(s)
 matched any of the 12 entered module(s) under root /path/to/project.
 ```
 
-Comparing paths that disagree in shape would report every entered file as an
+Comparing paths that disagree in shape would report every covered file as an
 opportunity, including the component the test addressed, so the reading names
 what it could not establish instead. Where only some addressed files fail to
 match, the list stands and the leftovers are printed under **Addressed source
-this run never entered** — usually a module nothing instrumented, and otherwise
+this run never covered** — usually a module nothing instrumented, and otherwise
 the same root mismatch showing in part.
 
 ## The three readings
@@ -149,10 +149,10 @@ initiator outside the addressed paths is an entanglement to investigate: code
 the test did not address initiated work during the same authored phase. It is
 not proof of the source statement that scheduled the update.
 
-Sense supplies the files entered by the exact same test id and their nearest
+Sense supplies the files covered by the exact same test id and their nearest
 observed [depth](distance.md). Its [execution index](execution-record.md) is
 whole-test evidence, not AAA evidence,
-so distill does not assign those files to a phase. An entered file with no Eyes
+so distill does not assign those files to a phase. A covered file with no Eyes
 target attributed to that file is a **distillation opportunity**.
 
 ```text
@@ -173,14 +173,14 @@ Entered with no addressed target attributed to the same file: 2.
 
 Depth is whatever the producer of the execution index recorded. The Vitest
 recorder in [Sense](../packages/sense/README.md) records every crossing at depth
-0: it reports which regions a test entered, not how many calls deep the call
-stack was when it entered them. The field shows a real number only from a
+0: it reports which regions a test covered, not how many calls deep the call
+stack was when it covered them. The field shows a real number only from a
 producer that tracks call depth, so read `depth 0` as "not recorded here" rather
 than as "called directly".
 
 An opportunity is not permission to mock, replace, or delete the file.
 [Static reachability](source.md) describes what the test could load; execution
-says what it entered; attention says what it addressed. None says what the test
+says what it covered; attention says what it addressed. None says what the test
 would still witness after a substitution.
 
 ## Imports nothing ever calls
@@ -200,7 +200,7 @@ A spy creates the same situation from the other side. `vi.spyOn(totals,
 'formatTotal')` leaves the module loaded and its function unreached, and the
 import statement above it still reads as a use.
 
-Distill separates the two. Every entered module is read
+Distill separates the two. Every covered module is read
 [region by region](execution-record.md#blocks):
 [`loadedOnly`](../packages/distill/README.md#api)
 marks a module whose only crossings are the consequence of loading
@@ -248,12 +248,12 @@ compare; the agent verifies each proposed boundary.
 
 Distill does not require [React's Fiber tree](framework.md). A plain unit test or
 a test over a fake component can supply only an execution index and still receive
-an entered-source reading.
-Without Eyes, the entered-versus-addressed opportunity comparison is unavailable.
+a covered-source reading.
+Without Eyes, the covered-versus-addressed opportunity comparison is unavailable.
 With a complete empty Eyes journal, the addressed surface is measured empty and
 the comparison can proceed. Neither case is printed as zero Fiber usage.
 
-The current reading counts addressed target paths and entered files. It does
+The current reading counts addressed target paths and covered files. It does
 not claim a percentage of the Fiber tree: unmounted, hidden, lazy and
 never-observed branches have different denominators, and a DOM target does not
 establish that every ancestor or descendant participates in the assertion.

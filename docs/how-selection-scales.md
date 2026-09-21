@@ -1,6 +1,6 @@
 # How the test-to-code map stays small
 
-Selection needs to know which tests entered which code. Recorded naively that is
+Selection needs to know which tests covered which code. Recorded naively that is
 one entry for every test against every line it touched, which no large
 repository can store. [Variance Authority](README.md) records it differently, and
 you want to know what that costs before you put it on a tree that size.
@@ -16,13 +16,13 @@ which one it came from, because they predict different things for you. The
 ## The relation selection needs
 
 [Test selection](selecting.md) needs an answer ordinary coverage deliberately
-forgets: **which tests entered the code that changed?**
+forgets: **which tests covered the code that changed?**
 
 During a run, [execution recording](execution-record.md) divides each module
 into regions: the module itself, function bodies, branches, loop bodies,
-continuations and handlers. A test records whether it entered a region. It does
+continuations and handlers. A test records whether it covered a region. It does
 not retain how many times the region ran, because selection needs presence, not
-frequency. One test entering one region is a **crossing**, and the record is the
+frequency. One test covering one region is a **crossing**, and the record is the
 whole set of crossings your suite produced.
 
 Conceptually, that produces a relation like this:
@@ -43,7 +43,7 @@ large repository and the crossing count runs to hundreds of millions.
 ## The same audience appears many times
 
 Imports give the relation more structure than a table of unrelated pairs
-suggests. A test enters a barrel, and through that barrel it enters a large
+suggests. A test covers a barrel, and through that barrel it covers a large
 family of modules. Many regions below that point are therefore reached by
 exactly the same tests.
 
@@ -76,7 +76,7 @@ crossings resolve to 3,408 distinct test sets, built, stored and queried inside
 132 MB. The same relation written as bare integer pairs has a floor of 2,561 MB.
 
 Read that ratio for what it is. The fixture's *sharing* axis — which test
-entered which module — is synthesized, so it tells you how many bytes and how
+covered which module — is synthesized, so it tells you how many bytes and how
 much memory a repository of that size costs, and it is not evidence about how
 well your own imports share. If your repository shared nothing at all, and every
 one of the fixture's 1.6 million regions had its own set, the record would be
@@ -175,7 +175,7 @@ The failure a stable number prevents is not a crash. The coverage file is a set
 of crossings between test identities and module numbers, and nothing in it
 restates a path. If a number were silently reassigned, the file would still
 load, still answer, and answer about the wrong module — selecting the tests
-that entered `cart.ts` for a change in `checkout.ts`, and skipping the ones
+that covered `cart.ts` for a change in `checkout.ts`, and skipping the ones
 that matter. A stable number is what makes evidence from an earlier run usable
 by a later one.
 
@@ -236,7 +236,7 @@ tests that entered the region
 ```
 
 Region boundaries matter here. An edit wholly inside a handler can select the
-tests that entered that handler instead of every test that rendered the
+tests that covered that handler instead of every test that rendered the
 containing component. An edit on a line shared with the enclosing function
 correctly selects the wider audience. The
 [execution-record reference](execution-record.md#from-a-crossing-back-to-a-line)

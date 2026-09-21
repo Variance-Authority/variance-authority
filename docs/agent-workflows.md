@@ -45,10 +45,10 @@ different path.
 | Your question | What the agent reads | Guide |
 | --- | --- | --- |
 | What changed in my UI on the last run, and what changed it? | The report `npx variance run` wrote, read from a shell | [Ask a run from the command line](agent-cli.md) |
-| What does a report I did not produce say — a CI artifact, an archive, a colleague's run? | A report handed to the server, plus any [execution record](execution-record.md) — the file a run writes naming which source each test entered — or archive supplied with it | [Ask about a finished run over MCP](agent-mcp.md) |
+| What does a report I did not produce say — a CI artifact, an archive, a colleague's run? | A report handed to the server, plus any [execution record](execution-record.md) — the file a run writes naming which source each test covered — or archive supplied with it | [Ask about a finished run over MCP](agent-mcp.md) |
 | My suite is running now and one test is not finishing — what is it waiting on? | A watcher process tracking what each test has opened and announced, in memory only | [Inspect a suite while it is running](agent-live-run.md) |
 | What is on the page at this exact line of my test, while it is still up? | A test stopped at a call its author wrote into the spec, and what it sent from there | [Interrogate a test where it stands](agent-interrogate.md) |
-| How much of this test can I delete without losing the behavior it witnesses? | One test's authored Arrange–Act–Assert attention from [Eyes](eyes.md) and its entered source from [Sense](../packages/sense), then a rerun that checks the cut | [Distil a test](distill.md) |
+| How much of this test can I delete without losing the behavior it witnesses? | One test's authored Arrange–Act–Assert attention from [Eyes](eyes.md) and its covered source from [Sense](../packages/sense), then a rerun that checks the cut | [Distil a test](distill.md) |
 | What do my packages publish, and where is a given symbol declared? | My manifests and current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 | Where in my codebase is this symbol already imported, and which story or test shows how to call it? | The imports in my current TypeScript source | [Inspect the workspace public API](agent-workspace-api.md) |
 

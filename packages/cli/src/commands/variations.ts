@@ -391,7 +391,7 @@ function because(
 const COVERAGE: Readonly<Record<Observability, string>> = {
   full: 'everything the band is made of',
   'declared-only': 'what the stylesheets declare, not what an engine resolved',
-  'structural-only': 'nodes entering and leaving the tree, not boxes moving on screen',
+  'structural-only': 'nodes added to and removed from the tree, not boxes moving on screen',
   none: 'nothing',
 };
 

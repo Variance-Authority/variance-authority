@@ -41,7 +41,7 @@ history, each answering a different part of the decision:
 | Which selected test is nearest to the edit? | Measured import distance from each test to the changed region | [Measure test distance](distance.md) |
 
 The **execution index** is what a run keeps about itself: which regions of which
-modules each test file actually entered, retained so a later change can be asked
+modules each test file actually covered, retained so a later change can be asked
 who has been there. Source reach supplies possibility, the baseline record and
 the execution index supply experience at two different grains, and distance
 supplies order. A given question may need only one of them.

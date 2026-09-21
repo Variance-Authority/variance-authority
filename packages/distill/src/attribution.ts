@@ -50,12 +50,12 @@ export function attribute(
       joined: false,
       because:
         `none of the ${wanted.size} addressed source file(s) matched any of the ` +
-        `${reached.size} entered module(s)` +
+        `${reached.size} covered module(s)` +
         (root === undefined
           ? ', and no root was supplied to rule out a difference in path shape.'
           : ` under root ${root}.`) +
         ' The two sides may be rooted differently; an opportunity list built on ' +
-        'that would name every entered file, so none is offered. Supply the ' +
+        'that would name every covered file, so none is offered. Supply the ' +
         'project root the runner recorded against.',
     };
   }
@@ -71,9 +71,9 @@ function disagreement(entered: Shape, addressed: Shape): string | undefined {
   }
   if (entered === 'empty' || addressed === 'empty' || entered === addressed) return undefined;
   return (
-    `the entered modules are named by ${entered} path and the addressed source ` +
+    `the covered modules are named by ${entered} path and the addressed source ` +
     `by ${addressed} path, and no root was supplied to bring them to one shape. ` +
-    'Comparing them as written would report every entered file as an opportunity.'
+    'Comparing them as written would report every covered file as an opportunity.'
   );
 }
 

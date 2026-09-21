@@ -250,7 +250,7 @@ test('the cart states', async ({ page }, testInfo) => {
 
 In-place capture takes at least two screenshots and refuses them when they
 disagree before consulting a baseline. It opens no second browser. The declared
-headless state and ordered launch arguments enter renderer identity; they must
+headless state and ordered launch arguments cover renderer identity; they must
 match the suite's Playwright configuration.
 
 ## Choose the subject deliberately
@@ -437,7 +437,7 @@ paints it. Nothing in this package is on that path.
 `materialization` selects how pixels are produced; its `kind` field picks the
 strategy. `kind: 'in-place'` requires `browser`, the declared launch of the
 suite's own Chromium (`headless` and the ordered `launchArgs`), which is what
-enters renderer identity; `stabilityChecks` defaults to `2` and cannot go lower
+covers renderer identity; `stabilityChecks` defaults to `2` and cannot go lower
 than two captures.
 
 A subject photographed in place is photographed while the application is still
@@ -452,7 +452,7 @@ says how many attempts bought nothing.
 ## Record what each spec executed
 
 `variance run --since <ref>` and `variance select --since <ref>` skip specs whose
-code nothing touched. What they read is written here: a **crossing** is the fact that one test entered
+code nothing touched. What they read is written here: a **crossing** is the fact that one test covered
 one probed block of your application. Recording them requires the application
 under test to be built with `testSelectionProbes()` from
 `@variance-authority/sense/journal`.
@@ -463,7 +463,7 @@ selector could spend. A worker accumulates and writes once at teardown, under a
 lock on the index, so parallel workers do not overwrite each other. A spec whose
 test failed, timed out or was interrupted is recorded as incomplete — its
 crossings still count, and it can never justify skipping itself later. A
-skipped test leaves the file whole: it entered nothing, and every way it stops
+skipped test leaves the file whole: it covered nothing, and every way it stops
 being skipped edits either the spec file or a module the file already reaches,
 both of which select it anyway.
 
@@ -526,7 +526,7 @@ to an array of one.
 | `coverageFile` | The coverage index this run merges into. | The repository-keyed user cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
-| `cases` | Also write the execution index: which individual test entered which region. | `false` |
+| `cases` | Also write the execution index: which individual test covered which region. | `false` |
 | `executionFile` | Where that index goes. | Beside the snapshot: `<coverage file>.cases.bin`. A name ending `.json` writes JSON instead. |
 
 `mode` has to be the same answer everywhere one coverage index is written:

@@ -50,7 +50,7 @@ part is work in a service you own.
 | Attribution on captured subjects — the component that owned a node, the JSX coordinate that wrote it | Nothing for React: the name is on the fiber. Every other framework needs the build step [composition](composition.md) describes. |
 | Attention evidence — which elements a test addressed — in a unit or Playwright suite | Install [Eyes](eyes.md) and call `watch` once from your setup file. |
 | A live view of a run that has not finished | One environment variable, [`VARIANCE_AUTHORITY_VANTAGE`](vantage.md). Under Playwright there is nothing to install. |
-| **Journeys** — which regions of source each subject entered, and the report's `regions` field | A flag **and** a build change. Both, or you get neither. |
+| **Journeys** — which regions of source each subject covered, and the report's `regions` field | A flag **and** a build change. Both, or you get neither. |
 | A service's own crossings folded into the same record | The build change again, in that service, plus an environment block and one line where requests already pass. |
 
 ### Attention evidence: install Eyes, call `watch` once
@@ -211,7 +211,7 @@ project's `baseURL`, so the browser attaches them to every same-origin request
 it was already going to send and nothing in your application is touched to carry
 them. A service built with probes reads both off the request's `Cookie` header,
 runs the handler in an `AsyncLocalStorage` scope keyed by the journey, and when
-that scope settles delivers what it entered as a JSON `POST` to
+that scope settles delivers what it covered as a JSON `POST` to
 `<return>/journeys` over loopback `http`. Only the driver knows
 `journey → subject`, so only the driver can join, and a report cannot claim an
 execution by writing one down: the execution is in the address the report
@@ -220,7 +220,7 @@ arrived on, never in the body.
 Two specs running at once, against one service process, inside one module, come
 back apart — the scope is the execution rather than a time window, so nothing is
 charged to whichever subject happened to be open. You can then read _this spec
-entered that branch of that service and the other spec never did_, with the
+covered that branch of that service and the other spec never did_, with the
 service never told what a spec is.
 
 ## Declaring a head
@@ -301,7 +301,7 @@ why.
 
 The exclusion the message refuses is a **test file the next run does not
 execute**. With a record in hand, `variance run --since origin/main` compares
-the diff against what each test entered and hands the runner every test file it
+the diff against what each test covered and hands the runner every test file it
 would have run except the ones the record positively proves the change did not
 reach: a file recorded as complete, whose journey contains none of the changed
 regions. A test recorded partially, a region nobody read, a record older than

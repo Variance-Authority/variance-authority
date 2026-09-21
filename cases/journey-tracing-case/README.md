@@ -6,7 +6,7 @@ inside an HTTP service, and the service is where the code that decides actually
 lives.
 
 What is recorded is a **journey**: the set of source regions one execution
-entered — which function bodies and which branches it was inside, in every
+covered — which function bodies and which branches it was inside, in every
 process it touched.
 
 ## What this demonstrates
@@ -16,7 +16,7 @@ see inside, comes back as two different kinds of evidence under one id.
 
 The page asks the service for a price. The service picks a branch by locale and
 announces the decision; the same request, in the same instrumented module, also
-records which regions of that source it entered. The spec waits on the
+records which regions of that source it covered. The spec waits on the
 announcement and then asserts the screen once, with polling switched off.
 
 Both instruments travel on one medium. The service is handed a `Cookie` header

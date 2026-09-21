@@ -100,7 +100,7 @@ export const locate: Tool = {
     'Which subjects a description names. Matches the words of `query` against every name ' +
     'the run recorded per subject — its id, the component it is the example of, accessible ' +
     'names and visible text, the components it holds and who mounted them, the code regions ' +
-    'its journey entered, files, roles and design tokens — and ranks by how many words matched ' +
+    'its journey covered, files, roles and design tokens — and ranks by how many words matched ' +
     'and how rare each is, printing the field and value behind every hit so the order can be ' +
     'checked. Ask this when you know what a subject looks like but not what it is called, ' +
     'before `variance_describe` or `variance_composition {subject}`. A word no subject holds ' +

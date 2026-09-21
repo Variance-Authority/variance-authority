@@ -1,7 +1,7 @@
 # Test-level coverage
 
-Ordinary coverage is a union: every region some test entered, with nothing left
-saying which test entered it. **Test-level coverage keeps the relation that
+Ordinary coverage is a union: every region some test covered, with nothing left
+saying which test covered it. **Test-level coverage keeps the relation that
 union was folded from** — for each named test case, the regions of your source
 that case walked — so a line answers *which tests walk me* rather than *did
 anybody*. It is one axis added to a recording your suite can already make, and
@@ -22,7 +22,7 @@ configuration: Zod's 5,656 tests go from 8.87 s to 11.56 s under
 `--coverage`, TanStack Query's 4,523 from 11.78 s to 15.25 s, and Material
 UI's 7,456 from 25.88 s to 32.49 s. That is **+26% to +30%, on every run**,
 and what it buys is the union — a percentage, and a file that cannot tell you
-which test entered anything in it.
+which test covered anything in it.
 
 **Thirty percent is not one cost, because a percentage is not a unit.** On a
 ten-second suite it is three seconds: it slows an agent loop slightly and
@@ -96,9 +96,9 @@ list, and the two differ on every question worth asking:
 | is this other branch tested? | yes | yes, by fourteen cases across nine files |
 | what should I run after this edit? | nothing | the cases that have been through these lines |
 | why do all these tests exist? | nothing | the six that claim this function, by name |
-| what did my change land on? | a number that moved | the changed regions nothing entered |
+| what did my change land on? | a number that moved | the changed regions nothing covered |
 
-The first two rows are the point. **A region one case alone entered is evidence
+The first two rows are the point. **A region one case alone covered is evidence
 standing on a single point, and a region fourteen cases cross is a hub** — and
 a coverage percentage reports the two identically, at 100%, forever. The number
 is not wrong. It is a projection that answers a question nobody is asking by
@@ -107,14 +107,14 @@ the time they are looking at a specific line.
 Two more distinctions survive the fold only if the axis is there. A case that
 was inside a region **only while its module was evaluating** was present rather
 than exercising anything, so it is counted apart from one that called in. And a
-region **recorded but entered by nobody** is a different statement from a line
+region **recorded but covered by nobody** is a different statement from a line
 in no recorded region at all: the first is a hole, the second is a coordinate
 the recording never claimed to cover.
 
 ## You have seen this relation before
 
 If you have used [Wallaby.js](https://wallabyjs.com/) you have already watched
-it work. It instruments your source, keeps the matrix of which test entered
+it work. It instruments your source, keeps the matrix of which test covered
 which region, and re-runs the minimal affected set as you type; per-test
 coverage is not a new idea, and that is the deepest work anyone has done on it.
 
@@ -132,9 +132,9 @@ decision below depends on someone other than the author being able to ask.
 ## What it changes
 
 **Reviewing a change.** Point the relation at a diff and it reports every
-changed region with the cases that entered it, and counts the two findings a
-percentage cannot state: the regions nothing entered, and the regions one case
-alone entered. That is [reviewing a change against what the code
+changed region with the cases that covered it, and counts the two findings a
+percentage cannot state: the regions nothing covered, and the regions one case
+alone covered. That is [reviewing a change against what the code
 did](agent-code-review.md).
 
 **Deciding which tests to keep.** Point it at a line and it hands back the
@@ -142,8 +142,8 @@ named cases that walked it. Six tests claiming one function is where *why do
 all of these need this code* starts having an answer, which is [own fewer
 tests](own-fewer-tests.md).
 
-**Making one test smaller.** A test's own crossings are the files it entered,
-and the ones it entered without ever addressing anything in them are candidates
+**Making one test smaller.** A test's own crossings are the files it covered,
+and the ones it covered without ever addressing anything in them are candidates
 for a smaller boundary — the reading behind [distilling a
 test](distill.md).
 
@@ -213,7 +213,7 @@ inserting a function above it renumbers everything and retires nothing: a
 crossing is dropped only when the new text has no region at that address. Line
 numbers are coordinates *into* the recorded text, not the thing recorded.
 
-**A crossing is a pair.** One row is *this case entered this region*, and the
+**A crossing is a pair.** One row is *this case covered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted
 case-major, delta-coded and run-compressed. Sorting case-major is what makes
 the run coding pay — a case's crossings arrive together, so the case column is
@@ -239,7 +239,7 @@ when tests are added and says nothing about which region is standing on one
 witness. The two findings are counts of named places, and a named place is
 something you can open.
 
-Crossings are whole-test. A region entered during a test's setup and a region
-entered by the behaviour under test are both that test's crossings; the
+Crossings are whole-test. A region covered during a test's setup and a region
+covered by the behaviour under test are both that test's crossings; the
 phase-level reading is authored structure, which is [Eyes](eyes.md), and
 `variance distill` is where the two are joined.

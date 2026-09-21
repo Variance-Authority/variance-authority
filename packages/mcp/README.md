@@ -10,7 +10,7 @@ Use this package only to hand an already-finished run, or an execution index,
 to an agent that speaks MCP.
 
 It is an MCP server over stdio. It reads a file something else produced — the
-JSON report a run wrote, or a record of which tests entered which source — and
+JSON report a run wrote, or a record of which tests covered which source — and
 answers questions about it in plain text. It never runs tests, re-renders
 anything, or changes a baseline, and it adds nothing to the evidence it was
 given.
@@ -163,7 +163,7 @@ placeholders: use ids from your own run, and a digest `variance_changes` printed
 | `variance_changes` | the distinct changes behind the changed subjects, most decidable first, each with the command that settles it | immediately after the summary, before touching any individual subject |
 | `variance_adjudicate` | this run against **what you said you were doing**: declared and delivered, changed and undeclared, and declared and never happened | you edited something and are reading your own run — declare before you read the diff |
 | `variance_composition` | the run's subjects compared to **each other**: the component graph, the renderings two examples share, and why each changed component changed — including *nothing here explains it*; with `subject`, what one subject is made of and which of its renderings other subjects share | a change has no obvious author, or you are about to call something flaky |
-| `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the source-code regions its tests entered — each hit printing the field it matched | you can describe the subject and do not know its id |
+| `variance_locate` | the subjects a `query` describes, matched over every name the run wrote down — ids, examples, accessible names, text, components, creators, files, roles, tokens, and the source-code regions its tests covered — each hit printing the field it matched | you can describe the subject and do not know its id |
 | `variance_variations` | the measured difference between a subject and the subject it declares as its parent, such as a feature flag, theme, or viewport | reviewing what a variant changes rather than whether it regressed |
 | `variance_changelog` | what accepting this run would write into the baseline record: the lines the commit will add, and the subjects that would be refused | before proposing an `accept` command, because the record is written once and outlives the run |
 | `variance_describe` | what changed inside one subject — the changed pixel regions, the component each belongs to, the files | the summary named a subject and you need the detail |
@@ -413,14 +413,14 @@ edit — see [ask a run from the command line](https://variance-authority.dev/do
 
 `variance_source_tests` answers the question a coding agent needs before and
 after an edit: which named tests reached this source? A line or function query
-returns the tests that entered it, named and by file. A file query returns every
-indexed line as compact ranges, including ranges no test entered. To ask how far
+returns the tests that covered it, named and by file. A file query returns every
+indexed line as compact ranges, including ranges no test covered. To ask how far
 away those tests sit, `variance covering --at-distance <hops>` and
 `--in-package` narrow the same list by import distance on the command line.
 
 An `ExecutionIndex` is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
 writes: a record, per test, of which regions of which source files that test
-entered while it ran. An integration that owns the current one serves it directly; the
+covered while it ran. An integration that owns the current one serves it directly; the
 supplier is called for every request so a rerun is visible without restarting
 the agent's MCP connection:
 
@@ -451,9 +451,9 @@ the test runner.
 
 `variance_changed_tests` is the same evidence asked at review time. It takes a
 unified `diff` — the patch the agent is already holding — and reports every
-changed source region with the named cases that entered it, counting the two
-findings a percentage cannot state: regions **no case entered**, and regions
-one case alone entered. A case that was inside a region only while its module
+changed source region with the named cases that covered it, counting the two
+findings a percentage cannot state: regions **no case covered**, and regions
+one case alone covered. A case that was inside a region only while its module
 was evaluating is counted apart from one that called into it. A changed test
 file has no module row, so it is answered with the named cases it declares
 rather than reported as unmeasured, and a changed path the index holds nothing
@@ -493,8 +493,8 @@ members. Native tools remain available on the same connection:
 |---|---|---|
 | `variance_test_attention` | an **Eyes archive** — what [`@variance-authority/eyes`](https://variance-authority.dev/reference/packages/eyes) recorded about which DOM elements each test addressed, and which React component rendered each | one test's selectors, Locator consumption, DOM events, synchronous Fiber attribution, and authored AAA markers |
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
-| `variance_source_tests` | a Sense execution index, as above | which named tests entered source and their minimum observed distance |
-| `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that entered it, and the ones nothing entered |
+| `variance_source_tests` | a Sense execution index, as above | which named tests covered source and their minimum observed distance |
+| `variance_changed_tests` | a Sense execution index and a unified diff | every changed region with the cases that covered it, and the ones nothing covered |
 | `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) has heard from a suite that has not finished | what an in-flight suite and one test have announced |
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
@@ -504,9 +504,9 @@ members. Native tools remain available on the same connection:
 `variance_distill` is the deliberate cross-domain answer. It maps the
 DOM owners and source locations a test addressed in each authored phase, then
 places React update initiators inside or outside those exact structural component
-paths and contrasts both with files that the same exact test id entered.
+paths and contrasts both with files that the same exact test id covered.
 `PerformedWork` says a render body ran; it is not substituted for an updater.
-An entered file with no addressed target is a distillation opportunity, not proof that
+A covered file with no addressed target is a distillation opportunity, not proof that
 the branch is unrelated or safe to mock. The tool does not join by title or file
 when stable producer identities disagree. `ExecutionIndex` retains whole-test
 crossings, not AAA intervals, so runtime files remain test-scoped rather than
@@ -530,7 +530,7 @@ the producer and route for every unavailable domain:
 |---|---|---|
 | visual report and durable presentation signals | `variance run` | configure its `report` path and supply the resulting `RunReport`; see [run an existing collector](https://variance-authority.dev/docs/start-cli) |
 | presentation readings | `@variance-authority/presentation/playwright` | call `sensePresentation` on the live subject and supply the returned full graph; see [presentation](https://variance-authority.dev/docs/presentation) |
-| runtime journey | a Vitest run wrapped with `cases: true`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case entered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-entered-a-region) |
+| runtime journey | a Vitest run wrapped with `cases: true`, or any other per-test collector | supply an `ExecutionIndex` with stable per-test ids; see [record which case covered a region](https://variance-authority.dev/reference/packages/sense#record-which-case-covered-a-region) |
 | live journey and events | `@variance-authority/playwright-test` plus a watcher | compose `varianceFixtures`, start the watcher first, then pass its exact `VARIANCE_AUTHORITY_VANTAGE` assignment to the suite; see [inspect a live run](https://variance-authority.dev/docs/agent-live-run) |
 | Eyes attention | `@variance-authority/eyes` | compose the host adapter, author AAA phase markers, retain per-test journals with their completion state under stable runner ids, and install React observation before `react-dom`; see the [Eyes integration reference](https://variance-authority.dev/reference/packages/eyes) |
 | scenario AAA | `@variance-authority/scenario` | record host-produced semantic snapshots and authored Acts, then use the archive entrypoint when the evidence must survive the process; see the [scenario reference](https://variance-authority.dev/reference/packages/scenario) |

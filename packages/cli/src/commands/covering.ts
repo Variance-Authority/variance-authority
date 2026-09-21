@@ -104,7 +104,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       `no readable per-case execution index at \`${from}\` (${
         error instanceof Error ? error.message : String(error)
       }). One is written by a run configured with \`withTestSelection(config, { cases: true })\`; ` +
-        'without it this project knows which files a test entered but not which case entered them.',
+        'without it this project knows which files a test covered but not which case covered them.',
     );
   }
 
@@ -130,7 +130,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
       throw new OperatorError(
         `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
-          'import or a type declaration has no region to be entered, so there is no list to ' +
+          'import or a type declaration has no region to be covered, so there is no list to ' +
           'print — which again is not the same as nobody reaching it.',
       );
     }
@@ -365,7 +365,7 @@ function sinceText(answer: Covering, changed: readonly CoveringChange[]): string
   const lines = [
     `${changed.length} changed file${changed.length === 1 ? '' : 's'} since ${answer.since}, ` +
       `${regions.length} changed region${regions.length === 1 ? '' : 's'}: ${blind.length} ` +
-      `nothing entered, ${alone.length} entered by one case.`,
+      `nothing covered, ${alone.length} covered by one case.`,
     `Read from ${answer.from}${answer.at === undefined ? '' : `, recorded at ${answer.at}`}.`,
   ];
 
@@ -397,7 +397,7 @@ function sinceText(answer: Covering, changed: readonly CoveringChange[]): string
           region.name === '' ? '' : ` ${region.name}`
         } — ${
           region.tests.length === 0
-            ? 'no case entered this region'
+            ? 'no case covered this region'
             : region.tests.length === 1
               ? '1 case, and it is the only witness'
               : `${region.tests.length} cases`

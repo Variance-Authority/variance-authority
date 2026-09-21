@@ -9,7 +9,7 @@ New here? Start with [your first run](start.md).
 
 An assertion records one answer to one question you chose before the run. An
 execution knows more than that answer: which elements the test operated, which
-regions of your source it entered, which components rendered, what your
+regions of your source it covered, which components rendered, what your
 application code announced while it ran, and what work it opened and never
 closed. Keeping those readings is what lets you ask, after the run, a question
 you did not think to ask before it.
@@ -25,7 +25,7 @@ line in full.
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id such as `story:cart-card--removing`. A subject's
 **journey** is the path one execution took through your source — the set of
-regions it entered while that state was painted, where a region is a function
+regions it covered while that state was painted, where a region is a function
 body, a branch, a `case`, a loop body or the code after an `await`.
 
 Three stories can mount the same component from the same file and still have run
@@ -45,8 +45,8 @@ app/src/components/CartCard.tsx  3 observers
 pool: 3 observations the journal recorded whole, out of 3 subjects the report names
 ```
 
-`parted` names a region one subject entered and the others did not. `unentered`
-names a region no subject entered at all. [Read the journey](journeys.md) covers
+`parted` names a region one subject covered and the others did not. `unentered`
+names a region no subject covered at all. [Read the journey](journeys.md) says
 what recording one costs — a flag in your collector or Playwright config, plus a
 `testSelectionProbes()` step in the build that bundles your product source — and
 what to do with the answer.
@@ -62,9 +62,9 @@ Ask the question the evidence can still answer.
 | What is a running suite doing right now? | The tests each worker has opened, what your application code announced while they ran, and work that opened and never closed — readable from another shell, and gone when the suite ends | [Watch a run that has not finished](vantage.md) |
 | What did the page know before teardown? | The observations your installed instruments recorded while the page was alive, written out with the report | [Ask beyond the assertion](observability.md) |
 | Which elements did the test address? | The element each query or locator resolved to, joined to the React component that rendered it and the source that wrote it, where React mounted the element | [What a test witnesses](eyes.md) |
-| Which regions of source did one execution enter? | A journey across every instrumented process the execution touched | [Read the journey](journeys.md) |
+| Which regions of source did one execution cover? | A journey across every instrumented process the execution touched | [Read the journey](journeys.md) |
 | Where did two runs of the same flow stop agreeing? | Each observed Arrange–Act–Assert step, the state it began from, and a digest of what it changed | [Compare scenarios](scenarios.md) |
-| What can this test drop without losing what it proves? | The elements it addressed and the regions it entered, then one rerun of the same test with a single substitution in place | [Distil the test](distill.md) |
+| What can this test drop without losing what it proves? | The elements it addressed and the regions it covered, then one rerun of the same test with a single substitution in place | [Distil the test](distill.md) |
 
 ## Readings join on recorded ids
 

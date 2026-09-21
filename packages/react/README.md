@@ -180,7 +180,7 @@ needs a DevTools extension.
 | | |
 |---|---|
 | `wiringOf` | Hook shape, wrapper chain, context subscriptions and reconciliation keys — how the framework wires the component, as a value stable enough to digest. `collect` records it beside the document; two components that render identical markup but differ in wiring stop comparing as equal. Returns `undefined` for a node with no readable framework, so a non-React page is absent from this dimension rather than giving a digest of emptiness. |
-| `holdingOf` | What a component was handed and what it retained — props, contexts and hook cells, each as a digest. It rides beside the snapshot and enters no hash, so it never decides a pass or fail; `partingOf` in `@variance-authority/core` reads it to say which input a difference came from. |
+| `holdingOf` | What a component was handed and what it retained — props, contexts and hook cells, each as a digest. It rides beside the snapshot and is written into no hash, so it never decides a pass or fail; `partingOf` in `@variance-authority/core` reads it to say which input a difference came from. |
 | `markRender` / `remountedSince` | Which component instances were destroyed and rebuilt rather than updated, over an interval you delimit. Take the mark immediately before the action; a mark taken afterwards has no earlier instance to compare against. The result describes one interval, not a difference between two revisions, so it is never digested. |
 | `awaitSuspense` / `suspenseRefusal` | Wait until nothing under a node is suspended, then rule on what to do if something still is. |
 | `tapCommits` / `awaitQuiet` | Which components performed render work, and which live instances initiated each commit. |

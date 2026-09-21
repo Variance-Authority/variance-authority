@@ -84,7 +84,7 @@ Both branches are now assertable, on the first run, with no duration anywhere.
 
 No `playwright.config.ts` change is needed for this. The fixture evaluates the
 listener in the page before navigation, and a test that never destructures
-`events` sets none of it up. Configuration enters only when a service announces
+`events` sets none of it up. Configuration covers only when a service announces
 too — see [A service that announces](#a-service-that-announces-too) below.
 
 A wait also settles against announcements **already heard** before it subscribes,
@@ -277,7 +277,7 @@ directory, no file to clean up, no artifact to mistake for evidence later.
 
 The channel is the cookie the driver already set, and it is not this package's.
 [`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire) carries announcements and coverage
-accounts — which regions of source an execution entered — on one medium under one
+accounts — which regions of source an execution covered — on one medium under one
 execution id, and reports only which of the two was speaking. `enter` takes the
 request's `Cookie` header, or the pairs a service's own cookie accessor returns,
 joined the same way. A request the run did not drive carries neither, and

@@ -11,13 +11,13 @@ your own.** Have these three numbers to hand before you read any table below:
 | to price | the count you need |
 |---|---|
 | the [source index](source-index.md) | the modules in your checkout — the source files `git ls-files` lists |
-| the [execution record](execution-record.md) | the modules your suite **enters**, which is a fraction of the first that only a recording knows |
+| the [execution record](execution-record.md) | the modules your suite **covers**, which is a fraction of the first that only a recording knows |
 | the [lexicon](lexicon.md) | the **subjects** your suite captures — a subject is one named UI state you asked for and can ask for again |
 
 Nothing on this page converts one of those counts into another, because nothing
-in the three relates them. A component library's unit suite enters 3% of the
+in the three relates them. A component library's unit suite covers 3% of the
 repository's modules and captures thousands of subjects; an application's suite
-enters most of what it ships and captures hundreds. Both ratios are properties
+covers most of what it ships and captures hundreds. Both ratios are properties
 of the suite, so go and count all three.
 
 A tool that reads your whole codebase can run out of memory on a large one.
@@ -53,10 +53,10 @@ into the [source index](source-index.md). That index answers what a change
 *could* reach, and a run consults it before it runs anything.
 
 The [execution record](execution-record.md) then narrows that to what each
-test *actually* entered: for every test file, the
+test *actually* covered: for every test file, the
 [regions](execution-record.md#blocks) of every module it went through while it
 ran. A **region** is one piece of a module's text the instrument cut — a
-function body, a branch arm, the module's top level — and one test entering one
+function body, a branch arm, the module's top level — and one test covering one
 region is a **crossing**. The record is the whole set of crossings your suite
 produced, written to one binary file.
 
@@ -138,7 +138,7 @@ small. The unfolded relation is tests multiplied by lines, and a coverage tool
 never stores it, because for a large suite it is gigabytes.
 
 Selection needs the unfolded relation. Skipping a test on a changed line is
-only safe if the record says that test never entered it, and a count per line
+only safe if the record says that test never covered it, and a count per line
 cannot say that about any test. So the execution record saves what coverage
 throws away, and its size is the fair question.
 
@@ -166,13 +166,13 @@ under `--coverage`. The figures below come from two recordings:
 
 - **Material UI.** [Material UI](https://github.com/mui/material-ui)'s own
   Vitest suite, recorded with the selection probes installed: 791 modules, 184
-  test files and 8,143 regions entered. It is public, large enough to break
+  test files and 8,143 regions covered. It is public, large enough to break
   things, and impossible to tune for.
 - **A 200,000-module fixture.** That recording scaled 253 times, to 200,000
   modules and 2,000 test files. Its module paths, its region counts per module
   and its region spans are drawn from the real recording, and the two region
   distributions are under half a percent apart. One axis is synthesized, and
-  it is the one that decides how *well* selection works: which test entered
+  it is the one that decides how *well* selection works: which test covered
   which module. So the large fixture answers how long, how many bytes and how
   much memory, and it is never allowed to answer how many tests you skip.
   Every share-of-the-suite figure below comes from Material UI.
@@ -184,7 +184,7 @@ repository runs to hundreds of millions. Expanded into pairs, one per test per
 region, that is gigabytes before a byte is written to disk.
 
 The record never stores pairs. A region does not own the list of tests that
-entered it. It names one entry in a pool of the **distinct** sets of
+covered it. It names one entry in a pool of the **distinct** sets of
 tests, and the pool keeps one copy of each set, however many regions name it.
 That is [hash consing](https://en.wikipedia.org/wiki/Hash_consing) over sets,
 and the identifier in the region column is
@@ -197,9 +197,9 @@ generation, which is why a name costs bytes once however many rows repeat it.
 
 Sharing on that scale is what imports produce, not a compression trick. A test
 file reaches tens of thousands of modules by importing barrels, and every leaf
-under a barrel is entered by exactly the tests that touched the barrel. So the
+under a barrel is covered by exactly the tests that touched the barrel. So the
 audience belongs to the barrel, and every leaf under it points at one set. A
-set entered by the whole suite, the row a pair store charges most for, costs
+set covered by the whole suite, the row a pair store charges most for, costs
 five bytes.
 
 On a barrel-shaped repository of 200,000 modules and 2,000 test files, **671
@@ -293,7 +293,7 @@ path.
 across machines produces one record per shard.
 [`variance journeys`](../packages/cli#sharding-journeys-takes-more-than-one-file-too)
 is the command that reads execution journals — which regions of which modules
-each test entered on its way through — and folding shards is one of its modes,
+each test covered on its way through — and folding shards is one of its modes,
 because a fold is several journals read as one. It produces the union the
 unsharded run would have written:
 
@@ -321,12 +321,12 @@ different one. The scan caches are content-addressed and behave the same way.
 
 Both files grow with modules and stay linear. The index column you can price
 before recording anything, from a count git already gives you; the record
-column is priced per module your suite enters, which only a recording tells
+column is priced per module your suite covers, which only a recording tells
 you. Material UI's row is measured on a real repository. The 200,000 row is measured, at that size, on fixtures rather than
 on a real tree. The outer two rows are **extrapolation** — those figures
 extended linearly to a size no one has measured.
 
-| your repository | modules | modules its suite enters | source index | execution record |
+| your repository | modules | modules its suite covers | source index | execution record |
 |---|---|---|---|---|
 | a medium app, ~200k lines | ~2,000 | ~1,400 | ~0.7 MB | ~1 MB |
 | a large library — Material UI | 24,519 | 791 | 8.0 MB | 0.5 MB |
@@ -341,31 +341,31 @@ inside the range, near its floor.
 
 **The two module columns are different counts, and the gap between them is
 yours to measure.** Material UI's Vitest suite is a unit suite over a component
-library: it enters 791 of 24,519 modules, about 3%, because most of what the
+library: it covers 791 of 24,519 modules, about 3%, because most of what the
 repository tracks is documentation, examples and packages that suite never
-imports. An application's own suite enters most of the application, which is why
-the medium-app row assumes roughly 1,400 of 2,000. The 200,000 fixture enters
+imports. An application's own suite covers most of the application, which is why
+the medium-app row assumes roughly 1,400 of 2,000. The 200,000 fixture covers
 every module it contains, because it was built that way. What sets the rate is
 how much of the tree your test files import, and only a recording tells you.
 
 **The record needs a different constant from the one a per-module figure
 gives.** The fixture's 77 MB over 200,000 modules is 0.385 KB per module, and
-applying that to Material UI's 791 entered modules predicts 0.32 MB against a
+applying that to Material UI's 791 covered modules predicts 0.32 MB against a
 real 0.5 MB — so the per-module figure is the wrong shape for this file. A
-record is priced by the regions a suite entered, the test files that entered
+record is priced by the regions a suite covered, the test files that covered
 them, and one interned string dictionary of paths, region names and digests.
-Material UI enters 8,143 regions with 184 test files, which is a far denser
+Material UI covers 8,143 regions with 184 test files, which is a far denser
 test axis than the fixture's 2,000 files over 200,000 modules, and its names
 are real paths rather than generated ones.
 
 Measured on the two real recordings there are, a record costs roughly **0.65 to
-0.77 KB per entered module**: 0.5 MB over Material UI's 791, and 0.7 MB over a
+0.77 KB per covered module**: 0.5 MB over Material UI's 791, and 0.7 MB over a
 429-file suite's 977. Use that range. The 0.385 the fixture gives is a floor,
 which is why the last two rows of the table are marked as floors: they are
 priced per module of the fixture, on generated names, against a test axis far
 sparser than a real suite's. Material UI's record is the small
 one in the table for a separate reason: a record is priced by the modules its
-suite actually enters, not by the modules the scan found.
+suite actually covers, not by the modules the scan found.
 
 **Those are disk figures, and disk is the axis that grows.** Neither file is
 loaded. At two million modules a run still reads the index segment by segment
@@ -377,11 +377,11 @@ and how much storage you keep, not how much memory a run needs.
 ## The per-case index, when you ask for it
 
 Everything above prices the relation at file granularity: which *test file*
-entered which region. That is what a skip list needs, and it is the only thing
+covered which region. That is what a skip list needs, and it is the only thing
 a `--since` run reads. Turn on `cases` and a second file is written beside the
-record holding the same relation at case granularity — which *case* entered
+record holding the same relation at case granularity — which *case* covered
 which region — because that is what answers *which tests walk this branch* and
-what [`variance covering`](../packages/cli#covering-which-tests-entered-this-line) and
+what [`variance covering`](../packages/cli#covering-which-tests-covered-this-line) and
 [`distill`](distill.md) read.
 
 Its test axis is cases rather than test files, and nothing folds them, so it
@@ -420,15 +420,15 @@ So price the upload, not the disk. What travels between jobs is the record and,
 if you ask for it, the per-case index; the source index is rebuilt from the
 tree and the lexicon travels with whatever consumes it.
 
-| what you upload | 791 entered modules | 200,000 modules |
+| what you upload | 791 covered modules | 200,000 modules |
 |---|---|---|
 | execution record | 0.5 MB | 77 MB |
 
 The per-case index is not in that table because no module count predicts it.
 Its multiplier is your case count, which is a number only your suite has.
 Price it from a recording instead: it is roughly half a byte per crossing, and
-your crossing count is cases times the regions each one enters. A suite of
-20,000 cases entering 500 regions each is ten million crossings, which is
+your crossing count is cases times the regions each one covers. A suite of
+20,000 cases covering 500 regions each is ten million crossings, which is
 about 5 MB. Measured, the three recordings above run 0.21 MB to 0.46 MB.
 
 Two things to do if your cap is the binding constraint. Compress the upload —
@@ -450,7 +450,7 @@ twice:
 
 Adjacent files share most of their audience, so the fifth costs little more than
 the first. A dependency bump, a codemod or a formatting sweep is the other row,
-and there is no honest way to make it cheap: the tests really did enter all of
+and there is no honest way to make it cheap: the tests really did cover all of
 that.
 
 Adjacency is not a guarantee, and the same recording says so: widen the
@@ -461,7 +461,7 @@ suite and ask what it would cost if only that file changed:
 - the median file costs **7%** of the suite;
 - the ninetieth percentile costs **84%**;
 - **a third of the files each cost half the suite or more**, because a utility
-  most of the library imports is entered by a test that renders almost
+  most of the library imports is covered by a test that renders almost
   anything, and a change to it genuinely could break almost anything.
 
 One subtree shows the shape. Eleven adjacent files cost 17% of the suite between
@@ -597,7 +597,7 @@ providers and context consumers.
 
 The cap does. A **field** is one bag of values the run writes down per
 subject — the accessible names on it, its visible text, the components it
-mounted, the regions it entered, the files those came from, the design tokens
+mounted, the regions it covered, the files those came from, the design tokens
 it resolved through — and each field keeps at most two hundred distinct values,
 so a subject's entry has a ceiling no tree depth can pass: eight fields at two
 hundred values of the median length each is **17 KB** on Material UI's

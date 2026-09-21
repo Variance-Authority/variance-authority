@@ -226,7 +226,7 @@ boundary. `SourceScan`, `AcquireRequest` and `Acquired` expose the corresponding
 source and page-agent shapes.
 
 One navigation serves the whole suite rather than one navigation per story, and
-addon chrome stays outside the selected story root, so it never enters the
+addon chrome stays outside the selected story root, so it never covers the
 subject document.
 
 ## Readiness and loading

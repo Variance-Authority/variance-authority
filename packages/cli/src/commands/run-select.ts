@@ -326,7 +326,7 @@ function notesFor(
             `${stale.length === 1 ? 'has' : 'have'} at the commit it names ` +
             `(${stale.slice(0, 3).join(', ')}${stale.length > 3 ? ', …' : ''}), so ` +
             `${stale.length === 1 ? 'its line numbers mean' : 'their line numbers mean'} ` +
-            'something else here and every subject that entered ' +
+            'something else here and every subject that covered ' +
             `${stale.length === 1 ? 'it' : 'them'} is kept. Record once over a clean tree to narrow ` +
             'by region again.',
         ]),
@@ -335,7 +335,7 @@ function notesFor(
       : [
           `\`--since ${ref}\` ruled out ${many(ruled, 'subject')}: ` +
             `${answer.skipped.length} by what the diff declares and reaches, ` +
-            `${journey?.skipped.length ?? 0} by what the last run recorded entering.`,
+            `${journey?.skipped.length ?? 0} by what the last run recorded as covered.`,
         ]),
   ];
 }

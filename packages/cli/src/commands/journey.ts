@@ -94,7 +94,7 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
       skipped: [],
       whole:
         `the diff changes ${many(input.unread.length, 'file')} the recorded execution journal ` +
-        `has no measurement of (${first}), so it cannot say who entered them`,
+        `has no measurement of (${first}), so it cannot say who covered them`,
       because: 'the execution journal was not asked, having no record of every changed file',
     };
   }
@@ -105,7 +105,7 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
       skipped: [],
       whole:
         'the recorded execution journal holds no whole observation of any subject in this run, ' +
-        'so it cannot say which of them entered the changed code',
+        'so it cannot say which of them covered the changed code',
       because: 'the execution journal said nothing about this run’s subjects',
     };
   }
@@ -115,14 +115,14 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
     .map((subject) => ({
       subject,
       because:
-        'the last run recorded every region it entered while it was painted, and this diff ' +
+        'the last run recorded every region it covered while it was painted, and this diff ' +
         'changed none of them',
     }));
 
   return {
     skipped,
     because:
-      `${many(skipped.length, 'subject')} entered none of the changed code when last painted, ` +
+      `${many(skipped.length, 'subject')} covered none of the changed code when last painted, ` +
       `out of ${many(known.length, 'subject')} the journal recorded whole` +
       (known.length === planned.length
         ? ''

@@ -113,7 +113,7 @@ of them:
 | `unread` | the output changed and what would explain it was not read |
 
 `refactor` is the slice a pixel diff cannot see at all, because there is
-nothing to diff: component identity enters neither the render hash nor any
+nothing to diff: component identity is written into neither the render hash nor any
 **band** — the category a visual difference is sorted into, one of `a11y`,
 `geometry`, `token`, `content` and `texture` — so wrapping a subtree in a new
 `Panel` produces zero deltas. The tree
@@ -242,7 +242,7 @@ digest: enough to compare two readings for equality, and not reversible into
 what a user was looking at. So the comparison is by shape rather than by
 identity — a re-created inline closure is not reported as changed.
 
-**A holding never decides a pass or a fail.** It enters no hash and no band, so
+**A holding never decides a pass or a fail.** It is written into no hash and no band, so
 it can never turn a run red on its own. It is present alongside the snapshot and
 is read only to explain a difference the comparison already found.
 

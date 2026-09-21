@@ -3,8 +3,8 @@
 A review has the diff, and the diff is the one thing that cannot say whether
 the changed lines are watched. Two readings answer that from the same change
 set: the [execution record](execution-record.md) says which named cases
-entered each changed region, and composition says how many of the subjects
-that moved are one decision. Both join a change set against what a run
+covered each changed region, and composition says how many of the subjects
+it affected are one decision. Both join a change set against what a run
 recorded at **one revision**, with no baseline anywhere in them, which is why
 an agent holding a patch can ask both before it forms an opinion.
 
@@ -17,7 +17,7 @@ guess about a fact — and the fact was recorded, by running the suite, an hour
 ago. Three parts of the gap are worth naming separately, because each one fails
 in a different direction.
 
-**A changed region nothing entered looks like every other changed region.**
+**A changed region nothing covered looks like every other changed region.**
 Usually better: the branch with no test behind it is the short one, three lines
 in an `else`, and it reads as obviously correct because there is so little of
 it to be wrong. A coverage percentage does not close this. It is a union over
@@ -26,9 +26,9 @@ about to change is exactly the part the number does not break out. What gets
 approved this way is not code somebody decided was low risk; it is code nobody
 knew was unwatched.
 
-**A region one case entered and a region fourteen cases entered report
+**A region one case covered and a region fourteen cases covered report
 identically.** They are different facts. A single witness is very often the
-case that was written from the implementation it enters — the code and its test
+case that was written from the implementation it covers — the code and its test
 are one artifact, and an edit that moves both keeps them agreeing with each
 other about something that was never checked against intent. Fourteen cases
 across nine files is an independent constraint: break it and you are told
@@ -37,7 +37,7 @@ attention for a review, and without the count you spread it evenly over lines
 that deserve it very unevenly.
 
 **The number of changes in a report is not the number of decisions in it.**
-Review effort is paid per finding; risk lives per decision. Eleven moved
+Review effort is paid per finding; risk lives per decision. Eleven affected
 subjects are frequently one component edited once, which means ten of those
 readings buy nothing — and the attention they consumed is gone by the time you
 reach the subject where that same component was expected to move and did not.
@@ -53,7 +53,7 @@ what changed, you are holding the diff. What you do not have is what the code
 which is why an agent can ask them the moment a patch exists rather than after
 somebody accepts something.
 
-## Ask the record what entered the change
+## Ask the record what covered the change
 
 ```bash
 variance covering --since main
@@ -68,8 +68,8 @@ src/checkout/total.ts
   62-66 branch applyDiscount — no case entered this region
 ```
 
-The two counts in the first line are the findings. A region **no case entered**
-is the hole; a region **one case alone entered** is the single point. A case
+The two counts in the first line are the findings. A region **no case covered**
+is the hole; a region **one case alone covered** is the single point. A case
 that was inside a region only while its module was evaluating is counted apart
 from one that called into it, because being present while a module-scope
 constant is built is not exercising the function beneath it.
@@ -90,7 +90,7 @@ This reading needs [test-level coverage](test-level-coverage.md) — the same
 recording with a case axis, which is a run wrapped in
 `withTestSelection(config, { cases: true })`. Without it you have the
 file-grain [record](execution-record.md), which answers which test *files*
-entered a module and cannot name a case.
+covered a module and cannot name a case.
 
 Over MCP the same evidence is `variance_changed_tests`, which takes the unified
 diff the agent is already holding rather than a ref — nothing in that package
@@ -98,7 +98,7 @@ runs git.
 
 ## Ask the run which of the changes are one change
 
-When the change moved pixels, the second reading is
+When the change updated pixels, the second reading is
 [composition](composition.md): the run's subjects compared to each other at
 this commit instead of to their baselines.
 
@@ -107,7 +107,7 @@ variance ask composition
 variance ask composition --component Chip
 ```
 
-For everything that moved, composition checks whether an edited file, a moved
+For everything affected, composition checks whether an edited file, a moved
 token or an edited caller explains it, and stops at the first rule that
 matches. Beside each difference it carries **`alsoIn`** — the other subjects
 the same component changed in — which is the difference between eleven findings
@@ -128,12 +128,12 @@ joined against what one run recorded:
 
 | reading | joins the diff to | answers |
 |---|---|---|
-| `covering --since` | the regions a suite entered, per named case | whether the changed code is watched, and by how many |
-| `composition` | the component boundaries the subjects share | how much of the moved report is one edit, and what explains it |
+| `covering --since` | the regions a suite covered, per named case | whether the changed code is watched, and by how many |
+| `composition` | the component boundaries the subjects share | how much of the affected report is one edit, and what explains it |
 
 So they fail independently, and that is the useful part. A change with no
-witnesses whose subjects did not move is unexercised and invisible. A change
-with plenty of witnesses whose subjects all moved for a reason nothing explains
+witnesses whose subjects were not affected is unexercised and invisible. A change
+with plenty of witnesses whose subjects were all affected for a reason nothing explains
 is exercised and still wrong. A review that reads one of them alone cannot tell
 those two apart.
 
@@ -144,7 +144,7 @@ those two apart.
 2. `variance covering --since <ref>` — the evidence already standing under the
    changed regions, and the regions standing on nothing.
 3. The run itself, over the selected files.
-4. `variance ask summary`, then `changes` — what moved, grouped under the
+4. `variance ask summary`, then `changes` — what was affected, grouped under the
    distinct changes behind it.
 5. `variance ask composition` — which of those are one decision, and what
    explains each.
@@ -167,7 +167,7 @@ produces a number you can put a threshold on: a region with no witness is a
 place to look, and how much it matters is yours.
 
 The full command reference is in the [CLI
-package](../packages/cli/README.md#covering-which-tests-entered-this-line); the
+package](../packages/cli/README.md#covering-which-tests-covered-this-line); the
 MCP tool contracts are in the [MCP
 package](../packages/mcp/README.md). [Everything an agent can
 ask](agent-questions.md) routes the questions this page does not.

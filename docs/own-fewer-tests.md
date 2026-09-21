@@ -4,7 +4,7 @@ Your suite only grows. Every test in it was justified when it was written, and a
 merged coverage report cannot tell you which of them are still worth keeping:
 it says a line ran, not which tests ran it, not whether six of them ran it for
 the same reason. [Variance Authority](README.md) records the half coverage drops:
-for each test case, which regions of your source that case entered. Point at a
+for each test case, which regions of your source that case covered. Point at a
 line and it hands back the named cases that walked it, which is where the
 question *why do all of these tests need this code?* starts having an answer.
 
@@ -18,7 +18,7 @@ rerun that settles it.
 
 Record case identities once. `withTestSelection` wraps a Vitest configuration
 and keeps its plugins, setup files and reporters; `cases: true` writes an
-[execution index](execution-record.md) naming which individual case entered each
+[execution index](execution-record.md) naming which individual case covered each
 region, beside the file-level snapshot the same run already writes.
 
 ```bash
@@ -80,7 +80,7 @@ the tests written under the same `package.json`. Both print how many witnesses
 survived the narrowing, so a filtered list never reads as a short one, and both
 measure from one origin, so neither composes with `--since`.
 
-One limit shapes how you read the list either way: anything a file entered
+One limit shapes how you read the list either way: anything a file covered
 before its first case — imports, `beforeAll`, top-level evaluation — is
 credited to every case in that file. Turn cases on for a local loop over the
 code you are changing, not for the repository-wide index CI reads to select
@@ -92,7 +92,7 @@ one table.
 
 The list starts the conversation. It does not finish it, and the rest of this
 page is about what finishes it. For one candidate test rather than a set of
-them, [Distill](distill.md) separates what that test loaded, entered and
+them, [Distill](distill.md) separates what that test loaded, covered and
 addressed, and names what it never witnessed.
 
 The useful unit is not a test or a covered line. It is a decision the test can
@@ -174,7 +174,7 @@ different reasons and send the repair to different owners.
 [Eyes](eyes.md) records the elements a test addresses during
 [Arrange, Act and Assert (AAA)](eyes.md#read-the-test-at-the-level-it-was-written),
 with their React owners when available. [Distill](distill.md) compares that
-authored attention with the source the same test entered. When a broad social
+authored attention with the source the same test covered. When a broad social
 test addresses one product path while neighbouring collaborators only load or
 render, the difference exposes a boundary worth trying.
 
@@ -231,12 +231,12 @@ function may assert different promises, while two tests reaching different
 code may still provide the same answer.
 
 [Ask which tests claim a line](#ask-which-tests-claim-a-line) names the cases
-that entered a region. The file-level [execution record](execution-record.md)
+that covered a region. The file-level [execution record](execution-record.md)
 answers the same question by test file, and says how much source each test
 pulls in with it. Both readings
 identify a conversation rather than a verdict.
 
-For one candidate, [Distill](distill.md) can show what it loaded, entered and
+For one candidate, [Distill](distill.md) can show what it loaded, covered and
 addressed. Change one boundary and rerun the exact test before keeping a smaller
 version. For several candidates protecting the same promise, remove or merge
 one at a time and check that the remaining suite still fails for the risks each

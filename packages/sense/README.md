@@ -8,20 +8,20 @@ Part of [Variance Authority](https://variance-authority.dev).
 
 Use this package to cut a test run down to the files a diff can actually affect.
 It adds probes to your product source while your tests run, records which test
-file entered which region of which module, and later answers a unified diff with
+file covered which region of which module, and later answers a unified diff with
 the list of test files that provably did not go near it. Wrap your runner
 configuration once; you get back a list of paths to skip and hand the rest to the
 runner yourself.
 
 It answers four questions:
 
-- Which test files entered the source regions a diff touches, and which can you
+- Which test files covered the source regions a diff touches, and which can you
   skip?
 - How far did the change travel to reach each of those tests, so you can run the
   near ones first?
 - Which files and components can a changed file reach, from a scan of the
   checkout alone?
-- Which named test cases entered a given function or line — the query an editor
+- Which named test cases covered a given function or line — the query an editor
   or a coding agent asks.
 
 The first three work today from a wrapped runner. The fourth needs a recording
@@ -62,7 +62,7 @@ export default withTestSelection(
 ```
 
 Run the suite once as you normally would. That run writes a **snapshot**: a
-binary record of which test file entered which probed region of which module.
+binary record of which test file covered which probed region of which module.
 Then ask it what a diff can skip:
 
 ```ts
@@ -111,7 +111,7 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   opposite facts, and `whole` is the only thing that separates them.
 - `unread` — changed paths the record says nothing about. Non-empty means the
   snapshot was never asked about some changed path, so it cannot have charged
-  anyone for entering it. Clear the skip list and name the paths, so the
+  anyone for covering it. Clear the skip list and name the paths, so the
   operator knows the suite widened and why. The guard in the sample above is
   this, and it is not optional.
 - `stale` — modules whose text on disk no longer matches what their rows were
@@ -165,7 +165,7 @@ additional preconditions. Changing one of those starts a new **generation** for
 that file — its current batch of crossings against one fixed set of
 preconditions — and the inherited crossings are retired. An inherited module
 whose text on disk no longer matches its rows has rows no diff can be placed
-in, so every test that entered it is marked partial and runs at the next
+in, so every test that covered it is marked partial and runs at the next
 selection. An observation is complete only when every leaf task in its file
 passes; a focused, skipped, or failed run is partial, contributes its
 crossings, and can never justify a skip.
@@ -178,14 +178,14 @@ cannot produce a wrong skip. Delete the digest directory to force that.
 
 A changed file selects by how the snapshot records it.
 
-- **A product module** selects the tests that entered the changed region.
-- **A test file** selects itself: nothing enters a test, so its own edit is the
+- **A product module** selects the tests that covered the changed region.
+- **A test file** selects itself: nothing covers a test, so its own edit is the
   only thing that can run it.
 - **A precondition** selects every test it governs, which is what declaring one
   is for. Declare a fixture the tests read with `fs`, or a script they spawn —
   anything an import graph cannot see.
 - **A module with probes and no crossings** answers: the build read it and
-  nobody entered it.
+  nobody covered it.
 - **A module with no row at all** is `unread`. Nothing loaded it, every test
   that imports it mocked it, or it sits outside what the run instrumented — and
   the record cannot say which.
@@ -194,7 +194,7 @@ A changed file selects by how the snapshot records it.
 
 The unit of a change is the **line**, in the coordinates of the diff's own base
 revision. A hunk header is not the change: the context lines printed around an
-edit are unchanged, and charging them selects the tests that entered the lines a
+edit are unchanged, and charging them selects the tests that covered the lines a
 reader was shown. Each changed line is answered by the narrowest recorded region
 containing it, and the selection is the union over lines, so one commit that
 edits an import and a click handler selects everything the module selects. A
@@ -237,8 +237,8 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
 | `preconditions` | the configured setup files | naming additional files whose contents govern every test, such as runner configuration |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
-| `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-entered-a-region)) |
-| `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-entered-a-region)) |
+| `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-covered-a-region)) |
+| `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `executionFile` | `<coverageFile>.cases.bin` | choosing where the per-case recording goes; a name ending `.json` writes JSON instead |
 
 Configured setup files become preconditions automatically, and the runtime's own
@@ -247,12 +247,12 @@ module finds the counter factory it needs. A setup entry that names a package
 rather than a file is not a precondition, since no diff mentions it.
 
 Under `isolate: false` a run still records every file that consumed a module as
-having entered it. A file consumes a module by running something in it: a module
+having covered it. A file consumes a module by running something in it: a module
 of nothing but constants, evaluated once for an earlier file and only read by the
 next, is recorded for the file that evaluated it and not for the reader.
 
 Each file's setup snapshots every counter before its first test runs, so a
-region already entered by then is recorded as **loaded** by that file as well as
+region already covered by then is recorded as **loaded** by that file as well as
 crossed by it — a function that ran because the module was imported rather than
 because a test called it. `loadedBy` on the block is where you find it.
 
@@ -417,7 +417,7 @@ Recording refuses in one direction only. A run whose reported modules no store
 can identify, a record from another probe recipe, and a page with no collector
 each record **nothing** and say why — costing the next run its full suite —
 because half a journal written as though it were whole is the failure that
-silently skips a subject. Every region entered while a module was evaluating is
+silently skips a subject. Every region covered while a module was evaluating is
 attributed to *every* subject the run drained: a module initializes once per
 page, for whichever subject happened to be first. Concurrent workers merge under
 a lock on the index file.
@@ -437,7 +437,7 @@ requests later.
 
 So the key is a **journey**: one opaque id per execution of one subject, minted
 by the driver, carried by a cookie, joined afterwards on the id alone. Each
-participant reports what it entered under that id, and the subject's *name*
+participant reports what it covered under that id, and the subject's *name*
 never leaves the driver.
 
 The service wraps whatever it already has around a request:
@@ -531,7 +531,7 @@ narrowing on the half that showed up.
 After a change to a shared module most of the recorded suite can be selected.
 Distance answers which to run first: for each selected path, the shortest import
 path from the change to it, counted only through the modules that test actually
-entered.
+covered.
 
 ```ts
 import {
@@ -554,7 +554,7 @@ name one module goes by, so a built copy in the graph and a source file in the
 record count as the same module. `faces` says where a unit's public entry point
 is; without it, every file reads as its own entry point.
 
-Restricting the walk to entered modules is what makes the number worth reading:
+Restricting the walk to covered modules is what makes the number worth reading:
 a shortest path over the graph alone can run through a module the test never
 loaded — a helper behind a branch nobody took. `distanceFromView` is the same
 reading over a snapshot you already opened, and `nearestFirst` is the comparison
@@ -679,7 +679,7 @@ specifiers become file edges; the generated declaration states their exact
 shapes.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
-still enters the graph. Edges into a sibling package's built output, or another
+still joins the graph. Edges into a sibling package's built output, or another
 path outside `root`, are omitted. An import of an installed package is not
 omitted: it is recorded as an edge to a **package node** named the way the
 source imports it — `@mui/material`, never a version and never a resolution —
@@ -913,7 +913,7 @@ Sense ships no framework vocabulary.
 
 Under more than one taint the subtractions are unioned and so are the additions,
 and the two never contend: an edge one taint adds to a file another taint
-shadows is an edge into a node the file's run never enters, and the shadow
+shadows is an edge into a node the file's run never covers, and the shadow
 wins, the way the mock wins at runtime.
 
 Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
@@ -945,9 +945,9 @@ for (const { test, module, kind } of auditTaints(coverage, relations, tainted)) 
 ```
 
 `shadowed-but-entered` is a module the test shadows and the record says it
-entered: the taint is wrong about that mock, or the mock did not take.
+covered: the taint is wrong about that mock, or the mock did not take.
 `reachable-but-not-entered` is a module the test reaches on the graph past its
-shadows and nobody entered for it: an import the run never loaded, or a mock no
+shadows and nobody covered for it: an import the run never loaded, or a mock no
 taint knows about yet. `added-but-not-entered` is an addition the record never
 saw the test in. Only an instrumented module testifies, and only a complete
 observation testifies to absence. Where a taint said the thing the record
@@ -958,7 +958,7 @@ and correct. Pass `knownAs` when the record lists a module under a built name.
 
 `selectTestFiles` answers with paths and `deviationOfTests` with line counts;
 both discard the rest of the snapshot. To see the regions themselves — which
-blocks a module has and which test files entered each one — read the snapshot as
+blocks a module has and which test files covered each one — read the snapshot as
 its logical model:
 
 ```ts
@@ -988,7 +988,7 @@ is the other direction — the same shape, landed whole under a rename, where
 
 Crossings here name **test files** and record no call-stack depth. That is the
 recorded granularity, not a limit of this reader; see
-[Record which case entered a region](#record-which-case-entered-a-region).
+[Record which case covered a region](#record-which-case-covered-a-region).
 
 The snapshot also notes the commit it was recorded at.
 `readTestCoverage(file)` hands it back under `commit`, so a caller can
@@ -1044,7 +1044,7 @@ A fold is a fan-in and `mergeCoverage` is a layer; they are not interchangeable.
 A layer positions the result where the newer side stands and retires what that
 side re-recorded whole, which is what landing a run over a baseline means and
 would make a fold depend on the order its shards were named in. A test the newer
-side did not run is kept as it was, unless a region it entered was rewritten
+side did not run is kept as it was, unless a region it covered was rewritten
 underneath it: then it is kept incomplete and runs at the next selection.
 
 ## Instrument one module
@@ -1123,10 +1123,10 @@ for (const module of apart) {
 ```
 
     app/src/components/CartCard.tsx  CartCard/onClick  51
-      entered  story:cart-card--removing
+      covered  story:cart-card--removing
       missed   story:cart-card--item, story:cart-card--verbose
 
-The pool per module is whoever entered a region with source of its own, which is
+The pool per module is whoever covered a region with source of its own, which is
 not whoever loaded the file: a module root is crossed on import, so every
 subject in a bundle crosses every module in it. `observers` narrows further to
 the subjects a run actually painted — the snapshot accumulates, and without it a
@@ -1135,12 +1135,12 @@ in. An observation recorded `complete: false` is dropped from the pool rather
 than counted as having missed.
 
 `unentered` is the weaker sibling finding: regions with source of their own that
-**no** observer entered. Not *these two renders disagree* but *this run never
+**no** observer covered. Not *these two renders disagree* but *this run never
 went here at all*.
 
 ## Measure test-file deviation
 
-Deviation compares what a test file can statically reach with what it enters in
+Deviation compares what a test file can statically reach with what it covers in
 a complete instrumented run. Scan both product and test directories, then join
 those records to the snapshot:
 
@@ -1165,7 +1165,7 @@ console.log(variation.tests);
 Each `tests` row is one test file, not one `it` block. `baseline` counts the
 non-blank lines in JavaScript and TypeScript modules reachable from that test
 file, excluding the test file itself. `slice` counts lines owned by the
-narrowest entered source regions. The row's `sensitivity` is
+narrowest covered source regions. The row's `sensitivity` is
 `slice.loc / baseline.loc`, and `deviation` is `1 - sensitivity`.
 
 `coverage` is the union of every slice, and `coverageRatio` compares that union
@@ -1221,7 +1221,7 @@ a debugger, or a language server. `@variance-authority/mcp` puts the same query
 in front of an agent over MCP and asks exactly this of its caller.
 
 A line resolves to the innermost real source region containing it, so tests that
-only entered an enclosing function do not leak into a branch-line answer. A
+only covered an enclosing function do not leak into a branch-line answer. A
 function lookup matches its exact indexed name. Repeated observations of one
 test collapse to the minimum distance. `id` distinguishes tests with the same
 file and name. The bulk result groups adjacent lines with identical tests and
@@ -1234,7 +1234,7 @@ Every seam here writes an `ExecutionIndex` when it is asked for one. Without
 `cases: true` a crossing joins the whole test file, which is the granularity
 selection spends.
 
-### Record which case entered a region
+### Record which case covered a region
 
 Pass `cases: true` to `withTestSelection` — any seam — and the run writes an
 `ExecutionIndex` beside its snapshot. The snapshot itself is byte-identical
@@ -1330,14 +1330,14 @@ bucket for the whole file — the file-level answer it already had — and a
 `test.concurrent` case is named by its declared name rather than the resolved
 one, because its body starts outside the runner's own bracket.
 
-Every crossing has `distance: 0`: the recording says which case entered a
+Every crossing has `distance: 0`: the recording says which case covered a
 region, not how it got there, so every answer is ordered by identity rather
-than by depth. Anything a file entered before its first case — imports, `beforeAll`,
+than by depth. Anything a file covered before its first case — imports, `beforeAll`,
 top-level evaluation — is credited to every case in that file.
 
 **Turn cases on for a local loop, not for the repository index.** The case axis
 grows the relation by roughly the number of cases that share a file, and the
-growth does not compress away, because two regions of one module are entered by
+growth does not compress away, because two regions of one module are covered by
 *different* subsets of cases — which is exactly the information being bought.
 Recording 4,011 cases over 364 test files of this repository produced 28.8 MB of
 the JSON above against a 681 KB snapshot. So it is the right axis for a coding
@@ -1348,7 +1348,7 @@ is.
 ## What each host gives the recording
 
 Every seam records the same three things — which regions the transform cut,
-which of them an observer entered, and whether that observation was whole — into
+which of them an observer covered, and whether that observation was whole — into
 one snapshot format. What differs is the unit an observation is attributed to,
 which is whatever the host schedules, and where the per-case bracket goes.
 
@@ -1365,7 +1365,7 @@ axis, and each writes the index beside the snapshot it was already writing.
 
 Two answers are properties of the record rather than of a host, so they read the
 same under all five. A run that transforms nothing because every module came
-from a warm cache still attributes what its tests entered: what a region means
+from a warm cache still attributes what its tests covered: what a region means
 is stored per module under a content key, and a run joins those records rather
 than producing them. And an observation that did not finish is dropped from the
 pool rather than counted as a miss, so nothing a host retries or interrupts can

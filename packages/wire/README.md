@@ -12,7 +12,7 @@ Part of [Variance Authority](https://variance-authority.dev).
 You arrive here for one of two reasons.
 
 **A report went missing.** Your server announces what it decided, or accounts
-for which source an execution entered, and the run heard none of it. The
+for which source an execution covered, and the run heard none of it. The
 resolution order and the status codes below are the two places that answer why.
 
 **You are writing a driver that is not
@@ -30,7 +30,7 @@ Words this project coined, which you need for the rest of the page:
 | execution | One run of one test, named by a UUID the driver mints. Every report is filed under one. |
 | realm | Where the reporting code happens to be: a browser page, another process, or the driver's own process. |
 | carrier | A function on `globalThis` that takes a report, installed by a driver in a realm it is inside. |
-| instrument | One of the three things that report. `@variance-authority/event` says what the code decided; `@variance-authority/sense/journey` says which source an execution entered; a run being watched reports on itself. |
+| instrument | One of the three things that report. `@variance-authority/event` says what the code decided; `@variance-authority/sense/journey` says which source an execution covered; a run being watched reports on itself. |
 
 The `Participant` type is not a process — it names which of those three
 instruments is speaking, and it is the only thing the driver routes on:
@@ -142,9 +142,9 @@ announcing code used, not this package's:
 { "version": 1, "head": "checkout", "phase": "end", "location": "CheckoutScreen", "subject": "order", "action": "placed" }
 ```
 
-`journeys` — one account of what a request entered, from
+`journeys` — one account of what a request covered, from
 `@variance-authority/sense/journey`, abridged to two modules. `scope` is
-`"journey"` for what this execution entered and `"process"` for module
+`"journey"` for what this execution covered and `"process"` for module
 initialisation that belongs to every execution; `lost` appears only after a
 delivery failed and is the count so far:
 
@@ -231,7 +231,7 @@ Over a socket that is **three attempts**, with a 20 ms pause after the first and
 reads `Error: http://127.0.0.1:53154/<execution>/journeys answered 404`. Through
 a carrier there is no retry: `deliver` awaits whatever the carrier returned and
 rejects with whatever it threw. Use it where a lost message is silent and wrong
-in the direction that hides a defect — an account of what a request entered,
+in the direction that hides a defect — an account of what a request covered,
 lost, is a test skipped on the next run, so a caller that loses one owes the run
 a sentence.
 

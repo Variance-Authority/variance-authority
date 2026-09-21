@@ -35,9 +35,9 @@ describe('variance_changed_tests', () => {
     const text = changedTests.run(INDEX, { diff: diff('src/cart/total.ts', 9) });
 
     expect(text.split('\n')[0]).toBe(
-      '1 changed file(s), 1 changed region(s): 1 that no case entered, 0 that one case alone entered.',
+      '1 changed file(s), 1 changed region(s): 1 that no case covered, 0 that one case alone covered.',
     );
-    expect(text).toContain('8-10 branch priceOf — no case entered this region');
+    expect(text).toContain('8-10 branch priceOf — no case covered this region');
   });
 
   it('names the cases that entered a changed region, nearest first', () => {

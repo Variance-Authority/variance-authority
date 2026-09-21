@@ -40,7 +40,7 @@ that instrument or reconstruct its output:
 | --- | --- | --- |
 | visual report | `variance run` with a configured report path; see [run an existing collector](start-cli.md) | supply the resulting `RunReport`, not configuration interpreted after the run |
 | full presentation graph | `sensePresentation` from `@variance-authority/presentation/playwright`; see [presentation](presentation.md) | acquire the live subject once and supply its `PresentationReport` |
-| per-test source execution | a Vitest run wrapped with `cases: true`, or any runner, debugger, or editor integration that owns per-test crossings; see [Sense](../packages/sense/README.md#record-which-case-entered-a-region) | supply stable test ids in an `ExecutionIndex`; the per-file test-selection snapshot cannot substitute |
+| per-test source execution | a Vitest run wrapped with `cases: true`, or any runner, debugger, or editor integration that owns per-test crossings; see [Sense](../packages/sense/README.md#record-which-case-covered-a-region) | supply stable test ids in an `ExecutionIndex`; the per-file test-selection snapshot cannot substitute |
 | live events | compose `varianceFixtures`, then follow [inspect a live run](agent-live-run.md) | start the watcher before the suite and use the exact address it prints |
 | Eyes attention | compose the RTL or Playwright adapter using the [Eyes integration reference](../packages/eyes/README.md) | author AAA markers, retain journals with their completion state under stable runner ids, and install React observation before `react-dom` loads |
 | scenario AAA | record host-produced snapshots and Acts using the [scenario reference](../packages/scenario/README.md) | archive the semantic executions when they must survive the process |
@@ -101,10 +101,10 @@ AAA is authored structure, not an inference:
 - **Assert** reads the consequence that makes the test valuable.
 
 Eyes records explicit phase markers alongside queries, consumed Playwright
-locators, DOM events and React commits. [Sense](../packages/sense) records source entered by the
+locators, DOM events and React commits. [Sense](../packages/sense) records source covered by the
 whole test. `variance distill` combines them by exact producer test id, reports
 addressed targets per authored phase, separates React update initiators inside
-and outside addressed paths, and lists entered files without addressed source
+and outside addressed paths, and lists covered files without addressed source
 [attribution](attribution.md) as opportunities.
 
 The deterministic command and `variance_distill` MCP tool return the same
@@ -124,7 +124,7 @@ licenses the comparison. No Fiber percentage is invented.
 - React `memoizedUpdaters` identifies live component instances whose queues
   initiated a commit; it does not identify the source statement that called a
   setter.
-- An entered file without an addressed target is a distillation opportunity,
+- A covered file without an addressed target is a distillation opportunity,
   not a safe mock.
 - An authored phase marker classifies later observations until the next marker.
   Execution indexes remain whole-test evidence.

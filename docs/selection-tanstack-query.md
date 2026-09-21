@@ -5,7 +5,7 @@ package-grain selector already has something useful to say: change
 `query-core` and it runs the 24 packages that depend on it. That is the correct
 answer to the question a graph asks, and it is 168 of the 188 test files. Run
 the suite once through [Variance Authority](README.md) and the record answers
-the question you wanted asked — which tests entered the lines you changed —
+the question you wanted asked — which tests covered the lines you changed —
 with 10.
 
 Nothing in the repository was written with this in mind and no test was changed
@@ -25,7 +25,7 @@ it, along with the write-up and the scripts every figure below came from.
 | Record on disk | 332 KB |
 
 The record is one file for the whole workspace. It has to be: a `react-query`
-test entering `query-core` is the observation the whole thing rests on, and two
+test covering `query-core` is the observation the whole thing rests on, and two
 separate runs cannot see it.
 
 ## What the recording run cost
@@ -61,9 +61,9 @@ other.
 
 ## Why the grain is the whole argument
 
-A module's regions are not entered uniformly, and the spread is what a graph
+A module's regions are not covered uniformly, and the spread is what a graph
 cannot see. `query.ts` is 150 regions, loaded by 149 of the 188 test files —
-and the median region among them is entered by 29, the cheapest by 1. The top
+and the median region among them is covered by 29, the cheapest by 1. The top
 level of a hub module is reached by nearly everything. Its interior is reached
 by a handful, and which handful is different for every branch.
 
@@ -100,7 +100,7 @@ than the graph. Two causes account for all of it here:
 
 - **Manifests.** Eight of the sixty commits widen, over 38 distinct paths; 27
   of those paths are a `package.json`, accounting for 81 of the 96 sightings. No run
-  enters a manifest, so no record holds one — but a manifest is a file a tool
+  covers a manifest, so no record holds one — but a manifest is a file a tool
   can read on its own, and `variance select` does not yet. That is the largest
   single gap this repository exposes.
 - **Work that is compiled, not executed.** Type tests are checked by the

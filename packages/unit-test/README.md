@@ -147,7 +147,7 @@ stylesheet the document already has.
 | `resolveResource` | none | `(url) => bytes`, as above. Required the moment the subtree references anything |
 | `provenanceOf` | none | `(node) => owners`. Attaches the component chain that rendered each node, so a difference can be named by component rather than by DOM path |
 | `wiringOf` | none | `(node) => wiring`. Attaches the framework wiring behind a node — hook shape, keys, boundaries — and it is compared |
-| `holdingOf` | none | `(node) => holding`. Attaches what each component boundary was handed and retained — props, contexts and hook cells, as digests. It rides beside the capture and enters no hash |
+| `holdingOf` | none | `(node) => holding`. Attaches what each component boundary was handed and retained — props, contexts and hook cells, as digests. It rides beside the capture and is written into no hash |
 | `stabilization` | none | a digest identifying the routine you held the subject still with — pausing animations, freezing the clock — before calling. Nothing here holds anything still. Absent records that the subject was read as found, and hashes differently |
 
 The last three callbacks are React's, and
@@ -208,7 +208,7 @@ directory that does not exist yet is not an error.
 ## Configure the run that paints
 
 Two files, both of which you write. The first is the collector module — the
-single key through which any subject source, this one included, enters a run:
+single key through which any subject source, this one included, covers a run:
 
 ```js
 // variance/collector.mjs

@@ -149,7 +149,7 @@ describe('distill', () => {
     expect(result.execution?.opportunities).toEqual([{ file: 'src/top-nav.tsx', distance: 5 }]);
     expect(result.execution?.addressedNotEntered).toEqual(['src/uninstrumented.tsx']);
     expect(formatDistillation(result))
-      .toContain('addressed, not entered — src/uninstrumented.tsx');
+      .toContain('addressed, not covered — src/uninstrumented.tsx');
   });
 
   it('validates execution indexes at the JSON boundary', () => {
@@ -242,8 +242,8 @@ describe('a named import nothing ever calls', () => {
       .toMatchObject({ loadedOnly: true, entered: [], unentered: [{ name: 'formatTotal' }] });
 
     const text = formatDistillation(result);
-    expect(text).toContain('Loaded but not entered: 1 module(s).');
-    expect(text).toContain('never entered: formatTotal (lines 3-6)');
+    expect(text).toContain('Loaded but not covered: 1 module(s).');
+    expect(text).toContain('never covered: formatTotal (lines 3-6)');
     expect(text).toContain("substitution to try: vi.mock('src/format-total.ts')");
     // The proposal is a candidate, and the top level is what mocking also takes.
     expect(text).toContain('Mocking removes the top level too');

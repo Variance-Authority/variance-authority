@@ -3,7 +3,7 @@
 `grep`, ripgrep and find-in-files search the text of your files. This searches
 what a run observed. Each run writes down — per subject — the ids, component
 names, accessible names, visible text, roles, declaring files, custom
-properties and entered regions it saw. That per-subject record of the words a
+properties and covered regions it saw. That per-subject record of the words a
 subject answered to is the **lexicon**, and search runs against it.
 
 A **subject** is one named UI state you asked for and can ask for again, such as
@@ -122,7 +122,7 @@ one component instance in the rendered tree.
 | `names` | the [semantic snapshot](information.md): accessible name, description, `placeholder`, `alt`, `title` |
 | `text` | the snapshot's text band, minus any text the [policy](ignores.md) digested as volatile |
 | `components`, `createdBy` | every attributed boundary |
-| `regions` | the [execution journal](journeys.md): the lexical names of the regions this subject entered |
+| `regions` | the [execution journal](journeys.md): the lexical names of the regions this subject covered |
 | `files` | call-site [provenance](attribution.md) on the nodes, and the source index for each component |
 | `roles` | the snapshot |
 | `tokens` | the custom properties the boundaries resolved through |
@@ -138,7 +138,7 @@ fact stands under the rank; and splitting is a rule, which applied at write time
 would be applied to one side of the match only. The query side owns the rule
 and applies it to the query and the value alike.
 
-Digests never enter. Text an [ignore](ignores.md) declared volatile — a clock, a
+Digests never leak. Text an [ignore](ignores.md) declared volatile — a clock, a
 feed, an order number — is written into the snapshot hashed, as `v1:9a3f1c2e…`
 rather than as words, and a query that matched on it would be matching a
 coordinate rather than a word.
@@ -217,12 +217,12 @@ one subject rather than a family of them:
 |---|---|---|---|---|
 | `id`, `example` | `names`, `text` | `components`, `createdBy` | `regions`, `files` | `roles`, `tokens` |
 
-Both factors are integers and the sum is an integer, so no float enters the
+Both factors are integers and the sum is an integer, so no float is involved in the
 sort and two machines cannot order the same hits differently.
 
 Rarity is counted per field, not once across all of them, because the fields
 have different populations. A word can be worthless in one field and decisive in
-another: if every subject enters a `createCard` region, `card` as a *region*
+another: if every subject covers a `createCard` region, `card` as a *region*
 says nothing, while `card` in an id still picks out the two subjects named for
 it. Pooling the counts would spend the word everywhere on the strength of the
 worthless field.

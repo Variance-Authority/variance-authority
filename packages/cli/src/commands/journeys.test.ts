@@ -77,7 +77,7 @@ describe('the recorded partings a run can reach', () => {
     const empty = journeysOf(
       reading({ recorded: { whole: PARTED.observers, truncated: [], unrecorded: [], found: [] } }),
     );
-    expect(formatJourneys(empty)).toContain('no module was entered differently');
+    expect(formatJourneys(empty)).toContain('no module was covered differently');
     expect(formatJourneys(empty)).toContain('3 observations the journal recorded whole');
   });
 

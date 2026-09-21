@@ -48,7 +48,7 @@ answer lists the fields it read and the fields it did not:
 |---|---|
 | ids, components, creators, the example | any run that read boundaries — always there |
 | accessible names, visible text, roles | a reading of the accessibility tree and the text on the page |
-| the regions a subject entered | an [execution journal](journeys.md) — a record of which source regions each test ran through |
+| the regions a subject covered | an [execution journal](journeys.md) — a record of which source regions each test ran through |
 | declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
 | custom properties | the CSS cascade those boundaries resolved through |
 

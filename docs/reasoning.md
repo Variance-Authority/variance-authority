@@ -6,7 +6,7 @@ rarely *did these pixels move*. It is which tests this edit could reach, whether
 the change on screen is the change somebody authored, or why one state keeps
 disagreeing with itself. [Variance Authority](README.md) answers those from
 different readings — a parse of the source, a completed run report, a record of
-what previous executions entered, a suite still running — and asking the wrong
+what previous executions covered, a suite still running — and asking the wrong
 one pays for a full suite render to get an answer a source reading already had.
 This page is how you pick the reading before you pay for it.
 
@@ -23,9 +23,9 @@ renders those subjects.
 | Which subjects are worth rendering this run? | Source reach, what each subject was last seen rendering, and the [execution index](execution-record.md) | `variance run --since origin/main` |
 | What changed, and is it one cause or many? | The completed run report | `variance ask summary`, then `variance ask changes` |
 | Is this subject changing, or disagreeing with itself? | Every subject read twice in the same run | `variance run --flakes` |
-| What is this test actually exercising? | Attention markers joined to the source that execution entered | `variance distill --test <id>` |
+| What is this test actually exercising? | Attention markers joined to the source that execution covered | `variance distill --test <id>` |
 
-`select` is the one written for a runner this tool never enters — a plain
+`select` is the one written for a runner this tool never drives — a plain
 `vitest`, a `jest`, a CI shell script. It emits a skip list of test files and
 never a run list: a test the journal has never recorded is absent from it and
 stays in the suite. It reads no project configuration, and with no recording it

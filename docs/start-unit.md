@@ -193,7 +193,7 @@ directory rather than the working directory.
 
 The config is JSON and executes nothing of its own, so `subjects.collector` is
 the single key through which any collector — this one, Storybook's, a route
-list, one you write — enters a run. The unit-test collector needs only the
+list, one you write — names a run. The unit-test collector needs only the
 directory:
 
 ```js

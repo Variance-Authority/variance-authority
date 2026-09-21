@@ -2,7 +2,7 @@
 
 A change to a few lines should not run every test that imports the file. With
 [**execution recording**](execution-record.md), [Variance Authority](README.md)
-knows **which parts each test actually entered**. It selects the tests that
+knows **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
 [what a record knows that no graph can](#what-a-record-knows-that-no-graph-can).
 
@@ -67,7 +67,7 @@ cut from is whatever was on disk at that moment, while the position written on
 it is `git rev-parse HEAD`. Those agree on a clean tree and nowhere else. Each
 changed module is hashed against the text it stands at in the commit the index
 names, and one whose two do not agree is charged **whole** — every subject that
-ever entered it — and named in the run's notes. Recording once over a clean tree
+ever covered it — and named in the run's notes. Recording once over a clean tree
 is what narrows by region again.
 
 ## Where selection widens
@@ -266,7 +266,7 @@ all.
 ## Changes before and beyond reach
 
 A run reads from left to right: the harness starts it, the tests it started
-enter your code, and your code goes out into what the install provides. Selection
+run your code, and your code goes out into what the install provides. Selection
 lives in the middle stretch, where a file has a name the record knows. A
 config file nothing imports and a bumped package you never wrote sit outside it,
 and they widen a run for opposite reasons —
@@ -311,7 +311,7 @@ a different graph for the tracked tree. Deleting them costs one cold scan and
 nothing else.
 
 There is one bounded exception to that invalidation rule. Git-ignored generated
-files do not enter the digest map, so one can appear or disappear and shadow a
+files are not in the digest map, so one can appear or disappear and shadow a
 resolution without changing the recorded directory membership. Track the file
 when it participates in source resolution, or set `digests: false` to disable
 record reuse for a scan that must observe that generated layout directly.
@@ -370,7 +370,7 @@ worker that difference never surfaces, which is why native coverage is the right
 tool for the job it was built for.
 
 It surfaces for a selector, because a selector cannot use the read at the end of
-the worker. That read is one union per file — every region some test entered,
+the worker. That read is one union per file — every region some test covered,
 with no record of which test — and a skip list needs the crossing. So the
 counters have to be read after every test, and each of those reads is priced by
 the environment rather than by the test. On the TanStack Query suite, where
@@ -424,7 +424,7 @@ pool: 3 observations the journal recorded whole, out of 3 subjects the report na
 that only appears once a handler has run is written, which is why the reading is
 [in `flakiness.md`](flakiness.md#which-part-of-the-module-they-took-differently)
 as well. **`unentered`** is a region with source of its own that nobody in the
-pool entered at all, and that is the row below.
+pool covered at all, and that is the row below.
 
 Two things bound it, and both are printed, not assumed. The journal
 **accumulates across runs**, so the pool is the subjects this run's report names;
@@ -452,8 +452,8 @@ for (const { test, module, kind, taints } of auditTaints(coverage, relations, ta
 
 | kind | what it found |
 |---|---|
-| `shadowed-but-entered` | a module the test shadows, which the record says the test entered: the mock did not take, or the taint is wrong about it |
-| `reachable-but-not-entered` | a module the test reaches on the graph with none of its shadows in the way, which nobody entered for that test: an import the run never loads, or a mock no taint names yet |
+| `shadowed-but-entered` | a module the test shadows, which the record says the test covered: the mock did not take, or the taint is wrong about it |
+| `reachable-but-not-entered` | a module the test reaches on the graph with none of its shadows in the way, which nobody covered for that test: an import the run never loads, or a mock no taint names yet |
 | `added-but-not-entered` | a module a `+` row said the test imports beyond its text, which the record never saw the test in: the addition names the wrong file |
 
 None of them is a verdict. Each is the coordinate to look at, and where a taint
@@ -463,7 +463,7 @@ different places. The middle row has none: that trail is one the scan drew
 and no taint touched.
 
 Two things bound what a row may claim, and both are structural. Only an
-**instrumented** module testifies — one with no probes was entered by nobody the
+**instrumented** module testifies — one with no probes was covered by nobody the
 record can see, which is silence rather than absence. And only a **complete**
 observation testifies to absence, so the middle question is not asked of a test
 whose recording stopped early: a run that ended mid-flight proves nothing about
@@ -492,7 +492,7 @@ to the file that decides it.
 
 [`unentered`](#what-a-record-knows-that-no-graph-can) names where those forks
 are, in the modules something did load: a region with source of its own that no
-subject in the pool went into. It closes nothing: a region no run has entered is
+subject in the pool went into. It closes nothing: a region no run has covered is
 exactly the one no record can rule out, and the list is only as wide as what was
 instrumented and observed. But *nothing here has ever been in this branch* is a
 sentence somebody can act on, and the alternative is inferring it from a report

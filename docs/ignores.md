@@ -74,7 +74,7 @@ differ. The declaration is the same either way, which is the point of resolving 
 once on the snapshot.
 
 There is no coordinate form. A rectangle stops covering the thing it was drawn
-around the first time the layout moves. Existing rasters enter through the
+around the first time the layout moves. Existing rasters go through the
 library seam, not the CLI configuration path, and have no document element for
 a selector to follow ([`comparison.md`](comparison.md)).
 
@@ -276,7 +276,7 @@ it is recorded under; a bare attribute with no value is recorded under `marked`.
 <div data-variance-ignore="live-feed">…</div>
 ```
 
-This is honoured whether or not you have an `ignore` block, and it never enters a
+This is honoured whether or not you have an `ignore` block, and it never covers a
 hash — adding the attribute to a component does not re-baseline every subject
 that renders it. What it does not get is a `reason`, an expiry, or a line in the
 per-rule ledger, because none of those live in markup. Prefer the config for

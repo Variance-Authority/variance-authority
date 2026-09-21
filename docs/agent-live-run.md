@@ -12,7 +12,7 @@ Use this when a test hangs and the runner's timeout tells you only what the
 test *wanted*. Once a run has finished, ask its output instead:
 [distill a completed test](distill.md) says what one test can show, and the
 [execution record](execution-record.md) — the file a run writes naming which
-source each test entered — says what ran.
+source each test covered — says what ran.
 
 ## Report the run from your tests
 
@@ -123,7 +123,7 @@ forgotten*. Its state does not alter the suite's retained evidence, and a
 watcher that fails does not fail the test. Stop the watcher and the state is
 gone.
 
-When the question is about what a test queried, clicked, rendered or entered,
+When the question is about what a test queried, clicked, rendered or covered,
 collect portable evidence and use [`npx variance distill`](distill.md). The full
 route from a question to the evidence that answers it is in [everything an agent
 can ask](agent-questions.md).

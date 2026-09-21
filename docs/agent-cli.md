@@ -162,7 +162,7 @@ variance distill \
 ```
 
 This command does not read `variance.config.json`. It combines one test's
-authored AAA attention, React update initiators and entered source, and returns
+authored AAA attention, React update initiators and covered source, and returns
 the same reading as the MCP tool `variance_distill`. Either evidence path may be
 omitted; the absent domain is not replaced by an empty one. The deterministic
 reading and the skill's counterfactual verification loop are described in

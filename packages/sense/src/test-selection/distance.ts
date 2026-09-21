@@ -377,7 +377,7 @@ function walk(
     // walk ran out of graph on the way — either at a module the test entered and
     // the graph has never heard of, or at one it holds without ever having read
     // what that file itself imports.
-    if (blind > 0) return { because: `${blind} module(s) it entered are outside the graph` };
+    if (blind > 0) return { because: `${blind} module(s) it covered are outside the graph` };
     for (const id of reach.reached) {
       const name = nodeAt(relations, id)?.name;
       if (name !== undefined && !held(name)) return { because: `nothing enumerated what ${name} imports` };

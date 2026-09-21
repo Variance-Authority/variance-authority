@@ -9,7 +9,7 @@ readings the run already took rather than from a second tool asked to take them
 again.
 
 **Evidence** is what one of those readings retained: a
-[source index](source-index.md), a record of which tests entered which code, a
+[source index](source-index.md), a record of which tests covered which code, a
 rendered document, a stored baseline, or the history of previous runs. Each is
 kept with the question it answered and the conditions it was read under, so a
 later question can be put to it directly.

@@ -271,7 +271,21 @@ language. That last part is not a small adjustment. It decides the words.
    and nothing else; the rest of the time you write the verb that can only mean
    what happened.
 
-   **Carry and hold are the third.** They are said about a thousand times across
+   **Enter is the third, and it is the one this project says most.** To enter
+   is to go into a place a person can be in, or to put a value into a field. A
+   user enters a password, a test enters text into an input, and a page about
+   driving a browser needs that sense left free. Execution does none of it. A
+   test does not *enter* a region, it **runs** it, or **goes through** it, or
+   **covers** it. A region no test *entered* is a region **nothing ran**. The
+   cases that *entered* a line are the cases that **cover** it. A change does
+   not *enter* a file, it **changes** it. Say what the reader is counting: a
+   line they can open, with the names of the tests that ran it.
+
+   The record's field is called `entered` and stays called that — a name in the
+   program is not a sentence in a page. When a page names the field, write the
+   field: `entered`, in code, linked to the page that owns the format.
+
+   **Carry and hold are the fourth.** They are said about a thousand times across
    the published pages, which is nearly nine a page, and almost none of it is
    about carrying or holding. English has the exact verb for every one of these
    and it is usually the shorter one. A record does not *carry* a reason, it

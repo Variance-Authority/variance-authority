@@ -255,7 +255,7 @@ Two questions meet in this repository — *what did this change look like* and
 
 - [**Wallaby.js**](https://wallabyjs.com/) — the deepest work anyone has done on
   per-test coverage. It instruments your source, keeps a matrix of which test
-  entered which region, and re-runs the minimal affected set as you type; a line
+  covered which region, and re-runs the minimal affected set as you type; a line
   answers which tests reached it, in what order, carrying which values, and a
   profiler and a time-travel debugger read the same instrumentation. Nothing
   about per-test coverage or fine-grained selection is novel, and Wallaby is why.

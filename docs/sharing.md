@@ -243,7 +243,7 @@ credentials: sync a directory before and after the run.
 ```
 
 Nothing is configured in `variance.config.json` for this, and the credentials
-never enter it. The bucket is a directory as far as the run is concerned.
+never go into it. The bucket is a directory as far as the run is concerned.
 
 With `kind: "http"`, when the runner has no AWS tooling: point `endpoint` at a
 bucket that accepts `PUT` under a token, or at a presigned base. It writes one

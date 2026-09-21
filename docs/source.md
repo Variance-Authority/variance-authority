@@ -21,7 +21,7 @@ Selection is a separate decision. The scan can establish that a change reaches
 a component; it does not decide which subjects or tests may be skipped.
 [`selecting.md`](selecting.md) owns that user-facing consequence, while
 [`execution-record.md`](execution-record.md) owns the coverage data showing which
-regions a test actually entered.
+regions a test actually covered.
 
 ## Install and call
 
@@ -449,7 +449,7 @@ capitalised name at its declaration is missed. See
 
 **Static reach is possibility, not execution.** The graph includes both sides
 of a branch. Execution recording supplies which regions a particular test or
-subject entered, and [`selecting.md`](selecting.md) defines how the two grounds
+subject covered, and [`selecting.md`](selecting.md) defines how the two grounds
 combine.
 
 ---

@@ -50,7 +50,7 @@ reading. What differs here is the last column.
 | **Different machine, GPU, driver** | environment-key | Renderer identity is not the machine. It is the engine and its version, the normalization ruleset, the computed-style allowlist, the viewport, the fonts by content hash, the resolved media and container conditions, the bytes behind every asset URL, and the digest of the stabilization recipe — and the semantic key is that same list with `deviceScaleFactor` removed. So your browser and CI compare on everything **except the pixels**, which is the one tier where the GPU, the driver and the flags you launched with actually live. That tier alone is partitioned by the full key, which is what makes a cross-machine *image* `incomparable` — one sentence, not a day of unattributable red. What a run captures and where its pixels are made are independent, so the fix for the last tier is to make the pixels in one fixed place or use the ephemeral mode, where there is no second machine to be wrong about. [`placement.md`](placement.md) explains those choices. |
 | **Fonts substituted or not loaded** | environment-key, **and reported** | You are told, and the key is why telling you is necessary. Fonts are in the key by content hash, so a run that has `Inter` and a run that does not are different baselines — but that only saves you when the two runs *differ*. When neither machine has it, the key matches, the verdict is `unchanged`, and it is a true statement about a picture of the wrong typeface. So `variance doctor` renders a probe before you record anything, and a run that painted with a substitution puts the family and the subject count on the report: *the renderer lacked `Inter` in 12 subjects; those images are of a substituted font and their metrics are not the product's*. The probe says what it cannot tell you, too — a family that measures identically to the fallback is either absent or a metric-compatible substitute, and nothing on the page distinguishes those. |
 | **Dates, clocks, dynamic content** | policy, or **construction** if you can set the clock | Both runs change; both are right. Where the test can set the value, [freeze it](#freeze-what-the-run-does-not-set) and the cause stops existing. Where it cannot — a timestamp the server stamps, a build id baked into the bundle — the difference is what you mask: a pixel differ masks a *coordinate region*, which silences whatever else lands there and breaks the moment layout moves. We mask the *element* — or the *shape* of the difference, which follows a flake that moves — and report what each rule absorbed every run. [`ignores.md`](ignores.md). |
-| **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot enter the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
+| **Page chrome, status bars, scrollbars** | construction (partly) | Observation is clipped to the subject element, so anything outside it cannot appear in the image. Headless Chromium uses overlay scrollbars, so classic scrollbar reflow is outside what this CI environment observes. |
 | **Animations mid-flight** | **construction** | There is a choice, and it decides which frame you review for the next year. `hold-animations` hands it to the browser at screenshot time, which fast-forwards a finite animation to completion — the state a user comes to rest on — and cancels an infinite one to its first frame. `pin-animations` does it in CSS, pinning everything at frame one, so a fade-in is recorded at the moment it is invisible. Collection uses the CSS one because there is no screenshot there to hold. Neither writes `animation: none`, which would drop whatever layout the keyframes contribute. And because a transform caught in flight is a computed style value, the page is held still *before the subject is read*, not only before it is painted, with the recipe's digest in the key so an unstabilized baseline is `incomparable` rather than a diff ([`stabilization.md`](stabilization.md)). **What still gets through:** JS-driven animation, which no CSS applies to, and animated GIFs. |
 | **Lazy loading, network latency** | **construction** | The cheapest answer is to not be waiting. A font that has not loaded cannot change which rules match or what they declare, and neither can an image that has not decoded — so the structure-and-style recipe is **empty**, and the tier that answers most subjects never waits for either. The wait is a cost of the tiers that paint, and it is skipped again there whenever the document is byte-identical to the one the baseline was painted from. Where a page does have to settle, the driver watches the wire rather than polling `document.images` — a poll misses anything appended while it is running and has no entry for a `background-image` at all, while the wire knows what has been asked for and not answered ([`stabilization.md`](stabilization.md)). A page that never stops fetching is reported, not failed. |
 | **A framework still committing** | **nothing**, and readable | The wire settling is not the application finishing: a page whose every request has answered can be three commits from its final state, and a subject read in between is a real difference nobody made. Repeated screenshots can establish agreement but cannot name what is still working. `@variance-authority/react` asks React instead: `awaitQuiet` returns the components still committing *by name*. **Absorbed by nothing** — the tap must be installed before `react-dom` loads, which a collector arriving at somebody else's page cannot guarantee, so it is an export you call rather than a wait the run performs ([`stabilization.md`](stabilization.md#the-framework-which-knows-when-it-has-finished)). |
@@ -173,7 +173,7 @@ run, the region is the fix.
 Neither reading can, because neither was inside the module while it ran. The
 execution journal was. A preview built with `testSelectionProbes()` records which
 regions of which modules each subject crossed while it was painted. Two subjects
-that render one module and enter different regions of it have **parted**, and a
+that render one module and cover different regions of it have **parted**, and a
 parting is a place:
 
 ```bash
@@ -192,7 +192,7 @@ pool: 3 observations the journal recorded whole, out of 3 subjects the report na
 note: recorded at 4f2a1c9d0b73
 ```
 
-The pool per module is whoever entered a region **with source of its own**,
+The pool per module is whoever covered a region **with source of its own**,
 which is not whoever loaded the file — a module root is crossed on import, so
 every subject in a bundle crosses every module in it, and counting those would
 report one pool of everybody for every module in the app.
@@ -217,7 +217,7 @@ named, not left to be inferred:
 | Fewer than two observations survive | A parting is a disagreement between two observers of one module, so a pool that cannot supply two has not found nothing — it has not been able to look |
 
 **`unentered` is the weaker sibling finding**: regions with source of their own
-that *no* observer in the pool entered. Not "these two renders disagree" but
+that *no* observer in the pool covered. Not "these two renders disagree" but
 "this run never went here at all", which is the same absence
 [`selecting.md`](selecting.md#what-this-does-not-reach) cannot select on — and
 naming where it is does not close it.
@@ -357,7 +357,7 @@ smaller place than the one above it:
 | **an input** — an ancestor's `color`, a context, a hook cell, or nothing readable at all | the [divergence](composition.md)'s parting lines ([`composition.md`](composition.md)) | two renderings of one input inside one run, which the suite is usually already producing |
 | **an Act** — the step at which two executions of one [journey](journeys.md) stopped agreeing | scenario execution divergence ([`scenarios.md`](scenarios.md)) | a recorded scenario. It writes no verdict and no baseline; it is evidence to read |
 | **an element** — the query the test issued, what it resolved to, and the component that rendered it | [Eyes](eyes.md) | installing it beside the React Testing Library or Playwright the suite already has |
-| **a region of source** — the lines some observers of a module entered and others did not | the [journey](journeys.md) each subject recorded | a build with the probes installed, and `variance journeys` over what they recorded |
+| **a region of source** — the lines some observers of a module covered and others did not | the [journey](journeys.md) each subject recorded | a build with the probes installed, and `variance journeys` over what they recorded |
 
 Read down until something names a thing you can change, then stop. These are not
 confidence levels on one claim; they are different claims, each from an
@@ -431,7 +431,7 @@ a decorator, a clock read into a constant — did its work before the first test
 of every file that imported it, and whether that work was already done when a
 given test looked depends on which file loaded the module first. The Vitest
 and Jest seams take a snapshot of every counter before each file's first test,
-and a region already entered by then is recorded as **loaded** by that file:
+and a region already covered by then is recorded as **loaded** by that file:
 `loadedBy` on the block in the coverage snapshot names the files, and
 [`mode: 'entries'`](../packages/sense/README.md#instrument-one-module) records
 that and nothing finer, for a suite that wants the signal at the price of one
@@ -535,7 +535,7 @@ somebody edits the setup file re-dates every baseline at once.
 ### The rest of the family
 
 A clock is the one everybody hits, and the others take the same fix: find where
-the value enters, and set it.
+the value comes in, and set it.
 
 **A random seed.** Seed the generator your fixture already uses — `faker.seed(1)`
 and its equivalents exist for this. Where the code calls `Math.random`

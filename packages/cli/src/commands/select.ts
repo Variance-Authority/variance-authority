@@ -165,7 +165,7 @@ export function skippableTests(input: SelectInput): TestSelection {
       ...base,
       widened:
         `no execution journal has been recorded for this checkout (${input.at}), so nothing ` +
-        'here knows which test entered which line',
+        'here knows which test covered which line',
       because: 'there is nothing to narrow by, and every test file stays in the run',
     };
   }
@@ -199,7 +199,7 @@ export function skippableTests(input: SelectInput): TestSelection {
       ...measured,
       widened:
         `the diff changes ${many(unread.length, 'file')} the journal holds no measurement of ` +
-        `(${first}), so it cannot say which tests enter them`,
+        `(${first}), so it cannot say which tests cover them`,
       because: 'the execution journal was not asked, having no record of every changed file',
     };
   }
@@ -222,7 +222,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     skip,
     because:
       `${skip.length} of the ${many(whole.length, 'test file')} the journal recorded whole ` +
-      'entered none of the changed lines, and are skipped; every test file it does not speak ' +
+      'covered none of the changed lines, and are skipped; every test file it does not speak ' +
       'for still runs',
   };
 }

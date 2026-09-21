@@ -329,7 +329,7 @@ export function formatJourneys(result: Journeys): string {
   const blocks = result.modules.map(block);
 
   if (blocks.length === 0) {
-    blocks.push('no module was entered differently by two of the observers in this pool');
+    blocks.push('no module was covered differently by two of the observers in this pool');
   }
 
   return [

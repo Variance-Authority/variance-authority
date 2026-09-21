@@ -167,12 +167,12 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
-| `covering` | names the tests that entered one source file, line or function, nearest first |
+| `covering` | names the tests that covered one source file, line or function, nearest first |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
 | `changelog` | reads back why the baselines are what they are |
-| `journeys` | reads back which regions of one module this run's subjects entered differently, and folds shard snapshots into the one this checkout reads |
+| `journeys` | reads back which regions of one module this run's subjects covered differently, and folds shard snapshots into the one this checkout reads |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
 | `share` | says what the share has for mainline, or publishes what this run derived |
@@ -229,13 +229,13 @@ comparison and nothing else.
   record a journal per test, and fold the directory once where the run ends with
   `writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'))`
   from `@variance-authority/eyes/collect`;
-- **the execution index** — which files and regions each test entered. Install
+- **the execution index** — which files and regions each test covered. Install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
   and wrap the Vitest config in `withTestSelection(config, { cases: true,
   executionFile: '.variance/execution.json' })`.
 
 Either file may be omitted and the missing domain stays unavailable; execution
-alone lists entered source but produces no opportunities, because missing
+alone lists covered source but produces no opportunities, because missing
 attention is not an empty addressed surface.
 
 Replace `<recorded-test-id>` with an entry's `id` from the evidence file's
@@ -258,7 +258,7 @@ exact ID, including after Eyes resolves a title.
 `distill` reads the paths named on the command line and does not read project
 configuration. It reports addressed targets by authored Arrange/Act/Assert
 phase, React update initiators inside and outside those target paths, and files
-entered by the exact test id without addressed source attribution:
+covered by the exact test id without addressed source attribution:
 
 ```text
 act:
@@ -283,7 +283,7 @@ forms are shown in the synopsis above.
 reads: a distillation opportunity is not a verdict that a file is safe to mock.
 The verification workflow is in [distill a test](https://variance-authority.dev/docs/distill).
 
-### Covering: which tests entered this line
+### Covering: which tests covered this line
 
 `covering` reads the same execution index `distill` does, and asks it the
 question a reader has while looking at code rather than at a test: which named
@@ -388,8 +388,8 @@ src/checkout/total.test.ts
 ```
 
 Two of those lines are findings and neither is a percentage. A changed region
-**no case entered** is a hole in the evidence; a changed region one case alone
-entered is evidence standing on a single point, and a line count cannot tell
+**no case covered** is a hole in the evidence; a changed region one case alone
+covered is evidence standing on a single point, and a line count cannot tell
 the two apart from a region twenty tests cross. A case that was inside a region
 only while its module was evaluating is counted apart, because it was present
 rather than exercising anything.
@@ -579,7 +579,7 @@ because none of them was inside the module while it ran.
 A build instrumented with `testSelectionProbes()` from
 `@variance-authority/sense/journal` was. It records which regions of which
 modules each subject crossed while it was painted, and two subjects that render
-one module and enter different regions of it have parted:
+one module and cover different regions of it have parted:
 
 ```bash
 variance journeys --file CartCard
@@ -598,7 +598,7 @@ note: recorded at 4f2a1c9d0b73
 ```
 
 `parted` is the finding; `unentered` is its weaker sibling — a region with source
-of its own that nobody in the pool entered at all. `--file` narrows to modules
+of its own that nobody in the pool covered at all. `--file` narrows to modules
 whose path contains a string, `--limit` caps how many modules are named, and
 what a cap left out is counted, not dropped.
 
@@ -1165,7 +1165,7 @@ what imports what, so `tokens.css` is answered by walking to the components that
 rest on it instead of running the suite — it costs one scan of the tree,
 which is cached by content and by tree shape and so is paid once. The graph
 reads the mocks as it goes: a test that calls `vi.mock('./api')` is not reached
-by a change to `api.ts`, at any depth, because its run never enters that module.
+by a change to `api.ts`, at any depth, because its run never covers that module.
 `taints` names JSON tables that say what else a file imports beyond, or short
 of, its text — a framework's own import notation, a module loaded under a name
 the code never writes — keyed by file with `-` and `+` rows. The same

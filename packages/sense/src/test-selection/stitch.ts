@@ -132,7 +132,7 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
           'subject in this run may justify an exclusion'
         : dropped > 0
           ? `${dropped} ${dropped === 1 ? 'account' : 'accounts'} never reached this driver, so ` +
-            'some subject entered code nothing here can name and no subject in this run may ' +
+            'some subject covered code nothing here can name and no subject in this run may ' +
             'justify an exclusion'
           : undefined;
   const complete = because === undefined;

@@ -54,7 +54,7 @@ The exact pieces differ by system; the shape does not. Something starts in one
 condition, something acts on it, work happens, state changes, and an observable
 result appears.
 
-A regression can enter anywhere along that path. The wrong state may be
+A regression can start anywhere along that path. The wrong state may be
 arranged at the beginning. An edit may reach code it was not meant to affect.
 Execution may take a different branch. A component may receive a different
 input. The same input may produce unstable output. The interface may change
@@ -97,7 +97,7 @@ system again.
 Driven by inference, that loop is read the diff, run something, look at the
 page, search the code, add a log, run it again. Driven by evidence, those
 become readings of one change: what source could be reached, what execution
-entered, what state changed, what the interface exposed, and where the
+covered, what state changed, what the interface exposed, and where the
 difference came from.
 
 The goal is not to collect everything. It is to retain enough of the path that
@@ -108,7 +108,7 @@ the next question can be answered without recreating the event from scratch.
 No single observation describes a whole change.
 
 Source tells you what could be connected. Execution tells you what was actually
-entered. State tells you what changed inside the running system. The interface
+covered. State tells you what changed inside the running system. The interface
 tells you what became externally distinguishable. History tells you whether the
 same thing has happened before. Each is partial; together they connect cause to
 effect.
@@ -143,7 +143,7 @@ choice of what to do next.
 
 Maybe the effect is exactly what you intended and you continue. Maybe one
 changed component explains twenty changed states. Maybe the visible symptom
-came from an input much earlier in the path. Maybe execution never entered the
+came from an input much earlier in the path. Maybe execution never covered the
 code you edited and your fix did nothing. Maybe two identical runs disagree and
 there is no stable comparison to make yet. Maybe the evidence stops before the
 question is answered.
