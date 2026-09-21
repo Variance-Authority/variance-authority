@@ -8,6 +8,18 @@ the suite once through [Variance Authority](README.md) and the record answers
 the question you wanted asked — which tests covered the lines you changed —
 with 10.
 
+> **TLDR**
+>
+> - Over the sixty commits before it landed, the record skips **79% of all test
+>   file runs** — 2,355 instead of 11,280.
+> - TanStack Query already runs `nx affected` on every pull request, and it
+>   still selects **168 of the 188 files**, because every test in an affected
+>   project is affected. Put the record behind Nx and it skips **77% more than
+>   Nx does alone**.
+> - Change one line in `query-core` and the record selects **10 files, 4.4s
+>   instead of 12.7s** — a **65%** shorter run.
+> - One commit of setup, and recording costs **1.08×** a suite run.
+
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/tanstack-query-example) carries
@@ -54,10 +66,10 @@ Inside `Query.fetch` in `packages/query-core/src/query.ts`:
 ```
 
 Ten test files across five packages, 780 tests, 2.8s against the suite's
-11.4s — 4.4s of wall clock against 12.7s.
-The graph runs 168, because every test in an invalidated project belongs to an
-invalidated project. Both answers are defensible; one of them is 16.8 times the
-other.
+11.4s — 4.4s of wall clock against 12.7s. The graph runs 168, because every
+test in an affected project counts as affected; the repository's own `test:pr`
+is `nx affected`, so that is not a hypothetical selector. Both answers are
+defensible; one of them is 16.8 times the other.
 
 ## Why the grain is the whole argument
 

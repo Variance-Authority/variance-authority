@@ -253,6 +253,17 @@ neither overrules the other. Taken as the selection instead, it would give up
 most of what selection is for — a project is hundreds of subjects, and
 a one-line change to a leaf component marks the whole package affected.
 
+[TanStack Query](selection-tanstack-query.md) shows what that costs. The
+repository runs `nx affected` on every pull request, so the graph there is not
+hypothetical. A one-line change inside `query-core` marks the 24 packages that
+depend on it, which is 168 of the 188 test files. Asked which tests covered
+that line, the record answers 10. Across sixty commits, `nx affected` selects
+10,207 test file runs and the record selects 2,355.
+
+Nx is not wrong about any of it: every one of those 168 files sits in a package
+that depends on the edited one. Only 149 of them load the edited module at all,
+and a manifest cannot say which of those ever ran the line.
+
 `turbo` needs the `task` because its filter answers *what would run*, not
 *what changed*; naming it is how you say which pipeline's inputs match what a
 render depends on. `nx` answers about projects without being told.

@@ -9,6 +9,18 @@ line and either one owes you the suite. Run the suite once through
 record knows which of the files that *reach* a module covered the *lines* you
 changed.
 
+> **TLDR**
+>
+> - Over the sixty commits before it landed, the record skips **51% of all test
+>   file runs** — 5,917 instead of 12,120.
+> - Zod runs its whole suite on every change. The most a package graph could
+>   save here is **18%**; put the record behind that graph and it skips
+>   **40% more than the graph does alone**.
+> - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.6s
+>   instead of 8.1s** — an **80%** shorter run. A package graph would still run
+>   201 of the 202 files.
+> - One commit of setup, and recording costs **1.02×** a suite run.
+
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/zod-example) carries it, along
