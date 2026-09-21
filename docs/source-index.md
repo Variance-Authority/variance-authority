@@ -158,7 +158,7 @@ than repeated per row. Every figure here covers the serialized index on disk,
 not the memory used to build it.
 
 What it buys in time, on the same Material UI checkout: a first scan with no
-index costs 2,866 ms and the next unchanged run costs 357 ms. Those two are wall
+index costs 586 ms and the next unchanged run costs 301 ms. Those two are wall
 clock on one Apple M4 Max — 64 GB, macOS 27.0 on arm64, Node v26.7.0 — with a
 warm filesystem cache, so they are the fast end of the range: size a CI container
 above them rather than against them. [What a source scan costs](performance.md) covers

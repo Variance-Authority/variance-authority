@@ -22,15 +22,15 @@ and save cost.
 
 Every figure on this page and on [what a source scan costs](performance.md) was measured
 on one checkout this project did not write: [Material UI](https://github.com/mui/material-ui)
-at `62a348bf47` — 41,165 tracked paths, 24,519 of them modules, 24.9 MB of
-source. Scanning it produces 24,909 records and a 7.8 MB index.
+at `8f19b1009b` — 41,171 tracked paths, 24,519 of them modules, 24.9 MB of
+source. A cold scan of it rebuilds 24,908 records.
 
 | That tree is | Total | Records rebuilt | Files opened |
 | --- | --- | --- | --- |
-| new — no index at all | 2,866 ms | 24,909 | 24,859 |
-| unchanged since the last run | 357 ms | 0 | 0 |
-| four files edited | 332 ms | 4 | 4 |
-| one file added | 373 ms | 104 | 1 |
+| new — no index at all | 586 ms | 24,908 | 78 |
+| unchanged since the last run | 301 ms | 1 | 0 |
+| four files edited | 320 ms | 5 | 4 |
+| one file added | 362 ms | 105 | 104 |
 
 The first row happens once per machine. The rest is what you pay per run.
 
@@ -51,7 +51,7 @@ the checkout it was cut from, and pays the first row once.
 | You change | What is rebuilt |
 | --- | --- |
 | the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
-| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory — 104 of 24,909 for one added file above |
+| a file added, moved or deleted | only the records whose imports could have been answered from the affected directory — 105 of 24,908 for one added file above |
 | `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | the whole index. One `paths` entry redirects every `@/` specifier in the repository, so no record survives |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
@@ -78,7 +78,7 @@ One such config anywhere in the tree removes the bound for the whole tree. With
 no bound, every tracked path is folded into the configuration digest, and then
 **any** file appearing or disappearing invalidates **every** record. The symptom
 is that every run is cold: `variance run` never reuses anything, and the timing
-sits near the 2,866 ms row rather than the 373 ms one.
+sits near the 586 ms row rather than the 362 ms one.
 
 `extends: "@company/tsconfig/base.json"` is an ordinary thing to write in a
 monorepo. Replace it with a relative path to the same file, or accept a cold
@@ -184,7 +184,7 @@ branch, so an entry is never invalidated; it is dropped when a scan neither read
 nor writes it.
 
 The key is computed once per file in the repository on every run, including runs
-that open nothing. On the 41,165-path tree above, hashing 24,909 of them costs
+that open nothing. On the 41,171-path tree above, hashing 24,908 of them costs
 17 ms of a warm run that takes 344.
 
 **What is not in it.** Resolution. Specifiers go in; edges do not.
@@ -222,7 +222,7 @@ Building it is O(n) for the filter and O(n log n) for the sort.
 
 **Directories.** The path set is bucketed into one entry-name set per directory
 and each sorted set digested, in O(n) over path segments. Comparing two such maps
-is the symmetric difference, O(k). On the 41,165-path tree, k is about 1,500.
+is the symmetric difference, O(k). On the 41,171-path tree, k is about 1,500.
 
 **Witnesses.** Each record lists the repository-relative directories that could
 have answered its specifiers: for `./x` from `D`, `D` and `D/x` when `D/x` is a

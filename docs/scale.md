@@ -5,20 +5,29 @@ to know whether it fits before you commit to it. Deciding which tests a change
 can skip obliges you to keep files on disk; below are what they weigh, what a
 question against them costs, and where the answer stops being worth having.
 
-**Three files are priced here, and each is priced against a different count of
-your own.** Have these three numbers to hand before you read any table below:
+The file that decides whether any of this is feasible is the one that remembers
+which tests went through which code. Selection may only skip a test when that
+file says the test never covered what you changed, so it has to keep the
+relation whole rather than folded: one test file covering one piece of one
+module is a **crossing**, and a repository of 200,000 modules with 2,000 test
+files produces **671 million** of them. Coverage tools never meet that number,
+because they throw the test axis away. Istanbul and V8 count how many times a
+line ran, not who ran it, and a count can never clear a particular test.
 
-| to price | the count you need |
-|---|---|
-| the [source index](source-index.md) | the modules in your checkout — the source files `git ls-files` lists |
-| the [execution record](execution-record.md) | the modules your suite **covers**, which is a fraction of the first that only a recording knows |
-| the [lexicon](lexicon.md) | the **subjects** your suite captures — a subject is one named UI state you asked for and can ask for again |
+Kept whole, those 671 million crossings occupy **132 MB**, and nothing was
+compressed to get there. They fall to **3,408 distinct sets of tests**, one for
+roughly every two hundred thousand crossings, because a test that imports a
+barrel covers every leaf underneath it: all of those leaves have the same
+audience, and the file stores that audience once instead of once per leaf. The
+saving comes from the way imports are written rather than from an encoder,
+which is why it improves on exactly the repositories that prompt the question.
 
-Nothing on this page converts one of those counts into another, because nothing
-in the three relates them. A component library's unit suite covers 3% of the
-repository's modules and captures thousands of subjects; an application's suite
-covers most of what it ships and captures hundreds. Both ratios are properties
-of the suite, so go and count all three.
+The rest of the arithmetic follows from a file that never expands that relation.
+It is not read into memory to be asked about, so a question against the 77 MB
+record at 200,000 modules touches under 5% of it and answers cold in under a
+tenth of a second. It is not rebuilt to be updated, so a run after an edit pays
+for the records the edit touched. It does not grow on a second axis unless you
+turn one on.
 
 A tool that reads your whole codebase can run out of memory on a large one.
 There is a size past which dying is fair. A decades-old enterprise tree running
@@ -30,15 +39,6 @@ quickly, not all of it written well, with a handful of test files that pull in
 half the codebase on their own. That is the case the rest of this page is
 worked against, because it is the hard one. If the arithmetic holds there,
 your repository is the easy one.
-
-**Every millisecond on this page was taken on one machine:** an Apple M4 Max
-(Mac16,9), 16 cores — 12 performance and 4 efficiency — 64 GB of memory, macOS
-27.0 on arm64, Node v26.7.0, Yarn 4.18.0. Bytes do not depend on that and
-transfer directly, and every byte figure here is decimal: 1 KB is 1,000 bytes
-and 1 MB is 1,000,000. The times do, and they are single-machine wall clock taken
-with a warm filesystem cache, which makes them a floor rather than a budget —
-on shared CI vCPUs, which is the other end of the hardware range, expect
-worse.
 
 For the mechanical account underneath the arithmetic — what a record shares
 between tests, why the relation factorises, and how one question avoids reading
@@ -70,6 +70,21 @@ optional and priced at the end: turning on [`cases`](execution-record.md) asks
 the same relation at case granularity instead of file granularity, and it is
 the only one of the four that grows on two axes at once.
 
+**Each of the three is priced against a different count of your own**, and
+nothing on this page converts one of those counts into another, because nothing
+in the three files relates them:
+
+| to price | the count you need |
+|---|---|
+| the [source index](source-index.md) | the modules in your checkout — the source files `git ls-files` lists |
+| the [execution record](execution-record.md) | the modules your suite **covers**, which is a fraction of the first that only a recording knows |
+| the [lexicon](lexicon.md) | the **subjects** your suite captures — a subject is one named UI state you asked for and can ask for again |
+
+A component library's unit suite covers 3% of the repository's modules and
+captures thousands of subjects; an application's suite covers most of what it
+ships and captures hundreds. Both ratios are properties of the suite, so go and
+count all three.
+
 ## The source index
 
 Every `variance run --since <ref>` begins by reading the tree, the way
@@ -78,35 +93,42 @@ parses those, resolves their imports, and updates the index. That reading is
 the scan. It is a parse and a resolver, and nothing in it builds or executes
 your code.
 
-Measured on [Material UI](https://github.com/mui/material-ui), 41,165 tracked
-paths of which 24,519 are modules, the first scan is under three seconds and
-produces an 8.0 MB index. Every run after it reuses that index, so the figure
-that matters is what a run pays before it selects anything, after an edit:
+The scanner that does it is a Rust addon: [oxc](https://oxc.rs) for the parse
+and the resolver, a bounded pool for the reads because opening files is what a
+scan is actually bounded by, and git's packfile instead of the worktree once
+there are enough files to pay for it. [What it costs to read your
+repository](performance.md) is that argument end to end; what it produces is the
+rate this page is extrapolated from.
+
+Measured on [Material UI](https://github.com/mui/material-ui), 41,171 tracked
+paths of which 24,519 are modules, the first scan is **586 ms** and produces a
+10.5 MB index. Every run after it reuses that index, so the figure that matters
+is what a run pays before it selects anything, after an edit:
 
 | since the last run, the tree is | a run waits |
 |---|---|
-| new, no index at all | 2,866 ms |
-| unchanged | 357 ms |
-| four files edited | 332 ms |
-| five hundred files edited | 460 ms |
+| new, no index at all | 586 ms |
+| unchanged | 301 ms |
+| four files edited | 320 ms |
+| five hundred files edited | 385 ms |
 
 An edit costs the records it touched and a fixed toll on top, which is why the
 last three rows sit together. Where those numbers come from, and what a file
 appearing or moving costs, is in [what a source scan costs](performance.md).
 
-**The cold scan is about 0.12 ms per module** — 2,866 ms over 24,519. Scaled up
-linearly that is **roughly 24 seconds at 200,000 modules and about four
-minutes at 2,000,000**, once per machine and never again. Read both as linear
+**The cold scan is about 0.024 ms per module** — 586 ms over 24,519. Scaled up
+linearly that is **roughly 5 seconds at 200,000 modules and about 50 seconds at
+2,000,000**, once per machine and never again. Read both as linear
 extrapolation from the one measured scan, not as measurements: the scan reads,
 parses and resolves each module, and resolution is priced per specifier, so a
 repository averaging more imports per file costs more than that line predicts.
-The 330 ms a warm run pays underneath the diff is charged against the whole
-tree as well, and it grows on the same axis: **about 9 µs per tracked path**,
+The 300 ms a warm run pays underneath the diff is charged against the whole
+tree as well, and it grows on the same axis: **about 7 µs per tracked path**,
 roughly 2 µs of which is git answering what the working tree looks like. A
-9,000-path checkout of similar module density is an 80 ms warm run; a
-400,000-path one pays the toll ten times over, so budget around three and a half
-seconds of walk and index decode on every run and turn on the two git
-accelerators [the scan page](performance.md#git-and-the-watcher) measures before
+9,000-path checkout of similar module density is a 65 ms warm run; a
+400,000-path one pays the toll ten times over, so budget around three seconds
+of walk and index decode on every run and turn on the two git
+accelerators [the scan page](performance.md#git-and-the-two-accelerators) measures before
 anything else.
 
 Size scales with files, and it stays linear. A synthetic 200,000-file shape,
@@ -116,7 +138,7 @@ every name is interned once across the generation. That is a measurement of the
 format at that size, on generated paths rather than on a real tree.
 
 **Three counts of Material UI appear on this page and they are not the same
-count.** 41,165 is every path git tracks in the checkout. 24,519 is the module
+count.** 41,171 is every path git tracks in the checkout. 24,519 is the module
 files among them, and it is what the timings above are charged per. 25,117 is
 the records the index wrote, because the walk also records the stylesheets and
 declaration files the module listing excludes, and it is what the byte rates
@@ -335,7 +357,7 @@ extended linearly to a size no one has measured.
 | your repository | modules | modules its suite covers | source index | execution record |
 |---|---|---|---|---|
 | a medium app, ~200k lines | ~2,000 | ~1,400 | ~0.7 MB | ~1 MB |
-| a large library — Material UI | 24,519 | 791 | 8.0 MB | 0.5 MB |
+| a large library — Material UI | 24,519 | 791 | 10.5 MB | 0.5 MB |
 | a large monorepo | 200,000 | 200,000 | 60–110 MB | 77 MB, a floor |
 | a very large monorepo | 2,000,000 | 2,000,000 | ~600 MB – 1.1 GB | ~770 MB, a floor |
 
@@ -677,6 +699,15 @@ storage one, and
 is the measurement of what changes it.
 
 ## What these numbers are, and are not
+
+**Every millisecond on this page was taken on one machine:** an Apple M4 Max
+(Mac16,9), 16 cores — 12 performance and 4 efficiency — 64 GB of memory, macOS
+27.0 on arm64, Node v26.7.0, Yarn 4.18.0. Bytes do not depend on that and
+transfer directly, and every byte figure here is decimal: 1 KB is 1,000 bytes
+and 1 MB is 1,000,000. The times do, and they are single-machine wall clock taken
+with a warm filesystem cache, which makes them a floor rather than a budget —
+on shared CI vCPUs, which is the other end of the hardware range, expect
+worse.
 
 **The diffs measured above are all modules the record has seen.** A real pull
 request contains a config, a generated file, a module added since the recording,
