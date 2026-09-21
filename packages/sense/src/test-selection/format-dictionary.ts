@@ -3,17 +3,14 @@ import type { TestCoverageView } from './format-view.js';
 import type { CoverageModule, CoverageTest } from './index.js';
 
 /**
- * The output's module order: an object for what the run touched or what moved
- * on disk, and a row number for everything else.
+ * The output's module order, as one integer a row: a previous row number as
+ * itself, and a module the run touched or re-cut as the ones' complement of
+ * its position in the objects beside it.
  *
- * A row number is the whole of what a carried module costs. Everything the
- * layer does between here and the columns reads it, and only it.
+ * Four bytes is the whole of what a carried module costs. Everything the layer
+ * does between here and the columns reads this array, and only it.
  */
-export interface LayeredRow {
-  readonly file: string;
-  readonly module?: CoverageModule;
-  readonly at?: number;
-}
+export type LayeredOrder = Int32Array;
 
 /** The id columns a carried row names its strings through. */
 export interface NamingColumns {
@@ -47,13 +44,14 @@ export interface LayeredDictionary {
  */
 export function layeredDictionary(input: {
   readonly view: TestCoverageView;
-  readonly rows: readonly LayeredRow[];
+  readonly rows: LayeredOrder;
+  readonly objects: readonly CoverageModule[];
   readonly tests: readonly CoverageTest[];
   readonly instrumentation: string;
   readonly commit: string | undefined;
   readonly columns: NamingColumns;
 }): LayeredDictionary {
-  const { view, rows, tests, columns } = input;
+  const { view, rows, objects, tests, columns } = input;
   const { modulePath, moduleSource, moduleBlocks, blockName, blockPath, blockDigest } = columns;
   const current = { instrumentation: input.instrumentation, commit: input.commit };
 
@@ -67,10 +65,10 @@ export function layeredDictionary(input: {
   const strings = previousOffsets.length - 1;
   const marked = new Uint8Array(strings);
   for (const row of rows) {
-    if (row.at === undefined) continue;
-    marked[modulePath[row.at]!] = 1;
-    marked[moduleSource[row.at]!] = 1;
-    for (let block = moduleBlocks[row.at]!; block < moduleBlocks[row.at + 1]!; block += 1) {
+    if (row < 0) continue;
+    marked[modulePath[row]!] = 1;
+    marked[moduleSource[row]!] = 1;
+    for (let block = moduleBlocks[row]!; block < moduleBlocks[row + 1]!; block += 1) {
       marked[blockName[block]!] = 1;
       marked[blockPath[block]!] = 1;
       marked[blockDigest[block]!] = 1;
@@ -98,11 +96,10 @@ export function layeredDictionary(input: {
       freshValues.add(precondition.digest);
     }
   }
-  for (const row of rows) {
-    if (row.module === undefined) continue;
-    freshValues.add(row.module.file);
-    freshValues.add(row.module.sourceDigest);
-    for (const block of row.module.blocks) {
+  for (const module of objects) {
+    freshValues.add(module.file);
+    freshValues.add(module.sourceDigest);
+    for (const block of module.blocks) {
       freshValues.add(block.name);
       freshValues.add(block.path);
       freshValues.add(block.digest);

@@ -115,7 +115,7 @@ of the file and none of the directory, which holds against a concurrent reader
 and not against a crash.
 
 **7. One writer, or two writers driven by one table.** `NAMES` is read only by
-the reader; `test-selection/format.ts:150-177` and `format-layer.ts:414-443` each spell the
+the reader; `test-selection/format.ts:150-177` and `format-layer.ts:251-280` each spell the
 twenty-six sections out by hand. A section added to one and not the other
 produces files that differ by release path, and the only detection is a
 missing-section refusal that says "corrupt".

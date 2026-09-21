@@ -1,31 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { codeUnitOrder } from './instrumented-modules.js';
-import { encodeTestCoverage, settledModule, settledTest } from './format.js';
+import { encodeTestCoverage, settledTest } from './format.js';
 import { carriedSources } from './carried-sources.js';
 import { wholeCoverage } from './format-view.js';
-import { layeredDictionary, type LayeredRow } from './format-dictionary.js';
+import { layeredDictionary } from './format-dictionary.js';
+import { layeredRows } from './format-layer-rows.js';
 import { CrossingSets } from './crossing-sets.js';
 import { openCrossingSets } from './crossing-sets-read.js';
-import {
-  KINDS,
-  NO_OWNER,
-  blob,
-  column,
-  kindId,
-  sections,
-} from './format-layout.js';
-import {
-  addressKey,
-  addressed,
-  crossedBlock,
-  crossingsAround,
-  lostCrossings,
-  recutRows,
-  reusableBlock,
-  withoutRetired,
-} from './merge-carry.js';
+import { NO_OWNER, blob, column, kindId, sections } from './format-layout.js';
 import { samePreconditions } from './merge.js';
-import type { CoverageBlock, CoverageModule, CoverageTest, TestCoverage } from './index.js';
+import type { CoverageTest, TestCoverage } from './index.js';
 
 /**
  * The merge and the encode as one pass, over the columns the previous snapshot
@@ -100,166 +84,17 @@ export function layerTestCoverage(
       : [];
   }));
 
-  // The modules, as paths. One string per module rather than one per region,
-  // name and structural path both — the difference between twenty thousand
-  // strings and six hundred thousand.
-  const moduleCount = modulePath.length;
-  const previousFile: string[] = [];
-  for (let module = 0; module < moduleCount; module += 1) {
-    previousFile.push(view.string(modulePath[module]!));
-  }
-  // Every row a path has, in row order, and not merely the first of them: two
-  // builds reading one path are two rows, each built from its own text and
-  // crossed by its own suite. A re-recorded row claims the previous row of its
-  // own build — matched by the text it was built from, and otherwise the next
-  // unclaimed row of the path, which is that path's one row wherever only one
-  // build read it. Rows nobody claims are carried below, because a run that
-  // re-recorded one build observed nothing about the other, and dropping its
-  // row would leave its crossers whole with nothing recorded against the
-  // module they entered. The merge decides it this way; this is that decision
-  // spelled in columns.
-  const previousRows = new Map<string, number[]>();
-  for (let module = 0; module < moduleCount; module += 1) {
-    const rows = previousRows.get(previousFile[module]!);
-    if (rows === undefined) previousRows.set(previousFile[module]!, [module]);
-    else rows.push(module);
-  }
-  const claimed = new Uint8Array(moduleCount);
-  const claim = (module: CoverageModule): number | undefined => {
-    const free = (previousRows.get(module.file) ?? []).filter((row) => claimed[row] === 0);
-    const row = free.find((candidate) =>
-      view.string(moduleSource[candidate]!) === module.sourceDigest) ?? free[0];
-    if (row !== undefined) claimed[row] = 1;
-    return row;
-  };
 
-  /** What a previous region's two crossing lists hold, as the fold reads them. */
-  interface Carried {
-    readonly files: readonly string[];
-    readonly loaded: readonly string[];
-  }
-
-  /** The tests that entered a previous region before their own file began. */
-  const loadedOf = (at: number): readonly string[] => {
-    const files: string[] = [];
-    for (const test of previousSets.members(blockLoadedSet[at]!)) {
-      files.push(previousTestRows[test]!.file);
-    }
-    return files;
-  };
-
-  /** One previous region as the object model holds it, crossings and all. */
-  const blockAt = (at: number): CoverageBlock => {
-    const testFiles: string[] = [];
-    for (const test of previousSets.members(blockSet[at]!)) {
-      testFiles.push(previousTestRows[test]!.file);
-    }
-    const loadedBy = loadedOf(at);
-    return {
-      ...(loadedBy.length === 0 ? {} : { loadedBy }),
-      ordinal: blockOrdinal[at]!,
-      kind: KINDS[blockKind[at]!]!,
-      ...(blockOwner[at] === NO_OWNER ? {} : { owner: blockOwner[at]! }),
-      digest: view.string(blockDigest[at]!),
-      name: view.string(blockName[at]!),
-      path: view.string(blockPath[at]!),
-      startLine: blockStart[at]!,
-      endLine: blockEnd[at]!,
-      source: blockSource[at] === 1,
-      testFiles,
-    };
-  };
-  const moduleAt = (at: number): CoverageModule => {
-    const blocks: CoverageBlock[] = [];
-    for (let block = moduleBlocks[at]!; block < moduleBlocks[at + 1]!; block += 1) {
-      blocks.push(blockAt(block));
-    }
-    return {
-      file: previousFile[at]!,
-      sourceDigest: view.string(moduleSource[at]!),
-      instrumented: moduleInstrumented[at] === 1,
-      blocks,
-    };
-  };
-
-  // The modules this run re-recorded: the crossings the previous rows still
-  // carry, folded onto the rows that came in.
-  const stale = new Set<string>();
-  const rerecorded = current.modules.map((module): CoverageModule => {
-    const at = claim(module);
-    const byAddress = new Map(addressed(module.blocks));
-    const surviving = new Map<CoverageBlock, Carried>();
-    if (at !== undefined) {
-      const instrumented = moduleInstrumented[at] === 1;
-      const seen = new Map<string, number>();
-      for (let before = moduleBlocks[at]!; before < moduleBlocks[at + 1]!; before += 1) {
-        const address = `${view.string(blockName[before]!)}\0${view.string(blockPath[before]!)}`;
-        const key = addressKey(address, seen);
-        const block = byAddress.get(key);
-        if (
-          block !== undefined && module.instrumented && instrumented &&
-          reusableBlock(block, { kind: KINDS[blockKind[before]!]! })
-        ) {
-          const files: string[] = [];
-          for (const test of previousSets.members(blockSet[before]!)) {
-            files.push(previousTestRows[test]!.file);
-          }
-          surviving.set(block, { files, loaded: loadedOf(before) });
-          continue;
-        }
-        for (const test of previousSets.members(blockSet[before]!)) {
-          const file = previousTestRows[test]!.file;
-          if (!currentTests.has(file)) stale.add(file);
-        }
-      }
-    }
-    const kept = (test: string): boolean => !retired.has(test);
-    // A region this run cut that the columns never held reads its carried
-    // crossings off the region around it, as it does in `mergeCoverage`.
-    const around = crossingsAround(module.blocks, (block) => {
-      const held = surviving.get(block);
-      if (held === undefined) return undefined;
-      return { testFiles: held.files.filter(kept), loadedBy: held.loaded.filter(kept) };
-    });
-    return {
-      file: module.file,
-      sourceDigest: module.sourceDigest,
-      instrumented: module.instrumented,
-      blocks: module.blocks.map((block) => {
-        const held = around(block);
-        return crossedBlock(
-          block,
-          [...held.testFiles, ...block.testFiles],
-          [...held.loadedBy, ...(block.loadedBy ?? [])],
-        );
-      }),
-    };
+  const { order, objects, stale } = layeredRows({
+    view,
+    columns,
+    previousSets,
+    previousTestRows,
+    currentTests,
+    retired,
+    current,
+    onDisk,
   });
-
-  const rows: LayeredRow[] = rerecorded.map((module) => ({ file: module.file, module }));
-  for (let module = 0; module < moduleCount; module += 1) {
-    const file = previousFile[module]!;
-    // A row a re-recorded row claimed has been folded into it. Every other row
-    // is one this run did not re-record, whether or not another build of the
-    // same path was, and is carried with the crossings it holds.
-    if (claimed[module] === 1) continue;
-    // Text that moved is the one reason a carried module becomes an object: its
-    // rows are lines of text nobody has any more, and they are cut again.
-    const now = onDisk.get(file);
-    if (now === undefined) {
-      rows.push({ file, at: module });
-      continue;
-    }
-    const held = moduleAt(module);
-    const recut = recutRows(held, now, current.instrumentation);
-    const lost = recut === 'mislaid'
-      ? [...new Set(held.blocks.flatMap((block) => block.testFiles))]
-      : recut === undefined ? [] : lostCrossings(held, recut);
-    for (const test of lost) if (!currentTests.has(test)) stale.add(test);
-    if (recut === undefined || recut === 'mislaid') rows.push({ file, at: module });
-    else rows.push({ file, module: settledModule(withoutRetired(recut, retired)) });
-  }
-  rows.sort((left, right) => codeUnitOrder(left.file, right.file));
 
   const tests = [
     ...previousTestRows
@@ -277,7 +112,8 @@ export function layerTestCoverage(
 
   const { remap, id, blob: stringBlob, offsets: stringOffsets } = layeredDictionary({
     view,
-    rows,
+    rows: order,
+    objects,
     tests,
     instrumentation: current.instrumentation,
     commit: current.commit,
@@ -285,12 +121,12 @@ export function layerTestCoverage(
   });
 
   let blockCount = 0;
-  for (const row of rows) {
-    if (row.module !== undefined) {
-      blockCount += row.module.blocks.length;
+  for (const row of order) {
+    if (row < 0) {
+      blockCount += objects[~row]!.blocks.length;
       continue;
     }
-    blockCount += moduleBlocks[row.at! + 1]! - moduleBlocks[row.at!]!;
+    blockCount += moduleBlocks[row + 1]! - moduleBlocks[row]!;
   }
 
   const preconditionCount = tests.reduce((sum, test) => sum + test.preconditions.length, 0);
@@ -310,10 +146,10 @@ export function layerTestCoverage(
   }
   outPreconditions[tests.length] = precondition;
 
-  const outPath = new Uint32Array(rows.length);
-  const outSource = new Uint32Array(rows.length);
-  const outInstrumented = new Uint8Array(rows.length);
-  const outBlocks = new Uint32Array(rows.length + 1);
+  const outPath = new Uint32Array(order.length);
+  const outSource = new Uint32Array(order.length);
+  const outInstrumented = new Uint8Array(order.length);
+  const outBlocks = new Uint32Array(order.length + 1);
   const outOrdinal = new Uint32Array(blockCount);
   const outKind = new Uint8Array(blockCount);
   const outOwner = new Uint32Array(blockCount);
@@ -351,10 +187,10 @@ export function layerTestCoverage(
   };
 
   let block = 0;
-  for (const [at, row] of rows.entries()) {
+  for (const [at, row] of order.entries()) {
     outBlocks[at] = block;
-    if (row.module !== undefined) {
-      const module = row.module;
+    if (row < 0) {
+      const module = objects[~row]!;
       outPath[at] = id(module.file);
       outSource[at] = id(module.sourceDigest);
       outInstrumented[at] = module.instrumented ? 1 : 0;
@@ -387,7 +223,7 @@ export function layerTestCoverage(
       }
       continue;
     }
-    const from = row.at!;
+    const from = row;
     outPath[at] = remap[modulePath[from]!]!;
     outSource[at] = remap[moduleSource[from]!]!;
     outInstrumented[at] = moduleInstrumented[from]!;
@@ -409,7 +245,7 @@ export function layerTestCoverage(
       block += 1;
     }
   }
-  outBlocks[rows.length] = block;
+  outBlocks[order.length] = block;
   const pool = outSets.pool();
 
   return sections({
