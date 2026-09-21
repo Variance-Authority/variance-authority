@@ -1,7 +1,12 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed, ParseKey } from './cache.js';
-import { emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
+import {
+  BadLogPath,
+  emptyImmutableLog,
+  openImmutableLog,
+  type ImmutableLog,
+} from './immutable-log.js';
 import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
 import {
   decodeSourceIndex,
@@ -58,10 +63,26 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
   };
 }
 
+/**
+ * Everything a read can fail at is a cache miss, except being asked wrongly.
+ *
+ * A chain that is missing, foreign, truncated or corrupt costs a full scan,
+ * which is what a run without a cache pays anyway, so it is answered with an
+ * empty cache and no noise. A caller that passed something that cannot name a
+ * file is not in that class: swallowed here it would return an empty cache and
+ * then hand the same unusable path to the writer, so the run would report a
+ * warm-cache saving of nothing, every run, and write its segments under a name
+ * nobody chose. That one throws.
+ */
+function miss(error: unknown): never | void {
+  if (error instanceof BadLogPath) throw error;
+}
+
 async function opening(path: string): Promise<Opened> {
   try {
     return await load(await openImmutableLog(path));
-  } catch {
+  } catch (error) {
+    miss(error);
     return { stored: EMPTY, log: emptyImmutableLog(path) };
   }
 }
@@ -74,7 +95,8 @@ async function baseline(path: string, opened: Opened): Promise<Opened> {
     return !committed.legacy && !opened.log.legacy && same(committed.digests, opened.log.digests)
       ? { stored: opened.stored, log: committed }
       : await load(committed);
-  } catch {
+  } catch (error) {
+    miss(error);
     return { stored: EMPTY, log: emptyImmutableLog(path) };
   }
 }

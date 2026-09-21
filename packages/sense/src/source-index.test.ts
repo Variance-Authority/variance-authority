@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
-import { openImmutableLog } from './immutable-log.js';
+import { BadLogPath, openImmutableLog } from './immutable-log.js';
 import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
 import { openSourceIndex } from './source-index.js';
 import type { TreeShape } from './reuse.js';
@@ -181,6 +181,13 @@ describe('the binary source index', () => {
     await writeFile(join(`${file}.segments`, segment!), 'corrupt');
 
     expect((await openSourceIndex(file)).cache.get(OTHER)).toBeUndefined();
+  });
+
+  it('refuses a path that cannot name a file rather than reporting an empty cache', async () => {
+    const file = await path();
+    const notAPath = { file } as unknown as string;
+
+    await expect(openSourceIndex(notAPath)).rejects.toBeInstanceOf(BadLogPath);
   });
 
   it('rejects duplicate logical keys instead of accepting a partial generation', () => {

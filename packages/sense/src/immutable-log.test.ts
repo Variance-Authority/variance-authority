@@ -2,7 +2,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { openImmutableLog } from './immutable-log.js';
+import { BadLogPath, openImmutableLog } from './immutable-log.js';
 
 describe('the immutable segment log', () => {
   const made: string[] = [];
@@ -32,6 +32,15 @@ describe('the immutable segment log', () => {
     await writeFile(join(`${file}.segments`, segment!), 'changed');
 
     await expect(openImmutableLog(file)).rejects.toThrow('invalid immutable log segment');
+  });
+
+  it('refuses a path that cannot name a file before it writes anything', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'variance-immutable-log-'));
+    made.push(directory);
+    const notAPath = { file: join(directory, 'index.bin') } as unknown as string;
+
+    await expect(openImmutableLog(notAPath)).rejects.toBeInstanceOf(BadLogPath);
+    expect(await readdir(directory)).toEqual([]);
   });
 
   it('compacts the ninth layer into one complete segment', async () => {

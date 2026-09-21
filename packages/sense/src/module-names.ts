@@ -60,7 +60,12 @@
  * same moment cannot collide, because neither of them invented anything.
  */
 
-import { emptyImmutableLog, openImmutableLog, readImmutableLog } from './immutable-log.js';
+import {
+  BadLogPath,
+  emptyImmutableLog,
+  openImmutableLog,
+  readImmutableLog,
+} from './immutable-log.js';
 import type { IndexLock } from './test-selection/index-lock.js';
 
 /** "VANAMES" and the format version. */
@@ -158,9 +163,12 @@ export async function nameModules(
   try {
     const log = await openImmutableLog(path).catch(() => emptyImmutableLog(path));
     await log.publish(encodeSegment(added), () => compacted);
-  } catch {
+  } catch (error) {
     // A table that could not be written numbers the same modules the same way
     // next time. Persistence is a saving, never a new way for a run to fail.
+    // A path that cannot name a file is not that: it is the caller's defect,
+    // and it is the one thing here that never wrote anything to begin with.
+    if (error instanceof BadLogPath) throw error;
   }
   return tableOf([compacted]);
 }

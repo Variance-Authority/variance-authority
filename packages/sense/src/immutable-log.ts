@@ -50,6 +50,7 @@ export interface ImmutableLog {
 
 /** Open the committed chain. Missing state is an empty chain; malformed state throws. */
 export async function openImmutableLog(path: string): Promise<ImmutableLog> {
+  named(path);
   let bytes: Buffer;
   try {
     bytes = await readFile(path);
@@ -85,6 +86,7 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
  * of them held open by a writer.
  */
 export function readImmutableLog(path: string): readonly Buffer[] {
+  named(path);
   let bytes: Buffer;
   try {
     bytes = readFileSync(path);
@@ -106,6 +108,7 @@ export function readImmutableLog(path: string): readonly Buffer[] {
 
 /** A new writer used to replace state that could not be opened. */
 export function emptyImmutableLog(path: string): ImmutableLog {
+  named(path);
   return logAt(path, [], [], false, false);
 }
 
@@ -208,6 +211,38 @@ async function discard(
   await Promise.all(present
     .filter((file) => obsolete.has(file) && !retained.has(file))
     .map((file) => unlink(join(directory, file)).catch(() => {})));
+}
+
+/**
+ * A path that cannot name a file, told apart from a cache that will not read.
+ *
+ * Its own class rather than a bare `TypeError`, because the reader that has to
+ * tell the two apart reads corrupt bytes for a living: a truncated segment
+ * decoded as a structure throws whatever the first wrong field throws, and a
+ * `TypeError` among those is ordinary.
+ */
+export class BadLogPath extends TypeError {
+  override readonly name = 'BadLogPath';
+}
+
+/**
+ * The path is a string, checked rather than declared.
+ *
+ * The type is erased before this runs, and every path this file derives is
+ * derived by interpolation — `${path}.segments`, `${path}.<pid>.tmp`. An object
+ * arriving here does not fail: it becomes the literal name `[object Object]`,
+ * `mkdir` and the segment writes succeed against it, and only the manifest
+ * `rename` refuses, which leaves a directory of orphaned segments beside the
+ * caller's working directory and a scan that reported nothing. So a path that
+ * cannot name a file is a caller's defect and says so here, where the name is
+ * still recognisable, rather than as bytes under a name nobody meant.
+ */
+function named(path: string): void {
+  if (typeof path !== 'string' || path === '') {
+    throw new BadLogPath(
+      `immutable log path must be a non-empty string, received ${typeof path}`,
+    );
+  }
 }
 
 function segmentDirectory(path: string): string { return `${path}.segments`; }
