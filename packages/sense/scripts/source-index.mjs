@@ -138,21 +138,27 @@ const held = () => {
 async function scan(label) {
   const [opening, session] = await took(() => openSourceIndex(index));
   const counted = { reused: 0, rebuilt: 0, parsed: 0 };
-  // Only the rare door is wrapped. A counter on `get` sits on the hottest path
+  // Counted on the session's own objects, in place, because the parse cache is
+  // a WeakMap key. `adoptNativeParses` registers the native parse generation
+  // against the object the scan was handed, and `save` looks it up against the
+  // one the session closed over. An `Object.create` delegate answers every call
+  // correctly and is a different key, so the generation was registered against
+  // the wrapper and never published: this script reported a 4.9 MB index for a
+  // repository whose index is 10.5 MB, and nothing failed to make it say so. A
+  // delegate is not the object, and a wrapper is only safe where identity is
+  // not the interface.
+  //
+  // Only the rare doors are counted. A counter on `get` sits on the hottest path
   // there is and reads 130 ms onto the row it is there to explain.
-  const cache = Object.create(session.cache);
-  cache.set = (digest, parsed) => {
+  const { cache, reuse } = session;
+  const store = cache.set.bind(cache);
+  cache.set = (key, parsed) => {
     counted.parsed += 1;
-    session.cache.set(digest, parsed);
+    store(key, parsed);
   };
-  // Delegated for the same reason the parse cache above is, and not merely for
-  // tidiness: written out as a literal, this wrapper forwarded a `set` of two
-  // arguments to a `set` that takes three and dropped every resolved target on
-  // the way through, and it had no `getIndexed` at all once the scan started
-  // asking for one. A counter belongs on the door, not in front of the wall.
-  const reuse = Object.create(session.reuse);
+  const indexed = reuse.getIndexed.bind(reuse);
   reuse.getIndexed = (file, digest) => {
-    const record = session.reuse.getIndexed(file, digest);
+    const record = indexed(file, digest);
     counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
 
     return record;
