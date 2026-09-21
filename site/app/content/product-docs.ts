@@ -1,5 +1,6 @@
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
+import agentCodeReview from "../../../docs/agent-code-review.md?raw";
 import agentInterrogate from "../../../docs/agent-interrogate.md?raw";
 import agentLiveRun from "../../../docs/agent-live-run.md?raw";
 import agentMcp from "../../../docs/agent-mcp.md?raw";
@@ -48,6 +49,7 @@ import replacing from "../../../docs/replacing.md?raw";
 import reasoning from "../../../docs/reasoning.md?raw";
 import runRelevantWork from "../../../docs/run-relevant-work.md?raw";
 import scale from "../../../docs/scale.md?raw";
+import testLevelCoverage from "../../../docs/test-level-coverage.md?raw";
 import scenarios from "../../../docs/scenarios.md?raw";
 import sensitivity from "../../../docs/sensitivity.md?raw";
 import changesBeforeAndBeyond from "../../../docs/changes-before-and-beyond.md?raw";
@@ -92,6 +94,7 @@ const documents = [
   ["great-data", greatData, "docs/great-data.md"],
   ["better-tests", betterTests, "docs/better-tests.md"],
   ["own-fewer-tests", ownFewerTests, "docs/own-fewer-tests.md"],
+  ["test-level-coverage", testLevelCoverage, "docs/test-level-coverage.md"],
   ["run-relevant-work", runRelevantWork, "docs/run-relevant-work.md"],
   ["understand-execution", understandExecution, "docs/understand-execution.md"],
   ["understand-interface", understandInterface, "docs/understand-interface.md"],
@@ -109,6 +112,7 @@ const documents = [
   ["agents", agents, "docs/agent-workflows.md"],
   ["agent-questions", agentQuestions, "docs/agent-questions.md"],
   ["agent-cli", agentCli, "docs/agent-cli.md"],
+  ["agent-code-review", agentCodeReview, "docs/agent-code-review.md"],
   ["agent-mcp", agentMcp, "docs/agent-mcp.md"],
   ["agent-live-run", agentLiveRun, "docs/agent-live-run.md"],
   ["agent-interrogate", agentInterrogate, "docs/agent-interrogate.md"],

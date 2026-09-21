@@ -43,6 +43,10 @@ export const NAVIGATION = [
         label: "Own fewer tests",
       },
       {
+        href: "/docs/test-level-coverage",
+        label: "Know which test entered a region",
+      },
+      {
         href: "/docs/run-relevant-work",
         label: "Run relevant work",
         cluster: "Run less of the suite",
@@ -272,6 +276,10 @@ export const NAVIGATION = [
     items: [
       { href: "/agents", label: "Choose an agent workflow" },
       { href: "/agents/questions", label: "Everything an agent can ask" },
+      {
+        href: "/agents/code-review",
+        label: "Review a change against what the code did",
+      },
       {
         href: "/agents/cli",
         label: "Ask a run from the command line",

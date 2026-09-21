@@ -553,7 +553,10 @@ enough that their measurements are the claim.
 
 ---
 
-**Further:** [`instruments.md`](instruments.md) for where this axis sits among the
+**Further:** [`agent-code-review.md`](agent-code-review.md) for reviewing one
+change with this beside the cases that entered it — the other single-revision
+join over a diff ·
+[`instruments.md`](instruments.md) for where this axis sits among the
 others ·
 [`attribution.md`](attribution.md) for how a changed pixel arrives with a
 component name on it ·
