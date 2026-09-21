@@ -11,6 +11,11 @@ the declarations it publishes, and the directories its specifiers looked in.
 Both are published together, so no scan can read a parse state and a record
 state that never existed at the same time.
 
+[Source orientation](orientation.md) reads the declarations and relations in
+that record to find a name inside one import neighbourhood. Test selection reads
+the same relations to decide what a change can affect. This page owns the index
+itself: how it is produced, cached, invalidated and read.
+
 Read this page to cache the index in CI, to predict what a change to your tree
 costs, or to read the bytes from another language.
 

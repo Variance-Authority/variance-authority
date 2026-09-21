@@ -1,5 +1,10 @@
 # How search finds a subject
 
+This is the recorded-vocabulary half of [orientation](orientation.md): use it
+when you can describe a captured UI state but do not know its subject id. For
+source names in the current checkout, use
+[the workspace API](agent-workspace-api.md).
+
 `grep`, ripgrep and find-in-files search the text of your files. This searches
 what a run observed. Each run writes down — per subject — the ids, component
 names, accessible names, visible text, roles, declaring files, custom

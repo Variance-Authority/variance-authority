@@ -1,5 +1,9 @@
 # Find code through the workspace index
 
+This is the source how-to and contract for
+[orientation](orientation.md). Start there when you need to choose between text
+search, indexed source search and observed-subject search.
+
 `rg` tells you where text is written. This server tells you which exported name
 matches your words in the part of the import graph you are working in, then gives
 you its import line, declaration, signature, documentation, and existing import
@@ -63,7 +67,7 @@ without scanning the repository again. Producing and answering are separate oper
 a CI step can publish once, then every agent in that step can ask the same dated
 facts without making freshness checks part of query latency.
 
-This is the path used on Atlassian's frontend monorepo, not only on generated
+This path is measured on a large frontend monorepo, not only on generated
 trees. One measured generation holds 301,473 file records across 1,631 packages,
 with 81,052 published entries and 664,769 repository exports. Reproducing it
 with an authoritative empty changed-file list takes 32.31–46.85 seconds on the

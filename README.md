@@ -27,7 +27,7 @@ as the investigation grows.
 
 | What do you need to do? | Start here |
 | --- | --- |
-| Help an agent work in this codebase | [Search exported names inside the import neighbourhood of the file you are editing](docs/agent-workspace-api.md), then inspect exact signatures and existing import sites. A readable checkout is enough. |
+| Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
 | Run the tests this edit needs | [Combine source relationships with recorded execution](docs/selecting.md) to select affected test files, with the reason for each selection. Missing evidence widens the run. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |

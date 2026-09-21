@@ -2,6 +2,10 @@
 
 You know which thing you want to look at. You do not know what it is called.
 
+This is the subject route through [orientation](orientation.md). It searches
+what a completed run observed. If the thing you need is an exported name in the
+current checkout, use [the source how-to](agent-workspace-api.md) instead.
+
 Each comparison is keyed by a **subject**: one named UI state you asked for and
 can ask for again, under an id you choose, such as `cart/empty`.
 

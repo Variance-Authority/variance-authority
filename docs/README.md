@@ -13,11 +13,11 @@ depend on.
 ## What do you need to do?
 
 <div class="doc-link-grid doc-link-grid--capabilities">
-<a class="doc-link-card doc-link-card--compact" href="agent-workspace-api.md">
-<span>Source</span>
-<strong>Help an agent understand this codebase</strong>
-<p>Search exported names inside one import neighbourhood, then inspect exact signatures and the places those names are already used.</p>
-<em>Find code through the workspace index →</em>
+<a class="doc-link-card doc-link-card--compact" href="orientation.md">
+<span>Orientation</span>
+<strong>Find where to start</strong>
+<p>Choose exact text search, indexed source relations, or observed subject search from the evidence you already have.</p>
+<em>Orient before you change code →</em>
 </a>
 <a class="doc-link-card doc-link-card--compact" href="agent-interrogate.md">
 <span>Live test</span>

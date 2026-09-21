@@ -32,6 +32,37 @@ export const NAVIGATION = [
     ],
   },
   {
+    label: "Orientation",
+    items: [
+      {
+        href: "/docs/orientation",
+        label: "Find where to start",
+        cluster: "Orient in a codebase",
+        clusterOverview: true,
+      },
+      {
+        href: "/agents/workspace-api",
+        label: "Find a name in source",
+        cluster: "Orient in a codebase",
+      },
+      {
+        href: "/docs/locate",
+        label: "Find the subject you mean",
+        cluster: "Orient in a codebase",
+      },
+      {
+        href: "/docs/lexicon",
+        label: "How subject search works",
+        cluster: "Orient in a codebase",
+      },
+      {
+        href: "/docs/source-index",
+        label: "Reuse the source graph",
+        cluster: "Orient in a codebase",
+      },
+    ],
+  },
+  {
     label: "Your test suite",
     items: [
       {
@@ -134,7 +165,6 @@ export const NAVIGATION = [
   {
     label: "Enter by question",
     items: [
-      { href: "/docs/locate", label: "Find the subject you mean" },
       {
         href: "/docs/understand-execution",
         label: "Understand an execution",
@@ -300,11 +330,6 @@ export const NAVIGATION = [
         label: "Interrogate a test where it stands",
         alternative: true,
       },
-      {
-        href: "/agents/workspace-api",
-        label: "Find code through the workspace index",
-        alternative: true,
-      },
     ],
   },
   {
@@ -337,13 +362,11 @@ export const NAVIGATION = [
       { href: "/docs/source", label: "Source scan" },
       { href: "/docs/surface", label: "Connect a suite" },
       { href: "/docs/observability", label: "Observability contracts" },
-      { href: "/docs/lexicon", label: "How search finds a subject" },
       {
         href: "/docs/polyglot",
         label: "How different languages are handled",
       },
       { href: "/docs/metrics", label: "Metric definitions" },
-      { href: "/docs/source-index", label: "Source index" },
       { href: "/docs/source-structures", label: "Source structures" },
       { href: "/docs/scale", label: "Scale" },
       { href: "/docs/execution-record", label: "Execution record" },

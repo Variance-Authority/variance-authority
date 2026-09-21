@@ -24,8 +24,9 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | Where is this symbol already used, and what shows how to call it? | `variance ask uses --name <name>` | `docs_uses` on the workspace API server |
 | current workspace source | What is the name for the thing I can only describe, in the part of the repository I am working in? | `variance ask search --query <word> --from <path>` | `docs_search` on the workspace API server |
 
-For source orientation, carry a path already supplied by the editor, ticket or
-stack trace into the first `search`. The words find candidate names; `--from`
+For [source orientation](orientation.md), carry a path already supplied by the
+editor, ticket or stack trace into the first `search`. The words find candidate
+names; `--from`
 keeps candidates used by files reachable from that path, while `--to` keeps
 candidates used by files that reach it. Continue with `symbol`, then `uses`.
 Those relations are resolved module imports, not runtime function calls.

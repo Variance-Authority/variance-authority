@@ -29,6 +29,11 @@ const CONCEPTS: readonly Concept[] = [
   { name: 'Tribunal', pattern: /\bTribunal\b/, owner: 'packages/tribunal/README.md' },
   { name: 'evidence field', pattern: /\bevidence field\b/i, owner: 'docs/evidence-field.md' },
   { name: 'reasoning loop', pattern: /\breasoning loop\b/i, owner: 'docs/reasoning.md' },
+  {
+    name: 'source or subject orientation',
+    pattern: /\b(?:source|subject) orientation\b/i,
+    owner: 'docs/orientation.md',
+  },
   { name: 'source index', pattern: /\bsource index\b/i, owner: 'docs/source-index.md' },
   { name: 'execution record', pattern: /\bexecution (?:record|index)\b/i, owner: 'docs/execution-record.md' },
   { name: 'lexicon', pattern: /\blexicon\b/i, owner: 'docs/lexicon.md' },
