@@ -90,17 +90,16 @@ addon's read pool, and `packages/sense/scripts/read-width.mjs` is a driver that
 calls into it — forty lines of JavaScript around `readBatch`, so what the table
 prices is the Rust:
 
-```text
-width       ms     user ms   system ms   cores   kernel µs/file
-    1    504.2        1294         506     3.6             18.2
-    2    364.1        1268         642     5.2             23.1
-    3    356.8        1086         851     5.4             30.7
-    4    308.4        1108         966     6.7             34.8
-    6    322.0        1044        1453     7.8             52.4
-    8    342.4         954        1973     8.6             71.1
-   12    455.6         901        4012    10.8            144.6
-   16    481.1         828        4620    11.3            166.5
-```
+| Readers | Wall | User | System | Cores busy | Kernel µs per file |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 504.2 ms | 1,294 ms | 506 ms | 3.6 | 18.2 |
+| 2 | 364.1 ms | 1,268 ms | 642 ms | 5.2 | 23.1 |
+| 3 | 356.8 ms | 1,086 ms | 851 ms | 5.4 | 30.7 |
+| 4 | **308.4 ms** | 1,108 ms | 966 ms | 6.7 | 34.8 |
+| 6 | 322.0 ms | 1,044 ms | 1,453 ms | 7.8 | 52.4 |
+| 8 | 342.4 ms | 954 ms | 1,973 ms | 8.6 | 71.1 |
+| 12 | 455.6 ms | 901 ms | 4,012 ms | 10.8 | 144.6 |
+| 16 | 481.1 ms | 828 ms | 4,620 ms | 11.3 | 166.5 |
 
 Read the first column against the last. User time does not rise: the parsing
 and the extraction are the same work however many threads are opening files.
@@ -152,13 +151,12 @@ which part of the work. A read is a path walk, a descriptor and some bytes, and
 only one of those three is worth attacking. Four probes over the same 27,744
 files, at widths 1 through 16, each doing a little more than the last:
 
-```
-                 1        2        4        6        8       16
-open+close     354      201      150      170      258      705
-open+fstat     307      193      165      201      252      620
-open+read      350      211      198      190      237      622
-stat+open+read 365      222      179      189      232      599
-```
+| Milliseconds, at width | 1 | 2 | 4 | 6 | 8 | 16 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `open` then `close` | 354 | 201 | 150 | 170 | 258 | 705 |
+| `open` then `fstat` | 307 | 193 | 165 | 201 | 252 | 620 |
+| `open` then `read` | 350 | 211 | 198 | 190 | 237 | 622 |
+| `stat`, then `open` then `read` | 365 | 222 | 179 | 189 | 232 | 599 |
 
 `open` and `close`, touching no file data whatsoever, reproduce the entire
 collapse. Reading all 31.6 MiB on top of that costs about 34 ms. Thirty
@@ -417,16 +415,17 @@ matches, which is its best case — the literal prefilter rejects each buffer
 without the regex engine ever starting — so what is left on its side is
 acquisition, which is the thing being compared.
 
-```
-threads          ripgrep: open, read, search   sense: open, read, parse, extract
-                  ms        user      system          ms        user      system
-1              420.0       30 ms      390 ms       446.9      101 ms      346 ms
-2              250.0       40 ms      450 ms       237.5      120 ms      416 ms
-4              190.0       50 ms      680 ms       224.4      141 ms      803 ms
-6              190.0       50 ms     1050 ms       196.2      154 ms     1071 ms
-8              220.0       60 ms     1700 ms       216.6      186 ms     1645 ms
-16             530.0       80 ms     7230 ms       374.3      203 ms     4828 ms
-```
+ripgrep opens, reads and searches; sense opens, reads, parses and extracts.
+Milliseconds throughout:
+
+| Threads | ripgrep wall | ripgrep user | ripgrep system | sense wall | sense user | sense system |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 420.0 | 30 | 390 | 446.9 | 101 | 346 |
+| 2 | 250.0 | 40 | 450 | 237.5 | 120 | 416 |
+| 4 | 190.0 | 50 | 680 | 224.4 | 141 | 803 |
+| 6 | **190.0** | 50 | 1,050 | **196.2** | 154 | 1,071 |
+| 8 | 220.0 | 60 | 1,700 | 216.6 | 186 | 1,645 |
+| 16 | 530.0 | 80 | 7,230 | 374.3 | 203 | 4,828 |
 
 Two curves, one shape. Both bottom out in the middle, both climb again, and
 both spend almost everything they spend in the kernel. At the shared minimum
