@@ -123,6 +123,45 @@ not, the answer says which fields it looked in rather than guessing at a
 synonym. That record is the [lexicon](lexicon.md) — the names the run wrote
 down, field by field — and that page has the how and the why.
 
+## Ask in more than one vocabulary
+
+The word you arrived with is often not a word the suite says. You are looking for
+the sign-in screen and you call it `auth`; the screen says *Sign in*, the
+component is `CredentialGate`, and the file is `session/entry.tsx`. Nothing the
+run wrote down is your word, so the answer is the fields it searched and no hits
+— correct, and no help. Rewording it changes nothing: `the authentication
+flow` is three more words the suite does not say either, and a question is
+matched on its words.
+
+Nothing here expands your word for you. There is no thesaurus, no stemmer beyond
+a trailing plural, and no model — the match is your words against the names the
+run recorded, ranked by how many matched and how rare each one is. What a word means
+is your half of the question, and it stays yours: you have the ticket and the
+checkout, and you already know which names this codebase is in the habit of
+writing.
+
+So spend a second query instead of a better first one. Ask in a different **kind**
+of name, not a longer description of the same thing:
+
+| kind of name | what to ask |
+|---|---|
+| what the screen says | `Sign in`, `Continue`, `Mark as done` — the visible text and the accessible name |
+| what it is likely called | `Credential`, `Login`, `Session` — a component name, in this repository's habits |
+| where it is likely written | `session`, `entry`, `auth/` — a file or a folder |
+| what it is, structurally | `checkbox`, `dialog`, `alert` — the ARIA role |
+| what it is styled by | `--va-space-2` — a custom property the cascade resolved |
+
+Each row is a field, so each is a real way in — for the subjects whose run took
+that reading. Which ones those are is printed above every answer, and a row read
+for nothing is a row not worth trying: see [three answers that look
+alike](#three-answers-that-look-alike).
+
+A question costs one call and prints what it searched, so working down the rows
+is how you find which vocabulary this suite is written in, and the row that hits
+tells you what to ask for everything after it. When a term matches nothing, the
+answer names it as unmatched and prints beside it the accessible names the run
+did record. Build the next query out of those.
+
 ## Say where to look
 
 On a suite of a few hundred, a description is enough. On a few thousand it is

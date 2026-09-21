@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/route-collector",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Turn pages your application already serves into Variance Authority subjects.",
   "keywords": [
     "variance-authority",

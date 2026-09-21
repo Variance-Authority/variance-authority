@@ -1,5 +1,11 @@
 # @variance-authority/distill
 
+## 0.4.1
+
+### Patch Changes
+
+  - @variance-authority/sense@0.4.1
+
 ## 0.4.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

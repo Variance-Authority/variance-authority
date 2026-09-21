@@ -270,11 +270,22 @@ export const search: Tool<Help> = {
     'you are standing: `from` a path answers with published names imported by the files that ' +
     'path reaches, ordered by the importing files in that area; `to` does the same for files ' +
     'that reach the path. Internal exports are filtered by their declaring file. An empty ' +
-    'answer is a fact about the area.',
+    'answer is a fact about the area. Matching is the substring you typed and nothing else — no ' +
+    'synonyms, no stemming, no model — so a repository that calls sign-in `CredentialGate` is ' +
+    'not reached by `auth`. Supplying the likely vocabulary is your half: when a query matches ' +
+    'nothing, ask again with another candidate name rather than a longer description of the ' +
+    'same idea.',
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Substring to look for in names and docs.' },
+      query: {
+        type: 'string',
+        description:
+          'Substring to look for in names and docs. One candidate name, not a description: this ' +
+          'matches the characters you type, so `auth` finds nothing in a repository that writes ' +
+          '`login`, `session` or `credential`, and asking it again in different words changes ' +
+          'nothing. Ask each candidate as its own query.',
+      },
       from: {
         ...START_POINT_SCHEMA.from,
         description:

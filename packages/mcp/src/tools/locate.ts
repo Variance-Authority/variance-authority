@@ -24,7 +24,7 @@ export { tokensOf, type LocateField } from './locate-index.js';
  * ## What it is not
  *
  * Not a search engine. The corpus is a few hundred short names per subject and
- * the ranking is two integers and a string: how many of the query's words a
+ * the ranking is three integers and a string: how many of the query's words a
  * subject matched, how rare each matched word is in the field it matched in
  * across the suite weighted by that field, then the smaller subject first and
  * the id in code-unit order. No term frequency, because three chips in one
@@ -110,7 +110,12 @@ export const locate: Tool = {
     'it is, name what it sits by in one of `under`, `above`, `inside`, `beside`, `leftOf` or ' +
     '`rightOf`, and the surface in `on`: `{query: "warning", under: "Carrier", on: "dispatch ' +
     'drawer"}` is answered by the arrangement the same run recorded. The words in `query` are ' +
-    'only ever words — nothing in them is read as syntax.',
+    'only ever words — nothing in them is read as syntax. Matching is lexical and nothing expands ' +
+    'them for you: no synonyms, no stemming past a trailing plural, no model. The run recorded ' +
+    'several vocabularies per subject, so a word that misses is answered by asking again in a ' +
+    'different kind of name — what the screen says, what the component is likely called, the file ' +
+    'it is likely declared in — rather than a longer description of the same thing. That ' +
+    'translation is yours to make; this ranks whatever words you bring.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -120,6 +125,9 @@ export const locate: Tool = {
           'Words naming the thing wanted: a story id fragment, a component, a label, visible ' +
           'text. Matched as words and nothing else — no word in it is read as syntax, so a ' +
           'product that says `Under review` or `Inside sales` is searched for those words. ' +
+          'Bring the vocabulary yourself: a term the suite never uses is reported as matching ' +
+          'nothing, beside the names the run did record, and the move is another query in another ' +
+          'kind of name rather than the same idea reworded. ' +
           'Where on a surface the thing sits is said in the arguments below, never in here.',
       },
       under: relationArgument('beneath'),

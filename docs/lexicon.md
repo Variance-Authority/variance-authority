@@ -78,6 +78,36 @@ already produce is a vocabulary this cannot answer in. There is no model to
 ship and no embedding to keep in step with the code — what a question runs
 against is an inverted index, built from the names the run already wrote down.
 
+## The gap that is left, and who closes it
+
+A word the suite never says still finds nothing. You ask for `auth`; the screen
+says *Sign in*, the component is `CredentialGate`, the file is
+`session/entry.tsx`. Every reading of that subject is a name, and none of them is
+your word. The answer is the fields that were searched and no hits — true, and no
+use to you.
+
+That gap is not closed here, and the reason is what sits on the other end of the
+question. The thing asking is a model, with the ticket, the conversation and the
+checkout in front of it. It already knows `auth` means `login`, `session`,
+`credential`, `token`, `jwt`, and it knows which of those this codebase is in the
+habit of writing. Translating a concept into likely names is the one part of this
+that a model does well and a table does badly, so it belongs to the model, and
+what is left — matching those names and ordering them the same way on every
+machine — is the part a table does well.
+
+That fixes the division in three parts:
+
+- **The run writes down every name it read, per field, and interprets none of
+  them.** Separate instruments, pointed at the subject for other reasons.
+- **The reader matches words against those names and orders them with
+  integers.** Three integers and a string, identical on every machine.
+- **The caller brings the words.** Which word stands for which other word is a
+  judgement about your repository, and the run never makes it.
+
+[Ask in more than one vocabulary](locate.md#ask-in-more-than-one-vocabulary) is
+that division as a habit: which kinds of name are worth trying, and what the
+answer tells you when none of them lands.
+
 ## What the run writes down
 
 Per subject, per field: the distinct values read from it, code-unit
@@ -456,7 +486,7 @@ chosen by fitting these questions.
 ## What it refuses to be
 
 **Not a search engine.** The corpus is a few hundred short names per subject and
-the ranking is two integers and a string. No term frequency, because three chips
+the ranking is three integers and a string. No term frequency, because three chips
 in one footer is a fact about a list and not a better match. No length
 normalisation, because the size of a subject is already a rank key.
 

@@ -1,5 +1,15 @@
 # @variance-authority/storybook-collector
 
+## 0.4.1
+
+### Patch Changes
+
+  - @variance-authority/dom@0.4.1
+  - @variance-authority/playwright@0.4.1
+  - @variance-authority/react@0.4.1
+  - @variance-authority/sense@0.4.1
+  - @variance-authority/storybook@0.4.1
+
 ## 0.4.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

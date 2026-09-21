@@ -1,5 +1,15 @@
 # @variance-authority/tribunal
 
+## 0.4.1
+
+### Patch Changes
+
+  - @variance-authority/history@0.4.1
+  - @variance-authority/png@0.4.1
+  - @variance-authority/raster@0.4.1
+  - @variance-authority/report@0.4.1
+  - @variance-authority/server@0.4.1
+
 ## 0.4.0
 
 ### Patch Changes

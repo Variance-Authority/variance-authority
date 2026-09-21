@@ -247,6 +247,26 @@ above it, it never returns a name they already gave you, and it obeys `--from`
 and `--to` exactly as they do. A name under that heading is not a match for what
 you asked; it is the nearest thing that is worth a look before you rephrase.
 
+**The candidate names are yours to supply.** `search` matches the characters you
+typed against names and doc comments. There is no synonym list, no stemming and
+no model, so a repository that calls sign-in `CredentialGate` is not reached by
+`auth`, and the loose pass will not reach it either — that pass is for a word
+typed wrong or two words written apart, not for a word the repository never
+writes.
+
+That is the division on purpose. You know what `auth` means in this ticket and
+what this codebase is in the habit of calling things — `login`, `session`,
+`credential`, `token`, `jwt` — and a list shipped in the binary would be guessing
+at both. So turn the concept into candidate names
+yourself and ask each one as its own query — `login`, `session`, `credential`,
+`token`, `sign` — rather than rewording the same query. Three cheap queries beat
+one well-phrased one, and the first hit tells you the repository's vocabulary for
+everything you ask after it.
+
+Two verbs also expand a name without you guessing anything, once you have one
+real hit: `uses` prints where the repository already writes it, and `entrypoint`
+prints everything published beside it.
+
 ### 6. `gaps`
 
 Names other packages import with nothing written above the declaration. A work

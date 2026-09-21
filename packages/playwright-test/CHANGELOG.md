@@ -1,5 +1,21 @@
 # @variance-authority/playwright-test
 
+## 0.4.1
+
+### Patch Changes
+
+  - @variance-authority/dom@0.4.1
+  - @variance-authority/event@0.4.1
+  - @variance-authority/observe@0.4.1
+  - @variance-authority/playwright@0.4.1
+  - @variance-authority/png@0.4.1
+  - @variance-authority/raster@0.4.1
+  - @variance-authority/react@0.4.1
+  - @variance-authority/sense@0.4.1
+  - @variance-authority/store@0.4.1
+  - @variance-authority/vantage@0.4.1
+  - @variance-authority/wire@0.4.1
+
 ## 0.4.0
 
 ### Minor Changes

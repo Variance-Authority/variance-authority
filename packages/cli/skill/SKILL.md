@@ -233,6 +233,33 @@ down while comparing subjects: ids, examples, accessible names, visible text,
 components, creators, declaring files, roles, custom properties, and the regions
 a journey entered. It does not read the repository, and it is not code search.
 
+**You expand the query; this does not.** Matching is lexical — your words
+against the recorded names, ranked by how many matched and how rare each one is.
+There is no thesaurus, no stemmer past a trailing plural, no embedding and no
+model, so `auth` does not reach a screen that says *Sign in* through a component
+called `CredentialGate`. Nothing will bridge that for you, and nothing should:
+you have the ticket, the conversation and the checkout, and you already know
+`auth` means `login`, `session`, `credential`, `token`, `jwt` — which is the
+judgement a shipped synonym table would be guessing at.
+
+So when a term comes back unmatched, do not reword it. Ask again in a different
+**kind** of name. Each row below is a field, readable for whichever subjects the
+run took that reading on — the header of every answer says which:
+
+| kind | example query |
+|---|---|
+| what the screen says | `Sign in`, `Mark as done` |
+| what the component is likely called | `Credential`, `Login`, `Session` |
+| where it is likely written | `session`, `entry`, `auth/` |
+| what it is, structurally | `checkbox`, `dialog`, `alert` |
+| what styles it | `--va-space-2` |
+
+Two or three of those, asked in one turn, cost two or three calls and tell you
+which vocabulary this suite uses — and every question after that one is
+cheaper for knowing it. An unmatched term is named as such in the answer, with
+accessible names the run did record printed beside it; build the next query out
+of those.
+
 **Hand the description over as words.** No word in `--query` is ever read as
 syntax, so a product that says *Under review*, *Show more* or *Inside sales* is
 searched for those words:
@@ -312,8 +339,8 @@ On a relation answer, read three things before acting:
 
 **Read the header before reading a nil answer.** Three different states look
 alike and the header separates them per field: *read, and nothing matched* — the
-names exist and your word is not among them, so ask again in the suite's
-vocabulary; *not read* — no journal means no regions, no snapshot means no
+names exist and your word is not among them, so ask again in another
+kind of name, per the table above; *not read* — no journal means no regions, no snapshot means no
 names, text or roles, no source index means no files, so nothing was searched;
 *read, and genuinely empty* — a build with the owner links stripped has an empty
 `createdBy` everywhere. Search is absent altogether, and says so, on a
