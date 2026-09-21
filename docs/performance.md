@@ -226,8 +226,19 @@ If a descriptor costs what nobody can widen — and costs more than that on a
 machine with an agent in the path — the remaining move is not to buy one.
 
 Git already holds the bytes of every tracked file, addressed by content, in a
-packfile. `cat-file --batch` opens that pack once per process, and every object
-after that is a seek and an inflate: no path walk, no name cache, no vnode lock
+packfile.
+
+So stop asking the filesystem for them and ask git.
+
+The address is already in hand. A scan takes its digests from `ls-tree` — a
+blob's name is the hash of its contents, which is what spares it hashing the
+repository itself — and that name is also where the bytes sit in the pack. The
+key carried to decide whether a file needs reading is the key that fetches it.
+Every `open` in the sections above took the long way round to bytes that a
+process one pipe away had indexed under an id the scan was already holding.
+
+`cat-file --batch` opens that pack once per process, and every object after
+that is a seek and an inflate: no path walk, no name cache, no vnode lock
 shared with five other readers, and nothing for a filter driver to intercept.
 
 Repository size decides this, and it decides it in opposite directions.
