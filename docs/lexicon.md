@@ -227,21 +227,32 @@ says nothing, while `card` in an id still picks out the two subjects named for
 it. Pooling the counts would spend the word everywhere on the strength of the
 worthless field.
 
-### A start point changes what a word is worth
+### Say a start point, and a word is worth something else
 
-A question may name a start point — a path in the source tree, answered along
-the imports — and the subjects it rules out never reach the ranking. Removing
-them is the visible half. The half that belongs on this page is rarity: rarity
-is a count over subjects, so counting it inside the scope rather than over the
-suite reorders what is left. A word every screen in the application says is
-worth nothing. A word every screen *in this area* says is worth nothing *here*.
-Those are different statements, and inside an area the second one sorts.
+Name a path with `--from` and only the subjects produced by a file that path
+reaches along the imports are searched; name one with `--to` and it is the
+subjects that reach it. A path is said at one of three widths, narrowest first:
 
-That is the only thing a start point does to the order. The vocabulary — the
-three widths a path is said at, which way each of `--from` and `--to` walks,
-and what happens to a path the checkout does not hold — is [say where to
-look](locate.md#say-where-to-look), and it is said there and nowhere else, so
-the rule cannot drift between the page that teaches it and the page behind it.
+```bash
+variance ask locate --query chip --from app/dispatch/page.tsx   # that file
+variance ask locate --query chip --from 'app/dispatch/*'        # its folder
+variance ask locate --query chip --from app/dispatch/           # everything under it
+```
+
+Over MCP it is the same argument under the same name — `variance_locate {query:
+"chip", from: "app/dispatch/"}` — and `docs_search` takes it too, over source
+symbols instead of subjects. One path vocabulary, one resolver, whichever
+question names a path. Which way each argument walks, why the bare folder is
+the wider of the two, and what a path the checkout does not hold is answered
+with, are [say where to look](locate.md#say-where-to-look).
+
+The subjects ruled out never reach the ranking, and that is the visible half.
+The half that belongs on this page is rarity: rarity is a count over subjects,
+so counting it inside the scope rather than over the suite reorders what is
+left. A word every screen in the application says is worth nothing. A word
+every screen *in this area* says is worth nothing *here*. Those are different
+statements, and inside an area the second one sorts — which is why the answer
+reports how many subjects it searched, and not only how many matched.
 
 ## What a deep tree does to it
 
