@@ -8,6 +8,52 @@ anybody*. It is one axis added to a recording your suite can already make, and
 it is what separates a question you can act on from a percentage you can only
 watch.
 
+## What you already believe this costs
+
+You have turned coverage on in CI, watched the suite get slower, and turned it
+off again. That reflex is right, and it is the first thing to settle rather
+than the last: a relation you record on every run is worth nothing if
+recording it is the reason the suite stops being run.
+
+The promise on the engine side is that coverage is free. V8 already keeps the
+counters, Node exposes them through the inspector, and nothing rewrites your
+code. The measured reality on two public suites, unmodified apart from the
+configuration: Zod's 5,656 tests go from 8.87 s to 11.56 s under
+`--coverage`, and TanStack Query's 4,523 from 11.78 s to 15.25 s. That is
+**about +30%, on every run**, and what it buys is the union — a percentage,
+and a file that cannot tell you which test entered anything in it.
+
+The same two suites with the recorder installed are 9.05 s and 12.77 s:
+**+2% and +8%**. The difference is not tuning, it is which way the
+instrument faces. A probe fires when execution reaches it, so what you pay
+tracks what your tests *ran*. The engine's counters are not fired but read, and
+the read hands back every script the worker had open, whether a test went near
+it or not. (Median of five runs, warm-up discarded, both caches cleared
+between runs, on an Apple M4 Max, 64 GB, Node 26. The full table and the
+arithmetic under it are in [running less of the
+suite](selecting.md#what-recording-costs-while-the-suite-runs).)
+
+Per test, the gap stops being a percentage and becomes the reason this axis
+does not exist in your pipeline. Getting it out of the profiler means reading
+the native counters between every test rather than once at the end, and that
+costs 2.1× to 2.7× on a jsdom suite. Nobody pays that in CI, so nobody has the
+relation in CI.
+
+The second cost is the file, and it is the one that quietly decides whether a
+thing survives contact with a build system. Spelled the obvious way — one
+object per crossing, with field names — this relation measured 31 to 37 bytes
+per crossing on three real projects: 27.2 MB of sidecar next to a 0.3 MB
+record, against a CI artifact cap. Spelled as a dictionary, interned sets and
+three parallel integer columns under run coding, the same 906,578 crossings
+are **0.46 MB — about half a byte each**. That is most of the engineering in
+this feature, and it is what makes the answer something a job uploads without
+thinking about it.
+
+Those timings are the recorder writing the file-level axis; cases add an
+attribution per crossing on top of them. Price that on your own suite the way
+the table above was made — five runs with the flag, five without, compare the
+medians.
+
 ## What the union throws away
 
 A merged report gives a line one bit. The relation behind it gives that line a
@@ -33,6 +79,24 @@ than exercising anything, so it is counted apart from one that called in. And a
 region **recorded but entered by nobody** is a different statement from a line
 in no recorded region at all: the first is a hole, the second is a coordinate
 the recording never claimed to cover.
+
+## You have seen this relation before
+
+If you have used [Wallaby.js](https://wallabyjs.com/) you have already watched
+it work. It instruments your source, keeps the matrix of which test entered
+which region, and re-runs the minimal affected set as you type; per-test
+coverage is not a new idea, and that is the deepest work anyone has done on it.
+
+What has been missing is not the relation. It is a copy of the relation that
+outlives the session that produced it. Wallaby's index belongs to a live
+editor world on one developer's machine, kept valid from keystroke to
+keystroke — it is not something a reviewer opens, a CI job reads, or an agent
+holding a patch can query, and it says nothing to the person who never ran the
+suite. Test-level coverage here is the same relation written down: a file an
+ordinary run emits, that anything downstream can read without running
+anything itself. One developer's editor knowing which tests walk a line is a
+good day. The build knowing it is a different class of thing, because every
+decision below depends on someone other than the author being able to ask.
 
 ## What it changes
 
@@ -94,15 +158,9 @@ Or over MCP, where `variance_source_tests` takes a location and
 suite ran over, so the index's coordinates belong to the commit it was recorded
 at. An index behind the tree answers fluently about regions that have since
 moved, which is worse than answering nothing; the `--since` reading measures
-from the recorded commit for exactly this reason. Recording is cheap enough to
-repeat: on two public suites the recording costs **1.02× and 1.08×** the plain
-run, where `--coverage` on the same suites costs 1.29× to 1.30× — the
-arithmetic behind that gap is in [running less of the
-suite](selecting.md#what-recording-costs-while-the-suite-runs). Those figures
-are the file-level axis; the case axis adds an attribution per crossing on top
-of them, and the honest way to price it on your suite is the one that page
-gives for the recorder: five runs with the flag, five without, compare the
-medians.
+from the recorded commit for exactly this reason. At +2% to +8% there is no
+budget argument against recording on every run, which is the cadence this
+wants.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
 index per shard, and folding them produces the union the unsharded run would
@@ -126,9 +184,9 @@ numbers are coordinates *into* the recorded text, not the thing recorded.
 
 **A crossing is a pair.** One row is *this case entered this region*, and the
 index is those pairs and nothing else: three parallel integer columns, sorted
-case-major, delta-coded and run-compressed. That is how nine hundred thousand
-crossings fit in **0.46 MB — about half a byte each** — and why the same
-relation spelled as JSON objects is 27.2 MB. The sizes at four scales are in
+case-major, delta-coded and run-compressed. Sorting case-major is what makes
+the run coding pay — a case's crossings arrive together, so the case column is
+a handful of runs rather than a million values. The sizes at four scales are in
 [addressing scale](scale.md#the-per-case-index-when-you-ask-for-it).
 
 **The case axis is a sidecar.** It is written beside the record rather than
