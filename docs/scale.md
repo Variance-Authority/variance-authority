@@ -101,7 +101,13 @@ extrapolation from the one measured scan, not as measurements: the scan reads,
 parses and resolves each module, and resolution is priced per specifier, so a
 repository averaging more imports per file costs more than that line predicts.
 The 330 ms a warm run pays underneath the diff is charged against the whole
-tree as well, and it grows on the same axis.
+tree as well, and it grows on the same axis: **about 9 µs per tracked path**,
+roughly 2 µs of which is git answering what the working tree looks like. A
+9,000-path checkout of similar module density is an 80 ms warm run; a
+400,000-path one pays the toll ten times over, so budget around three and a half
+seconds of walk and index decode on every run and turn on the two git
+accelerators [the scan page](performance.md#git-and-the-watcher) measures before
+anything else.
 
 Size scales with files, and it stays linear. A synthetic 200,000-file shape,
 written and read back through the index's own code, measures **67.3 MB** as
@@ -484,6 +490,20 @@ npx variance select --format json
 
 The counts it reports are the skip list that diff would have had.
 
+### Where this stops paying
+
+Three shapes answer that question in advance, and none of them is repository
+size. A repository whose median file is a hub returns a smaller number and not a
+smaller bill. A codemod across four hundred directories runs the suite,
+correctly, which is not an improvement over running the suite. And a suite whose
+wall clock is build, install and container start saves very little by skipping
+most of its test files, because the test files were never where the time went.
+
+There is a fourth, and it is about the record rather than the diff: a tree that
+never gets recorded over stops paying gradually. Line ranges are coordinates in
+the text the suite ran over, so a module whose text has changed since the last
+recording is charged whole.
+
 ## The lexicon is priced in subjects
 
 Selection is priced in modules. Finding a subject is not. The
@@ -674,18 +694,3 @@ not report it.
 memory. Whether a skip list is *right* is a different measurement with a
 different instrument, and the figure that settles it is how often a skipped test
 would have failed.
-
-## Where this stops paying
-
-- **A repository where most files are hubs.** If your median file costs half the
-  suite, this returns a smaller number and not a smaller bill. That is one
-  recording to find out.
-- **Diffs that are not clustered.** A codemod across four hundred directories
-  runs the suite, correctly, and that is not an improvement over running the
-  suite.
-- **A suite whose cost is not in the tests.** If the wall clock is build,
-  install and container start, skipping most of the test files saves very
-  little.
-- **A tree that never gets recorded over.** Line ranges are coordinates in the
-  text the suite ran over, and a module whose text has changed since is
-  charged whole.

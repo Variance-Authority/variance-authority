@@ -24,12 +24,12 @@ an Apple M4 Max (Mac16,9) — 12 performance cores, 4 efficiency, 64 GB, macOS
 cache, which makes these figures the fast end of the range and a floor rather
 than a budget: size a CI container above them, not against them.
 
-Three counts appear below and they are not the same count. **Multiply by
-records.** 24,519 is the module files git lists; 24,909 is the records in the
-index, because the walk also records stylesheets and declaration files that the
-module listing excludes; and 24,859 is how many of those a cold build opened,
-the rest answering from the parse cache because a file with the same content had
-already been parsed.
+Three counts appear below and they are not the same count, and each table is
+charged per a different one. 24,519 is the module files git lists; 24,909 is the
+records in the index, because the walk also records stylesheets and declaration
+files that the module listing excludes; and 24,859 is how many of those a cold
+build opened, the rest answering from the parse cache because a file with the
+same content had already been parsed.
 
 ## How these were measured
 
@@ -65,8 +65,11 @@ what the file's name said about reading it.
 | a hundred in, a hundred out, five hundred edited | 462 ms | 1,064 | 491 |
 
 You pay the first row on a fresh clone and on a CI runner with nothing cached,
-and once per machine after that. The cold build is where the whole repository is
-read at once; every row after it opens the index and walks the tree.
+and once per machine after that — or on every run, if CI never restores the index
+between jobs. [The source index format](source-index.md#caching-it-in-ci) has the
+four rules that decide whether a restored one is worth anything. The cold build is
+where the whole repository is read at once; every row after it opens the index and
+walks the tree.
 
 **An edit costs per file, over a fixed toll.** Five hundred files edited cost
 about 130 ms more than four did — roughly a quarter of a millisecond each, which
@@ -77,21 +80,9 @@ do anything about it — plus the index decoded so that there is something to
 check it against. Both are proportional to the repository rather than to the
 diff.
 
-### Scale these to your own checkout
-
-Scale by tracked paths, not by your diff:
-
-| Multiply                | By                 | To get                                              |
-| ----------------------- | ------------------ | --------------------------------------------------- |
-| every tracked path      | about 9 µs         | a warm run, of which roughly 2 µs a path is git's `status` |
-| every record            | about 115 µs       | the one cold build                                  |
-| every record            | about 310 bytes    | the index on disk                                   |
-
-A 9,000-path checkout of similar module density is an 80 ms warm run.
-A 400,000-path checkout pays the fixed toll ten times over: budget around three
-and a half seconds of walk and index decode on every run, and turn on the two git
-accelerators further down this page before you do anything else. Those are
-extrapolations from the constants above on one checkout, not second measurements.
+What these rows come to on a checkout of another size — and what the index and
+the [execution record](execution-record.md) weigh there — is in [addressing
+scale](scale.md).
 
 **A path appearing costs the directory it appeared in.** One file added rebuilds
 104 records, because a record's edges depend on the bytes of the file, on how
@@ -161,42 +152,6 @@ parse is 5% of it, it is already compiled code, and it reads 24.9 MB of
 TypeScript in 157 ms. The remaining two and a half seconds is resolution,
 specifier collection and declaration indexing, all of it ours and all of it
 JavaScript. [Where the native code is](native-code.md) takes that split further.
-
-## Caching the index in CI
-
-Without a restored index, every CI run pays the cold row — 2,866 ms on the
-checkout above. The index lives outside the checkout, at:
-
-```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<checkout>/source-index.bin
-```
-
-`<checkout>` is a digest of the checkout's **absolute path**. Beside the file is a
-directory `source-index.bin.segments/`, where the data lives; the file itself is
-only a pointer to which segments are current, and a pointer naming segments that
-are not there is rejected whole. Cache the directory both sit in, and restore it
-before the scan.
-
-A run pays the cold row when:
-
-- **nothing was restored**, on a fresh runner or after you deleted the directory;
-- **the index was restored to a different absolute path** than it was written
-  from. Records are keyed by the repository root, so a runner using a per-job
-  directory keeps the parses and rebuilds every record; a runner that checks out
-  at a fixed workspace path keeps both halves;
-- **only half of it was restored** — the pointer file without its segments
-  directory, or the other way round;
-- **it came from a machine of different endianness**. Four-byte sections are
-  written in the writing host's byte order, and nothing in the file records which
-  that was;
-- **a manifest, a lock file, or any `tsconfig*.json` or `jsconfig.json` changed.**
-  The parses survive; every record is rebuilt, because one `paths` entry can
-  redirect every bare specifier in the repository.
-
-Branch and commit do not belong in the cache key: both halves are
-content-addressed, so an index restored from another branch costs a slower scan
-and cannot produce a different graph. [The source index
-format](source-index.md) gives the rest of the rules and what each half stores.
 
 ## git, and the watcher
 
