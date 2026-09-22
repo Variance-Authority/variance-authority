@@ -83,13 +83,16 @@ jobs:
       # No build, no `yarn verify`. This job writes version numbers and
       # changelogs; `check.yml` already runs lint, checks and tests on this same
       # commit across two Node versions.
-      - uses: changesets/action@v1
+
+      # No `publish-script`, which is what keeps this job unable to reach the
+      # registry: the action publishes only when given one. v2 renamed every
+      # input and takes the token as an input rather than from the environment.
+      - uses: changesets/action@v2
         with:
-          version: yarn release:version
-          commit: 'Version packages'
-          title: 'Version packages'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version-script: yarn release:version
+          commit-message: 'Version packages'
+          pr-title: 'Version packages'
 
   # ---------------------------------------------------------------------------
   # On the button: compile the scanner once per platform we publish one for.
