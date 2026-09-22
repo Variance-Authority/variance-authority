@@ -25,9 +25,6 @@ jobs:
       - name: Install the published consumer packages
         run: npm install --ignore-scripts --no-audit --no-fund
 
-      - name: Prove the Linux addon loads
-        run: node verify-native.cjs
-
       - name: Run one Jest test
         run: npx --no-install jest --config jest.config.mjs --runInBand
 
@@ -36,6 +33,9 @@ jobs:
           test -d .artifacts/journeys.bin.pending
           test ! -f .artifacts/journeys.bin
           find .artifacts/journeys.bin.pending -type f -print
+
+      - name: Prove the Linux addon loads
+        run: node verify-native.cjs
 
       - name: Finalize after Jest
         run: npx --no-install variance journeys finalize "$PWD/.artifacts/journeys.bin"
@@ -48,4 +48,3 @@ jobs:
           name: journey-consumer-smoke-${{ github.run_id }}
           path: .github/consumer/journey-smoke/.artifacts/journeys.bin
           if-no-files-found: error
-
