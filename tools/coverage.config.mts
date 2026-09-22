@@ -45,7 +45,6 @@ export default mergeConfig(suite, {
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/*.check.ts',
-        '**/*.measure.ts',
         '**/__fixtures__/**',
         '**/fixtures/**',
         '**/dist/**',
