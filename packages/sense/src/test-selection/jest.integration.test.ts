@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { mergeExecutionIndexes } from './execution-merge.js';
+import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -134,15 +134,20 @@ describe('the Jest integration', () => {
           },
         },
       );
+      await expect(readFile(journeyFile)).rejects.toThrow();
+      await finalizeJestJourneys(journeyFile);
     };
     await Promise.all([
       run(journeyFiles[0]!, ['test/alpha.case.ts', 'test/delta.case.ts', 'test/each.case.ts']),
       run(journeyFiles[1]!, ['test/beta.case.ts', 'test/gamma.case.ts']),
     ]);
 
-    const index = mergeExecutionIndexes(await Promise.all(
-      journeyFiles.map(async (file) => decodeExecutionIndex(await readFile(file))),
-    ));
+    const assembled = resolve(directory, 'journeys.bin');
+    await stitchJourneyArtifacts(journeyFiles, assembled);
+    const reversed = resolve(directory, 'journeys-reversed.bin');
+    await stitchJourneyArtifacts([...journeyFiles].reverse(), reversed);
+    await expect(readFile(reversed)).resolves.toEqual(await readFile(assembled));
+    const index = decodeExecutionIndex(await readFile(assembled));
     // Every case that entered a region, by the name the runner resolved. Two of
     // `alpha.case.ts`'s three are absent for different reasons: the skipped one
     // is never handed to the runner, so it opens no scope at all, and the one

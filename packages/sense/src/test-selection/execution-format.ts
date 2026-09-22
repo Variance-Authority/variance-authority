@@ -8,6 +8,7 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
+import { decodeSetExecutionIndex, SET_EXECUTION_FORMAT } from './execution-set-format.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -180,6 +181,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       .toString('utf8')
       .replace(/\0+$/u, ''),
   ) as Header;
+  if (header.version === SET_EXECUTION_FORMAT) return decodeSetExecutionIndex(bytes);
   if (header.version !== EXECUTION_FORMAT) {
     throw new Error(`unsupported execution index version: ${header.version}`);
   }

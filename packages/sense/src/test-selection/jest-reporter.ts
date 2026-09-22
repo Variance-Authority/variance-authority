@@ -9,14 +9,14 @@
  * the parent to the workers that Jest does not already have. An in-band run
  * reads the same variable from the same process.
  *
- * `onRunComplete` is the fold. Each journal names, per module, the path and the
- * cache key its probes were numbered by; the inventory under that key says what
- * the ordinals mean. A journey run writes that run's per-test relation directly.
- * A selection run also builds `TestCoverage` and layers it over its snapshot.
+ * Each journal names, per module, the path and cache key its probes were numbered
+ * by. A journey-only run seals those journals and their inventory locations for
+ * a post-Jest fold. A selection run folds its file-level journals here and layers
+ * the result over its snapshot.
  */
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
@@ -24,6 +24,7 @@ import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
 import { executionIndexFrom, readCaseJournals } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
+import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
@@ -113,24 +114,23 @@ class JestCoverageReporter {
 
     const { root } = this.#config;
     const instrumentation = instrumentationId(this.#config.mode);
-    const journals = await readJournals(runDirectory);
     const stores = [...new Set(
       [...contexts].map((context) => jestStore(context.config.cacheDirectory, context.config.id)),
     )];
-    const modules = await records(journals, stores, instrumentation);
 
     if ('journeyFile' in this.#config) {
-      const frames = caseDirectory === undefined ? [] : await readCaseJournals(caseDirectory, root);
-      await mkdir(dirname(this.#config.journeyFile), { recursive: true });
-      await writeFile(
-        this.#config.journeyFile,
-        executionIndexBytes(this.#config.journeyFile, executionIndexFrom(frames, modules)),
-      );
-      if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
-      await rm(runDirectory, { recursive: true, force: true });
+      const cases = caseDirectory ?? `${runDirectory}-cases`;
+      await stageJestJourneys(this.#config.journeyFile, cases, runDirectory, {
+        version: 1,
+        root,
+        stores,
+        instrumentation,
+      });
       return;
     }
 
+    const journals = await readJournals(runDirectory);
+    const modules = await records(journals, stores, instrumentation);
     const selection = this.#config;
     const { coverageFile } = selection;
 

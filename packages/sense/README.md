@@ -267,8 +267,9 @@ no source. That run says so on the way out —
 ## Record Jest journeys without selecting tests
 
 `withJourneyCoverage` records the source regions entered by each named Jest
-test. It writes one native artifact for the run and neither reads nor writes a
-test-selection snapshot.
+test. Jest seals the journals when its run ends and neither reads nor writes a
+test-selection snapshot. A separate command folds those journals into the
+artifact after Jest has reported whether the tests passed.
 
 ```js
 // jest.config.mjs
@@ -283,26 +284,31 @@ export default withJourneyCoverage(
 );
 ```
 
-`journeyFile` is required. Give every CI shard a different path and publish
-each file independently. The other options are `root`, `preconditions`, `mode`,
-and `continuations`; they have the same meanings as on the selection seam below.
+`journeyFile` is required. Finalize it in a CI step that runs after the Jest step
+whether Jest passed or failed:
 
-After downloading the artifacts, decode and assemble them locally. Assembly is
-order-independent, deduplicates a repeated test identity, and refuses artifacts
-whose region inventories disagree.
+```bash
+yarn exec sense-journeys finalize .variance-authority/journeys.bin
+```
 
-```js
-import { readFile, writeFile } from 'node:fs/promises';
-import {
-  decodeExecutionIndex,
-  encodeExecutionIndex,
-  mergeExecutionIndexes,
-} from '@variance-authority/sense/test-selection';
+Until that command succeeds, the journals and their manifest remain in
+`.variance-authority/journeys.bin.pending`. A failed finalization leaves them
+there for another attempt. A successful one writes the artifact and removes the
+pending directory.
 
-const shards = await Promise.all(
-  process.argv.slice(2).map(async (file) => decodeExecutionIndex(await readFile(file))),
-);
-await writeFile('journeys.bin', encodeExecutionIndex(mergeExecutionIndexes(shards)));
+Give every CI shard a different path and publish each finalized file
+independently. The other options are `root`, `preconditions`, `mode`, and
+`continuations`; they have the same meanings as on the selection seam below.
+
+After downloading the artifacts, assemble them locally. The native fold reads
+the interned sets directly rather than expanding one JavaScript object per test
+and region. Assembly is order-independent, deduplicates a repeated test
+identity, and refuses artifacts whose region inventories disagree.
+
+```bash
+yarn exec sense-journeys stitch \
+  shard-0.bin shard-1.bin shard-2.bin \
+  --into journeys.bin
 ```
 
 ## Cut a Jest run down to a diff

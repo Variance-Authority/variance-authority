@@ -127,7 +127,48 @@ export interface NativeScanner {
    * Nothing when the addon does not claim the language.
    */
   readLanguage(language: string, file: string, source: string): string | null;
+  /** Read, fold, and encode one run's case journals without crossing rows into V8. */
+  foldJourney?(
+    caseDirectory: string,
+    root: string,
+    stores: string[],
+    instrumentation: string,
+    budgetMegabytes?: number,
+  ): NativeJourneyFold;
+  /** Fold and write the compressed artifact without returning its bytes to JavaScript. */
+  foldJourneyTo?(
+    caseDirectory: string,
+    root: string,
+    stores: string[],
+    instrumentation: string,
+    output: string,
+    budgetMegabytes?: number,
+  ): NativeJourneyFoldResult;
+  /** Union compressed journey artifacts while their crossing relation stays native. */
+  stitchJourneys?(files: string[]): NativeJourneyStitch;
+  /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
+  stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
 }
+
+export interface NativeJourneyFold {
+  readonly bytes: Buffer;
+  readonly tests: number;
+  readonly modules: number;
+  readonly crossings: number;
+  readonly passes: number;
+}
+
+export type NativeJourneyFoldResult = Omit<NativeJourneyFold, 'bytes'>;
+
+export interface NativeJourneyStitch {
+  readonly bytes: Buffer;
+  readonly tests: number;
+  readonly modules: number;
+  readonly crossings: number;
+  readonly shards: number;
+}
+
+export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;
 
 /**
  * The package holding the prebuilt addon, per platform we publish one for.

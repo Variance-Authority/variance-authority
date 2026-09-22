@@ -1,0 +1,333 @@
+import { readFile, readdir } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import type { ModuleId } from '../instrument/index.js';
+import { CrossingSets } from './crossing-sets.js';
+import { scanJournal, type JournalVisitor } from './crossing-fold.js';
+import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import {
+  codeUnitOrder,
+  idOrder,
+  isMissing,
+  projectPath,
+  type CapturedModule,
+} from './instrumented-modules.js';
+import { AMBIENT, unpackCase, unpackFrames } from './cases.js';
+import type { ExecutionTest } from './reverse.js';
+
+/** What the first, allocation-free pass over a case-journal directory learned. */
+export interface CaseRun {
+  readonly root: string;
+  readonly paths: readonly string[];
+  readonly tests: readonly ExecutionTest[];
+  /** Test row for each non-ambient frame in stable replay order. */
+  readonly frameTests: Uint32Array;
+  /** The instrument records the fold must load before it can place ordinals. */
+  readonly moduleIds: readonly ModuleId[];
+  /** Half-open test-row range for each test file; test ordering makes it contiguous. */
+  readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
+}
+
+export interface CaseFold {
+  readonly bytes: Buffer;
+  /** The number of times every journal was replayed: one per module slice. */
+  readonly passes: number;
+  /** Logical test-to-region pairs represented by the compact sets. */
+  readonly crossings: number;
+}
+
+interface Coordinate {
+  readonly file: string;
+  readonly name: string;
+  readonly id: string;
+  readonly frame: number;
+}
+
+/**
+ * Name every case and module id without decoding a module row into an object.
+ *
+ * Only coordinates survive this pass. Journal module rows are stepped over by
+ * `scanJournal`; the fold replays them later in slices rather than retaining the
+ * run's test-by-region product.
+ */
+export async function inspectCaseRun(directory: string, root: string): Promise<CaseRun> {
+  let names: readonly string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (isMissing(error)) names = [];
+    else throw error;
+  }
+  const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
+  const coordinates: Coordinate[] = [];
+  const moduleIds = new Set<ModuleId>();
+  let frame = 0;
+  for (const path of paths) {
+    for (const bytes of unpackFrames(await readFile(path))) {
+      scanJournal(bytes, {
+        test(packed) {
+          const coordinate = unpackCase(packed);
+          if (coordinate.name !== AMBIENT || coordinate.id !== AMBIENT) {
+            coordinates.push({
+              file: projectPath(root, coordinate.file),
+              name: coordinate.name,
+              id: coordinate.id,
+              frame: frame++,
+            });
+          }
+        },
+        wants(id) {
+          moduleIds.add(id);
+          return false;
+        },
+        module() { /* refused above */ },
+      });
+    }
+  }
+
+  const ordered = [...coordinates].sort((left, right) =>
+    codeUnitOrder(left.file, right.file) ||
+    codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.id, right.id),
+  );
+  const frameTests = new Uint32Array(ordered.length);
+  const seen = new Map<string, number>();
+  const tests = ordered.map((coordinate, at): ExecutionTest => {
+    frameTests[coordinate.frame] = at;
+    const name = `${coordinate.file} > ${coordinate.name}`;
+    const repeat = seen.get(name) ?? 0;
+    seen.set(name, repeat + 1);
+    return {
+      id: repeat === 0 ? name : `${name}#${repeat}`,
+      file: coordinate.file,
+      name: coordinate.name,
+    };
+  });
+  const testsByFile = new Map<string, readonly [number, number]>();
+  for (let first = 0; first < tests.length;) {
+    let last = first + 1;
+    while (last < tests.length && tests[last]!.file === tests[first]!.file) last += 1;
+    testsByFile.set(tests[first]!.file, [first, last]);
+    first = last;
+  }
+  return { root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile };
+}
+
+const DEFAULT_BUDGET = 128 * 1_048_576;
+
+/**
+ * Fold case journals into compact binary bytes under a fixed relation budget.
+ *
+ * The inventory and final set pool are the output's own shape. The transient
+ * test-by-region relation is limited to one module slice and journals remain on
+ * disk, replayed once per slice.
+ */
+export async function foldCaseRun(
+  run: CaseRun,
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  budget = DEFAULT_BUDGET,
+): Promise<CaseFold> {
+  const shaped = [...modules.entries()].sort(([leftId, left], [rightId, right]) =>
+    codeUnitOrder(left.file, right.file) || idOrder(leftId, rightId),
+  );
+  const rowOf = new Map<ModuleId, number>();
+  const moduleBlocks = new Uint32Array(shaped.length + 1);
+  const ordinalOffsets = new Uint32Array(shaped.length + 1);
+  for (const [row, [id, module]] of shaped.entries()) {
+    rowOf.set(id, row);
+    moduleBlocks[row + 1] = moduleBlocks[row]! + module.blocks.length;
+    let span = 0;
+    for (const block of module.blocks) if (block.ordinal + 1 > span) span = block.ordinal + 1;
+    ordinalOffsets[row + 1] = ordinalOffsets[row]! + span;
+  }
+  const ordinalBlocks = new Int32Array(ordinalOffsets.at(-1) ?? 0);
+  ordinalBlocks.fill(-1);
+  for (const [row, [, module]] of shaped.entries()) {
+    for (const [at, block] of module.blocks.entries()) {
+      ordinalBlocks[ordinalOffsets[row]! + block.ordinal] = moduleBlocks[row]! + at;
+    }
+  }
+
+  const blockCount = moduleBlocks.at(-1) ?? 0;
+  const calledSets = new Uint32Array(blockCount);
+  const loadedSets = new Uint32Array(blockCount);
+  const moduleEntered = new Uint8Array(shaped.length);
+  const sets = new CrossingSets(run.tests.length);
+  const empty = sets.intern([]);
+  calledSets.fill(empty);
+  loadedSets.fill(empty);
+  if (blockCount === 0 || run.tests.length === 0) {
+    return {
+      bytes: encodeSetExecutionIndex({ tests: run.tests, modules: [], sets: sets.pool() }),
+      passes: 0,
+      crossings: 0,
+    };
+  }
+
+  const words = (run.tests.length + 31) >>> 5;
+  const perBlock = words * 8;
+  const limit = Math.max(budget, perBlock);
+  const scratch = new Uint32Array(run.tests.length);
+  let crossings = 0;
+  let passes = 0;
+  let first = 0;
+  while (first < shaped.length) {
+    let last = first;
+    let held = 0;
+    while (last < shaped.length) {
+      const cost = (moduleBlocks[last + 1]! - moduleBlocks[last]!) * perBlock;
+      if (last > first && held + cost > limit) break;
+      held += cost;
+      last += 1;
+    }
+    const firstBlock = moduleBlocks[first]!;
+    const localBlocks = moduleBlocks[last]! - firstBlock;
+    const called = new Uint32Array(localBlocks * words);
+    const loaded = new Uint32Array(localBlocks * words);
+    let caseFrame = 0;
+    let testFirst = 0;
+    let testLast = 0;
+    let moduleRow = -1;
+
+    const visit: JournalVisitor = {
+      test(packed) {
+        const coordinate = unpackCase(packed);
+        if (coordinate.name === AMBIENT && coordinate.id === AMBIENT) {
+          const range = run.testsByFile.get(projectPath(run.root, coordinate.file));
+          testFirst = range?.[0] ?? 0;
+          testLast = range?.[1] ?? 0;
+        } else {
+          const test = run.frameTests[caseFrame++];
+          if (test === undefined) throw new Error('case journal replay changed while it was being folded');
+          testFirst = test;
+          testLast = test + 1;
+        }
+      },
+      wants(id) {
+        const row = rowOf.get(id);
+        if (row === undefined || row < first || row >= last || testFirst === testLast) return false;
+        moduleRow = row;
+        return true;
+      },
+      module(_id, hits, shared) {
+        const ordinalBase = ordinalOffsets[moduleRow]!;
+        const span = ordinalOffsets[moduleRow + 1]! - ordinalBase;
+        let sharedAt = 0;
+        for (let at = 0; at < hits.length; at += 1) {
+          const ordinal = hits[at]!;
+          if (ordinal >= span) continue;
+          while (sharedAt < shared.length && shared[sharedAt]! < ordinal) sharedAt += 1;
+          const block = ordinalBlocks[ordinalBase + ordinal]!;
+          if (block < 0) continue;
+          const target = shared[sharedAt] === ordinal ? loaded : called;
+          markRange(target, (block - firstBlock) * words, words, testFirst, testLast);
+        }
+      },
+    };
+    for (const path of run.paths) {
+      for (const frame of unpackFrames(await readFile(path))) scanJournal(frame, visit);
+    }
+    if (caseFrame !== run.frameTests.length) {
+      throw new Error('case journal replay changed while it was being folded');
+    }
+    passes += 1;
+
+    for (let local = 0; local < localBlocks; local += 1) {
+      const at = local * words;
+      const calledCount = collect(called, undefined, at, words, scratch);
+      const loadedCount = collect(loaded, called, at, words, scratch, calledCount);
+      const block = firstBlock + local;
+      calledSets[block] = sets.intern(scratch.subarray(0, calledCount));
+      loadedSets[block] = sets.intern(scratch.subarray(calledCount, calledCount + loadedCount));
+      crossings += calledCount + loadedCount;
+      if (calledCount + loadedCount > 0) moduleEntered[moduleOf(moduleBlocks, first, last, block)] = 1;
+    }
+    first = last;
+  }
+
+  const encodedModules: SetExecutionModule[] = [];
+  for (const [row, [, module]] of shaped.entries()) {
+    if (moduleEntered[row] !== 1) continue;
+    const from = moduleBlocks[row]!;
+    const to = moduleBlocks[row + 1]!;
+    encodedModules.push({
+      file: module.file,
+      blocks: module.blocks.map((block) => ({
+        kind: block.kind,
+        name: block.name,
+        path: block.path,
+        startLine: block.startLine,
+        endLine: block.endLine,
+        source: block.source,
+      })),
+      called: calledSets.subarray(from, to),
+      loaded: loadedSets.subarray(from, to),
+    });
+  }
+  return {
+    bytes: encodeSetExecutionIndex({ tests: run.tests, modules: encodedModules, sets: sets.pool() }),
+    passes,
+    crossings,
+  };
+}
+
+function markRange(
+  bits: Uint32Array,
+  at: number,
+  words: number,
+  first: number,
+  last: number,
+): void {
+  if (first >= last) return;
+  const firstWord = first >>> 5;
+  const lastWord = (last - 1) >>> 5;
+  if (firstWord === lastWord) {
+    const end = last & 31;
+    const high = end === 0 ? 0xffff_ffff : (2 ** end - 1) >>> 0;
+    bits[at + firstWord] = bits[at + firstWord]! | (high & (0xffff_ffff << (first & 31)));
+    return;
+  }
+  bits[at + firstWord] = bits[at + firstWord]! | (0xffff_ffff << (first & 31));
+  bits.fill(0xffff_ffff, at + firstWord + 1, at + lastWord);
+  const end = last & 31;
+  bits[at + lastWord] = bits[at + lastWord]! | (end === 0 ? 0xffff_ffff : (2 ** end - 1) >>> 0);
+  // `words` is part of the address contract; keep an impossible range from
+  // silently writing into the next block if a corrupt coordinate reaches here.
+  if (lastWord >= words) throw new Error('case journal names a test outside the run');
+}
+
+/** Collect set bits, optionally excluding bits held by the stronger relation. */
+function collect(
+  bits: Uint32Array,
+  exclude: Uint32Array | undefined,
+  at: number,
+  words: number,
+  out: Uint32Array,
+  outAt = 0,
+): number {
+  let held = 0;
+  for (let word = 0; word < words; word += 1) {
+    let value = bits[at + word]! & ~(exclude?.[at + word] ?? 0);
+    while (value !== 0) {
+      const low = 31 - Math.clz32(value & -value);
+      out[outAt + held++] = (word << 5) + low;
+      value &= value - 1;
+    }
+  }
+  return held;
+}
+
+function moduleOf(
+  offsets: Uint32Array,
+  first: number,
+  last: number,
+  block: number,
+): number {
+  let low = first;
+  let high = last;
+  while (low + 1 < high) {
+    const middle = (low + high) >>> 1;
+    if (offsets[middle]! <= block) low = middle;
+    else high = middle;
+  }
+  return low;
+}

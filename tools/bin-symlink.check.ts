@@ -36,6 +36,7 @@ import { PACKAGES } from './workspaces.js';
 const TERMINATES: Readonly<Record<string, readonly string[]>> = {
   // No arguments is the help request; `--help` would test one branch further in.
   variance: [],
+  'sense-journeys': [],
   'variance-authority-help': ['--help'],
   // Refuses with a usage line; bare it would otherwise serve a report over stdio.
   'variance-authority-mcp': [],

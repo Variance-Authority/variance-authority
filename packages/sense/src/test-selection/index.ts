@@ -59,6 +59,12 @@ export {
   isEncodedExecutionIndex,
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
+export {
+  finalizeJestJourneys,
+  pendingJourneyDirectory,
+  stitchJourneyArtifacts,
+  type JourneyArtifactResult,
+} from './jest-journey-artifact.js';
 export type { BlockKind };
 export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };

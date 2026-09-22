@@ -86,6 +86,9 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "sense-journeys": "./dist/test-selection/jest-journey-command.js"
+  },
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",

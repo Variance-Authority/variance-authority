@@ -2283,6 +2283,9 @@
         "scripts/probe-write.mjs",
         "skill"
       ],
+      "bin": {
+        "sense-journeys": "./dist/test-selection/jest-journey-command.js"
+      },
       "engines": {
         "node": ">=22.15"
       }
@@ -2413,6 +2416,7 @@
         "Face": "interface",
         "Faces": "type",
         "ImporterReason": "interface",
+        "JourneyArtifactResult": "interface",
         "JourneyDivergence": "interface",
         "JourneyDivergenceOptions": "interface",
         "JourneyRegion": "interface",
@@ -2447,6 +2451,7 @@
         "eitherFace": "function",
         "encodeExecutionIndex": "function",
         "executionIndexBytes": "function",
+        "finalizeJestJourneys": "function",
         "foldTestCoverage": "function",
         "formatCoveringChange": "function",
         "groupByDistance": "function",
@@ -2462,12 +2467,14 @@
         "narrowByExecution": "function",
         "nearestFirst": "function",
         "openCoverageFile": "function",
+        "pendingJourneyDirectory": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
         "recordedCommit": "function",
         "remaining": "function",
         "seedTestCoverage": "function",
         "selectTestFiles": "function",
+        "stitchJourneyArtifacts": "function",
         "testCoverageFile": "function",
         "testsReaching": "function",
         "testsReachingFromView": "function",

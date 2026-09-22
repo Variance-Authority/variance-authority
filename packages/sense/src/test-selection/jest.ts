@@ -18,8 +18,8 @@
  *   test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
  *   which is where a coverage map of the whole run goes out of memory.
  * - [`jest-reporter.ts`](./jest-reporter.ts) names the run directory before the
- *   workers fork, then folds the journals against the inventories into either
- *   one run's journey artifact or the persisted test-selection snapshot.
+ *   workers fork. A journey-only run seals its journals for a post-Jest fold;
+ *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
 import { resolve } from 'node:path';
@@ -95,7 +95,7 @@ export interface JestTestSelectionOptions {
 export interface JestJourneyCoverageOptions {
   /** Repository root. Defaults to `rootDir`, then the current directory. */
   readonly root?: string;
-  /** Native per-test journey artifact written for this Jest run. */
+  /** Native per-test journey artifact written by `sense-journeys finalize` after Jest. */
   readonly journeyFile: string;
   /** Files Jest transforms before the counter factory exists; transformed, but never probed. */
   readonly preconditions?: readonly string[];
