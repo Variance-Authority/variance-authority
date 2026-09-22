@@ -1,5 +1,9 @@
 # @variance-authority/history
 
+## 0.5.8
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.7
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
