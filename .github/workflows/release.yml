@@ -14,14 +14,21 @@
 # back: a published version is unpublishable, an npm dist-tag is what every
 # `yarn add` in the world resolves, and "who merged that" is not a recovery plan.
 #
-# Nothing here holds an npm token. The publish job authenticates by exchanging
-# GitHub's OIDC token for a short-lived registry credential, which the registry
-# grants only to this repository, this workflow file and the `npm` environment,
-# because that is what the trusted publisher on each package names. It also
-# means the tarballs carry provenance: a signed statement of which commit and
-# which workflow built them, which a consumer can verify without trusting us.
-# Granular tokens that bypass two-factor lose the ability to publish in January
-# 2027 in any case, so a token here would be a thing to migrate off later.
+# The publish job authenticates with `NPM_TOKEN`, held as a secret of the `npm`
+# environment. That is the arrangement this file is meant to stop using: the
+# tarballs are still signed — provenance comes from the `id-token: write`
+# permission rather than from the credential — but a token is a secret that can
+# leak, and granular tokens that bypass two-factor lose the ability to publish
+# in January 2027.
+#
+# What replaces it is trusted publishing: the job exchanges GitHub's OIDC token
+# for a registry credential that lives seconds, which the registry grants only
+# to this repository, this workflow file and the `npm` environment, because that
+# is what the trusted publisher on each package names. It is configured one
+# package at a time with `npm trust github <name> --file release.yml --repo
+# Variance-Authority/variance-authority --env npm --allow-publish`, and the
+# account must carry two-factor authentication before the registry will accept
+# any of it. Deleting `YARN_NPM_AUTH_TOKEN` below is the whole switch-over.
 #
 # A trusted publisher is configured on a package that already exists, so the
 # first version of a *new* name — each of the three
@@ -168,18 +175,20 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: native
-    # The environment name is load-bearing twice over: GitHub can hold the run
-    # here for a reviewer, and npm's trusted publisher for every package names
+    # The environment name is load-bearing three times over: GitHub can hold the
+    # run here for a reviewer, `NPM_TOKEN` is a secret of this environment and
+    # of nothing wider, and the trusted publisher each package will name spells
     # this environment, this repository and this workflow's filename. Rename any
-    # of the three and the registry refuses the exchange — which is the point,
-    # but it makes `release.yml` and `npm` names that cannot be tidied.
+    # of the three and the registry will refuse the exchange — which is the
+    # point, but it makes `release.yml` and `npm` names that cannot be tidied.
     environment: npm
     permissions:
       contents: write
-      # Trusted publishing: `yarn npm publish` trades this run's OIDC token for a
-      # credential that lives seconds and cannot leave the runner. There is no
-      # npm token in this repository to leak, rotate, or find expired on the one
-      # evening a release matters.
+      # What signs the tarballs today and what authenticates them tomorrow. npm
+      # mints provenance from this run's OIDC token, which is why a token
+      # publish is still a signed one; when trusted publishing is configured,
+      # the same token is what `yarn npm publish` trades for a registry
+      # credential that lives seconds and cannot leave the runner.
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -254,9 +263,19 @@ jobs:
 
       - name: Publish, and tag what was published
         env:
-          # No token, deliberately. Yarn attempts the OIDC exchange when no
-          # credential is configured, so adding one back here would silently
-          # disable trusted publishing rather than fail.
+          # A token, for now. Trusted publishing is configured per package and
+          # cannot be configured at all until the account carries two-factor
+          # authentication, so the exchange this workflow was written for has
+          # nothing to exchange with yet. Yarn attempts OIDC only when no
+          # credential is set, which means this line is what turns it off:
+          # remove it on the day `npm trust` has run for all 38 names.
+          #
+          # It is a deadline and not a preference. Tokens that bypass two-factor
+          # lose the ability to publish directly in January 2027.
+          YARN_NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Still signed. Provenance is the `id-token: write` permission above
+          # and not the credential, so a token publish carries the same
+          # statement of which commit and which workflow built the tarball.
           YARN_NPM_PUBLISH_PROVENANCE: 'true'
         run: |
           yarn release:publish
