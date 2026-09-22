@@ -2447,6 +2447,7 @@
         "layeredCoverage": "function",
         "layeredFiles": "function",
         "mergeCoverage": "function",
+        "mergeExecutionIndexes": "function",
         "narrowByExecution": "function",
         "nearestFirst": "function",
         "openCoverageFile": "function",
@@ -2530,6 +2531,7 @@
         "CASE_DIRECTORY_VARIABLE": "const",
         "CONTINUATIONS_VARIABLE": "const",
         "JestConfig": "interface",
+        "JestJourneyCoverageOptions": "interface",
         "JestTestSelectionOptions": "interface",
         "RUN_DIRECTORY_VARIABLE": "const",
         "SELECTION_GLOBALS": "const",
@@ -2540,6 +2542,7 @@
         "SelectionTransformerConfig": "interface",
         "jestStore": "function",
         "mergeCoverage": "function",
+        "withJourneyCoverage": "function",
         "withTestSelection": "function"
       },
       "./jest-transform": {

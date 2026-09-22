@@ -200,6 +200,13 @@ function enclosing(base: Declarer, nextId: () => string): Declarer {
 
 type CaseBody = (this: unknown, ...args: unknown[]) => unknown;
 
+// `test.each` registers a generated case body around the body it was handed.
+// The circus route encloses that generated body and the declarer route has
+// already enclosed the body inside it, so executing one case enters both
+// wrappers synchronously. The outer, runner-named enclosure owns the case; a
+// wrapper reached inside it is the same case, not concurrency.
+let enclosingCase = 0;
+
 /**
  * One case's body, run inside the scope its crossings belong to.
  *
@@ -220,11 +227,17 @@ function scopeCase(body: CaseBody, declared: unknown, nextId: () => string): Cas
       Symbol.for('variance-authority.test-selection.cases')
     ];
     if (scope === undefined) return body.apply(this, args);
+    if (enclosingCase > 0) return body.apply(this, args);
     const { currentTestName: running, testPath } = expect.getState();
     const name = typeof declared === 'string' && typeof running === 'string' && running.endsWith(declared)
       ? running
       : String(declared);
-    return scope.enter(journals.packCase(testPath ?? '', name, nextId()), () => body.apply(this, args));
+    enclosingCase += 1;
+    try {
+      return scope.enter(journals.packCase(testPath ?? '', name, nextId()), () => body.apply(this, args));
+    } finally {
+      enclosingCase -= 1;
+    }
   };
   Object.defineProperty(run, 'length', { value: body.length, configurable: true });
   bracketed.add(run);

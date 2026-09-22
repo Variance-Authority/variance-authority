@@ -58,6 +58,7 @@ export {
   executionIndexBytes,
   isEncodedExecutionIndex,
 } from './execution-format.js';
+export { mergeExecutionIndexes } from './execution-merge.js';
 export type { BlockKind };
 export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { journeyDivergences };

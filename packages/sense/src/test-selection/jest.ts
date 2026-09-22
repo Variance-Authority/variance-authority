@@ -1,6 +1,6 @@
 /**
- * Test selection for Jest: the same probes, journal, and snapshot as the Vitest
- * seam, arranged for a runner whose transform runs in a worker it forks.
+ * Journey coverage and test selection for Jest, arranged for a runner whose
+ * transform runs in a worker it forks.
  *
  * Vitest hands one plugin a `transform` hook and a reporter in one process, so
  * the blocks a transform found can sit in a `Map` until the reporter reads them.
@@ -18,8 +18,8 @@
  *   test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
  *   which is where a coverage map of the whole run goes out of memory.
  * - [`jest-reporter.ts`](./jest-reporter.ts) names the run directory before the
- *   workers fork, then folds the journals against the inventories and lands the
- *   result through `mergeCoverage` and `writeTestCoverage`.
+ *   workers fork, then folds the journals against the inventories into either
+ *   one run's journey artifact or the persisted test-selection snapshot.
  */
 
 import { resolve } from 'node:path';
@@ -91,6 +91,20 @@ export interface JestTestSelectionOptions {
   readonly executionFile?: string;
 }
 
+/** Record per-test journeys from Jest without creating a test-selection snapshot. */
+export interface JestJourneyCoverageOptions {
+  /** Repository root. Defaults to `rootDir`, then the current directory. */
+  readonly root?: string;
+  /** Native per-test journey artifact written for this Jest run. */
+  readonly journeyFile: string;
+  /** Files Jest transforms before the counter factory exists; transformed, but never probed. */
+  readonly preconditions?: readonly string[];
+  /** Probe recipe. Defaults to every arrival region. */
+  readonly mode?: InstrumentMode;
+  /** Follow deliberately concurrent tests through their async contexts. */
+  readonly continuations?: boolean;
+}
+
 /** The subset of a Jest configuration this seam reads and rewrites. */
 export interface JestConfig {
   readonly rootDir?: string;
@@ -129,6 +143,14 @@ export interface SelectionReporterConfig {
   readonly continuations?: boolean;
   /** Where the per-case execution index goes; `<coverageFile>.cases.bin` when absent. */
   readonly executionFile?: string;
+}
+
+/** What the reporter is handed when it records journeys and nothing else. */
+interface JourneyReporterConfig {
+  readonly root: string;
+  readonly journeyFile: string;
+  readonly mode?: InstrumentMode;
+  readonly continuations?: boolean;
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -202,16 +224,7 @@ export function withTestSelection(
   const coverageFile = options.coverageFile === undefined
     ? testCoverageFile(root)
     : resolve(root, options.coverageFile);
-  const inline = config.projects?.map((project) => {
-    if (typeof project === 'string') {
-      throw new Error(
-        `withTestSelection cannot instrument the Jest project named by path ${JSON.stringify(project)}: ` +
-          'a project\'s `transform` and setup files are its own, and a path is read by Jest after this ' +
-          'returns. Spell the project inline in `projects`, and every one of them is instrumented.',
-      );
-    }
-    return project;
-  });
+  const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(root, file));
   const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode, declared));
@@ -240,6 +253,47 @@ export function withTestSelection(
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
+}
+
+/**
+ * Record the arrival regions entered by each Jest test as a native journey
+ * artifact, without reading or writing a test-selection snapshot.
+ */
+export function withJourneyCoverage(
+  config: JestConfig,
+  options: JestJourneyCoverageOptions,
+): JestConfig {
+  const root = resolve(options.root ?? config.rootDir ?? process.cwd());
+  const inline = inlineProjects(config);
+  const declared = (options.preconditions ?? []).map((file) => resolve(root, file));
+  const projects = inline?.map((project) =>
+    instrumented(project, root, projectRoot(project, root), options.mode, declared));
+  const reporter: JourneyReporterConfig = {
+    root,
+    journeyFile: resolve(root, options.journeyFile),
+    ...(options.mode === undefined ? {} : { mode: options.mode }),
+    ...(options.continuations === true ? { continuations: true } : {}),
+  };
+
+  return {
+    ...(projects === undefined ? instrumented(config, root, root, options.mode, declared) : config),
+    rootDir: config.rootDir ?? root,
+    ...(projects === undefined ? {} : { projects }),
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+  };
+}
+
+function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
+  return config.projects?.map((project) => {
+    if (typeof project === 'string') {
+      throw new Error(
+        `the Jest project named by path ${JSON.stringify(project)} cannot be instrumented: ` +
+          'a project\'s `transform` and setup files are its own, and a path is read by Jest after ' +
+          'this returns. Spell the project inline in `projects`, and every one of them is instrumented.',
+      );
+    }
+    return project;
+  });
 }
 
 /**

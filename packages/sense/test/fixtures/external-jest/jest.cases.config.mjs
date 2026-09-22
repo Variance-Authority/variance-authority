@@ -1,21 +1,17 @@
 /**
- * The same project, asked for the per-case index as well.
- *
- * A second configuration rather than a flag on the first, because the first is
- * what proves a run that does not ask for cases writes exactly the bytes it
- * always did.
+ * The same project, recording per-test journeys without a selection snapshot.
  */
 import { fileURLToPath } from 'node:url';
-import { withTestSelection } from '@variance-authority/sense/jest';
+import { withJourneyCoverage } from '@variance-authority/sense/jest';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const coverageFile = process.env['VARIANCE_AUTHORITY_COVERAGE'];
+const journeyFile = process.env['VARIANCE_AUTHORITY_JOURNEYS'];
 const cacheDirectory = process.env['VARIANCE_AUTHORITY_JEST_CACHE'];
-if (coverageFile === undefined || cacheDirectory === undefined) {
-  throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_JEST_CACHE are required');
+if (journeyFile === undefined || cacheDirectory === undefined) {
+  throw new Error('VARIANCE_AUTHORITY_JOURNEYS and VARIANCE_AUTHORITY_JEST_CACHE are required');
 }
 
-export default withTestSelection(
+export default withJourneyCoverage(
   {
     rootDir: root,
     cacheDirectory,
@@ -27,5 +23,5 @@ export default withTestSelection(
     setupFiles: ['<rootDir>/test/polyfill.cjs'],
     setupFilesAfterEnv: ['<rootDir>/test/setup.cjs'],
   },
-  { coverageFile, preconditions: ['jest.cases.config.mjs'], cases: true },
+  { journeyFile, preconditions: ['jest.cases.config.mjs'] },
 );

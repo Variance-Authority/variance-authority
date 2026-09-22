@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { mergeExecutionIndexes } from './execution-merge.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -115,27 +116,33 @@ describe('the Jest integration', () => {
     await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
   }, 120_000);
 
-  it('names the individual cases of a file, and gives a branch only to the case that walked it', async () => {
+  it('assembles shard artifacts while giving a branch only to the case that walked it', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-cases-'));
     temporary.push(directory);
-    const coverageFile = resolve(directory, 'coverage.bin');
-    await execute(
-      process.execPath,
-      [jest, '--config', resolve(fixture, 'jest.cases.config.mjs'), '--watchman=false'],
-      {
-        cwd: fixture,
-        env: {
-          ...process.env,
-          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-          VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
-          XDG_CACHE_HOME: directory,
+    const journeyFiles = [resolve(directory, 'journeys-0.bin'), resolve(directory, 'journeys-1.bin')];
+    const run = async (journeyFile: string, testFiles: readonly string[]): Promise<void> => {
+      await execute(
+        process.execPath,
+        [jest, '--config', resolve(fixture, 'jest.cases.config.mjs'), '--watchman=false', ...testFiles],
+        {
+          cwd: fixture,
+          env: {
+            ...process.env,
+            VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
+            VARIANCE_AUTHORITY_JEST_CACHE: `${journeyFile}.cache`,
+            XDG_CACHE_HOME: directory,
+          },
         },
-      },
-    );
+      );
+    };
+    await Promise.all([
+      run(journeyFiles[0]!, ['test/alpha.case.ts', 'test/delta.case.ts', 'test/each.case.ts']),
+      run(journeyFiles[1]!, ['test/beta.case.ts', 'test/gamma.case.ts']),
+    ]);
 
-    // Beside the snapshot, never inside it: the file CI reads is the same file
-    // a run without `cases` writes.
-    const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+    const index = mergeExecutionIndexes(await Promise.all(
+      journeyFiles.map(async (file) => decodeExecutionIndex(await readFile(file))),
+    ));
     // Every case that entered a region, by the name the runner resolved. Two of
     // `alpha.case.ts`'s three are absent for different reasons: the skipped one
     // is never handed to the runner, so it opens no scope at all, and the one
@@ -150,6 +157,8 @@ describe('the Jest integration', () => {
       'test/alpha.case.ts > takes the alpha path',
       'test/beta.case.ts > takes the beta path',
       'test/delta.case.ts > takes the delta path with registrars it imported',
+      'test/each.case.ts > takes the alpha path from a table',
+      'test/each.case.ts > takes the beta path from a table',
       'test/gamma.case.ts > keeps what it entered before the module registry was reset',
     ]);
 
@@ -171,7 +180,15 @@ describe('the Jest integration', () => {
     // One branch, one case. The other cases of the same file imported the same
     // module and never took this turn, and the ambient bucket every case is
     // credited with holds the file's evaluation, not its branches.
-    expect(walking('A')).toEqual(['test/alpha.case.ts > takes the alpha path']);
+    expect(walking('A')).toEqual([
+      'test/alpha.case.ts > takes the alpha path',
+      'test/each.case.ts > takes the alpha path from a table',
+    ]);
+    expect(walking('B')).toEqual([
+      'test/beta.case.ts > takes the beta path',
+      'test/each.case.ts > takes the beta path from a table',
+      'test/gamma.case.ts > keeps what it entered before the module registry was reset',
+    ]);
     expect(walking('G')).toEqual([
       'test/gamma.case.ts > keeps what it entered before the module registry was reset',
     ]);

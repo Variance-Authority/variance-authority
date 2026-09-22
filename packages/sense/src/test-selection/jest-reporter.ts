@@ -11,12 +11,12 @@
  *
  * `onRunComplete` is the fold. Each journal names, per module, the path and the
  * cache key its probes were numbered by; the inventory under that key says what
- * the ordinals mean. The result is one `TestCoverage` for this run, layered
- * over what the coverage file already held.
+ * the ordinals mean. A journey run writes that run's per-test relation directly.
+ * A selection run also builds `TestCoverage` and layers it over its snapshot.
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
@@ -70,23 +70,32 @@ export interface JestTestContext {
   readonly config: { readonly cacheDirectory: string; readonly id?: string };
 }
 
-class SelectionReporter {
-  readonly #config: SelectionReporterConfig;
+interface JourneyReporterConfig {
+  readonly root: string;
+  readonly journeyFile: string;
+  readonly mode?: Parameters<typeof instrumentationId>[0];
+  readonly continuations?: boolean;
+}
+
+type JestReporterConfig = SelectionReporterConfig | JourneyReporterConfig;
+
+class JestCoverageReporter {
+  readonly #config: JestReporterConfig;
   #runDirectory: string | undefined;
   /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
   #caseDirectory: string | undefined;
 
-  constructor(_globalConfig: unknown, config: SelectionReporterConfig) {
+  constructor(_globalConfig: unknown, config: JestReporterConfig) {
     this.#config = config;
   }
 
   onRunStart(): void {
     this.#runDirectory = resolve(
-      dirname(this.#config.coverageFile),
+      dirname('journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile),
       `.run-${process.pid}-${randomUUID()}`,
     );
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
-    if (this.#config.cases !== true) return;
+    if ('coverageFile' in this.#config && this.#config.cases !== true) return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
@@ -102,13 +111,28 @@ class SelectionReporter {
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 
-    const { root, coverageFile } = this.#config;
+    const { root } = this.#config;
     const instrumentation = instrumentationId(this.#config.mode);
     const journals = await readJournals(runDirectory);
     const stores = [...new Set(
       [...contexts].map((context) => jestStore(context.config.cacheDirectory, context.config.id)),
     )];
     const modules = await records(journals, stores, instrumentation);
+
+    if ('journeyFile' in this.#config) {
+      const frames = caseDirectory === undefined ? [] : await readCaseJournals(caseDirectory, root);
+      await mkdir(dirname(this.#config.journeyFile), { recursive: true });
+      await writeFile(
+        this.#config.journeyFile,
+        executionIndexBytes(this.#config.journeyFile, executionIndexFrom(frames, modules)),
+      );
+      if (caseDirectory !== undefined) await rm(caseDirectory, { recursive: true, force: true });
+      await rm(runDirectory, { recursive: true, force: true });
+      return;
+    }
+
+    const selection = this.#config;
+    const { coverageFile } = selection;
 
     const rows = journals.map((journal) => ({
       testFile: projectPath(root, journal.testFile),
@@ -118,7 +142,7 @@ class SelectionReporter {
     const early = loadedOf(rows);
 
     const tests = await Promise.all(
-      results.testResults.map((result) => coverageTest(result, this.#config, journals, modules)),
+      results.testResults.map((result) => coverageTest(result, selection, journals, modules)),
     );
     const commit = await commitOf(root);
     const current: TestCoverage = {
@@ -267,4 +291,4 @@ async function readJournals(directory: string): Promise<readonly ReadJournal[]> 
   );
 }
 
-export { SelectionReporter as default };
+export { JestCoverageReporter as default };

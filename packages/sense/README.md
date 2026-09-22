@@ -264,6 +264,47 @@ nothing: the reporter runs, the file is written, and it says every test reaches
 no source. That run says so on the way out —
 `instrumented 0 modules across N test file(s)`.
 
+## Record Jest journeys without selecting tests
+
+`withJourneyCoverage` records the source regions entered by each named Jest
+test. It writes one native artifact for the run and neither reads nor writes a
+test-selection snapshot.
+
+```js
+// jest.config.mjs
+import { withJourneyCoverage } from '@variance-authority/sense/jest';
+
+export default withJourneyCoverage(
+  {
+    testEnvironment: 'jsdom',
+    transform: { '\\.[jt]sx?$': '@swc/jest' },
+  },
+  { journeyFile: '.variance-authority/journeys.bin' },
+);
+```
+
+`journeyFile` is required. Give every CI shard a different path and publish
+each file independently. The other options are `root`, `preconditions`, `mode`,
+and `continuations`; they have the same meanings as on the selection seam below.
+
+After downloading the artifacts, decode and assemble them locally. Assembly is
+order-independent, deduplicates a repeated test identity, and refuses artifacts
+whose region inventories disagree.
+
+```js
+import { readFile, writeFile } from 'node:fs/promises';
+import {
+  decodeExecutionIndex,
+  encodeExecutionIndex,
+  mergeExecutionIndexes,
+} from '@variance-authority/sense/test-selection';
+
+const shards = await Promise.all(
+  process.argv.slice(2).map(async (file) => decodeExecutionIndex(await readFile(file))),
+);
+await writeFile('journeys.bin', encodeExecutionIndex(mergeExecutionIndexes(shards)));
+```
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own

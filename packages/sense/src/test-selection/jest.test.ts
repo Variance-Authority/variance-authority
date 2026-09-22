@@ -12,6 +12,7 @@ import {
   SELECTION_REPORTER,
   SELECTION_SETUP,
   SELECTION_TRANSFORM,
+  withJourneyCoverage,
   withTestSelection,
 } from './jest.js';
 import { readRecord } from './instrumented-modules.js';
@@ -37,6 +38,29 @@ const temporary: string[] = [];
 afterEach(async () => {
   delete process.env[RUN_DIRECTORY_VARIABLE];
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
+});
+
+describe('withJourneyCoverage for Jest', () => {
+  it('records journeys without configuring a test-selection snapshot', () => {
+    const configured = withJourneyCoverage(
+      { rootDir: '/repo', transform: { '\\.tsx?$': '@swc/jest' } },
+      { journeyFile: 'artifacts/shard-3.journeys.bin', preconditions: ['test/environment.ts'] },
+    );
+
+    expect(configured.transform).toEqual({
+      '\\.tsx?$': [SELECTION_TRANSFORM, {
+        root: '/repo',
+        transformer: '@swc/jest',
+        exclude: ['/repo/test/environment.ts'],
+      }],
+    });
+    expect(configured.setupFiles).toEqual([SELECTION_GLOBALS]);
+    expect(configured.setupFilesAfterEnv).toEqual([SELECTION_SETUP]);
+    expect(configured.reporters).toEqual([
+      'default',
+      [SELECTION_REPORTER, { root: '/repo', journeyFile: '/repo/artifacts/shard-3.journeys.bin' }],
+    ]);
+  });
 });
 
 async function project(): Promise<string> {

@@ -1,7 +1,7 @@
 /**
  * The Jest transformer: the project's own transform first, probes on its output.
  *
- * Named in a configuration by `withTestSelection`, and loaded by Jest once per
+ * Named in a configuration by the Jest wrappers, and loaded by Jest once per
  * worker. It wraps whatever transformer the configuration named — `@swc/jest`,
  * `ts-jest`, `babel-jest`, anything with Jest's transformer shape — and never
  * chooses one: the project's transformer runs first, with the project's
