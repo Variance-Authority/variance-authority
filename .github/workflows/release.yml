@@ -208,9 +208,10 @@ jobs:
             exit 1
           fi
 
-      # `dist` is gitignored and no package declares `prepack`, so this is what
-      # makes the tarballs non-empty. A publish from a clean checkout without it
-      # ships empty packages.
+      # `dist` is gitignored and the only `prepack` any package declares refuses
+      # a missing binary rather than producing one, so this is what makes the
+      # tarballs non-empty. A publish from a clean checkout without it ships
+      # empty packages.
       - run: yarn build
 
       # After the build, deliberately. `yarn build` runs the native build script,

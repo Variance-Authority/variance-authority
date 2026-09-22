@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error — a sibling tool, imported the way the other checks import theirs.
-import { ROOT, changelogs, tidy } from './changelog-tidy.mjs';
+import { LOCKSTEP, ROOT, changelogs, tidy } from './changelog-tidy.mjs';
 
 /**
  * The changelogs carry what somebody wrote, and nothing a generator inferred.
@@ -33,6 +33,33 @@ describe('a published changelog', () => {
   it.each(written)('$name carries no dependency bookkeeping', ({ at }: { at: string }) => {
     const text = readFileSync(at, 'utf8');
     expect(tidy(text), 'run `node tools/changelog-tidy.mjs`').toBe(text);
+  });
+
+  // The three `sense-<platform>` packages are the only names here carrying
+  // digits, and they first entered a dependency list at 0.5.6 — where a name
+  // class of letters alone ended the block at the first of them and published
+  // every sibling under it as bookkeeping.
+  it('removes a block whose first sibling is a platform package', () => {
+    const generated = [
+      '# x',
+      '',
+      '## 0.5.6',
+      '',
+      '### Patch Changes',
+      '',
+      '- Updated dependencies [9e1b8ef]',
+      '  - @variance-authority/sense-darwin-arm64@0.5.6',
+      '  - @variance-authority/core@0.5.6',
+      '',
+      '## 0.5.5',
+      '',
+      'Something a person wrote.',
+      '',
+    ].join('\n');
+
+    expect(tidy(generated)).toBe(
+      `# x\n\n## 0.5.6\n\n${LOCKSTEP}\n\n## 0.5.5\n\nSomething a person wrote.\n`,
+    );
   });
 
   // The generator only helps where it runs, and `release:version` is the one

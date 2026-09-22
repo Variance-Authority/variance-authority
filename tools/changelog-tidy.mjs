@@ -42,14 +42,19 @@ export const LOCKSTEP =
 export const FIRST = 'First release.';
 
 const UPDATED = /^- Updated dependencies \[/;
-const SIBLING = /^ {2}- @variance-authority\/[a-z-]+@\d/;
+/**
+ * A name carries digits — `sense-darwin-arm64`, `linux-x64-gnu`, `win32-x64-msvc`
+ * — so the class cannot be letters alone. One that excluded them stopped the
+ * block at the first platform package and left every sibling under it standing.
+ */
+const SIBLING = /^ {2}- @variance-authority\/[a-z0-9-]+@\d/;
 /**
  * A sibling standing at the left margin, which is a release that was only a bump.
  *
  * Unconditional, unlike the indented form: an authored body is indented under
  * its entry, so nothing a person wrote can reach column zero as a list item.
  */
-const ONLY_A_BUMP = /^- @variance-authority\/[a-z-]+@\d/;
+const ONLY_A_BUMP = /^- @variance-authority\/[a-z0-9-]+@\d/;
 const HEADING = /^#{2,3} /;
 
 /** Every published package's changelog, whether or not it has been written yet. */
