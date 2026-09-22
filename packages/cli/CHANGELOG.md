@@ -1,5 +1,9 @@
 # @variance-authority/cli
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
 ### Patch Changes
@@ -12,22 +16,6 @@
   no longer publishes a second executable for these operations.
 - Updated dependencies
   - @variance-authority/sense@0.5.5
-  - @variance-authority/core@0.5.5
-  - @variance-authority/distill@0.5.5
-  - @variance-authority/eyes@0.5.5
-  - @variance-authority/help@0.5.5
-  - @variance-authority/history@0.5.5
-  - @variance-authority/mcp@0.5.5
-  - @variance-authority/observe@0.5.5
-  - @variance-authority/playwright@0.5.5
-  - @variance-authority/png@0.5.5
-  - @variance-authority/png-sharp@0.5.5
-  - @variance-authority/raster@0.5.5
-  - @variance-authority/remote@0.5.5
-  - @variance-authority/report@0.5.5
-  - @variance-authority/store@0.5.5
-  - @variance-authority/storybook@0.5.5
-  - @variance-authority/vantage@0.5.5
 
 ## 0.5.4
 
@@ -35,22 +23,6 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/distill@0.5.4
-  - @variance-authority/eyes@0.5.4
-  - @variance-authority/help@0.5.4
-  - @variance-authority/history@0.5.4
-  - @variance-authority/mcp@0.5.4
-  - @variance-authority/observe@0.5.4
-  - @variance-authority/playwright@0.5.4
-  - @variance-authority/png@0.5.4
-  - @variance-authority/png-sharp@0.5.4
-  - @variance-authority/raster@0.5.4
-  - @variance-authority/remote@0.5.4
-  - @variance-authority/report@0.5.4
-  - @variance-authority/sense@0.5.4
-  - @variance-authority/store@0.5.4
-  - @variance-authority/storybook@0.5.4
-  - @variance-authority/vantage@0.5.4
 
 ## 0.5.3
 
@@ -58,22 +30,6 @@
 
 - Updated dependencies
   - @variance-authority/sense@0.5.3
-  - @variance-authority/core@0.5.3
-  - @variance-authority/distill@0.5.3
-  - @variance-authority/eyes@0.5.3
-  - @variance-authority/help@0.5.3
-  - @variance-authority/history@0.5.3
-  - @variance-authority/mcp@0.5.3
-  - @variance-authority/observe@0.5.3
-  - @variance-authority/playwright@0.5.3
-  - @variance-authority/png@0.5.3
-  - @variance-authority/png-sharp@0.5.3
-  - @variance-authority/raster@0.5.3
-  - @variance-authority/remote@0.5.3
-  - @variance-authority/report@0.5.3
-  - @variance-authority/store@0.5.3
-  - @variance-authority/storybook@0.5.3
-  - @variance-authority/vantage@0.5.3
 
 ## 0.5.2
 
@@ -140,22 +96,6 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   be guessing at.
 - Updated dependencies
   - @variance-authority/mcp@0.4.1
-  - @variance-authority/help@0.4.1
-  - @variance-authority/core@0.4.1
-  - @variance-authority/distill@0.4.1
-  - @variance-authority/eyes@0.4.1
-  - @variance-authority/history@0.4.1
-  - @variance-authority/observe@0.4.1
-  - @variance-authority/playwright@0.4.1
-  - @variance-authority/png@0.4.1
-  - @variance-authority/png-sharp@0.4.1
-  - @variance-authority/raster@0.4.1
-  - @variance-authority/remote@0.4.1
-  - @variance-authority/report@0.4.1
-  - @variance-authority/sense@0.4.1
-  - @variance-authority/store@0.4.1
-  - @variance-authority/storybook@0.4.1
-  - @variance-authority/vantage@0.4.1
 
 ## 0.4.0
 

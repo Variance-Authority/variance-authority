@@ -1,20 +1,19 @@
 # @variance-authority/help
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
 ### Patch Changes
 
 - Updated dependencies
   - @variance-authority/sense@0.5.5
-  - @variance-authority/mcp@0.5.5
-  - @variance-authority/package@0.5.5
 
 ## 0.5.4
 
-### Patch Changes
-
-  - @variance-authority/package@0.5.4
-  - @variance-authority/sense@0.5.4
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.3
 
@@ -22,8 +21,6 @@
 
 - Updated dependencies
   - @variance-authority/sense@0.5.3
-  - @variance-authority/mcp@0.5.3
-  - @variance-authority/package@0.5.3
 
 ## 0.5.2
 
@@ -90,8 +87,6 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   be guessing at.
 - Updated dependencies
   - @variance-authority/mcp@0.4.1
-  - @variance-authority/package@0.4.1
-  - @variance-authority/sense@0.4.1
 
 ## 0.4.0
 
@@ -107,9 +102,7 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
 
 ## 0.1.1
 
-### Patch Changes
-
-  - @variance-authority/package@0.1.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.1.0
 

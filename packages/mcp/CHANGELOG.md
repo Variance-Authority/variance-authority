@@ -1,18 +1,15 @@
 # @variance-authority/mcp
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
 ### Patch Changes
 
 - Updated dependencies
   - @variance-authority/sense@0.5.5
-  - @variance-authority/core@0.5.5
-  - @variance-authority/distill@0.5.5
-  - @variance-authority/eyes@0.5.5
-  - @variance-authority/presentation@0.5.5
-  - @variance-authority/report@0.5.5
-  - @variance-authority/scenario@0.5.5
-  - @variance-authority/vantage@0.5.5
 
 ## 0.5.4
 
@@ -20,13 +17,6 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/distill@0.5.4
-  - @variance-authority/eyes@0.5.4
-  - @variance-authority/presentation@0.5.4
-  - @variance-authority/report@0.5.4
-  - @variance-authority/scenario@0.5.4
-  - @variance-authority/sense@0.5.4
-  - @variance-authority/vantage@0.5.4
 
 ## 0.5.3
 
@@ -34,13 +24,6 @@
 
 - Updated dependencies
   - @variance-authority/sense@0.5.3
-  - @variance-authority/core@0.5.3
-  - @variance-authority/distill@0.5.3
-  - @variance-authority/eyes@0.5.3
-  - @variance-authority/presentation@0.5.3
-  - @variance-authority/report@0.5.3
-  - @variance-authority/scenario@0.5.3
-  - @variance-authority/vantage@0.5.3
 
 ## 0.5.2
 
@@ -87,16 +70,6 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   transport, and the standalone binary is for the workspace that runs no visual
   suite.
 
-### Patch Changes
-
-  - @variance-authority/distill@0.5.0
-  - @variance-authority/eyes@0.5.0
-  - @variance-authority/presentation@0.5.0
-  - @variance-authority/report@0.5.0
-  - @variance-authority/scenario@0.5.0
-  - @variance-authority/sense@0.5.0
-  - @variance-authority/vantage@0.5.0
-
 ## 0.4.1
 
 ### Patch Changes
@@ -115,13 +88,6 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   reworded description of the same thing. The caller holds the ticket and the
   codebase the word came from, which is the context a shipped synonym table would
   be guessing at.
-  - @variance-authority/distill@0.4.1
-  - @variance-authority/eyes@0.4.1
-  - @variance-authority/presentation@0.4.1
-  - @variance-authority/report@0.4.1
-  - @variance-authority/scenario@0.4.1
-  - @variance-authority/sense@0.4.1
-  - @variance-authority/vantage@0.4.1
 
 ## 0.4.0
 

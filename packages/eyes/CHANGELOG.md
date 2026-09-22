@@ -1,10 +1,12 @@
 # @variance-authority/eyes
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
-### Patch Changes
-
-  - @variance-authority/react@0.5.5
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.4
 
@@ -12,43 +14,30 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/react@0.5.4
 
 ## 0.5.3
 
-### Patch Changes
-
-  - @variance-authority/react@0.5.3
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.2
 
-### Patch Changes
-
-  - @variance-authority/react@0.5.2
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.1
 
-### Patch Changes
-
-  - @variance-authority/react@0.5.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.0
 
-### Patch Changes
-
-  - @variance-authority/react@0.5.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.1
 
-### Patch Changes
-
-  - @variance-authority/react@0.4.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.0
 
-### Patch Changes
-
-  - @variance-authority/react@0.4.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.3.0
 

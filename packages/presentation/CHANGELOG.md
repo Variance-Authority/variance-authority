@@ -1,12 +1,12 @@
 # @variance-authority/presentation
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.5
-  - @variance-authority/react@0.5.5
-  - @variance-authority/report@0.5.5
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.4
 
@@ -14,57 +14,30 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/dom@0.5.4
-  - @variance-authority/react@0.5.4
-  - @variance-authority/report@0.5.4
 
 ## 0.5.3
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.3
-  - @variance-authority/react@0.5.3
-  - @variance-authority/report@0.5.3
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.2
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.2
-  - @variance-authority/react@0.5.2
-  - @variance-authority/report@0.5.2
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.1
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.1
-  - @variance-authority/react@0.5.1
-  - @variance-authority/report@0.5.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.0
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.0
-  - @variance-authority/react@0.5.0
-  - @variance-authority/report@0.5.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.1
 
-### Patch Changes
-
-  - @variance-authority/dom@0.4.1
-  - @variance-authority/react@0.4.1
-  - @variance-authority/report@0.4.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.0
 
-### Patch Changes
-
-  - @variance-authority/dom@0.4.0
-  - @variance-authority/react@0.4.0
-  - @variance-authority/report@0.4.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.3.0
 
@@ -76,11 +49,7 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
 
 ## 0.1.1
 
-### Patch Changes
-
-  - @variance-authority/dom@0.1.1
-  - @variance-authority/react@0.1.1
-  - @variance-authority/report@0.1.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.1.0
 

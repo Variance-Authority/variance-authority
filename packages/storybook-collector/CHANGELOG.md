@@ -1,16 +1,15 @@
 # @variance-authority/storybook-collector
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
 ### Patch Changes
 
 - Updated dependencies
   - @variance-authority/sense@0.5.5
-  - @variance-authority/core@0.5.5
-  - @variance-authority/dom@0.5.5
-  - @variance-authority/playwright@0.5.5
-  - @variance-authority/react@0.5.5
-  - @variance-authority/storybook@0.5.5
 
 ## 0.5.4
 
@@ -18,11 +17,6 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/dom@0.5.4
-  - @variance-authority/playwright@0.5.4
-  - @variance-authority/react@0.5.4
-  - @variance-authority/sense@0.5.4
-  - @variance-authority/storybook@0.5.4
 
 ## 0.5.3
 
@@ -30,11 +24,6 @@
 
 - Updated dependencies
   - @variance-authority/sense@0.5.3
-  - @variance-authority/core@0.5.3
-  - @variance-authority/dom@0.5.3
-  - @variance-authority/playwright@0.5.3
-  - @variance-authority/react@0.5.3
-  - @variance-authority/storybook@0.5.3
 
 ## 0.5.2
 
@@ -46,23 +35,11 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
 
 ## 0.5.0
 
-### Patch Changes
-
-  - @variance-authority/dom@0.5.0
-  - @variance-authority/playwright@0.5.0
-  - @variance-authority/react@0.5.0
-  - @variance-authority/sense@0.5.0
-  - @variance-authority/storybook@0.5.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.1
 
-### Patch Changes
-
-  - @variance-authority/dom@0.4.1
-  - @variance-authority/playwright@0.4.1
-  - @variance-authority/react@0.4.1
-  - @variance-authority/sense@0.4.1
-  - @variance-authority/storybook@0.4.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.0
 

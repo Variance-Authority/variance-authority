@@ -1,5 +1,9 @@
 # @variance-authority/sense
 
+## 0.5.6
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.5
 
 ### Patch Changes
@@ -10,7 +14,6 @@
   and `variance journeys stitch <shard-file>... --into <journey-file>` assembles
   downloaded CI shards. Both commands work without `variance.config.json`. Sense
   no longer publishes a second executable for these operations.
-  - @variance-authority/wire@0.5.5
 
 ## 0.5.4
 
@@ -18,7 +21,6 @@
 
 - Updated dependencies
   - @variance-authority/core@0.5.4
-  - @variance-authority/wire@0.5.4
 
 ## 0.5.3
 
@@ -29,7 +31,6 @@
   The Sense package includes the `sense-journeys` command and its native fold and
   stitch implementation. A Jest journey run can now be finalized after Jest exits
   using the files installed from the package.
-  - @variance-authority/wire@0.5.3
 
 ## 0.5.2
 
@@ -43,7 +44,6 @@
   machine. Both commands process the crossing relation in the native addon and
   write the result without transferring artifact bytes through the JavaScript
   heap.
-  - @variance-authority/wire@0.5.2
 
 ## 0.5.1
 
@@ -51,19 +51,14 @@
 
 - 65374a4: Add recording-only Jest journey coverage, deterministic assembly of shard artifacts,
   and one case scope for table-driven tests.
-  - @variance-authority/wire@0.5.1
 
 ## 0.5.0
 
-### Patch Changes
-
-  - @variance-authority/wire@0.5.0
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.1
 
-### Patch Changes
-
-  - @variance-authority/wire@0.4.1
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.4.0
 
@@ -109,7 +104,6 @@
   The bytes are the bytes. This is an optimization of a function that already
   existed, and the gate test still asserts the output is identical to the merge
   and encode it replaces.
-  - @variance-authority/wire@0.4.0
 
 ## 0.3.0
 
@@ -516,7 +510,6 @@
   already applied at its call site and `@variance-authority/storybook-collector`
   did not. Folding inside the recorder rather than in each collector is what makes
   the one-row-per-owner invariant hold for collectors not yet written.
-  - @variance-authority/wire@0.1.1
 
 ## 0.1.0
 

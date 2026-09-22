@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/scenario",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Record runtime scenarios as AAA state machines and assess variance across witnessed transitions.",
   "keywords": [
     "variance-authority",
