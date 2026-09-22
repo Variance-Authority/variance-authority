@@ -10,7 +10,7 @@ That is enough while everything goes as expected. When it does not, the missing
 middle is exactly what you need.
 
 This is the same boundary that makes a high-level test useful. [A test preserves
-the path it names](on-testing.md#tests-are-feedback-not-inventory) while
+the path it names](tests.md#high-level-is-a-strength-and-a-blind-spot) while
 remaining insensitive to how that promise was kept. The pass becomes a blind
 spot only when it is asked to mean that nothing else changed.
 
@@ -153,6 +153,6 @@ explanations, the correct result is not a guess. It is another question, and
 another point of observation.
 
 Software changes by moving through paths. Tests preserve [the ones you cared
-enough to codify](on-testing.md#tests-are-feedback-not-inventory). That is their
-strength. Keeping the rest is what prevents that strength becoming a blind
-spot, and lets you explain what happened while the system ran.
+enough to codify](tests.md#high-level-is-a-strength-and-a-blind-spot). That is
+their strength. Keeping the rest is what prevents that strength becoming a
+blind spot, and lets you explain what happened while the system ran.

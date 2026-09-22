@@ -18,7 +18,7 @@ Five fields touch this project, and only one of them is the one people assume.
 | Regression test selection | Which tests need to run for this change? | [`selecting.md`](../selecting.md), [`source.md`](../source.md) |
 | Flake detection | Is this failure about the change? | [`flakiness.md`](../flakiness.md) |
 | Fault localization | Which line caused it? | [`attribution.md`](../attribution.md) |
-| Coverage adequacy | Is this suite good enough? | [`better-tests.md`](../better-tests.md), [`on-testing.md`](../on-testing.md) |
+| Coverage adequacy | Is this suite good enough? | [`better-tests.md`](../better-tests.md), [`tests.md`](../tests.md) |
 
 ## Test-to-code traceability
 

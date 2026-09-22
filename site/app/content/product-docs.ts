@@ -90,7 +90,6 @@ export interface ProductDocument {
 const documents = [
   ["overview", index, "docs/README.md"],
   ["orientation", orientation, "docs/orientation.md"],
-  ["on-testing", onTesting, "docs/on-testing.md"],
   ["tests", tests, "docs/tests.md"],
   ["changed", changed, "docs/changed.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],
@@ -178,6 +177,7 @@ const documents = [
   ["native-code", nativeCode, "docs/native-code.md"],
   ["performance", performance, "docs/performance.md"],
   ["sharing", sharing, "docs/sharing.md"],
+  ["on-testing", onTesting, "docs/on-testing.md"],
 ] as const;
 
 export const PRODUCT_DOCUMENTS: readonly ProductDocument[] = documents.map(

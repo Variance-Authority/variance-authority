@@ -24,7 +24,7 @@ export const NAVIGATION = [
     label: "Overview",
     items: [
       { href: "/docs", label: "Documentation home", unlisted: true },
-      { href: "/docs/on-testing", label: "Decide what each test adds" },
+      { href: "/docs/tests", label: "Tests preserve the paths we care about" },
       { href: "/docs/changed", label: "See what changed" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },
@@ -374,6 +374,7 @@ export const NAVIGATION = [
       { href: "/docs/native-code", label: "Native code" },
       { href: "/reference/packages", label: "Package reference" },
       { href: "/reference/comparison", label: "Compare operating models" },
+      { href: "/docs/on-testing", label: "On testing: decide what each test adds" },
     ],
   },
 ] as const satisfies readonly NavigationSection[];
