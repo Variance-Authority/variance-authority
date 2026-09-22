@@ -102,6 +102,42 @@ jobs:
         shell: bash
         run: yarn test
 
+      # A second reading of the same suite, under V8's counters rather than the
+      # repository's own test-selection probes. There is deliberately no
+      # threshold: this is evidence to inspect, not a percentage to game. The
+      # command itself still has to succeed so a partial reading cannot look
+      # authoritative.
+      - name: collect coverage
+        id: coverage
+        shell: bash
+        run: yarn test:coverage
+
+      # `upload-artifact` only errors when none of its paths exist, so it cannot
+      # prove that both readings are present. Check each file at the owner that
+      # can still name it, before a partial artifact can look complete.
+      - name: verify coverage report
+        id: coverage_report
+        if: ${{ always() && steps.coverage.outcome != 'skipped' }}
+        shell: bash
+        run: |
+          test -s coverage/coverage-summary.json
+          test -s coverage/lcov.info
+
+      # Keep generation separate from publication. A later iteration may give
+      # LCOV to a line-level consumer; this one only preserves the two portable
+      # readings on the GitHub run that made them. The report check runs under
+      # `always()`, so a suite that reports and then fails still leaves evidence;
+      # its outcome also prevents an incomplete report from being uploaded.
+      - name: upload coverage report
+        if: ${{ always() && steps.coverage_report.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/coverage-summary.json
+            coverage/lcov.info
+          if-no-files-found: error
+
       # ## What this job does not do, stated rather than discovered
       #
       # **No browser.** Nothing here runs `npx playwright install`, so the suites
