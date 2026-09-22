@@ -43,8 +43,10 @@ jobs:
       - name: Read the recording as a consumer
         run: node verify-recording.mjs
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload the recording evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: journey-consumer-smoke-${{ github.run_id }}
-          path: .github/consumer/journey-smoke/.artifacts/journeys.bin
+          path: .github/consumer/journey-smoke/.artifacts
           if-no-files-found: error
