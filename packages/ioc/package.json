@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/ioc",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Wiring a test run drives and a production build ignores: declare how a module resets its own state, and let the runner decide when.",
   "keywords": [
     "variance-authority",

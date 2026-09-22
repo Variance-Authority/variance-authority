@@ -1,5 +1,9 @@
 # @variance-authority/cli
 
+## 0.5.7
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.6
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
@@ -14,22 +18,14 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   and `variance journeys stitch <shard-file>... --into <journey-file>` assembles
   downloaded CI shards. Both commands work without `variance.config.json`. Sense
   no longer publishes a second executable for these operations.
-- Updated dependencies
-  - @variance-authority/sense@0.5.5
 
 ## 0.5.4
 
-### Patch Changes
-
-- Updated dependencies
-  - @variance-authority/core@0.5.4
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.3
 
-### Patch Changes
-
-- Updated dependencies
-  - @variance-authority/sense@0.5.3
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.2
 
@@ -94,8 +90,6 @@ Lockstep release — nothing in this package changed. Every `@variance-authority
   reworded description of the same thing. The caller holds the ticket and the
   codebase the word came from, which is the context a shipped synonym table would
   be guessing at.
-- Updated dependencies
-  - @variance-authority/mcp@0.4.1
 
 ## 0.4.0
 

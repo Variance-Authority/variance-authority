@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/observe",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Compare render documents or rasters and receive one Variance Authority observation, whatever produced the images.",
   "keywords": [
     "variance-authority",

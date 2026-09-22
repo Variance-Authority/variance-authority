@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense-linux-x64-gnu",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "The prebuilt source scanner @variance-authority/sense loads on Linux x64 against glibc.",
   "keywords": [
     "variance-authority",

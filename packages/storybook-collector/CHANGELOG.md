@@ -1,29 +1,24 @@
 # @variance-authority/storybook-collector
 
+## 0.5.7
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.6
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.5
 
-### Patch Changes
-
-- Updated dependencies
-  - @variance-authority/sense@0.5.5
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.4
 
-### Patch Changes
-
-- Updated dependencies
-  - @variance-authority/core@0.5.4
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.3
 
-### Patch Changes
-
-- Updated dependencies
-  - @variance-authority/sense@0.5.3
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
 
 ## 0.5.2
 

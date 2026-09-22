@@ -1,5 +1,7 @@
 # @variance-authority/sense-win32-x64-msvc
 
+## 0.5.7
+
 ## 0.5.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/png",
-  "version": "0.5.6",
+  "version": "0.5.7",
   "description": "Decode, compare and diff PNGs without a browser: two buffers in, a mask out.",
   "keywords": [
     "variance-authority",
