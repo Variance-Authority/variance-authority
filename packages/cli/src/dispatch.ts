@@ -48,6 +48,7 @@ import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
+import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { renderComment } from './commands/comment.js';
@@ -86,6 +87,8 @@ export async function dispatch(
   const constant = await constantAnswer(parsed, streams);
   if (constant !== undefined) return constant;
   if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
+  if (parsed.command === 'journeys' && parsed.operation !== undefined)
+    return runJourneyArtifactCommand(parsed, streams);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {

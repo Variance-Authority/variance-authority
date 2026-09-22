@@ -4619,8 +4619,6 @@ __metadata:
   peerDependenciesMeta:
     vitest:
       optional: true
-  bin:
-    sense-journeys: ./dist/test-selection/jest-journey-command.js
   languageName: unknown
   linkType: soft
 

@@ -1,5 +1,11 @@
 # @variance-authority/vantage
 
+## 0.5.5
+
+### Patch Changes
+
+  - @variance-authority/wire@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

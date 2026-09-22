@@ -271,6 +271,12 @@ test. Jest seals the journals when its run ends and neither reads nor writes a
 test-selection snapshot. A separate command folds those journals into the
 artifact after Jest has reported whether the tests passed.
 
+Install the CLI beside Sense for that post-run command:
+
+```bash
+npm install --save-dev @variance-authority/sense @variance-authority/cli
+```
+
 ```js
 // jest.config.mjs
 import { withJourneyCoverage } from '@variance-authority/sense/jest';
@@ -288,7 +294,7 @@ export default withJourneyCoverage(
 whether Jest passed or failed:
 
 ```bash
-yarn exec sense-journeys finalize .variance-authority/journeys.bin
+yarn exec variance journeys finalize .variance-authority/journeys.bin
 ```
 
 Until that command succeeds, the journals and their manifest remain in
@@ -306,7 +312,7 @@ and region. Assembly is order-independent, deduplicates a repeated test
 identity, and refuses artifacts whose region inventories disagree.
 
 ```bash
-yarn exec sense-journeys stitch \
+yarn exec variance journeys stitch \
   shard-0.bin shard-1.bin shard-2.bin \
   --into journeys.bin
 ```

@@ -154,7 +154,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]]
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -172,7 +172,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
 | `changelog` | reads back why the baselines are what they are |
-| `journeys` | reads back which regions of one module this run's subjects covered differently, and folds shard snapshots into the one this checkout reads |
+| `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
 | `share` | says what the share has for mainline, or publishes what this run derived |
@@ -755,6 +755,30 @@ That is the entire integration, and it is worth doing: without it the adopter
 sees a mistyped path in your own collector as a stack trace claiming this tool
 is broken. Leave the marker off anything they cannot act on — a bug in the
 collector should still read as a bug.
+
+### Finalize and stitch journey coverage
+
+A Jest run configured with `withJourneyCoverage` leaves its journals beside the
+artifact path. Finalize them after Jest exits, so Jest reports the test result
+before the native fold uses CPU and memory:
+
+```bash
+variance journeys finalize .variance-authority/journeys.bin
+```
+
+The command needs no `variance.config.json`. It removes the `.pending`
+directory only after the artifact has been written, so a failed finalization can
+be retried.
+
+Give each CI shard a different output path and upload each finalized file. After
+downloading them, stitch the shard artifacts without expanding their crossing
+relations in JavaScript:
+
+```bash
+variance journeys stitch \
+  shard-0.bin shard-1.bin shard-2.bin \
+  --into journeys.bin
+```
 
 ### Sharding: `journeys` takes more than one file too
 

@@ -1,5 +1,34 @@
 # @variance-authority/cli
 
+## 0.5.5
+
+### Patch Changes
+
+- Finalize and stitch journey artifacts through `variance journeys`
+
+  `variance journeys finalize <journey-file>` seals a Jest run after Jest exits,
+  and `variance journeys stitch <shard-file>... --into <journey-file>` assembles
+  downloaded CI shards. Both commands work without `variance.config.json`. Sense
+  no longer publishes a second executable for these operations.
+- Updated dependencies
+  - @variance-authority/sense@0.5.5
+  - @variance-authority/core@0.5.5
+  - @variance-authority/distill@0.5.5
+  - @variance-authority/eyes@0.5.5
+  - @variance-authority/help@0.5.5
+  - @variance-authority/history@0.5.5
+  - @variance-authority/mcp@0.5.5
+  - @variance-authority/observe@0.5.5
+  - @variance-authority/playwright@0.5.5
+  - @variance-authority/png@0.5.5
+  - @variance-authority/png-sharp@0.5.5
+  - @variance-authority/raster@0.5.5
+  - @variance-authority/remote@0.5.5
+  - @variance-authority/report@0.5.5
+  - @variance-authority/store@0.5.5
+  - @variance-authority/storybook@0.5.5
+  - @variance-authority/vantage@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

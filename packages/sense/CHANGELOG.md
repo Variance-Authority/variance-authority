@@ -1,5 +1,17 @@
 # @variance-authority/sense
 
+## 0.5.5
+
+### Patch Changes
+
+- Finalize and stitch journey artifacts through `variance journeys`
+
+  `variance journeys finalize <journey-file>` seals a Jest run after Jest exits,
+  and `variance journeys stitch <shard-file>... --into <journey-file>` assembles
+  downloaded CI shards. Both commands work without `variance.config.json`. Sense
+  no longer publishes a second executable for these operations.
+  - @variance-authority/wire@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

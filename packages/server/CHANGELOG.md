@@ -1,5 +1,11 @@
 # @variance-authority/server
 
+## 0.5.5
+
+### Patch Changes
+
+  - @variance-authority/history@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

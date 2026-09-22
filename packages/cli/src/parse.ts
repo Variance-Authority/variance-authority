@@ -131,6 +131,7 @@ export type Parsed =
     }
   | {
       readonly command: 'journeys';
+      readonly operation?: undefined;
       readonly config: string;
       /**
        * `--all`: read every whole observation the snapshot holds.
@@ -148,6 +149,19 @@ export type Parsed =
       /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
       readonly shards: readonly string[];
       readonly into?: string;
+    }
+  | {
+      readonly command: 'journeys';
+      readonly operation: 'finalize';
+      readonly config: string;
+      readonly journeyFile: string;
+    }
+  | {
+      readonly command: 'journeys';
+      readonly operation: 'stitch';
+      readonly config: string;
+      readonly shards: readonly string[];
+      readonly into: string;
     }
   | {
       readonly command: 'adjudicate';
@@ -369,6 +383,36 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const file = flags.values.get('--file');
       const limit = countOf(flags.values.get('--limit'), 'modules to name');
       const into = flags.values.get('--into');
+      const operation = flags.positionals[0];
+
+      if (operation === 'finalize') {
+        if (flags.present.size > 0 || flags.positionals.length !== 2) {
+          throw new OperatorError('`variance journeys finalize` takes one journey file and no flags');
+        }
+        return {
+          command: 'journeys',
+          operation: 'finalize',
+          config,
+          journeyFile: resolve(flags.positionals[1]!),
+        };
+      }
+
+      if (operation === 'stitch') {
+        const otherFlags = [...flags.present].filter((flag) => flag !== '--into');
+        if (otherFlags.length > 0 || into === undefined || flags.positionals.length < 2) {
+          throw new OperatorError(
+            '`variance journeys stitch` takes one or more shard files and `--into <journey-file>`',
+          );
+        }
+        return {
+          command: 'journeys',
+          operation: 'stitch',
+          config,
+          shards: flags.positionals.slice(1).map((path) => resolve(path)),
+          into: resolve(into),
+        };
+      }
+
       if (into !== undefined && flags.positionals.length === 0) {
         throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
       }

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -86,9 +86,6 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "sense-journeys": "./dist/test-selection/jest-journey-command.js"
-  },
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",

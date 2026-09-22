@@ -1,5 +1,11 @@
 # @variance-authority/remote
 
+## 0.5.5
+
+### Patch Changes
+
+  - @variance-authority/raster@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

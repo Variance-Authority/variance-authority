@@ -168,7 +168,7 @@ describe('the documented command line is the real one', () => {
         // `variance` and the command itself; what follows decides the question.
         .slice(2);
 
-      return remaining.every((token) => /^(--[\w-]+|\.{3}|\|)$/.test(token));
+      return remaining.every((token) => /^(--[\w-]+|[\w-]+|\.{3}|\|)$/.test(token));
     });
   };
 

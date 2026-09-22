@@ -2283,9 +2283,6 @@
         "scripts/probe-write.mjs",
         "skill"
       ],
-      "bin": {
-        "sense-journeys": "./dist/test-selection/jest-journey-command.js"
-      },
       "engines": {
         "node": ">=22.15"
       }

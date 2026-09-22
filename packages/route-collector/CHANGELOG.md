@@ -1,5 +1,13 @@
 # @variance-authority/route-collector
 
+## 0.5.5
+
+### Patch Changes
+
+  - @variance-authority/dom@0.5.5
+  - @variance-authority/playwright@0.5.5
+  - @variance-authority/react@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

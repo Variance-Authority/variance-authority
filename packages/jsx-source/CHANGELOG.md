@@ -1,5 +1,9 @@
 # @variance-authority/jsx-source
 
+## 0.5.5
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.4
 
 ### Patch Changes

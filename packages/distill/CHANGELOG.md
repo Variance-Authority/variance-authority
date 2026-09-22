@@ -1,5 +1,13 @@
 # @variance-authority/distill
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.5
+  - @variance-authority/eyes@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

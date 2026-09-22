@@ -1,5 +1,19 @@
 # @variance-authority/mcp
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.5
+  - @variance-authority/core@0.5.5
+  - @variance-authority/distill@0.5.5
+  - @variance-authority/eyes@0.5.5
+  - @variance-authority/presentation@0.5.5
+  - @variance-authority/report@0.5.5
+  - @variance-authority/scenario@0.5.5
+  - @variance-authority/vantage@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

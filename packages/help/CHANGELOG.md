@@ -1,5 +1,14 @@
 # @variance-authority/help
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.5
+  - @variance-authority/mcp@0.5.5
+  - @variance-authority/package@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

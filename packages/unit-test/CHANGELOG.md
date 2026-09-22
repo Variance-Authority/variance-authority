@@ -1,5 +1,11 @@
 # @variance-authority/unit-test
 
+## 0.5.5
+
+### Patch Changes
+
+  - @variance-authority/dom@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

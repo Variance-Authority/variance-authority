@@ -1,5 +1,17 @@
 # @variance-authority/storybook-collector
 
+## 0.5.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.5
+  - @variance-authority/core@0.5.5
+  - @variance-authority/dom@0.5.5
+  - @variance-authority/playwright@0.5.5
+  - @variance-authority/react@0.5.5
+  - @variance-authority/storybook@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

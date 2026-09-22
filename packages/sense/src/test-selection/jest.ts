@@ -95,7 +95,7 @@ export interface JestTestSelectionOptions {
 export interface JestJourneyCoverageOptions {
   /** Repository root. Defaults to `rootDir`, then the current directory. */
   readonly root?: string;
-  /** Native per-test journey artifact written by `sense-journeys finalize` after Jest. */
+  /** Native per-test journey artifact written by `variance journeys finalize` after Jest. */
   readonly journeyFile: string;
   /** Files Jest transforms before the counter factory exists; transformed, but never probed. */
   readonly preconditions?: readonly string[];

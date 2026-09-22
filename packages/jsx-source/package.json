@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/jsx-source",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Carry the file and line that wrote a JSX element as far as the rendered DOM node.",
   "keywords": [
     "variance-authority",
