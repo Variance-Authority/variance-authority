@@ -5,6 +5,7 @@ on:
     branches: [codex/linux-consumer-smoke]
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
@@ -33,6 +34,21 @@ jobs:
           test -d .artifacts/journeys.bin.pending
           test ! -f .artifacts/journeys.bin
           find .artifacts/journeys.bin.pending -type f -print
+
+      - name: Confirm the published native package is incomplete
+        run: test ! -f node_modules/@variance-authority/sense-linux-x64-gnu/scan.node
+
+      - name: Download the Linux binary built for the 0.5.5 release
+        uses: actions/download-artifact@v4
+        with:
+          name: scan-linux-x64-gnu
+          path: .github/consumer/journey-smoke/native
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: 35724433589
+
+      - name: Supply the release binary missing from the npm package
+        run: install -m 755 native/scan.node node_modules/@variance-authority/sense-linux-x64-gnu/scan.node
 
       - name: Prove the Linux addon loads
         run: node verify-native.cjs
