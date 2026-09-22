@@ -1,0 +1,10 @@
+{
+  "name": "variance-journey-consumer-smoke",
+  "private": true,
+  "dependencies": {
+    "@variance-authority/cli": "0.5.5",
+    "@variance-authority/sense": "0.5.5",
+    "jest": "30.5.1"
+  }
+}
+

@@ -1,0 +1,51 @@
+name: journey consumer smoke
+
+on:
+  push:
+    branches: [codex/linux-consumer-smoke]
+
+permissions:
+  contents: read
+
+jobs:
+  record:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: .github/consumer/journey-smoke
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - name: Install the published consumer packages
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Prove the Linux addon loads
+        run: node verify-native.cjs
+
+      - name: Run one Jest test
+        run: npx --no-install jest --config jest.config.mjs --runInBand
+
+      - name: Prove Jest left a pending recording
+        run: |
+          test -d .artifacts/journeys.bin.pending
+          test ! -f .artifacts/journeys.bin
+          find .artifacts/journeys.bin.pending -type f -print
+
+      - name: Finalize after Jest
+        run: npx --no-install variance journeys finalize "$PWD/.artifacts/journeys.bin"
+
+      - name: Read the recording as a consumer
+        run: node verify-recording.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: journey-consumer-smoke-${{ github.run_id }}
+          path: .github/consumer/journey-smoke/.artifacts/journeys.bin
+          if-no-files-found: error
+
