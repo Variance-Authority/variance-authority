@@ -8,6 +8,30 @@ description = "The scanning path of @variance-authority/sense, where a cold repo
 [lib]
 crate-type = ["cdylib"]
 
+# The tree-sitter grammars, which are the only part of this crate that can fail
+# to build for a reason that is not ours. Each grammar ships a C parser compiled
+# by a `cc` invocation on the adopter's or the runner's machine, so a toolchain
+# the five generated parsers disagree with takes the whole scanner down with
+# them — and the scanner is mostly oxc, which reads the languages this product
+# is actually about.
+#
+# On by default, because a release that quietly dropped them would be a release
+# that lost Python, Rust, Java, Kotlin and Swift. Off is a fallback the build
+# script reaches for after the default build has already failed
+# (`build.mjs`), and it costs exactly those five languages: `readLanguage`
+# answers nothing, and `record.ts` reads them with the JavaScript oracle it
+# falls back to whenever no addon reached the machine at all.
+[features]
+default = ["grammars"]
+grammars = [
+    "dep:tree-sitter",
+    "dep:tree-sitter-java",
+    "dep:tree-sitter-kotlin-ng",
+    "dep:tree-sitter-python",
+    "dep:tree-sitter-rust",
+    "dep:tree-sitter-swift",
+]
+
 [dependencies]
 napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
@@ -22,12 +46,12 @@ regex = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
-tree-sitter = "0.27"
-tree-sitter-java = "0.23"
-tree-sitter-kotlin-ng = "1"
-tree-sitter-python = "0.25"
-tree-sitter-rust = "0.24"
-tree-sitter-swift = "0.7"
+tree-sitter = { version = "0.27", optional = true }
+tree-sitter-java = { version = "0.23", optional = true }
+tree-sitter-kotlin-ng = { version = "1", optional = true }
+tree-sitter-python = { version = "0.25", optional = true }
+tree-sitter-rust = { version = "0.24", optional = true }
+tree-sitter-swift = { version = "0.7", optional = true }
 zstd = "0.13"
 
 [build-dependencies]

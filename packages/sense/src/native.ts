@@ -124,7 +124,9 @@ export interface NativeScanner {
    * One file rather than a batch, because this crosses the boundary from inside
    * the parse cache — the caller is a synchronous reader holding one file's
    * bytes, and the batching that the module path does happens a layer above it.
-   * Nothing when the addon does not claim the language.
+   * Nothing when the addon does not claim the language — which is every
+   * language on a binary built without the tree-sitter grammars, the fallback
+   * `native/build.mjs` takes when they are what failed to compile.
    */
   readLanguage(language: string, file: string, source: string): string | null;
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */

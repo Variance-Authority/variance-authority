@@ -21,7 +21,9 @@ mod acquire;
 mod batch;
 mod digest;
 mod git;
+#[cfg(feature = "grammars")]
 mod grammar;
+#[cfg(feature = "grammars")]
 mod languages;
 mod harvest;
 mod index;
@@ -47,10 +49,27 @@ pub use seed::seed_files;
 /// is what the JavaScript readers already build per file, so this hands back the
 /// same object graph the oracle would have and no more. `null` means no reader
 /// here claims that language, and the caller falls back to its own.
+#[cfg(feature = "grammars")]
 #[napi]
 pub fn read_language(language: String, file: String, source: String) -> Option<String> {
     let read = languages::read(&language, &file, &source)?;
     serde_json::to_string(&read).ok()
+}
+
+/// The same method on a build whose grammars did not compile: it claims nothing.
+///
+/// The method stays rather than disappearing, because `record.ts` reaches an
+/// addon that has it and an addon that does not through two different branches,
+/// and only one of them is the branch every language takes on a machine with no
+/// addon at all. Answering `null` is the branch already worn smooth: the
+/// JavaScript reader is the implementation of record, and the five languages
+/// read exactly as they read where nothing was compiled. Everything else this
+/// crate does — git identity, the path set, the oxc parse, resolution, the
+/// journey fold — is here and is what it was.
+#[cfg(not(feature = "grammars"))]
+#[napi]
+pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
+    None
 }
 
 /// Every tracked path under a root, and the digest of the bytes on disk.

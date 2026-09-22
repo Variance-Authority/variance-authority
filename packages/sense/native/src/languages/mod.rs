@@ -6,6 +6,11 @@
 //! language unreadable ([`grammar.ts`](../../src/grammar.ts) argues why that has
 //! to be *unknown* rather than *edgeless*). Here the grammar cannot be absent —
 //! if this addon loaded, every language it claims can be parsed.
+//!
+//! What can be absent is this module. The grammars are the `grammars` feature,
+//! on by default and dropped by `build.mjs` when they are what failed to
+//! compile; a build without them claims no language at all and every one of
+//! these five is read by the JavaScript reader that is the oracle anyway.
 
 pub mod jvm;
 pub mod python;
