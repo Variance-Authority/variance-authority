@@ -35,6 +35,7 @@ interface WorkspaceSnapshot {
 }
 
 const generated = new WeakMap<Help, string>();
+const snapshots = new WeakMap<Help, Omit<WorkspaceSnapshot, 'help'>>();
 
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
@@ -75,13 +76,39 @@ export async function readWorkspaceSnapshot(
     if (digest(bytes) !== decoded.graphDigest) {
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
-    options.tree(decodeSourceTree(bytes, decoded.graphRoot));
+    options.tree(decodeSourceTree(bytes, decoded.graphRoot, decoded.root));
   }
   if (options.records !== undefined) {
     options.records(await readSourceRecords(index), decoded.graphRoot);
   }
   generated.set(decoded.help, decoded.generatedAt);
+  snapshots.set(decoded.help, {
+    format: decoded.format,
+    version: decoded.version,
+    root: decoded.root,
+    graphRoot: decoded.graphRoot,
+    graphDigest: decoded.graphDigest,
+    generatedAt: decoded.generatedAt,
+  });
   return decoded.help;
+}
+
+/** Publish a new generation time when its authoritative changed set is empty. */
+export async function republishWorkspaceSnapshot(help: Help, index: string): Promise<void> {
+  const held = snapshots.get(help);
+  if (held === undefined) return;
+  const generatedAt = new Date().toISOString();
+  const next: WorkspaceSnapshot = { ...held, generatedAt, help };
+  try {
+    const at = workspaceSnapshotPath(index);
+    const temporary = `${at}.${String(process.pid)}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(next)}\n`, 'utf8');
+    await rename(temporary, at);
+    generated.set(help, generatedAt);
+    snapshots.set(help, { ...held, generatedAt });
+  } catch {
+    // The previously committed generation remains answerable and keeps its time.
+  }
 }
 
 /** Publish one complete answerable value without making publication its success. */
@@ -115,6 +142,14 @@ export async function tryPublishWorkspaceSnapshot(
     await writeFile(temporary, `${JSON.stringify(snapshot)}\n`, 'utf8');
     await rename(temporary, at);
     generated.set(help, generatedAt);
+    snapshots.set(help, {
+      format: snapshot.format,
+      version: snapshot.version,
+      root: snapshot.root,
+      graphRoot: snapshot.graphRoot,
+      graphDigest: snapshot.graphDigest,
+      generatedAt,
+    });
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }

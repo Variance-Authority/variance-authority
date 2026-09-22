@@ -10,6 +10,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
+import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
 
 /**
@@ -145,6 +146,30 @@ export function treeFromRelations(
     unknownAmong: (among) => unknownAmong(relations, among),
     hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
     hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
+  };
+}
+
+/** Accept coordinates relative to a workspace nested below the graph root. */
+export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
+  const prefix = relative(tree.root, workspace).replaceAll('\\', '/');
+  if (prefix === '' || prefix.startsWith('..')) return tree;
+  const fromWorkspace = `${prefix}/`;
+  const actual = new Map<string, string>();
+  for (const file of tree.files) {
+    if (file.startsWith(fromWorkspace)) actual.set(file.slice(fromWorkspace.length), file);
+  }
+  const seeds = (values: Iterable<string>): Iterable<string> =>
+    [...values].map((value) => actual.get(value) ?? value);
+  return {
+    root: workspace,
+    files: new Set(actual.keys()),
+    reachedFrom: (values) => tree.reachedFrom(seeds(values)),
+    reaching: (values) => tree.reaching(seeds(values)),
+    distanceFrom: (values) => tree.distanceFrom(seeds(values)),
+    distanceTo: (values) => tree.distanceTo(seeds(values)),
+    unknownAmong: (values) => tree.unknownAmong(values),
+    hopsFrom: (values) => tree.hopsFrom(seeds(values)),
+    hopsTo: (values) => tree.hopsTo(seeds(values)),
   };
 }
 

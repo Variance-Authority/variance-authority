@@ -15,7 +15,7 @@ import {
   stringReader,
   validateOffsets,
 } from '@variance-authority/core/segment';
-import { treeFromRelations, type Tree } from './tree.js';
+import { treeAtWorkspace, treeFromRelations, type Tree } from './tree.js';
 
 const FORMAT = 'variance-authority-source-tree';
 const VERSION = 1;
@@ -74,7 +74,7 @@ export function encodeSourceTree(records: readonly FileRecord[]): Uint8Array {
 }
 
 /** Open a published path graph without materializing source-index records. */
-export function decodeSourceTree(input: Uint8Array, root: string): Tree {
+export function decodeSourceTree(input: Uint8Array, root: string, workspace = root): Tree {
   const opened = openSegment(FORMAT, VERSION, input, WHAT);
   const strings = stringReader(opened.u8('strings.blob'), opened.u32('strings.off'), opened.reject).text;
   const pathIds = opened.u32('files.path');
@@ -114,7 +114,7 @@ export function decodeSourceTree(input: Uint8Array, root: string): Tree {
     index,
     shadows: new Map(),
   };
-  return treeFromRelations(relations, root);
+  return treeAtWorkspace(treeFromRelations(relations, root), workspace);
 }
 
 function transpose(source: Adjacency, nodes: number): Adjacency {

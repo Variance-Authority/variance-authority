@@ -37,4 +37,21 @@ describe('published source tree', () => {
     );
     expect([...decoded.reachedFrom(['src/a.ts'])]).toEqual(['src/a.ts', 'src/missing.ts']);
   });
+
+  it('accepts paths relative to a workspace inside the graph root', () => {
+    const decoded = decodeSourceTree(encodeSourceTree(records), '/repo', '/repo/product');
+    expect(decoded.root).toBe('/repo/product');
+    expect([...decoded.files]).toEqual([]);
+
+    const nested = decodeSourceTree(
+      encodeSourceTree([
+        { file: 'product/src/a.ts', edges: [{ to: 'shared/b.ts', kind: 'imports' }] },
+        { file: 'shared/b.ts' },
+      ]),
+      '/repo',
+      '/repo/product',
+    );
+    expect([...nested.files]).toEqual(['src/a.ts']);
+    expect([...nested.reachedFrom(['src/a.ts'])]).toEqual(['product/src/a.ts', 'shared/b.ts']);
+  });
 });

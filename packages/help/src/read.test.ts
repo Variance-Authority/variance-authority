@@ -195,6 +195,30 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
+  it('republishes the recorded generation when the caller says nothing changed', async () => {
+    const { root, temporary } = await copyWorkspace('help-unchanged-snapshot-');
+    try {
+      const at = join(root, '.index');
+      const first = await readWorkspace(root, { index: at });
+      const snapshot = workspaceSnapshotPath(at);
+      await writeFile(
+        snapshot,
+        (await readFile(snapshot, 'utf8')).replace(
+          /"generatedAt":"[^"]+"/u,
+          '"generatedAt":"2000-01-01T00:00:00.000Z"',
+        ),
+      );
+
+      const republished = await readWorkspaceForAnswer(root, { index: at, changed: [] });
+
+      expect(republished).toEqual(first);
+      expect(workspaceGeneration(republished)).not.toBe('2000-01-01T00:00:00.000Z');
+      expect(await readFile(snapshot, 'utf8')).not.toContain('2000-01-01T00:00:00.000Z');
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
   it('refreshes usage without rebuilding stable documentation', async () => {
     const { root, temporary } = await copyWorkspace('help-refresh-');
     try {

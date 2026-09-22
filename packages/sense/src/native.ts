@@ -219,6 +219,7 @@ export interface NativeBuilt {
 export function nativeFrontier(options: NativeFrontierOptions): readonly NativeBuilt[] {
   const digestContents = options.digests.some((digest) => digest === undefined);
   const scan = options.tree?.scanBatch.bind(options.tree) ?? options.addon.scanBatch.bind(options.addon);
+  const started = performance.now();
   const batch = scan(
     options.root,
     [...options.files],
@@ -228,7 +229,15 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
     options.tsconfig,
     options.conditionNames === undefined ? undefined : [...options.conditionNames],
   );
-  return builtFromBatch(options, batch);
+  if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
+    process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);
+  }
+  const crossing = performance.now();
+  const built = builtFromBatch(options, batch);
+  if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
+    process.stderr.write(`sense native crossing: ${(performance.now() - crossing).toFixed(1)} ms\n`);
+  }
+  return built;
 }
 
 export interface NativeGraphBuilt {

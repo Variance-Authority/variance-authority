@@ -1196,6 +1196,7 @@
         "startPointArg": "function",
         "stringArg": "function",
         "toolByName": "function",
+        "treeAtWorkspace": "function",
         "treeFromRelations": "function",
         "treeOf": "function",
         "vantageToolByName": "function"

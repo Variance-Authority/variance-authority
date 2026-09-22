@@ -79,8 +79,12 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       return parsed;
     },
     set(key, parsed) {
-      if (!isDeepStrictEqual(stored.parses.get(key), parsed)) dirty = true;
       const layer = nativeParses.get(cache);
+      // A cold native graph already encoded this row into its parse layer. Help
+      // still receives the transient object through the scan callback, but the
+      // cache does not need a second JavaScript copy of every repository parse.
+      if (layer?.keys.has(key) && parsed.harvested !== true) return;
+      if (!isDeepStrictEqual(stored.parses.get(key), parsed)) dirty = true;
       if (parsed.harvested === true) layer?.keys.delete(key);
       parses.set(key, parsed);
     },

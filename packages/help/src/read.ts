@@ -35,7 +35,7 @@ import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
-import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   enrichSources,
   openSourceIndex,
@@ -63,6 +63,7 @@ import {
 import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import {
   readWorkspaceSnapshot,
+  republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
   workspaceGeneration,
 } from './snapshot.js';
@@ -110,6 +111,10 @@ export async function readWorkspaceForAnswer(
   const at = workspaceGeneration(recorded);
   const age = at === undefined ? Number.POSITIVE_INFINITY : Date.now() - Date.parse(at);
   if (justAnswer || (reading.changed === undefined && reading.taints === undefined && age <= refreshAfterMs)) {
+    return recorded;
+  }
+  if (reading.changed?.length === 0 && reading.taints === undefined) {
+    await republishWorkspaceSnapshot(recorded, reading.index ?? sourceIndexPath(resolve(root)));
     return recorded;
   }
   if (reading.changed !== undefined || reading.taints !== undefined) {
@@ -224,6 +229,7 @@ export async function readIndexedUsage(
   options: IndexedUsageOptions = {},
 ): Promise<Usage> {
   const scanned = await scanIndexed(root, opened, options);
+  options.tree?.(treeOf(scanned.records, resolve(root)));
   if (options.save !== false) await scanned.save();
   return scanned.usage;
 }
@@ -272,7 +278,6 @@ async function scanIndexed(
     );
   }
   options.records?.(tainted.records, where);
-  options.tree?.(treeOf(tainted.records, where));
 
   const joined = usage.read();
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
@@ -352,6 +357,7 @@ async function scanWorkspace(root: string, options: ReadingOptions): Promise<Wor
   );
 
   const scanned = await scanIndexed(scope.root, opened, options, scope.dirs);
+  options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,
     root: scope.root,
@@ -372,6 +378,11 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
     return enrichSources(root, subjects, scanned.cache);
   });
   const help = assembleHelp(root, offerings, scanned.usage, names);
+  // `assembleHelp` has consumed the lazy name reader. Keeping every transient
+  // parse alive while two large artifacts are encoded turns a cold publication
+  // into garbage-collection work proportional to the repository.
+  scanned.sources.clear();
+  byFile.clear();
   if (options.save !== false) {
     await scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, options.index);

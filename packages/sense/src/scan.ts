@@ -371,8 +371,12 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
         // The oracle remains the recovery path for an unavailable or mismatched addon.
       }
       if (answers !== undefined) {
+        const accepting = performance.now();
         for (const [index, file] of answeredFiles.entries()) {
           accept(file, parseWay(file), answers[index]!);
+        }
+        if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
+          process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
         }
       } else {
         for (const [index, file] of pending.entries()) {
