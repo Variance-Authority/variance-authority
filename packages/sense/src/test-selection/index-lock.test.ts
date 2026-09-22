@@ -76,6 +76,11 @@ describe('who may grow the index', () => {
     // then refuses, and a clock the test drives says that in milliseconds. The
     // filesystem underneath is real, so every attempt is a real `wx` create
     // against a lock file that is really there.
+    // Keep one handle to the real event loop before replacing the global
+    // timers. The clock is fake, but each lock attempt is real filesystem I/O;
+    // advancing the clock without yielding to libuv can schedule all of the
+    // polls before the first `wx` refusal has returned.
+    const nextTurn = setTimeout;
     vi.useFakeTimers();
     try {
       let settled = false;
@@ -95,6 +100,7 @@ describe('who may grow the index', () => {
       // up, which is the failure this test is here to catch.
       for (let step = 0; step < (2 * LOCK_WAIT_MS) / LOCK_POLL_MS && !settled; step += 1) {
         await vi.advanceTimersByTimeAsync(LOCK_POLL_MS);
+        await new Promise<void>((wake) => nextTurn(wake, 0));
       }
       expect(settled).toBe(true);
       const refused = await refusing;

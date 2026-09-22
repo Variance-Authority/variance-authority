@@ -16,10 +16,10 @@ import { defineConfig } from 'vitest/config';
  * is the bound, so under load it began to fail for a reason that has nothing to
  * do with the code it exists to hold.
  *
- * A ratio whose halves are the *same* code stays where it was — the collection
- * cost in `packages/dom` divides one `collect` regime by another — so it is a
- * test and it stays in the suite. What moves here is what instrumentation can
- * distort.
+ * A ratio whose halves are the *same* code survives the repository's own probes,
+ * but a second instrument may still change how V8 optimizes the two call shapes.
+ * The collection cost in `packages/dom` divides one `collect` regime by another
+ * and belongs here for that reason.
  *
  * Same runner, and these are tests: they have a subject and they exercise it.
  * Different command, because `yarn test` now answers "does it work, and what did
