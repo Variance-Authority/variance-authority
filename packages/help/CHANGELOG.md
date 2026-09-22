@@ -1,5 +1,12 @@
 # @variance-authority/help
 
+## 0.5.4
+
+### Patch Changes
+
+  - @variance-authority/package@0.5.4
+  - @variance-authority/sense@0.5.4
+
 ## 0.5.3
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",

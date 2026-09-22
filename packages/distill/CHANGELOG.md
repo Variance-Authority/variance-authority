@@ -1,5 +1,11 @@
 # @variance-authority/distill
 
+## 0.5.4
+
+### Patch Changes
+
+  - @variance-authority/sense@0.5.4
+
 ## 0.5.3
 
 ### Patch Changes

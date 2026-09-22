@@ -1,5 +1,28 @@
 # @variance-authority/cli
 
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/core@0.5.4
+  - @variance-authority/distill@0.5.4
+  - @variance-authority/eyes@0.5.4
+  - @variance-authority/help@0.5.4
+  - @variance-authority/history@0.5.4
+  - @variance-authority/mcp@0.5.4
+  - @variance-authority/observe@0.5.4
+  - @variance-authority/playwright@0.5.4
+  - @variance-authority/png@0.5.4
+  - @variance-authority/png-sharp@0.5.4
+  - @variance-authority/raster@0.5.4
+  - @variance-authority/remote@0.5.4
+  - @variance-authority/report@0.5.4
+  - @variance-authority/sense@0.5.4
+  - @variance-authority/store@0.5.4
+  - @variance-authority/storybook@0.5.4
+  - @variance-authority/vantage@0.5.4
+
 ## 0.5.3
 
 ### Patch Changes

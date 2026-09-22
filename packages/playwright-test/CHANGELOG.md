@@ -1,5 +1,23 @@
 # @variance-authority/playwright-test
 
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/core@0.5.4
+  - @variance-authority/dom@0.5.4
+  - @variance-authority/event@0.5.4
+  - @variance-authority/observe@0.5.4
+  - @variance-authority/playwright@0.5.4
+  - @variance-authority/png@0.5.4
+  - @variance-authority/raster@0.5.4
+  - @variance-authority/react@0.5.4
+  - @variance-authority/sense@0.5.4
+  - @variance-authority/store@0.5.4
+  - @variance-authority/vantage@0.5.4
+  - @variance-authority/wire@0.5.4
+
 ## 0.5.3
 
 ### Patch Changes
