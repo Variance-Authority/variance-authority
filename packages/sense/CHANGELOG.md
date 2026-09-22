@@ -1,5 +1,13 @@
 # @variance-authority/sense
 
+## 0.5.1
+
+### Patch Changes
+
+- 65374a4: Add recording-only Jest journey coverage, deterministic assembly of shard artifacts,
+  and one case scope for table-driven tests.
+  - @variance-authority/wire@0.5.1
+
 ## 0.5.0
 
 ### Patch Changes

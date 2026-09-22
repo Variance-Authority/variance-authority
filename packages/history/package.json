@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/history",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Retain visual-regression observations across runs and answer churn, flakiness, reach and token-drift questions.",
   "keywords": [
     "variance-authority",

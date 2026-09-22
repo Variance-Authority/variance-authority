@@ -1,5 +1,11 @@
 # @variance-authority/png
 
+## 0.5.1
+
+### Patch Changes
+
+  - @variance-authority/raster@0.5.1
+
 ## 0.5.0
 
 ### Patch Changes
