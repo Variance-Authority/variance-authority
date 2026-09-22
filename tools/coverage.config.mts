@@ -53,10 +53,7 @@ export default mergeConfig(suite, {
       // Every file, not only the ones a test happened to load: a module nothing
       // imports reads as 0% here, and reads as nothing at all if it is left out.
       all: true,
-      // The summary is the local aggregate reading. LCOV is the portable,
-      // line-level contract a CI artifact can hand to a later consumer without
-      // coupling this run to that consumer or its upload protocol.
-      reporter: ['text-summary', 'json-summary', 'lcovonly'],
+      reporter: ['text-summary', 'json-summary'],
       // A failing suite is exactly when the reading is wanted: the question is
       // what ran, and a run that ends red still ran.
       reportOnFailure: true,
