@@ -17,7 +17,7 @@ import TestPurpose from "./TestPurpose";
 import Variations from "./Variations";
 
 const CAPTIONS: Record<string, string> = {
-  tests:
+  "on-testing":
     "The test proves that its codified path still holds. It cannot prove that nothing else changed.",
   "better-tests":
     "Keep reusable work and recorded evidence long enough to improve the next run.",
@@ -60,9 +60,9 @@ function Figure({ children, caption }: { children: ReactNode; caption: string })
 
 export default function DocumentFigure({ slug }: { slug: string }) {
   switch (slug) {
-    case "tests":
+    case "on-testing":
       return (
-        <Figure caption={CAPTIONS.tests!}>
+        <Figure caption={CAPTIONS["on-testing"]!}>
           <TestPurpose />
         </Figure>
       );

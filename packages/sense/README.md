@@ -1225,6 +1225,10 @@ integrations. It takes an `ExecutionIndex` plus a source line or function, and
 returns individual test identities ordered by their shortest observed call-stack
 depth. `coveringTestsInFile` answers the whole indexed file in one operation:
 
+The query identifies the tests that crossed a line; [on
+testing](https://variance-authority.dev/docs/on-testing) explains why this
+evidence cannot decide whether any of them is redundant.
+
 ```ts
 import {
   coveringTests,

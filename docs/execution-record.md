@@ -82,6 +82,11 @@ than producing them. And an observation that did not finish is dropped from the
 pool rather than counted as a miss, so nothing a host retries or interrupts can
 justify a skip.
 
+The snapshot is not a run history. It stores no pass-or-fail verdict for each
+attempt and no sequence connecting a failing local edit to the corrected change
+later submitted to continuous integration. A failed file is incomplete evidence
+for selection, not a retained failure event.
+
 ## Reading the snapshot yourself
 
 No `variance` subcommand dumps the snapshot. The CLI reads it to answer

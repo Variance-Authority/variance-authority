@@ -102,12 +102,13 @@ a result.
 
 ## Understand the model when you need it
 
-[Tests preserve the paths we care about](tests.md) explains what a passing test
-can and cannot establish. [See what changed](changed.md) explains why Variance
-keeps the beginning, middle, and end of a change available. [The reasoning
-loop](reasoning.md) shows how to choose the smallest reading that can answer a
-question, and [the evidence field](evidence-field.md) maps the readings a run
-can leave behind.
+[On testing](on-testing.md) explains what a passing test can prove, how that
+proof acquires a cost, and why execution evidence informs rather than decides
+which tests a suite should keep. [See what changed](changed.md) explains why
+Variance keeps the beginning, middle, and end of a change available. [The
+reasoning loop](reasoning.md) shows how to choose the smallest reading that can
+answer a question, and [the evidence field](evidence-field.md) maps the readings
+a run can leave behind.
 
 For exact package contracts, use the [package reference](../packages). For the
 system boundaries and ownership model, use [architecture](architecture.md).

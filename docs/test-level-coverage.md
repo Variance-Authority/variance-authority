@@ -140,7 +140,9 @@ did](agent-code-review.md).
 **Deciding which tests to keep.** Point it at a line and it hands back the
 named cases that walked it. Six tests claiming one function is where *why do
 all of these need this code* starts having an answer, which is [own fewer
-tests](own-fewer-tests.md).
+tests](own-fewer-tests.md). Coverage shows that the tests crossed the same code,
+not that they protect the same promise; [on testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
+explains why that distinction controls any reduction.
 
 **Making one test smaller.** A test's own crossings are the files it covered,
 and the ones it covered without ever addressing anything in them are candidates

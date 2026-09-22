@@ -137,3 +137,7 @@ understand, maintain and trust.
 [Own fewer tests](own-fewer-tests.md) starts from that longer-lived decision:
 whether another test adds a distinct answer, when variation deserves fan-out,
 and when temporary or duplicated protection can leave the suite.
+
+[On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
+explains why execution cost, test ownership, and confidence are separate
+decisions. Selection changes only what runs now.

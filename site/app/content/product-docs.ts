@@ -75,6 +75,7 @@ import startRstest from "../../../docs/start-rstest.md?raw";
 import surface from "../../../docs/surface.md?raw";
 import changed from "../../../docs/changed.md?raw";
 import tests from "../../../docs/tests.md?raw";
+import onTesting from "../../../docs/on-testing.md?raw";
 import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
@@ -89,6 +90,7 @@ export interface ProductDocument {
 const documents = [
   ["overview", index, "docs/README.md"],
   ["orientation", orientation, "docs/orientation.md"],
+  ["on-testing", onTesting, "docs/on-testing.md"],
   ["tests", tests, "docs/tests.md"],
   ["changed", changed, "docs/changed.md"],
   ["reasoning", reasoning, "docs/reasoning.md"],

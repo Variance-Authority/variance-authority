@@ -24,7 +24,7 @@ export const NAVIGATION = [
     label: "Overview",
     items: [
       { href: "/docs", label: "Documentation home", unlisted: true },
-      { href: "/docs/tests", label: "Tests preserve the paths we care about" },
+      { href: "/docs/on-testing", label: "Decide what each test adds" },
       { href: "/docs/changed", label: "See what changed" },
       { href: "/docs/reasoning", label: "Follow the reasoning loop" },
       { href: "/docs/evidence-field", label: "Use the evidence you have" },

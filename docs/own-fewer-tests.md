@@ -8,11 +8,15 @@ for each test case, which regions of your source that case covered. Point at a
 line and it hands back the named cases that walked it, which is where the
 question *why do all of these tests need this code?* starts having an answer.
 
-This page is the decision that sits on top of that reading: which tests to keep,
-where to put them, and when to retire one. The reading never authorizes a
+The decision that sits on top of that reading is which tests to keep, where to
+put them, and when to retire one. The reading never authorizes a
 deletion on its own — execution says where a test went, not which assertion or
 risk made the trip worthwhile — so each section below pairs a reading with the
 rerun that settles it.
+
+Tests are evidence with different costs, scopes, and lifetimes. [On
+testing](on-testing.md) relates those differences; within one suite, they govern
+which tests remain owned.
 
 ## Ask which tests claim a line
 
@@ -122,6 +126,12 @@ Ask four questions before adding one:
 The last question separates a permanent contract from temporary scaffolding
 before both settle into the suite.
 
+A distant failure is a useful prompt here. Name the risk it exposed, add a
+nearer test at the boundary that owns that risk, and keep one downstream test
+for the real join. Run both before treating an older case as redundant: path
+distance can identify candidates, but it cannot show that two assertions detect
+the same failure.
+
 ## Fan out where variation is the risk
 
 Some behaviours genuinely need many cases. Parsers, permissions, state
@@ -137,7 +147,11 @@ to the failure being sought.
 
 The broad product path rarely needs to repeat the whole table. Prove the
 variation where it is cheapest to control and diagnose, then keep enough
-integration evidence to show that the real parts still compose.
+integration evidence to show that the real parts still compose. Kent Beck's
+[Composable Tests](https://newsletter.kentbeck.com/p/composable-tests) shows
+this shape for genuinely orthogonal dimensions; James Shore's [Testing Without
+Mocks](https://www.jamesshore.com/v2/projects/nullables/testing-without-mocks)
+applies it through narrow, overlapping sociable tests.
 
 ## Social and solitary tests pay different bills
 
@@ -208,8 +222,11 @@ happened to break. Implementations change; an API contract, policy rule or
 product journey can survive several of them. A test placed at the enduring
 boundary is less likely to become an accidental constraint on the old design.
 
-Temporary tests need an exit condition, not a weaker name. Delete, merge or
-demote them when the condition arrives. A suite that only adds evidence and
+Temporary tests need an exit condition, not a weaker name. Michael Feathers's
+[pinch-point tests](https://www.pearson.com/en-us/subject-catalog/p/Feathers-Working-Effectively-with-Legacy-Code/P200000008984?view=educator)
+make the same lifecycle explicit: broad protection can support a change until
+narrower tests protect the boundaries being changed. Delete, merge or demote a
+temporary test when its condition arrives. A suite that only adds evidence and
 never retires it eventually spends most of its time reconfirming settled
 questions.
 
@@ -235,6 +252,14 @@ that covered a region. The file-level [execution record](execution-record.md)
 answers the same question by test file, and says how much source each test
 pulls in with it. Both readings
 identify a conversation rather than a verdict.
+
+Kent Beck's [Programmer Test
+Principles](https://medium.com/@kentbeck_7670/programmer-test-principles-d01c064d7934)
+uses determinism and prediction as the test for noisy feedback. Meta's work on
+[probabilistic
+flakiness](https://engineering.fb.com/2020/12/10/developer-tools/probabilistic-flakiness/)
+treats reliability as a property that can deteriorate over time. Neither makes
+age or one failure a deletion rule; both make continued signal the question.
 
 For one candidate, [Distill](distill.md) can show what it loaded, covered and
 addressed. Change one boundary and rerun the exact test before keeping a smaller

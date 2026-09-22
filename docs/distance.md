@@ -225,6 +225,11 @@ dispatches paths to a runner. A repository integration owns both operations.
 branch that no recorded test took. Selection handles changes it cannot attribute
 by refusing exclusions; distance does not extend that guarantee to unseen paths.
 
+**Distance is not detection distance.** It counts import hops to a selected
+test. It does not say that test can reveal this fault, that no nearer test can,
+or that a farther test may be skipped. Those are outcome and risk questions the
+snapshot does not record.
+
 **The graph must connect source files to built output.** In a workspace,
 cross-package imports can resolve to built files while the execution record
 names source files. Without that connection, tests can be selected but their

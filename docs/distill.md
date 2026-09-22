@@ -259,6 +259,9 @@ never-observed branches have different denominators, and a DOM target does not
 establish that every ancestor or descendant participates in the assertion.
 
 Distill also does not decide whether the suite should retain several tests that
-protect the same promise. That is a portfolio decision across tests, assertions
-and risk; [own fewer tests](own-fewer-tests.md) describes the questions the
-execution evidence can inform without turning overlap into a deletion verdict.
+protect the same promise. It finds a smaller boundary for one test; [on
+testing](on-testing.md#size-and-scope-are-different-decisions) explains why a
+cheaper test may still be valuable, redundant or temporary. That is a portfolio
+decision across tests, assertions and risk; [own fewer
+tests](own-fewer-tests.md) describes the questions the execution evidence can
+inform without turning overlap into a deletion verdict.
