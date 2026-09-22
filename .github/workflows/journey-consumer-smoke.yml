@@ -49,4 +49,5 @@ jobs:
         with:
           name: journey-consumer-smoke-${{ github.run_id }}
           path: .github/consumer/journey-smoke/.artifacts
+          include-hidden-files: true
           if-no-files-found: error
