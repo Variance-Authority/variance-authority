@@ -41,11 +41,29 @@ export const LOCKSTEP =
  */
 export const FIRST = 'First release.';
 
-const UPDATED = /^- Updated dependencies \[/;
 /**
- * A name carries digits — `sense-darwin-arm64`, `linux-x64-gnu`, `win32-x64-msvc`
- * — so the class cannot be letters alone. One that excluded them stopped the
- * block at the first platform package and left every sibling under it standing.
+ * Both shapes of the header, because the hash is not always there.
+ *
+ * `changelog-git` names the commit a changeset arrived in, and a changeset that
+ * has not been committed yet has no commit to name — which is every release
+ * versioned from a machine rather than from the version pull request. A pattern
+ * that required the bracket matched the CI shape and left the local one, so the
+ * block under it survived as published bookkeeping.
+ */
+const UPDATED = /^- Updated dependencies( \[|$)/;
+/**
+ * A sibling indented under the header, matched wherever it stands.
+ *
+ * A name carries digits — `sense-darwin-arm64`, `linux-x64-gnu`,
+ * `win32-x64-msvc` — so the class cannot be letters alone. One that excluded
+ * them stopped the block at the first platform package and left every sibling
+ * under it standing.
+ *
+ * Unconditional rather than only under a header it has just seen, because a
+ * header removed by an earlier run leaves its siblings orphaned and a rule that
+ * needs one can never reach them again. What that gives up is a person writing
+ * a bullet of exactly this shape — a sibling package at a version, indented,
+ * and nothing else on the line — which is the thing being removed anyway.
  */
 const SIBLING = /^ {2}- @variance-authority\/[a-z0-9-]+@\d/;
 /**
@@ -75,15 +93,10 @@ export function changelogs() {
  */
 function withoutBookkeeping(lines) {
   const kept = [];
-  let inBlock = false;
   for (const line of lines) {
     if (line === LOCKSTEP || line === FIRST) continue;
-    if (UPDATED.test(line)) {
-      inBlock = true;
-      continue;
-    }
-    if (inBlock && SIBLING.test(line)) continue;
-    inBlock = false;
+    if (UPDATED.test(line)) continue;
+    if (SIBLING.test(line)) continue;
     if (ONLY_A_BUMP.test(line)) continue;
     // A changeset body is indented two spaces, which turns its blank lines into
     // lines of whitespace. Nothing here ends in a markdown hard break.

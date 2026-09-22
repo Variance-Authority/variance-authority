@@ -62,6 +62,27 @@ describe('a published changelog', () => {
     );
   });
 
+  // A changeset versioned before it is committed has no commit to name, so the
+  // header arrives without its hash. That is every release versioned from a
+  // machine rather than from the version pull request.
+  it('removes a block whose header carries no hash', () => {
+    const generated = ['# x', '', '## 0.5.7', '', '### Patch Changes', '', '- Updated dependencies', '  - @variance-authority/core@0.5.7', '', '## 0.5.6', '', 'Something a person wrote.', ''].join('\n');
+
+    expect(tidy(generated)).toBe(
+      `# x\n\n## 0.5.7\n\n${LOCKSTEP}\n\n## 0.5.6\n\nSomething a person wrote.\n`,
+    );
+  });
+
+  // A header removed by an earlier run leaves its siblings behind, and a rule
+  // that needs to have just seen one can never reach them again.
+  it('removes siblings their header no longer stands above', () => {
+    const orphaned = ['# x', '', '## 0.5.7', '', '### Patch Changes', '', '  - @variance-authority/sense@0.5.7', '', '## 0.5.6', '', 'Something a person wrote.', ''].join('\n');
+
+    expect(tidy(orphaned)).toBe(
+      `# x\n\n## 0.5.7\n\n${LOCKSTEP}\n\n## 0.5.6\n\nSomething a person wrote.\n`,
+    );
+  });
+
   // The generator only helps where it runs, and `release:version` is the one
   // command that reaches these files — including in CI, where the version pull
   // request is written.
