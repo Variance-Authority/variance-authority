@@ -1,5 +1,19 @@
 # @variance-authority/mcp
 
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.3
+  - @variance-authority/core@0.5.3
+  - @variance-authority/distill@0.5.3
+  - @variance-authority/eyes@0.5.3
+  - @variance-authority/presentation@0.5.3
+  - @variance-authority/report@0.5.3
+  - @variance-authority/scenario@0.5.3
+  - @variance-authority/vantage@0.5.3
+
 ## 0.5.2
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

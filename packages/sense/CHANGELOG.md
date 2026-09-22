@@ -1,5 +1,16 @@
 # @variance-authority/sense
 
+## 0.5.3
+
+### Patch Changes
+
+- Publish the Jest journey finalizer
+
+  The Sense package includes the `sense-journeys` command and its native fold and
+  stitch implementation. A Jest journey run can now be finalized after Jest exits
+  using the files installed from the package.
+  - @variance-authority/wire@0.5.3
+
 ## 0.5.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @variance-authority/eyes
 
+## 0.5.3
+
+### Patch Changes
+
+  - @variance-authority/react@0.5.3
+
 ## 0.5.2
 
 ### Patch Changes

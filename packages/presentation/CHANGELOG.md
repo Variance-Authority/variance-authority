@@ -1,5 +1,13 @@
 # @variance-authority/presentation
 
+## 0.5.3
+
+### Patch Changes
+
+  - @variance-authority/dom@0.5.3
+  - @variance-authority/react@0.5.3
+  - @variance-authority/report@0.5.3
+
 ## 0.5.2
 
 ### Patch Changes

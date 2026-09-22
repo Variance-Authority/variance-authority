@@ -1,5 +1,14 @@
 # @variance-authority/help
 
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @variance-authority/sense@0.5.3
+  - @variance-authority/mcp@0.5.3
+  - @variance-authority/package@0.5.3
+
 ## 0.5.2
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

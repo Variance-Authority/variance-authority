@@ -1,5 +1,12 @@
 # @variance-authority/observe
 
+## 0.5.3
+
+### Patch Changes
+
+  - @variance-authority/png@0.5.3
+  - @variance-authority/raster@0.5.3
+
 ## 0.5.2
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/server",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A self-hosted HTTP history service for Variance Authority observations and approvals.",
   "keywords": [
     "variance-authority",
