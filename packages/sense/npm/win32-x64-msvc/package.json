@@ -28,6 +28,9 @@
     "x64"
   ],
   "main": "scan.node",
+  "scripts": {
+    "prepack": "node ../../scripts/verify-native-pack.mjs"
+  },
   "files": [
     "scan.node"
   ]
