@@ -1,5 +1,5 @@
 ---
-'@variance-authority/sense': minor
+'@variance-authority/sense': patch
 ---
 
 Record Jest journey coverage after the test run
