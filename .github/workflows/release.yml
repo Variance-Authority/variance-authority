@@ -220,6 +220,13 @@ jobs:
             exit 1
           fi
 
+          # And one version across all thirty-eight, which is what the `fixed`
+          # group in `.changeset/config.json` promises. Disagreement here means
+          # something wrote a version outside `changeset version`, and half a
+          # product published at a version its siblings will never reach is the
+          # failure this whole job is arranged around.
+          node tools/released.mjs --lockstep
+
       # `dist` is gitignored and the only `prepack` any package declares refuses
       # a missing binary rather than producing one, so this is what makes the
       # tarballs non-empty. A publish from a clean checkout without it ships
@@ -279,19 +286,29 @@ jobs:
           YARN_NPM_PUBLISH_PROVENANCE: 'true'
         run: |
           yarn release:publish
-          # `changeset publish` says "Created git tags." and the push that
-          # followed it said "Everything up-to-date", and 0.5.8 went out
-          # untagged. `changeset tag` is the same tagging asked for on its own,
-          # it names versions the registry has already accepted, and it is
-          # idempotent — so this cannot describe a release that did not happen
-          # and cannot fail on one that was already tagged.
+
+          # Asking the registry rather than believing the exit code. 0.5.6
+          # reached five of the thirty-eight names and stopped, and the step
+          # that did it was green. `changeset publish` skips versions the
+          # registry already has, so the repair for a truncated release is the
+          # same command again — it completes the missing names and no others.
+          # One retry: a second identical failure is not a flake.
+          node tools/released.mjs --registry --wait 120 || {
+            echo "::warning::the publish was partial — running it again for the names still missing"
+            yarn release:publish
+            node tools/released.mjs --registry --wait 120
+          }
+
+          # `changeset tag` is the tagging `changeset publish` claims to have
+          # done, asked for on its own. It names versions the registry has
+          # accepted — verified one line above — and it is idempotent, so this
+          # cannot invent a tag for a release that did not happen and cannot
+          # fail on one that was already tagged.
           yarn changeset tag
           git push origin --tags
-          # A tag that did not reach the remote is a release nobody can find the
-          # commit for, which is exactly the failure this is replacing, and it
-          # was silent.
-          version=$(node -p "require('./packages/core/package.json').version")
-          if ! git ls-remote --tags origin | grep -q "refs/tags/@variance-authority/core@$version$"; then
-            echo "published $version but its tags did not reach the remote"
-            exit 1
-          fi
+
+          # Both halves, for the record and for the next person reading a green
+          # run: every name on the registry at this version, every tag on
+          # origin. 0.5.8 published all thirty-eight and tagged none of them,
+          # and nothing anywhere said so.
+          node tools/released.mjs --wait 60
