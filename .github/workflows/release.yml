@@ -279,7 +279,19 @@ jobs:
           YARN_NPM_PUBLISH_PROVENANCE: 'true'
         run: |
           yarn release:publish
-          # Tags come from `changeset publish` and name versions the registry has
-          # already accepted, so pushing them cannot describe a release that did
-          # not happen.
-          git push --tags
+          # `changeset publish` says "Created git tags." and the push that
+          # followed it said "Everything up-to-date", and 0.5.8 went out
+          # untagged. `changeset tag` is the same tagging asked for on its own,
+          # it names versions the registry has already accepted, and it is
+          # idempotent — so this cannot describe a release that did not happen
+          # and cannot fail on one that was already tagged.
+          yarn changeset tag
+          git push origin --tags
+          # A tag that did not reach the remote is a release nobody can find the
+          # commit for, which is exactly the failure this is replacing, and it
+          # was silent.
+          version=$(node -p "require('./packages/core/package.json').version")
+          if ! git ls-remote --tags origin | grep -q "refs/tags/@variance-authority/core@$version$"; then
+            echo "published $version but its tags did not reach the remote"
+            exit 1
+          fi
