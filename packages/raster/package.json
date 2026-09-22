@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/raster",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Pixel-tier contracts for Variance Authority: what a renderer and a store promise, and which policy a comparison ran under.",
   "keywords": [
     "variance-authority",

@@ -1,5 +1,12 @@
 # @variance-authority/store
 
+## 0.5.2
+
+### Patch Changes
+
+  - @variance-authority/raster@0.5.2
+  - @variance-authority/report@0.5.2
+
 ## 0.5.1
 
 ### Patch Changes

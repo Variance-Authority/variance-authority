@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/package",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Read a TypeScript workspace API surface as data: every entrypoint a manifest opens and what each one exports, for release and breaking-change checks.",
   "keywords": [
     "variance-authority",

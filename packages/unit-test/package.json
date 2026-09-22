@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/unit-test",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Capture a mounted DOM subject in a browserless Jest, Vitest or Rstest process, then render and observe it later.",
   "keywords": [
     "variance-authority",

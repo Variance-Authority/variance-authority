@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/vantage",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Hold what a running test suite is saying in a process an agent can ask, so a test in flight is something to look at rather than something to wait for.",
   "keywords": [
     "variance-authority",
