@@ -52,6 +52,7 @@ interface PlatformManifest {
   readonly cpu?: readonly string[];
   readonly libc?: readonly string[];
   readonly license?: string;
+  readonly scripts?: Readonly<Record<string, string>>;
 }
 
 function manifest<T>(path: string): T {
@@ -166,6 +167,10 @@ describe('the platform packages', () => {
     it('publishes its binary and nothing else', () => {
       expect(platform.main).toBe('scan.node');
       expect(platform.files).toEqual(['scan.node']);
+    });
+
+    it('refuses to pack without a usable binary', () => {
+      expect(platform.scripts?.prepack).toBe('node ../../scripts/verify-native-pack.mjs');
     });
 
     it('moves with the package that loads it', () => {
