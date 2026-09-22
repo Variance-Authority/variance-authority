@@ -91,6 +91,7 @@ export interface JestTestSelectionOptions {
 export interface JestConfig {
   readonly rootDir?: string;
   readonly cacheDirectory?: string;
+  readonly testEnvironment?: string;
   readonly setupFiles?: readonly string[];
   readonly setupFilesAfterEnv?: readonly string[];
   readonly reporters?: ReadonlyArray<string | readonly [string, Record<string, unknown>]>;
@@ -104,6 +105,8 @@ export interface SelectionTransformerConfig {
   readonly root: string;
   /** The transformer this one wraps, as the configuration spelled it; absent runs plain JavaScript. */
   readonly transformer?: string | readonly [string, Record<string, unknown>];
+  /** Absolute paths Jest evaluates before `setupFiles` can install the probe collector. */
+  readonly exclude?: readonly string[];
   /** The probe recipe; `presence` when absent. */
   readonly mode?: InstrumentMode;
 }
@@ -208,7 +211,9 @@ export function withTestSelection(
   const mode = options.mode;
   const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode));
   const preconditions = [
+    ...environmentPaths(config, root),
     ...setupPaths(config, root),
+    ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, root))),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, root))),
     ...(options.preconditions ?? []).map((file) => resolve(root, file)),
   ];
@@ -249,12 +254,22 @@ function instrumented(
     : Object.keys(config.transform).length === 0
       ? { [DEFAULT_PATTERN]: undefined }
       : config.transform;
+  // FIXME: A custom environment's repository-owned dependency closure still
+  // runs before `setupFiles` and is therefore probed before the collector exists.
+  // The configured entry is safe; the closure needs an owner before this can
+  // claim environments composed from other workspace packages.
+  const exclude = environmentPaths(config, rootDir);
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
       [
         SELECTION_TRANSFORM,
-        { root, ...(transformer === undefined ? {} : { transformer }), ...(mode === undefined ? {} : { mode }) },
+        {
+          root,
+          ...(transformer === undefined ? {} : { transformer }),
+          ...(exclude.length === 0 ? {} : { exclude }),
+          ...(mode === undefined ? {} : { mode }),
+        },
       ],
     ]),
   );
@@ -284,8 +299,19 @@ function projectRoot(project: JestConfig, root: string): string {
  */
 function setupPaths(config: JestConfig, rootDir: string): readonly string[] {
   return [...(config.setupFiles ?? []), ...(config.setupFilesAfterEnv ?? [])]
-    .filter((file) => file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/'))
-    .map((file) => resolve(rootDir, file.replace(/^<rootDir>\/?/, '')));
+    .flatMap((file) => configuredPath(file, rootDir));
+}
+
+/** A custom environment runs before `setupFiles`, so it is an input and never probed source. */
+function environmentPaths(config: JestConfig, rootDir: string): readonly string[] {
+  return config.testEnvironment === undefined ? [] : configuredPath(config.testEnvironment, rootDir);
+}
+
+/** Resolve one configuration entry only when it names a file rather than a package. */
+function configuredPath(file: string, rootDir: string): readonly string[] {
+  return file.startsWith('<rootDir>') || file.startsWith('.') || file.startsWith('/')
+    ? [resolve(rootDir, file.replace(/^<rootDir>\/?/, ''))]
+    : [];
 }
 
 /**

@@ -110,6 +110,7 @@ export async function createTransformer(
   const innerConfig = typeof config.transformer === 'string' ? undefined : config.transformer?.[1];
   const mode = config.mode ?? 'presence';
   const instrumentation = instrumentationId(mode);
+  const excluded = new Set((config.exclude ?? []).map((file) => resolve(file)));
   // Once per worker. The table is immutable for the life of this run — the fold
   // that grows it is the reporter, in the parent, after the last worker exits.
   const names = readModuleNames(openModuleNames(root));
@@ -136,6 +137,8 @@ export async function createTransformer(
       .update(String(idOf(path)))
       .update('\0')
       .update(JSON.stringify(innerConfig ?? null))
+      .update('\0')
+      .update(excluded.has(resolve(path)) ? 'excluded' : '')
       .digest('hex')
       .slice(0, 32);
   const innerKeyAsync = inner?.getCacheKeyAsync ?? inner?.getCacheKey;
@@ -160,7 +163,7 @@ export async function createTransformer(
       const transformed = innerProcessAsync === undefined
         ? { code: source }
         : await innerProcessAsync(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode, excluded);
     },
   };
   if (inner === undefined || inner.process !== undefined) {
@@ -168,7 +171,7 @@ export async function createTransformer(
       const transformed = inner?.process === undefined
         ? { code: source }
         : inner.process(source, path, forInner(options));
-      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode);
+      return place(root, recordsOf(options.config), path, idOf(path), options, source, transformed, mode, excluded);
     };
   }
   return transformer;
@@ -196,8 +199,9 @@ function place(
   source: string,
   transformed: JestTransformedSource,
   mode: InstrumentMode,
+  excluded: ReadonlySet<string>,
 ): JestTransformedSource {
-  if (!defaultInclude(path) || isTestFile(path, options.config)) {
+  if (excluded.has(resolve(path)) || !defaultInclude(path) || isTestFile(path, options.config)) {
     return transformed;
   }
   // The digest is of the project's text, which is what the block lines are
@@ -301,7 +305,12 @@ async function loadTransformer(
   const path = resolveTransformer(root, name);
   let loaded: TransformerModule;
   try {
-    loaded = createRequire(path)(path) as TransformerModule;
+    // Jest awaits a CommonJS transformer's export before it asks whether that
+    // value is a transformer or a factory. Jira's Babel transformer uses that
+    // contract: `module.exports` is the Promise returned by its asynchronous
+    // configuration load. Inspecting the Promise itself reports that a valid
+    // transformer has neither `process` nor `createTransformer`.
+    loaded = (await createRequire(path)(path)) as TransformerModule;
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? error.code : undefined;
     if (code !== 'ERR_REQUIRE_ESM' && code !== 'ERR_REQUIRE_ASYNC_MODULE') throw error;

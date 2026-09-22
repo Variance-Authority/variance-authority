@@ -93,6 +93,7 @@ describe('the Jest integration', () => {
     expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
       'jest.config.mjs',
       'test/alpha.case.ts',
+      'test/environment.ts',
       'test/polyfill.cjs',
       'test/setup.cjs',
     ]);

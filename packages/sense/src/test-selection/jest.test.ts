@@ -65,6 +65,15 @@ async function project(): Promise<string> {
 };
 `,
   );
+  // Shaped like Jira's Babel transformer: CommonJS exports the Promise of the
+  // transformer after asynchronously loading the project's Babel options.
+  await writeFile(
+    resolve(root, 'transformer-async.cjs'),
+    `module.exports = Promise.resolve({
+  process: (source) => ({ code: source.replace('__PLACEHOLDER__', '2') }),
+});
+`,
+  );
   return root;
 }
 
@@ -91,6 +100,7 @@ describe('withTestSelection for Jest', () => {
     const configured = withTestSelection(
       {
         rootDir: '/repo',
+        testEnvironment: '<rootDir>/test/environment.ts',
         setupFiles: ['<rootDir>/test/polyfills.js'],
         setupFilesAfterEnv: ['<rootDir>/test/setup.ts'],
         reporters: ['default', ['jest-junit', { outputDirectory: 'reports' }]],
@@ -110,15 +120,25 @@ describe('withTestSelection for Jest', () => {
       [SELECTION_REPORTER, {
         root: '/repo',
         coverageFile: '/repo/coverage.bin',
-        preconditions: ['/repo/test/polyfills.js', '/repo/test/setup.ts', '/repo/tsconfig.json'],
+        preconditions: [
+          '/repo/test/environment.ts',
+          '/repo/test/polyfills.js',
+          '/repo/test/setup.ts',
+          '/repo/tsconfig.json',
+        ],
       }],
     ]);
     expect(configured.transform).toEqual({
       '\\.tsx?$': [SELECTION_TRANSFORM, {
         root: '/repo',
         transformer: ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
+        exclude: ['/repo/test/environment.ts'],
       }],
-      '\\.css$': [SELECTION_TRANSFORM, { root: '/repo', transformer: 'jest-transform-css' }],
+      '\\.css$': [SELECTION_TRANSFORM, {
+        root: '/repo',
+        transformer: 'jest-transform-css',
+        exclude: ['/repo/test/environment.ts'],
+      }],
     });
   });
 
@@ -288,6 +308,19 @@ describe('the Jest transformer', () => {
     expect(transformer.process).toBeUndefined();
     const { code } = await transformer.processAsync!(SOURCE, resolve(root, 'src/pick.js'), options);
     expect(code).toContain('const flag = 1;');
+    expect(code).toContain('globalThis.__VA__');
+  });
+
+  it('awaits a CommonJS transformer exported as a Promise', async () => {
+    const root = await project();
+    const options = transformOptions(root);
+    const transformer = await createTransformer({
+      root,
+      transformer: resolve(root, 'transformer-async.cjs'),
+    });
+
+    const { code } = transformer.process!(SOURCE, resolve(root, 'src/pick.js'), options);
+    expect(code).toContain('const flag = 2;');
     expect(code).toContain('globalThis.__VA__');
   });
 });

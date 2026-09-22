@@ -13,7 +13,7 @@ export default withTestSelection(
   {
     rootDir: root,
     cacheDirectory,
-    testEnvironment: 'node',
+    testEnvironment: '<rootDir>/test/environment.ts',
     testMatch: ['<rootDir>/test/*.case.ts'],
     transform: {
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
