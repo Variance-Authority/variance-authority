@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense-win32-x64-msvc",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "The prebuilt source scanner @variance-authority/sense loads on Windows x64.",
   "keywords": [
     "variance-authority",
