@@ -132,12 +132,12 @@ describe('withTestSelection for Jest', () => {
       '\\.tsx?$': [SELECTION_TRANSFORM, {
         root: '/repo',
         transformer: ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
-        exclude: ['/repo/test/environment.ts'],
+        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
       }],
       '\\.css$': [SELECTION_TRANSFORM, {
         root: '/repo',
         transformer: 'jest-transform-css',
-        exclude: ['/repo/test/environment.ts'],
+        exclude: ['/repo/test/environment.ts', '/repo/tsconfig.json'],
       }],
     });
   });
@@ -322,6 +322,23 @@ describe('the Jest transformer', () => {
     const { code } = transformer.process!(SOURCE, resolve(root, 'src/pick.js'), options);
     expect(code).toContain('const flag = 2;');
     expect(code).toContain('globalThis.__VA__');
+  });
+
+  it('transforms a declared precondition without placing probes in it', async () => {
+    const root = await project();
+    const options = transformOptions(root);
+    const path = resolve(root, 'src/pick.js');
+    const transformer = await createTransformer({
+      root,
+      transformer: [resolve(root, 'transformer.cjs'), { value: 'true' }],
+      exclude: [path],
+    });
+
+    const { code } = transformer.process!(SOURCE, path, options);
+    expect(code).toContain('const flag = true;');
+    expect(code).not.toContain('globalThis.__VA__');
+    await expect(readRecord(jestStore(options.config.cacheDirectory, options.config.id), 'src/pick.js'))
+      .resolves.toBeUndefined();
   });
 });
 

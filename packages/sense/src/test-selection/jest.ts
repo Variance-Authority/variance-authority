@@ -32,7 +32,11 @@ export interface JestTestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
-  /** Additional files whose contents are preconditions of every test observation. */
+  /**
+   * Additional files whose contents are preconditions of every test observation.
+   * Jest transforms these files normally but Sense does not place probes in them,
+   * because a precondition may run before the collector exists.
+   */
   readonly preconditions?: readonly string[];
   /**
    * `presence` probes every arrival region; `entries` probes modules and
@@ -209,13 +213,14 @@ export function withTestSelection(
     return project;
   });
   const mode = options.mode;
-  const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode));
+  const declared = (options.preconditions ?? []).map((file) => resolve(root, file));
+  const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode, declared));
   const preconditions = [
     ...environmentPaths(config, root),
     ...setupPaths(config, root),
     ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, root))),
     ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, root))),
-    ...(options.preconditions ?? []).map((file) => resolve(root, file)),
+    ...declared,
   ];
   const reporter: SelectionReporterConfig = {
     root,
@@ -230,7 +235,7 @@ export function withTestSelection(
   };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, root, mode) : config),
+    ...(projects === undefined ? instrumented(config, root, root, mode, declared) : config),
     rootDir: config.rootDir ?? root,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
@@ -248,6 +253,7 @@ function instrumented(
   root: string,
   rootDir: string,
   mode: InstrumentMode | undefined,
+  declared: readonly string[],
 ): JestConfig {
   const configured = config.transform === undefined
     ? { [DEFAULT_PATTERN]: 'babel-jest' }
@@ -258,7 +264,7 @@ function instrumented(
   // runs before `setupFiles` and is therefore probed before the collector exists.
   // The configured entry is safe; the closure needs an owner before this can
   // claim environments composed from other workspace packages.
-  const exclude = environmentPaths(config, rootDir);
+  const exclude = [...new Set([...environmentPaths(config, rootDir), ...declared])];
   const transform = Object.fromEntries(
     Object.entries(configured).map(([pattern, transformer]): [string, readonly [string, Record<string, unknown>]] => [
       pattern,
