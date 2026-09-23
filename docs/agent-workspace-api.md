@@ -67,36 +67,37 @@ without scanning the repository again. Producing and answering are separate oper
 a CI step can publish once, then every agent in that step can ask the same dated
 facts without making freshness checks part of query latency.
 
-This path is measured on a large frontend monorepo, not only on generated
-trees. One measured generation holds 301,473 file records across 1,631 packages,
-with 81,052 published entries and 664,769 repository exports. Reproducing it
-with an authoritative empty changed-file list takes 32.31–46.85 seconds on the
-measured machine. That is producer time. Repeated separate
-`search createStore --just-answer` processes take 0.84–0.91 seconds each. With
-the measured entry file passed to `--from`, they take 1.19–1.31 seconds each,
-including loading and walking its 101,723-file import closure.
+This path is measured on a large frontend monorepo of about 300,000 files in
+1,600 packages, on one warm macOS checkout. Every bar below is one separate
+process looking for `createStore`; each is the slow end of its measured range
+for Variance and the fast end for the text searches:
 
-The distinction matters before the structural answer does. On one warm macOS
-checkout of that repository,
-`rg -l -F createStore .` returns 1,743 files in 17.85 seconds and consumes about
-123 seconds of CPU, most of it in the kernel opening and reading separate files.
-A warm `git grep -l -I -F createStore HEAD --` returns 1,748 committed files in
-15.72–16.54 seconds and consumes about 31 seconds of CPU. Git is not merely a
-different spelling of grep at this scale: packed reads cut the system work by
-about seven times. Both commands still return roughly 1,700 files. The workspace
-generation finds 33 `createStore` name groups repository-wide; the scoped query
-returns the 12 in that import closure, from relations already
-recorded. `--from` is reachability at any depth, not a maximum hop count; the
-answer prints import distances where it has them.
+```mermaid
+xychart-beta horizontal
+  accTitle: Seconds to answer createStore in a large monorepo
+  x-axis ["rg", "git grep", "produce the generation, once", "ask search", "ask search --from"]
+  y-axis "seconds" 0 --> 50
+  bar [17.85, 15.72, 0, 0, 0]
+  bar [0, 0, 0, 0.91, 1.31]
+  bar [0, 0, 46.85, 0, 0]
+  bar [0, 0, 0, 0, 0]
+```
 
-That first scan is real work. The measured public checkout in [what a source
-scan costs](performance.md#after-the-first-read-you-do-not-read-it-again) takes
-586 ms with no index, 301 ms unchanged, and 320 ms with four files edited. The
-same measurements show why Git is part of the large-repository path: reading
-200,000 tracked blobs from a generated working tree takes 6.4 seconds, while
-reading them from the pack takes 660 ms. The index adds the facts that neither
-read supplies — declarations and resolved relations — and keeps them for the
-next question.
+The text searches pay their whole cost again for the next word, and they return
+every file that contains the string. The producer pays once, in about the time
+of three text searches, and every question after it reads the published
+generation — including `--from`, which loads and walks an entry file's import
+closure of over 100,000 files. `--from` is reachability at any depth, not a
+maximum hop count; the answer prints import distances where it has them.
+
+`git grep` is not `rg` spelled differently at this scale: it reads packed objects
+instead of opening each file, and spends a fraction of the kernel time.
+[Then stop opening the file](performance.md#then-stop-opening-the-file) measures
+that difference, and [after the first read](performance.md#after-the-first-read-you-do-not-read-it-again)
+measures what a scan costs on a public checkout with no index, unchanged, and
+with a few files edited. The index adds the facts
+that neither read supplies — declarations and resolved relations — and keeps
+them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,

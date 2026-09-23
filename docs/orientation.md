@@ -17,42 +17,98 @@ Both routes separate producing an index from asking a question. A producer can
 read the repository or run once; an agent, editor or CI step can then ask the
 record without repeating that work.
 
-## Why source search exists
+## Three questions share the word search
 
-Use `rg` when the text itself is the answer. Use `git grep` when the committed
-tree is the answer. They are direct, exact and need no Variance index.
+`rg Button` asks where the bytes `Button` occur. It answers from declarations,
+imports, JSX, tests, stories, comments, Markdown, fixtures and snapshots alike.
+It hides almost nothing, and it leaves every decision about which hit matters
+to you.
 
-The problem changes when an exact word returns hundreds of files. `retry` may
-appear in every effect helper, `payment` across a whole commerce domain and
-`attempt` in unrelated tests. Another text search changes the words but still
-has no fact about which files belong to the code in front of you.
+Most questions are narrower than that. When you type `Button` you usually want
+the component: where it is declared, what it accepts, which package owns it. An
+import of `Button`, a `<Button>` in JSX, a test that asserts the string
+`"Button"` and a paragraph about buttons are all hits for `rg`, and none of them
+is the declaration.
 
-`variance ask search` combines two recorded facts instead:
+**Symbol search** is still lexical matching over a different corpus. Before the
+query starts, everything that is not a declared program entity — a function, a
+class, a type, a variable, an export, a module — has already been removed. If
+you work in a JetBrains IDE you rely on this every day: Go to Symbol is precise
+because it searches a smaller, better-chosen set, not because it analyses your
+program on each keystroke. Find in Files over the same repository returns what
+`rg` returns.
 
-1. exported names and their documentation find candidates for the words you
-   supplied;
-2. the module graph keeps the candidates connected to a path you already have.
+**Semantic search** makes a different promise: you do not need to know what the
+repository calls the thing. Ask where repeated requests stop after a failure,
+and the code may say `retry`, `backoff`, `cooldown` or `failureWindow`.
+Similarity can cross that vocabulary gap. It also makes two things a matter of
+policy at once — which pieces of the repository were embedded, and how
+similarity ranks them — so a test that describes retries, or a comment that
+explains why something must not retry, can score above the code that retries.
+
+The three are not three generations of one tool. Each one removes a different
+unknown:
+
+```mermaid
+flowchart LR
+  accTitle: Choose the search from what you already know
+  R["your request"] -->|"you know what you need"| S["symbol"]
+  R -->|"you know how it looks"| L["lexical"]
+  R -->|"you know how it sounds"| M["semantic"]
+```
+
+> **The more you know, the smaller the surface you search.**
+
+Looking for a declaration, search declarations. Holding the name, search names.
+Holding a file or a package, scope the search to it. Holding only the concept,
+translate it into the words the repository is likely to use. Knowing none of that, use `rg`: it
+assumes the least. A narrow search that comes back empty is either a true answer
+about that area or a sign that something you assumed is wrong. Widen one step to
+find out which, not all the way to `rg`.
+
+## What Variance searches
+
+`variance ask search` is symbol search. Its corpus is exported names and the
+documentation written above them, so a question about `createStore` never
+returns the files that only import or mention it. It adds one step an IDE does
+not take by default: the module graph keeps the candidates connected to a path
+you already have.
 
 ```bash
 variance ask search --query createStore --from src/checkout/ --just-answer
 ```
 
 `--from` walks the imports of the named path at any depth. `--to` walks the
-other direction and finds files that depend on it. The result is a bounded set
-of names, not every file containing the same string.
+other direction and finds files that depend on it. Each step shrinks what you
+read:
 
-The distinction is measurable. On one warm large-workspace reading,
-`rg -l -F createStore .` returned 1,743 files in 17.85 seconds and `git grep`
-returned 1,748 committed files in 15.72–16.54 seconds. A recorded
-`search createStore --just-answer` returned 33 exported-name groups in
-0.84–0.91 seconds; adding `--from` returned the 12 groups in a 101,723-file
-import closure in 1.19–1.31 seconds. The full measurement and producer cost are
-in [the workspace API guide](agent-workspace-api.md#search-finds-the-name-the-graph-finds-the-area).
+```mermaid
+xychart-beta horizontal
+  accTitle: Results to read for createStore in a large monorepo
+  x-axis ["rg", "git grep", "ask search", "ask search --from"]
+  y-axis "files, or exported-name groups" 0 --> 1800
+  bar [1743, 1748, 0, 0]
+  bar [0, 0, 33, 12]
+  bar [0, 0, 0, 0]
+  bar [0, 0, 0, 0]
+```
 
-Search is not a model and does not invent synonyms. If the repository calls
-sign-in `CredentialGate`, ask with likely repository words such as `login`,
-`session` and `credential`. The caller supplies vocabulary; the index supplies
-deterministic matching and relations.
+The two text searches return every file that contains the string. Symbol search
+returns the exported names that match it, and `--from` keeps the ones reachable
+from one entry file. The chart is one warm reading of a large frontend monorepo;
+[the workspace guide](agent-workspace-api.md#search-finds-the-name-the-graph-finds-the-area)
+has what each answer cost in time and what producing the index costs.
+
+Variance does not do semantic search. Nothing is embedded, and the index does
+not invent synonyms. When an agent asks, the model on the other end is the
+semantic step: it already knows that sign-in may be written `login`, `session`
+or `credential`, and it supplies those words. The index matches them the same
+way every time and keeps the answer inside the area the graph connects. If the
+repository calls sign-in `CredentialGate`, that name comes back when a word you
+supplied is part of it, and you can always say why a hit is a hit.
+
+Use `rg` when the text itself is the answer, and `git grep` when the committed
+tree is the answer. Both are exact and need no Variance index.
 
 ## Choose the entrance from what you have
 

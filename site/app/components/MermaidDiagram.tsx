@@ -8,7 +8,7 @@ export default function MermaidDiagram({ source }: { source: string }) {
   const [svg, setSvg] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [fit, setFit] = useState(true);
-  const title = /^\s*accTitle:\s*(.+)$/m.exec(source)?.[1] ?? "Flowchart";
+  const title = /^\s*accTitle:\s*(.+)$/m.exec(source)?.[1] ?? "Diagram";
 
   useEffect(() => {
     let current = true;
@@ -32,6 +32,29 @@ export default function MermaidDiagram({ source }: { source: string }) {
             edgeLabelBackground: "#181b1d",
             clusterBkg: "#181b1d",
             clusterBorder: "#383e41",
+            // Bar series in order: text search, the Variance answer, a one-off
+            // cost. The last colour is the card behind the chart
+            // (`.mermaid-canvas`): a chart ends with an all-zero series in it,
+            // which paints over the stub the value axis's padding draws in
+            // front of every bar, including a zero one.
+            xyChart: {
+              backgroundColor: "transparent",
+              titleColor: "#f3f4f6",
+              xAxisLabelColor: "#f3f4f6",
+              xAxisTitleColor: "#8f8580",
+              xAxisLineColor: "#756d67",
+              xAxisTickColor: "#756d67",
+              yAxisLabelColor: "#8f8580",
+              yAxisTitleColor: "#8f8580",
+              yAxisLineColor: "#756d67",
+              yAxisTickColor: "#756d67",
+              plotColorPalette: "#756d67, #ff4a19, #8f8580, #15181a",
+            },
+          },
+          // A chart here is a handful of horizontal bars; Mermaid's default
+          // 500px height spends most of it on the gaps between them.
+          xyChart: {
+            height: 150,
           },
           flowchart: {
             curve: "basis",
@@ -67,9 +90,9 @@ export default function MermaidDiagram({ source }: { source: string }) {
         {svg ? (
           <div dangerouslySetInnerHTML={{ __html: svg }} />
         ) : failed ? (
-          <p>The flowchart could not be rendered.</p>
+          <p>The diagram could not be rendered.</p>
         ) : (
-          <p>Rendering flowchart…</p>
+          <p>Rendering diagram…</p>
         )}
       </div>
       {svg ? (
@@ -81,12 +104,6 @@ export default function MermaidDiagram({ source }: { source: string }) {
           {fit ? "Inspect at full size" : "Fit diagram"}
         </button>
       ) : null}
-      <details className="mermaid-source">
-        <summary>View flowchart source</summary>
-        <pre tabIndex={0}>
-          <code>{source}</code>
-        </pre>
-      </details>
     </figure>
   );
 }

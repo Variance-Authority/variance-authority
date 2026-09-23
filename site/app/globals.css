@@ -569,11 +569,6 @@ html {
   font-size: 0.72rem;
 }
 
-.docs-content .mermaid-source {
-  margin-top: 0.75rem;
-  background: transparent;
-}
-
 .mermaid-size-control {
   margin-top: 0.65rem;
   border: 0;
@@ -590,10 +585,6 @@ html {
 
 .mermaid-size-control:hover {
   color: #ff9a7e;
-}
-
-.docs-content .mermaid-source pre {
-  margin-bottom: 0;
 }
 
 @media (max-width: 639px) {
