@@ -306,6 +306,23 @@ describe('reading this checkout', () => {
     expect(said.err).toContain('src/widget.ts');
   });
 
+  it('skips a test that mocked the changed module, though its recording entered it', async () => {
+    // The mock ran the real module to learn its shape, so the recording holds
+    // `beta` inside `other`. What `other` contains cannot fail a test that
+    // replaced it, and only the file graph knows the replacement is there.
+    const { root, head } = checkout({
+      'test/beta.test.ts': "import { vi } from 'vitest';\nimport { other } from '../src/widget';\nvi.mock('../src/widget');\nother();\n",
+    });
+    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    const said = await selectOutput({ cwd: root, format: 'plain' });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
+  });
+
   it('refuses to narrow when the diff touches a file no probe was ever in', async () => {
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head));
@@ -333,7 +350,7 @@ const SOURCE = [
 ].join('\n');
 
 /** A checkout holding exactly the text the snapshot below is recorded against. */
-function checkout(): { root: string; head: string } {
+function checkout(files: Readonly<Record<string, string>> = {}): { root: string; head: string } {
   const root = mkdtempSync(join(tmpdir(), 'va-select-'));
   const git = (args: readonly string[]): string =>
     execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -342,6 +359,10 @@ function checkout(): { root: string; head: string } {
   git(['config', 'user.name', 'Fixture']);
   mkdirSync(join(root, 'src'), { recursive: true });
   writeFileSync(join(root, 'src/widget.ts'), SOURCE);
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(join(root, file, '..'), { recursive: true });
+    writeFileSync(join(root, file), text);
+  }
   git(['add', '-A']);
   git(['commit', '--quiet', '-m', 'the text these line numbers are coordinates in']);
 

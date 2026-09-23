@@ -49,6 +49,7 @@ import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionIndex } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { diffSince } from './since.js';
+import { relationsFor } from './source-graph.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /** How the answer is written. `text` reads; `json` is for whatever asks next. */
@@ -269,10 +270,12 @@ async function sinceAnswer(
 
   return {
     since,
-    // TODO: pass `{ relations }` carrying the configured taints' shadows, so a case whose file mocked the
-    // changed module stops being listed under it; needs `relationsFor` with
-    // `source.taints` and `source.before` read from the configuration here, as `run --since` does in `dispatch.ts`.
-    changed: coveringChange(index, changed),
+    // The graph carries the mocks: a case whose file mocked the changed module
+    // is not listed under it, whatever it crossed there.
+    changed: coveringChange(index, changed, { relations: await relationsFor(root, ['.'], [], [], {
+      why: 'a mocked module is ruled out by the file graph',
+      fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
+    }) }),
     ...(at === undefined ? {} : { at }),
     from,
   };

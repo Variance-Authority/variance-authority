@@ -19,18 +19,21 @@
  * configured this tool for anything else, and requiring a config file would put
  * it out of reach in exactly those repositories.
  *
- * The cost is real and is named here rather than left to be discovered: without
- * a config there is no file graph, so `relations` is not passed, and a changed
- * stylesheet or asset no probe can sit in is answered by nobody. It lands in
- * `unread` instead — which, under the rule in `select.ts`, widens the answer to
- * the whole suite. Wider than `variance run --since` would be on the same diff,
- * never narrower.
+ * The file graph is built anyway, over the whole checkout, because the answer
+ * is wrong without it. A test that mocks a module ran that module's source to
+ * learn its shape, so the recording holds it, and what the module contains
+ * cannot fail that test — only the graph knows the mock is there, and with it a
+ * change behind the mock selects nobody who mocked it. The same graph answers a
+ * changed stylesheet or asset no probe can sit in by the module that imports
+ * it. With no config there are no taint tables beyond the mock reader, which
+ * runs unasked.
  */
 
 import { stat } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffSince } from './since.js';
+import { relationsFor } from './source-graph.js';
 import {
   formatSelection,
   selectionNotes,
@@ -105,7 +108,11 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
   }
 
-  const narrowing = await journeyAgainst(request.cwd, diff);
+  const relations = await relationsFor(request.cwd, ['.'], [], [], {
+    why: 'a mocked module is ruled out by the file graph',
+    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
+  });
+  const narrowing = await journeyAgainst(request.cwd, diff, relations);
   const ground: SelectGround =
     narrowing === undefined ? { kind: 'no-journal' } : { kind: 'read', narrowing };
 
