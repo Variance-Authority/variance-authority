@@ -234,15 +234,10 @@ the search with `grep -ril "<task terms>" .compass`.
   would run, `// FIXME:` for a defect, `// TODO:` for a limb.
 - **No magic, and not alone.** We are a piece of boring technology, not a
   magic wand: nothing performs an operation the user did not ask for, in a
-  place they would not look for it. Test selection reads the database and never
-  runs `git status` or a scan to freshen it; updating it is a step the pipeline
-  names. We never keep the user blind, and we never fix an edge case behind
-  their back. A required database missing in CI fails and says which step to
-  add; locally it is built. Across a boundary we ride what others already carry
-  — the runner's own `ci` setting, W3C `baggage`, the `context` fixture the user
-  opened the page with — rather than patching globals or inventing a protocol
-  nobody forwards. We are in this together: the user sees what we did, where,
-  and why.
+  place they would not look for it. We never keep the user blind, and we never
+  fix an edge case behind their back. Across a boundary we ride what others
+  already carry rather than patching around it or inventing a protocol nobody
+  forwards. We are in this together: the user sees what we did, where, and why.
 
 ## Verifying
 
