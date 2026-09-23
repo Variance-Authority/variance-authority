@@ -7,6 +7,7 @@ export interface ParsedReach {
   /** `--since <ref>`: the base to measure the diff from. There is no other coordinate. */
   readonly since: string;
   readonly format: ReachFormat;
+  readonly noGit?: boolean;
 }
 
 /**
@@ -42,5 +43,5 @@ export function parseReachArgs(flags: Flags): ParsedReach {
     );
   }
 
-  return { command: 'reach', since, format };
+  return { command: 'reach', since, format, ...(flags.present.has('--no-git') ? { noGit: true } : {}) };
 }

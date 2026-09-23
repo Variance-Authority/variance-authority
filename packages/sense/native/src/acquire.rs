@@ -93,6 +93,9 @@ fn read_git_bucket(
     } else {
         Command::new("git")
             .args(["cat-file", "--batch"])
+            // Missing worktree hashes must reach the disk fallback, including
+            // in promisor repositories where Git otherwise tries a fetch.
+            .env("GIT_NO_LAZY_FETCH", "1")
             .current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -48,6 +48,7 @@ export interface SelectRequest {
   /** `--since <ref>`: where to measure from when the journal names no commit of its own. */
   readonly since?: string;
   readonly format: SelectFormat;
+  readonly noGit?: boolean;
 }
 
 /**
@@ -111,7 +112,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  }, request.noGit);
   const narrowing = await journeyAgainst(request.cwd, diff, relations);
   const ground: SelectGround =
     narrowing === undefined ? { kind: 'no-journal' } : { kind: 'read', narrowing };

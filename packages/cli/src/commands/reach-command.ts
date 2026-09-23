@@ -44,6 +44,7 @@ export interface ReachRequest {
   /** `--since <ref>`: the ref the diff is taken against. Required; there is no default. */
   readonly since: string;
   readonly format: ReachFormat;
+  readonly noGit?: boolean;
 }
 
 /**
@@ -74,7 +75,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: '`reach` answers from the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-  });
+  }, request.noGit);
   const { READABLE } = await import('@variance-authority/sense');
 
   const readable = changed.filter((file) => READABLE.has(suffixOf(file)));

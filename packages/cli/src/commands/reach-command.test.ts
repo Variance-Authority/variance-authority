@@ -1,10 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { relationsFor } from './source-graph.js';
 
 /**
  * `variance reach` end to end, in a checkout of four languages and no config.
@@ -22,7 +23,10 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  */
 
 const cwd = process.cwd();
-afterEach(() => process.chdir(cwd));
+afterEach(() => {
+  process.chdir(cwd);
+  vi.unstubAllEnvs();
+});
 
 function git(at: string, args: readonly string[]): void {
   execFileSync('git', args, { cwd: at, stdio: 'pipe' });
@@ -77,11 +81,20 @@ const PYTHON = {
 };
 
 describe('what a diff reaches, on stdout', () => {
-  it('names the changed file and everything that imports it, one per line', async () => {
+  it('builds the filesystem graph without invoking Git', async () => {
+    const root = checkout(PYTHON);
+    const trace = join(root, 'git-trace.json');
+    vi.stubEnv('GIT_TRACE2_EVENT', trace);
+    const graph = await relationsFor(root, ['.'], [], [], undefined, true);
+    expect(graph.index.size).toBeGreaterThan(0);
+    expect(existsSync(trace) ? readFileSync(trace, 'utf8') : '').toBe('');
+  });
+
+  it.each([{ flags: [] }, { flags: ['--no-git'] }])('names the changed file and its importers with flags $flags', async ({ flags }) => {
     checkout(PYTHON);
     commit(process.cwd(), { 'lib/parse.py': 'def parse(text):\n    return text.strip()\n' }, 'edit');
 
-    const said = await reach(['reach', '--since', 'HEAD~1']);
+    const said = await reach(['reach', '--since', 'HEAD~1', ...flags]);
 
     expect(said.code).toBe(EXIT_CLEAN);
     expect(said.out.trim().split('\n').sort()).toEqual([

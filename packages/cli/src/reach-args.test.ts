@@ -11,6 +11,13 @@ import { parseArgs } from './parse.js';
  * can be enforced before a scan has cost anything.
  */
 describe('what reach is asked for', () => {
+  it.each(['reach', 'select'])('%s accepts filesystem graph discovery', (command) => {
+    expect(parseArgs([command, '--since', 'main', '--no-git'])).toMatchObject({
+      command,
+      noGit: true,
+    });
+  });
+
   it('refuses without a ref, and says what the alternative would have been', () => {
     expect(() => parseArgs(['reach'])).toThrow(/every file in the checkout/);
   });

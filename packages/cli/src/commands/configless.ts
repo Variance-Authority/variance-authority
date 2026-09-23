@@ -138,6 +138,7 @@ export async function answerConfigless(
         cwd: process.cwd(),
         format: parsed.format,
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
+        ...(parsed.noGit ? { noGit: true } : {}),
       });
       streams.err(said.err);
       streams.out(said.out);
@@ -155,6 +156,7 @@ export async function answerConfigless(
         cwd: process.cwd(),
         since: parsed.since,
         format: parsed.format,
+        ...(parsed.noGit ? { noGit: true } : {}),
       });
       streams.err(said.err);
       streams.out(said.out);

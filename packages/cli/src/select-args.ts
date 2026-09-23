@@ -7,6 +7,7 @@ export interface ParsedSelect {
   /** `--since <ref>`: the base to measure from when the journal names no commit. */
   readonly since?: string;
   readonly format: SelectFormat;
+  readonly noGit?: boolean;
 }
 
 /**
@@ -28,5 +29,10 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   }
   const since = flags.values.get('--since');
 
-  return { command: 'select', ...(since === undefined ? {} : { since }), format };
+  return {
+    command: 'select',
+    ...(since === undefined ? {} : { since }),
+    format,
+    ...(flags.present.has('--no-git') ? { noGit: true } : {}),
+  };
 }

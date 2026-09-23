@@ -94,6 +94,7 @@ export async function relationsFor(
   taints: readonly string[] = [],
   before: readonly string[] = [],
   asked: GraphAsk = BY_CONFIG,
+  noGit = false,
 ): Promise<Relations> {
   let scanner;
   try {
@@ -111,6 +112,7 @@ export async function relationsFor(
   const records = await scanner.scanRelations({
     root,
     dirs,
+    ...(noGit ? { digests: false as const } : {}),
     cache: source.cache,
     reuse: source.reuse,
     // The harness, as exact paths. It lives outside every directory anybody
