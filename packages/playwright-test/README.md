@@ -536,11 +536,11 @@ to an array of one.
 | `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
 | `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
 | `cacheRoot` | Where that build wrote its block records. | The user cache. |
-| `coverageFile` | The coverage index this run merges into. | The repository-keyed user cache. |
+| `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed user cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
 | `cases` | Also write the execution index: which individual test covered which region. | `false` |
-| `executionFile` | Where that index goes. | Beside the snapshot: `<coverage file>.cases.bin`. A name ending `.json` writes JSON instead. |
+| `executionFile` | Where that index goes. A relative path is read from `root`. | Beside the snapshot: `<coverage file>.cases.bin`. A name ending `.json` writes JSON instead. |
 
 `mode` has to be the same answer everywhere one coverage index is written:
 a snapshot names the recipe its ordinals were cut by, and a merge discards a

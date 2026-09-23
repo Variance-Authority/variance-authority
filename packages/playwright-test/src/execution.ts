@@ -439,7 +439,7 @@ export function createExecutionRecorder(
       ...(cases.size === 0 ? {} : { cases: observedCases() }),
       ...(recording.executionFile === undefined
         ? {}
-        : { executionFile: recording.executionFile }),
+        : { executionFile: resolve(start, recording.executionFile) }),
     });
     if (!record.recorded) {
       process.stderr.write(`variance-authority: recorded no test execution — ${record.because}\n`);

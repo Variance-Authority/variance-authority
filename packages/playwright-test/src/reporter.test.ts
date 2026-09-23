@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import type { FullConfig } from '@playwright/test/reporter';
@@ -109,5 +110,47 @@ describe('the reporter that folds what the workers recorded', () => {
       expect((await readTestCoverage(coverageFile)).tests).toHaveLength(1);
       await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
     });
+  });
+  it('writes a relative index beside the root it was given, where the fixture writes it', async () => {
+    // Every seam resolves these against its own root. Resolved against the
+    // checkout instead, a suite under `packages/ui` staged its workers beside
+    // one snapshot and folded into another, and the fixture recording without
+    // the reporter wrote to a third.
+    const checkout = await mkdtemp(resolve(tmpdir(), 'variance-playwright-checkout-'));
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: checkout });
+      const root = resolve(checkout, 'packages/ui');
+      await mkdir(root, { recursive: true });
+      const cacheRoot = await instrumented(root);
+      const reporter = new ExecutionReporter({
+        root,
+        cacheRoot,
+        coverageFile: 'coverage.bin',
+        executionFile: 'cases.bin',
+        cases: true,
+      });
+
+      reporter.onBegin({} as FullConfig);
+      const directory = stagingDirectory()!;
+      expect(directory.startsWith(`${root}/`)).toBe(true);
+      const walked: ExecutionJournal = {
+        instrumentation: INSTRUMENTATION,
+        modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }],
+      };
+      await stageExecution(directory, {
+        subjects: [{ owner: 'packages/ui/tests/checkout.spec.ts', journal: walked, complete: true }],
+        cases: [
+          { file: 'packages/ui/tests/checkout.spec.ts', name: 'case one', id: 'one', journal: walked },
+        ],
+      });
+      await reporter.onEnd();
+
+      expect((await readTestCoverage(resolve(root, 'coverage.bin'))).tests).toHaveLength(1);
+      const index = decodeExecutionIndex(await readFile(resolve(root, 'cases.bin')));
+      expect(index.tests.map((test) => test.name)).toEqual(['case one']);
+      await expect(readFile(resolve(checkout, 'coverage.bin'))).rejects.toThrow();
+    } finally {
+      await rm(checkout, { recursive: true, force: true });
+    }
   });
 });

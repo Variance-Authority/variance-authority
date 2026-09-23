@@ -372,9 +372,11 @@ export default storybookCollector({
 ```
 
 `tests` accepts `true` or an options object: `label` must match the one the
-preview's `testSelectionProbes()` was given, `root` is the repository root the
-recorded paths are relative to, and `cacheRoot` and `coverageFile` override the
-repository-keyed cache paths for the block records and the coverage index.
+preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
+override the repository-keyed cache paths for the block records and the coverage
+index. `root` is the directory Storybook ran in, the cwd by default: story paths
+and a relative `coverageFile` or `executionFile` are read from it, and every
+path the run records is relative to the repository that contains it.
 Without a collector in the page, the run says so on stderr and records nothing.
 
 `mode` is the probe recipe, and it has to be the one the preview was built

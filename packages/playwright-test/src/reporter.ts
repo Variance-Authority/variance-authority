@@ -102,14 +102,21 @@ export interface ExecutionReporterOptions {
  */
 export default class implements Reporter {
   readonly #options: ExecutionReporterOptions;
-  readonly #start: string;
   readonly #root: string;
+  // Against `root`, as every other seam resolves them and as the fixture does:
+  // the workers stage beside this snapshot, so the fold has to write the same one.
+  readonly #coverageFile: string | undefined;
+  readonly #executionFile: string | undefined;
   #directory: string | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
-    this.#start = resolve(options.root ?? process.cwd());
-    this.#root = repositoryRoot(this.#start);
+    const start = resolve(options.root ?? process.cwd());
+    this.#root = repositoryRoot(start);
+    this.#coverageFile =
+      options.coverageFile === undefined ? undefined : resolve(start, options.coverageFile);
+    this.#executionFile =
+      options.executionFile === undefined ? undefined : resolve(start, options.executionFile);
   }
 
   /** Reporters print nothing here; the only lines are refusals, and those go to stderr. */
@@ -122,10 +129,7 @@ export default class implements Reporter {
     // environment as it stood when it started and has no other way to be told.
     // Beside the snapshot, so a suite that redirected its index redirects this
     // too and two projects sharing a checkout do not share a directory.
-    const snapshot =
-      this.#options.coverageFile === undefined
-        ? testCoverageFile(this.#root)
-        : resolve(this.#start, this.#options.coverageFile);
+    const snapshot = this.#coverageFile ?? testCoverageFile(this.#root);
     this.#directory = resolve(dirname(snapshot), `.run-${process.pid}-${randomUUID()}`);
     openStage(this.#directory);
   }
@@ -141,9 +145,7 @@ export default class implements Reporter {
         subjects: staged.subjects,
         ...(this.#options.label === undefined ? {} : { label: this.#options.label }),
         ...(this.#options.cacheRoot === undefined ? {} : { cacheRoot: this.#options.cacheRoot }),
-        ...(this.#options.coverageFile === undefined
-          ? {}
-          : { coverageFile: this.#options.coverageFile }),
+        ...(this.#coverageFile === undefined ? {} : { coverageFile: this.#coverageFile }),
         ...(this.#options.mode === undefined ? {} : { mode: this.#options.mode }),
         ...(this.#options.preconditions === undefined
           ? {}
@@ -154,9 +156,7 @@ export default class implements Reporter {
         ...(this.#options.cases === true && staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
-        ...(this.#options.executionFile === undefined
-          ? {}
-          : { executionFile: this.#options.executionFile }),
+        ...(this.#executionFile === undefined ? {} : { executionFile: this.#executionFile }),
       });
       if (!record.recorded) {
         process.stderr.write(

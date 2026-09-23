@@ -108,8 +108,9 @@ export async function createStoryRecorder(
   index: string,
   options: StoryExecutionOptions,
 ): Promise<StoryRecorder> {
-  const root = repositoryRoot(options.root ?? process.cwd());
-  const storyFiles = await storyFilesFrom(index, resolve(options.root ?? process.cwd()), root);
+  const ran = resolve(options.root ?? process.cwd());
+  const root = repositoryRoot(ran);
+  const storyFiles = await storyFilesFrom(index, ran, root);
   const observed: ObservedSubject[] = [];
   const cases: ObservedCase[] = [];
   let seen = false;
@@ -168,7 +169,10 @@ export async function createStoryRecorder(
           subjects: observed,
           ...(options.label === undefined ? {} : { label: options.label }),
           ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
-          ...(options.coverageFile === undefined ? {} : { coverageFile: options.coverageFile }),
+          // Against `root`, as the runner seams resolve them, never the checkout.
+          ...(options.coverageFile === undefined
+            ? {}
+            : { coverageFile: resolve(ran, options.coverageFile) }),
           ...(options.mode === undefined ? {} : { mode: options.mode }),
           ...(options.preconditions === undefined
             ? {}
@@ -180,7 +184,7 @@ export async function createStoryRecorder(
           ...(cases.length === 0 ? {} : { cases }),
           ...(options.executionFile === undefined
             ? {}
-            : { executionFile: options.executionFile }),
+            : { executionFile: resolve(ran, options.executionFile) }),
         });
       } catch (error) {
         process.stderr.write(

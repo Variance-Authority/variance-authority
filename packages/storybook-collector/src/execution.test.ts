@@ -117,9 +117,17 @@ describe('a Storybook run records what each story executed', () => {
         JSON.stringify({ ...INDEX, entries: { [entry.id]: { ...entry, importPath: './src/Price.stories.tsx' } } }),
         'utf8',
       );
-      const coverageFile = resolve(checkout, 'coverage.bin');
+      // Relative, so it is read from `root` as every seam reads it, and the
+      // record is found in the package rather than at the checkout's root.
+      const coverageFile = resolve(root, 'coverage.bin');
 
-      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile, cases: true });
+      const recorder = await createStoryRecorder(index, {
+        root,
+        cacheRoot,
+        coverageFile: 'coverage.bin',
+        executionFile: 'cases.bin',
+        cases: true,
+      });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
         'story:price--premium',
@@ -131,7 +139,7 @@ describe('a Storybook run records what each story executed', () => {
       expect(test?.preconditions.map((precondition) => precondition.name)).toContain(
         'packages/ui/src/Price.stories.tsx',
       );
-      const written = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      const written = decodeExecutionIndex(await readFile(resolve(root, 'cases.bin')));
       expect(written.tests.map((each) => each.file)).toEqual(['packages/ui/src/Price.stories.tsx']);
     } finally {
       await rm(checkout, { recursive: true, force: true });
