@@ -33,8 +33,17 @@ export function reach(entry: Entry): string {
   return `used by ${audience(entry, 12)} — ${entry.uses} ${entry.uses === 1 ? 'import' : 'imports'}`;
 }
 
+/** What a list line reads of a published name: the audience counted, never named. */
+export interface Listed {
+  readonly name: string;
+  readonly kind: string;
+  readonly doc?: string;
+  readonly usedBy: { readonly length: number };
+  readonly uses: number;
+}
+
 /** One name in a list: what it is, how used it is, and the first thing its doc says. */
-export function line(entry: Entry): string {
+export function line(entry: Listed): string {
   const said = entry.doc === undefined ? 'UNDOCUMENTED' : opening(entry.doc);
   return `${entry.name} [${entry.kind}] ${entry.usedBy.length} packages, ${entry.uses} imports — ${said}`;
 }

@@ -1,11 +1,11 @@
-import MiniSearch from 'minisearch';
-import type { Tool } from '@variance-authority/mcp/tools';
+import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
-import type { Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
+import type { Help } from '@variance-authority/package/help';
+import type { PublishedRow, SearchIndex } from '../search-index.js';
+import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
 import { areaLine, areaOf } from './area.js';
-import { specifierOf } from './find.js';
 import { line } from './format.js';
+import { looseNames } from './loose.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -84,53 +84,91 @@ const LOOSE_CAP = 15;
 /** How wrong a word may be and still be looked up: about one character in five. */
 const FUZZY = 0.2;
 
-/** One published name, as `everyEntry` yields it. */
-type Row = readonly [Documented, Opening, Entry];
-
-/** The same, carrying what the area saw of it — nothing, when there is no area. */
-type Shown = readonly [...Row, ScopedUse | undefined];
-
-function matches(entry: Entry, query: string): boolean {
-  return entry.name.toLowerCase().includes(query) || (entry.doc ?? '').toLowerCase().includes(query);
-}
+type Area = ReturnType<typeof areaOf>;
 
 interface ScopedUse {
-  readonly sites: readonly Use[];
+  readonly sites: number;
   readonly files: number;
   readonly byDistance: readonly (readonly [number, number])[];
 }
 
-/** Import sites of one published name that are actually written in the area. */
-function usedWithin(entry: Entry, area: ReturnType<typeof areaOf>): ScopedUse {
-  const sites = entry.sites.filter((site) => area.files.has(site.at));
-  const files = new Set(sites.map((site) => site.at));
-  const distance = new Map<number, number>();
-  for (const file of files) {
-    const hops = area.distance.get(file);
-    if (hops !== undefined) distance.set(hops, (distance.get(hops) ?? 0) + 1);
-  }
-  return { sites, files: files.size, byDistance: [...distance].sort(([a], [b]) => a - b) };
+/** One published row, keyed by the columns it sorts on — nothing decoded yet. */
+interface Hit {
+  readonly row: number;
+  readonly name: number;
+  readonly rank: number;
+  readonly usedBy: number;
+  readonly uses: number;
+  /** What the area saw of it — nothing, when there is no area. */
+  readonly scoped: ScopedUse | undefined;
 }
 
-function scopedLine(entry: Entry, scoped: ScopedUse): string {
+/**
+ * A list that knows its length and prints only the head it is asked for.
+ *
+ * Every count an answer states is the count of the whole match, and every line
+ * it prints is one of the first few. A two-letter query matches a hundred
+ * thousand names; the answer prints twenty-five of them, so the rest are
+ * counted and ordered as integers and never decoded.
+ */
+interface Listed {
+  readonly length: number;
+  head(count: number): readonly string[];
+}
+
+/** The first `count` of `items` under `before`, a total order, without sorting the rest. */
+function first<T>(items: readonly T[], count: number, before: (a: T, b: T) => number): T[] {
+  const best: T[] = [];
+  if (count <= 0) return best;
+  for (const item of items) {
+    const last = best[best.length - 1];
+    if (best.length === count && last !== undefined && before(item, last) >= 0) continue;
+    let low = 0;
+    let high = best.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (before(best[middle] as T, item) <= 0) low = middle + 1;
+      else high = middle;
+    }
+    best.splice(low, 0, item);
+    if (best.length > count) best.pop();
+  }
+  return best;
+}
+
+/** Import sites of one published name that are actually written in the area. */
+function usedWithin(index: SearchIndex, row: number, area: Area, inArea: ReadonlySet<number>): ScopedUse {
+  const sites = [...index.siteFiles(row)].filter((at) => inArea.has(at));
+  const files = new Set(sites);
+  const distance = new Map<number, number>();
+  for (const file of files) {
+    const hops = area.distance.get(index.file(file));
+    if (hops !== undefined) distance.set(hops, (distance.get(hops) ?? 0) + 1);
+  }
+  return { sites: sites.length, files: files.size, byDistance: [...distance].sort(([a], [b]) => a - b) };
+}
+
+function scopedLine(entry: PublishedRow, scoped: ScopedUse): string {
   const said = entry.doc === undefined ? 'UNDOCUMENTED' : entry.doc.split('\n')[0];
   const distances = scoped.byDistance.map(([at, files]) => `${at}: ${files}`).join(', ');
   const fileWord = scoped.files === 1 ? 'file' : 'files';
-  const importWord = scoped.sites.length === 1 ? 'import' : 'imports';
+  const importWord = scoped.sites === 1 ? 'import' : 'imports';
   const packageWord = entry.usedBy.length === 1 ? 'package' : 'packages';
   const globalImportWord = entry.uses === 1 ? 'import' : 'imports';
   return (
-    `${entry.name} [${entry.kind}] ${scoped.files} ${fileWord}, ${scoped.sites.length} ${importWord} in this area ` +
+    `${entry.name} [${entry.kind}] ${scoped.files} ${fileWord}, ${scoped.sites} ${importWord} in this area ` +
     `(files by distance: ${distances}); globally ${entry.usedBy.length} ${packageWord}, ${entry.uses} ${globalImportWord} — ${said}`
   );
 }
 
 /**
- * Published names a rule accepts, in the order the surface is always read in.
+ * Published rows, in the order the surface is always read in.
  *
- * The rule is a predicate rather than the query because the same ordering has
+ * The rows arrive as a set rather than a rule because the same ordering has
  * to hold for names the substring found and names the loose pass added. Two
  * orderings would be two answers, and the second would look like a ranking.
+ * The last key is the row, which is the order `everyEntry` walks, so ties land
+ * where the stable sort over that walk always put them.
  *
  * The area enters here rather than at the call sites for the same reason: it
  * decides both what is admitted and how what is admitted is ordered, and a
@@ -138,33 +176,48 @@ function scopedLine(entry: Entry, scoped: ScopedUse): string {
  * with an unscoped ranking.
  */
 function surface(
-  help: Help,
-  hit: (entry: Entry) => boolean,
-  area: ReturnType<typeof areaOf> | undefined,
-): readonly Shown[] {
-  return [...everyEntry(help)]
-    .filter(([, , entry]) => hit(entry))
-    .map(([owner, held, entry]) =>
-      [owner, held, entry, area === undefined ? undefined : usedWithin(entry, area)] as const,
-    )
+  index: SearchIndex,
+  rows: Iterable<number>,
+  area: Area | undefined,
+  inArea: ReadonlySet<number> | undefined,
+): readonly Hit[] {
+  const hits: Hit[] = [];
+  for (const row of new Set(rows)) {
+    const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
     // A published name with no import site in the closure is a name the area
     // does not use, however well it matches the word.
-    .filter(([, , , scoped]) => scoped === undefined || scoped.sites.length > 0)
-    .sort(
-      ([, , a, scopedA], [, , b, scopedB]) =>
-        (scopedB?.files ?? 0) - (scopedA?.files ?? 0) ||
-        (scopedB?.sites.length ?? 0) - (scopedA?.sites.length ?? 0) ||
-        b.usedBy.length - a.usedBy.length ||
-        b.uses - a.uses ||
-        (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-    );
+    if (scoped !== undefined && scoped.sites === 0) continue;
+    const name = index.publishedName(row);
+    hits.push({ row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), scoped });
+  }
+  return hits;
 }
 
-const shownAs = ([owner, held, entry, scoped]: Shown): string =>
-  `${specifierOf(owner, held)} · ${scoped === undefined ? line(entry) : scopedLine(entry, scoped)}`;
+const surfaceOrder = (a: Hit, b: Hit): number =>
+  (b.scoped?.files ?? 0) - (a.scoped?.files ?? 0) ||
+  (b.scoped?.sites ?? 0) - (a.scoped?.sites ?? 0) ||
+  b.usedBy - a.usedBy ||
+  b.uses - a.uses ||
+  a.rank - b.rank ||
+  a.row - b.row;
+
+function listed(index: SearchIndex, hits: readonly Hit[]): Listed {
+  return {
+    length: hits.length,
+    head: (count) =>
+      first(hits, count, surfaceOrder).map((hit) => {
+        const entry = index.published(hit.row);
+        return `${entry.specifier} · ${hit.scoped === undefined ? line(entry) : scopedLine(entry, hit.scoped)}`;
+      }),
+  };
+}
+
+/** Every published row of the names given. */
+const publishedOf = (index: SearchIndex, names: Iterable<number>): number[] =>
+  [...names].flatMap((name) => [...index.publishedOf(name)]);
 
 /**
- * Exported names a rule accepts, one line each, nearest thing to a ranking.
+ * Exported names given by id, one line each, nearest thing to a ranking.
  *
  * Grouped by name because one name exported from a barrel and from the file that
  * declares it is one thing to go and look at, and ordered by how many files
@@ -173,37 +226,49 @@ const shownAs = ([owner, held, entry, scoped]: Shown): string =>
  * than something exercising it.
  */
 function elsewhere(
-  help: Help,
-  hit: (name: string) => boolean,
-  shown: ReadonlySet<string>,
-  within: ReadonlySet<string> | undefined,
-): readonly string[] {
-  const found = new Map<string, Named[]>();
+  index: SearchIndex,
+  names: Iterable<number>,
+  shown: ReadonlySet<number>,
+  within: ReadonlySet<number> | undefined,
+): Listed {
+  const found: { name: number; rank: number; count: number }[] = [];
+  // The file that exports it, against the closure. A name exported from a
+  // barrel inside the area and declared outside it arrives here twice, under
+  // two paths, and the one in the area is the one a reader can open.
+  const rowsOf = (name: number): readonly number[] => {
+    const all = index.exportedOf(name);
+    return within === undefined ? [...all] : [...all].filter((row) => within.has(index.exportedFile(row)));
+  };
 
-  for (const name of help.exported) {
-    if (shown.has(name.name) || !hit(name.name)) continue;
-    // The file that exports it, against the closure. A name exported from a
-    // barrel inside the area and declared outside it arrives here twice, under
-    // two paths, and the one in the area is the one a reader can open.
-    if (within !== undefined && !within.has(name.at)) continue;
-    const held = found.get(name.name) ?? [];
-    found.set(name.name, held);
-    held.push(name);
+  for (const name of names) {
+    if (shown.has(name)) continue;
+    const count = within === undefined ? index.exportedOf(name).length : rowsOf(name).length;
+    if (count > 0) found.push({ name, rank: index.rank(name), count });
   }
 
-  const order = { source: 0, test: 1, story: 2 };
-  return [...found]
-    .sort(([a, at], [b, bt]) => bt.length - at.length || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, places]) => {
-      const [first, ...rest] = [...places].sort((a, b) => order[a.kind] - order[b.kind]);
-      if (first === undefined) return name;
-      const more = rest.length === 0 ? '' : ` (+${rest.length} more ${rest.length === 1 ? 'file' : 'files'})`;
-      return `${name} — ${first.by === '' ? 'the repository' : first.by} · ${first.at}:${first.line}${more}`;
-    });
+  return {
+    length: found.length,
+    head: (count) =>
+      first(found, count, (a, b) => b.count - a.count || a.rank - b.rank).map(({ name, count: files }) => {
+        // Source before tests before stories, and the first written within a
+        // kind: the kind column orders the rows, and only the one shown is read.
+        let chosen: number | undefined;
+        for (const row of rowsOf(name)) {
+          if (chosen === undefined || index.exportedKind(row) < index.exportedKind(chosen)) chosen = row;
+          if (index.exportedKind(chosen) === 0) break;
+        }
+        if (chosen === undefined) return index.name(name);
+        const head = index.exported(chosen);
+        const rest = files - 1;
+        const more = rest === 0 ? '' : ` (+${rest} more ${rest === 1 ? 'file' : 'files'})`;
+        return `${head.name} — ${head.by === '' ? 'the repository' : head.by} · ${head.at}:${head.line}${more}`;
+      }),
+  };
 }
 
-/**
- * Names the words reach when they are allowed apart and allowed to be wrong.
+/*
+ * The loose pass — names the words reach when they are allowed apart and
+ * allowed to be wrong — is `looseNames` in `loose.ts`.
  *
  * Both halves of the checkout go in, under the area that already applies, and
  * the names the substring answered are kept out — a name the caller can already
@@ -212,38 +277,106 @@ function elsewhere(
  * nothing else was read for them, and the index is not a reason to read more.
  *
  * What comes back is a set and not a list. Whether a name is in the answer is
- * this index's to say; where it sits is not.
+ * the dictionary's to say; where it sits is not.
  */
-function loosely(
-  help: Help,
-  query: string,
-  within: ReadonlySet<string> | undefined,
-  already: (name: string) => boolean,
-): ReadonlySet<string> {
-  const held = new Map<string, string>();
 
-  const keep = (name: string, doc: string, at: string): void => {
-    if (already(name) || (within !== undefined && !within.has(at))) return;
-    const written = held.get(name) ?? '';
-    held.set(name, doc === '' ? written : `${written} ${doc}`);
-  };
+/** The index one Help value encodes to, for callers that hold the value itself. */
+const encoded = new WeakMap<Help, SearchIndex>();
 
-  for (const [, , entry] of everyEntry(help)) keep(entry.name, entry.doc ?? '', entry.at);
-  for (const name of help.exported) keep(name.name, '', name.at);
-  if (held.size === 0) return new Set();
+export function searchIndexOf(help: Help): SearchIndex {
+  let index = encoded.get(help);
+  if (index === undefined) encoded.set(help, (index = openSearchIndex(encodeSearchIndex(help))));
+  return index;
+}
 
-  const index = new MiniSearch<{ id: number; name: string; doc: string }>({
-    fields: ['name', 'doc'],
-    processTerm: (term) => (term.length < 2 ? null : term.toLowerCase()),
-  });
-  const names = [...held.keys()];
-  index.addAll(names.map((name, id) => ({ id, name, doc: held.get(name) ?? '' })));
+/** The search over an opened index — what `docs_search` answers, without the Help value. */
+export function answerSearch(index: SearchIndex, input: Readonly<Record<string, unknown>>, tree?: Tree): string {
+  const query = stringArg(input, 'query').toLowerCase();
+  const said = { from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
 
-  // Every word has to land somewhere, or a two-word query answers with
-  // everything either word touched — which is the failure this whole tool is
-  // arranged against.
-  const hits = index.search(query, { combineWith: 'AND', fuzzy: FUZZY, prefix: true });
-  return new Set(hits.map((hit) => names[hit.id as number] ?? ''));
+  const area = said.from === undefined && said.to === undefined ? undefined : areaOf(said.from, said.to, tree);
+
+  // A start point that could not be resolved is refused whole. Answering the
+  // unscoped question instead would hand back four hundred names under a
+  // header the caller has every reason to read as *in your area*.
+  if (area?.refused !== undefined) return areaLine(area);
+  const within = area === undefined ? undefined : index.fileIds(area.files);
+
+  const named = index.namesContaining(query);
+  const hits = surface(index, [...publishedOf(index, named), ...index.docsContaining(query)], area, within);
+  const found = listed(index, hits);
+  const answered = new Set(hits.map((hit) => hit.name));
+  const rest = elsewhere(index, named, answered, within);
+
+  // A name is already answered when either half returned it — the surface by
+  // its name or its doc, the rest by its name. Both are the caller's own
+  // word, and offering a word back to whoever typed it is not an addition.
+  const loose =
+    found.length === 0 && rest.length === 0
+      ? looseNames(index, query, FUZZY, within, new Set([...named, ...answered]))
+      : new Set<number>();
+  const alsoHits = loose.size === 0 ? [] : surface(index, publishedOf(index, loose), area, within);
+  const alsoFound = listed(index, alsoHits);
+  const alsoRest = elsewhere(index, loose, new Set(alsoHits.map((hit) => hit.name)), within);
+  const looser = alsoFound.length + alsoRest.length;
+
+  const seenLoosely = [...alsoFound.head(LOOSE_CAP)];
+  seenLoosely.push(...alsoRest.head(LOOSE_CAP - seenLoosely.length));
+  const looseSection =
+    looser === 0
+      ? []
+      : [
+          '',
+          `${looser} more ${looser === 1 ? 'name matches' : 'names match'} loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.`,
+          '',
+          ...seenLoosely,
+          ...(looser > seenLoosely.length ? [`\n${looser - seenLoosely.length} more not shown.`] : []),
+        ];
+
+  // Said before the counts and before the emptiness, because it is what the
+  // counts are counts *of*. A reader told `nothing matches` without being told
+  // where the tool looked has been handed a fact they cannot place.
+  const where = area === undefined ? [] : [areaLine(area), ''];
+
+  if (found.length === 0 && rest.length === 0) {
+    const nowhere =
+      area === undefined
+        ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
+        : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
+    return [...where, nowhere, ...looseSection].join('\n');
+  }
+
+  const shown = found.head(CAP);
+  // A capped list that does not say it was capped reads as the whole answer,
+  // and the reader's next move — narrow, or ask the entrypoint — depends on
+  // knowing which of the two it got.
+  const more = found.length > shown.length ? [`\n${found.length - shown.length} more matches not shown.`] : [];
+
+  const heads =
+    found.length === 0
+      ? [`Nothing published matches \`${query}\`.`]
+      : [
+          `${found.length} published ${found.length === 1 ? 'match' : 'matches'} for \`${query}\``,
+          '',
+          ...shown,
+          ...more,
+        ];
+
+  if (rest.length === 0) return [...where, ...heads, ...looseSection].join('\n');
+
+  const seen = rest.head(ELSEWHERE_CAP);
+  const hidden = rest.length > seen.length ? [`\n${rest.length - seen.length} more not shown.`] : [];
+
+  return [
+    ...where,
+    ...heads,
+    '',
+    `${rest.length} more ${rest.length === 1 ? 'name is' : 'names are'} exported ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being published:`,
+    '',
+    ...seen,
+    ...hidden,
+    ...looseSection,
+  ].join('\n');
 }
 
 /**
@@ -308,94 +441,5 @@ export const search: Tool<Help> = {
   // path and never on the way past.
   wants: (input) => startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined,
 
-  run(help, input, invocation) {
-    const query = stringArg(input, 'query').toLowerCase();
-    const said = { from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };
-
-    const area =
-      said.from === undefined && said.to === undefined
-        ? undefined
-        : areaOf(said.from, said.to, invocation?.tree);
-
-    // A start point that could not be resolved is refused whole. Answering the
-    // unscoped question instead would hand back four hundred names under a
-    // header the caller has every reason to read as *in your area*.
-    if (area?.refused !== undefined) return areaLine(area);
-    const within = area?.files;
-
-    const found = surface(help, (entry) => matches(entry, query), area);
-    const answered = new Set(found.map(([, , entry]) => entry.name));
-    const rest = elsewhere(help, (name) => name.toLowerCase().includes(query), answered, within);
-
-    // A name is already answered when either half returned it — the surface by
-    // its name or its doc, the rest by its name. Both are the caller's own
-    // word, and offering a word back to whoever typed it is not an addition.
-    const already = (name: string): boolean => answered.has(name) || name.toLowerCase().includes(query);
-    const loose = found.length === 0 && rest.length === 0
-      ? loosely(help, query, within, already)
-      : new Set<string>();
-    const alsoFound = loose.size === 0 ? [] : surface(help, (entry) => loose.has(entry.name), area);
-    const alsoRest =
-      loose.size === 0
-        ? []
-        : elsewhere(help, (name) => loose.has(name), new Set(alsoFound.map(([, , e]) => e.name)), within);
-    const looser = [...alsoFound.map(shownAs), ...alsoRest];
-
-    const seenLoosely = looser.slice(0, LOOSE_CAP);
-    const looseSection =
-      looser.length === 0
-        ? []
-        : [
-            '',
-            `${looser.length} more ${looser.length === 1 ? 'name matches' : 'names match'} loosely — your words apart, or within a character of the ones written. Nothing above was reordered by this.`,
-            '',
-            ...seenLoosely,
-            ...(looser.length > seenLoosely.length ? [`\n${looser.length - seenLoosely.length} more not shown.`] : []),
-          ];
-
-    // Said before the counts and before the emptiness, because it is what the
-    // counts are counts *of*. A reader told `nothing matches` without being told
-    // where the tool looked has been handed a fact they cannot place.
-    const where = area === undefined ? [] : [areaLine(area), ''];
-
-    if (found.length === 0 && rest.length === 0) {
-      const nowhere =
-        area === undefined
-          ? `Nothing in this repository is named or documented with \`${query}\`. \`packages\` lists every entrypoint; \`entrypoint\` lists what one opens.`
-          : `Nothing in reach of that start point is named or documented with \`${query}\`. That is a fact about the area, not about the word — ask again without \`from\`/\`to\` to search the whole workspace.`;
-      return [...where, nowhere, ...looseSection].join('\n');
-    }
-
-    const shown = found.slice(0, CAP);
-    // A capped list that does not say it was capped reads as the whole answer,
-    // and the reader's next move — narrow, or ask the entrypoint — depends on
-    // knowing which of the two it got.
-    const more = found.length > shown.length ? [`\n${found.length - shown.length} more matches not shown.`] : [];
-
-    const heads =
-      found.length === 0
-        ? [`Nothing published matches \`${query}\`.`]
-        : [
-            `${found.length} published ${found.length === 1 ? 'match' : 'matches'} for \`${query}\``,
-            '',
-            ...shown.map(shownAs),
-            ...more,
-          ];
-
-    if (rest.length === 0) return [...where, ...heads, ...looseSection].join('\n');
-
-    const seen = rest.slice(0, ELSEWHERE_CAP);
-    const hidden = rest.length > seen.length ? [`\n${rest.length - seen.length} more not shown.`] : [];
-
-    return [
-      ...where,
-      ...heads,
-      '',
-      `${rest.length} more ${rest.length === 1 ? 'name is' : 'names are'} exported ${area === undefined ? 'somewhere in the repository' : 'in that area'} without being published:`,
-      '',
-      ...seen,
-      ...hidden,
-      ...looseSection,
-    ].join('\n');
-  },
+  run: (help, input, invocation) => answerSearch(searchIndexOf(help), input, invocation?.tree),
 };

@@ -2,6 +2,8 @@ import { HELP_TOOLS } from './tools.js';
 import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { workspaceGeneration } from './read.js';
+import type { SearchIndex } from './search-index.js';
+import { answerSearch, search } from './tools/search.js';
 
 /**
  * The six answers as shell verbs, so asking costs nothing to arrange.
@@ -101,6 +103,15 @@ export function ask(
   const tree = tool.wants?.(input) === true ? walk?.() : undefined;
   const answer = tool.run(help, input, tree === undefined ? undefined : { tree });
   const at = workspaceGeneration(help);
+  return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+}
+
+/** `search`, answered from its published index rather than the whole value. */
+export function askSearch(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+  const input = inputFrom(search, args);
+  const tree = search.wants?.(input) === true ? walk?.() : undefined;
+  const answer = answerSearch(index, input, tree);
+  const at = index.generation?.generatedAt;
   return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
 }
 

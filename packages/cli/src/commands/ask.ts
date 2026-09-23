@@ -15,9 +15,8 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
-import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
+import { HELP_TOOLS, search, type Help } from '@variance-authority/help/tools';
+import type { Taint } from '@variance-authority/sense/taint';
 import {
   TOOLS,
   VANTAGE_TOOLS,
@@ -25,6 +24,7 @@ import {
   type Tool,
   type Tree,
 } from '@variance-authority/mcp/tools';
+import { readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
 import { scanCacheRoot } from './resources.js';
 import { readVantage } from './watch.js';
 
@@ -219,21 +219,26 @@ export async function askSource(request: SourceRequest): Promise<string> {
   if (request.justAnswer === true && (changed !== undefined || taints !== undefined)) {
     throw new OperatorError('`--just-answer` reads the published source generation and cannot be combined with `--changed-file` or `--taint-file`, which request a new generation');
   }
-  const sourced = await (request.source ?? readSource)(process.cwd(), {
+  const reading: SourceReadOptions = {
     ...(changed === undefined ? {} : { changed }),
     ...(taints === undefined ? {} : { taints }),
     ...(request.justAnswer === true ? { justAnswer: true } : {}),
     ...(tool.wants?.(input) === true ? { tree: true } : {}),
-  });
-  const tree = tool.wants?.(input) === true ? sourced.tree?.() : undefined;
+  };
+  // `search` opens its own published file in place rather than the whole
+  // value, which is most of what a large repository's question costs. The
+  // answer is the tool's, over the same generation.
+  const answering = request.source === undefined && tool.name === search.name
+    ? await searchSource(process.cwd(), input, reading)
+    : await wholeSource(request.source ?? readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
   // under it, the one useful line is the one a reader cannot find.
   try {
-    const answer = tool.run(sourced.help, input, tree === undefined ? undefined : { tree });
-    const at = workspaceGeneration(sourced.help);
+    const answer = answering.answer();
+    const at = answering.at;
     return `${at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`}\n`;
   } catch (refusal) {
     throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
@@ -248,37 +253,6 @@ export async function askSource(request: SourceRequest): Promise<string> {
  * the repository a second time — the same arrangement the standalone
  * `variance-authority-help` binary makes, from the same cache.
  */
-async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
-  let tree: Tree | undefined;
-  const help = await readWorkspaceForAnswer(root, {
-    index: join(scanCacheRoot(root), 'source-index.bin'),
-    ...(options.changed === undefined ? {} : { changed: options.changed }),
-    ...(options.taints === undefined ? {} : { taints: options.taints }),
-    ...(options.justAnswer === true ? { justAnswer: true } : {}),
-    ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
-  });
-  return { help, tree: () => tree };
-}
-
-async function readTaint(path: string): Promise<Taint> {
-  try {
-    return await readTaintFile(path);
-  } catch (error) {
-    throw new OperatorError(`--taint-file ${path} could not be read: ${messageOf(error)}`, { cause: error });
-  }
-}
-
-/** Read the editor/orchestrator answer without asking Git to rediscover it. */
-async function readChanged(path: string): Promise<readonly string[]> {
-  let text: string;
-  try {
-    text = await readFile(path, 'utf8');
-  } catch (error) {
-    throw new OperatorError(`--changed-file ${path} could not be read: ${messageOf(error)}`, { cause: error });
-  }
-  return text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line !== '');
-}
-
 /** A question about a suite that is still going, asked of the process holding it. */
 async function live(
   tool: NonNullable<Question['live']>,

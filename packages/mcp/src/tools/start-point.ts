@@ -102,19 +102,28 @@ function widthOf(term: string): Width | undefined {
  * width then says how much of the rest is allowed — none for a file, one
  * segment for a directory's own files, any depth for a directory.
  */
-function at(value: string, term: string, width: Width): boolean {
-  const value_ = segmentsOf(value);
+function at(term: string, width: Width): (value: string) => boolean {
   const term_ = segmentsOf(term);
   const named = width === 'own' ? term_.slice(0, -1) : term_;
-  if (named.length === 0) return false;
-
+  if (named.length === 0) return () => false;
   const depth =
     width === 'file' ? named.length : width === 'own' ? named.length + 1 : undefined;
-  if (depth !== undefined ? value_.length !== depth : value_.length <= named.length) return false;
-  for (let segment = 0; segment < named.length; segment += 1) {
-    if (named[segment] !== value_[segment]) return false;
-  }
-  return true;
+  // A path with no empty segment is its segments joined, so whether it starts
+  // at the named place is one comparison, not a split. The tree holds every file
+  // in the checkout, and splitting all of them costs more than the walk the
+  // start point opens. Anything else is split and compared as said.
+  const prefix = `${named.join('/')}/`;
+  return (value) => {
+    if (value.charCodeAt(0) !== 47 && !value.includes('//') && !value.startsWith(prefix)) {
+      if (width !== 'file' || value !== prefix.slice(0, -1)) return false;
+    }
+    const value_ = segmentsOf(value);
+    if (depth !== undefined ? value_.length !== depth : value_.length <= named.length) return false;
+    for (let segment = 0; segment < named.length; segment += 1) {
+      if (named[segment] !== value_[segment]) return false;
+    }
+    return true;
+  };
 }
 
 /**
@@ -176,8 +185,9 @@ export function entryPoints(terms: readonly string[], tree: Tree): EntryPoints {
     const width = said === undefined ? undefined : widthOf(said);
     let here = false;
     if (said !== undefined && width !== undefined) {
+      const named = at(said, width);
       for (const file of tree.files) {
-        if (!at(file, said, width)) continue;
+        if (!named(file)) continue;
         files.add(file);
         here = true;
       }

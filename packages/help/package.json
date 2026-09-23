@@ -51,7 +51,9 @@
   "dependencies": {
     "@variance-authority/mcp": "workspace:^",
     "@variance-authority/package": "workspace:^",
-    "@variance-authority/sense": "workspace:^",
+    "@variance-authority/sense": "workspace:^"
+  },
+  "devDependencies": {
     "minisearch": "^7.2.0"
   }
 }

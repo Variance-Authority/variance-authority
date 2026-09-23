@@ -10,6 +10,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
+import { encodeSearchIndex, openSearchIndex, type SearchIndex } from './search-index.js';
 
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */
@@ -36,6 +37,7 @@ interface WorkspaceSnapshot {
 
 const generated = new WeakMap<Help, string>();
 const snapshots = new WeakMap<Help, Omit<WorkspaceSnapshot, 'help'>>();
+const searches = new WeakMap<Help, SearchIndex>();
 
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
@@ -106,6 +108,7 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
     await rename(temporary, at);
     generated.set(help, generatedAt);
     snapshots.set(help, { ...held, generatedAt });
+    await writeSearch(help, index);
   } catch {
     // The previously committed generation remains answerable and keeps its time.
   }
@@ -150,9 +153,79 @@ export async function tryPublishWorkspaceSnapshot(
       graphDigest: snapshot.graphDigest,
       generatedAt,
     });
+    await writeSearch(help, index ?? sourceIndexPath(root));
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }
+}
+
+/**
+ * The search over one generation, published beside it as its own file.
+ *
+ * `search` reads names, docs and sites and nothing else, and the value above
+ * holds every signature, comment and README mention too. Parsing all of it to
+ * answer a substring is the whole cost of the question on a large repository —
+ * hundreds of megabytes of JSON for a lookup that touches a few rows — so the
+ * search reads a columnar file it opens in place instead. It is written from
+ * the same value in the same publication and carries that generation, so the
+ * two cannot describe different checkouts under one timestamp.
+ */
+export function workspaceSearchPath(index: string): string {
+  return `${index}.help-search.bin`;
+}
+
+/** Read the last published search without inspecting the checkout or asking Git. */
+export async function readSearchSnapshot(root: string, index?: string): Promise<SearchIndex> {
+  const where = realpathSync(resolve(root));
+  const at = workspaceSearchPath(index ?? sourceIndexPath(where));
+  const search = openSearchIndex(await readFile(at));
+  const root_ = search.generation?.root;
+  if (root_ === undefined) throw new Error(`the search at ${at} carries no generation`);
+  if (root_ !== where) throw new Error(`the search at ${at} belongs to ${root_}, not ${where}`);
+  return search;
+}
+
+/** The graph a published search was generated with, read only for a path-shaped question. */
+export async function readSearchTree(search: SearchIndex, root: string, index?: string): Promise<Tree> {
+  const generation = search.generation;
+  if (generation === undefined) throw new Error('a search built in memory has no published graph');
+  const bytes = await readFile(workspaceTreePath(index ?? sourceIndexPath(generation.root), generation.graphDigest));
+  if (digest(bytes) !== generation.graphDigest) {
+    throw new Error(`the workspace source tree for ${root} does not belong to the published search`);
+  }
+  return decodeSourceTree(bytes, generation.graphRoot, generation.root);
+}
+
+/**
+ * The search over a value already read, published when it has a generation.
+ *
+ * A value read from the JSON of an earlier release has no search beside it;
+ * this is where that file first appears, so the next question opens it.
+ */
+export async function searchOf(help: Help, index: string): Promise<SearchIndex> {
+  return searches.get(help) ?? (await writeSearch(help, index));
+}
+
+async function writeSearch(help: Help, index: string): Promise<SearchIndex> {
+  const held = snapshots.get(help);
+  const bytes = encodeSearchIndex(
+    help,
+    held === undefined
+      ? undefined
+      : { root: held.root, graphRoot: held.graphRoot, graphDigest: held.graphDigest, generatedAt: held.generatedAt },
+  );
+  const search = openSearchIndex(bytes);
+  searches.set(help, search);
+  if (held === undefined) return search;
+  try {
+    const at = workspaceSearchPath(index);
+    const temporary = `${at}.${String(process.pid)}.tmp`;
+    await writeFile(temporary, bytes);
+    await rename(temporary, at);
+  } catch {
+    // The value answers from memory. An unwritable cache costs the next reading.
+  }
+  return search;
 }
 
 function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {

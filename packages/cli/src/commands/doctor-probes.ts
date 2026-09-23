@@ -1,7 +1,6 @@
 import { access, readdir, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
-import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { renderCacheRoot } from './resources.js';
@@ -80,7 +79,12 @@ export function rendererOptionsFor(config: Config): { fonts: readonly string[]; 
 /** The probes as they run for real: a browser, and the filesystem. */
 export function machineProbes(config: Config): DoctorProbes {
   return {
-    renderer: () => createPlaywrightRenderer(rendererOptionsFor(config)),
+    // Imported when asked, as `renderer.ts` does: every command loads this
+    // module, and Playwright is most of what starting one would cost.
+    renderer: async () => {
+      const { createPlaywrightRenderer } = await import('@variance-authority/playwright/renderer');
+      return createPlaywrightRenderer(rendererOptionsFor(config));
+    },
     exists: async (path) => {
       try {
         await access(path);

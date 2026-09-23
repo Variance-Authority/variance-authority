@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, inputFrom, toolNamed, verbs } from './ask.js';
+import { ask, askSearch, inputFrom, toolNamed, verbs } from './ask.js';
 import { readWorkspaceForAnswer } from './read.js';
+import { readSearchForAnswer } from './search-read.js';
+import { search } from './tools/search.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
 
@@ -98,12 +100,16 @@ if (asking(verb) && verb !== undefined) {
     const tool = toolNamed(verb);
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     let tree: Tree | undefined;
-    const help = await readWorkspaceForAnswer(root, {
+    const reading = {
       justAnswer: args.includes('--just-answer'),
       ...(wantsTree ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
-    });
+    };
+    // `search` opens the file published for it rather than the whole value.
+    const answer = tool === search
+      ? askSearch(await readSearchForAnswer(root, reading), ownArgs, () => tree)
+      : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree);
 
-    process.stdout.write(`${ask(help, verb, ownArgs, () => tree)}\n`);
+    process.stdout.write(`${answer}\n`);
   } catch (failure) {
     // A refusal is the answer here, not a crash: every one of them names what is
     // there instead, and a stack trace above it buries the only useful line.

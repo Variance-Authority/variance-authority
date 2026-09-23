@@ -67,31 +67,43 @@ without scanning the repository again. Producing and answering are separate oper
 a CI step can publish once, then every agent in that step can ask the same dated
 facts without making freshness checks part of query latency.
 
-This path is measured on a large frontend monorepo of about 300,000 files in
-1,600 packages, on one warm macOS checkout. Every bar below is one separate
-process looking for `createStore`; each is the slow end of its measured range
-for Variance and the fast end for the text searches:
+This path is measured on seven copies of [Material
+UI](https://github.com/mui/material-ui) side by side in one checkout: 288,197
+tracked paths. Every figure is the median of seven runs, each run a separate
+process looking for `button`, on an Apple M4 Max with 64 GB, macOS 27.0, Node
+v26.7.0, ripgrep 15.2.0 and a warm filesystem cache. The text searches cost
+about a hundred times what a question costs, so the chart plots the power of ten:
+2 is 100 ms, 3 is one second, 4 is ten seconds.
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Seconds to answer createStore in a large monorepo
-  x-axis ["rg", "git grep", "produce the generation, once", "ask search", "ask search --from"]
-  y-axis "seconds" 0 --> 50
-  bar [0, 0, 0, 0.91, 1.31]
-  bar [17.85, 15.72, 0, 0, 0]
-  bar [0, 0, 46.85, 0, 0]
-  bar [0, 0, 0, 0, 0]
+  accTitle: Milliseconds to answer button over 288,197 paths, as a power of ten
+  x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
+  y-axis "milliseconds, log10" 0 --> 4.2
+  bar [3.99, 3.90, 3.83, 2.42, 2.36, 2.00]
 ```
 
+| One process | Milliseconds |
+| --- | --- |
+| `git grep -niF button` | 9,688 |
+| `rg -niF button .` | 7,862 |
+| produce the generation into an empty index, once | 6,695 |
+| `variance ask search --query button --to …/ButtonBase.js` | 263 |
+| `variance ask search --query button --from …/Autocomplete.js` | 228 |
+| `variance ask search --query button` | 101 |
+
 The text searches pay their whole cost again for the next word, and they return
-every file that contains the string. The producer pays once, in about the time
-of three text searches, and every question after it reads the published
-generation — including `--from`, which loads and walks an entry file's import
-closure of over 100,000 files. `--from` is reachability at any depth, not a
+every file that contains the string. The producer pays once, in less than the
+time of one text search, and every question after it reads the published
+generation. A question without a path costs about 100 ms at 2,500 paths, at
+41,000 and at 288,000: it opens a search file the producer publishes beside the
+generation and decodes only the rows it prints, so nearly all of that 100 ms is
+Node starting. `--from` and `--to` also load the import graph and walk it.
+`--from` is reachability at any depth, not a
 maximum hop count; the answer prints import distances where it has them.
 
-`git grep` is not `rg` spelled differently at this scale: it reads packed objects
-instead of opening each file, and spends a fraction of the kernel time.
+`git grep` and `rg` read the text in different ways: `git grep` can read packed
+objects, and `rg` opens each file in parallel.
 [Then stop opening the file](performance.md#then-stop-opening-the-file) measures
 that difference, and [after the first read](performance.md#after-the-first-read-you-do-not-read-it-again)
 measures what a scan costs on a public checkout with no index, unchanged, and

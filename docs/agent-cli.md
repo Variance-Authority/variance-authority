@@ -134,7 +134,14 @@ variance ask uses --name collect --from packages/cli/src/index.ts
 variance ask packages
 ```
 
-`search` answers in two sections: the names a manifest publishes, ranked by how
+`search` tells you what a thing is called, where it is written, and how to
+import it. You ask for one of two reasons. To use it, you need an import line:
+the specifier a manifest publishes, or a deep import of the file that declares
+it. `--from` keeps the names the code at your path already depends on. To
+change it, you need the declaration's `file:line` and the code that depends on
+it. `--to` keeps the names in that code.
+
+It answers in two sections: the names a manifest publishes, ranked by how
 many packages import them, then the names the source exports without
 publishing. A third follows only when your words match a name that does not
 contain them, labelled as the looser reading it is. Every question takes a
