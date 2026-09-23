@@ -67,7 +67,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
-import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
@@ -267,11 +267,16 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   const report = (journey: string, over: Channel | undefined, settled = 0): void => {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
-    // A module a request was the first to need evaluated inside that journey,
-    // and what it did then is every subject's: the driver folds its `shared`
-    // in beside the process's own unattributed crossings.
     const entered: ExecutedModule[] =
       bucket === undefined ? [] : engine.lists(engine.close(bucket), false);
+    // What the process did outside any journey is every subject's, and so is
+    // what a module did while a request was the first to need it evaluated.
+    // Both are kept for every driver, not only the one this account reaches.
+    if (journey === UNATTRIBUTED) {
+      keep(entered, (module) => module.hits);
+      return;
+    }
+    keep(entered, (module) => module.shared);
     if (over === undefined) return;
     // An empty account still goes when it closes a scope, because the driver
     // is waiting on that scope and cannot tell *entered nothing* from *not yet*.
@@ -281,9 +286,50 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     // nobody: `webServer` teardown happens after the workers that needed it have
     // already recorded.
     send(over, {
-      scope: journey === UNATTRIBUTED ? 'process' : 'journey',
+      scope: 'journey',
       ...(settled === 0 ? {} : { settled }),
       modules: entered.sort((left, right) => idOrder(left.id, right.id)),
+    });
+  };
+
+  // Every subject's crossings, in the order the process first made them, and
+  // how far along that list each driver has been told. A driver that first
+  // hears from this head late — a second worker, or a run against a server an
+  // earlier run started — is told everything before it, which it depends on
+  // and would otherwise never see.
+  const common = new Map<ModuleId, Set<number>>();
+  const kept: (readonly [ModuleId, number])[] = [];
+  const told = new Map<string, number>();
+
+  const keep = (modules: readonly ExecutedModule[], of: (module: ExecutedModule) => readonly number[]): void => {
+    for (const module of modules) {
+      let ordinals = common.get(module.id);
+      for (const ordinal of of(module)) {
+        if (ordinals === undefined) common.set(module.id, (ordinals = new Set()));
+        if (ordinals.has(ordinal)) continue;
+        ordinals.add(ordinal);
+        kept.push([module.id, ordinal]);
+      }
+    }
+  };
+
+  const catchUp = (over: Channel): void => {
+    const from = told.get(over.home) ?? 0;
+    if (from === kept.length) return;
+    told.delete(over.home);
+    told.set(over.home, kept.length);
+    if (told.size > HOMES) told.delete(told.keys().next().value!);
+    const since = new Map<ModuleId, number[]>();
+    for (const [id, ordinal] of kept.slice(from)) {
+      const ordinals = since.get(id);
+      if (ordinals === undefined) since.set(id, [ordinal]);
+      else ordinals.push(ordinal);
+    }
+    send(over, {
+      scope: 'process',
+      modules: [...since]
+        .map(([id, hits]) => ({ id, hits: hits.sort((left, right) => left - right), shared: [] }))
+        .sort((left, right) => idOrder(left.id, right.id)),
     });
   };
 
@@ -298,10 +344,9 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     // and did not return still runs as this request; see `straggle`.
     const over = channels.get(journey);
     report(journey, over, 1);
-    // Whatever the process did outside any journey goes home on the address that
-    // is open right now. It belongs to every subject, so which one carries it is
-    // nobody's business but the driver's, and the driver unions them.
     report(UNATTRIBUTED, over);
+    // Whichever journey carries it, the driver unions it into every subject.
+    if (over !== undefined) catchUp(over);
   };
 
   /**
@@ -328,8 +373,13 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     // A scope still open is closed by this account, since nothing will report
     // it again; `report` deletes the bucket it was handed, which is the one
     // being visited — the only mutation a Map iteration may see and go on.
-    for (const journey of new Set([...buckets.keys(), ...depth.keys()])) {
+    const journeys = new Set([...buckets.keys(), ...depth.keys()]);
+    for (const journey of journeys) {
       report(journey, channels.get(journey), depth.has(journey) ? 1 : 0);
+    }
+    for (const journey of journeys) {
+      const over = channels.get(journey);
+      if (over !== undefined) catchUp(over);
     }
     await Promise.all(sending);
   };

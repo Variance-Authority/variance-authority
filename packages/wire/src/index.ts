@@ -93,6 +93,12 @@ export interface Channel {
   /** This execution's id, when the request carried one. */
   readonly journey: string | undefined;
   /**
+   * The listener this channel reaches. Two channels with the same home reach
+   * the same driver, whatever journey each carries, so a participant can tell
+   * each driver something once rather than on every request.
+   */
+  readonly home: string;
+  /**
    * Say it and move on.
    *
    * Reports on one channel keep their order, which is the only property of this
@@ -128,10 +134,21 @@ export function channelFrom(carried?: string): Channel | undefined {
   return address === undefined ? undefined : over(address, journey);
 }
 
+/** A name for each carrier this realm has had installed, so a replaced one is a new home. */
+const carriers = new WeakMap<WireCarrier, string>();
+let installed = 0;
+
 /** A carrier in this realm: the report is a call, and there is no hop. */
 function through(carrier: WireCarrier, journey: string | undefined): Channel {
+  let home = carriers.get(carrier);
+  if (home === undefined) {
+    installed += 1;
+    home = `realm:${installed}`;
+    carriers.set(carrier, home);
+  }
   return {
     journey,
+    home,
     report: (participant, body) => {
       try {
         void Promise.resolve(carrier(journey, participant, body)).catch(() => {});
@@ -169,6 +186,7 @@ export function channelTo(origin: string, journey: string): Channel | undefined 
 function over(address: string, journey: string | undefined): Channel {
   return {
     journey,
+    home: new URL(address).origin,
     report: (participant, body) => {
       const endpoint = `${address}/${participant}`;
       const settled = (sending.get(endpoint) ?? RESOLVED)

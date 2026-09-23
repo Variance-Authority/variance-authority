@@ -49,7 +49,7 @@ export const LAZY = [
 export const LAZY_EURO_LINE = 2;
 export const LAZY_DOLLAR_LINE = 3;
 
-type Currency = (locale: string) => Promise<string>;
+export type Currency = (locale: string) => Promise<string>;
 const unevaluated: Currency = () => Promise.reject(new Error('the module has not been evaluated'));
 
 /** Evaluate the transformed module the way a service's loader would. */

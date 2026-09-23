@@ -216,10 +216,17 @@ The four names are exported values, not conventions to retype:
 ```ts
 interface Channel {
   readonly journey: string | undefined;
+  readonly home: string;
   readonly report: (participant: Participant, body: unknown) => void;
   readonly deliver: (participant: Participant, body: unknown) => Promise<void>;
 }
 ```
+
+`home` names the driver a channel reaches: the address's origin over a socket,
+and one name per installed carrier through one. Two channels with the same home
+reach the same driver whatever execution they carry, so a head that owes every
+driver the same account keys what it has told by `home` rather than by
+execution.
 
 `report` returns immediately and swallows every failure, including a driver that
 has already exited. Use it where a lost message surfaces as a loud timeout in

@@ -19,11 +19,11 @@ import type { ExecutedModule } from './probes.js';
  *
  * A module's own initialization runs once per process, before any request, so
  * every journey depends on it and none records it. The same is true of a
- * background timer and of anything a handler left running past its scope. Those
- * are folded into **every** subject by {@link stitchJourneys} — over-including,
- * in the direction [`selecting.md`](../../../../docs/selecting.md) argues for,
- * rather than pretending a process can name a caller it never had. The leading
- * space keeps it out of the space a driver mints from: a UUID has none.
+ * background timer started outside any request. Those are folded into
+ * **every** subject by {@link stitchJourneys} — over-including, in the
+ * direction [`selecting.md`](../../../../docs/selecting.md) argues for, rather
+ * than pretending a process can name a caller it never had. The leading space
+ * keeps it out of the space a driver mints from: a UUID has none.
  */
 export const UNATTRIBUTED = '\u0000unattributed';
 

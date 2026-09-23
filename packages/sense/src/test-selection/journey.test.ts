@@ -21,6 +21,7 @@ import {
   LAZY,
   LAZY_DOLLAR_LINE,
   LAZY_EURO_LINE,
+  type Currency,
   diffAt,
   evaluate,
   driver,
@@ -127,6 +128,37 @@ describe('a head reports what each journey entered', () => {
         'euros.spec.ts',
       ]);
       expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', LAZY_DOLLAR_LINE))).toEqual([
+        'dollars.spec.ts',
+      ]);
+    });
+  });
+
+  it('tells a driver it first hears from late what every subject depended on before it', async () => {
+    // Two workers, or a second run against a server the first one started: the
+    // module was evaluated under the first driver's journey, and the second
+    // driver's subject depends on that initialization all the same.
+    await inRoot(async (root) => {
+      const first = await driver();
+      const second = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
+      const parts = await head(root, 'build', { source: LAZY, lazy: true });
+      const german = mintJourney();
+      const english = mintJourney();
+
+      let loaded: Currency | undefined;
+      await collector.enter(first.carrying(german), () => {
+        loaded = evaluate(parts.code);
+        return loaded('de');
+      });
+      await collector.enter(second.carrying(english), () => loaded!('en'));
+      await collector.close();
+      const initialized = first.reports.flatMap((report) => report.modules.flatMap((module) => module.shared));
+      expect(initialized.length).toBeGreaterThan(0);
+
+      const { stitched } = await record(root, parts, second, [[english, 'dollars.spec.ts']]);
+      const [dollars] = stitched.heads.get('api')!;
+      expect(dollars!.journal.modules[0]!.hits).toEqual(expect.arrayContaining(initialized));
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', LAZY_EURO_LINE))).toEqual([
         'dollars.spec.ts',
       ]);
     });
