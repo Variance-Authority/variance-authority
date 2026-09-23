@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/dom",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "description": "Extract a Variance Authority capture from a mounted element, under jsdom or a browser, with CSS applicability pruning.",
   "keywords": [
     "variance-authority",
