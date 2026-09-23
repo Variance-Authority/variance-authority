@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/storybook-collector",
-  "version": "0.5.10",
+  "version": "0.6.0",
   "description": "Turn a built or already-served Storybook into Variance Authority subjects.",
   "keywords": [
     "variance-authority",

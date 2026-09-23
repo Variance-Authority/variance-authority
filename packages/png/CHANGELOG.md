@@ -1,5 +1,9 @@
 # @variance-authority/png
 
+## 0.6.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.5.10
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

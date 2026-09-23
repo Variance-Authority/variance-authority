@@ -1,5 +1,133 @@
 # @variance-authority/sense
 
+## 0.6.0
+
+### Minor Changes
+
+- c9a35ca: `@variance-authority/core/relate` exports are renamed, and the old names are removed
+
+  The old names are removed, not kept as aliases:
+
+  | Was | Is |
+  |---|---|
+  | `movedBy` | `affectedBy` |
+  | `Reached` | `Affected` |
+  | `MovedOptions` | `AffectedOptions` |
+  | `movedBefore` | `changedBefore` |
+  | `Reach` | `Traversal` |
+  | `ReachOptions` | `TraversalOptions` |
+  | `Reach.reached` | `Traversal.nodes` |
+  | `Reached.reach` | `Affected.traversal` |
+
+  `dependentsOf` and `dependenciesOf` return a `Traversal`, and `trailOf` takes
+  one as its argument.
+- 8adc864: Code that runs when a module loads no longer counts as covered by every test in the file
+
+  A module's top level runs once per test file, while whichever test is running
+  at the time. Before, every test in the file was recorded as covering it, so
+  each line at module scope looked as covered as the function bodies in that
+  module. The record now marks such a region as loaded and lists no test as
+  covering it. `variance covering` works out, from the import graph, which tests
+  loaded it, and leaves out test files that mock the module. When no import graph
+  names a recorded test, for example a module that runs in the page and that a
+  browser spec never imports, `variance covering` prints no tests for it rather
+  than an empty list.
+
+  Recordings written by an earlier version still read. Their module-scope regions
+  are marked as loaded when the recording already said so, and are unmarked
+  otherwise.
+- 16f6dd6: Recorded file names are relative to the repository root
+
+  The Jest, Vitest and Rstest wrappers, the Playwright reporter and the Storybook
+  collector now name every file relative to the root of the git checkout the run
+  starts in. Before, when the config was inside a package, file names were
+  relative to Jest's `rootDir` or Vitest's `root`. A recording made from
+  `packages/cart` said `src/cart.ts` where a diff says `packages/cart/src/cart.ts`,
+  and the two never matched. `rootDir` and `root` still resolve the config and the
+  relative paths in its options. Outside a git checkout, names are relative to the
+  directory the run starts in.
+
+  A recording that an earlier version made from a package-level config uses the
+  old names, so record it again. `repositoryRoot`, exported from
+  `@variance-authority/sense/test-selection`, returns the directory that file
+  names are relative to.
+- 03984ae: A file whose imports could not all be read no longer widens selection
+
+  A `require(name)` or `import('./' + name)` has no written target. The walk uses
+  the edges that were read in such a file, and the recorded run answers the one
+  that was not: the module loads under the test however it was named.
+  `affectedBy` seeds only the changed files, the closure digest does not mark such
+  a file volatile, and it does not void a deviation baseline.
+
+  Removed, not kept as aliases: `Affected.opaque`, `Hole`, `ReachReport.opaque`,
+  `ReachHole` and `ReachedComponent.throughUnread`.
+
+### Patch Changes
+
+- c92543d: Write the per-case execution index with far less time and memory
+
+  When a Jest or Vitest run records cases, the reporter now writes the index
+  beside the snapshot with the bounded fold, which reads the case journals a
+  slice at a time. On a 200-case run over a thousand ambient modules it takes
+  51 ms and 7 MB of heap, where building the whole index as objects first took
+  440 ms and 158 MB, at the end of the run, when workers have used most of the
+  memory. A late second frame for a case that had already settled is joined into
+  that case, as before. An `executionFile` ending in `.json` is written as it was.
+- 76fdc4d: A test that mocks a module is no longer selected when that module changes
+
+  `vi.mock` and `jest.mock` without a factory still evaluate the real module so
+  the runner can shape the automock. The recording saw that evaluation, so an
+  edit to a mocked module selected every test that had replaced it. Now, when the
+  file graph carries the taints' shadows, a test is not selected for a module it
+  mocks, or for anything it reaches only through the mock, whatever the record
+  shows it crossing there: the test ran against the mock, and a mock whose shape
+  drifted from the real module is a type error. `coveringChange` takes the graph
+  as `relations` and drops those cases the same way. `auditTaints` reports
+  `shadowed-but-entered` only when the test called into the real module, which is
+  a mock that did not take; loading it to shape the automock is the mock working.
+- 8adc864: `--no-git` reads source from disk, and a scan no longer makes Git fetch in a partial clone
+
+  `variance select` and `variance reach` take `--no-git`: source is read from the
+  disk rather than from Git's object store, and Git still supplies the diff. The
+  scan walks directories instead of Git's list of tracked files, and cached parse
+  results, which are keyed by Git object names, are not reused.
+
+  Without the flag, a file whose object is missing from the local Git store is
+  read from the disk. Before, in a partial clone, reading it made Git fetch the
+  object from the remote.
+- 83409da: A recorded test run spends less time in instrumented code
+
+  The probe in each instrumented region now sets one flag the first time a test
+  runs the region, where it used to increment a counter on every run. A hit costs
+  1.2 to 3.2 ns, down from 2.6 to 4.4 ns. Recordings are byte-identical to the
+  ones earlier versions wrote.
+- fdc698f: Read the collector once per module, which makes recording under Jest much faster
+
+  Jest runs each test file inside a `vm` context. Every global read there passes
+  through an interceptor, and the probe read `globalThis.__VA__` on every hit.
+  Now each instrumented module reads it once and keeps it. On the same loop in a
+  `vm` context, 729 ms of probing drops to 12 ms or less. That read was most of
+  what recording cost under Jest, and it was the likeliest reason recorded cases
+  ran past their timeouts. Vitest runs in the main realm and gains nothing
+  measurable.
+
+  A collector must now keep the object on `globalThis.__VA__` for the life of the
+  realm, and redirect counts through its `s` resolver instead of replacing it.
+  Every collector shipped in this package now does. Jest's transform cache now keys
+  on the probe text as well, so the first run after the upgrade instruments again
+  rather than serving the old probe from cache.
+- 8adc864: Coverage from two builds that divide a file into different regions is recorded against the regions both have
+
+  Two transforms of the same source can divide it into regions differently, so a
+  region number from one build names a different region in the other.
+  `variance journeys stitch` refused such shards, and folding them recorded
+  coverage against the wrong region. Now a region that only one build has is
+  recorded against the smallest containing region that every build has, or
+  against the whole file when there is none. A changed line there selects every
+  test that ran the containing region: the selection is wider, and it does not
+  miss a test. `variance journeys finalize` and `stitch` print the files this
+  applies to.
+
 ## 0.5.10
 
 ### Patch Changes

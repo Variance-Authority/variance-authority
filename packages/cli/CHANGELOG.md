@@ -1,5 +1,70 @@
 # @variance-authority/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- c9a35ca: `@variance-authority/core/relate` exports are renamed, and the old names are removed
+
+  The old names are removed, not kept as aliases:
+
+  | Was | Is |
+  |---|---|
+  | `movedBy` | `affectedBy` |
+  | `Reached` | `Affected` |
+  | `MovedOptions` | `AffectedOptions` |
+  | `movedBefore` | `changedBefore` |
+  | `Reach` | `Traversal` |
+  | `ReachOptions` | `TraversalOptions` |
+  | `Reach.reached` | `Traversal.nodes` |
+  | `Reached.reach` | `Affected.traversal` |
+
+  `dependentsOf` and `dependenciesOf` return a `Traversal`, and `trailOf` takes
+  one as its argument.
+- 8adc864: Code that runs when a module loads no longer counts as covered by every test in the file
+
+  A module's top level runs once per test file, while whichever test is running
+  at the time. Before, every test in the file was recorded as covering it, so
+  each line at module scope looked as covered as the function bodies in that
+  module. The record now marks such a region as loaded and lists no test as
+  covering it. `variance covering` works out, from the import graph, which tests
+  loaded it, and leaves out test files that mock the module. When no import graph
+  names a recorded test, for example a module that runs in the page and that a
+  browser spec never imports, `variance covering` prints no tests for it rather
+  than an empty list.
+
+  Recordings written by an earlier version still read. Their module-scope regions
+  are marked as loaded when the recording already said so, and are unmarked
+  otherwise.
+- 03984ae: A file whose imports could not all be read no longer widens selection
+
+  A `require(name)` or `import('./' + name)` has no written target. The walk uses
+  the edges that were read in such a file, and the recorded run answers the one
+  that was not: the module loads under the test however it was named.
+  `affectedBy` seeds only the changed files, the closure digest does not mark such
+  a file volatile, and it does not void a deviation baseline.
+
+  Removed, not kept as aliases: `Affected.opaque`, `Hole`, `ReachReport.opaque`,
+  `ReachHole` and `ReachedComponent.throughUnread`.
+
+### Patch Changes
+
+- 8adc864: `variance covering --since` resolves a symlinked `--root`
+
+  `variance covering --since` resolves a symlinked `--root` before making paths
+  relative to it, so changed paths no longer print as `../../private/var/...`.
+- 8adc864: `--no-git` reads source from disk, and a scan no longer makes Git fetch in a partial clone
+
+  `variance select` and `variance reach` take `--no-git`: source is read from the
+  disk rather than from Git's object store, and Git still supplies the diff. The
+  scan walks directories instead of Git's list of tracked files, and cached parse
+  results, which are keyed by Git object names, are not reused.
+
+  Without the flag, a file whose object is missing from the local Git store is
+  read from the disk. Before, in a partial clone, reading it made Git fetch the
+  object from the remote.
+- 8f65bcf: `variance select` and `variance covering --since` build the file graph, so a change inside a module a test mocked, or behind that mock, no longer selects that test.
+
 ## 0.5.10
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
