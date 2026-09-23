@@ -248,7 +248,8 @@ export function testSelectionProbes(
  * switches it: a drain reads it out and empties it in place.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
- * every module reads it once and keeps it.
+ * every module reads it once and keeps it, and the drain on
+ * {@link EXECUTION_GLOBAL} is the one installed with it.
  */
 export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
@@ -259,19 +260,23 @@ engine.use(bucket);
 // A realm that already has a root has a collector that knows more than this
 // one: a Node head keys its buckets by journey, and a page has nowhere to put a
 // caller. Deferring is what lets one instrumented build serve a page and a
-// service, and a page never has anything to defer to.
-if (globalThis.__VA__ === undefined) globalThis.__VA__ = engine.root;
-globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
-  version: 1,
-  instrumentation: ${JSON.stringify(instrumentation)},
-  drain() {
-    // In the order the page first registered each module, drain after drain.
-    const modules = engine.lists(engine.take(bucket), true);
-    return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
-  },
-  reset() {
-    engine.take(bucket);
-  },
-};
+// service. The drain goes with the root: a collector that deferred holds a
+// bucket nothing writes to, so a second bundle on one page offering its own
+// would have the page report that it ran nothing.
+if (globalThis.__VA__ === undefined) {
+  globalThis.__VA__ = engine.root;
+  globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
+    version: 1,
+    instrumentation: ${JSON.stringify(instrumentation)},
+    drain() {
+      // In the order the page first registered each module, drain after drain.
+      const modules = engine.lists(engine.take(bucket), true);
+      return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
+    },
+    reset() {
+      engine.take(bucket);
+    },
+  };
+}
 `;
 }

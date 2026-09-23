@@ -1,7 +1,10 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { createContext, runInContext } from 'node:vm';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  EXECUTION_GLOBAL,
+  executionCollectorSource,
   testSelectionProbes,
   preconditionOf,
   recordExecution,
@@ -59,6 +62,33 @@ describe('a browser run records what it executed', () => {
       expect(await selectTestFiles(coverageFile, diffAt('price.js', PLAIN_LINE))).toEqual([
         'story:price--plain',
       ]);
+    });
+  });
+
+  it('drains what a page ran when a second bundle brought its own collector', async () => {
+    // An application and a widget built apart each hoist a collector into one
+    // page. The second finds the first's root and defers to it, so its probes
+    // write there; had it also replaced the drain, the driver would read a
+    // bucket nothing writes to, and a page that ran both would report neither.
+    await inRoot(async (root) => {
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+      const transformed = testSelectionProbes({ root, cacheRoot: resolve(root, 'cache') })
+        .transform(SOURCE, module)!;
+
+      // Each collector is a module of its own bundle, so each gets a scope.
+      const page = createContext({});
+      const collector = `{${executionCollectorSource()}}`;
+      runInContext(collector, page);
+      runInContext(transformed.code.replace(/^import "[^"]+";/, ''), page);
+      runInContext(collector, page);
+      runInContext('__browser_test_price(20)', page);
+
+      const journal = JSON.parse(
+        runInContext(`JSON.stringify(globalThis[${JSON.stringify(EXECUTION_GLOBAL)}].drain())`, page),
+      ) as ExecutionJournal;
+      expect(journal.modules).toHaveLength(1);
+      expect(journal.modules[0]!.hits.length).toBeGreaterThan(0);
     });
   });
 
