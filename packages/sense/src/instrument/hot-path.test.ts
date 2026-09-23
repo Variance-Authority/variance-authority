@@ -20,8 +20,13 @@ describe('the emitted probe', () => {
   const code = (): string =>
     instrument('function f(n) { if (n) { return 1; } return 2; }', 'fixture.js')!.code;
 
-  it('resolves the factory and asks the scope, and tests neither', () => {
-    expect(code()).toContain('const g=globalThis.__VA__;const r=g.s?g.s():g;');
+  it('reads the realm once and asks the scope on every hit', () => {
+    // The one truthiness test the probe carries, because under Jest the global
+    // it replaces is an interceptor call on a contextified object, and this is
+    // a property on the probe itself. A circular import can reach the probe
+    // before the header runs, so the read cannot move into the header.
+    expect(code()).toContain('const g=__va.g||(__va.g=globalThis.__VA__);const r=g.s?g.s():g;');
+    expect(code()).toContain('function __vaE(){const g=__va.g;');
   });
 
   it('carries no type check and no message', () => {

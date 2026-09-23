@@ -85,6 +85,23 @@
  * crossings. Until the transform hoists the read to a function activation, one
  * continuation read a crossing is what the case axis costs.
  *
+ * ## The global is read once a module
+ *
+ * The probe reads `globalThis.__VA__` on a module's first hit and keeps it on
+ * `__va.g`. Under Vitest that saves nothing measurable, because a global load in
+ * the main realm is an inline-cached slot. Under Jest it is most of the probe.
+ * Jest evaluates a test file in a `vm` context, whose global object is
+ * contextified: every property read on it goes through an interceptor. The
+ * probe body timed at 1087 ms reading the global on every hit, and 110 ms
+ * reading it once, over the same hits in the same context.
+ *
+ * So the global is the realm's **root** and stays the same object for the life
+ * of the realm. A collector that moves counts elsewhere — to a case, a journey,
+ * or the next test file of a shared module graph — points the root's `s` at the
+ * factory that owns them now, and never reassigns the global. A module that
+ * cached a replaced root would count into whatever that root answered, silently,
+ * for as long as it lived.
+ *
  * ## A probe stays in its instrumented realm
  *
  * Every inserted site calls the declarations in the generated module directly.
@@ -228,8 +245,8 @@ export function instrument(
  *
  * A module that finds a different factory than the one it registered with has
  * outlived a test file: a runner that shares one module graph across files —
- * Vitest without isolation — installs a factory per file and evaluates the
- * module once. Its top level ran for the first file only, and every later file
+ * Vitest without isolation — points the root at a factory per file and
+ * evaluates the module once. Its top level ran for the first file only, and every later file
  * consumed what it exported without a module probe firing. So re-registering
  * counts the module's own block once, the way evaluation would have: the file
  * entered this module, and an edit to its top level is an edit that file ran.
@@ -238,9 +255,19 @@ function runtime(id: ModuleId, count: number): string {
   const module = typeof id === 'number' ? String(id) : JSON.stringify(id);
 
   return (
-    `function __va(i){const g=globalThis.__VA__;const r=g.s?g.s():g;if(__va.r!==r){const again=__va.c!==undefined;__va.r=r;__va.c=r(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
+    `function __va(i){const g=__va.g||(__va.g=globalThis.__VA__);const r=g.s?g.s():g;if(__va.r!==r){const again=__va.c!==undefined;__va.r=r;__va.c=r(${module},${count});if(again)__va.c[0]+=1}__va.c[i]=__va.c[i]+1|(r.e>0?${EVALUATING}:0)}` +
     `function __vaR(v,i){__va(i);return v}` +
-    `function __vaE(){const g=globalThis.__VA__;const r=g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
+    `function __vaE(){const g=__va.g;const r=g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
     `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`
   );
 }
+
+/**
+ * The emitted runtime with placeholder numbers.
+ *
+ * A transform cache that keys on the instrumentation identity alone serves the
+ * previous probe after this text changes: the regions are the same, so the
+ * identity is too. What the text does is not a region question, and a cache
+ * that stores it keys on the text.
+ */
+export const PROBE_RUNTIME = runtime(0, 0);

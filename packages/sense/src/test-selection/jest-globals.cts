@@ -282,7 +282,9 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     return settling(factory, body);
   };
 
-  // Minted eagerly, so a module evaluated before any case exists finds one.
+  // Minted eagerly, so a module evaluated before any case exists finds one. It
+  // stays the realm's root after `seal` replaces it as the ambient bucket: a
+  // probe reads the root once and asks its `s` from then on.
   let ambientFactory = factoryFor(AMBIENT);
   current = ambientFactory;
   holder.__VA__ = ambientFactory;
@@ -299,7 +301,6 @@ function scoped(holder: Holder, continuations: boolean): Collector {
       ambientFactory = factoryFor(AMBIENT);
       if (before.e !== undefined) ambientFactory.e = before.e;
       if (current === before) current = ambientFactory;
-      holder.__VA__ = ambientFactory;
       return loaded;
     },
     finish(testFile) {

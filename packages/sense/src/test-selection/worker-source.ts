@@ -66,6 +66,20 @@ export interface SetupShim {
   readonly continuations?: boolean;
 }
 
+/**
+ * Make `factory` the realm's root, or point the root already there at it.
+ *
+ * A probe reads the global once and keeps it, so a second test file in the same
+ * realm — Vitest without isolation, one module graph for every file — cannot
+ * replace it: the modules the first file evaluated would go on counting into the
+ * first file's map. It moves the root's `s` instead, which every probe asks.
+ */
+function installRoot(factory: string, resolver = `() => ${factory}`): string {
+  return `const realmRoot = globalThis.__VA__;
+if (realmRoot === undefined) globalThis.__VA__ = ${factory};
+else realmRoot.s = ${resolver};`;
+}
+
 export function setupSource(
   runDirectory: string,
   caseDirectory?: string,
@@ -77,7 +91,7 @@ export function setupSource(
 const modules = new Map();
 // A module \`vi.resetModules\` evaluates again resolves this again, and keeps
 // what it counted before the reset: same name and block count, same counters.
-globalThis.__VA__ = (id, count) => {
+const factory = (id, count) => {
   let counters = modules.get(id);
   if (counters === undefined || counters.length !== count) {
     counters = new Uint32Array(count);
@@ -88,7 +102,8 @@ globalThis.__VA__ = (id, count) => {
 // Nothing here is scoped, and the probe still asks. Every collector declares
 // \`s\`, empty spelled \`undefined\`, so that load reads one shape whichever
 // collector the realm installed.
-globalThis.__VA__.s = undefined;
+factory.s = undefined;
+${installRoot('factory')}
 // The same arrays keep counting after this, so the snapshot is a copy.
 const seal = () => new Map([...modules].map(([id, counters]) => [id, counters.slice()]));
 const finish = () => ({ modules, frames: [] });
@@ -328,7 +343,7 @@ const settling = (factory, body) => {
 // The coordinate is \`file\\0declaration path\\0ordinal\`; a reader knows a case
 // by the middle one.
 const nameOf = (key) => key.split('\\u0000')[1] || key.split('\\u0000')[0];
-globalThis.__VA__ = ambientFactory;
+${installRoot('ambientFactory', 'resolve')}
 globalThis[Symbol.for('variance-authority.test-selection.cases')] = { enter };
 // Empty in the mode that cannot see one: a variable has no memory of a case
 // that closed, so a late crossing lands in the ambient bucket unnamed.
@@ -342,7 +357,6 @@ const seal = (testFile) => {
   ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
   ambientFactory.e = before.e;
   if (${continuations ? 'false' : 'current === before'}) current = ambientFactory;
-  globalThis.__VA__ = ambientFactory;
   return loaded;
 };
 const finish = (testFile) => {

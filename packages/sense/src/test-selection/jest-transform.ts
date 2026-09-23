@@ -27,7 +27,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import picomatch from 'picomatch';
-import { instrument, instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
+import { instrument, instrumentationId, PROBE_RUNTIME, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import {
   defaultInclude,
@@ -125,6 +125,8 @@ export async function createTransformer(
   const keyOf = (source: string, path: string, options: JestTransformRequest, innerKey: string | undefined): string =>
     createHash('sha1')
       .update(instrumentation)
+      .update('\0')
+      .update(PROBE_RUNTIME)
       .update('\0')
       .update(innerKey ?? defaultKey(source, path, options))
       .update('\0')
