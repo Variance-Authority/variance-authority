@@ -31,8 +31,8 @@
  * that band is a measurement of this machine and not of the probes, and this says
  * so rather than letting a reader mistake 1.01 for a cost.
  *
- * It also reports how many increments each arm actually recorded. A benchmark of
- * probes that never fired would report a very good ratio and mean nothing.
+ * It also reports how many regions each arm entered. A benchmark of probes that
+ * never fired would report a very good ratio and mean nothing.
  *
  * Run:  variance-authority-sense-overhead
  *       variance-authority-sense-overhead 4000 7
@@ -41,6 +41,7 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { instrument } from '../dist/instrument/index.js';
 
@@ -55,16 +56,9 @@ const PACKAGE = join(HERE, '..');
 const staging = mkdtempSync(join(PACKAGE, '.overhead-'));
 const tree = mkdtempSync(join(tmpdir(), 'variance-overhead-'));
 
-/** Counters keyed by module, installed for the probed arm only. */
-const counters = new Map();
-globalThis.__VA__ = (id, count) => {
-  const held = counters.get(id) ?? new Uint32Array(count);
-  counters.set(id, held);
-  return held;
-};
-// The shipped flat collector defines this, and the probe reads it on every hit;
-// an arm measuring the probe without it measures a shape nothing installs.
-globalThis.__VA__.s = undefined;
+// The flat collector a test file gets, so the probed arm writes into the
+// shape a run installs and not a stand-in for it.
+const collector = createRequire(import.meta.url)('../dist/test-selection/collectors.cjs').flat(globalThis);
 
 try {
   for (const copy of ['plain', 'control', 'probed']) {
@@ -92,12 +86,10 @@ try {
 
   console.log(`${COMPONENTS} components, best of ${ROUNDS}\n`);
   console.log(
-    `  ${'arm'.padEnd(26)} ${'plain'.padStart(7)} ${'probed'.padStart(9)}      o  control  increments`,
+    `  ${'arm'.padEnd(26)} ${'plain'.padStart(7)} ${'probed'.padStart(9)}      o  control     regions`,
   );
 
   for (const [name, run] of arms) {
-    for (const held of counters.values()) held.fill(0);
-
     // Interleaved, not one arm and then the next, so a thermal drift over the run
     // lands on all three rather than on whichever went last.
     const best = { plain: Infinity, control: Infinity, probed: Infinity };
@@ -107,24 +99,22 @@ try {
       best.probed = Math.min(best.probed, await time(() => run(probed)));
     }
 
-    const hits = recorded();
+    const regions = recorded();
     const o = best.probed / best.plain;
     const noise = best.control / best.plain;
     const verdict = Math.abs(o - 1) <= Math.abs(noise - 1) ? ' (within noise)' : '';
 
     console.log(
       `  ${name.padEnd(26)} ${best.plain.toFixed(0).padStart(5)} ms ${best.probed.toFixed(0).padStart(6)} ms  ` +
-        `${o.toFixed(3)}    ${noise.toFixed(3)}  ${hits.toLocaleString().padStart(11)}${verdict}`,
+        `${o.toFixed(3)}    ${noise.toFixed(3)}  ${regions.toLocaleString().padStart(11)}${verdict}`,
     );
 
     // What the measurement can still exclude. A ratio inside the noise band does
     // not say a probe is free, it says the cost is under whatever the band hides —
-    // and that bound, per increment, is the number worth carrying forward.
-    const perRun = hits / ROUNDS;
+    // and that bound, per run, is the number worth carrying forward.
     const band = Math.max(Math.abs(o - 1), Math.abs(noise - 1));
     bounds.push(
-      `${name.split(' ')[0]}: ${Math.round(perRun).toLocaleString()} increments per run — ` +
-        `under ${((band * best.plain * 1e6) / perRun).toFixed(1)} ns each at this noise floor`,
+      `${name.split(' ')[0]}: under ${(band * best.plain).toFixed(1)} ms a run at this noise floor`,
     );
   }
 
@@ -139,10 +129,10 @@ try {
   rmSync(tree, { recursive: true, force: true });
 }
 
-/** Every increment currently held, across every instrumented module. */
+/** Every region entered so far, across every instrumented module. */
 function recorded() {
   let total = 0;
-  for (const held of counters.values()) for (const at of held) total += at;
+  for (const held of collector.seal('').values()) for (const at of held) total += at === 0 ? 0 : 1;
 
   return total;
 }

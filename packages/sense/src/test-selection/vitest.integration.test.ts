@@ -48,7 +48,7 @@ describe('the Vitest integration', () => {
 
   it('runs under the default include, which leaves the seam\'s own setup module alone', async () => {
     // The setup module is a JavaScript file under the root like any other, and
-    // instrumented it would ask for the counter factory it has not yet installed.
+    // instrumented it would ask for the probe log it has not yet installed.
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
     temporary.push(directory);
     const coverageFile = resolve(directory, 'coverage.bin');

@@ -12,10 +12,11 @@
  *
  * ## Why this is not a drain in `afterEach`
  *
- * The obvious shape is snapshot-and-subtract: copy the counters before each case,
- * copy them after, and call the difference that case's reach. It is wrong twice.
+ * The obvious shape is snapshot-and-subtract: copy what the file has recorded
+ * before each case, copy it after, and call the difference that case's reach. It
+ * is wrong twice.
  *
- * It is wrong *by cost*: a snapshot is a copy of every counter the file's closure
+ * It is wrong *by cost*: a snapshot is a copy of every region the file's closure
  * owns, taken twice per case. A test file whose closure is forty thousand modules
  * copies tens of megabytes per case, for a suite that has hundreds of cases per
  * file — work proportional to the closure, charged per case, when the crossings a
@@ -49,29 +50,29 @@
  *
  * ## The mechanism is the one the probe already has
  *
- * The emitted probe re-resolves its counter array whenever the factory it holds
- * changes identity ([`instrument`](../instrument/index.ts)). So the factory is
- * minted one per case and handed out by a resolver on `globalThis.__VA__.s`. A
- * case's probes write into that case's arrays; nothing else changes, no bracket
- * is maintained, and nothing is added to what a region records. This refines
- * *who owns a crossing*, and ADR-0056 forecloses order, counts, spans, stacks
- * and depth — not owners.
+ * The probe logs into whichever bucket the realm's engine holds
+ * ([`probe-log.cts`](../instrument/probe-log.cts)), and every collector already
+ * switches that bucket when a file starts. A case is one more bucket: `enter`
+ * opens it and makes it current, and the body settling closes it, encodes its
+ * frame and folds it into the file's union. A case's probes write into that
+ * case's log; no bracket is maintained per crossing, and nothing is added to what
+ * a region records. This refines *who owns a crossing*, and ADR-0056 forecloses
+ * order, counts, spans, stacks and depth — not owners.
  *
- * The resolver hangs off the factory rather than replacing `__VA__` with an
- * accessor, which is what this was first built as. That accessor was half the
- * axis's cost: **12.6 ns** a probe hit against **1.3 ns** for the flat probe
- * over a data property, and **6.3 ns** once the scope moved one level in and
- * the store began holding the factory rather than a key to look one up by.
+ * A switch clears only the flags the segment before it logged, so a case costs
+ * what it touched, not what the realm loaded. The first probe of each module in a
+ * new bucket also logs the module's own region, which is how a case that reached
+ * a module another case evaluated is still credited with entering it.
  *
- * ## What the resolver reads, and why it is usually a variable
+ * ## What decides the bucket, and why it is usually a variable
  *
  * A suite runs its cases one at a time. While that holds, *the case running
- * now* is a variable: `enter` assigns it, the body settling restores it, and
- * the resolver is a closure read. That is **1.6 ns**, a fifth over the flat
- * probe's 1.3 and the shape almost every suite gets; on top of it the axis pays
- * for a counter set per case and a re-resolve at each case boundary, which is
- * **6.1%** more time inside the tests over zod's suite against the same run
- * recorded per file, and **3.5%** over TanStack Query's.
+ * now* is a variable: `enter` switches to its bucket, the body settling switches
+ * back, and the probe never asks. A hit costs what a flat one does. Over a
+ * generated file that loads two thousand modules and runs six hundred cases of
+ * a thousand modules each, recording per case spends 12% more time inside the
+ * cases than recording the same file flat, and each case's close — its frame
+ * encoded and folded into the union — costs 0.35 ms.
  *
  * It holds until a case's work outlives the case. A test that is synchronous to
  * the runner and asynchronous underneath returns before its work does; two
@@ -83,18 +84,17 @@
  * silent.
  *
  * `continuations` is the mode that stops it being silent. The variable becomes
- * an {@link AsyncLocalStorage}: a continuation after an `await` resolves the
- * same store its caller did, two concurrent cases interleaving inside one
- * module each invalidate the other's cached array at exactly the crossings
- * where they meet, and a crossing resolved to a case that has already settled
- * marks that case as one whose work outlived it — which the file prints when it
- * ends. That is **6.3 ns** a crossing, of which 5.5 is
+ * an {@link AsyncLocalStorage}, and every probe asks it which case owns the
+ * crossing: a continuation after an `await` resolves the same store its caller
+ * did, two concurrent cases interleaving inside one module switch buckets at
+ * exactly the crossings where they meet, and a crossing resolved to a case that
+ * has already settled marks that case as one whose work outlived it — which the
+ * file prints when it ends. That is 5.8 ns a hit at 4 regions, of which 5.5 is
  * `AsyncLocalStorage.getStore()` itself: the price of reading which
- * continuation is running, not of recording anything. It is 4.7 ns a crossing
- * over the variable, which a microbenchmark separates and a suite does not —
- * over zod the crossing count predicts 0.2%, and ten interleaved repetitions
- * cannot resolve that. The reading is in
- * [`instrument`](../instrument/index.ts), which emits the probe that pays it.
+ * continuation is running, not of recording anything. Over the same generated
+ * file it spends 25% more time inside the cases than flat recording. The reading
+ * is in [`instrument`](../instrument/index.ts), which emits the probe that pays
+ * it.
  *
  * So the mode is worth turning on to hunt runaway tests, and to record a suite
  * that is deliberately concurrent. The rest of the time the variable is both

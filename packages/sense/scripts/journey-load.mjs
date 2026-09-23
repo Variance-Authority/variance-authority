@@ -1,10 +1,10 @@
 /**
  * What concurrent journeys cost a live head.
  *
- * A test worker has one counter set. A *head* — a service answering several
- * subjects at once — has one per journey that is open, because that is the
- * whole point of `collectJourneys`: a counter set per logical flow, not per
- * process and not per request boundary. So the number the ceiling cares about
+ * A test worker has one log. A *head* — a service answering several subjects
+ * at once — has a bucket per journey that is open, because that is the whole
+ * point of `collectJourneys`: a record per logical flow, not per process and
+ * not per request boundary. So the number the ceiling cares about
  * is not what one journey costs but what `concurrency x closure` costs, and
  * whether the drain that ends a journey has a peak in it.
  *
@@ -15,9 +15,10 @@
  *    account to the wire — the one allocating step on this path — and that is
  *    the moment the process is largest.
  * 3. **Interleaved.** Two journeys inside the same module, which is the case
- *    the design exists for: the probe re-resolves on the factory's identity, so
- *    the crossing has to land in the journey that was open and not the one that
- *    evaluated the module first. Counted here, not asserted.
+ *    the design exists for: the probe asks the scope which bucket is current on
+ *    every crossing, so the crossing has to land in the journey that was open
+ *    and not the one that evaluated the module first. Counted here, not
+ *    asserted.
  *
  * The head is the shipped one. The wire is real, through the in-realm sink the
  * driver installs, so the accounts are the accounts a driver would stitch.
@@ -25,6 +26,7 @@
  *   node --expose-gc packages/sense/scripts/journey-load.mjs <snapshot> [journeys] [modules]
  */
 
+import { PROBE_RUNTIME } from '../dist/instrument/index.js';
 import { readTestCoverage } from '../dist/test-selection/index.js';
 import { WIRE_SINK, JOURNEY_COOKIE } from '../../wire/dist/index.js';
 
@@ -83,27 +85,15 @@ const collector = collectJourneys({ head: 'service' });
 if (!collector.collecting) { console.error('the head did not install'); process.exit(1); }
 
 /**
- * What the emitted probe does, against whatever factory is current.
+ * The emitted probe, one module per probe, evaluated before any journey opens.
  *
- * One probe per module, each holding its own cached array and its own record of
- * which factory produced it — because that is what `runtime()` emits: a `__va`
- * function per module, with `__va.c` and `__va.r` on it and nothing else. A
- * single shared probe keyed on the module would re-resolve on every crossing,
- * which is both slower than the real thing and unable to fail the interleaving
- * check below: the cache is what makes that check mean anything.
+ * Each module keeps its row and the activation it last wrote under in module
+ * variables, because that is what `runtime()` emits. Those variables are what
+ * the interleaving check below can catch going stale: a probe that looked its
+ * bucket up afresh on every crossing could not fail it.
  */
-const probeFor = (module) => {
-  const probe = (ordinal) => {
-    const held = globalThis.__VA__;
-    const factory = held && held.s ? held.s() : held;
-    if (probe.c === undefined || probe.r !== factory) {
-      probe.r = factory;
-      probe.c = factory(module, counts[module]);
-    }
-    probe.c[ordinal] = (probe.c[ordinal] + 1) | 0;
-  };
-  return probe;
-};
+const probeFor = (module) =>
+  new Function(`${PROBE_RUNTIME.replace('.r(0,0)', `.r(${module},${counts[module]})`)}__vaE();return __va;`)();
 
 // Built before the baseline is taken: these closures are the instrumented
 // module's own weight, which `worker-load.mjs` prices, and counting them here
@@ -148,7 +138,7 @@ const whileOpen = mark();
 const settled = settle();
 
 console.log(`\n  holding all ${JOURNEYS} open: rss ${mb(whileOpen)}, ${mb(settled)} settled`);
-console.log(`    ${mb(settled - base)} for ${(JOURNEYS * MODULES).toLocaleString()} journey-module counter sets — ${(((settled - base)) / (JOURNEYS * MODULES)).toFixed(0)} bytes each`);
+console.log(`    ${mb(settled - base)} for ${(JOURNEYS * MODULES).toLocaleString()} journey-module rows — ${(((settled - base)) / (JOURNEYS * MODULES)).toFixed(0)} bytes each`);
 
 // ---------------------------------------------------------------------------
 // 2. Drained: the accounts built and delivered.
@@ -176,8 +166,8 @@ const leftGate = new Promise((resolve) => { leftRelease = resolve; });
 const rightGate = new Promise((resolve) => { rightRelease = resolve; });
 
 // Two async bodies that hand off to each other inside the same modules. The
-// store is what tells the getter which factory to return, so this is the exact
-// interleaving the design claims to survive.
+// store is what tells the root which journey's bucket the log writes into, so
+// this is the exact interleaving the design claims to survive.
 const interleave = async (gate, which) => {
   for (let module = 0; module < SMALL; module += 1) {
     probes[module](which % counts[module]);

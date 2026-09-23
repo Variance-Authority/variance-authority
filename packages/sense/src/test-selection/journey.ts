@@ -3,11 +3,11 @@
  * not a realm.
  *
  * [`journal.ts`](./journal.ts) next door carries the instrument into a browser:
- * one page, one subject at a time, torn down between them, so a counter array
- * needs no key and the driver reads it back through `page.evaluate`. A service
+ * one page, one subject at a time, torn down between them, so its log needs no
+ * key and the driver reads it back through `page.evaluate`. A service
  * is neither of those things. It outlives every subject in the run, it answers
- * several of them at once, and nobody can evaluate inside it. One counter set in
- * a server process is shared mutable state across concurrent logical flows, and
+ * several of them at once, and nobody can evaluate inside it. One log in a
+ * server process is shared mutable state across concurrent logical flows, and
  * draining it at request boundaries does not rescue it — a streamed response
  * flushes after its handler returned, a floating promise settles two requests
  * later, and a time window is not a journey. The crossing goes to whoever was
@@ -25,7 +25,7 @@
  * Three parts, and each is somebody's:
  *
  * 1. **The head** ({@link collectJourneys}) runs inside the service. It installs
- *    a journey-keyed factory behind `globalThis.__VA__` and reports one account
+ *    a journey-keyed engine behind `globalThis.__VA__` and reports one account
  *    per journey the moment that journey's last scope settles. Told nothing, it
  *    installs nothing: the same call ships to production and costs an `if`.
  * 2. **The wire** is `@variance-authority/wire`, shared with
@@ -38,17 +38,17 @@
  *    somebody is reading, and a lost account is a subject skipped in silence.
  * 3. **The join** ({@link stitchJourneys}) runs in the driver, which is the only
  *    participant that knows which subject each journey was — and the only one
- *    that writes anything down. A head persists nothing at all: it holds counts
+ *    that writes anything down. A head persists nothing at all: it holds a log
  *    for as long as a scope is open and reports them to whoever left an address.
  *
  * ## The probe does not change, and this is why
  *
- * The emitted probe re-resolves its counter array whenever the factory's
- * identity moves ([`instrument`](../instrument/index.ts)) — written for realm
- * reuse, and exactly right here. The factory carries a **resolver** on `s`
- * over the async store, handing back a distinct factory per journey, so the
- * probe's own cache invalidates for free at precisely the crossings where two
- * journeys interleave inside one module, and nowhere else. Swapping a plain
+ * The emitted probe logs into whichever bucket the realm's engine holds
+ * ([`instrument`](../instrument/index.ts)), and an engine made for an async
+ * scope asks a **resolver** on the root's `s` which bucket owns each crossing.
+ * Here the resolver reads the journey from the async store, so the bucket
+ * switches at precisely the crossings where two journeys interleave inside one
+ * module, and nowhere else. Swapping a plain
  * global at the request boundary instead is the shape that reads correctly under
  * one request at a time and silently misattributes under load.
  *
@@ -67,10 +67,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
-import { EVALUATING, INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
+import probeLog from '../instrument/probe-log.cjs';
 
 /**
  * The join, re-exported so one import serves a driver: a participant that
@@ -139,7 +140,7 @@ export interface JourneyCollectorOptions {
    */
   readonly head?: string;
   /**
-   * Whether to install the factory at all. Defaults to whether
+   * Whether to install the engine at all. Defaults to whether
    * {@link JOURNEY_VARIABLE} is set. False installs nothing and makes
    * {@link JourneyCollector.enter} the identity — which is how this call
    * survives being left in a production build.
@@ -169,18 +170,6 @@ export interface JourneyCollector {
   /** Stop collecting and restore what was on the global before. */
   readonly close: () => Promise<void>;
 }
-
-type Factory = ((id: ModuleId, count: number) => Uint32Array) & {
-  /**
-   * Which factory owns the async scope running now.
-   *
-   * The probe reads this on every hit, which is why the scope hangs here rather
-   * than on an accessor over `globalThis.__VA__`: the accessor costs six
-   * nanoseconds a hit and this costs one. `instrument/index.ts` has the
-   * reading.
-   */
-  s?: (() => Factory) | undefined;
-};
 
 /**
  * Install the journey-keyed collector in this process.
@@ -214,53 +203,44 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   const channels = new Map<string, Channel>();
   const sending = new Set<Promise<void>>();
   let lost = 0;
-  const counters = new Map<string, Map<ModuleId, Uint32Array>>();
-  const factories = new Map<string, Factory>();
   const depth = new Map<string, number>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
 
-  // One factory object per journey, cached: the probe re-resolves exactly when
-  // this identity moves, so a fresh closure per increment would be correct and
-  // slow, and one shared closure would be neither.
-  const factoryFor = (journey: string): Factory => {
-    const known = factories.get(journey);
-    if (known !== undefined) return known;
-    const modules = new Map<ModuleId, Uint32Array>();
-    counters.set(journey, modules);
-    const factory: Factory = (id, count) => {
-      let counted = modules.get(id);
-      if (counted === undefined || counted.length !== count) {
-        counted = new Uint32Array(count);
-        modules.set(id, counted);
-      }
-      return counted;
-    };
-    factory.s = resolve;
-    factories.set(journey, factory);
-    return factory;
+  // One bucket per journey, and the root asks the store on every probe, which
+  // is what lets two concurrent requests each keep their own. See
+  // `instrument/probe-log.cts` for what a switch between them costs.
+  const engine = probeLog.createEngine(true);
+  type Bucket = ReturnType<typeof engine.open>;
+  const buckets = new Map<string, Bucket>();
+  const bucketFor = (journey: string): Bucket => {
+    let bucket = buckets.get(journey);
+    if (bucket === undefined) {
+      bucket = engine.open(journey);
+      buckets.set(journey, bucket);
+    }
+    return bucket;
   };
-  const resolve = (): Factory => factoryFor(store.getStore() ?? UNATTRIBUTED);
+  // The last answer, kept: consecutive probes almost always share a journey,
+  // and a string compare is cheaper than a `Map.get`.
+  let lastJourney = UNATTRIBUTED;
+  let lastBucket = bucketFor(UNATTRIBUTED);
+  engine.scope((): Bucket => {
+    const journey = store.getStore() ?? UNATTRIBUTED;
+    if (journey !== lastJourney || lastBucket.closed) {
+      lastJourney = journey;
+      lastBucket = bucketFor(journey);
+    }
+    return lastBucket;
+  });
 
   const report = (journey: string, over: Channel | undefined): void => {
-    const modules = counters.get(journey);
-    counters.delete(journey);
-    factories.delete(journey);
-    if (modules === undefined) return;
-    const entered: ExecutedModule[] = [];
-    for (const [id, counted] of modules) {
-      const hits: number[] = [];
-      const shared: number[] = [];
-      for (let ordinal = 0; ordinal < counted.length; ordinal += 1) {
-        const count = counted[ordinal]!;
-        if (count === 0) continue;
-        hits.push(ordinal);
-        // A module a request was the first to need evaluated inside that
-        // journey, and what it did then is every subject's: the driver folds
-        // it in beside the process's own unattributed crossings.
-        if (count >= EVALUATING) shared.push(ordinal);
-      }
-      if (hits.length > 0) entered.push({ id, hits, shared });
-    }
+    const bucket = buckets.get(journey);
+    buckets.delete(journey);
+    if (bucket === undefined) return;
+    // A module a request was the first to need evaluated inside that journey,
+    // and what it did then is every subject's: the driver folds its `shared`
+    // in beside the process's own unattributed crossings.
+    const entered: ExecutedModule[] = engine.lists(engine.close(bucket), false);
     if (entered.length === 0) return;
     if (over === undefined) return;
     const account: JourneyAccount = {
@@ -305,18 +285,18 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   const flush = async (): Promise<void> => {
     // `report` deletes the key it was handed, which is the one being visited —
     // the only mutation a Map iteration is allowed to see and go on.
-    for (const journey of counters.keys()) report(journey, channels.get(journey));
+    for (const journey of buckets.keys()) report(journey, channels.get(journey));
     await Promise.all(sending);
   };
 
-  // A data property, with the scope one level in on `s`. An accessor on the
-  // realm reads the same store and defeats the inline cache the probe is made
-  // of; see `instrument/index.ts` for what that costs a hit.
+  // A data property on the realm, with the scope one level in on the root. An
+  // accessor on the realm defeats the inline cache the probe is made of; see
+  // `instrument/index.ts` for what that costs a hit.
   Object.defineProperty(globalThis, '__VA__', {
     configurable: true,
     writable: true,
     enumerable: false,
-    value: factoryFor(UNATTRIBUTED),
+    value: engine.root,
   });
 
   return {

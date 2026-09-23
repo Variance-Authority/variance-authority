@@ -8,11 +8,11 @@
  * under `node_modules` is not transformed, so an ES `import` here would be a
  * syntax error in every project that did not opt into ES modules.
  *
- * The counters it reads belong to the factory `jest-globals.cts` installs — a
- * `Uint32Array` per module, nothing per probe beyond an increment — and they go
+ * What it reads is the collector `jest-globals.cts` installs: a log of the
+ * regions the file entered, each logged the first time and never again. It goes
  * to the run directory the reporter named as a frame, from `afterAll`,
- * synchronously. The counters are never turned into rows on the way: what the
- * suite is charged for here is one pass over each array. The journal never
+ * synchronously, and what the suite is charged for here is one sort of that log
+ * — the regions the file entered, not the regions it loaded. The journal never
  * crosses the worker's IPC channel and never accumulates — a run of twenty
  * thousand files is twenty thousand small files on disk, not one map in the
  * parent's heap.

@@ -1,7 +1,7 @@
 /**
  * What instrumentation adds to a worker that is already holding the repository.
  *
- * The counters are the obvious cost and they are the small one. A worker that
+ * The recording is the obvious cost and it is the small one. A worker that
  * runs a test reaching forty thousand modules has *evaluated* forty thousand
  * modules: their source, their functions, their closures, the registry entry
  * for each. That bill is the repository's and is paid whether or not anything
@@ -12,8 +12,8 @@
  * is the difference. Two variants of one generated tree:
  *
  *   plain         the modules as written
- *   instrumented  the same modules through `instrument()`, counted by the
- *                 factory Jest installs, drained by `encodeJournal`
+ *   instrumented  the same modules through `instrument()`, recorded by the
+ *                 collector Jest installs, drained by `encodeJournal`
  *
  * Module shapes are drawn from the real snapshot's block-count distribution, so
  * a generated module has as many branch regions as a real one does.
@@ -129,7 +129,7 @@ const run = (variant) => {
   writeFileSync(script, `
 import { createRequire } from 'node:module';
 const require = createRequire(${JSON.stringify(import.meta.url)});
-${variant === 'probed' ? `const factory = require('../dist/test-selection/jest-globals.cjs')();
+${variant === 'probed' ? `const collector = require('../dist/test-selection/jest-globals.cjs')();
 const { encodeJournal } = require('../dist/test-selection/journal-format.cjs');` : ''}
 const before = process.memoryUsage();
 const started = Date.now();
@@ -140,10 +140,11 @@ const ran = Date.now() - started;
 const after = process.memoryUsage();
 ${variant === 'probed'
   ? `const encodeStarted = Date.now();
-const frame = encodeJournal('/repo/deep.test.ts', factory.modules);
+const { modules } = collector.finish('/repo/deep.test.ts');
+const frame = encodeJournal('/repo/deep.test.ts', modules);
 const encodeMs = Date.now() - encodeStarted;
 const peak = process.memoryUsage().rss;
-process.stdout.write(JSON.stringify({ rss: after.rss, heap: after.heapUsed, imported, ran, answer, recorded: factory.modules.size, frame: frame.length, encodeMs, peak, before: before.rss }));`
+process.stdout.write(JSON.stringify({ rss: after.rss, heap: after.heapUsed, imported, ran, answer, recorded: modules.size, frame: frame.length, encodeMs, peak, before: before.rss }));`
   : `process.stdout.write(JSON.stringify({ rss: after.rss, heap: after.heapUsed, imported, ran, answer, recorded: 0, frame: 0, encodeMs: 0, peak: after.rss, before: before.rss }));`}
 `);
   const done = spawnSync(process.execPath, ['--stack-size=4000', script], { encoding: 'utf8', maxBuffer: 1 << 24 });
@@ -160,7 +161,7 @@ const probed = run('probed');
 console.log(`\nimporting the whole tree from its root`);
 console.log(`  plain:        ${mb(plain.rss)} rss, ${mb(plain.heap)} heap, imported in ${plain.imported} ms, ran in ${plain.ran - plain.imported} ms`);
 console.log(`  instrumented: ${mb(probed.rss)} rss, ${mb(probed.heap)} heap, imported in ${probed.imported} ms, ran in ${probed.ran - probed.imported} ms`);
-console.log(`  ${probed.recorded.toLocaleString()} modules registered counters`);
+console.log(`  ${probed.recorded.toLocaleString()} modules registered rows`);
 console.log(`  instrumentation adds ${mb(probed.rss - plain.rss)} rss (${(((probed.rss - plain.rss) / plain.rss) * 100).toFixed(1)}%), ${((probed.rss - plain.rss) / MODULES).toFixed(0)} bytes a module`);
 console.log(`  and ${probed.imported - plain.imported} ms of import (${(((probed.imported - plain.imported) / plain.imported) * 100).toFixed(1)}%)`);
 console.log(`  the journal: ${(probed.frame / 1024).toFixed(1)} KB in ${probed.encodeMs} ms`);

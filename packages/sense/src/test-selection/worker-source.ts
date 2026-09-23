@@ -1,25 +1,26 @@
 /**
  * Every module this seam generates, as text.
  *
- * Three modules are written rather than imported — the setup file each worker
- * evaluates, the runner that opens a case scope, and the collectors inside them
- * — because each has to arrive somewhere an import cannot reach it: a Vite
- * virtual id, a sandbox with no transform, a worker with no resolution root.
- * They are gathered here so that what crosses that boundary is one file to read,
- * and so neither half that consumes them has to carry the other's text.
+ * Two modules are written rather than imported — the setup file each worker
+ * evaluates, and the runner that opens a case scope — because each has to
+ * arrive somewhere an import cannot reach it: a Vite virtual id, a worker with
+ * no resolution root. They are gathered here so that what crosses that
+ * boundary is one file to read, and so neither half that consumes them has to
+ * carry the other's text.
  *
- * Nothing here runs in this process. A mistake in this file is a mistake in a
- * string, which is why `cases.concurrency.test.ts` evaluates the collector in a
- * child realm rather than trusting that it reads correctly.
+ * The collectors are not text. The setup module requires `collectors.cjs`,
+ * which is the file Jest's setup runs, so the two runners share one
+ * implementation rather than a copy each.
  */
 
-import { AMBIENT, CASE_SCOPE } from './cases.js';
+import { CASE_SCOPE } from './cases.js';
 
 /** The realm key {@link CASE_SCOPE} is, as the generated source has to spell it. */
 const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
 
 /**
- * This file, so the setup module can reach the codec beside it.
+ * This file, so the setup module can reach the collectors and the codec beside
+ * it.
  *
  * The setup module is loaded by id through this plugin and has no directory of
  * its own to resolve a package name from, which leaves an absolute reference —
@@ -27,16 +28,16 @@ const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
  * resolves every specifier a module it transforms names. A file under jsdom is
  * transformed in web mode, where an absolute `file:` URL is not a specifier
  * anything resolves, and the codec is CommonJS that has no business going
- * through a transform in either mode. `node:module` is a builtin, so the one
+ * through a transform in either mode; so are the collectors. `node:module` is a builtin, so the one
  * import the setup module keeps is one every runner already externalizes.
  */
 const HERE = import.meta.url;
 
 /**
- * The module every test file evaluates before itself: the counter factory, and
- * the handoff at the end.
+ * The module every test file evaluates before itself: the collector, and the
+ * handoff at the end.
  *
- * The counters go out as a frame through the same codec the Jest half uses, so
+ * What it entered goes out as a frame through the same codec the Jest half uses, so
  * neither runner's journals are a shape the other does not read, and neither
  * worker builds a row per module to hand one over.
  */
@@ -60,24 +61,10 @@ export interface SetupShim {
    * cases whose work outlived them.
    *
    * Off, the case running now is a variable and a second case opening while one
-   * is still open is refused. {@link caseCollectorSource} has both modes and
+   * is still open is refused. `collectors.cts` has both modes, and `cases.ts`
    * what each costs.
    */
   readonly continuations?: boolean;
-}
-
-/**
- * Make `factory` the realm's root, or point the root already there at it.
- *
- * A probe reads the global once and keeps it, so a second test file in the same
- * realm — Vitest without isolation, one module graph for every file — cannot
- * replace it: the modules the first file evaluated would go on counting into the
- * first file's map. It moves the root's `s` instead, which every probe asks.
- */
-function installRoot(factory: string, resolver = `() => ${factory}`): string {
-  return `const realmRoot = globalThis.__VA__;
-if (realmRoot === undefined) globalThis.__VA__ = ${factory};
-else realmRoot.s = ${resolver};`;
 }
 
 export function setupSource(
@@ -85,35 +72,6 @@ export function setupSource(
   caseDirectory?: string,
   shim: SetupShim = {},
 ): string {
-  // One counter set for the whole file, which is what the file-level snapshot
-  // asks for and all it asks for.
-  const flat = `
-const modules = new Map();
-// A module \`vi.resetModules\` evaluates again resolves this again, and keeps
-// what it counted before the reset: same name and block count, same counters.
-const factory = (id, count) => {
-  let counters = modules.get(id);
-  if (counters === undefined || counters.length !== count) {
-    counters = new Uint32Array(count);
-    modules.set(id, counters);
-  }
-  return counters;
-};
-// Nothing here is scoped, and the probe still asks. Every collector declares
-// \`s\`, empty spelled \`undefined\`, so that load reads one shape whichever
-// collector the realm installed.
-factory.s = undefined;
-${installRoot('factory')}
-// The same arrays keep counting after this, so the snapshot is a copy.
-const seal = () => new Map([...modules].map(([id, counters]) => [id, counters.slice()]));
-const finish = () => ({ modules, frames: [] });
-`;
-
-  // One counter set per case, keyed by async context, plus the ambient bucket
-  // for everything no case owns. The file-level snapshot is their union, which
-  // is bit-for-bit what the flat collector above would have counted.
-  const scoped = caseCollectorSource(shim.continuations === true);
-
   const writeCases = caseDirectory === undefined ? '' : caseWriterSource(caseDirectory);
 
   return `
@@ -122,7 +80,12 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-${caseDirectory === undefined ? flat : scoped}
+const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').${
+    caseDirectory === undefined ? 'flat(globalThis)' : `scoped(globalThis, ${shim.continuations === true})`
+  };
+const seal = (testFile) => collector.seal(testFile);
+const finish = (testFile) => collector.finish(testFile);
+const runaways = () => collector.runaways();
 ${caseDirectory === undefined ? '' : (shim.scope ?? '')}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
@@ -157,211 +120,6 @@ ${caseDirectory === undefined ? '' : `  const outlived = runaways();
     );
   }
 `}${writeCases}});`;
-}
-
-/**
- * The page-and-worker half, as source, because it has to cross a bundler.
- *
- * `node:async_hooks` is a builtin, which every runner externalizes — the same
- * reason the generated setup module may already import `node:fs/promises` while
- * running under jsdom.
- *
- * The ambient factory is minted eagerly so that a module evaluated before any
- * case exists finds one, and so `__vaE` — which re-resolves the factory to
- * lower the evaluating depth — finds the same object its `__va(0)` raised it on.
- *
- * `__VA__` is a data property holding that ambient factory, and the scope is
- * read through its `s` rather than through an accessor on the realm. The
- * accessor is the shape this started as and it costs six nanoseconds a hit for
- * nothing — [`instrument`](../instrument/index.ts) has the reading and the
- * reason.
- *
- * ## Two ways to know which case is running
- *
- * A suite runs its cases one at a time. While that holds, the case running now
- * is a variable: `enter` assigns it, restores it when the case settles, and the
- * resolver reads it. That is **1.6 ns** a crossing against the file-level
- * probe's 1.3, and on top of it the axis pays for a counter set per case and a
- * re-resolve at each case boundary: **6.1%** more time inside the tests over
- * zod's suite against the same run recorded per file, and **3.5%** over
- * TanStack Query's.
- *
- * It holds until a case's work outlives the case, which is the same fault two
- * cases running at once is the other end of. Two cases cannot both be one
- * variable, so the second `enter` is refused with an error naming both rather
- * than charging one case's crossings to the other — the direction
- * [`selecting.md`](../../../../docs/selecting.md) forbids, because a case
- * credited with less than it reached is a case a change can skip. A
- * continuation that arrives after its case closed lands in the ambient bucket,
- * which every case in the file is given: over-inclusive, which is allowed, and
- * silent, which is the part worth fixing.
- *
- * So `continuations` swaps the variable for an {@link AsyncLocalStorage}, which
- * follows a case's continuations wherever they settle and gives concurrent
- * cases a store each. It costs **6.3 ns** a crossing, of which 5.5 is
- * `getStore()` itself — 4.7 ns over the variable, a separation a microbenchmark
- * shows and a suite does not: over zod the crossing count predicts 0.2%, and
- * ten interleaved repetitions cannot resolve that. It is also
- * the mode that *names* the tests whose work outlived them: a crossing resolved
- * to a case that has already closed marks that case, and the file reports it.
- *
- * @param continuations Follow each case's continuations through the async
- * context, and report the cases whose work outlived them.
- */
-export function caseCollectorSource(continuations = false): string {
-  // A builtin import hoists above everything, so it leads; the rest of the mode
-  // follows `ambientFactory`, which it closes over.
-  const imports = continuations ? `import { AsyncLocalStorage } from 'node:async_hooks';\n` : '';
-  const mode = continuations
-    ? `const scopes = new AsyncLocalStorage();
-// The store holds the factory itself rather than the key it was minted under:
-// the probe asks on every hit, and a \`Map.get\` on a case coordinate is most of
-// what asking costs once the accessor is gone.
-//
-// \`open\` is the one thing this mode reads that a variable cannot. A crossing
-// resolved to a case that has already settled is that case still working, and
-// the file names it at the end.
-function resolve() {
-  const factory = scopes.getStore();
-  if (factory === undefined) return ambientFactory;
-  if (factory.open !== false) return factory;
-  factory.late = true;
-  if (factory.closed !== true) return factory;
-  // Its bucket is written already, so the late work opens a second under the
-  // same key, and the reader joins the two frames into one case.
-  const again = factoryFor(factory.key);
-  again.open = false;
-  again.late = true;
-  return again;
-}
-const release = (factory) => { factory.open = false; close(factory.key, factory.key); };
-const enter = (key, body) => {
-  const factory = factoryFor(key);
-  factory.open = true;
-  return scopes.run(factory, () => settling(factory, body));
-};`
-    : `// One case at a time, so the case running now is a variable and the probe
-// reads a closure slot for it — the flat price. \`continuations\` is the mode
-// that survives a case outliving itself; this one refuses to guess when it
-// does, because the guess is the unsafe direction.
-let current = ambientFactory;
-function resolve() { return current; }
-const release = (factory) => {
-  factory.open = false;
-  if (current === factory) current = ambientFactory;
-  close(factory.key, factory.key);
-};
-const enter = (key, body) => {
-  if (current !== ambientFactory) {
-    throw new Error(
-      'variance-authority: ' + nameOf(current.key) + ' was still running when ' +
-      nameOf(key) + ' started. Per-case recording holds one case at a time, ' +
-      'which is two cases open at once — a concurrent group, or a case that ' +
-      'left work behind. Record with { cases: true, continuations: true }: it ' +
-      'follows every case through the async context and names the ones whose ' +
-      'work outlived them.',
-    );
-  }
-  const factory = factoryFor(key);
-  current = factory;
-  return settling(factory, body);
-};`;
-
-  return `${imports}const buckets = new Map();
-const factories = new Map();
-// A bucket is written the moment its case settles and then dropped, so a worker
-// holds one case's counters and the file's union, never every case until
-// \`afterAll\`. Presence, not arithmetic: every reader asks only whether a
-// counter is above zero and whether it carries the evaluating bit, so the union
-// is a bitwise or — summing would overflow the bit that answers the second.
-const union = new Map();
-const frames = [];
-const late = [];
-const close = (key, name) => {
-  const held = buckets.get(key) ?? new Map();
-  const factory = factories.get(key);
-  if (factory !== undefined) {
-    factory.closed = true;
-    if (factory.late && key !== ${JSON.stringify(AMBIENT)}) late.push(nameOf(key));
-  }
-  buckets.delete(key);
-  factories.delete(key);
-  if (held.size === 0) return held;
-  frames.push(journalFormat.encodeJournal(name, held));
-  for (const [id, counters] of held) {
-    const into = union.get(id);
-    if (into === undefined || into.length !== counters.length) {
-      union.set(id, counters.slice());
-      continue;
-    }
-    for (let at = 0; at < counters.length; at += 1) into[at] |= counters[at];
-  }
-  return held;
-};
-const factoryFor = (key) => {
-  let factory = factories.get(key);
-  if (factory !== undefined) return factory;
-  const held = new Map();
-  buckets.set(key, held);
-  factory = (id, count) => {
-    let counters = held.get(id);
-    if (counters === undefined || counters.length !== count) {
-      counters = new Uint32Array(count);
-      held.set(id, counters);
-    }
-    return counters;
-  };
-  factory.s = resolve;
-  factory.key = key;
-  factory.open = true;
-  factory.late = false;
-  factories.set(key, factory);
-  return factory;
-};
-let ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
-${mode}
-// A case is over when its body settles, not when it returns: an async case
-// returns a promise at its first await and everything past that await is still
-// the case. A synchronous one has no promise and is over on return.
-const settling = (factory, body) => {
-  let answered;
-  try {
-    answered = body();
-  } catch (thrown) {
-    release(factory);
-    throw thrown;
-  }
-  if (answered === null || typeof answered !== 'object' || typeof answered.then !== 'function') {
-    release(factory);
-    return answered;
-  }
-  return answered.then(
-    (value) => { release(factory); return value; },
-    (thrown) => { release(factory); throw thrown; },
-  );
-};
-// The coordinate is \`file\\0declaration path\\0ordinal\`; a reader knows a case by the middle one.
-const nameOf = (key) => key.split('\\u0000')[1] || key.split('\\u0000')[0];
-${installRoot('ambientFactory', 'resolve')}
-globalThis[Symbol.for('variance-authority.test-selection.cases')] = { enter };
-// Empty in the mode that cannot see one: a variable has no memory of a case
-// that closed, so a late crossing lands in the ambient bucket unnamed.
-const runaways = () => [...new Set(late)];
-const ambientKey = (testFile) => journalFormat.packCase(testFile, '', '');
-const seal = (testFile) => {
-  const before = ambientFactory;
-  const loaded = close(${JSON.stringify(AMBIENT)}, ambientKey(testFile));
-  // A new identity, not a new map behind the old one: a probe keeps the array
-  // it resolved until the factory it resolved changes.
-  ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
-  ambientFactory.e = before.e;
-  if (${continuations ? 'false' : 'current === before'}) current = ambientFactory;
-  return loaded;
-};
-const finish = (testFile) => {
-  for (const key of buckets.keys()) close(key, key === ${JSON.stringify(AMBIENT)} ? ambientKey(testFile) : key);
-  return { modules: union, frames };
-};`;
 }
 
 /**

@@ -13,13 +13,13 @@
  *    prediction is that it costs frames only while it is running; what it
  *    actually costs is the difference between the two numbers below.
  * 2. **Reach depth** — how many hops from the test file a module sits. The
- *    counters are keyed by module id alone: there is no caller in them, no
+ *    log is keyed by module id alone: there is no caller in them, no
  *    parent, no span. So the prediction is that a chain of N modules costs
  *    exactly what a fan of N modules costs, and the frames are byte-identical.
  *
  * A prediction that is only read off the source is not a measurement. These are
- * real files, instrumented by `instrument()`, imported by Node, counted by the
- * factory Jest installs and drained by `encodeJournal`.
+ * real files, instrumented by `instrument()`, imported by Node, recorded by the
+ * collectors Jest installs and drained by `encodeJournal`.
  *
  *   node packages/sense/scripts/depth-load.mjs [modules] [depth]
  */
@@ -31,7 +31,7 @@ import { pathToFileURL } from 'node:url';
 import { instrument } from '../dist/instrument/index.js';
 
 const require = createRequire(import.meta.url);
-const install = require('../dist/test-selection/jest-globals.cjs');
+const collectors = require('../dist/test-selection/collectors.cjs');
 const { encodeJournal } = require('../dist/test-selection/journal-format.cjs');
 
 const MODULES = Number(process.argv[2] ?? 2_000);
@@ -85,7 +85,6 @@ process.stdout.write(String(safe));
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
-const factory = install();
 const probed = instrument(recursive, 'recursive.ts', 1);
 if (probed === undefined) { console.error('the recursion fixture would not parse'); process.exit(1); }
 
@@ -167,16 +166,18 @@ const build = async (shape, label) => {
 
 const record = async (shape, label) => {
   const { dir, chains, blocksTotal } = await build(shape, label);
-  factory.modules.clear();
+  // A collector per shape: each opens a bucket of its own in the one engine.
+  const collector = collectors.flat(globalThis);
   const before = process.memoryUsage().rss;
   const started = Date.now();
   const { run } = await import(pathToFileURL(`${dir}/test.mjs`).href);
   const answer = run();
   const ms = Date.now() - started;
-  const frame = encodeJournal('/repo/src/shape.test.ts', factory.modules);
+  const { modules } = collector.finish('/repo/src/shape.test.ts');
+  const frame = encodeJournal('/repo/src/shape.test.ts', modules);
   let ordinals = 0;
-  for (const counters of factory.modules.values()) for (const value of counters) if (value > 0) ordinals += 1;
-  return { shape, chains, label, blocksTotal, ms, frame, ordinals, answer, rss: process.memoryUsage().rss - before, recorded: factory.modules.size };
+  for (const counters of modules.values()) for (const value of counters) if (value > 0) ordinals += 1;
+  return { shape, chains, label, blocksTotal, ms, frame, ordinals, answer, rss: process.memoryUsage().rss - before, recorded: modules.size };
 };
 
 console.log(`\nreach depth: ${MODULES.toLocaleString()} modules, arranged three ways`);

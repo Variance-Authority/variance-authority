@@ -59,8 +59,8 @@ function instrumentModule(
 ): void {
   const file = cleanId(this.resourcePath);
   const run = runOf(this.getOptions().coverageFile);
-  // This seam's own setup module installs the counter factory; instrumented,
-  // its own header would ask for the factory before the module has installed
+  // This seam's own setup module installs the probe log; instrumented,
+  // its own header would ask for the log before the module has installed
   // it. It is a file under the project root like any other, so it is excluded
   // by path rather than by the shape of its name.
   if (run === undefined || run.shims.has(file) || !run.include(file)) {

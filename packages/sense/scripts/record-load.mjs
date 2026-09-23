@@ -3,15 +3,15 @@
  *
  * Everything measured so far was the snapshot side — the crossing relation once
  * it is already a file. This is the other half, and the one the goal names: a
- * worker is live, the probes are firing, and the counters are in the heap of a
+ * worker is live, the probes are firing, and the log is in the heap of a
  * process that also has the runner, the module registry and the test in it. If
  * recording a forty-thousand-module closure costs more than the ceiling, no
  * store format downstream matters.
  *
- * Nothing here is a model of the recording path. The factory is the one Jest
- * installs (`jest-globals.cjs`), the increment is the one the instrumenter
- * emits (`instrument/index.ts`), the frame is `encodeJournal` and the read-back
- * is `scanJournal`. The only synthetic thing is *which* modules — and their
+ * Nothing here is a model of the recording path. The collector is the one Jest
+ * installs (`jest-globals.cjs`), the probe is the text the instrumenter emits
+ * (`instrument/index.ts`), the frame is `encodeJournal` and the read-back is
+ * `scanJournal`. The only synthetic thing is *which* modules — and their
  * shapes are sampled from the real snapshot rather than guessed:
  *
  *   - blocks a module has: the empirical distribution over 935 real modules
@@ -28,6 +28,7 @@
 
 import { writeFileSync, readFileSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { PROBE_RUNTIME } from '../dist/instrument/index.js';
 import { readTestCoverage } from '../dist/test-selection/index.js';
 
 const require = createRequire(import.meta.url);
@@ -86,12 +87,12 @@ const random = () => {
 const draw = (bag) => bag[(random() * bag.length) | 0];
 
 // ---------------------------------------------------------------------------
-// Stage 1: record. The factory is Jest's, the increment is the instrumenter's.
+// Stage 1: record. The collector is Jest's, the probe is the instrumenter's.
 
 const base = settle();
 console.log(`\nbaseline rss ${mb(base)}`);
 
-const factory = install();
+const collector = install();
 /** What each module will be asked for, and what of it will be entered. */
 const counts = new Int32Array(MODULES);
 const entered = new Int32Array(MODULES);
@@ -108,22 +109,24 @@ for (let module = 0; module < MODULES; module += 1) { blocksTotal += counts[modu
 const recordStarted = Date.now();
 let increments = 0;
 for (let module = 0; module < MODULES; module += 1) {
-  // What the emitted header does, once per module: resolve the counter array.
-  const counters = factory(module, counts[module]);
-  // What `__va(i)` does, once per block execution. A block a test enters runs
-  // more than once — a loop body, a component rendered per row — so the real
-  // shape is a handful of increments per entered block, not one.
+  // A block a test enters runs more than once — a loop body, a component
+  // rendered per row — so the real shape is a handful of probe calls per
+  // entered block, not one. One module in seven is entered while it evaluates.
   const blocks = counts[module];
   const hits = entered[module];
-  const evaluating = module % 7 === 0 ? EVALUATING : 0;
-  for (let hit = 0; hit < hits; hit += 1) {
-    const ordinal = ((hit * 2654435761) >>> 0) % blocks;
-    const times = 1 + ((ordinal * 7) % 5);
-    for (let again = 0; again < times; again += 1) {
-      counters[ordinal] = (counters[ordinal] + 1) | evaluating;
-      increments += 1;
+  const enter = (probe) => {
+    for (let hit = 0; hit < hits; hit += 1) {
+      const ordinal = ((hit * 2654435761) >>> 0) % blocks;
+      const times = 1 + ((ordinal * 7) % 5);
+      for (let again = 0; again < times; again += 1) probe(ordinal);
+      increments += times;
     }
-  }
+  };
+  const header = PROBE_RUNTIME.replace('.r(0,0)', `.r(${module},${blocks})`);
+  const probe = new Function('__run', `${header}__run(__va);__vaE();return __va;`)(
+    module % 7 === 0 ? enter : () => {},
+  );
+  if (module % 7 !== 0) enter(probe);
   if ((module & 1023) === 0) mark();
 }
 const recordMs = Date.now() - recordStarted;
@@ -132,15 +135,16 @@ const held = settle();
 
 console.log(`\nrecording one test file that enters ${MODULES.toLocaleString()} modules`);
 console.log(`  ${blocksTotal.toLocaleString()} blocks in those modules, ${crossingsTotal.toLocaleString()} of them entered (${((crossingsTotal / blocksTotal) * 100).toFixed(1)}%)`);
-console.log(`  ${increments.toLocaleString()} probe increments in ${recordMs} ms — ${((recordMs * 1e6) / increments).toFixed(0)} ns an increment`);
+console.log(`  ${increments.toLocaleString()} probe calls in ${recordMs} ms, each module header compiled included — ${((recordMs * 1e6) / increments).toFixed(0)} ns a call`);
 console.log(`  rss ${mb(afterRecord)} at the end of the file, ${mb(held)} once settled`);
-console.log(`  the counters themselves: ${mb(held - base)} for ${MODULES.toLocaleString()} arrays — ${((held - base) / MODULES).toFixed(0)} bytes a module`);
+console.log(`  the log and its rows: ${mb(held - base)} for ${MODULES.toLocaleString()} modules — ${((held - base) / MODULES).toFixed(0)} bytes a module`);
 
 // ---------------------------------------------------------------------------
 // Stage 2: encode. This is the moment a worker is largest.
 
 const encodeStarted = Date.now();
-const frame = encodeJournal('/repo/src/feature/thing.test.ts', factory.modules);
+const { modules: recorded } = collector.finish('/repo/src/feature/thing.test.ts');
+const frame = encodeJournal('/repo/src/feature/thing.test.ts', recorded);
 const encodeMs = Date.now() - encodeStarted;
 const afterEncode = mark();
 
@@ -163,7 +167,7 @@ scanJournal(readFileSync(`${OUT}/one.vajrn`), {
   test: () => {},
   module: (id, hits, shared) => {
     rows += 1;
-    const counters = factory.modules.get(id);
+    const counters = recorded.get(id);
     if (counters === undefined) { missing += 1; return; }
     const truth = [];
     for (let ordinal = 0; ordinal < counters.length; ordinal += 1) if (counters[ordinal] > 0) truth.push(ordinal);
@@ -230,7 +234,7 @@ let complementBytes = 0;
 let complemented = 0;
 let exact = 0;
 
-for (const [id, counters] of factory.modules) {
+for (const [id, counters] of recorded) {
   idBytes += 1 + widthOf(id);
   const hits = [];
   const shares = [];

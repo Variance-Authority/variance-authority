@@ -9,6 +9,7 @@ import {
   instrumentModeOf,
   type ModuleId,
 } from './index.js';
+import probeLog from './probe-log.cjs';
 
 /**
  * Differential execution, in miniature.
@@ -24,7 +25,7 @@ async function trace(source: string, withRuntime = false): Promise<readonly unkn
   const out: unknown[] = [];
   const context = realm(
     out,
-    withRuntime ? { __VA__: (_id: ModuleId, count: number) => new Uint32Array(count) } : {},
+    withRuntime ? { __VA__: recorder().root } : {},
   );
 
   runInContext(source, context, { filename: 'fixture.js' });
@@ -52,30 +53,46 @@ function realm(out: unknown[], extra: Record<string, unknown> = {}): object {
   });
 }
 
-/** The counters one evaluation set, by block ordinal, without the evaluating bit. */
-async function hits(source: string): Promise<Uint32Array> {
-  return (await raw(source)).map((count) => (count & ~EVALUATING) >>> 0);
+/**
+ * A probe log with one bucket in use, the way the flat collector keeps one,
+ * and what it holds: per module, one entry per block ordinal, 1 for entered
+ * with the evaluating bit beside it.
+ */
+function recorder(): { root: unknown; read(id: ModuleId, count: number): Uint32Array } {
+  const engine = probeLog.createEngine(false);
+  const bucket = engine.open('');
+  engine.use(bucket);
+  return {
+    root: engine.root,
+    read(id, count) {
+      const out = new Uint32Array(count);
+      for (const entered of engine.lists(engine.read(bucket), true)) {
+        if (entered.id !== id) continue;
+        for (const ordinal of entered.hits) out[ordinal] = 1;
+        for (const ordinal of entered.shared) out[ordinal] = (EVALUATING | 1) >>> 0;
+      }
+      return out;
+    },
+  };
 }
 
-/** The counters as the collector sees them, evaluating bit and all. */
+/** What one evaluation entered, by block ordinal, without the evaluating bit. */
+async function hits(source: string): Promise<Uint32Array> {
+  return (await raw(source)).map((entered) => (entered & ~EVALUATING) >>> 0);
+}
+
+/** What one evaluation entered as the collector sees it, evaluating bit and all. */
 async function raw(source: string): Promise<Uint32Array> {
   const instrumented = instrument(source, 'fixture.js');
   expect(instrumented).toBeDefined();
 
-  const counters = new Map<ModuleId, Uint32Array>();
-  const out: unknown[] = [];
-  const context = realm(out, {
-    __VA__: (id: ModuleId, count: number) => {
-      const held = counters.get(id) ?? new Uint32Array(count);
-      counters.set(id, held);
-      return held;
-    },
-  });
+  const recorded = recorder();
+  const context = realm([], { __VA__: recorded.root });
 
   runInContext(instrumented!.code, context, { filename: 'fixture.js' });
   await (context as { done?: unknown }).done;
 
-  return counters.get('fixture.js') ?? new Uint32Array();
+  return recorded.read('fixture.js', instrumented!.blocks.length);
 }
 
 /** Both traces, so a fixture states its expectation once. */
@@ -240,7 +257,7 @@ describe('instrumented code does what the original did', () => {
       'fixture.js',
     )!.code;
 
-    expect(code.startsWith('function __va(')).toBe(true);
+    expect(code.startsWith('var __vaK,')).toBe(true);
   });
 
   it('calls its generated runtime without a guard', () => {
@@ -260,7 +277,7 @@ describe('instrumented code does what the original did', () => {
     expect(() =>
       runInContext(
         instrumented!.code,
-        realm([], { __VA__: (_id: ModuleId, count: number) => new Uint32Array(count) }),
+        realm([], { __VA__: recorder().root }),
         { filename: 'fixture.js' },
       ),
     ).toThrow(/__va is not defined/);
@@ -277,21 +294,21 @@ describe('the probes record what was entered', () => {
       counted[instrumented.blocks.find((block) => block.path === path)!.ordinal]!;
 
     expect(at('if#0/then')).toBe(1);
-    expect(at('if#0/else')).toBe(2);
+    expect(at('if#0/else')).toBe(1);
   });
 
-  it('counts a loop body once per iteration and its continuation once per call', async () => {
+  it('marks the continuation of a loop whose body never ran, and not the body', async () => {
     const source = `function f(items) { for (const i of items) out.push(i); out.push('after'); }
-      f([1, 2, 3]); f([]);`;
+      f([]);`;
     const instrumented = instrument(source, 'fixture.js')!;
     const counted = await hits(source);
 
     const at = (path: string): number =>
       counted[instrumented.blocks.find((block) => block.path === path)!.ordinal]!;
 
-    expect(at('entry')).toBe(2);
-    expect(at('for#0/body')).toBe(3);
-    expect(at('for#0/after')).toBe(2);
+    expect(at('entry')).toBe(1);
+    expect(at('for#0/body')).toBe(0);
+    expect(at('for#0/after')).toBe(1);
   });
 
   it('never fires a region no test entered', async () => {
@@ -324,7 +341,7 @@ describe('the probes record what was entered', () => {
 
     expect(at('module')).toBe(EVALUATING + 1);
     expect(at('if#0/then')).toBe(EVALUATING + 1);
-    expect(at('entry')).toBe(EVALUATING + 2);
+    expect(at('entry')).toBe(EVALUATING + 1);
     expect(at('if#0/else')).toBe(1);
   });
 
@@ -343,7 +360,7 @@ import x from 'y';`,
     for (const source of shapes) {
       const code = instrument(source, 'fixture.js')!.code;
       expect(code, source).toContain(';__vaE();');
-      expect(code.indexOf(';__vaE();'), source).toBeGreaterThan(code.indexOf('__va(0);'));
+      expect(code.indexOf(';__vaE();'), source).toBeGreaterThan(code.indexOf('|__vaB);'));
       expect(code.split('\n'), source).toHaveLength(source.split('\n').length);
       expect(parseSync('fixture.js', code, { sourceType: 'module' }).errors, source).toEqual([]);
     }
@@ -356,8 +373,8 @@ import x from 'y';`,
       done = Promise.resolve().then(() => f());
       throw new Error('mid-evaluation');`;
     const instrumented = instrument(source, 'fixture.js')!;
-    const counters = new Uint32Array(instrumented.blocks.length);
-    const context = realm([], { __VA__: () => counters });
+    const recorded = recorder();
+    const context = realm([], { __VA__: recorded.root });
 
     expect(() => runInContext(instrumented.code, context, { filename: 'fixture.js' })).toThrow(
       'mid-evaluation',
@@ -365,7 +382,7 @@ import x from 'y';`,
     await (context as { done?: unknown }).done;
 
     const entry = instrumented.blocks.find((block) => block.path === 'entry')!.ordinal;
-    expect(counters[entry]).toBe(EVALUATING + 1);
+    expect(recorded.read('fixture.js', instrumented.blocks.length)[entry]).toBe(EVALUATING + 1);
   });
 
   it('makes each outcome and later decision name the arrival region that governs it', () => {

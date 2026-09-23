@@ -60,7 +60,7 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(setupFiles).toHaveLength(2);
     expect(setupFiles[1]).toBe('./test/setup.mjs');
     // First, so a setup file of the project's that loads an instrumented
-    // module finds the counter factory its header resolves.
+    // module finds the probe log its header resolves.
     const shim = await readFile(setupFiles[0]!, 'utf8');
     expect(shim).toContain("from \"@rstest/core\"");
     // A run that was not asked for cases opens no scope, and the shim that

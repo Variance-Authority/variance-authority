@@ -338,7 +338,7 @@ export function cleanId(id: string): string {
  * Product source, as every runner seam defaults to reading it.
  *
  * A `*.config.[cm]?[jt]s` file is read by a loader rather than by the test
- * environment, so the setup shim that installs the counter factory has never run
+ * environment, so the setup shim that installs the probe log has never run
  * where one evaluates: instrumented, its first probe throws and takes the run
  * with it. The precise exclusion is the resolved config's own `globalSetup` list
  * (`vitest.ts`); this is the backstop for what no config names, itself first.

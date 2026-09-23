@@ -1,108 +1,73 @@
 #!/usr/bin/env node
 
 /**
- * What the counter write costs, isolated from everything around it.
+ * What a probe hit costs, isolated from everything around it.
  *
- * The probe's steady state is nine reads, a compare, an add, an or and a store.
- * Everything but the last three is fixed by the contract — the factory identity
- * check is what lets a module outlive a test file, and the evaluating bit is
- * what makes a top-level call shared evidence — so the only part of the hot
- * path that is a free choice is how the counter is written:
+ * A region's first touch in a segment sets its flag and appends it to the log;
+ * every later touch reads the flag and returns. The later touches are almost
+ * all of them — a suite enters a region once per case and runs it thousands of
+ * times — so the steady state is what this prices: two module-scoped loads,
+ * two byte reads and an `and`, with no call. Two shapes of it:
  *
- *   count    c[i] = c[i] + 1 | bit     what the emitter writes today
- *   presence c[i] |= 1 | bit           one fewer operation, same two predicates
- *   floor    c[i] = 1                  no read, no bit, and not a candidate
+ *   current  the emitted runtime over a flat engine: what a test file records with
+ *   scoped   the same runtime over an engine that asks its scope which bucket is
+ *            current, so every hit calls in: what `continuations` and journeys
+ *            pay, less the store's own lookup
  *
- * Nothing downstream reads the magnitude. Both consumers of a counter ask
- * `> 0` and `>= EVALUATING` (`probes.ts`, `journey.ts`) and the worker merges
- * two readings with `|=`, so `presence` is a behaviour-preserving substitution
- * and `floor` is only here to price the read: it drops the bit and would lose
- * the evaluating half of every observation.
- *
- * Each variant is a generated module carrying the real emitted prologue, hit
+ * Each variant is a generated module carrying the real emitted runtime, hit
  * through distinct call sites the way instrumented code is. Variants are
  * interleaved round-robin so a thermal drift lands on all of them, and the
  * estimator is the minimum — a floor, not a mean.
  *
  * **`control` is the load-bearing column.** It is a second copy of `current`,
  * byte-identical, timed the same way. A difference smaller than the gap between
- * `current` and `control` is this machine, not the write.
+ * `current` and `control` is this machine, not the probe.
  *
  * Read it at a small region count. At 64 call sites the spread is decided by
  * inlining and code layout — an arm doing strictly less work measures slower —
- * and the write is only legible once the sites are few enough to compile
+ * and the probe is only legible once the sites are few enough to compile
  * alike.
  *
  * Run:  yarn probe-write
  *       yarn probe-write 64 1000000 9   # regions, sweeps, rounds
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { EVALUATING } from '../dist/instrument/index.js';
+import { PROBE_RUNTIME } from '../dist/instrument/index.js';
+
+const probeLog = createRequire(import.meta.url)('../dist/instrument/probe-log.cjs');
 
 const REGIONS = Number(process.argv[2] ?? 4);
 const SWEEPS = Number(process.argv[3] ?? 1_000_000);
 const ROUNDS = Number(process.argv[4] ?? 9);
 const HITS = REGIONS * SWEEPS;
 
-const WRITES = {
-  count: (bit) => `__va.c[i]=__va.c[i]+1|${bit}`,
-  presence: (bit) => `__va.c[i]|=1|${bit}`,
-  floor: () => `__va.c[i]=1`,
-};
-
-/**
- * The guard half of the probe, which is the part that is a position rather than
- * a micro-optimization.
- *
- * `hardwired` is what the emitter writes today. `checked` is what it wrote
- * before, and the difference is everything that existed to survive a
- * misconfiguration:
- *
- *   - `g &&` — a realm with no factory. Gone, so a missing collector is a
- *     `TypeError` at the first probe instead of a sentence naming the file.
- *   - `typeof r !== 'function'` and the message beside it. That branch is cold
- *     — it only runs while registering — but the message is a string constant
- *     per instrumented module, so it is paid in bytes and in compile.
- *   - `__va.c === undefined ||`. This one is not defence at all, it is
- *     redundant: `__va.r` starts `undefined` and no factory is `undefined`, so
- *     the identity test already answers the first call. It is a property load
- *     and a compare on every hit.
- */
-const GUARDS = {
-  checked: (id, count, absent) =>
-    `const g=globalThis.__VA__;const r=g&&g.s?g.s():g;` +
-    `if(__va.c===undefined||__va.r!==r){if(typeof r!=='function')throw new Error(${absent});` +
-    `const again=__va.c!==undefined;__va.r=r;__va.c=r(${id},${count});if(again)__va.c[0]+=1}`,
-  hardwired: (id, count) =>
-    `const g=globalThis.__VA__;const r=g.s?g.s():g;` +
-    `if(__va.r!==r){const again=__va.c!==undefined;__va.r=r;__va.c=r(${id},${count});if(again)__va.c[0]+=1}`,
-};
-
+/** Where each variant's module finds its root, and how its probe reads it on a hit. */
 const SHAPES = {
-  current: { guard: 'hardwired', write: 'count' },
-  control: { guard: 'hardwired', write: 'count' },
-  guarded: { guard: 'checked', write: 'count' },
-  presence: { guard: 'hardwired', write: 'presence' },
-  floor: { guard: 'hardwired', write: 'floor' },
+  current: { root: '__VA__', hit: (runtime) => runtime },
+  control: { root: '__VA__', hit: (runtime) => runtime },
+  scoped: { root: '__VA_SCOPED__', hit: (runtime) => runtime },
 };
 
 const ORDER = (process.env['PROBE_ORDER'] ?? '').split(',').filter(Boolean);
 const VARIANTS = ORDER.length > 0 ? ORDER : Object.keys(SHAPES);
 
-/** The shipped flat collector, which is the shape the probe's inline cache sees. */
-const modules = new Map();
-globalThis.__VA__ = (id, count) => {
-  const held = modules.get(id) ?? new Uint32Array(count);
-  modules.set(id, held);
-  return held;
-};
-globalThis.__VA__.s = undefined;
+// The flat engine a test file records with, and a scoped one beside it whose
+// resolver always answers the same bucket, so it never switches.
+const flat = probeLog.createEngine(false);
+const flatBucket = flat.open('');
+flat.use(flatBucket);
+globalThis.__VA__ = flat.root;
+const scoped = probeLog.createEngine(true);
+const scopedBucket = scoped.open('');
+scoped.scope(() => scopedBucket);
+globalThis.__VA_SCOPED__ = scoped.root;
 
 /**
- * A module in the emitter's own shape: the prologue verbatim but for the part
+ * A module in the emitter's own shape: the runtime verbatim but for the part
  * under test, then one probed function per region and a sweep that calls every
  * one of them.
  *
@@ -112,8 +77,10 @@ globalThis.__VA__.s = undefined;
  */
 function source(id, variant) {
   const shape = SHAPES[variant];
-  const absent = JSON.stringify(`probe-write: no factory for ${id}`);
-  const bit = `(r.e>0?${EVALUATING}:0)`;
+  const runtime = PROBE_RUNTIME.replace('.r(0,0)', `.r(${JSON.stringify(id)},${REGIONS + 1})`).replace(
+    '__vaK=globalThis.__VA__;',
+    `__vaK=globalThis.${shape.root};`,
+  );
   const sites = [];
   const calls = [];
   for (let region = 1; region <= REGIONS; region += 1) {
@@ -121,16 +88,12 @@ function source(id, variant) {
     calls.push(`total=f${region}(total)`);
   }
   return (
-    `function __va(i){${GUARDS[shape.guard](JSON.stringify(id), REGIONS + 1, absent)}` +
-    `${WRITES[shape.write](bit)}}\n` +
-    `function __vaE(){const g=globalThis.__VA__;const r=g.s?g.s():g;r.e=r.e>1?r.e-1:0}\n` +
-    `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};\n` +
+    `${shape.hit(runtime)}\n` +
     `${sites.join('\n')}\n` +
     // Evaluation is over before the sweeps run, which is the branch a test
-    // takes: an arm left evaluating would measure the other side of `r.e > 0`.
+    // takes: an arm left evaluating would measure the other side of the bit.
     `__vaE();\n` +
-    `export function sweep(times){let total=0;for(let n=0;n<times;n+=1){${calls.join(';')}}return total}\n` +
-    `export const counters=()=>__va.c;\n`
+    `export function sweep(times){let total=0;for(let n=0;n<times;n+=1){${calls.join(';')}}return total}\n`
   );
 }
 
@@ -159,12 +122,11 @@ try {
     }
   }
 
-  const entered = (variant) => {
-    const counters = loaded.get(variant).counters();
-    let hit = 0;
-    for (const counter of counters) if ((counter & ~EVALUATING) >>> 0 || counter) hit += 1;
-    return hit;
-  };
+  const held = [
+    ...flat.lists(flat.read(flatBucket), true),
+    ...scoped.lists(scoped.read(scopedBucket), true),
+  ];
+  const entered = (variant) => held.find((row) => row.id === variant)?.hits.length ?? 0;
 
   const floorOf = (variant) => Math.min(...timings.get(variant));
   const base = floorOf(VARIANTS[0]);

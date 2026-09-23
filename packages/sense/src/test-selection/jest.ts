@@ -14,8 +14,8 @@
  *   to an inventory keyed by the same cache key Jest stores the text under. A
  *   warm run pays neither the transform nor the parse.
  * - [`jest-setup.cts`](./jest-setup.cts) runs inside each test file's sandbox,
- *   hands every instrumented module its counters, and writes one journal per
- *   test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
+ *   gives every instrumented module the log it writes into, and writes one
+ *   journal per test file to disk in `afterAll`. Nothing crosses the worker's IPC channel,
  *   which is where a coverage map of the whole run goes out of memory.
  * - [`jest-reporter.ts`](./jest-reporter.ts) names the run directory before the
  *   workers fork. A journey-only run seals its journals for a post-Jest fold;
@@ -106,7 +106,7 @@ export interface JestJourneyCoverageOptions {
   readonly root?: string;
   /** Native per-test journey artifact written by `variance journeys finalize` after Jest. */
   readonly journeyFile: string;
-  /** Files Jest transforms before the counter factory exists; transformed, but never probed. */
+  /** Files Jest transforms before the probe log exists; transformed, but never probed. */
   readonly preconditions?: readonly string[];
   /** Probe recipe. Defaults to every arrival region. */
   readonly mode?: InstrumentMode;
@@ -172,7 +172,7 @@ export const RUN_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_RUN';
  * sandbox: once by `jest-globals.cts`, which has to choose its collector before
  * the first probe resolves, and once by `jest-setup.cts`, which writes there.
  * One variable rather than a flag and a path, because a collector that scoped
- * its counters and a writer with nowhere to put them is a suite paying for an
+ * its log by case and a writer with nowhere to put them is a suite paying for an
  * answer nobody reads.
  */
 export const CASE_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES';
@@ -214,7 +214,7 @@ export const SELECTION_REPORTER = here('./jest-reporter.js');
  * ```
  *
  * Everything the configuration already had stays. Its `setupFiles` keep their
- * order and gain one file at the start — the counter factory every probe
+ * order and gain one file at the start — the probe log's root every probe
  * resolves, which has to be there before a setup file of the project's loads
  * an instrumented module — and its `setupFilesAfterEnv` keep theirs and gain
  * the journal writer at the end; its `reporters` keep theirs and gain one at
@@ -310,7 +310,7 @@ function inlineProjects(config: JestConfig): readonly JestConfig[] | undefined {
 
 /**
  * The halves of a configuration Jest reads per project: the transform that
- * places the probes and the two setup phases that install the factory and
+ * places the probes and the two setup phases that install the probe log and
  * write the journal. Reporters are the run's, not a project's — Jest ignores
  * a project's — so they are added once, above.
  */

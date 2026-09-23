@@ -148,7 +148,7 @@ describe('what the seam refuses to instrument', () => {
 
       expect(plugin.transform(source, resolve(root, 'eyes.globalSetup.ts'))).toBeNull();
       // The exclusion is the named path, not every file beside it.
-      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('__va(0)');
+      expect(plugin.transform(source, resolve(root, 'src/cart.ts'))!.code).toContain('function __va(i)');
     } finally {
       await rm(root, { recursive: true, force: true });
     }
@@ -171,7 +171,7 @@ describe('what the seam refuses to instrument', () => {
       // directory its journals go to.
       expect(setup).toMatch(/\.variance-authority\/test-selection-setup-\d+-[0-9a-f-]+\.mjs$/);
       expect(runner).toMatch(/\.variance-authority\/test-selection-case-runner-\d+-[0-9a-f-]+\.mjs$/);
-      expect(await readFile(setup, 'utf8')).toContain('__VA__');
+      expect(await readFile(setup, 'utf8')).toContain('collectors.cjs');
       expect(await readFile(runner, 'utf8')).toContain('runTask');
     } finally {
       await rm(root, { recursive: true, force: true });
@@ -324,8 +324,9 @@ describe('coverage generations', () => {
       const placed = plugin.transform('export function f(x) { if (x) { return 1; } return 2; }', resolve(root, 'f.ts'));
       await reporter.onFinished([]);
 
-      // One probe for the module, one for the function, none for the branch.
-      expect(placed!.code.match(/__va\(\d+\)/g)).toEqual(['__va(0)', '__va(1)']);
+      // One probe for the function and none for the branch; the header marks
+      // the module itself.
+      expect(placed!.code.match(/__va\(\d+\)/g)).toEqual(['__va(1)']);
       const coverage = decodeTestCoverage(await readFile(coverageFile));
       expect(coverage.instrumentation).toBe(instrumentationId('entries'));
       expect(coverage.modules[0]?.blocks.map((block) => block.kind)).toEqual(['module', 'function']);

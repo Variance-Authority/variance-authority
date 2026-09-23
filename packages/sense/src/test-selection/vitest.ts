@@ -177,7 +177,7 @@ export function withTestSelection(
     test: {
       ...config.test,
       // First, so a setup file of the project's that loads an instrumented
-      // module finds the counter factory its header resolves. On disk rather
+      // module finds the probe log's root its header resolves. On disk rather
       // than virtual — see {@link writeSeamModule}.
       setupFiles: [
         writeSeamModule(
@@ -252,8 +252,8 @@ function selectionPlugin(
     name: 'variance-authority:test-selection',
     enforce: 'post',
     transform(code, id) {
-      // The setup module installs the counter factory; instrumented, its own
-      // header would ask for the factory before the module has installed it.
+      // The setup module installs the probe log; instrumented, its own header
+      // would ask for the log's root before the module has installed it.
       // The runner module is this seam's too, and both sit under the root the
       // default include reaches. Compared after the query suffix is stripped,
       // because the runner is a file on disk now and a real file is the kind of

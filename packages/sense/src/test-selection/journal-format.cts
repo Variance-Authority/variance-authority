@@ -126,6 +126,67 @@ function gaps(out: Writer, ordinals: Uint32Array, count: number): void {
   }
 }
 
+/**
+ * A probe log's read-out: which rows, in order, and where each row's entries
+ * sit in `sorted`. Each entry is an ordinal shifted left one, with the
+ * evaluating bit below it. `instrument/probe-log.cts` makes these.
+ */
+interface LogRows {
+  readonly rows: readonly number[];
+  readonly start: Int32Array;
+  readonly end: Int32Array;
+  readonly sorted: Int32Array;
+  readonly ids: readonly ModuleId[];
+}
+
+/**
+ * {@link encodeJournal} of a case's bucket, read from the probe log directly.
+ *
+ * The bytes are the ones `encodeJournal(name, counters)` writes for the same
+ * bucket: modules in the order the bucket first entered them, ordinals rising,
+ * and no `loaded` list, because a case frame has none. Writing from the log
+ * skips building a counter array per module per case only to scan it for the
+ * few entries that are set.
+ */
+function encodeLog(name: string, log: LogRows): Buffer {
+  const out = new Writer();
+  for (const byte of MAGIC) out.byte(byte);
+  out.text(name);
+  out.number(log.rows.length);
+  const { start, end, sorted } = log;
+  for (const row of log.rows) {
+    const id = log.ids[row]!;
+    if (typeof id === 'number') {
+      out.byte(NUMBERED);
+      out.number(id);
+    } else {
+      out.byte(NAMED);
+      out.text(id);
+    }
+    const from = start[row]!;
+    const to = end[row]!;
+    out.number(to - from);
+    let last = 0;
+    let early = 0;
+    for (let at = from; at < to; at += 1) {
+      const ordinal = sorted[at]! >>> 1;
+      out.number(ordinal - last);
+      last = ordinal;
+      early += sorted[at]! & 1;
+    }
+    out.number(early);
+    last = 0;
+    for (let at = from; at < to; at += 1) {
+      if ((sorted[at]! & 1) === 0) continue;
+      const ordinal = sorted[at]! >>> 1;
+      out.number(ordinal - last);
+      last = ordinal;
+    }
+    out.number(0);
+  }
+  return out.done();
+}
+
 /** A frame back as rows. Throws on anything that does not end where it says. */
 function decodeJournal(raw: Uint8Array): ReadJournal {
   const read = new Reader(raw);
@@ -388,4 +449,4 @@ function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
   return frames;
 }
 
-export = { encodeJournal, decodeJournal, scanJournal, packCase, unpackCase, packFrames, unpackFrames };
+export = { encodeJournal, encodeLog, decodeJournal, scanJournal, packCase, unpackCase, packFrames, unpackFrames };

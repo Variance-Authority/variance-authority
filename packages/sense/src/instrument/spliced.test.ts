@@ -164,13 +164,13 @@ describe('the header', () => {
       const code = instrument(FIXTURES[file]!, file)!.code;
       const statements = parseSync(file, code).program.body as readonly {
         type: string;
-        id?: { name: string };
+        declarations?: readonly { id: { name: string } }[];
       }[];
       const first = statements.findIndex((statement) => statement.type !== 'ImportDeclaration');
 
       expect(statements[first]).toMatchObject({
-        type: 'FunctionDeclaration',
-        id: { name: '__va' },
+        type: 'VariableDeclaration',
+        declarations: [{ id: { name: '__vaK' } }, {}, {}, {}],
       });
     },
   );

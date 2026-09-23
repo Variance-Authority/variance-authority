@@ -1,169 +1,168 @@
-import { execFile } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
-import { promisify } from 'node:util';
-import { afterEach, describe, expect, it } from 'vitest';
-import { caseCollectorSource } from './worker-source.js';
-
-const execute = promisify(execFile);
-const temporary: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
-});
+import { createRequire } from 'node:module';
+import { describe, expect, it } from 'vitest';
+import { PROBE_RUNTIME } from '../instrument/index.js';
+import journals from './journal-format.cjs';
 
 /**
- * The emitted prologue, as one module's probe.
- *
- * Copied rather than imported because the real one is text spliced into a
- * transformed file, and what is under test here is the *collector* underneath
- * it. The line that matters is the one the emitter writes: the probe caches its
- * counter array and re-resolves it only when the factory changes identity,
- * which is the whole reason a resolver over an async store works at all.
+ * The collectors as a worker loads them: built, because they `require` their
+ * neighbours by the names the build gives them.
  */
-const PROBE = `
-const EVALUATING = 0x80000000;
-const __va = (i) => {
-  const g = globalThis.__VA__;
-  const r = g && g.s ? g.s() : g;
-  if (__va.c === undefined || __va.r !== r) {
-    const again = __va.c !== undefined;
-    __va.r = r;
-    __va.c = r('m', 8);
-    if (again) __va.c[0] += 1;
-  }
-  __va.c[i] = (__va.c[i] + 1) | (r.e > 0 ? EVALUATING : 0);
-};
-const nap = (ms) => new Promise((wake) => setTimeout(wake, ms));
-const ordinalsOf = (counters) => {
-  const out = [];
-  for (let i = 1; i < counters.length; i += 1) if (counters[i] > 0) out.push(i);
-  return out;
-};
-// Case A enters 1 and 2 across an await, and leaves a continuation that enters
-// 5 and 6 long after the case itself is over. Case B enters 3 and 4, entirely
-// inside A's window. This is one \`describe.concurrent\` block, in miniature.
-const alpha = async () => { __va(1); await nap(10); __va(2); };
-const beta = async () => { __va(3); await nap(4); __va(4); };
-const floating = () => { void nap(30).then(() => { __va(5); __va(6); }); };
-`;
+const collectors = createRequire(import.meta.url)(
+  '../../dist/test-selection/collectors.cjs',
+) as typeof import('./collectors.cjs');
+
+type Probe = (ordinal: number) => void;
+type Scope = { enter<Result>(key: string, body: () => Result): Result };
+
+const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
+const nap = (ms: number): Promise<void> => new Promise((wake) => setTimeout(wake, ms));
 
 /**
- * Reading the buckets out of whichever collector the source installed.
+ * One module's probe — the text the transform emits, as module `m` with eight
+ * regions — evaluated against a realm of the test's own.
  *
- * A bucket is encoded and dropped as its case settles, so the report reads the
- * frames rather than the buckets: the stand-in encoder below keeps what it was
- * handed, and a case that outlived itself arrives as two frames, joined here
- * the way the reader joins them.
+ * The holder stands in for `globalThis`: the collector claims `__VA__` on
+ * whatever it is handed, and this suite is itself recorded through the real
+ * one. The module finishes evaluating before any case opens, as a test file's
+ * imports do.
  */
-const REPORT = `
-const seen = {};
-for (const { key, held } of finish('').frames) {
-  const counters = held.get('m');
-  if (counters === undefined) continue;
-  const name = key === '' ? 'ambient' : key;
-  seen[name] = [...new Set([...(seen[name] ?? []), ...ordinalsOf(counters)])].sort((l, r) => l - r);
+function probeIn(holder: object): Probe {
+  const runtime = PROBE_RUNTIME.replace('.r(0,0)', '.r("m",8)');
+  expect(runtime).not.toBe(PROBE_RUNTIME);
+  return new Function('globalThis', `${runtime}__vaE();return __va;`)(holder) as Probe;
 }
-seen.late = runaways();
-console.log(JSON.stringify(seen));
-`;
 
-/** The encoder the setup module requires, standing in so frames stay readable. */
-const ENCODER = `const journalFormat = {
-  encodeJournal: (key, held) => ({ key, held }),
-  packCase: (file) => file,
-};
-`;
+/**
+ * Case A enters 1 and 2 across an await, and leaves a continuation that enters
+ * 5 and 6 long after the case itself is over. Case B enters 3 and 4, entirely
+ * inside A's window. This is one `describe.concurrent` block, in miniature.
+ */
+function cases(va: Probe) {
+  return {
+    alpha: async (): Promise<void> => {
+      va(1);
+      await nap(10);
+      va(2);
+    },
+    beta: async (): Promise<void> => {
+      va(3);
+      await nap(4);
+      va(4);
+    },
+    floating: (): void => {
+      void nap(30).then(() => {
+        va(5);
+        va(6);
+      });
+    },
+  };
+}
+
+/**
+ * The ordinals each frame holds for `m`, by case, read back through the
+ * journal codec the way the reader reads a `.vac`. A case that outlived itself
+ * arrives as two frames, joined here the way the reader joins them.
+ */
+function report(collector: ReturnType<typeof collectors.scoped>): Record<string, unknown> {
+  const seen: Record<string, number[]> = {};
+  const ambient = journals.packCase('', '', '');
+  for (const frame of journals.unpackFrames(journals.packFrames(collector.finish('').frames ?? []))) {
+    const { testFile, modules } = journals.decodeJournal(frame);
+    const row = modules.find((module) => module.id === 'm');
+    if (row === undefined) continue;
+    const name = testFile === ambient ? 'ambient' : testFile;
+    // Ordinal 0 is the module itself, which every bucket it was touched in
+    // holds: the ambient bucket has it from the module's evaluation alone.
+    const ordinals = row.hits.filter((ordinal) => ordinal > 0);
+    if (ordinals.length === 0) continue;
+    seen[name] = [...new Set([...(seen[name] ?? []), ...ordinals])].sort((left, right) => left - right);
+  }
+  return { ...seen, late: collector.runaways() };
+}
 
 /** The async-context collector, driven through one interleaving. */
-const SCOPED = `${ENCODER}${caseCollectorSource(true)}
-${PROBE}
-const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
-await Promise.all([
-  scope.enter('A', async () => { await alpha(); floating(); }),
-  scope.enter('B', beta),
-]);
-await nap(60);
-${REPORT}`;
+async function scoped(): Promise<Record<string, unknown>> {
+  const holder: Record<PropertyKey, unknown> = {};
+  const collector = collectors.scoped(holder, true);
+  const { alpha, beta, floating } = cases(probeIn(holder));
+  const scope = holder[CASE_SCOPE] as Scope;
+  await Promise.all([
+    scope.enter('A', async () => {
+      await alpha();
+      floating();
+    }),
+    scope.enter('B', beta),
+  ]);
+  await nap(60);
+  return report(collector);
+}
 
 /**
  * The default collector — one case at a time, the case running now in a
  * variable — over three cases that never overlap, the last of which leaves work
  * behind.
  */
-const SEQUENTIAL = `${ENCODER}${caseCollectorSource()}
-${PROBE}
-const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
-await scope.enter('A', alpha);
-await scope.enter('B', beta);
-// Synchronous to the harness, async underneath: the case is over the instant it
-// returns, and its work is not.
-scope.enter('C', () => { floating(); });
-await nap(60);
-${REPORT}`;
+async function sequential(): Promise<Record<string, unknown>> {
+  const holder: Record<PropertyKey, unknown> = {};
+  const collector = collectors.scoped(holder, false);
+  const { alpha, beta, floating } = cases(probeIn(holder));
+  const scope = holder[CASE_SCOPE] as Scope;
+  await scope.enter('A', alpha);
+  await scope.enter('B', beta);
+  // Synchronous to the harness, async underneath: the case is over the instant
+  // it returns, and its work is not.
+  scope.enter('C', () => {
+    floating();
+  });
+  await nap(60);
+  return report(collector);
+}
 
 /** The same default collector, handed two cases at once. */
-const REFUSED = `${ENCODER}${caseCollectorSource()}
-${PROBE}
-const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
-try {
-  await Promise.all([scope.enter('A', alpha), scope.enter('B', beta)]);
-  console.log(JSON.stringify({ refused: null }));
-} catch (error) {
-  console.log(JSON.stringify({ refused: error.message }));
+async function refused(): Promise<string | null> {
+  const holder: Record<PropertyKey, unknown> = {};
+  collectors.scoped(holder, false);
+  const { alpha, beta } = cases(probeIn(holder));
+  const scope = holder[CASE_SCOPE] as Scope;
+  try {
+    await Promise.all([scope.enter('A', alpha), scope.enter('B', beta)]);
+    return null;
+  } catch (error) {
+    return (error as Error).message;
+  }
 }
-`;
 
 /**
  * Snapshot-and-subtract over the same interleaving: the file-level collector
- * this package already ships, with a copy taken where `beforeEach` runs and the
+ * this package ships, with a copy taken where `beforeEach` runs and the
  * difference read where `afterEach` does.
  */
-const SUBTRACT = `
-const modules = new Map();
-globalThis.__VA__ = (id, count) => {
-  let counters = modules.get(id);
-  if (counters === undefined || counters.length !== count) {
-    counters = new Uint32Array(count);
-    modules.set(id, counters);
-  }
-  return counters;
-};
-${PROBE}
-const seen = {};
-const around = async (key, body) => {
-  const before = new Uint32Array(modules.get('m') ?? 8);
-  await body();
-  const after = modules.get('m') ?? new Uint32Array(8);
-  const diff = new Uint32Array(after.length);
-  for (let at = 0; at < after.length; at += 1) diff[at] = after[at] - (before[at] ?? 0);
-  seen[key] = ordinalsOf(diff);
-};
-await Promise.all([
-  around('A', async () => { await alpha(); floating(); }),
-  around('B', beta),
-]);
-await nap(60);
-console.log(JSON.stringify(seen));
-`;
-
-/**
- * In its own process, because the collector claims `globalThis.__VA__` — and
- * this suite is itself recorded through that name.
- */
-async function attribute<Seen = Record<string, number[]>>(source: string): Promise<Seen> {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-cases-'));
-  temporary.push(directory);
-  const file = resolve(directory, 'interleave.mjs');
-  await writeFile(file, source);
-  const { stdout } = await execute(process.execPath, [file]);
-  return JSON.parse(stdout) as Seen;
+async function subtract(): Promise<Record<string, number[]>> {
+  const holder: Record<PropertyKey, unknown> = {};
+  const collector = collectors.flat(holder);
+  const { alpha, beta, floating } = cases(probeIn(holder));
+  const entered = (): Uint32Array => collector.seal('').get('m') ?? new Uint32Array(8);
+  const seen: Record<string, number[]> = {};
+  const around = async (key: string, body: () => Promise<void>): Promise<void> => {
+    const before = entered();
+    await body();
+    const after = entered();
+    seen[key] = [...after.keys()].filter((at) => after[at] !== 0 && before[at] === 0);
+  };
+  await Promise.all([
+    around('A', async () => {
+      await alpha();
+      floating();
+    }),
+    around('B', beta),
+  ]);
+  await nap(60);
+  return seen;
 }
 
 describe('attributing crossings while two cases are in flight', () => {
   it('gives each case what it entered, including after the case is over', async () => {
-    expect(await attribute(SCOPED)).toEqual({
+    expect(await scoped()).toEqual({
       // Not 1 and 2 only: the continuation A left behind settles half a case
       // later and is still A's, because the store it resolves is the one A ran
       // in. Nothing was held open to make that true.
@@ -176,7 +175,7 @@ describe('attributing crossings while two cases are in flight', () => {
   });
 
   it('gives each sequential case its own, and what came late to nobody', async () => {
-    expect(await attribute(SEQUENTIAL)).toEqual({
+    expect(await sequential()).toEqual({
       A: [1, 2],
       B: [3, 4],
       // C's continuation settled after C returned, and a variable has no memory
@@ -190,13 +189,13 @@ describe('attributing crossings while two cases are in flight', () => {
   });
 
   it('refuses two cases at once rather than charging one to the other', async () => {
-    const { refused } = await attribute<{ refused: string | null }>(REFUSED);
-    expect(refused).toContain('A was still running when B started');
-    expect(refused).toContain('continuations: true');
+    const message = await refused();
+    expect(message).toContain('A was still running when B started');
+    expect(message).toContain('continuations: true');
   });
 
   it('is what snapshot-and-subtract cannot do at any price', async () => {
-    const drained = await attribute(SUBTRACT);
+    const drained = await subtract();
 
     // Contamination: B ran entirely inside A's bracket, so A is credited with
     // B's two branches as well as its own. Scale that to a `describe.concurrent`

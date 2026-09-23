@@ -164,7 +164,7 @@ export function withTestSelection(
   run.shims.add(setupId);
 
   // A `globalSetup` file runs before any test environment exists, so the setup
-  // shim that installs the counter factory has never run where one evaluates:
+  // shim that installs the probe log has never run where one evaluates:
   // instrumented, such a file throws at its first probe and takes the whole
   // suite with it.
   const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(configRoot, file)));
@@ -214,7 +214,7 @@ export function withTestSelection(
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
-    // module finds the counter factory its header resolves.
+    // module finds the probe log its header resolves.
     setupFiles: [
       writeSeamModule(
         setupId,

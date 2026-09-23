@@ -10,7 +10,6 @@
  */
 import { readFileSync } from 'node:fs';
 import {
-  EVALUATING,
   instrument,
   instrumentationId,
   type InstrumentMode,
@@ -30,6 +29,7 @@ import {
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
 import { repositoryRoot } from './repository-root.js';
+import probeLog from '../instrument/probe-log.cjs';
 
 /**
  * Where a page hands its journal over.
@@ -64,7 +64,7 @@ export interface ExecutionJournal {
 export interface ExecutionCollector {
   readonly version: 1;
   readonly instrumentation: string;
-  /** Everything entered since the previous drain. Zeroes the counters. */
+  /** Everything entered since the previous drain. Empties the log. */
   readonly drain: () => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
@@ -243,53 +243,34 @@ export function testSelectionProbes(
 /**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
- * `globalThis.__VA__` keeps its identity for the life of the page: the emitted
- * probe caches its counter array and re-resolves only when the factory changes,
- * so a reset that replaced the factory would cost every module a re-registration
- * — and a module that never runs again would never re-register at all.
+ * The engine is `instrument/probe-log.cts`, sent as its own source, so a page records
+ * with the code a test runner records with. A page has one bucket and never
+ * switches it: a drain reads it out and empties it in place.
+ *
+ * `globalThis.__VA__` keeps its identity for the life of the page, because
+ * every module reads it once and keeps it.
  */
 export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
   return `
-const modules = new Map();
-const factory = (id, count) => {
-  let counters = modules.get(id);
-  if (counters === undefined || counters.length !== count) {
-    counters = new Uint32Array(count);
-    modules.set(id, counters);
-  }
-  return counters;
-};
-// Nothing in a page is scoped, and the probe still asks on every hit. Every
-// collector declares \`s\`, empty spelled \`undefined\`, so that load reads one
-// shape whichever collector the realm installed.
-factory.s = undefined;
-// A realm that already has a factory has a collector that knows more than this
-// one: a Node head keys its counters by journey, and this page-shaped map has
-// nowhere to put a caller. Deferring is what lets one instrumented build serve
-// a page and a service, and a page never has anything to defer to.
-if (globalThis.__VA__ === undefined) globalThis.__VA__ = factory;
+const engine = (${probeLog.createEngine.toString()})(false);
+const bucket = engine.open('');
+engine.use(bucket);
+// A realm that already has a root has a collector that knows more than this
+// one: a Node head keys its buckets by journey, and a page has nowhere to put a
+// caller. Deferring is what lets one instrumented build serve a page and a
+// service, and a page never has anything to defer to.
+if (globalThis.__VA__ === undefined) globalThis.__VA__ = engine.root;
 globalThis[${JSON.stringify(EXECUTION_GLOBAL)}] = {
   version: 1,
   instrumentation: ${JSON.stringify(instrumentation)},
   drain() {
-    const entered = [];
-    for (const [id, counters] of modules) {
-      const hits = [];
-      const shared = [];
-      for (let ordinal = 0; ordinal < counters.length; ordinal += 1) {
-        if (counters[ordinal] > 0) {
-          hits.push(ordinal);
-          if (counters[ordinal] >= ${EVALUATING}) shared.push(ordinal);
-          counters[ordinal] = 0;
-        }
-      }
-      if (hits.length > 0) entered.push({ id, hits, shared });
-    }
-    return { instrumentation: ${JSON.stringify(instrumentation)}, modules: entered };
+    // In the order the page first registered each module, drain after drain.
+    const modules = engine.lists(engine.take(bucket), true);
+    return { instrumentation: ${JSON.stringify(instrumentation)}, modules };
   },
   reset() {
-    for (const counters of modules.values()) counters.fill(0);
+    engine.take(bucket);
   },
 };
 `;

@@ -42,7 +42,7 @@
 /**
  * Where a driver installs a carrier in a realm it is inside.
  *
- * `__VA__` is the probe factory and `__VAE__` is the announcement sink; this is
+ * `__VA__` is the probe log's root and `__VAE__` is the announcement sink; this is
  * neither. It is how both of those reach a driver once they have something to
  * say, which is why it is one name rather than one per instrument.
  */
