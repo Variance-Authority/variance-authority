@@ -50,10 +50,17 @@ const NAMED = 1;
 /**
  * The counters as a frame, read straight out of the arrays the probes increment.
  *
- * No row objects and no ordinal arrays are built on the way: a module's
- * crossings are three passes over its `Uint32Array`, and what lands in the
- * buffer is the gap to the previous ordinal. Ordinals rise within a module and
- * the gaps are small, so a region costs one byte.
+ * No row objects are built on the way: a module's live counters are read once,
+ * into two reused scratch columns, and what lands in the buffer is the gap to
+ * the previous ordinal. Ordinals rise within a module and the gaps are small,
+ * so a region costs one byte.
+ *
+ * Once, because this runs in the runner's `afterAll`, against its hook
+ * timeout, and because the arrays are mostly zeros: a case's bucket holds every
+ * counter of every module it touched, entered or not, so a file of a thousand
+ * cases is a quarter of a billion counters to read and a few thousand to
+ * write. Reading them six times — counting and then emitting each of the three
+ * lists — cost 2.8 s on that file; one read is what is left.
  *
  * `loaded` is the counters as they stood before the file's first test: a copy
  * the setup module takes in `beforeAll`, one per module the file had evaluated
@@ -78,25 +85,44 @@ function encodeJournal(
       out.byte(NAMED);
       out.text(id);
     }
-    entered(out, counters, 0);
-    entered(out, counters, EVALUATING);
+    entered(out, counters, true);
     const before = loaded.get(id);
-    entered(out, before !== undefined && before.length === counters.length ? before : NOTHING, 0);
+    entered(out, before !== undefined && before.length === counters.length ? before : NOTHING, false);
   }
   return out.done();
 }
 
-/** The ordinals whose counter reached `least`, as a count and then as gaps. */
-function entered(out: Writer, counters: Uint32Array, least: number): void {
+/** Every ordinal a counter array entered, and those entered while evaluating. */
+let all = new Uint32Array(1 << 12);
+let evaluating = new Uint32Array(1 << 12);
+
+/**
+ * The ordinals whose counter is above zero, as a count and then as gaps — and,
+ * when `split`, then the ones carrying {@link EVALUATING}, the same way.
+ */
+function entered(out: Writer, counters: Uint32Array, split: boolean): void {
+  if (all.length < counters.length) {
+    all = new Uint32Array(counters.length);
+    evaluating = new Uint32Array(counters.length);
+  }
   let count = 0;
-  for (const value of counters) if (value > 0 && value >= least) count += 1;
-  out.number(count);
-  let last = 0;
+  let early = 0;
   for (let ordinal = 0; ordinal < counters.length; ordinal += 1) {
     const value = counters[ordinal]!;
-    if (value === 0 || value < least) continue;
-    out.number(ordinal - last);
-    last = ordinal;
+    if (value === 0) continue;
+    all[count++] = ordinal;
+    if (value >= EVALUATING) evaluating[early++] = ordinal;
+  }
+  gaps(out, all, count);
+  if (split) gaps(out, evaluating, early);
+}
+
+function gaps(out: Writer, ordinals: Uint32Array, count: number): void {
+  out.number(count);
+  let last = 0;
+  for (let at = 0; at < count; at += 1) {
+    out.number(ordinals[at]! - last);
+    last = ordinals[at]!;
   }
 }
 

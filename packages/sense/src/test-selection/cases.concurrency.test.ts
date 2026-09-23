@@ -49,19 +49,35 @@ const beta = async () => { __va(3); await nap(4); __va(4); };
 const floating = () => { void nap(30).then(() => { __va(5); __va(6); }); };
 `;
 
-/** Reading the buckets out of whichever collector the source installed. */
+/**
+ * Reading the buckets out of whichever collector the source installed.
+ *
+ * A bucket is encoded and dropped as its case settles, so the report reads the
+ * frames rather than the buckets: the stand-in encoder below keeps what it was
+ * handed, and a case that outlived itself arrives as two frames, joined here
+ * the way the reader joins them.
+ */
 const REPORT = `
 const seen = {};
-for (const [key, held] of buckets) {
+for (const { key, held } of finish('').frames) {
   const counters = held.get('m');
-  if (counters !== undefined) seen[key === '' ? 'ambient' : key] = ordinalsOf(counters);
+  if (counters === undefined) continue;
+  const name = key === '' ? 'ambient' : key;
+  seen[name] = [...new Set([...(seen[name] ?? []), ...ordinalsOf(counters)])].sort((l, r) => l - r);
 }
 seen.late = runaways();
 console.log(JSON.stringify(seen));
 `;
 
+/** The encoder the setup module requires, standing in so frames stay readable. */
+const ENCODER = `const journalFormat = {
+  encodeJournal: (key, held) => ({ key, held }),
+  packCase: (file) => file,
+};
+`;
+
 /** The async-context collector, driven through one interleaving. */
-const SCOPED = `${caseCollectorSource(true)}
+const SCOPED = `${ENCODER}${caseCollectorSource(true)}
 ${PROBE}
 const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
 await Promise.all([
@@ -76,7 +92,7 @@ ${REPORT}`;
  * variable — over three cases that never overlap, the last of which leaves work
  * behind.
  */
-const SEQUENTIAL = `${caseCollectorSource()}
+const SEQUENTIAL = `${ENCODER}${caseCollectorSource()}
 ${PROBE}
 const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
 await scope.enter('A', alpha);
@@ -88,7 +104,7 @@ await nap(60);
 ${REPORT}`;
 
 /** The same default collector, handed two cases at once. */
-const REFUSED = `${caseCollectorSource()}
+const REFUSED = `${ENCODER}${caseCollectorSource()}
 ${PROBE}
 const scope = globalThis[Symbol.for('variance-authority.test-selection.cases')];
 try {

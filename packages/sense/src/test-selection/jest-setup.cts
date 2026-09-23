@@ -49,13 +49,16 @@ const collector = install();
 // What had run before the file's first test: Jest evaluates the file to
 // collect its tests, then runs the hooks, so every module the file imports has
 // been evaluated by now and whatever its top level called has been counted.
-// Read off the ambient bucket, which is the only one that exists at this point.
-const loaded = new Map<ModuleId, Uint32Array>();
+// The ambient bucket is the only one that exists at this point, and where cases
+// are recorded it is closed here as a record of its own rather than copied.
+let loaded: ReadonlyMap<ModuleId, Uint32Array> = new Map();
 beforeAll(() => {
-  for (const [id, counters] of collector.ambient) loaded.set(id, counters.slice());
+  const testFile = expect.getState().testPath;
+  if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
+  loaded = collector.seal(testFile);
 });
 
-if (collector.cases !== undefined) openCaseScopes();
+if (collector.scoped) openCaseScopes();
 
 afterAll(() => {
   const runDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_RUN'];
@@ -68,11 +71,9 @@ afterAll(() => {
   if (testFile === undefined) throw new Error('variance-authority could not identify the current Jest file');
 
   const stamp = `${process.pid}-${crypto.randomUUID()}`;
+  const { modules, frames } = collector.finish(testFile);
   fs.mkdirSync(runDirectory, { recursive: true });
-  fs.writeFileSync(
-    `${runDirectory}/${stamp}.va`,
-    journals.encodeJournal(testFile, collector.modules, loaded),
-  );
+  fs.writeFileSync(`${runDirectory}/${stamp}.va`, journals.encodeJournal(testFile, modules, loaded));
 
   const outlived = collector.runaways();
   if (outlived.length > 0) {
@@ -85,17 +86,11 @@ afterAll(() => {
   }
 
   const caseDirectory = process.env['VARIANCE_AUTHORITY_TEST_SELECTION_CASES'];
-  if (collector.cases === undefined || caseDirectory === undefined) return;
   // One file per test file rather than per case: a case per file is a file per
   // case per worker — hundreds of thousands of them on the suite this is sized
-  // for. The ambient bucket writes itself under the bare file path, which is
-  // what `unpackCase` reads back as *the bucket no case owns*.
-  const frames: Uint8Array[] = [];
-  for (const [key, held] of collector.cases) {
-    if (held.size === 0) continue;
-    frames.push(journals.encodeJournal(key === '' ? journals.packCase(testFile, '', '') : key, held));
-  }
-  if (frames.length === 0) return;
+  // for. The ambient buckets write themselves under the bare file path, which
+  // is what `unpackCase` reads back as *the bucket no case owns*.
+  if (frames === undefined || caseDirectory === undefined || frames.length === 0) return;
   fs.mkdirSync(caseDirectory, { recursive: true });
   fs.writeFileSync(`${caseDirectory}/${stamp}.vac`, journals.packFrames(frames));
 });

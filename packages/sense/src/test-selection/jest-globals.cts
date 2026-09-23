@@ -41,6 +41,7 @@
  */
 
 import async_hooks = require('node:async_hooks');
+import journals = require('./journal-format.cjs');
 import type { ModuleId } from '../instrument/index.js';
 
 type Counters = Map<ModuleId, Uint32Array>;
@@ -57,6 +58,10 @@ type Factory = ((id: ModuleId, count: number) => Uint32Array) & {
   key?: string;
   /** Whether that case is still running, which is how a late crossing is spotted. */
   open?: boolean;
+  /** Whether its bucket is written and dropped, so a late crossing needs another. */
+  closed?: boolean;
+  /** How many modules are evaluating under this factory; the probe keeps it. */
+  e?: number;
 };
 
 /** What a case frame calls the bucket no case owns; mirrors `AMBIENT` in `cases.ts`. */
@@ -83,12 +88,24 @@ const COLLECTOR = Symbol.for('variance-authority.test-selection.collector');
 
 /** What the journal writer next door reads once the file is done with. */
 interface Collector {
-  /** Everything the file counted, whichever case entered it. */
-  readonly modules: ReadonlyMap<ModuleId, Uint32Array>;
-  /** What no case owns: the whole of it where cases are not recorded. */
-  readonly ambient: ReadonlyMap<ModuleId, Uint32Array>;
-  /** One counter set per case, the ambient bucket among them, or nothing. */
-  readonly cases: ReadonlyMap<string, ReadonlyMap<ModuleId, Uint32Array>> | undefined;
+  /** Whether a counter set is kept per case. */
+  readonly scoped: boolean;
+  /**
+   * What had run before the file's first test, closed as a record of its own.
+   *
+   * Called once, from the first `beforeAll`. The scoped collector writes it as
+   * an ambient frame there and starts a fresh ambient bucket, so what loading
+   * counted is held once rather than copied and held twice.
+   */
+  seal(testFile: string): ReadonlyMap<ModuleId, Uint32Array>;
+  /**
+   * Everything the file counted, whichever case entered it, and a frame per
+   * bucket where cases are recorded. Closes every bucket still open.
+   */
+  finish(testFile: string): {
+    readonly modules: ReadonlyMap<ModuleId, Uint32Array>;
+    readonly frames: readonly Uint8Array[] | undefined;
+  };
   /**
    * The cases that made a crossing after they had settled.
    *
@@ -134,7 +151,30 @@ function flat(holder: Holder): Collector {
   const factory = countersIn(modules);
   factory.s = undefined;
   holder.__VA__ = factory;
-  return { modules, ambient: modules, cases: undefined, runaways: () => [] };
+  return {
+    scoped: false,
+    // The same arrays keep counting after this, so the snapshot is a copy.
+    seal: () => new Map([...modules].map(([id, counters]) => [id, counters.slice()])),
+    finish: () => ({ modules, frames: undefined }),
+    runaways: () => [],
+  };
+}
+
+/**
+ * Presence, not arithmetic: every reader of these arrays asks only whether a
+ * counter is above zero and whether it carries the evaluating bit, so the union
+ * of what the cases and the ambient bucket entered is a bitwise or. Summing
+ * would overflow the bit that answers the second question.
+ */
+function fold(into: Counters, held: ReadonlyMap<ModuleId, Uint32Array>): void {
+  for (const [id, counters] of held) {
+    const union = into.get(id);
+    if (union === undefined || union.length !== counters.length) {
+      into.set(id, counters.slice());
+      continue;
+    }
+    for (let at = 0; at < counters.length; at += 1) union[at]! |= counters[at]!;
+  }
 }
 
 /**
@@ -154,6 +194,23 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   const buckets = new Map<string, Counters>();
   const factories = new Map<string, Factory>();
   const late = new Set<string>();
+  // A bucket is written the moment its case settles and then dropped, so a
+  // worker holds one case's counters and the file's union, never every case
+  // until `afterAll`: a file of a thousand cases held a counter array per case
+  // per module it touched, almost all zeros, for as long as the file ran.
+  const union: Counters = new Map();
+  const frames: Uint8Array[] = [];
+  const close = (key: string, name: string): Counters => {
+    const held = buckets.get(key) ?? new Map();
+    const factory = factories.get(key);
+    if (factory !== undefined) factory.closed = true;
+    buckets.delete(key);
+    factories.delete(key);
+    if (held.size === 0) return held;
+    frames.push(journals.encodeJournal(name, held));
+    fold(union, held);
+    return held;
+  };
   const factoryFor = (key: string): Factory => {
     let factory = factories.get(key);
     if (factory !== undefined) return factory;
@@ -178,14 +235,22 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     if (scopes === undefined) return current;
     const factory = scopes.getStore();
     if (factory === undefined) return ambientFactory;
+    if (factory.open !== false) return factory;
     // A crossing under a case that has already settled is that case still
     // working, which is the whole reason this mode exists.
-    if (factory.open === false) late.add(factory.key ?? AMBIENT);
-    return factory;
+    const key = factory.key ?? AMBIENT;
+    late.add(key);
+    if (factory.closed !== true) return factory;
+    // Its bucket is written already, so the late work opens a second under the
+    // same key, and the reader joins the two frames into one case.
+    const again = factoryFor(key);
+    again.open = false;
+    return again;
   };
   const release = (factory: Factory): void => {
     factory.open = false;
     if (current === factory) current = ambientFactory;
+    if (factory.closed !== true) close(factory.key ?? AMBIENT, factory.key ?? AMBIENT);
   };
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
@@ -218,34 +283,29 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   };
 
   // Minted eagerly, so a module evaluated before any case exists finds one.
-  const ambientFactory = factoryFor(AMBIENT);
+  let ambientFactory = factoryFor(AMBIENT);
   current = ambientFactory;
   holder.__VA__ = ambientFactory;
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter };
 
+  const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {
-    // Presence, not arithmetic: every reader of these arrays asks only whether
-    // a counter is above zero and whether it carries the evaluating bit, so the
-    // union of what the cases and the ambient bucket entered is a bitwise or.
-    // Summing would overflow the bit that answers the second question.
-    get modules(): ReadonlyMap<ModuleId, Uint32Array> {
-      const union: Counters = new Map();
-      for (const held of buckets.values()) {
-        for (const [id, counters] of held) {
-          const into = union.get(id);
-          if (into === undefined || into.length !== counters.length) {
-            union.set(id, counters.slice());
-            continue;
-          }
-          for (let at = 0; at < counters.length; at += 1) into[at]! |= counters[at]!;
-        }
-      }
-      return union;
+    scoped: true,
+    seal(testFile) {
+      const before = ambientFactory;
+      const loaded = close(AMBIENT, ambientKey(testFile));
+      // A new identity, not a new map behind the old one: a probe keeps the
+      // array it resolved until the factory it resolved changes.
+      ambientFactory = factoryFor(AMBIENT);
+      if (before.e !== undefined) ambientFactory.e = before.e;
+      if (current === before) current = ambientFactory;
+      holder.__VA__ = ambientFactory;
+      return loaded;
     },
-    get ambient(): ReadonlyMap<ModuleId, Uint32Array> {
-      return buckets.get(AMBIENT) ?? new Map();
+    finish(testFile) {
+      for (const key of buckets.keys()) close(key, key === AMBIENT ? ambientKey(testFile) : key);
+      return { modules: union, frames };
     },
-    cases: buckets,
     runaways: () => [...late].map(nameOf),
   };
 }

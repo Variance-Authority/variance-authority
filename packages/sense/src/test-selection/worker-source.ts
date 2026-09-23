@@ -89,8 +89,9 @@ globalThis.__VA__ = (id, count) => {
 // \`s\`, empty spelled \`undefined\`, so that load reads one shape whichever
 // collector the realm installed.
 globalThis.__VA__.s = undefined;
-const ambient = () => modules;
-const fileModules = () => modules;
+// The same arrays keep counting after this, so the snapshot is a copy.
+const seal = () => new Map([...modules].map(([id, counters]) => [id, counters.slice()]));
+const finish = () => ({ modules, frames: [] });
 `;
 
   // One counter set per case, keyed by async context, plus the ambient bucket
@@ -112,19 +113,23 @@ ${caseDirectory === undefined ? '' : (shim.scope ?? '')}
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
 // ambient bucket, which is the only one that exists at this point: no case has
-// opened a scope yet.
-const loaded = new Map();
-beforeAll(() => {
-  for (const [id, counters] of ambient()) loaded.set(id, counters.slice());
-});
-afterAll(async () => {
+// opened a scope yet. Where cases are recorded it is closed as a record of its
+// own rather than copied.
+const testPath = () => {
   const testFile = expect.getState().testPath;
   if (!testFile) throw new Error('variance-authority could not identify the current Vitest file');
+  return testFile;
+};
+let loaded = new Map();
+beforeAll(() => { loaded = seal(testPath()); });
+afterAll(async () => {
+  const testFile = testPath();
   const stamp = process.pid + '-' + randomUUID();
+  const { modules, frames } = finish(testFile);
   await mkdir(${JSON.stringify(runDirectory)}, { recursive: true });
   await writeFile(
     ${JSON.stringify(`${runDirectory}/`)} + stamp + '.va',
-    journalFormat.encodeJournal(testFile, fileModules(), loaded),
+    journalFormat.encodeJournal(testFile, modules, loaded),
   );
 ${caseDirectory === undefined ? '' : `  const outlived = runaways();
   if (outlived.length > 0) {
@@ -204,10 +209,17 @@ export function caseCollectorSource(continuations = false): string {
 function resolve() {
   const factory = scopes.getStore();
   if (factory === undefined) return ambientFactory;
-  if (factory.open === false) factory.late = true;
-  return factory;
+  if (factory.open !== false) return factory;
+  factory.late = true;
+  if (factory.closed !== true) return factory;
+  // Its bucket is written already, so the late work opens a second under the
+  // same key, and the reader joins the two frames into one case.
+  const again = factoryFor(factory.key);
+  again.open = false;
+  again.late = true;
+  return again;
 }
-const release = (factory) => { factory.open = false; };
+const release = (factory) => { factory.open = false; close(factory.key, factory.key); };
 const enter = (key, body) => {
   const factory = factoryFor(key);
   factory.open = true;
@@ -219,7 +231,11 @@ const enter = (key, body) => {
 // does, because the guess is the unsafe direction.
 let current = ambientFactory;
 function resolve() { return current; }
-const release = (factory) => { factory.open = false; if (current === factory) current = ambientFactory; };
+const release = (factory) => {
+  factory.open = false;
+  if (current === factory) current = ambientFactory;
+  close(factory.key, factory.key);
+};
 const enter = (key, body) => {
   if (current !== ambientFactory) {
     throw new Error(
@@ -238,6 +254,35 @@ const enter = (key, body) => {
 
   return `${imports}const buckets = new Map();
 const factories = new Map();
+// A bucket is written the moment its case settles and then dropped, so a worker
+// holds one case's counters and the file's union, never every case until
+// \`afterAll\`. Presence, not arithmetic: every reader asks only whether a
+// counter is above zero and whether it carries the evaluating bit, so the union
+// is a bitwise or — summing would overflow the bit that answers the second.
+const union = new Map();
+const frames = [];
+const late = [];
+const close = (key, name) => {
+  const held = buckets.get(key) ?? new Map();
+  const factory = factories.get(key);
+  if (factory !== undefined) {
+    factory.closed = true;
+    if (factory.late && key !== ${JSON.stringify(AMBIENT)}) late.push(nameOf(key));
+  }
+  buckets.delete(key);
+  factories.delete(key);
+  if (held.size === 0) return held;
+  frames.push(journalFormat.encodeJournal(name, held));
+  for (const [id, counters] of held) {
+    const into = union.get(id);
+    if (into === undefined || into.length !== counters.length) {
+      union.set(id, counters.slice());
+      continue;
+    }
+    for (let at = 0; at < counters.length; at += 1) into[at] |= counters[at];
+  }
+  return held;
+};
 const factoryFor = (key) => {
   let factory = factories.get(key);
   if (factory !== undefined) return factory;
@@ -258,7 +303,7 @@ const factoryFor = (key) => {
   factories.set(key, factory);
   return factory;
 };
-const ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
+let ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
 ${mode}
 // A case is over when its body settles, not when it returns: an async case
 // returns a promise at its first await and everything past that await is still
@@ -287,49 +332,24 @@ globalThis.__VA__ = ambientFactory;
 globalThis[Symbol.for('variance-authority.test-selection.cases')] = { enter };
 // Empty in the mode that cannot see one: a variable has no memory of a case
 // that closed, so a late crossing lands in the ambient bucket unnamed.
-const runaways = () => {
-  const names = [];
-  for (const factory of factories.values()) if (factory.late) names.push(nameOf(factory.key));
-  return names;
+const runaways = () => [...new Set(late)];
+const ambientKey = (testFile) => journalFormat.packCase(testFile, '', '');
+const seal = (testFile) => {
+  const before = ambientFactory;
+  const loaded = close(${JSON.stringify(AMBIENT)}, ambientKey(testFile));
+  // A new identity, not a new map behind the old one: a probe keeps the array
+  // it resolved until the factory it resolved changes.
+  ambientFactory = factoryFor(${JSON.stringify(AMBIENT)});
+  ambientFactory.e = before.e;
+  if (${continuations ? 'false' : 'current === before'}) current = ambientFactory;
+  globalThis.__VA__ = ambientFactory;
+  return loaded;
 };
-const ambient = () => buckets.get(${JSON.stringify(AMBIENT)});
-// Presence, not arithmetic: every reader of these arrays asks only whether a
-// counter is above zero and whether it carries the evaluating bit, so the union
-// of what the cases and the ambient bucket entered is a bitwise or. Summing
-// would overflow the bit that answers the second question.
-const fileModules = () => {
-  const union = new Map();
-  for (const held of buckets.values()) {
-    for (const [id, counters] of held) {
-      const into = union.get(id);
-      if (into === undefined || into.length !== counters.length) {
-        union.set(id, counters.slice());
-        continue;
-      }
-      for (let at = 0; at < counters.length; at += 1) into[at] |= counters[at];
-    }
-  }
-  return union;
-};
-${PACK_FRAMES_SOURCE}`;
+const finish = (testFile) => {
+  for (const key of buckets.keys()) close(key, key === ${JSON.stringify(AMBIENT)} ? ambientKey(testFile) : key);
+  return { modules: union, frames };
+};`;
 }
-
-/** {@link packFrames}, as source, for the worker that has no import of it. */
-const PACK_FRAMES_SOURCE = `
-const packFrames = (frames) => {
-  let total = 0;
-  for (const frame of frames) total += frame.length + 4;
-  const out = new Uint8Array(total);
-  const view = new DataView(out.buffer);
-  let at = 0;
-  for (const frame of frames) {
-    view.setUint32(at, frame.length, true);
-    out.set(frame, at + 4);
-    at += frame.length + 4;
-  }
-  return out;
-};
-`;
 
 /**
  * The tail of the setup module's `afterAll`: every bucket out as its own frame.
@@ -341,17 +361,9 @@ const packFrames = (frames) => {
  */
 export function caseWriterSource(caseDirectory: string): string {
   return `
-  const frames = [];
-  for (const [key, held] of buckets) {
-    if (held.size === 0) continue;
-    frames.push(journalFormat.encodeJournal(
-      key === '' ? testFile + '\u0000\u0000' : key,
-      held,
-    ));
-  }
   if (frames.length > 0) {
     await mkdir(${JSON.stringify(caseDirectory)}, { recursive: true });
-    await writeFile(${JSON.stringify(caseDirectory + '/')} + stamp + '.vac', packFrames(frames));
+    await writeFile(${JSON.stringify(caseDirectory + '/')} + stamp + '.vac', journalFormat.packFrames(frames));
   }
 `;
 }

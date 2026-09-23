@@ -197,12 +197,19 @@ export function executionIndexFrom(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
 ): ExecutionIndex {
   const ambient = new Map<string, CaseJournal[]>();
-  const cases: CaseJournal[] = [];
+  // A case is written when it settles, so work that outlived it arrives as a
+  // second frame under the same coordinate: one case, joined here.
+  const byCase = new Map<string, CaseJournal>();
   for (const journal of journals) {
     if (journal.name === AMBIENT && journal.id === AMBIENT) {
       ambient.set(journal.file, [...(ambient.get(journal.file) ?? []), journal]);
-    } else cases.push(journal);
+      continue;
+    }
+    const key = `${journal.file}\0${journal.name}\0${journal.id}`;
+    const first = byCase.get(key);
+    byCase.set(key, first === undefined ? journal : { ...first, modules: [...first.modules, ...journal.modules] });
   }
+  const cases = [...byCase.values()];
 
   // Ordered before they are numbered, so the index reads the same whichever
   // worker finished first and whichever order the frames landed on disk.

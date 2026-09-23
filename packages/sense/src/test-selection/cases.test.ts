@@ -128,6 +128,17 @@ describe('folding case frames into an execution index', () => {
     ]);
   });
 
+  it('joins the frame a case wrote on settling to the one its outliving work wrote later', () => {
+    const index = executionIndexFrom([
+      journal('test/branch.case.ts', 'takes alpha', '1_0', [1]),
+      journal('test/branch.case.ts', 'takes alpha', '1_0', [2]),
+    ], inventory);
+
+    expect(index.tests.map((test) => test.id)).toEqual(['test/branch.case.ts > takes alpha']);
+    expect(coveringTests(index, { file: 'src/decide.ts', line: 6 }).map((test) => test.name))
+      .toEqual(['takes alpha']);
+  });
+
   it('reads the same however the frames landed on disk', () => {
     const frames = [
       journal('b/two.case.ts', 'beta', '2', [2]),
