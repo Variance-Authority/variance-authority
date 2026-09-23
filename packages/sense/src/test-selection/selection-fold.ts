@@ -11,7 +11,7 @@
  * A seam is then its runner's vocabulary and nothing else.
  */
 
-import { rm, writeFile } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { instrumentationId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
@@ -24,8 +24,7 @@ import {
   projectPath,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
-import { executionIndexFrom, readCaseJournals } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
+import { writeCaseIndex } from './case-fold.js';
 import {
   coverageTest,
   noteAnEmptyRecord,
@@ -129,11 +128,7 @@ export function foldRun(
     // must run*, its readers are unchanged, and a run that records cases writes
     // the same bytes there as one that does not.
     if (run.cases) {
-      const caseJournals = await readCaseJournals(caseDirectory, root);
-      await writeFile(
-        executionFile,
-        executionIndexBytes(executionFile, executionIndexFrom(caseJournals, modules)),
-      );
+      await writeCaseIndex(executionFile, caseDirectory, root, modules);
     }
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });

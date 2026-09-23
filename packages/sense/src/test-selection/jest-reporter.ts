@@ -16,14 +16,13 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import journalFormat from './journal-format.cjs';
-import { executionIndexFrom, readCaseJournals } from './cases.js';
-import { executionIndexBytes } from './execution-format.js';
+import { writeCaseIndex } from './case-fold.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
@@ -185,12 +184,8 @@ class JestCoverageReporter {
     // must run*, its readers are unchanged, and a run that records cases writes
     // the same bytes there as one that does not.
     if (caseDirectory !== undefined) {
-      const frames = await readCaseJournals(caseDirectory, root);
       const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
-      await writeFile(
-        executionFile,
-        executionIndexBytes(executionFile, executionIndexFrom(frames, modules)),
-      );
+      await writeCaseIndex(executionFile, caseDirectory, root, modules);
       await rm(caseDirectory, { recursive: true, force: true });
     }
     await rm(runDirectory, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -11,7 +11,8 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, unpackCase, unpackFrames } from './cases.js';
+import { AMBIENT, executionIndexFrom, readCaseJournals, unpackCase, unpackFrames } from './cases.js';
+import { executionIndexBytes } from './execution-format.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
@@ -39,7 +40,8 @@ interface Coordinate {
   readonly file: string;
   readonly name: string;
   readonly id: string;
-  readonly frame: number;
+  /** Every frame written under this coordinate, in replay order. */
+  readonly frames: number[];
 }
 
 /**
@@ -58,7 +60,7 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
     else throw error;
   }
   const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
-  const coordinates: Coordinate[] = [];
+  const coordinates = new Map<string, Coordinate>();
   const moduleIds = new Set<ModuleId>();
   let frame = 0;
   for (const path of paths) {
@@ -67,12 +69,14 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
         test(packed) {
           const coordinate = unpackCase(packed);
           if (coordinate.name !== AMBIENT || coordinate.id !== AMBIENT) {
-            coordinates.push({
-              file: projectPath(root, coordinate.file),
-              name: coordinate.name,
-              id: coordinate.id,
-              frame: frame++,
-            });
+            // A case is written when it settles, so work that outlived it
+            // arrives as a second frame under the same coordinate: one case.
+            const file = projectPath(root, coordinate.file);
+            const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
+            const held = coordinates.get(key);
+            if (held === undefined) coordinates.set(key, { file, name: coordinate.name, id: coordinate.id, frames: [frame] });
+            else held.frames.push(frame);
+            frame += 1;
           }
         },
         wants(id) {
@@ -84,15 +88,15 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
     }
   }
 
-  const ordered = [...coordinates].sort((left, right) =>
+  const ordered = [...coordinates.values()].sort((left, right) =>
     codeUnitOrder(left.file, right.file) ||
     codeUnitOrder(left.name, right.name) ||
     codeUnitOrder(left.id, right.id),
   );
-  const frameTests = new Uint32Array(ordered.length);
+  const frameTests = new Uint32Array(frame);
   const seen = new Map<string, number>();
   const tests = ordered.map((coordinate, at): ExecutionTest => {
-    frameTests[coordinate.frame] = at;
+    for (const written of coordinate.frames) frameTests[written] = at;
     const name = `${coordinate.file} > ${coordinate.name}`;
     const repeat = seen.get(name) ?? 0;
     seen.set(name, repeat + 1);
@@ -113,6 +117,30 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
 }
 
 const DEFAULT_BUDGET = 128 * 1_048_576;
+
+/**
+ * Write a run's case journals as the execution index a reporter leaves beside
+ * its snapshot.
+ *
+ * The bounded fold is the writer: it reads the journals a slice at a time and
+ * holds one relation per region, where materializing every case's crossings as
+ * objects first cost the reporter 8.6 times the time and 20 times the heap on a
+ * 200-case run over a thousand ambient modules — the heap arriving at the end
+ * of a worker-heavy run, when the machine has least of it. A `.json` file is
+ * still written from the object index, because JSON is that index spelled out.
+ */
+export async function writeCaseIndex(
+  file: string,
+  directory: string,
+  root: string,
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+): Promise<void> {
+  if (file.endsWith('.json')) {
+    await writeFile(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
+    return;
+  }
+  await writeFile(file, (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes);
+}
 
 /**
  * Fold case journals into compact binary bytes under a fixed relation budget.

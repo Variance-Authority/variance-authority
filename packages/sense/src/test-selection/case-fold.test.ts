@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../native.js';
-import { foldCaseRun, inspectCaseRun } from './case-fold.js';
+import { foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
 import {
   AMBIENT,
   executionIndexFrom,
@@ -87,6 +87,41 @@ describe('the bounded case fold', () => {
     expect(decoded).toEqual(previous);
     expect(folded.passes).toBe(1);
     expect(folded.crossings).toBe(5);
+  });
+
+  it('joins a case written twice, across workers and passes, as the object fold does', async () => {
+    // `settles` wrote its frame, then work that outlived it wrote a second one
+    // under the same coordinate, which calls what the first only loaded.
+    const cases = await directory();
+    await writeFile(resolve(cases, 'a.vac'), packFrames([
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([[7, counters(3, [0], [2])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'other', '2'), new Map([[8, counters(2, [1])]])),
+      journalFormat.encodeJournal(packCase('/repo/test/late.test.ts', 'settles', '1'), new Map([[7, counters(3, [2])], [8, counters(2, [0])]])),
+    ]));
+    await writeFile(resolve(cases, 'b.vac'), packFrames([
+      journalFormat.encodeJournal(packCase('/repo/test/early.test.ts', 'first', '1'), new Map([[8, counters(2, [], [0, 1])]])),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([
+      [7, captured('src/late.ts', 7, 3)],
+      [8, captured('src/early.ts', 8, 2)],
+    ]);
+
+    const run = await inspectCaseRun(cases, '/repo');
+    const folded = await foldCaseRun(run, modules, 8);
+    const previous = executionIndexFrom(await readCaseJournals(cases, '/repo'), modules);
+
+    expect(previous.tests.map((test) => test.id)).toEqual([
+      'test/early.test.ts > first', 'test/late.test.ts > other', 'test/late.test.ts > settles',
+    ]);
+    expect(decodeExecutionIndex(folded.bytes)).toEqual(previous);
+    expect(folded.passes).toBeGreaterThan(1);
+
+    const written = resolve(cases, '..', 'cases.bin');
+    const spelled = resolve(cases, '..', 'cases.json');
+    await writeCaseIndex(written, cases, '/repo', modules);
+    await writeCaseIndex(spelled, cases, '/repo', modules);
+    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
+    expect(JSON.parse(await readFile(spelled, 'utf8'))).toEqual(previous);
   });
 
   it('represents a four-million-crossing run without allocating one entry per crossing', async () => {
