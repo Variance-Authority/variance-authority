@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/remote",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Run a Variance Authority renderer or baseline store on the other side of an HTTP hop.",
   "keywords": [
     "variance-authority",

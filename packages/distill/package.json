@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/distill",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Distill one test's addressed UI, React update initiators, and entered source into reduction opportunities.",
   "keywords": [
     "variance-authority",

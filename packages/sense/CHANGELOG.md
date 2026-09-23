@@ -1,5 +1,28 @@
 # @variance-authority/sense
 
+## 0.5.9
+
+### Patch Changes
+
+- 50be015: Instrument modules in the native scanner
+
+  `instrument()` now parses, walks and splices in the addon, so the syntax tree
+  never crosses into JavaScript: 64 µs a module instead of 161 µs over this
+  repository's sources, byte for byte the same output. Without the addon, the
+  JavaScript walk answers as before.
+
+  A module whose first statement after its imports is a top-level `await` no
+  longer loses its probe runtime: the header used to land inside the `await`'s
+  probe and was not declared.
+
+  The scanner on Apple Silicon hashes with the ARMv8 SHA instructions, five
+  times faster than before, which every digest it takes shares.
+- c52c84f: Say why the native scanner did not load
+
+  Finalizing or stitching journeys without the scanner now carries the loader's
+  own message — a missing package, or a `dlopen` refusal naming the glibc symbol —
+  instead of only naming the addon.
+
 ## 0.5.8
 
 ### Patch Changes
