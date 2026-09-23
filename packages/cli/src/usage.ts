@@ -16,6 +16,7 @@
 
 export const COMMANDS = [
   'run',
+  'index',
   'select',
   'reach',
   'covering',
@@ -51,6 +52,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
+  index: ['--no-git'],
   select: ['--since', '--execution', '--diff', '--format', '--no-git'],
   reach: ['--since', '--format', '--no-git'],
   covering: [
@@ -110,6 +112,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
+  'variance index   [--no-git]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]',
@@ -135,13 +138,13 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `select` and `reach` do not read project
- * configuration. One holds a live listener; the next two read evidence a run
- * left behind, named on the command line or found where a run puts it; the last
- * two are asked by a repository whose tests another runner runs, and which may
- * have configured this tool for nothing else.
+ * `watch`, `distill`, `covering`, `index`, `select` and `reach` do not read
+ * project configuration. One holds a live listener; the next two read evidence
+ * a run left behind, named on the command line or found where a run puts it;
+ * the last three are asked by a repository whose tests another runner runs, and
+ * which may have configured this tool for nothing else.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'select', 'reach'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'index', 'select', 'reach'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)
@@ -201,7 +204,7 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
     '',
     `flags: ${flags.length === 0 ? 'none' : flags.join(', ')}`,
     ...(flags.includes('--no-git')
-      ? ['--no-git: scan source from the filesystem; Git still supplies the diff. Directory exclusions replace Git tracking, and resolved records are not reused.']
+      ? ['--no-git: read file contents from the working tree, not from Git\'s object store. Git still lists the files and names each file\'s blob, so the source index is the same one and unchanged files are not read again.']
       : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'

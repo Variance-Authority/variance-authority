@@ -12,6 +12,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { formatSelection, selectionNotes, skippableTests } from './select.js';
 import { selectOutput } from './select-command.js';
+import { indexOutput } from './index-command.js';
 
 /**
  * The one command that hands its answer to a runner this tool does not drive.
@@ -289,6 +290,7 @@ describe('reading this checkout', () => {
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
@@ -315,6 +317,7 @@ describe('reading this checkout', () => {
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     // Both tests that ever entered the module run, and the one that never did is
@@ -337,6 +340,7 @@ describe('reading this checkout', () => {
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
@@ -352,6 +356,7 @@ describe('reading this checkout', () => {
     writeFileSync(join(root, 'src/elsewhere.ts'), 'export const other = 2;\n');
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'vitest' });
 
     expect(said.out).toBe(

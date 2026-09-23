@@ -51,16 +51,19 @@ export async function gitDigests(
   root: string,
   changed?: readonly string[],
 ): Promise<ReadonlyMap<string, Digest> | undefined> {
+  const [listed, located] = await Promise.allSettled([
+    run('git', ['ls-tree', '-r', '-z', 'HEAD', '--', '.'], { cwd: root, maxBuffer: MAX_OUTPUT }),
+    run('git', ['rev-parse', '--show-prefix'], { cwd: root, maxBuffer: MAX_OUTPUT }),
+  ]);
+  if (located.status === 'rejected') return undefined;
+  let prefix = located.value.stdout;
+  // A repository with no commit yet has no tree to list, and that is an empty
+  // listing rather than an unanswerable one: `status` names every file as added
+  // or untracked, and the overlay hashes each of them from disk.
   let listing: string;
-  let prefix: string;
-  try {
-    [{ stdout: listing }, { stdout: prefix }] = await Promise.all([
-      run('git', ['ls-tree', '-r', '-z', 'HEAD', '--', '.'], { cwd: root, maxBuffer: MAX_OUTPUT }),
-      run('git', ['rev-parse', '--show-prefix'], { cwd: root, maxBuffer: MAX_OUTPUT }),
-    ]);
-  } catch {
-    return undefined;
-  }
+  if (listed.status === 'fulfilled') listing = listed.value.stdout;
+  else if (await unborn(root)) listing = '';
+  else return undefined;
   prefix = prefix.trim();
 
   const digests = new Map<string, Digest>();
@@ -81,6 +84,16 @@ export async function gitDigests(
   else await overlayKnownChanges(root, digests, changed);
 
   return digests;
+}
+
+/** Whether `HEAD` names a branch nobody has committed to yet; asked only after `ls-tree` failed. */
+async function unborn(root: string): Promise<boolean> {
+  try {
+    await run('git', ['rev-parse', '--quiet', '--verify', 'HEAD'], { cwd: root });
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** Apply an authoritative file list without asking Git to rediscover it. */

@@ -4165,6 +4165,7 @@ __metadata:
     "@variance-authority/store": "workspace:^"
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/vantage": "workspace:^"
+    ci-info: "npm:^4.4.0"
   bin:
     variance: ./dist/bin.js
   languageName: unknown
@@ -5423,7 +5424,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ci-info@npm:^4.2.0":
+"ci-info@npm:^4.2.0, ci-info@npm:^4.4.0":
   version: 4.4.0
   resolution: "ci-info@npm:4.4.0"
   checksum: 10c0/44156201545b8dde01aa8a09ee2fe9fc7a73b1bef9adbd4606c9f61c8caeeb73fb7a575c88b0443f7b4edb5ee45debaa59ed54ba5f99698339393ca01349eb3a
@@ -9456,9 +9457,11 @@ __metadata:
     "@types/pngjs": "npm:^6.0.5"
     "@types/react": "npm:^19"
     "@types/react-dom": "npm:^19"
+    "@variance-authority/cli": "workspace:^"
     "@variance-authority/help": "workspace:^"
     "@vitest/coverage-v8": "npm:^2.1.8"
     backlog.md: "npm:1.50.1"
+    ci-info: "npm:^4.4.0"
     esbuild: "npm:^0.25.0"
     jsdom: "npm:^30.0.1"
     oxc-parser: "npm:^0.144.0"

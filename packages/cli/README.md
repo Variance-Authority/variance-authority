@@ -144,6 +144,7 @@ ids are the safe default after initial setup.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
+variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
@@ -165,6 +166,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<repo
 | command | what it does |
 |---|---|
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new`, `incomparable` or `ignored`) that decides the exit code |
+| `index` | publishes the file graph that `select`, `reach`, `covering` and `run --since` read |
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first |
@@ -834,6 +836,40 @@ The full suite on the default branch records the floor; each local run layers
 its own evidence on top; and a selection made against the result is measured
 from the commit the fold named, which is what `variance run --since` and the
 journal both read.
+
+### `index`: publish the file graph once
+
+`select`, `reach`, `covering --since` and `run --since` all answer from the
+import graph of your checkout. None of them scans for it. They read the
+[source index](../../docs/source-index.md), and `variance index` is the one
+command that writes it:
+
+```bash
+variance index
+variance select --format vitest
+```
+
+```
+source index updated: 1236 files, 3 read again, at /home/you/.cache/variance-authority/test-selection/<digest>/source-index.bin
+```
+
+It scans the whole checkout, rebuilds only the records of files whose bytes
+changed, and appends them as a new layer, so one run costs the size of your diff
+and not the size of your repository. The readers answer from what it last
+published, so run it after the checkout changes and before them.
+
+In CI, run it as its own step after you restore the cache. A reader that finds
+nothing published there exits `2` and names the missing step, because an index
+built quietly by the reader would hide a cache that never arrived. On your own
+machine a reader that finds nothing builds the index once and says so on stderr.
+
+`--no-git` reads every file's contents from the working tree rather than from
+Git's object store. Git still lists the files and names each blob, so the index
+is the same one either way. Use it for a partial clone or an object store on a
+network filesystem. `select` and `reach` take the flag for the build they make
+on your machine when nothing is published.
+
+No `variance.config.json` is read.
 
 ### `select`: what your own runner may skip
 

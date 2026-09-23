@@ -102,6 +102,17 @@ export interface ScanOptions extends ResolveOptions {
   readonly digests?: ReadonlyMap<string, Digest> | false;
 
   /**
+   * Whether a file's bytes are read out of Git's object store. On when absent.
+   *
+   * `false` opens every file the scan reads from the working tree instead, and
+   * changes nothing else: Git still lists the files and names each one's blob,
+   * so reuse is keyed exactly as it is with packs. It is for a checkout whose
+   * object store is expensive or unsafe to open — a partial clone, a store on a
+   * network filesystem — where the working tree is already on the disk.
+   */
+  readonly packs?: boolean;
+
+  /**
    * Every added, edited, deleted or renamed file since the last reading,
    * relative to `root`.
    *
@@ -224,6 +235,12 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   // checked against the bytes on disk, so there is nothing to reuse it against.
   const reuse = tree === undefined ? undefined : options.reuse;
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
+  // FIXME: under a clean or smudge filter — Git LFS, `core.autocrlf` — a blob and
+  // the file checked out from it are different bytes, and both are parsed under
+  // the blob's digest. Which one a record came from depends on this setting and
+  // on whether its wave was large enough to open the object store, and an index
+  // keeps whichever it read first until the file changes.
+  const packed = options.packs === false ? undefined : tree?.native;
   if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
@@ -342,10 +359,10 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       let answers: readonly NativeBuilt[] | undefined;
       let answeredFiles: readonly string[] = pending;
       try {
-        const useGraph = !nativeGraphUsed && tree?.native !== undefined && pending.length >= 10_000;
+        const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
         const nativeOptions = {
           addon,
-          ...(tree?.native === undefined ? {} : { tree: tree.native }),
+          ...(packed === undefined ? {} : { tree: packed }),
           root,
           files: pending,
           largestFile: options.largestFile ?? LARGEST_FILE,

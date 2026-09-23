@@ -59,7 +59,14 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
     });
-    let listing = listing?;
+    // A repository with no commit yet has no tree to list, and that is an empty
+    // listing rather than an unanswerable one: `status` names every file as
+    // added or untracked, and the overlay hashes each of them from disk.
+    let listing = match listing {
+        Some(listing) => listing,
+        None if unborn(root) => Vec::new(),
+        None => return None,
+    };
 
     let mut held: HashMap<Vec<u8>, Oid> = HashMap::with_capacity(1 << 16);
     for entry in listing.split(|byte| *byte == 0) {
@@ -97,6 +104,15 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     }
 
     Some(Snapshot { paths, oids })
+}
+
+/// Whether `HEAD` names a branch nobody has committed to yet.
+///
+/// Asked only after `ls-tree` has failed, so a checkout with history never pays
+/// for it. `--show-prefix` has already succeeded by then, so this is a
+/// repository; `--verify` failing on it means `HEAD` resolves to no commit.
+fn unborn(root: &str) -> bool {
+    git(root, &["rev-parse", "--quiet", "--verify", "HEAD"], None).is_none()
 }
 
 /// Replace the committed digest of every path the working tree disagrees about.

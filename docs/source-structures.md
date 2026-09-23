@@ -38,13 +38,14 @@ The index lives under your cache root, in a directory named for a digest of the
 checkout path:
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<checkout>/source-index.bin
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-index.bin
 ```
 
-Deleting that directory is how you force the first row deliberately. The digest
-is taken over the absolute path, so a git worktree is a different checkout as far
-as the cache is concerned: it gets a directory of its own, inherits nothing from
-the checkout it was cut from, and pays the first row once.
+Deleting the index and its `source-index.bin.segments/` directory, then running
+`variance index`, is how you force the first row deliberately. The digest is
+taken over the absolute path, so a git worktree is a different checkout as far
+as the index is concerned: it gets one of its own, inherits nothing from the
+checkout it was cut from, and pays the first row once.
 
 ## What a change rebuilds
 

@@ -10,7 +10,6 @@ import { createEphemeralStore, type RasterStore } from '@variance-authority/rast
 import { createRemoteStore } from '@variance-authority/remote/store';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { createLfsStore } from '@variance-authority/store/lfs';
-import { digestString } from '@variance-authority/core/format';
 import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
@@ -98,26 +97,9 @@ export function renderCacheRoot(): string {
 }
 
 /**
- * Where a scan's memory of a repository goes: outside that repository, per root.
- *
- * The same argument as the render cache, and it holds for the same reason. Both
- * halves of what a scan remembers are content-addressed — a parse under the digest
- * of the bytes it came from, a record under that digest *and* a digest of the tree
- * shape — so a stale entry, a cache from another branch, or no cache at all costs
- * a slower scan and can never produce a different graph.
- *
- * Per root because the layout digest is one value for the whole tree: two
- * checkouts sharing one file would each discard the other's records on every run,
- * which is worse than having no cache and looks exactly like having one.
- */
-export function scanCacheRoot(root: string): string {
-  return join(cacheRoot('scans'), digestString(root).replace(':', '-'));
-}
-
-/**
  * Where suite indexes are kept: this run's, and any a share handed over.
  *
- * Outside the work tree, on the same argument as the two caches above and with
+ * Outside the work tree, on the same argument as the render cache above and with
  * one more. An index is addressed by the commit it was written at, so a wrong
  * location costs a fetch and never an answer; and because the address is a
  * commit rather than a branch, a checkout that moves between branches

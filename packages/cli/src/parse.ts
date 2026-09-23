@@ -8,6 +8,7 @@ import { didYouMean } from './nearest.js';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
+import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
@@ -99,7 +100,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedCovering | ParsedSelect | ParsedReach | ParsedShare
+  | ParsedDistill | ParsedCovering | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -283,6 +284,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
 
     case 'distill': return parseDistill(flags);
     case 'covering': return parseCoveringArgs(flags);
+    case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);

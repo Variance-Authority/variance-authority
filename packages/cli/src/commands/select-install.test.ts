@@ -10,6 +10,7 @@ import {
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { selectOutput } from './select-command.js';
+import { indexOutput } from './index-command.js';
 
 /**
  * `variance select` over a diff that moved the install and no source line.
@@ -41,6 +42,7 @@ describe('a diff that moved the install', () => {
     writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     // `beta` entered `src/pad.ts`, which imports `left-pad`; the other two never
@@ -58,6 +60,7 @@ describe('a diff that moved the install', () => {
     writeFileSync(join(root, 'package-lock.json'), npmLock('1.4.0'));
     process.chdir(root);
 
+    await indexOutput({ cwd: root });
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     expect(said.out).toBe('');

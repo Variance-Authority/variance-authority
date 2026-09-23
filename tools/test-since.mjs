@@ -344,7 +344,7 @@ async function main() {
       ? new Set()
       : outOfFrame(coverage, consequential, (checkable) => textAtRecording(ROOT, checkable));
 
-  const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, snapshotFile, stemOf });
+  const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, stemOf });
   const { narrowing, distances } = await distanceByExecution(
     snapshotFile,
     inSnapshotCoordinates(diff, byStem, (path) => reframed.has(path)),

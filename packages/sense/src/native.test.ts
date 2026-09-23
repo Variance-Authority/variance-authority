@@ -132,6 +132,20 @@ describe('the native tree against the JavaScript one', () => {
     expect(answered).toEqual(oracle);
   });
 
+  it.runIf(native)('agrees on a repository nobody has committed to', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-native-'));
+    made.push(root);
+    await write(root, 'src/Button.tsx', 'export function Button() { return null }\n');
+    await write(root, 'src/staged.ts', 'export const staged = 1\n');
+    await git(root, ['init', '--quiet']);
+    await git(root, ['add', 'src/staged.ts']);
+
+    const { oracle, answered } = await both(root);
+
+    expect(answered).toEqual(oracle);
+    expect((answered as { paths: string[] }).paths).toEqual(['src/Button.tsx', 'src/staged.ts']);
+  });
+
   it.runIf(native)('answers nothing outside a checkout, as the oracle does', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-native-'));
     made.push(root);

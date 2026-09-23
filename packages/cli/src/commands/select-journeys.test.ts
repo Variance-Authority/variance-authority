@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
+import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
 
 /**
@@ -26,10 +27,11 @@ describe('selecting from a journey file', () => {
   const cwd = process.cwd();
   let root: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     process.env['XDG_CACHE_HOME'] = mkdtempSync(join(tmpdir(), 'va-select-journeys-cache-'));
     root = project();
     process.chdir(root);
+    await indexOutput({ cwd: root, noGit: true });
   });
 
   afterEach(() => {

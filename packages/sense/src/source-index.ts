@@ -12,6 +12,7 @@ import { isDeepStrictEqual } from 'node:util';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
+import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import {
   openSourceIndexFile,
@@ -44,16 +45,23 @@ export interface PersistentSourceIndex {
  * another tool already scanned, and both of them report a cold start as normal.
  * The directory is the checkout's own cache layer, so a worktree writes beside
  * the primary checkout rather than into it ([`cache-layers.ts`](./test-selection/cache-layers.ts)).
+ * Keyed by the root the scan itself reads from, links followed: a checkout
+ * reached through `/var` and through `/private/var` is one checkout, and a
+ * key spelled from the caller's argument would give it two indexes and let the
+ * one nobody updated answer.
  */
 export function sourceIndexPath(root: string, cacheRoot?: string): string {
-  return resolve(cacheLayers(root, cacheRoot).top, 'source-index.bin');
+  // TODO: a worktree's index starts from nothing; its first update should
+  // append to the primary checkout's generation, the way coverage reads both layers.
+  return resolve(cacheLayers(realPath(resolve(root)), cacheRoot).top, 'source-index.bin');
 }
 
 /**
  * Open one versioned binary source-index generation from its immutable segments.
  *
- * A missing, incompatible, incomplete, or corrupt chain behaves as an empty
- * cache. It can make this scan slower and cannot change the resulting graph.
+ * A missing or incompatible chain behaves as an empty cache, and an incomplete
+ * or corrupt one as the segments before the first bad one. Either can make this
+ * scan slower and neither can change the resulting graph.
  */
 export async function openSourceIndex(path: string): Promise<PersistentSourceIndex> {
   const file = await openSourceIndexFile(path);
@@ -66,7 +74,9 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   let decodedNative: ReadonlyMap<ParseKey, Parsed> | undefined;
   const records = new Map<string, IndexedRecord>();
   let adopted: TreeShape | undefined;
-  let dirty = false;
+  // A chain read up to a bad segment is repaired by the next save, whether or
+  // not this scan learned anything: the manifest still names what could not be read.
+  let dirty = file.state === 'damaged';
 
   const cache: ParseCache = {
     get(key) {

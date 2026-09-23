@@ -9,6 +9,7 @@ import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { encodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
+import { indexOutput } from './index-command.js';
 
 const INDEX = {
   tests: [
@@ -154,6 +155,7 @@ describe('asking which cases a change covered', () => {
     const { root, execution } = await checkout();
     await edit(root, 'src/total.ts', 12);
 
+    await indexOutput({ cwd: root });
     const answer = await covering(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.map((file) => file.file)).toEqual(['src/total.ts']);
@@ -168,6 +170,7 @@ describe('asking which cases a change covered', () => {
     const { root, execution } = await checkout();
     await edit(root, 'src/total.ts', 31);
 
+    await indexOutput({ cwd: root });
     const answer = await covering(parse(['--since', 'main', '--execution', execution]));
 
     expect(formatCovering(answer, 'text')).toContain('30-34 function round — 1 case, and it is the only witness');
@@ -177,6 +180,7 @@ describe('asking which cases a change covered', () => {
     const { root, execution } = await checkout();
     await edit(root, 'total.test.ts', 1);
 
+    await indexOutput({ cwd: root });
     const answer = await covering(parse(['--since', 'main', '--execution', execution]));
 
     expect(answer.changed?.[0]?.cases.map((test) => test.id)).toEqual(['near']);
@@ -316,6 +320,7 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
   it('names the case whose file imports the module, and not one that mocked it', async () => {
     const { root, execution } = await checkout();
 
+    await indexOutput({ cwd: root });
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '3', '--root', root, '--execution', execution]));
 
     expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
@@ -328,6 +333,7 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     text[2] = `${text[2]} // edited`;
     await writeFile(join(root, 'src/total.ts'), text.join('\n'));
 
+    await indexOutput({ cwd: root });
     const answer = await covering(parse(['--since', 'main', '--root', root, '--execution', execution]));
 
     expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length, region.passengers?.map((test) => test.id)]))

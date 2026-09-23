@@ -16,6 +16,7 @@ import {
   type Question,
 } from './asking.js';
 import { HELP_TOOLS, search, type Help } from '@variance-authority/help/tools';
+import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import {
   TOOLS,
@@ -25,7 +26,6 @@ import {
   type Tree,
 } from '@variance-authority/mcp/tools';
 import { readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
-import { scanCacheRoot } from './resources.js';
 import { readVantage } from './watch.js';
 
 /**
@@ -329,7 +329,7 @@ async function finished(
 async function sourceTree(): Promise<Tree | undefined> {
   const root = process.cwd();
   try {
-    return await readTree({ root, index: join(scanCacheRoot(root), 'source-index.bin') });
+    return await readTree({ root, index: sourceIndexPath(root) });
   } catch {
     return undefined;
   }

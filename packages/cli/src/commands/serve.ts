@@ -5,8 +5,8 @@ import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
 import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
+import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
-import { scanCacheRoot } from './resources.js';
 
 /**
  * `variance serve` — the MCP surface, which is wiring and nothing else.
@@ -111,7 +111,7 @@ export interface ServeOptions {
 export async function serve(config: Config, options: ServeOptions = {}): Promise<() => void> {
   const path = options.report ?? config.report;
   const root = options.root ?? process.cwd();
-  const index = `${scanCacheRoot(root)}/source-index.bin`;
+  const index = sourceIndexPath(root);
 
   // Read once before serving, so a path that is not a run report fails at
   // startup rather than on whichever request happens to arrive first. The

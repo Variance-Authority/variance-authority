@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers five whole commands, and narrows them out of the
+ * `withoutConfig` covers six whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -25,14 +25,15 @@ import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
 import { covering, formatCovering } from './covering.js';
 import { distillFiles, formatDistill } from './distill.js';
+import { indexOutput } from './index-command.js';
 import { reachOutput } from './reach-command.js';
 import { selectOutput } from './select-command.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The five commands that read no project configuration at all. */
+/** The six commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'index' | 'select' | 'reach' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -40,6 +41,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     parsed.command === 'watch'
     || parsed.command === 'distill'
     || parsed.command === 'covering'
+    || parsed.command === 'index'
     || parsed.command === 'select'
     || parsed.command === 'reach'
   );
@@ -85,7 +87,7 @@ export async function constantAnswer(
   return undefined;
 }
 
-/** Run one of the three, each of which is about a suite rather than a project. */
+/** Run one of them, each of which is about a suite rather than a project. */
 export async function answerConfigless(
   parsed: Configless,
   streams: { out(text: string): void; err(text: string): void },
@@ -118,6 +120,14 @@ export async function answerConfigless(
     // for the run that happened somewhere else.
     case 'covering': {
       streams.out(formatCovering(await covering(parsed), parsed.format));
+      return EXIT_CLEAN;
+    }
+
+    // The step before `select` and `reach`, in the same repository and for the
+    // same reason: it publishes what they read, and a pipeline that runs them
+    // may have configured this tool for nothing else.
+    case 'index': {
+      streams.out(await indexOutput({ cwd: process.cwd(), ...(parsed.noGit ? { noGit: true } : {}) }));
       return EXIT_CLEAN;
     }
 

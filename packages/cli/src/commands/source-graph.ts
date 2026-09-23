@@ -15,10 +15,11 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
+import { isCI } from 'ci-info';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
-import { messageOf, scanCacheRoot } from './resources.js';
+import { messageOf } from './resources.js';
 
 /**
  * The component index, from the directories the config names.
@@ -76,10 +77,15 @@ const BY_CONFIG: GraphAsk = {
  * through the command they typed, which has no key to remove. Advice to edit a
  * file they do not have is the kind of message that costs an afternoon.
  *
- * Both caches are opened unasked, because a scan is on the path of every run that
- * selects and the first one is the only one that should cost a repository. They
- * are keyed by content and by tree shape, so the worst a bad one can do is a full
- * scan — see `scanCacheRoot`.
+ * The graph is read, never built here. One step publishes the checkout's
+ * source index — `variance index` — and every reader reads that generation, so a
+ * run that selects pays for the diff once, not once per reader. Where the index
+ * is missing, CI refuses and names the step the pipeline lacks, and a
+ * workstation builds it once and says so on stderr. CI is the runner's own
+ * answer, read through `ci-info`, the package Jest asks.
+ * `--no-git` changes where that local build reads each file's bytes — the
+ * working tree rather than Git's object store — and nothing about what is read:
+ * Git still names every file and its blob, so the index is the same one.
  *
  * The install is joined here too, and it is the same graph rather than a second
  * one. A file that imports `@mui/material` has an edge to a node named
@@ -106,36 +112,19 @@ export async function relationsFor(
     );
   }
 
-  const at = scanCacheRoot(root);
-  const source = await scanner.openSourceIndex(join(at, 'source-index.bin'));
-
-  const records = await scanner.scanRelations({
-    root,
-    dirs,
-    ...(noGit ? { digests: false as const } : {}),
-    cache: source.cache,
-    reuse: source.reuse,
-    // The harness, as exact paths. It lives outside every directory anybody
-    // would point a component scan at, and what it loads is the part of a run
-    // nothing imports and every test rests on.
-    ...(before.length === 0 ? {} : { before }),
-  });
+  const read = await publishedWithin(scanner, root, dirs, before, noGit);
 
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`
   // imports `./api` selects that test for every change behind the mock, and
   // an operator who has to know to switch the reader on is one who finds out
-  // from the suite that ran. Tables named in the config join the same way.
+  // from the suite that ran. The update published the mock reader's answers;
+  // a table named in the config is answered here, from the same parses, and
+  // what it adds is never saved.
   const tables = await Promise.all(taints.map((file) => scanner.taintFile(join(root, file))));
-  // The same store the scan used: a reader's answer is a fact about a file's
-  // bytes, so an unchanged file is answered from the index rather than opened
-  // a second time.
-  const tainted = await scanner.taintRecords(records, [scanner.mockTaint(), ...tables], {
+  const tainted = await scanner.taintRecords(read.records, [scanner.mockTaint(), ...tables], {
     root,
-    cache: source.cache,
+    cache: read.cache,
   });
-  // Saved once, after the join: the readers' answers belong to the same
-  // generation as the parses they were taken beside.
-  await source.save();
 
   // Read from the lockfile at this revision, never from `package.json`: a range
   // is a request and the lockfile is the answer to it. Empty when there is no
@@ -145,6 +134,42 @@ export async function relationsFor(
   const depends = await installedDepends(root);
 
   return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends });
+}
+
+/**
+ * The published records this caller's scope reaches.
+ *
+ * The index holds the whole checkout; the scope is the part a scan seeded from
+ * `dirs` would have reached. The harness is seeded as exact paths: it lives
+ * outside every directory anybody would point a component scan at, and what it
+ * loads is the part of a run nothing imports and every test rests on.
+ */
+async function publishedWithin(
+  scanner: typeof import('@variance-authority/sense'),
+  root: string,
+  dirs: readonly string[],
+  before: readonly string[],
+  noGit: boolean,
+) {
+  let published;
+  try {
+    published = await scanner.publishedSources(root, {
+      ci: isCI,
+      step: noGit ? 'variance index --no-git' : 'variance index',
+      announce: (line) => process.stderr.write(`variance: ${line}\n`),
+      ...(noGit ? { packs: false } : {}),
+    });
+  } catch (error) {
+    // A pipeline without the step is the operator's to fix, and the refusal
+    // already names the step; printed as a defect, it would send them to file
+    // a bug instead.
+    if (error instanceof scanner.SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
+    throw error;
+  }
+  return {
+    records: scanner.sourcesWithin(published.records, root, dirs, before),
+    cache: published.cache,
+  };
 }
 
 const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];

@@ -3,9 +3,10 @@
 Two scans of the same unchanged checkout should not do the same work twice. The
 **source index** is where the first one leaves its answer for the second.
 
-The index is optional cache state. A missing, incomplete or corrupt index is
-treated as absent: it can save scan work and cannot change scan evidence. It
-stores the two things a repeated scan would otherwise redo — one parse per set
+`variance index` writes the index, and the commands that use the file graph
+read it without scanning. Everything in it is derived from the checkout, so a
+missing, incomplete or corrupt index costs a scan and cannot change what a scan
+finds. It stores the two things a repeated scan would otherwise redo — one parse per set
 of file bytes, and one resolved record per file: that file's outgoing edges,
 the declarations it publishes, and the directories its specifiers looked in.
 Both are published together, so no scan can read a parse state and a record
@@ -19,24 +20,70 @@ itself: how it is produced, cached, invalidated and read.
 Read this page to cache the index in CI, to predict what a change to your tree
 costs, or to read the bytes from another language.
 
-## Building one
+## Publishing it
 
-No command builds the index by itself. It is written and updated as a side
-effect of the commands that need the file graph:
+One command writes the index:
 
 ```bash
-# Requires `source: { dirs: ["src"], relations: true }` in variance.config.json.
+variance index
+```
+
+It scans the whole checkout, reuses the record of every file whose bytes are
+unchanged, and appends what changed as a new layer. It prints one line — how
+many files the index holds, and how many it read again:
+
+```text
+source index updated: 1236 files, 3 read again, at /home/you/.cache/variance-authority/test-selection/<digest>/source-index.bin
+```
+
+These commands read what `variance index` published, and do not scan:
+
+```bash
+variance select --since <ref>
+variance reach --since <ref>
+variance covering --since <ref>
+# With `source: { dirs: ["src"], relations: true }` in variance.config.json.
 variance run --since <ref>
 variance run --against <ref>
+```
 
-# Any question that names a start point in the tree.
+Each one reads the index as it was last published. Run `variance index` after
+the checkout changes and before them — in CI, as its own step after the cache
+restore.
+
+When a reader finds no index, or one it can read only up to a bad segment, the
+answer depends on where it runs. In CI it exits with an error that names
+`variance index` as the step the pipeline lacks, because building the index
+there would hide a cache that never arrived. Add the step, or fix the restore.
+Anywhere else it updates the index once, says so in one line on stderr, and
+reads it. CI is decided from the runner's own environment variables, the same
+way Jest decides it.
+
+A source question that names a start point in the tree opens the same index as
+a cache. It scans, reuses what is unchanged, and saves what it learned before it
+exits:
+
+```bash
 variance ask "<question>" --from src/billing/
 variance ask "<question>" --to src/lib/precision.ts
 ```
 
-Each of those opens the index, scans, and publishes what it learned before it
-exits. The first such command on a machine pays a cold scan; every later one
-pays for what changed.
+### Reading files from the working tree
+
+```bash
+variance index --no-git
+```
+
+By default the scan reads file contents out of Git's object store whenever it
+reads 160 or more files at once. `--no-git` reads every file from the working
+tree instead. Git still lists the files and names each file's blob, so the index
+is the same one: a later `variance index` without the flag reads nothing again.
+Use it where the object store is expensive or unsafe to open, such as a partial
+clone or a store on a network filesystem. `select` and `reach` take the same
+flag, and it applies to the update they make on a workstation when nothing is
+published.
+
+### Naming what changed
 
 When an editor, watcher or orchestrator already knows the exact changed paths,
 write them one per line and hand the file to a source question:
@@ -62,35 +109,33 @@ the modules that caller loads without an ordinary import. Source-area questions
 accept additions only because a subtraction such as a mock is relative to one
 file's run and cannot be flattened into one workspace-wide source tree.
 
-From your own tooling, `openSourceIndex` and `sourceIndexPath` in
-[`@variance-authority/sense`](../packages/sense/README.md) are the same two
-halves the commands use: open the index, hand `cache` and `reuse` to
-`scanRelations`, `save` when the scan returns.
+From your own tooling, [`@variance-authority/sense`](../packages/sense/README.md)
+has the same functions the commands use: `updateSourceIndex` is `variance index`,
+`publishedSources` is what a reader calls, and `sourcesWithin` narrows the
+published records to the directories one question is about.
 
 ## Where it goes
 
 Under your cache root, in a directory named for a digest of the checkout's
-absolute path:
+absolute path with links resolved:
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<digest>/source-index.bin
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/scans/v1-<digest>/source-index.bin.segments/
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/source-index.bin
+${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/source-index.bin.segments/
 ```
 
 `<digest>` is the first 32 hexadecimal characters of the SHA-256 of that path,
 which you can compute without running anything:
 
 ```bash
-printf %s "$PWD" | shasum -a 256 | cut -c1-32
+printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 ```
 
-`sourceIndexPath(root)` — the path the library picks when a caller names none —
-puts it under `variance-authority/test-selection/<digest>/source-index.bin`
-instead, with the same digest and no `v1-` prefix, and a git worktree gets
-`test-selection/<primary digest>/.work/<digest>/` beneath the checkout it was
-cut from, reading both layers and writing only its own. Cache
-`${XDG_CACHE_HOME:-~/.cache}/variance-authority` whole and you need not choose
-between them.
+A git worktree keeps its own index under
+`test-selection/<primary digest>/.work/<digest>/`, beneath the checkout it was
+cut from. `sourceIndexPath(root)` returns the path for a checkout. Cache
+`${XDG_CACHE_HOME:-~/.cache}/variance-authority` whole and you do not need to
+compute either.
 
 **The index is two things on disk.** Beside `source-index.bin` is a directory
 `source-index.bin.segments/` that contains the data; the file itself is only
@@ -98,17 +143,20 @@ the pointer to which segments are current. Copy, restore and move the two
 together. The file alone names segments that are not there, and a chain whose
 members are missing is rejected whole — a cold scan, not a wrong answer.
 
-To force a cold scan, delete the digest directory. That is the whole recovery
-procedure, for a stale index and a corrupt one alike.
+To force a cold scan, delete the two and run `variance index`. That is the
+whole recovery procedure. The directory also holds test-selection recordings,
+so delete the index and not the directory:
 
 ```bash
-rm -rf ~/.cache/variance-authority/scans/v1-$(printf %s "$PWD" | shasum -a 256 | cut -c1-32)
+dir="${XDG_CACHE_HOME:-$HOME/.cache}/variance-authority/test-selection/$(printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32)"
+rm -rf "$dir/source-index.bin" "$dir/source-index.bin.segments"
+variance index
 ```
 
 ## Caching it in CI
 
-Cache the directory the file and its segments sit in, and restore it before the
-scan. Four rules decide whether a restored index is worth anything.
+Cache the directory the file and its segments sit in, restore it, then run
+`variance index` before any command that reads it. Four rules decide whether a restored index is worth anything.
 
 **Restore it to the same absolute path it was written from.** The checkout root
 is one of the inputs to the digest every record is keyed under, so an index
@@ -194,9 +242,10 @@ and what to change.
 
 The index is a private cache, not an interchange format, and no command prints
 it: the layout belongs to the version that wrote it, and the reader refuses
-anything it does not recognise. To read the graph, scan for it —
-[`scanRelations`](source.md) answers from the index when one is there. To fix an
-index, delete it.
+anything it does not recognise. To read the graph, call `readPublishedSources`,
+which returns the published records and opens nothing but the index. To build
+it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
+index. To fix an index, delete it.
 
 `openSourceIndex` returns the parse cache, the record cache and a `save`
 operation together. Point reads ask segments newest to oldest and stop at the

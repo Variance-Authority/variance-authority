@@ -2,8 +2,10 @@
  * An atomic pointer to ordered immutable byte segments.
  *
  * The manifest is the commit: a segment written without it is unreachable, and
- * a manifest is published only after every segment it names exists. Callers own
- * the meaning of a segment and reject the complete chain when one is unusable.
+ * a manifest is published only after every segment it names exists. Every
+ * prefix of a chain was itself a chain somebody could have read, so a segment
+ * that cannot be used costs the segments from it onward and never the ones
+ * before it — the reader keeps the prefix and says how much it dropped.
  */
 
 import { readFileSync } from 'node:fs';
@@ -35,6 +37,14 @@ export interface ImmutableLog {
   readonly legacy: boolean;
   readonly committed: boolean;
   /**
+   * How many segments the manifest named past the last one read. Zero for a
+   * whole chain; anything else means `segments` is an older generation than the
+   * one that was published, and a reader that answers from it is answering late.
+   */
+  readonly dropped: number;
+  /** The same chain cut to its first `count` segments, for a caller that rejects one further on. */
+  keep(count: number): ImmutableLog;
+  /**
    * Append `delta`, or replace the chain with the whole of it when the chain has
    * grown past {@link MAX_SEGMENTS} or was written by the shape before this one.
    *
@@ -48,7 +58,11 @@ export interface ImmutableLog {
   publishAll(deltas: readonly Uint8Array[], compacted: () => Uint8Array): Promise<void>;
 }
 
-/** Open the committed chain. Missing state is an empty chain; malformed state throws. */
+/**
+ * Open the committed chain. Missing state is an empty chain and a malformed
+ * manifest throws; a segment that is missing or fails its digest ends the chain
+ * there, and `dropped` counts what it cost.
+ */
 export async function openImmutableLog(path: string): Promise<ImmutableLog> {
   named(path);
   let bytes: Buffer;
@@ -65,14 +79,26 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
 
   const references = decodeManifest(bytes);
   const directory = segmentDirectory(path);
-  const segments = await Promise.all(references.map(async (reference) => {
-    const segment = await readFile(join(directory, fileName(reference.digest)));
-    if (segment.length !== reference.length || digestBytes(segment) !== reference.digest) {
-      throw new Error('invalid immutable log segment');
+  const read = await Promise.all(references.map(async (reference) => {
+    try {
+      const segment = await readFile(join(directory, fileName(reference.digest)));
+      return segment.length === reference.length && digestBytes(segment) === reference.digest
+        ? segment
+        : undefined;
+    } catch {
+      return undefined;
     }
-    return segment;
   }));
-  return logAt(path, references, segments, false, true);
+  const valid = read.findIndex((segment) => segment === undefined);
+  const count = valid === -1 ? read.length : valid;
+  return logAt(
+    path,
+    references.slice(0, count),
+    read.slice(0, count) as Buffer[],
+    false,
+    true,
+    references.length - count,
+  );
 }
 
 /**
@@ -118,6 +144,7 @@ function logAt(
   segments: readonly Buffer[],
   legacy: boolean,
   committed: boolean,
+  dropped = 0,
 ): ImmutableLog {
   const publishAll = async (
     deltas: readonly Uint8Array[],
@@ -158,6 +185,17 @@ function logAt(
     digests: references.map((reference) => reference.digest),
     legacy,
     committed,
+    dropped,
+    keep: (count) => count >= segments.length
+      ? logAt(path, references, segments, legacy, committed, dropped)
+      : logAt(
+          path,
+          references.slice(0, count),
+          segments.slice(0, count),
+          legacy,
+          committed,
+          dropped + segments.length - count,
+        ),
     publish: (delta, compacted) => publishAll([delta], compacted),
     publishAll,
   };

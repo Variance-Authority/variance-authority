@@ -45,6 +45,7 @@ export function dictionary(
     values.add(file);
     for (const value of [record.digest, record.unknown]) if (value !== undefined) values.add(value);
     for (const edge of record.edges ?? []) { values.add(edge.to); values.add(edge.kind); }
+    for (const edge of record.packages ?? []) { values.add(edge.to); values.add(edge.kind); }
     for (const value of record.declares ?? []) values.add(value);
     for (const value of record.unresolved ?? []) values.add(value);
     for (const value of held.witnesses) values.add(value);

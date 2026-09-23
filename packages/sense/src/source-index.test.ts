@@ -7,6 +7,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
 import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { readPublishedSources } from './published.js';
 import { openSourceIndex, readSourceRecords } from './source-index.js';
 import type { TreeShape } from './reuse.js';
 import { directoriesOf } from './witness.js';
@@ -64,6 +65,10 @@ const RECORD: FileRecord = {
   file: 'src/card.tsx',
   digest: DIGEST,
   edges: [{ to: 'src/button.tsx', kind: 'imports' }],
+  // A name no other field of this generation holds, so a dictionary that never
+  // collected package edges writes it as some other string and the round trip
+  // below fails on it.
+  packages: [{ to: '@scope/only-in-packages', kind: 'imports' }],
   declares: ['Card'],
   unresolved: ['missing-package'],
   unknown: 'one relative request did not resolve',
@@ -169,7 +174,7 @@ describe('the binary source index', () => {
     expect(third.reuse.get(RECORD.file, OTHER)).toEqual(replacement);
   });
 
-  it('rejects the complete generation when any committed segment is corrupt', async () => {
+  it('keeps the generation up to the first corrupt segment, and says it is damaged', async () => {
     const file = await path();
     const first = await openSourceIndex(file);
     first.cache.set(DIGEST, PARSED);
@@ -178,10 +183,29 @@ describe('the binary source index', () => {
     second.cache.set(OTHER, { requests: [] });
     await second.save();
 
-    const [segment] = await readdir(`${file}.segments`);
-    await writeFile(join(`${file}.segments`, segment!), 'corrupt');
+    const [, later] = (await openImmutableLog(file)).digests;
+    await writeFile(join(`${file}.segments`, `${later!.replace(':', '-')}.bin`), 'corrupt');
 
-    expect((await openSourceIndex(file)).cache.get(OTHER)).toBeUndefined();
+    const opened = await openSourceIndex(file);
+    expect(opened.cache.get(DIGEST)).toEqual(PARSED);
+    expect(opened.cache.get(OTHER)).toBeUndefined();
+    expect((await readPublishedSources(file)).state).toBe('damaged');
+
+    await opened.save();
+    expect((await readPublishedSources(file)).state).toBe('published');
+  });
+
+  it('keeps nothing when the first segment is corrupt', async () => {
+    const file = await path();
+    const first = await openSourceIndex(file);
+    first.cache.set(DIGEST, PARSED);
+    await first.save();
+
+    const [only] = (await openImmutableLog(file)).digests;
+    await writeFile(join(`${file}.segments`, `${only!.replace(':', '-')}.bin`), 'corrupt');
+
+    expect((await openSourceIndex(file)).cache.get(DIGEST)).toBeUndefined();
+    expect((await readPublishedSources(file)).state).toBe('damaged');
   });
 
   it('refuses a path that cannot name a file rather than reporting an empty cache', async () => {

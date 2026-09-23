@@ -141,10 +141,11 @@ ${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/coverage.
 
 `<digest>` is taken from the checkout's absolute path, so two checkouts never
 share bytes. `testCoverageFile(root)` returns that path, and
-`sourceIndexPath(root)` the scan cache beside it. A git worktree gets
-`.work/<its own digest>/` beneath the primary checkout's directory: it reads
-both layers and writes only its own, so a worktree cut this morning inherits
-what the repository already recorded. Pass `coverageFile` in the options to put
+`sourceIndexPath(root)` the source index beside it. A git worktree gets
+`.work/<its own digest>/` beneath the primary checkout's directory. Its coverage
+reads both layers and writes only its own, so a worktree cut this morning
+inherits what the repository already recorded; its source index is its own, and
+the first update in it reads every file. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 wants that.
 
@@ -765,6 +766,7 @@ never touch a disk.
 | `dirs` | required | choosing the source directories to seed |
 | `before` | absent | naming individual files the run rests on that nothing imports — a `vitest.config.ts`, the setup it loads — so the harness and everything below it become ordinary nodes; a path that is not there, or that this cannot parse, is skipped |
 | `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
+| `packs` | `true` | set `false` to read every file's bytes from the working tree instead of Git's object store; Git still lists the files and names their blobs |
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
@@ -807,9 +809,44 @@ it.
 
 ### Keep repeated scans cheap
 
-The source index caches parses and resolved records between scans. It is
-optional: a missing or corrupt one behaves as empty, saving scan work and never
-changing scan evidence.
+The source index keeps parses and resolved records between scans. One step
+publishes it and every reader reads it, so a checkout pays for its diff once
+rather than once per reader:
+
+```ts
+import { publishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
+import { isCI } from 'ci-info';
+
+// The step: absorb what changed since the last update, as one appended layer.
+const update = await updateSourceIndex(process.cwd());
+console.log(`${update.files} files, ${update.reread} read again`);
+
+// A reader: open what was published and take the part its question needs.
+const published = await publishedSources(process.cwd(), {
+  ci: isCI,
+  step: 'node scripts/index.mjs',
+  announce: (line) => console.error(line),
+});
+const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
+```
+
+`updateSourceIndex(root)` scans the whole checkout, whoever calls it, and reads
+again only the files whose blob changed. Its result names the state it found
+(`was`), the files it holds, and how many it read again (`reread`). Pass
+`packs: false` to read bytes from the working tree, as `scanRelations` does.
+
+`readPublishedSources(path)` opens a published index and asks nothing of Git or
+the disk beyond it. `publishedSources(root, options)` is the reader with a
+policy for a missing or damaged index: with `ci: true` it throws
+`SourceIndexUnpublished`, whose message names `step`; otherwise it updates once,
+calls `announce` with a line saying so, and reads. Pass your runner's own answer
+for `ci` — the `ci-info` package is what Jest asks. `sourcesWithin` returns the
+records a scan seeded from `dirs` and `before` would have produced, so a reader
+with a narrower question gets the narrower graph without scanning.
+
+Everything in the index is derived from the checkout: a missing, incomplete or
+corrupt one costs a scan and cannot change what a scan finds. For a scan of your
+own, open the index as a cache and save it afterwards:
 
 ```ts
 import { openSourceIndex, scanRelations, sourceIndexPath } from '@variance-authority/sense';
@@ -821,8 +858,7 @@ await source.save();
 ```
 
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
-root — the same directory, the same worktree layering, cached in CI the same
-way. See [the source index](https://variance-authority.dev/docs/source-index)
+root, cached in CI the same way. See [the source index](https://variance-authority.dev/docs/source-index)
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the

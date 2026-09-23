@@ -1,13 +1,12 @@
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { answerSearch, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
 import { startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import type { AskRequest, SourceReadOptions, Sourced } from './ask.js';
-import { scanCacheRoot } from './resources.js';
 
 /**
  * How `variance ask` reads the checkout for a question about the code.
@@ -55,7 +54,7 @@ export async function searchSource(
 ): Promise<Answering> {
   let tree: Tree | undefined;
   const index = await readSearchForAnswer(root, {
-    index: join(scanCacheRoot(root), 'source-index.bin'),
+    index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
@@ -71,7 +70,7 @@ export async function searchSource(
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, {
-    index: join(scanCacheRoot(root), 'source-index.bin'),
+    index: sourceIndexPath(root),
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.taints === undefined ? {} : { taints: options.taints }),
     ...(options.justAnswer === true ? { justAnswer: true } : {}),

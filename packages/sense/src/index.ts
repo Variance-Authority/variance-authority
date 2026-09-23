@@ -61,6 +61,19 @@ export {
   type PersistentSourceIndex,
 } from './source-index.js';
 
+export {
+  publishedSources,
+  readPublishedSources,
+  sourcesWithin,
+  updateSourceIndex,
+  SourceIndexUnpublished,
+  type PublishedSources,
+  type PublishedSourcesOptions,
+  type SourceUpdate,
+  type SourceUpdateOptions,
+} from './published.js';
+export type { SourceIndexState } from './source-index-file.js';
+
 export { gitDigests } from './tree.js';
 
 export {

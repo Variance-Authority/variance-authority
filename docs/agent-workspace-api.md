@@ -127,9 +127,8 @@ When an editor, watcher, or orchestrator produces a generation and already
 knows the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file means the caller
 knows nothing changed. This is producer input: it replaces Git's changed-file
-discovery and cannot be combined with `--just-answer`. [Building the source
-index](source-index.md#building-one) gives the file contract and the cold-cache
-boundary.
+discovery and cannot be combined with `--just-answer`. [Naming what
+changed](source-index.md#naming-what-changed) gives the file contract.
 
 ## Point the server at the workspace
 

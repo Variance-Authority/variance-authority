@@ -19,10 +19,19 @@ export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js'
 
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
 
+/**
+ * What opening a chain found: a whole one, none, or one that could only be read
+ * up to a segment that was missing, corrupt or foreign.
+ */
+export type SourceIndexState = 'published' | 'missing' | 'damaged';
+
 /** One opened generation and the writer that appends to the chain it came from. */
 export interface SourceIndexFile {
-  /** The committed generation. */
+  /** The committed generation, or the valid prefix of it when `state` is `damaged`. */
   readonly stored: StoredSourceIndex;
+  readonly state: SourceIndexState;
+  /** The committed chain's segment digests that were read: the generation's identity. */
+  readonly generation: readonly Digest[];
   /** Append what `next` changes about it; cache I/O never fails a scan. */
   save(next: StoredSourceIndex, encodedParses?: EncodedParseLayer): Promise<void>;
 }
@@ -36,6 +45,7 @@ export interface EncodedParseLayer {
 interface Opened {
   readonly stored: StoredSourceIndex;
   readonly log: ImmutableLog;
+  readonly state: SourceIndexState;
 }
 
 /** A missing, foreign, incomplete, or corrupt chain is an empty cache. */
@@ -57,6 +67,8 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
   const opened = await opening(path);
   return {
     stored: opened.stored,
+    state: opened.state,
+    generation: opened.log.digests,
     async save(next, encodedParses) {
       await append(await baseline(path, opened), next, encodedParses);
     },
@@ -66,9 +78,10 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
 /**
  * Everything a read can fail at is a cache miss, except being asked wrongly.
  *
- * A chain that is missing, foreign, truncated or corrupt costs a full scan,
- * which is what a run without a cache pays anyway, so it is answered with an
- * empty cache and no noise. A caller that passed something that cannot name a
+ * A chain that is missing, foreign, truncated or corrupt costs the segments
+ * from the first unusable one onward — the whole of it when that is the
+ * manifest — which a scan pays back by re-reading what they held, so it is
+ * answered with the valid prefix and a `state` that says so. A caller that passed something that cannot name a
  * file is not in that class: swallowed here it would return an empty cache and
  * then hand the same unusable path to the writer, so the run would report a
  * warm-cache saving of nothing, every run, and write its segments under a name
@@ -83,7 +96,7 @@ async function opening(path: string): Promise<Opened> {
     return await load(await openImmutableLog(path));
   } catch (error) {
     miss(error);
-    return { stored: EMPTY, log: emptyImmutableLog(path) };
+    return { stored: EMPTY, log: emptyImmutableLog(path), state: 'damaged' };
   }
 }
 
@@ -93,11 +106,11 @@ async function baseline(path: string, opened: Opened): Promise<Opened> {
     // A legacy one-segment file has no manifest to compare, and this publish is
     // the thing that gives it one.
     return !committed.legacy && !opened.log.legacy && same(committed.digests, opened.log.digests)
-      ? { stored: opened.stored, log: committed }
+      ? { stored: opened.stored, log: committed, state: opened.state }
       : await load(committed);
   } catch (error) {
     miss(error);
-    return { stored: EMPTY, log: emptyImmutableLog(path) };
+    return { stored: EMPTY, log: emptyImmutableLog(path), state: 'damaged' };
   }
 }
 
@@ -112,8 +125,11 @@ async function append(
   const native = !current.log.committed && encodedParses !== undefined
     ? encodedParses
     : undefined;
+  // A chain read up to a bad segment still names it, so the save that finds
+  // nothing to add still rewrites the manifest without it.
   if (
     current.log.committed &&
+    current.log.dropped === 0 &&
     current.stored.config === stored.config &&
     empty(parses) && empty(records) && empty(directories)
   ) return;
@@ -161,8 +177,16 @@ function same(left: readonly Digest[], right: readonly Digest[]): boolean {
   return left.length === right.length && left.every((digest, at) => digest === right[at]);
 }
 
-async function load(log: ImmutableLog): Promise<Opened> {
-  const decoded = log.segments.map((bytes) => decodeSourceIndex(bytes));
+async function load(read: ImmutableLog): Promise<Opened> {
+  const decoded: StoredSourceIndex[] = [];
+  for (const bytes of read.segments) {
+    try {
+      decoded.push(decodeSourceIndex(bytes));
+    } catch {
+      break;
+    }
+  }
+  const log = read.keep(decoded.length);
   const parseLayers: MapLayer<ParseKey, Parsed>[] = decoded.map((part) => ({
     puts: part.parses,
     deletes: part.deletedParses ?? new Set(),
@@ -178,6 +202,7 @@ async function load(log: ImmutableLog): Promise<Opened> {
   const config = decoded.at(-1)?.config;
   return {
     log,
+    state: !log.committed ? 'missing' : log.dropped > 0 ? 'damaged' : 'published',
     stored: {
       parses: orderedMap(parseLayers),
       ...(config === undefined ? {} : { config }),

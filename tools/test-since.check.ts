@@ -181,7 +181,7 @@ describe('the tool is reachable the way its comments say', () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
     };
-    expect(manifest.scripts['test:since']).toBe('node tools/test-since.mjs');
+    expect(manifest.scripts['test:since']).toBe('variance index && node tools/test-since.mjs');
   });
 });
 

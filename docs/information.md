@@ -191,8 +191,8 @@ flowchart TD
   accTitle: What a run reads and what it writes
   accDescr: Configuration, checkout and SUT host produce a report, review images, and the caches and stores a later run reads back.
   Config["variance.config.json"] --> Plan["subject plan"]
-  Checkout["source checkout"] --> Scan["source scan"]
-  Scan --> SourceStore["source index<br/>scans/ namespace"]
+  Checkout["source checkout"] --> Scan["variance index"]
+  Scan --> SourceStore["source index<br/>test-selection/ namespace"]
   SourceStore --> Plan
 
   Plan --> Exec["SUT execution"]
@@ -347,11 +347,14 @@ reader opens only the sections its query needs. Reach trails and query results
 are computed per run and are not stored.
 
 The index lives in the configured source-index root. The CLI's local namespace
-is `$XDG_CACHE_HOME/variance-authority/scans/<checkout-digest>`, falling back to
-`~/.cache/variance-authority/scans/<checkout-digest>`. A generation names its
-format, source contents, directory membership, and resolution and toolchain basis.
-Readers reject an incompatible, foreign, incomplete, or corrupt generation and
-rebuild from the checkout rather than accepting part of it as an empty graph.
+is `$XDG_CACHE_HOME/variance-authority/test-selection/<checkout-digest>`, falling
+back to `~/.cache/variance-authority/test-selection/<checkout-digest>`.
+`variance index` writes it, and the commands that use the file graph read it. A
+generation names its format, source contents, directory membership, and
+resolution and toolchain basis. Readers reject an incompatible, foreign,
+incomplete, or corrupt generation rather than accepting part of it as an empty
+graph: in CI they refuse and name `variance index`, and on a workstation they
+update it from the checkout first.
 
 The same binary generation can cross a CI cache or artifact boundary. No Sense
 service owns it and no process exchanges decoded object trees. Local and remote

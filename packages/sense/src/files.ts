@@ -154,6 +154,11 @@ export function languageFor(way: ParseWay): LanguageId | undefined {
  * once per file in the repository on every run — including the runs that open
  * nothing at all ([`cache.ts`](./cache.ts) carries the measurement).
  */
+// FIXME: the key names the file's bytes and never the reader that read them, so a
+// build whose reader answers differently — a native addon rebuilt, a language
+// reader changed — reuses the old parse, and the record resolved from it, until
+// the file itself changes. A published index is updated and never rebuilt, so
+// nothing else ever replaces that answer; only a format version bump does.
 export function keyFor(digest: Digest, way: ParseWay): ParseKey {
   return `${digest}\u0000${way.suffix}\u0000${way.declaring ? '+' : '-'}`;
 }

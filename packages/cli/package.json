@@ -62,6 +62,7 @@
     "@variance-authority/sense": "workspace:^",
     "@variance-authority/store": "workspace:^",
     "@variance-authority/storybook": "workspace:^",
-    "@variance-authority/vantage": "workspace:^"
+    "@variance-authority/vantage": "workspace:^",
+    "ci-info": "^4.4.0"
   }
 }

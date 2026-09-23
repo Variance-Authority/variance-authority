@@ -16,10 +16,11 @@
  */
 
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { openSourceIndex, scanRelations } from '@variance-authority/sense';
+import { publishedSources, sourcesWithin } from '@variance-authority/sense';
 import { LOCKFILES, changedPackages, packageRelations, readLockfile } from '@variance-authority/sense/lock';
+import { isCI } from 'ci-info';
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 /**
  * What each workspace package publishes, read from the manifests.
@@ -300,16 +301,20 @@ function lockfileAt(root) {
   return undefined;
 }
 
-/** The graph, scanned from the same directories `yarn test` collects. */
-export async function importGraph({ root, snapshotFile, stemOf, dirs = ['packages', 'tools', 'cases', 'examples'] }) {
-  const index = await openSourceIndex(resolve(dirname(snapshotFile), 'source-index.bin'));
-  const records = await scanRelations({
-    root,
-    dirs,
-    cache: index.cache,
-    reuse: index.reuse,
+/**
+ * The graph, over the same directories `yarn test` collects.
+ *
+ * Read from the checkout's published source index, never scanned here: `yarn
+ * test:since` runs `variance index` first, as its own step, and this reads what
+ * that step published.
+ */
+export async function importGraph({ root, stemOf, dirs = ['packages', 'tools', 'cases', 'examples'] }) {
+  const published = await publishedSources(root, {
+    ci: isCI,
+    step: 'variance index',
+    announce: (line) => process.stderr.write(`test:since: ${line}\n`),
   });
-  await index.save();
+  const records = sourcesWithin(published.records, root, dirs);
 
   const packages = manifests(root, ['packages', 'cases', 'examples']);
   const { records: folded, enumerated, named } = foldBuilt(bridgeWorkspace(records, packages), stemOf);

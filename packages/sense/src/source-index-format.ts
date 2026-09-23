@@ -32,7 +32,7 @@ import { encodeHarvest, openHarvest } from './source-index-harvest.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 7;
+const VERSION = 8;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -63,7 +63,14 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const directories = [...stored.directories].sort(([left], [right]) => order(left, right));
   const strings = dictionary(stored, parses, records);
   const ids = new Map(strings.map((value, index) => [value, index]));
-  const id = (value: string): number => ids.get(value)!;
+  // A string the dictionary never collected is a defect in `dictionary`, and
+  // as `undefined` in a typed column it would be written as row 0 — a real
+  // string, and the wrong one, with nothing to say so until a reader used it.
+  const id = (value: string): number => {
+    const found = ids.get(value);
+    if (found === undefined) throw new Error(`source index dictionary is missing ${JSON.stringify(value)}`);
+    return found;
+  };
 
   const { blob: stringBlob, off: stringOff } = stringColumns(strings);
 

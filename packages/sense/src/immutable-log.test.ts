@@ -25,13 +25,34 @@ describe('the immutable segment log', () => {
     expect((await openImmutableLog(file)).segments.map(String)).toEqual(['one', 'two']);
   });
 
-  it('rejects the complete chain when one named segment fails its digest', async () => {
+  it('keeps the chain up to the first segment that fails its digest', async () => {
     const file = await path();
     await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
-    const [segment] = await readdir(`${file}.segments`);
-    await writeFile(join(`${file}.segments`, segment!), 'changed');
+    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
+    await (await openImmutableLog(file)).publish(Buffer.from('three'), () => Buffer.from('all'));
+    const [, second] = (await openImmutableLog(file)).digests;
+    await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'changed');
 
-    await expect(openImmutableLog(file)).rejects.toThrow('invalid immutable log segment');
+    const opened = await openImmutableLog(file);
+    expect(opened.segments.map(String)).toEqual(['one']);
+    expect(opened.dropped).toBe(2);
+
+    await opened.publish(Buffer.from('four'), () => Buffer.from('one-four'));
+    const next = await openImmutableLog(file);
+    expect(next.segments.map(String)).toEqual(['one', 'four']);
+    expect(next.dropped).toBe(0);
+  });
+
+  it('treats a missing segment as the end of the chain', async () => {
+    const file = await path();
+    await (await openImmutableLog(file)).publish(Buffer.from('one'), () => Buffer.from('one'));
+    await (await openImmutableLog(file)).publish(Buffer.from('two'), () => Buffer.from('one-two'));
+    const [, second] = (await openImmutableLog(file)).digests;
+    await rm(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`));
+
+    const opened = await openImmutableLog(file);
+    expect(opened.segments.map(String)).toEqual(['one']);
+    expect(opened.dropped).toBe(1);
   });
 
   it('refuses a path that cannot name a file before it writes anything', async () => {

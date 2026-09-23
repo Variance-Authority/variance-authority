@@ -98,6 +98,22 @@ describe('digests read out of git', () => {
     expect(digests?.get('src/Clock.tsx')).toBe(await onDisk(root, 'src/Clock.tsx'));
   });
 
+  it('digests every file in a repository nobody has committed to', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-tree-'));
+    made.push(root);
+    await write(root, 'src/Button.tsx', 'export function Button() { return null }\n');
+    await write(root, 'src/staged.ts', 'export const staged = 1\n');
+    await git(root, ['init', '--quiet']);
+    await git(root, ['add', 'src/staged.ts']);
+
+    // There is no tree to list, which is an empty listing and not a question Git
+    // cannot answer: both files are still named, one staged and one untracked.
+    expect(await gitDigests(root)).toEqual(new Map([
+      ['src/Button.tsx', await onDisk(root, 'src/Button.tsx')],
+      ['src/staged.ts', await onDisk(root, 'src/staged.ts')],
+    ]));
+  });
+
   it('drops a path the working tree no longer has', async () => {
     const root = await repository();
     await unlink(join(root, 'src/tokens.css'));
