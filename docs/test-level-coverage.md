@@ -59,7 +59,8 @@ disk. Run the same suite on two workers, where it takes a minute and a half
 instead of half a minute, and the two baseline arms land **0.02%** apart:
 **91.56 s** plain against **93.69 s** recorded, and **110.86 s** under
 `--coverage`. Recording does not grow with the clock, and at that length the
-comparison stops being a ratio and becomes a number you can spend:
+comparison stops being a ratio and becomes a number you can spend — **19.3
+seconds a run for the union, 2.1 seconds for the relation**:
 
 ```mermaid
 xychart-beta horizontal

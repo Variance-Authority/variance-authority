@@ -19,9 +19,10 @@ has **671 million** entries in it. Coverage tools never meet that number,
 because they throw the test axis away: Istanbul and V8 count how many times a
 line ran, not who ran it, and a count can never clear a particular test.
 
-Written out as pairs, one per test per piece, 671 million entries are
-gigabytes. Kept whole but not written out, the same relation is megabytes, and
-no compressor is involved in getting there. It falls to **3,408 distinct sets of tests**, one for roughly
+Written out as pairs, one per test per piece, 671 million entries is 2,685 MB at
+four bytes each and 5,371 MB at eight. Kept whole but not written out, the same
+relation is built and held in **132 MB**, and no compressor is involved in
+getting there. It falls to **3,408 distinct sets of tests**, one for roughly
 every two hundred thousand crossings, because a test that imports a barrel
 covers every leaf underneath it: all of those leaves have the same audience, and
 the relation stores that audience once instead of once per leaf. The factor of
@@ -39,7 +40,8 @@ xychart-beta horizontal
   bar [0, 0, 0, 0]
 ```
 
-What the relation costs to build is not what it costs to keep: **77 MB** on disk at 200,000 modules, after
+That 132 MB is what the relation costs to build. What it costs to keep is
+smaller and is a different number: **77 MB** on disk at 200,000 modules, after
 the columns are run-coded on the way out. The rest of the arithmetic follows
 from a file that never expands the relation back. It is not read into memory to
 be asked about, so a question against that 77 MB touches under 5% of it and
@@ -135,6 +137,13 @@ paths of which 24,519 are modules, the first scan is **586 ms** and produces a
 10.5 MB index. Every run after it reuses that index, so the figure that matters
 is what a run pays before it selects anything, after an edit:
 
+| since the last run, the tree is | a run waits |
+|---|---|
+| new, no index at all | 586 ms |
+| unchanged | 301 ms |
+| four files edited | 320 ms |
+| five hundred files edited | 385 ms |
+
 ```mermaid
 xychart-beta horizontal
   accTitle: Milliseconds a run waits on Material UI, by what changed since the last run
@@ -147,7 +156,7 @@ xychart-beta horizontal
 ```
 
 An edit costs the records it touched and a fixed toll on top, which is why the
-three warm runs sit together. Where those numbers come from, and what a file
+last three rows sit together. Where those numbers come from, and what a file
 appearing or moving costs, is in [what a source scan costs](performance.md).
 
 **The cold scan is about 0.024 ms per module** — 586 ms over 24,519. Scaled up
@@ -171,8 +180,14 @@ measures both.
 Size scales with files, and it stays linear. The comparison worth making is
 against the cache you would have written first: one JSON object per file, each
 one spelling out its own path and the path of everything it imports. A synthetic
-200,000-file shape, written that way and written through the index's own
-encoder and read back through its own reader:
+200,000-file shape measures 598 MB written that way and **67.3 MB** written the
+way the index writes it, through its own encoder and read back through its own
+reader. The nine-fold difference is one decision — every name is stored once for
+the whole **generation**, which is what a
+[written index is called](source-structures.md): the ordered chain of immutable
+segments that one scan leaves on disk. A path that appears in forty import lists
+is written once and referred to forty times. That is a measurement of the format
+at that size, on generated paths rather than on a real tree.
 
 ```mermaid
 xychart-beta horizontal
@@ -184,13 +199,6 @@ xychart-beta horizontal
   bar [0, 0]
   bar [0, 0]
 ```
-
-The nine-fold difference is one decision — every name is stored once for
-the whole **generation**, which is what a
-[written index is called](source-structures.md): the ordered chain of immutable
-segments that one scan leaves on disk. A path that appears in forty import lists
-is written once and referred to forty times. That is a measurement of the format
-at that size, on generated paths rather than on a real tree.
 
 **Three counts of Material UI appear on this page and they are not the same
 count.** 41,171 is every path git tracks in the checkout. 24,519 is the module
@@ -296,8 +304,9 @@ into a pool of 3,408 is five bytes.
 
 On a barrel-shaped repository of 200,000 modules and 2,000 test files, **671
 million crossings collapse to 3,408 distinct sets**, built, stored and queried
-inside 132 MB, where the same relation written as pairs is gigabytes. The factor
-of twenty, and of forty against pointers, is not in the encoding. It is in not writing the same fact once per
+inside 132 MB. The same relation written as bare integer pairs has a floor of
+2,685 MB, and as pointers 5,371 MB. The factor of twenty, and of forty against
+pointers, is not in the encoding. It is in not writing the same fact once per
 leaf.
 
 Now assume none of that sharing exists. Give every one of the fixture's 1.6
@@ -564,6 +573,11 @@ The instinct is that cost tracks how many files changed. It tracks where they
 are, far better. Five changed files in Material UI's recorded suite, counted
 twice:
 
+| a diff of five files | tests run |
+|---|---|
+| adjacent, one feature in one subtree | 31 of 184 |
+| scattered across the repository | 155 of 184 |
+
 ```mermaid
 xychart-beta horizontal
   accTitle: Test files a five-file diff runs in Material UI's suite
@@ -576,8 +590,7 @@ xychart-beta horizontal
 ```
 
 Adjacent files share most of their audience, so the fifth costs little more than
-the first. A dependency bump, a codemod or a formatting sweep is the scattered
-diff,
+the first. A dependency bump, a codemod or a formatting sweep is the other row,
 and there is no honest way to make it cheap: the tests really did cover all of
 that.
 
@@ -592,8 +605,9 @@ suite and ask what it would cost if only that file changed:
   most of the library imports is covered by a test that renders almost
   anything, and a change to it genuinely could break almost anything.
 
-One subtree shows the shape: eleven adjacent files, and the class-names module
-beside them.
+One subtree shows the shape. Eleven adjacent files cost 17% of the suite between
+them. The twelfth, a class-names module, costs 78% on its own, and once it is in
+the diff the other eleven are free.
 
 ```mermaid
 xychart-beta horizontal
@@ -605,8 +619,6 @@ xychart-beta horizontal
   bar [0, 0]
   bar [0, 0]
 ```
-
-Once the class-names module is in the diff, the other eleven are free.
 
 So the question worth asking before adopting this is not *how big is my
 repository*. It is **how often do my pull requests touch a hub**, and your own
@@ -810,8 +822,15 @@ and drop the one component the subject is about.
 ### The vocabulary saturates; the postings do not
 
 The index a question runs against is a token list and a postings list, and the
-two grow differently. Counted over Material UI's suite, from 50 subjects to
-4,705:
+two grow differently. Counted over the same suite at increasing numbers of
+subjects:
+
+| subjects | distinct tokens | values |
+|---|---|---|
+| 50 | 149 | 604 |
+| 250 | 219 | 5,109 |
+| 1,000 | 535 | 27,387 |
+| 4,705 | 1,300 | 96,510 |
 
 ```mermaid
 xychart-beta horizontal
@@ -824,7 +843,8 @@ xychart-beta horizontal
   bar [0, 0, 0]
 ```
 
-Words repeat; that is what a vocabulary is.
+Ninety-four times the subjects is a hundred and sixty times the values and
+under nine times the vocabulary. Words repeat; that is what a vocabulary is.
 The product app is more varied and saturates more slowly — eleven times the
 subjects for five times the vocabulary — but both bend the same way.
 

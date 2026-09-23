@@ -550,6 +550,8 @@ html {
   max-width: none;
   height: auto;
   margin-inline: auto;
+  /* A vertical chart centres its top tick label on the top edge. */
+  overflow: visible;
 }
 
 .mermaid-canvas.is-fit > div {

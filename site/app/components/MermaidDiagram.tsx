@@ -65,7 +65,17 @@ export default function MermaidDiagram({ source }: { source: string }) {
           },
         });
 
-        return mermaid.render(renderId, source);
+        // A vertical chart stacks its value axis in the height, and at
+        // 150px the tick labels overlap and the axis title is cut. It is set
+        // in the diagram, not in `initialize`: that config is global, and
+        // every diagram on a page renders concurrently.
+        const vertical = /^\s*xychart-beta\s*$/m.test(source);
+        return mermaid.render(
+          renderId,
+          vertical
+            ? `---\nconfig:\n  xyChart:\n    height: 320\n---\n${source}`
+            : source,
+        );
       })
       .then(({ svg: rendered }) => {
         if (current) setSvg(rendered);

@@ -303,8 +303,15 @@ known, and each removes a layer:
   a path appearing, disappearing or moving rebuilds the records watching its
   directory. An unreadable configuration falls back to the whole path set.
 
-On 30,500 files and 40,479 edges, one Mac, naming every file's content takes
-95 ms and opens nothing. What the scan costs as each layer is remembered:
+30,500 files and 40,479 edges, one Mac:
+
+| | cost |
+|---|---|
+| Naming every file's content | 95 ms, and nothing opened |
+| A cold scan | 3002 ms |
+| Parses remembered | 657 ms |
+| Records remembered too | 236 ms |
+| The run after a one-file edit | 236 ms — the edit is inside the noise |
 
 ```mermaid
 xychart-beta horizontal
@@ -316,8 +323,6 @@ xychart-beta horizontal
   bar [0, 0, 0, 0]
   bar [0, 0, 0, 0]
 ```
-
-The last two bars are the same: the edit is inside the noise.
 
 Both caches live under `XDG_CACHE_HOME` (or `~/.cache`), keyed by repository
 root, outside the work tree — so nothing here is committed and `git clean` will
