@@ -108,6 +108,12 @@ export const JOURNEY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
 /** What a head calls itself, when the process is started rather than configured. */
 export const JOURNEY_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
 
+/**
+ * How many journeys a head remembers the way home for after their scopes
+ * released. A long-lived service answers every run pointed at it, and one entry
+ * per test attempt is what a promise left running needs to still be heard.
+ */
+const HOMES = 4096;
 
 /** One execution of one subject, as it crosses the wire: opaque, and nothing else. */
 export function mintJourney(): string {
@@ -218,6 +224,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     if (bucket === undefined) {
       bucket = engine.open(journey);
       buckets.set(journey, bucket);
+      if (journey !== UNATTRIBUTED && !depth.has(journey)) straggle(journey);
     }
     return bucket;
   };
@@ -287,14 +294,35 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       return;
     }
     depth.delete(journey);
+    // The way home is kept past the scope, since a promise the handler started
+    // and did not return still runs as this request; see `straggle`.
     const over = channels.get(journey);
-    channels.delete(journey);
     report(journey, over, 1);
     // Whatever the process did outside any journey goes home on the address that
     // is open right now. It belongs to every subject, so which one carries it is
     // nobody's business but the driver's, and the driver unions them.
     report(UNATTRIBUTED, over);
   };
+
+  /**
+   * A crossing for a journey whose scope already released: a promise the
+   * handler started and did not return, still running in the request's context.
+   * It belongs to that request, so it goes home as a scope of its own, opened
+   * now and settled on the next turn of the loop. One whose way home was
+   * forgotten counts as lost, which the driver reads as an account that never
+   * arrived.
+   */
+  function straggle(journey: string): void {
+    const over = channels.get(journey);
+    if (over === undefined) {
+      lost += 1;
+      return;
+    }
+    depth.set(journey, 1);
+    // Off the probe's own stack: this runs inside an instrumented call.
+    queueMicrotask(() => send(over, { scope: 'journey', opened: 1, modules: [] }));
+    setImmediate(() => release(journey));
+  }
 
   const flush = async (): Promise<void> => {
     // A scope still open is closed by this account, since nothing will report
@@ -323,7 +351,10 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       const channel = channelFrom(carried);
       const journey = channel?.journey;
       if (channel === undefined || journey === undefined) return body();
+      // Most recent last, so the one forgotten first is the one released longest ago.
+      channels.delete(journey);
       channels.set(journey, channel);
+      if (channels.size > HOMES) channels.delete(channels.keys().next().value!);
       const opening = !depth.has(journey);
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
       // Said before the body runs, so the driver knows to wait for this scope

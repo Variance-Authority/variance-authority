@@ -547,7 +547,9 @@ process's rather than the nearest subject's.
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is
 attributed at all. That can be well after the response went out, so the head
-says a scope opened before the body runs and says it settled when it does.
+says a scope opened before the body runs and says it settled when it does. A
+promise the body started and did not return still runs as its request, and what
+it enters after the scope closed goes home as a scope of its own.
 `flush` reports what has accumulated without ending anything; `close` restores
 the global and reports the rest.
 

@@ -132,6 +132,40 @@ describe('a head reports what each journey entered', () => {
     });
   });
 
+  it('sends home what a promise the handler started and did not return entered', async () => {
+    // A write behind, an analytics call, a cache warmed after the response: the
+    // request's context carries it, and the scope it ran in has already reported.
+    await inRoot(async (root) => {
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
+      const parts = await head(root);
+      const german = mintJourney();
+      let behind: Promise<string> | undefined;
+
+      const answered = collector.enter(driven.carrying(german), () => {
+        behind = new Promise((resume) => setTimeout(resume, 20)).then(() => parts.currency('de'));
+        return 'accepted';
+      });
+      expect(answered).toBe('accepted');
+      await behind;
+      await until(
+        () =>
+          driven.reports.some((report) => report.journey === german && report.modules.length > 0) &&
+          unsettledScopes(driven.reports).size === 0,
+      );
+      await collector.close();
+
+      const { stitched } = await record(root, parts, driven, [
+        [german, 'euros.spec.ts'],
+        [mintJourney(), 'dollars.spec.ts'],
+      ]);
+      expect(stitched).toMatchObject({ complete: true });
+      expect(await selectTestFiles(parts.where.coverageFile, diffAt('currency.js', EURO_LINE))).toEqual([
+        'euros.spec.ts',
+      ]);
+    });
+  });
+
   it('attributes a scope to the journey until what it returned settles', async () => {
     await inRoot(async (root) => {
       const driven = await driver();
