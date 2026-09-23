@@ -35,11 +35,11 @@ The resolver asks four owners in this order and stops at the first answer.
 
 **0. The caller's settings.** `conditionNames`, `tsconfig` and tsconfig
 `paths`. Unchanged; this is the first pass `resolved()` makes today
-(`resolve.ts:267-317`).
+(`packages/sense/src/resolve.ts:267-317`).
 
 **1. The member's manifest.** A `source` export condition, or a top-level
-`source` field. Unchanged: `DEFAULT_CONDITIONS` (`resolve.ts:49`) leads with
-`source`, and `mainFields` (`resolve.ts:179`) is `['source', 'module', 'main']`.
+`source` field. Unchanged: `DEFAULT_CONDITIONS` (`packages/sense/src/resolve.ts:49`) leads with
+`source`, and `mainFields` (`packages/sense/src/resolve.ts:179`) is `['source', 'module', 'main']`.
 
 **2. The member tsconfig that emits into the target, read backwards.** New.
 
@@ -56,7 +56,7 @@ The resolver asks four owners in this order and stops at the first answer.
   that list.
 
 *Extension rows* follow TypeScript's own inverse table, in TypeScript's order
-(TypeScript 6 `typescript.js:20418`):
+(TypeScript 6, line 20418 of `typescript.js`):
 
 | Emitted | Original, first match wins |
 |---|---|
@@ -113,19 +113,19 @@ All three must be true:
    nothing reads. When the first pass has no hit, it comes from a package-only
    lookup of `name/package.json` on a clone with `exportsFields: []` and
    `mainFields: []`.
-3. The first pass failed, landed in `EXCLUDE_DIRS` (`resolve.ts:52-62`), or
+3. The first pass failed, landed in `EXCLUDE_DIRS` (`packages/sense/src/resolve.ts:52-62`), or
    landed under one of that member's emit directories. The last case covers
    `outDir: lib`, which is not excluded and today produces an edge to built
    output.
 
 The step goes into the `[modules, exact]` loop in `resolved()`: a landing under a
 member's emit directory is not returned, and after the loop, before `return []`
-at `resolve.ts:316`, the rewrite runs. The native path gets the same step in
+at `packages/sense/src/resolve.ts:316`, the rewrite runs. The native path gets the same step in
 `resolve` (`packages/sense/native/src/resolve.rs:73-103`).
 
 ## 4. When nobody owns it
 
-The template is one constant in `packages/sense/src/origins.ts`, used by the
+The template is one constant in `origins.ts`, a new module in `packages/sense/src/`, used by the
 JavaScript path and by `native.ts` when it renders the reason codes the addon
 returns:
 
@@ -146,7 +146,7 @@ only:
 
 The sentence contains no oxc message, no `dist` path and no absolute path, so two
 machines with different builds write the same sentence. It joins the other
-reasons in `record.ts:148-153`, rendered as `${file} — ${reasons.join('; ')}`.
+reasons in `packages/sense/src/record.ts:148-153`, rendered as `${file} — ${reasons.join('; ')}`.
 
 An unowned member never widens selection; that is true since `03984ae7`, and
 this spec does not change it. The `unknown` does change one reading:
@@ -190,7 +190,7 @@ import names.
   can include the sentence in section 4.
 - **Witnesses:** `witnessesOf` (`witness.ts:238`) adds the directory under the
   member's rootDir where the original is looked for, and, for an unowned member,
-  the package directory. So adding `packages/ui/src/new.ts` invalidates the
+  the package directory. So adding the fixture's `ui/src/new.ts` invalidates the
   record that imports `@acme/ui/new`, and adding a tsconfig to an unowned
   member invalidates the records that named it.
 - **Config digest:** already covers `tsconfig*.json`, `package.json` and the
@@ -204,7 +204,7 @@ import names.
 
 | File | Change |
 |---|---|
-| `packages/sense/src/origins.ts` (new, about 200 lines) | `originsIn(parsedConfigs, typescriptVersionAt)` returns `Map<realPkgDir, { rows, declined? }>`. `originOf(resolvers, origins, pkgDir, request)` returns `{ file }` or `{ reason }`. `originalOf(origins, repoPath)` returns the original of an emitted path, or `undefined` when no owner states one; tools use it. `unownedSentence(specifier, pkgDir, reason)` is the template in section 4. |
+| `origins.ts` in `packages/sense/src/` (new, about 200 lines) | `originsIn(parsedConfigs, typescriptVersionAt)` returns `Map<realPkgDir, { rows, declined? }>`. `originOf(resolvers, origins, pkgDir, request)` returns `{ file }` or `{ reason }`. `originalOf(origins, repoPath)` returns the original of an emitted path, or `undefined` when no owner states one; tools use it. `unownedSentence(specifier, pkgDir, reason)` is the template in section 4. |
 | `packages/sense/src/witness.ts` | `compilerOptions` (`:156-187`) also reads `outDir`, `declarationDir`, `rootDir`, `composite`, `noEmit`, `emitDeclarationOnly` and `outFile`, and records a decline for a non-relative `extends`. `aliasesIn` (`:78-139`) returns these beside the aliases, so each config is parsed once. |
 | `packages/sense/src/reuse.ts` | `shapeOf` (`:148-174`) returns `{ shape, aliases, origins }`. `VERSION` (`:103`) is bumped. |
 | `packages/sense/src/scan.ts` | `resolversFor(options)` (`:201`) runs before the tree exists (`:205-210`). The origins are assigned afterwards, the way `resolvers.tree` is at `:221`: from `shapeOf` (`:226`) when there is a tree, and from the config paths in the file list when `digests: false`. Both modes read the same files. |
@@ -259,7 +259,7 @@ not tested yet; assertion 6 in section 10 tests it.
 
 - **Traversal and repository boundaries** (`:191-201`). Add `tsDist` and
   `storybook-static` to the list, which then matches `EXCLUDE_DIRS`
-  (`resolve.ts:52-62`).
+  (`packages/sense/src/resolve.ts:52-62`).
 - **Workspace packages** (`:203-258`). Rewrite in present tense, second person.
   Open with the promise: a bare import that names a package in your repository
   resolves to its source file, built or not. Then the order: your `source`
@@ -305,9 +305,9 @@ as plain bytes, so no compiler runs.
 `apps/web/src/main.ts` imports all five. `apps/web/test/ui.case.ts` calls
 `vi.mock('@acme/ui')`.
 
-**Assertions**, in `packages/sense/src/origins.test.ts` unless named:
+**Assertions**, in `origins.test.ts`, beside the new module, unless named:
 
-1. Unbuilt: `@acme/ui` → `packages/ui/src/index.ts`; `@acme/ui/util` →
+1. Unbuilt: `@acme/ui` → the fixture's `ui/src/index.ts`; `@acme/ui/util` →
    `src/util.mts`; `@acme/ui/deep/x` → `src/deep/x.tsx`; `@acme/legacy` →
    `src/index.ts`; `@acme/bundled2` → `src/…`, through the types-first clone.
 2. Built: the whole record set is byte-equal to the unbuilt one.
@@ -321,7 +321,7 @@ as plain bytes, so no compiler runs.
    `packages/sense/src/native-read.test.ts`.
 8. `originalOf('packages/ui/dist/deep/x.js')` is `'packages/ui/src/deep/x.tsx'`,
    and a path under `leftpad` gives `undefined`.
-9. Reuse: adding `packages/ui/src/new.ts` invalidates the record that imports
+9. Reuse: adding the fixture's `ui/src/new.ts` invalidates the record that imports
    `@acme/ui/new`, and no other record.
 
 **Variants**, each its own `it`:
@@ -361,7 +361,7 @@ where the item is a defect in code that ships, as `AGENTS.md` requires.
 | TypeScript 5's computed rootDir | `it.todo` in `origins.test.ts` |
 | A non-relative tsconfig `extends` | `// TODO:` at the decline in `witness.ts` `compilerOptions` |
 | A package built by something other than `tsc` | decided by section 13 |
-| `exact` is built on oxc defaults: `resolve.ts:200` passes only `extensionAlias`, and `resolve.rs:65` passes `ResolveOptions::default()`, so both lose `conditionNames`, `mainFields` and `tsconfig` | `// FIXME:` at both lines |
+| `exact` is built on oxc defaults: `packages/sense/src/resolve.ts:200` passes only `extensionAlias`, and `packages/sense/native/src/resolve.rs:65` passes `ResolveOptions::default()`, so both lose `conditionNames`, `mainFields` and `tsconfig` | `// FIXME:` at both lines |
 | `build` is exempt when seeding (`files.ts:69`, `seed.rs:69`) and excluded at resolve time | `// FIXME:` at `files.ts:69` |
 | The map fallback in `source-lines.ts` `originalFile` (`:168`) fails silently, and `decode` (`:244`) is a second VLQ decoder | `// FIXME:` at both lines |
 | The `BUILT` regex in `vitest.config.mts:61`, used at `:75` | `// TODO:` to name built modules through `originalOf` |
