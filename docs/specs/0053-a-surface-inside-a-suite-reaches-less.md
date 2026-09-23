@@ -30,8 +30,8 @@ one.
 ## 2. Recording, where the placement has not been reached
 
 The execution record follows the runner rather than the surface, so a jsdom
-suite, a Vitest browser-mode suite and a Playwright suite all have one. One
-placement does not:
+suite, a Vitest or Rstest browser-mode suite and a Playwright suite all have
+one. One placement does not:
 
 A served application. `packages/route-collector` visits URLs a server already
 renders and records nothing, because the process that executes the product is

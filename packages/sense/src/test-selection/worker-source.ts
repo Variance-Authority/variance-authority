@@ -155,11 +155,13 @@ import { afterAll, beforeAll } from ${JSON.stringify(runner)};
 const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
 let loaded = [];
 beforeAll(() => { loaded = execution.drain().modules; });
-// The file task is the hook's first argument through Vitest 4 and its second
-// from 5, where the first is a fixture context and a parameter the hook names
-// has to destructure it. So the hook names none.
+// Vitest hands the hook the file task, first through Vitest 4 and second from
+// 5, where the first is a fixture context and a parameter the hook names has
+// to destructure it. So the hook names none. Rstest hands it the file's
+// context, whose \`meta\` it reports with the file's result.
 afterAll(function () {
-  const file = [...arguments].find((task) => task?.type === 'suite' && typeof task.filepath === 'string');
+  const file = [...arguments].find((task) =>
+    typeof task?.filepath === 'string' && (task.type === 'suite' || typeof task.meta === 'object'));
   if (file === undefined) return;
   (file.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = { loaded, ran: execution.drain().modules };
 });

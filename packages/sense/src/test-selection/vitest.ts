@@ -12,16 +12,10 @@ import {
   carriedJournal,
   reportedComplete,
   taskComplete,
-  type FinishedFile,
   type ReportedModule,
   type RunnerTask,
 } from './finished-files.js';
-import {
-  BROWSER_JOURNAL,
-  browserSetupSource,
-  caseRunnerSource,
-  setupSource,
-} from './worker-source.js';
+import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { testCoverageFile } from './index.js';
@@ -390,23 +384,17 @@ function selectionReporter(
         : [{
           filepath: file.filepath,
           complete: taskComplete(file),
-          ...carried(file.filepath, file.meta),
+          ...carriedJournal(file.filepath, file.meta),
         }]),
     ),
     onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
       reported.map((module) => ({
         filepath: module.moduleId,
         complete: reportedComplete(module),
-        ...carried(module.moduleId, module.meta?.()),
+        ...carriedJournal(module.moduleId, module.meta?.()),
       })),
     ),
   } as Reporter;
-}
-
-/** The journal a page handed its runner, when this file ran in one. */
-function carried(testFile: string, meta: object | undefined): Pick<FinishedFile, 'journal'> {
-  const journal = carriedJournal(testFile, (meta as Record<string, unknown> | undefined)?.[BROWSER_JOURNAL]);
-  return journal === undefined ? {} : { journal };
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {

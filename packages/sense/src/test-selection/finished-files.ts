@@ -27,6 +27,7 @@ import {
 } from './instrumented-modules.js';
 import type { CoveragePrecondition, CoverageTest } from './index.js';
 import type { ExecutedModule } from './probes.js';
+import { BROWSER_JOURNAL } from './worker-source.js';
 
 export interface RunnerTask {
   readonly filepath?: string;
@@ -114,10 +115,11 @@ interface PageDrains {
  * somewhere other than a page — which {@link coverageTest} reads as a file
  * that left no journal.
  */
-export function carriedJournal(testFile: string, carried: unknown): ReadJournal | undefined {
-  if (typeof carried !== 'object' || carried === null) return undefined;
+export function carriedJournal(testFile: string, meta: object | undefined): Pick<FinishedFile, 'journal'> {
+  const carried = (meta as Record<string, unknown> | undefined)?.[BROWSER_JOURNAL];
+  if (typeof carried !== 'object' || carried === null) return {};
   const { loaded, ran } = carried as Partial<PageDrains>;
-  if (!Array.isArray(loaded) || !Array.isArray(ran)) return undefined;
+  if (!Array.isArray(loaded) || !Array.isArray(ran)) return {};
   const modules = new Map<ModuleId, { hits: Set<number>; shared: Set<number>; loaded: readonly number[] }>();
   for (const [drain, early] of [[loaded, true], [ran, false]] as const) {
     for (const module of drain) {
@@ -129,13 +131,15 @@ export function carriedJournal(testFile: string, carried: unknown): ReadJournal 
   }
   const ascending = (ordinals: Iterable<number>): number[] => [...ordinals].sort((a, b) => a - b);
   return {
-    testFile,
-    modules: [...modules].map(([id, row]) => ({
-      id,
-      hits: ascending(row.hits),
-      shared: ascending(row.shared),
-      loaded: ascending(row.loaded),
-    })),
+    journal: {
+      testFile,
+      modules: [...modules].map(([id, row]) => ({
+        id,
+        hits: ascending(row.hits),
+        shared: ascending(row.shared),
+        loaded: ascending(row.loaded),
+      })),
+    },
   };
 }
 

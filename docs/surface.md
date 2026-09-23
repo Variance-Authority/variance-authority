@@ -544,9 +544,9 @@ before you pick.
 The last three rows are written by your runner rather than by the surface, so
 they arrive on a different install and answer a different question — not *did
 this subject change* but *which tests could this commit have moved*. A jsdom
-suite gets them from the Vitest, Jest or Rstest integration, a Vitest
-browser-mode suite from the same Vitest integration, and a Playwright suite from
-the recording fixtures beside its observations; [what each host
+suite gets them from the Vitest, Jest or Rstest integration, a Vitest or Rstest
+browser-mode suite from the same integration, and a Playwright suite from the
+recording fixtures beside its observations; [what each host
 records](execution-record.md#what-each-host-records) is the per-runner detail,
 and [own fewer tests](own-fewer-tests.md) is the loop they serve.
 

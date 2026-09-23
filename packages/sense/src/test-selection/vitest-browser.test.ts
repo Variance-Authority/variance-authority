@@ -74,7 +74,7 @@ describe('a test file that runs in a page', () => {
       run.before();
       run.after(file);
 
-      const journal = carriedJournal('src/premium.test.ts', (file.meta as Record<string, unknown>)[BROWSER_JOURNAL]);
+      const { journal } = carriedJournal('src/premium.test.ts', file.meta);
       // Loading the module entered its header, which every file that loads it
       // shares; the test entered the function and the branch it took.
       expect(journal?.modules).toEqual([

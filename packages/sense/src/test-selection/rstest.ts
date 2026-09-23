@@ -25,10 +25,10 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { defaultInclude } from './instrumented-modules.js';
-import { statusesComplete } from './finished-files.js';
+import { carriedJournal, statusesComplete } from './finished-files.js';
 import { foldRun } from './selection-fold.js';
-import { runFor, runStamp, writeSeamModule } from './selection-run.js';
-import { caseGlobalsSource, setupSource } from './worker-source.js';
+import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
+import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { testCoverageFile } from './index.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -116,6 +116,8 @@ export interface RstestFileResult {
   readonly testPath: string;
   readonly status: string;
   readonly results?: ReadonlyArray<{ readonly status: string }>;
+  /** What the file's own `afterAll` put on its context, carried from wherever it ran. */
+  readonly meta?: object;
 }
 
 /** The subset of an Rstest configuration this seam reads and rewrites. */
@@ -197,6 +199,7 @@ export function withTestSelection(
       payload.results.map((file) => ({
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
+        ...carriedJournal(file.testPath, file.meta),
       })),
     ),
   };
@@ -234,6 +237,7 @@ export function withTestSelection(
       ),
       ...setupFiles,
     ],
+    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode)],
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,
@@ -257,6 +261,40 @@ export function withTestSelection(
           },
         },
       ],
+    },
+  };
+}
+
+/** The part of Rsbuild's plugin API this seam reads. */
+interface RsbuildPluginApi {
+  readonly useExposed: (id: string) => {
+    readonly getRstestConfig: () => { readonly browser?: { readonly enabled?: boolean } };
+  } | undefined;
+}
+
+/**
+ * The setup module for a test file that runs in a page, swapped in where the
+ * run says it does.
+ *
+ * Where a file runs is the runner's to say, and `--browser.enabled` says it
+ * after the configuration was written. Rstest hands its Rsbuild plugins the
+ * configuration with the command line merged in, so it is read there.
+ */
+function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
+  return {
+    name: 'variance-authority:test-selection',
+    setup(api: RsbuildPluginApi): void {
+      if (api.useExposed('rstest')?.getRstestConfig().browser?.enabled !== true) return;
+      writeSeamModule(setupId, browserSetupSource(mode, RSTEST_API));
+      // TODO: record cases in a page — a drain per test, carried on each
+      // test's `meta` as the file's is.
+      if (run.cases) {
+        run.cases = false;
+        console.warn(
+          'variance-authority: `cases` is not recorded for a test file that runs in a page; ' +
+            'this run writes the file-level snapshot only.',
+        );
+      }
     },
   };
 }
