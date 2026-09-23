@@ -71,12 +71,12 @@ describe('a module a test mocked', () => {
     expect(select(coverage, edit('src/api.ts', 1), false)).toEqual(TESTS);
   });
 
-  it('does not select a test that called into the module it mocked, because the mock is what it ran against', () => {
-    // The real `get` ran for `card.test.ts`, so its mock did not take; the
-    // audit names that, and selection still does not follow it.
+  it('selects a test that called into the module it mocked, because the call ran the real module', () => {
+    // The real `get` ran for `card.test.ts` after its mocks were installed: a
+    // passthrough, a restored implementation, a route the scan cannot see.
     const coverage = record(['test/card.test.ts', 'test/plain.test.ts'], ['test/plain.test.ts']);
 
-    expect(select(coverage, edit('src/api.ts', 4))).toEqual(['test/plain.test.ts']);
+    expect(select(coverage, edit('src/api.ts', 4))).toEqual(['test/card.test.ts', 'test/plain.test.ts']);
   });
 
   it('does not select a test that reaches a dependency only through its mock', () => {
@@ -86,10 +86,10 @@ describe('a module a test mocked', () => {
     expect(select(coverage, edit('src/http.ts', 1))).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
   });
 
-  it('does not select a test that called into a dependency of its mock', () => {
+  it('selects a test that called into a dependency of its mock, and not one that only loaded it', () => {
     const coverage = record(['test/plain.test.ts'], ['test/card.test.ts', 'test/plain.test.ts']);
 
     // `wire.test.ts` loaded `http.ts` by its own import and never called `send`.
-    expect(select(coverage, edit('src/http.ts', 4))).toEqual(['test/plain.test.ts']);
+    expect(select(coverage, edit('src/http.ts', 4))).toEqual(['test/card.test.ts', 'test/plain.test.ts']);
   });
 });

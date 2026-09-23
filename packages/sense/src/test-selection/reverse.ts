@@ -417,8 +417,11 @@ export function coveringChange(
 /**
  * Whether a crossing in this module belongs to its case.
  *
- * A case whose file mocked the module, or reaches it only through a mock, holds
- * none of its crossings there, whatever they were. See `shadowed.ts`.
+ * Every crossing a case made is its own: its mocks were installed before it
+ * ran. Only a crossing made while the module evaluated can be a mock's work —
+ * a runner evaluating the real module to shape it — and a case whose file
+ * mocked the module, or reaches it only through a mock, does not hold those.
+ * See `shadowed.ts`.
  */
 export function ownedIn(
   index: ExecutionIndex,
@@ -427,6 +430,7 @@ export function ownedIn(
 ): (crossing: ExecutionCrossing) => boolean {
   if (shadowed === undefined) return () => true;
   return (crossing) => {
+    if (crossing.loaded !== true) return true;
     const file = index.tests[crossing.test]?.file;
     return file === undefined || !shadowed(file).has(module.file);
   };

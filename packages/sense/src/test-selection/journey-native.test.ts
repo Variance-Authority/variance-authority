@@ -117,11 +117,13 @@ describe('selecting off a journey file in the addon', () => {
     }
   }
 
-  it('traces a bump through the install to the files importing it, and past a mock only where a test imports it itself', async () => {
+  it('traces a bump through the install to the files importing it, and to every case the record saw enter one', async () => {
     const bumped = async (name: string) =>
       (await selectJourneyFile(FILE, new Map(), { relations: mocked, packages: [name] }))?.entered;
-    expect(await bumped('ky-core')).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
-    expect(await bumped('ky')).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
+    // `card.test.ts` reaches `http.ts` only through its mock of `api.ts`, and
+    // one of its cases called `send` anyway: the call is the record's word.
+    expect(await bumped('ky-core')).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await bumped('ky')).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
     expect(await bumped('left-pad')).toEqual([]);
     expect(await bumped('nowhere')).toEqual([]);
   });
@@ -135,12 +137,19 @@ describe('selecting off a journey file in the addon', () => {
     }
   }
 
-  it('charges a line to the innermost region, and a mock takes the module out of the run', async () => {
+  it('charges a line to the innermost region, and holds every case to what it entered, mocks or not', async () => {
     const at = async (file: string, line: number) =>
       (await selectJourneyFile(FILE, new Map([[file, lines(line)]]), { relations: mocked }))?.entered;
     expect(await at('src/api.ts', 4)).toEqual(['test/plain.test.ts']);
-    expect(await at('src/api.ts', 3)).toEqual(['test/plain.test.ts']);
-    expect(await at('src/http.ts', 2)).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await at('src/api.ts', 3)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await at('src/http.ts', 2)).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+  });
+
+  it('lets a mock cut only what ran while the module evaluated, which the graph answers', async () => {
+    const loadTime = new Map([['src/api.ts', lines(1)]]);
+    expect((await selectJourneyFile(FILE, loadTime, { relations: mocked }))?.entered).toEqual(['test/plain.test.ts']);
+    expect((await selectJourneyFile(FILE, loadTime, { relations: plain }))?.entered)
+      .toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
   });
 
   it('names a path neither the record nor the graph knows', async () => {

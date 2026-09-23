@@ -210,11 +210,11 @@ describe('coveringChange', () => {
     expect(file?.regions[0]?.passengers?.map((test) => test.id)).toEqual(['other-staff']);
   });
 
-  it('drops every case whose file mocked the module, whatever it crossed there', () => {
+  it('drops only what a mocked module did while it evaluated, and keeps what a case called', () => {
     // Both test files mock `total.ts`. `other.test.ts` was only on the blocks
-    // while the runner evaluated the real module to shape its automock;
-    // `cart.test.ts` called in, which is a mock that did not take and still not
-    // the module's audience.
+    // while the runner evaluated the real module to shape its automock; a case
+    // in `cart.test.ts` called in after the mock was installed, so the real
+    // module ran for it.
     const mocked = ['test/cart.test.ts', 'test/other.test.ts'];
     const relations = relationsOfFiles(
       [{ file: 'src/cart/total.ts' }, ...mocked.map((file) => ({ file, edges: [{ to: 'src/cart/total.ts', kind: 'imports' as const }] }))],
@@ -231,7 +231,7 @@ describe('coveringChange', () => {
       }],
     }, changed('src/cart/total.ts', 4, 4), { relations });
 
-    expect(file?.regions[0]?.tests).toEqual([]);
+    expect(file?.regions[0]?.tests.map((test) => test.file)).toEqual(['test/cart.test.ts']);
     expect(file?.regions[0]?.passengers).toEqual([]);
   });
 

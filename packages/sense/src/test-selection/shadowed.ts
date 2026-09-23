@@ -13,15 +13,19 @@
  * returns; its export shape can, and a shape change is a type error before it
  * is a test failure.
  *
- * So a test's crossings into a module it shadows are disowned — the module
- * itself, and every file the test reaches only through it — whatever those
- * crossings were. A mocked module's content is not part of the test: what the
- * test ran against is the mock, and a mock whose shape drifted from the real
- * module is the type checker's to report, not the selection's. That holds even
- * when the record shows the real code called on the test's behalf, which is a
- * mock that did not take — the taint audit names that as
- * `shadowed-but-entered`, and fixing the mock is the answer to it, not running
- * the test on every edit to the module it meant to replace.
+ * So a test's *load-time* crossings into a module it shadows are disowned — the
+ * module itself, and every file the test reaches only through it. Nothing
+ * else is. A test file is boxes in boxes: the file's load, its hooks, and each
+ * case inside them. A mock is installed before all of them, at the file's load,
+ * so everything the record saw inside a hook or a case ran against the mocks
+ * already in place, and what it entered it really entered — a `jest.fn` handed
+ * the original, a `mockImplementation` restoring it, a module reached by a
+ * route the scan cannot see. Only module evaluation is ambiguous, because that
+ * is the box a runner uses to evaluate the real module on the mock's behalf;
+ * the record marks it (`loaded`, `loadedBy`), and only there does the mock
+ * decide. A case journal credits evaluation to no case, so a journey file's
+ * crossings are all a case's own, and its load-time regions are answered by
+ * the graph, which carries the shadows.
  *
  * Nothing here writes to the record. A taint is a join, and one snapshot has to
  * stay readable under several taints, or none, without a second recording.
@@ -88,16 +92,21 @@ function closure(relations: Relations, test: string, direct: readonly string[]):
 }
 
 /**
- * Whether a test's crossings in one instrumented row are disowned by its mocks.
+ * Whether a test's crossing of one block in an instrumented row is disowned by
+ * its mocks: the test mocked the row's file, or reaches it only through a mock,
+ * and it crossed the block only while the module evaluated.
  *
  * `file` is the graph's name for the row — the name shadows are written in.
- * Undefined when the graph carries no shadows, so a caller without a taint pays
- * nothing per crossing.
+ * Without `block` the question is the graph's alone, for a file the test holds
+ * no crossing of. Undefined when the graph carries no shadows, so a caller
+ * without a taint pays nothing per crossing.
  */
-export type Disowned = (file: string, test: number) => boolean;
+export type Disowned = (file: string, test: number, block?: number) => boolean;
 
 export function disownedIn(coverage: TestCoverageView, relations: Relations | undefined): Disowned | undefined {
   const shadowed = shadowedFor(relations);
   if (shadowed === undefined) return undefined;
-  return (file, test) => shadowed(coverage.string(coverage.testPath.at(test))).has(file);
+  return (file, test, block) =>
+    (block === undefined || coverage.crossings.has(coverage.blockLoadedSet.at(block), test)) &&
+    shadowed(coverage.string(coverage.testPath.at(test))).has(file);
 }

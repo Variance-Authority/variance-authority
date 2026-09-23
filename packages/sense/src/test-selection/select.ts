@@ -168,7 +168,7 @@ function readDiff(
   const governing = new Set<string>();
   const rowed = new Set<string>();
   const stale = new Set<string>();
-  // A test that mocked the module is not its audience, whatever it crossed there (`shadowed.ts`).
+  // A test that mocked the module is not the audience of what it only loaded there (`shadowed.ts`).
   const disowned = disownedIn(coverage, options.relations);
 
   for (const [file, ranges] of changed) {
@@ -231,7 +231,7 @@ function readDiff(
             endLine: coverage.blockEnd.at(block),
           };
           for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-            if (disowned?.(file, test) !== true) select(test, reason);
+            if (disowned?.(file, test, block) !== true) select(test, reason);
           }
         }
       }

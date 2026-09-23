@@ -252,19 +252,24 @@ export function answerByImporters(
         answered = true;
         // A module's regions usually share one set, so the ids are deduplicated
         // before their members are: the repeat is the common case and reading it
-        // again would be the whole module's crossings over again.
-        const sets = new Set<number>();
+        // again would be the whole module's crossings over again. The set a
+        // block was loaded by rides along, because a load a mock explains is
+        // disowned and a call is not, so each block that shares a set asks once.
+        const sets = new Map<number, number>();
         for (
           let block = coverage.moduleBlocks.at(module);
           block < coverage.moduleBlocks.at(module + 1);
           block += 1
-        ) sets.add(coverage.blockSet.at(block));
+        ) {
+          const key = coverage.blockSet.at(block) * 0x1_0000_0000 + coverage.blockLoadedSet.at(block);
+          if (!sets.has(key)) sets.set(key, block);
+        }
         const seen = new Set<number>();
-        for (const set of sets) {
-          for (const entered of coverage.crossings.members(set)) {
+        for (const block of sets.values()) {
+          for (const entered of coverage.crossings.members(coverage.blockSet.at(block))) {
             if (seen.has(entered)) continue;
+            if (disowned?.(node.name, entered, block) === true) continue;
             seen.add(entered);
-            if (disowned?.(node.name, entered) === true) continue;
             reached.push({ test: entered, reason, seed, from });
           }
         }

@@ -7,7 +7,10 @@
 //! with no row, and a region that ran while its module evaluated are answered by
 //! the file graph, plus the record's own entrants wherever it holds a row. A
 //! changed test file selects itself, and a path neither knows is `unread`. A
-//! test's crossings into a module its mocks take out of its run are not its own.
+//! crossing is its case's own: a mock is installed before the file's first case
+//! runs, and module evaluation — the one box where a runner evaluates the real
+//! module to shape a mock — is the region's `loaded` flag, credited to no case
+//! and answered by the graph, which is where the mocks are.
 //! A package whose install moved changes no line, so it is answered by the
 //! graph: every test file whose imports reach it, and every case the record saw
 //! enter a module that does.
@@ -50,36 +53,25 @@ impl<'a> Selecting<'a> {
         Some(found.into_iter().filter(|test| self.held.contains(test)).collect())
     }
 
-    /// Enter every test in `members` whose mocks leave `module` in its run.
-    fn enter(&mut self, module: &str, members: &[u32]) {
+    /// Enter every test in `members`.
+    fn enter(&mut self, members: &[u32]) {
         for &test in members {
             let at = test as usize;
-            if self.seen[at] {
-                continue;
-            }
-            self.seen[at] = true;
-            let file = self.tests[at];
-            if self.entered.contains(file) {
-                continue;
-            }
-            let disowned = match self.graph.as_mut() {
-                Some(graph) if graph.has_shadows() => graph.disowns(file, module),
-                _ => false,
-            };
-            if !disowned {
-                self.entered.insert(file);
+            if !self.seen[at] {
+                self.seen[at] = true;
+                self.entered.insert(self.tests[at]);
             }
         }
     }
 
-    fn every_entrant(&mut self, module: usize, file: &str) -> Result<(), String> {
+    fn every_entrant(&mut self, module: usize) -> Result<(), String> {
         let journey = self.journey;
         self.seen.fill(false);
         let mut sets = HashSet::new();
         for block in journey.blocks(module) {
             if sets.insert(journey.called[block]) {
                 let members = journey.members(block)?;
-                self.enter(file, &members);
+                self.enter(&members);
             }
         }
         Ok(())
@@ -96,7 +88,7 @@ impl<'a> Selecting<'a> {
             // The graph misses a module a browser spec reached through its page,
             // so the record's own entrants are added whenever it holds a row.
             if let Some(module) = module {
-                self.every_entrant(module, file)?;
+                self.every_entrant(module)?;
             } else if unknown && !self.held.contains(file) {
                 return Ok(Some(file.to_owned()));
             }
@@ -122,13 +114,13 @@ impl<'a> Selecting<'a> {
         for block in chosen {
             if sets.insert(journey.called[block]) {
                 let members = journey.members(block)?;
-                self.enter(file, &members);
+                self.enter(&members);
             }
         }
         if loaded {
             match self.importers(file) {
                 Some(tests) if !tests.is_empty() => self.entered.extend(tests),
-                _ => self.every_entrant(module, file)?,
+                _ => self.every_entrant(module)?,
             }
         }
         Ok(None)
@@ -141,7 +133,7 @@ impl<'a> Selecting<'a> {
                 self.entered.insert(test);
             }
             if let Some(module) = by_file.get(file).copied() {
-                self.every_entrant(module, file)?;
+                self.every_entrant(module)?;
             }
         }
         Ok(())

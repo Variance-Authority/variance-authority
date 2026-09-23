@@ -963,8 +963,10 @@ by the import graph, and that is [`reach`](#reach-what-a-diff-reaches-for-a-pipe
   reach runs, and so does every case the journey saw enter one of those files.
   A lockfile the patch changes without naming its blobs keeps every test.
 
-A changed test file runs itself. A case's crossings into a module it mocks do
-not select it. A path neither the journey nor the import graph knows keeps no
+A changed test file runs itself. A mock is installed before the file's first
+case, so what a case crossed ran for real and selects it even in a module its
+file mocks; only what the module did while it was evaluated is cut by the mock.
+A path neither the journey nor the import graph knows keeps no
 test in the run and is named on stderr. The whole reading happens in the native
 addon, so a stitched file with hundreds of millions of crossings is answered in
 milliseconds without expanding it in JavaScript.

@@ -5,8 +5,7 @@
 //! JavaScript per changed file. The walks are the ones `@variance-authority/core`
 //! states and are ported, not reinterpreted: `affectedBy` with its shadow repeat
 //! (`relate/records.ts`), the breadth-first search over one direction
-//! (`relate/reach.ts`), and the mock closure `shadowedFor` reads
-//! (`test-selection/shadowed.ts`). A difference between the two is a defect in
+//! (`relate/reach.ts`). A difference between the two is a defect in
 //! one of them, and `journey-select.test.ts` holds them to the same answers.
 
 use std::collections::{HashMap, HashSet};
@@ -57,7 +56,6 @@ pub(crate) struct Graph<'a> {
     files: HashMap<&'a str, u32>,
     packages: HashMap<&'a str, u32>,
     shadows: &'a [JourneyShadow],
-    closures: HashMap<String, HashSet<String>>,
 }
 
 impl<'a> Graph<'a> {
@@ -103,7 +101,6 @@ impl<'a> Graph<'a> {
             files,
             packages,
             shadows: &graph.shadows,
-            closures: HashMap::new(),
         })
     }
 
@@ -212,34 +209,5 @@ impl<'a> Graph<'a> {
             }
             mask = self.search(&self.dependents, seeds, &avoid);
         }
-    }
-
-    /// Whether `test`'s mocks take `module` out of its run: the mock itself, or
-    /// a file the test reaches only through one. Memoized per test file.
-    pub fn disowns(&mut self, test: &str, module: &str) -> bool {
-        if !self.closures.contains_key(test) {
-            let closure = self.closure(test);
-            self.closures.insert(test.to_owned(), closure);
-        }
-        self.closures[test].contains(module)
-    }
-
-    pub fn has_shadows(&self) -> bool {
-        !self.shadows.is_empty()
-    }
-
-    fn closure(&self, test: &str) -> HashSet<String> {
-        let Some(row) = self.shadows.iter().find(|row| row.file == test) else { return HashSet::new() };
-        let mut found: HashSet<String> = row.shadows.iter().cloned().collect();
-        let Some(seed) = self.file(test) else { return found };
-        let cut: Vec<u32> = row.shadows.iter().filter_map(|file| self.file(file)).collect();
-        let kept = self.search(&self.depends, &[seed], &self.avoiding(&cut));
-        let behind = self.search(&self.depends, &cut, &[]);
-        for id in 0..self.names.len() {
-            if behind[id] == 1 && kept[id] != 1 && self.kinds[id] == FILE {
-                found.insert(self.names[id].clone());
-            }
-        }
-        found
     }
 }

@@ -328,23 +328,44 @@ describe('reading this checkout', () => {
     expect(said.err).toContain('src/widget.ts');
   });
 
-  it('skips a test that mocked the changed module, though its recording entered it', async () => {
+  it('skips a test that mocked the changed module, where it entered only while the module evaluated', async () => {
     // The mock ran the real module to learn its shape, so the recording holds
-    // `beta` inside `other`. What `other` contains cannot fail a test that
-    // replaced it, and only the file graph knows the replacement is there.
+    // `beta` inside `other` while `widget.ts` loaded. What `other` contains
+    // cannot fail a test that replaced it, and only the file graph knows the
+    // replacement is there.
+    const said = await mockedBeta({ loaded: true });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  it('runs a test that mocked the changed module, where a case of it called in', async () => {
+    // A mock is installed before the file's first case, so a crossing a case
+    // made ran the real `other`: a passthrough, a restored implementation.
+    const said = await mockedBeta({ loaded: false });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+  });
+
+  async function mockedBeta({ loaded }: { loaded: boolean }) {
     const { root, head } = checkout({
       'test/beta.test.ts': "import { vi } from 'vitest';\nimport { other } from '../src/widget';\nvi.mock('../src/widget');\nother();\n",
     });
-    await writeTestCoverage(testCoverageFile(root), snapshot(head));
+    const recorded = snapshot(head);
+    const [module] = recorded.modules;
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      modules: [{
+        ...module!,
+        blocks: module!.blocks.map((block) => block.name === 'other' && loaded ? { ...block, loadedBy: ['test/beta.test.ts'] } : block),
+      }],
+    });
 
     writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
     process.chdir(root);
 
     await indexOutput({ cwd: root });
-    const said = await selectOutput({ cwd: root, format: 'plain' });
-
-    expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
-  });
+    return selectOutput({ cwd: root, format: 'plain' });
+  }
 
   it('narrows past a changed file no probe was ever in', async () => {
     // The scan holds `src/elsewhere.ts` and no measured module imports it, so
