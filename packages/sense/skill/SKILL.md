@@ -357,15 +357,35 @@ wrap does not:
 1. Check memory before you read the timeout as a slow or broken test. Compare
    peak memory summed over all workers, wrapped and unwrapped, at the same
    worker count.
-2. Lower the worker count (`--maxWorkers` in Jest and Vitest). A recording run
+2. Under Jest 30 on Node 24 or newer, run the tests with
+   `NODE_OPTIONS=--no-async-context-frame` and measure again. Jest 30 calls
+   hooks and event handlers inside an `AsyncLocalStorage`, and with the
+   implementation Node uses by default, the memory of every finished test file
+   stays in the worker until the heap is close to its limit. So each worker
+   grows to the limit whether or not the suite is recorded; the probes make
+   each file larger, which gets it there sooner. One `beforeAll` per file is
+   enough, and the setup file the wrap adds has two. The flag selects Node's
+   older implementation, which releases that memory as usual. Jest 29 does not
+   grow this way.
+3. Lower the worker count (`--maxWorkers` in Jest and Vitest). A recording run
    with fewer workers still pays for itself: the snapshot it writes shortens
    every later run.
-3. Under Jest, set `workerIdleMemoryLimit` in the configuration, so a worker is
+4. Under Jest, set `workerIdleMemoryLimit` in the configuration, so a worker is
    restarted once it grows past that size. That caps the growth without
    lowering concurrency.
 
+On a 60-file Jest suite, run in band, the heap after a full garbage collection
+at the last file was:
+
+| Run | Default | `--no-async-context-frame` |
+|---|---|---|
+| Plain, one empty `beforeAll` per file | 344 MB | 79 MB |
+| Recorded | 422 MB | 95 MB |
+| Recorded, per case | 471 MB | 90 MB |
+
 Do not remove the wrap to make a run pass, and do not change the repository's
-worker settings without saying so. Report the two memory figures instead.
+worker settings or Node options without saying so. Report the memory figures
+instead.
 
 ## Do not
 

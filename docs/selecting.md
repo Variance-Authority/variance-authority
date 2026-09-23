@@ -431,6 +431,18 @@ restarts a worker once it grows past the limit you set, which caps the growth
 without lowering concurrency. Measure memory the same way you measure time:
 peak memory summed over every worker, with the recorder and without.
 
+Under Jest 30 on Node 24 or newer, most of that growth does not come from the
+probes. Jest 30 calls hooks and event handlers inside an `AsyncLocalStorage`,
+and with the implementation Node uses by default, the memory of every test file
+that has finished stays in the worker until the heap is close to its limit. Each
+worker grows to that limit whether the suite is recorded or not; the probes make
+each file larger, so a recorded run gets there sooner. One `beforeAll` per file
+is enough to start it. Run the tests with
+`NODE_OPTIONS=--no-async-context-frame`, which selects Node's older
+implementation, and that memory is released as usual: on a 60-file suite the
+heap after the last file drops from 344 MB to 79 MB without the recorder, and
+from 422 MB to 95 MB with it. Try the flag before you lower the worker count.
+
 The second worry is size rather than time — one row per test per region sounds
 like gigabytes before it is written. What the record does instead, what it
 measures at two hundred thousand modules, and how much of it one answer opens

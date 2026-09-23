@@ -358,8 +358,12 @@ journal from `afterAll`; nothing crosses the worker channel.
 A Jest worker runs many test files, and each of them loads modules with probes
 in them, so a recorded run needs more memory per worker than a plain one while
 its wall clock stays close. If a recorded run starts to time out where the plain
-one does not, compare peak memory first, then lower `maxWorkers` or set
-`workerIdleMemoryLimit` so Jest restarts a worker once it passes that size.
+one does not, compare peak memory first. Under Jest 30 on Node 24 or newer, run
+with `NODE_OPTIONS=--no-async-context-frame` before anything else: with Node's
+default `AsyncLocalStorage`, Jest 30 keeps the memory of each finished test file
+until the worker's heap is close to its limit, with or without the recorder, and
+the flag releases it. Then lower `maxWorkers` or set `workerIdleMemoryLimit` so
+Jest restarts a worker once it passes that size.
 
 Selection is the same call as for Vitest. `narrowByExecution` returns paths
 relative to the Jest root, and each remaining path is a pattern Jest accepts on
