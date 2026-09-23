@@ -92,29 +92,10 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-import { digestString } from '../digest.js';
-import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
-import { walkBlocks, type Block, type BlockKind, type Edit, type InstrumentMode } from './blocks.js';
+import type { Block, BlockKind, Edit, InstrumentMode } from './blocks.js';
+import { splicedInJs, splicedNatively } from './spliced.js';
 
 export type { Block, BlockKind, Edit, InstrumentMode };
-
-/**
- * How the parsed tree crosses out of the parser.
- *
- * oxc parses in Rust and then has to hand a tree back to JavaScript. By default
- * it serializes one to JSON and the package's own wrapper parses that JSON back
- * into objects, which over this repository's sources is a third of everything
- * instrumentation spends — work the tree has already had done to it once. Raw
- * transfer deserializes the same tree directly out of the parser's buffer into
- * the same plain objects: 63 ms becomes 19 ms over 251 modules, and the two
- * trees compare equal node for node across every source in the repository.
- *
- * It wants a 64-bit little-endian platform and says so through
- * `rawTransferSupported`. Where the answer is no, the default path returns the
- * same tree more slowly — a difference in speed, never in result, which is why
- * this is decided once here and nothing downstream is told which one it got.
- */
-const TRANSFER = { experimentalRawTransfer: rawTransferSupported() } as ParserOptions;
 
 /** Changes whenever two instrumented block universes must not share observations. */
 export const INSTRUMENTATION_ID = 'sense:instrument/presence-v4';
@@ -205,49 +186,17 @@ export function instrument(
   options: InstrumentOptions = {},
 ): Instrumented | undefined {
   const mode = options.mode ?? 'presence';
-  // The parser's name, never the id: oxc reads the extension to decide whether
-  // it is looking at TypeScript, JSX, or neither. A module must parse the same
-  // way whether or not the repository has a number for it yet.
-  const parsed = parseSync(file, source, TRANSFER);
+  const spliced = splicedNatively(source, file, mode) ?? splicedInJs(source, file, mode);
+  if (spliced === undefined) return undefined;
 
-  // A recovered tree has holes in it, and a probe spliced against a hole produces
-  // a file that no longer compiles. Refusing costs one uninstrumented module.
-  if (parsed.errors.length > 0) return undefined;
-
-  const walked = walkBlocks(parsed.program, source, PROBES, mode);
-  const header = runtime(id, walked.blocks.length);
-
-  // The window closes after the last top-level statement, never at the end of
-  // the text: a trailing comment would swallow the call. A module with no body
-  // closes right after it opens, at the same offset, and the stable sort below
-  // keeps the header in front.
-  const body = parsed.program.body as readonly { readonly end: number }[];
-  const last = body.length === 0 ? walked.prologue : body[body.length - 1]!.end;
-  const edits = [
-    ...walked.edits,
-    { at: walked.prologue, text: header },
-    { at: Math.max(walked.prologue, last), text: ';__vaE();' },
-  ];
-  // Stable by construction: `Array.prototype.sort` keeps insertion order for equal
-  // keys, and closing braces are emitted after the subtree that opened them, so an
-  // inner `}` lands in front of an outer one at the same offset.
-  const ordered = edits.sort((left, right) => left.at - right.at);
-
+  const { code, headerAt, sourceDigest, blocks } = spliced;
   return {
-    code: splice(source, ordered),
-    sourceDigest: digestString(source),
+    code: code.slice(0, headerAt) + runtime(id, blocks.length) + code.slice(headerAt),
+    sourceDigest,
     instrumentation: IDS[mode],
-    blocks: walked.blocks,
+    blocks,
   };
 }
-
-/**
- * Every call site invokes the generated runtime directly.
- */
-const PROBES = {
-  hit: (ordinal: number) => `__va(${ordinal})`,
-  around: (ordinal: number) => [`__vaR(`, `,${ordinal})`] as const,
-};
 
 /**
  * The three hoisted declarations every instrumented module carries.
@@ -294,17 +243,4 @@ function runtime(id: ModuleId, count: number): string {
     `function __vaE(){const g=globalThis.__VA__;const r=g.s?g.s():g;r.e=r.e>1?r.e-1:0}` +
     `__va(0);__va.r.e=(__va.r.e|0)+1;__va.c[0]|=${EVALUATING};`
   );
-}
-
-function splice(source: string, edits: readonly Edit[]): string {
-  const parts: string[] = [];
-  let read = 0;
-
-  for (const edit of edits) {
-    parts.push(source.slice(read, edit.at), edit.text);
-    read = edit.at;
-  }
-  parts.push(source.slice(read));
-
-  return parts.join('');
 }

@@ -106,7 +106,7 @@ function valued(node: { properties: readonly unknown[] }): Record<string, string
   return table;
 }
 
-const PLATFORMS = tableIn(join(SENSE, 'src/native.ts'), 'PLATFORMS');
+const PLATFORMS = tableIn(join(SENSE, 'src/addon.ts'), 'PLATFORMS');
 
 const directories = readdirSync(NPM).sort();
 

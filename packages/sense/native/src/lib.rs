@@ -27,6 +27,8 @@ mod grammar;
 mod languages;
 mod harvest;
 mod index;
+mod instrument;
+mod instrument_walk;
 mod journey;
 mod journey_columns;
 mod journey_format;
