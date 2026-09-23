@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -80,20 +80,14 @@ describe('the glibc floor', () => {
     );
   });
 
+  // Not held against `npm/<linux>/scan.node` here. A `yarn build` on a Linux
+  // host writes its own unfloored binary into that directory, which is right
+  // for the machine it runs on and wrong to publish. What is published is held
+  // to the floor by `scripts/verify-native-pack.mjs`, after the release build
+  // and again at prepack, on the bytes being packed.
   it('asks for no glibc that Node 22 does not already need', () => {
     for (const target of linux) {
       expect(compareVersions(target.glibc as string, NODE_22_GLIBC)).toBeLessThanOrEqual(0);
     }
   });
-
-  // A checkout builds its host's binary, so this answers where a Linux one is
-  // present: on the release runner after the matrix's binaries are downloaded.
-  for (const { package: name, glibc: floor } of linux) {
-    const binary = join(SENSE, 'npm', name, 'scan.node');
-    it.runIf(existsSync(binary))(`holds ${name}/scan.node to it`, () => {
-      const newest = glibcVersions(readFileSync(binary))?.at(-1);
-      expect(newest).toBeDefined();
-      expect(compareVersions(newest as string, floor as string)).toBeLessThanOrEqual(0);
-    });
-  }
 });
