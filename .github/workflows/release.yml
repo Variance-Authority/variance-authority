@@ -310,10 +310,19 @@ jobs:
           # registry already has, so the repair for a truncated release is the
           # same command again — it completes the missing names and no others.
           # One retry: a second identical failure is not a flake.
+          #
+          # The retry's own exit code is not the verdict either. npm processes
+          # a publish asynchronously, and a version it has accepted but not yet
+          # shown refuses a second publish with 409 "previously staged". 0.6.0
+          # published all thirty-eight, showed twenty-five after two minutes,
+          # and showed `core` about six minutes after it was sent — while the
+          # retry, refused on three of the names in that window, stopped the
+          # step. So the retry may fail, and the registry, given ten minutes,
+          # decides.
           node tools/released.mjs --registry --wait 120 || {
             echo "::warning::the publish was partial — running it again for the names still missing"
-            yarn release:publish
-            node tools/released.mjs --registry --wait 120
+            yarn release:publish || echo "::warning::the retry was refused; a 409 'previously staged' is a version npm accepted and has not shown yet"
+            node tools/released.mjs --registry --wait 600
           }
 
           # `changeset tag` is the tagging `changeset publish` claims to have
