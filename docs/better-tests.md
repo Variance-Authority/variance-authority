@@ -129,7 +129,7 @@ for its own Vitest suite, but that contributor command is not part of the packag
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
-evidence widens the run or prevents selection; a skipped test has no new verdict.
+evidence keeps a test in the run; a skipped test has no new verdict.
 
 [Run relevant work](run-relevant-work.md) explains how to choose a workload.
 [Selection](selecting.md) covers the fallback rules and how `nx` or `turbo` adds

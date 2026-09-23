@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core/attribute';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import type { Collected, Plan } from './run.js';
 import { narrowingFor } from './since.js';
 import {
@@ -202,6 +203,139 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(report.notObserved?.[0]?.subject).toBe('fixture:b');
       expect(report.notObserved?.[0]?.kind).toBe('unreached');
       expect(report.notObserved?.[0]?.because).toContain('every region it covered');
+    });
+
+    it('narrows past a changed file the journal records nothing about, and names it', async () => {
+      // `unread` is a report. The journal answered for the file it measured, and
+      // the one it records nothing about is printed beside the answer rather than
+      // turned into a reason to observe every subject. It lies outside
+      // `source.dirs`, so no graph the scan could build would hold it either.
+      let scanned = false;
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx', 'docs/button.md'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => {
+          scanned = true;
+          return relationsOfFiles([]);
+        },
+        readJourney: async () => ({
+          whole: ['fixture:a', 'fixture:b'],
+          entered: ['fixture:a'],
+          unread: ['docs/button.md'],
+          stale: [],
+          because: [],
+        }),
+      });
+
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      expect(report.warnings?.join('\n')).toContain('records nothing about 1 changed file (docs/button.md)');
+      expect(report.warnings?.join('\n')).not.toContain('was not narrowed by execution');
+      expect(scanned).toBe(false);
+    });
+
+    it('asks the graph about a file the journal records nothing about, with no graph configured', async () => {
+      // A stylesheet no probe can sit in. The structural ground cannot place it
+      // without a graph and keeps both subjects; a journal read without one
+      // would hold nothing about it and rule both out.
+      const css = ['--- a/src/button.css', '+++ b/src/button.css', '@@ -1,1 +1,1 @@'].join('\n');
+      const asked: boolean[] = [];
+
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['src/button.css'], diff: css },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => relationsOfFiles([]),
+        readJourney: async (_diff, relations) => {
+          asked.push(relations !== undefined);
+          return relations === undefined
+            ? { whole: ['fixture:a', 'fixture:b'], entered: [], unread: ['src/button.css'], stale: [], because: [] }
+            : { whole: ['fixture:a', 'fixture:b'], entered: ['fixture:a'], unread: [], stale: [], because: [] };
+        },
+      });
+
+      expect(asked).toEqual([false, true]);
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+    });
+
+    it('observes the subjects that entered an importer of a package the lockfile bumped', async () => {
+      // The diff moved the lockfile and no line of source, so a journal read over
+      // the hunks alone reaches nobody. The bumped name is answered by the
+      // measured modules that import it, which needs the graph from the start.
+      const lock = ['--- a/yarn.lock', '+++ b/yarn.lock', '@@ -1,1 +1,1 @@'].join('\n');
+      const asked: Array<readonly string[] | undefined> = [];
+
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: {
+          ref: 'origin/main',
+          changed: ['yarn.lock'],
+          install: { packages: ['left-pad'], manifests: ['yarn.lock', 'package.json'] },
+          diff: lock,
+        },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => relationsOfFiles([]),
+        readJourney: async (_diff, relations, packages) => {
+          asked.push(relations === undefined ? undefined : packages);
+          const answered = relations !== undefined && packages?.includes('left-pad') === true;
+          return {
+            whole: ['fixture:a', 'fixture:b'],
+            entered: answered ? ['fixture:a'] : [],
+            unread: ['yarn.lock'],
+            stale: [],
+            because: [],
+          };
+        },
+      });
+
+      expect(asked).toEqual([['left-pad']]);
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      // The comparison answered the lockfile, so the journal's silence about it
+      // is not news.
+      expect(report.warnings?.join('\n')).not.toContain('records nothing about');
+    });
+
+    it('observes every subject when the install could not be compared, journal or not', async () => {
+      let asked = false;
+
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: {
+          ref: 'origin/main',
+          changed: ['src/Button.tsx'],
+          install: { whole: 'yarn.lock changed and this could not read it' },
+          diff: DIFF,
+        },
+        scanSource: async () => SOURCE,
+        readJourney: async () => {
+          asked = true;
+          return { whole: ['fixture:a', 'fixture:b'], entered: [], unread: [], stale: [], because: [] };
+        },
+      });
+
+      expect(asked).toBe(false);
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+      expect(report.warnings?.join('\n')).toContain('did not narrow this run: yarn.lock changed');
+      expect(report.warnings?.join('\n')).not.toContain('ruled out');
+    });
+
+    it('observes every subject when the diff moves what the run rests on, journal or not', async () => {
+      // Nothing imports a harness config, so the journal records nothing about
+      // it and would rule out both subjects over the file that governs them.
+      const config = configOf({ source: { dirs: ['src'], relations: true, before: ['vitest.config.ts'] } });
+      const harness = ['--- a/vitest.config.ts', '+++ b/vitest.config.ts', '@@ -1,1 +1,1 @@'].join('\n');
+      let asked = false;
+
+      const { report } = await runWith(config, BOTH, stored(['Button']), {
+        since: { ref: 'origin/main', changed: ['vitest.config.ts'], diff: harness },
+        scanSource: async () => SOURCE,
+        scanRelations: async () =>
+          relationsOfFiles([{ file: 'vitest.config.ts' }, { file: 'src/Button.tsx', declares: ['Button'] }]),
+        readJourney: async () => {
+          asked = true;
+          return { whole: ['fixture:a', 'fixture:b'], entered: [], unread: ['vitest.config.ts'], stale: [], because: [] };
+        },
+      });
+
+      expect(asked).toBe(false);
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a', 'fixture:b']);
+      expect(report.warnings?.join('\n')).toContain('the run rests on vitest.config.ts');
     });
 
     it('counts the two grounds apart', async () => {

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -7,8 +8,10 @@ import { describe, expect, it } from 'vitest';
 import { indexSource } from '@variance-authority/core/attribute';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { native, nativeAvailable, nativeGraph, type NativeReadBatch } from './native.js';
+import { memoryParseCache } from './cache.js';
+import { native, nativeAvailable, nativeFrontier, nativeGraph, type NativeReadBatch } from './native.js';
 import { MODULE_EXTENSIONS, readModule } from './read.js';
+import { recordFor } from './record.js';
 import { parseWay } from './files.js';
 import { resolveTo, resolversFor } from './resolve.js';
 import { LARGEST_FILE } from './scan.js';
@@ -106,6 +109,46 @@ describe('the native reader against the JavaScript one', () => {
     expect(disagreed).toEqual([]);
   }, 120_000);
 
+  it.runIf(available)('builds every repository record the way the oracle builds it', async () => {
+    // Two producers of one record shape. A field only one of them writes is a
+    // graph that depends on which machine scanned it: `packages` was that field,
+    // and a bumped dependency had no importer wherever the addon loaded.
+    const files = await modules();
+    const answered = nativeFrontier({
+      addon: native()!,
+      root,
+      files,
+      largestFile: LARGEST_FILE,
+      digests: files.map(() => undefined),
+      aliases: undefined,
+      directories: new Map(),
+      remembering: false,
+    });
+    const resolvers = resolversFor({});
+    const cache = memoryParseCache();
+    const disagreed: unknown[] = [];
+
+    for (const [index, file] of files.entries()) {
+      const { record: oracle } = await recordFor({
+        absolute: join(root, file),
+        file,
+        root,
+        resolvers,
+        cache,
+        aliases: undefined,
+        directories: new Map(),
+        largestFile: LARGEST_FILE,
+        remembering: false,
+      });
+      const { digest: _native, ...held } = answered[index]!.record;
+      const { digest: _oracle, ...expected } = oracle;
+      if (JSON.stringify(held) !== JSON.stringify(expected)) disagreed.push({ file, expected, held });
+    }
+
+    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
+    expect(answered.some(({ record }) => record.packages?.some(({ kind }) => kind === 'type'))).toBe(true);
+  }, 120_000);
+
   it.runIf(available)('says why a file it declined is not an empty answer', () => {
     const batch = native()!.readBatch(root, ['packages/sense/package.json'], 8);
 
@@ -187,5 +230,7 @@ async function modules(): Promise<string[]> {
 
   return stdout
     .split('\0')
-    .filter((path) => path !== '' && MODULE_EXTENSIONS.some((end) => path.endsWith(end)));
+    .filter((path) => path !== '' && MODULE_EXTENSIONS.some((end) => path.endsWith(end)))
+    // Tracked but removed from the working tree: a deletion not yet committed.
+    .filter((path) => existsSync(join(root, path)));
 }

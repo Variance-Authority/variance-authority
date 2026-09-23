@@ -11,11 +11,11 @@ changed.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, the record skips **51% of all test
->   file runs** — 5,917 instead of 12,120.
+> - Over the sixty commits before it landed, the record skips **at least 51% of
+>   all test file runs** — at most 5,917 instead of 12,120.
 > - Zod runs its whole suite on every change. The most a package graph could
->   save here is **18%**; put the record behind that graph and it skips
->   **40% more than the graph does alone**.
+>   save here is **18%**; put the record behind that graph and it skips at
+>   least **40% more than the graph does alone**.
 > - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.6s
 >   instead of 8.1s** — an **80%** shorter run. A package graph would still run
 >   201 of the 202 files.
@@ -130,8 +130,7 @@ Against 12,120 runs if you always run everything:
 | --- | --- | --- | --- |
 | what the repository ships | 12,120 | 202 (100%) | 202 (100%) |
 | package graph | 9,881 | 201 (100%) | 202 (100%) |
-| record as shipped | 10,236 | 198 (98%) | 198 (98%) |
-| record + declared inert | **5,917** | **130 (64%)** | 198 (98%) |
+| the record, at most | **5,917** | **130 (64%)** | 198 (98%) |
 
 The median of 130 is the hub floor showing up again: a change spread across
 several regions of `core/schemas.ts` and its neighbours does reach most of the
@@ -139,19 +138,18 @@ suite, and saying otherwise would be a lie the record refuses to tell. On the
 commits where nothing in the core moved it runs nothing at all — 18 of the 60,
 and 10 of the 13 whose coordinates are still exact.
 
-The gap between the third row and the fourth is one repository-specific list.
-Every reason a record cannot answer produces a **shorter skip list, never a
-shorter run**: a path no run ever read widens to the whole suite. Seventeen of
-the sixty commits widen that way, over fourteen distinct paths — and five of
-those paths are a `package.json`, accounting for 24 of the 43 sightings. No run runs a manifest, so no
-record holds one — but a manifest is a file a tool can read on its own, and
-`variance select` does not yet. That is the largest single gap this repository
-exposes.
+Every figure for the record in this section is a ceiling. The replay counts
+the whole suite for any commit that changes a path no run read and that its own
+list does not set aside — seventeen of the sixty, over fourteen distinct paths,
+five of them a `package.json`. The record selects nothing for such a path by
+itself, so on those seventeen commits it runs no more files than the replay
+counts.
 
-One widening path stays undeclared on purpose. A test reads
-`packages/docs/content/api.mdx` through the filesystem rather than through an
-import, which is a real dependency and an invisible one. It widens to the whole
-suite, which is the right answer for a dependency nothing recorded.
+One of those paths is a dependency no import names. A test reads
+`packages/docs/content/api.mdx` through the filesystem, which is a real
+dependency and an invisible one. Listed in the `preconditions` of the project
+that reads it, a change to it selects every test that project records; left
+unlisted, it selects nothing.
 
 ## What it took to fit
 

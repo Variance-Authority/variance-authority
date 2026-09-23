@@ -107,7 +107,6 @@ function edit(line: number): string {
 function asked(coverage: Uint8Array | TestCoverage, diff: string): {
   whole: readonly string[];
   entered: readonly string[];
-  unread: readonly string[];
   skip: readonly string[];
 } {
   const bytes = coverage instanceof Uint8Array ? coverage : encodeTestCoverage(coverage);
@@ -116,8 +115,7 @@ function asked(coverage: Uint8Array | TestCoverage, diff: string): {
   return {
     whole: narrowed.whole,
     entered: narrowed.entered,
-    unread: narrowed.unread,
-    skip: narrowed.unread.length > 0 ? [] : narrowed.whole.filter((test) => !entered.has(test)),
+    skip: narrowed.whole.filter((test) => !entered.has(test)),
   };
 }
 

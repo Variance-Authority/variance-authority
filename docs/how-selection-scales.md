@@ -278,9 +278,9 @@ execution record   what did each test actually cover?
 ```
 
 The source side follows dependency possibility. The execution side supplies the
-smaller observed audience. When the source scan or the record cannot support a
-narrow answer, selection widens and says why. Missing evidence costs more work;
-it does not become permission to skip an unobserved test.
+smaller observed audience. Selection skips only tests the record saw run whole,
+and names each changed file the record says nothing about. Missing evidence
+costs more work; it does not become permission to skip an unobserved test.
 
 The source index uses a related storage shape — interned strings, columnar
 sections and immutable segments — for a different reason: it makes repeated

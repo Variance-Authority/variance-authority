@@ -305,9 +305,11 @@ execute**. With a record in hand, `variance run --since origin/main` compares
 the diff against what each test covered and hands the runner every test file it
 would have run except the ones the record positively proves the change did not
 reach: a file recorded as complete, whose journey contains none of the changed
-regions. A test recorded partially, a region nobody read, a record older than
-the lines it describes — none of those qualify, and each one widens the run
-rather than narrowing it. [Running less of the suite](selecting.md) is the page
+regions. A test recorded partially, a module it loaded that no probe could sit
+in, a record older than the lines it describes — none of those qualify, and each
+one widens the run rather than narrowing it. A changed file the record says
+nothing about is named in the message and keeps no test in the run by itself.
+[Running less of the suite](selecting.md) is the page
 for that decision; [the path an execution took](journeys.md) is the page for the
 record it reads.
 

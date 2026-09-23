@@ -123,7 +123,7 @@ describe('a rename with an edit', () => {
   it('reads the hunks under the old name and asks the graph about the new one', () => {
     // The old-side numbers are `src/decide.ts`'s, the name the rows are under:
     // line 4 is the branch only alpha took. `src/moved.ts` has no row, and is
-    // named whole so an importer of the new name is found, or it is unread.
+    // named whole so an importer of the new name is found, or it is reported.
     const diff = `diff --git a/src/decide.ts b/src/moved.ts
 similarity index 90%
 rename from src/decide.ts

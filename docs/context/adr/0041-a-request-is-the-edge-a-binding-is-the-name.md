@@ -144,3 +144,20 @@ carries every fact above with no node materialized, and the tree is the expensiv
 half (ADR-0038). Symbol-level relations genuinely need it, which is why they are
 a separate artifact built by a separate pass rather than a wider version of this
 one.
+
+## Amended 2026-09-23 — the statement's keyword decides the kind, not its names
+
+The context above calls *type if every binding is type-only* "correct for the
+whole statement", and the first consequence says the request's `kind` is
+derived from its bindings. Neither holds. `import { type T } from './t'` still
+loads `./t` under `verbatimModuleSyntax`, and the `tsconfig` that decides is not
+in the file, so a reader that erased it skipped a module the runtime evaluated.
+
+A request is now `type` only when its statement is written `import type` or
+`export type`, and a republished specifier only when every statement naming it
+is. Both readers take it from the parser — the JavaScript one from the
+statement's `importKind`/`exportKind`, the native one from the module record's
+`is_type` — rather than from the names. Each binding keeps its own `type` flag,
+so a consumer asking about a name still gets the name's answer. The source index
+moved to version 7, so a parse cached under the old rule is discarded rather than
+read.

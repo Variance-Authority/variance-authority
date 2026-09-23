@@ -10,12 +10,12 @@ with 10.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, the record skips **79% of all test
->   file runs** — 2,355 instead of 11,280.
+> - Over the sixty commits before it landed, the record skips **at least 79% of
+>   all test file runs** — at most 2,355 instead of 11,280.
 > - TanStack Query already runs `nx affected` on every pull request, and it
 >   still selects **168 of the 188 files**, because every test in an affected
->   project is affected. Put the record behind Nx and it skips **77% more than
->   Nx does alone**.
+>   project is affected. Put the record behind Nx and it skips at least **77%
+>   more than Nx does alone**.
 > - Change one line in `query-core` and the record selects **10 files, 4.4s
 >   instead of 12.7s** — a **65%** shorter run.
 > - One commit of setup, and recording costs **1.08×** a suite run.
@@ -107,7 +107,7 @@ Test file runs over the sixty commits:
 ```mermaid
 xychart-beta horizontal
   accTitle: Test file runs selected over sixty TanStack Query commits
-  x-axis ["record + declared inert", "project graph", "run everything"]
+  x-axis ["the record, at most", "project graph", "run everything"]
   y-axis "test file runs" 0 --> 11500
   bar [2355, 0, 0]
   bar [0, 10207, 0]
@@ -120,28 +120,23 @@ Per commit, against 188 files if you always run everything:
 | | total | median | p90 |
 | --- | --- | --- | --- |
 | project graph | 10,207 | 168 (89%) | 188 (100%) |
-| record as shipped | 11,220 | 187 (99%) | 187 (99%) |
-| record + declared inert | **2,355** | **0 (0%)** | 187 (99%) |
+| the record, at most | **2,355** | **0 (0%)** | 187 (99%) |
 
 Thirty-six of the sixty run nothing at all. On the thirty commits whose
 coordinates are still exact the graph owes 4,917 runs and the record owes 315,
 with a 90th percentile of 15 files — 8% of the suite — and twenty-five of the
 thirty running nothing.
 
-The distance between the second row and the third is one repository-specific
-list, and it is the honest part of the exercise. Every reason a record cannot
-answer produces a **shorter skip list, never a shorter run**: a path no run
-ever read widens to the whole suite, which is why the uninformed row is worse
-than the graph. Two causes account for all of it here:
+Every figure for the record in this section is a ceiling. The replay counts
+the whole suite for any commit that changes a path no run read and that its own
+list does not set aside — eight of the sixty, over 38 distinct paths, 27 of
+them a `package.json`. The record selects nothing for such a path by itself, so
+on those eight commits it runs no more files than the replay counts.
 
-- **Manifests.** Eight of the sixty commits widen, over 38 distinct paths; 27
-  of those paths are a `package.json`, accounting for 81 of the 96 sightings. No run
-  covers a manifest, so no record holds one — but a manifest is a file a tool
-  can read on its own, and `variance select` does not yet. That is the largest
-  single gap this repository exposes.
-- **Work that is compiled, not executed.** Type tests are checked by the
-  compiler and never run, so no recording can hold one. This repository runs
-  them as a separate target, and selection has to be told so.
+Type tests are another file no run reads. The compiler checks them and
+nothing executes them, so no recording has a row for one and a change to one
+selects nothing from the record. This repository runs them as a separate target, and
+that target owns them.
 
 ## What it took to fit
 

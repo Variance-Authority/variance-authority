@@ -58,25 +58,26 @@ export interface CoverageShard {
  * different source — same path, different `sourceDigest` — was built twice, and
  * the region ordinals of one do not name the regions of the other.
  *
- * Where the shards agree, unknown wins. A module one shard could not instrument
- * is recorded as unread in the fold even if another shard read it whole, because
- * the row saying *this build never measured this module* is the one a reader
- * widens on, and a fold that let the measured shards outvote it would have turned
- * an unknown into a narrowing.
+ * Where the shards disagree about whether a module was readable, the
+ * instrumented rows answer. One shard that did not instrument a module says
+ * nothing about the tests another shard watched enter it: its row is a sentence
+ * about its own build, and the crossings beside it are whole observations made
+ * by a build that could read the module. So a module is folded from the shards
+ * that measured it, and an uninstrumented row stands only where no shard did.
  *
- * Unknown winning has to *retire* the evidence it wins over rather than merely
- * delete it. Those crossings were some test's whole observation of the module,
- * and a test left whole with nothing recorded against a module it entered is out
- * of `entered` at the next diff of that file and in the caller's skip list —
- * exactly the narrowing the paragraph above refuses, arriving through the tests
- * instead of through the row. Leaving the module unread does not answer for it:
- * the recorder that could not instrument a module declares it as a precondition
- * of every subject that entered it, and a name some test declares is a name no
- * reader is ever told went unmeasured, so the one channel the widening would
- * have come out of is shut by the same shard that opened the question. Every
- * test whose crossings are cleared here is demoted to incomplete instead, the
- * way {@link mergeCoverage} demotes a carried test that loses one. It runs at
- * the next selection whatever changed, and that run records it whole again.
+ * Letting the unknown row win would buy its own subjects nothing. The recorder
+ * that could not instrument a module declares it as a precondition of every
+ * subject that entered it, so those subjects are answered by their declarations
+ * whichever row the fold keeps. It would cost every other shard's tests their
+ * crossings, and a test whose crossings the fold wipes has to be demoted to
+ * incomplete or a reader skips it on evidence the fold deleted — so each of them
+ * would run at every selection, whatever changed, for as long as one build
+ * cannot read one module.
+ *
+ * Which row stands does not depend on the order the shards are read in: an
+ * instrumented row replaces an uninstrumented one whenever it arrives, an
+ * uninstrumented one never displaces a measurement, and two instrumented rows of
+ * one text are one union.
  */
 export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage {
   const [first, ...rest] = shards;
@@ -101,8 +102,6 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     }
   }
 
-  /** Tests whose crossings an uninstrumented row wiped, and which no longer stand whole. */
-  const demoted = new Set<string>();
   const modules = new Map<string, {
     module: CoverageModule;
     path: string;
@@ -112,7 +111,14 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
   for (const shard of shards) {
     for (const module of shard.coverage.modules) {
       const seen = modules.get(module.file);
-      if (seen === undefined) {
+      if (seen !== undefined && seen.module.sourceDigest !== module.sourceDigest) {
+        throw new Error(
+          `\`${module.file}\` is different source in ${seen.path} and ${shard.path}: ` +
+            'the two shards built it from different text, so the regions of one do not ' +
+            'name the regions of the other.',
+        );
+      }
+      if (seen === undefined || (module.instrumented && !seen.module.instrumented)) {
         modules.set(module.file, {
           module,
           path: shard.path,
@@ -121,32 +127,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
         });
         continue;
       }
-      if (seen.module.sourceDigest !== module.sourceDigest) {
-        throw new Error(
-          `\`${module.file}\` is different source in ${seen.path} and ${shard.path}: ` +
-            'the two shards built it from different text, so the regions of one do not ' +
-            'name the regions of the other.',
-        );
-      }
-      if (!module.instrumented) {
-        seen.module = module;
-        for (const crossings of seen.entered.values()) for (const test of crossings) demoted.add(test);
-        for (const early of seen.loaded.values()) for (const test of early) demoted.add(test);
-        seen.entered.clear();
-        seen.loaded.clear();
-        continue;
-      }
-      if (!seen.module.instrumented) {
-        // The same erasure from the other side, so the same demotion: this
-        // shard's blocks are the ones being dropped, and both branches have to
-        // retire the same tests or the fold's answer would depend on which
-        // shard was read first.
-        for (const block of module.blocks) {
-          for (const test of block.testFiles) demoted.add(test);
-          for (const test of block.loadedBy ?? []) demoted.add(test);
-        }
-        continue;
-      }
+      if (!module.instrumented) continue;
       for (const block of module.blocks) {
         const crossings = seen.entered.get(block.ordinal) ?? new Set<string>();
         for (const test of block.testFiles) crossings.add(test);
@@ -163,7 +144,7 @@ export function foldTestCoverage(shards: readonly CoverageShard[]): TestCoverage
     instrumentation: first.coverage.instrumentation,
     ...(first.coverage.commit === undefined ? {} : { commit: first.coverage.commit }),
     tests: [...tests.values()]
-      .map(({ test }) => (demoted.has(test.file) ? { ...test, complete: false } : test))
+      .map(({ test }) => test)
       .sort((left, right) => codeUnitOrder(left.file, right.file)),
     modules: [...modules.values()]
       .map(({ module, entered, loaded }): CoverageModule => ({

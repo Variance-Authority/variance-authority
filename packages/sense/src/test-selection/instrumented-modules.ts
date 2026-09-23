@@ -25,7 +25,7 @@ import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
-import { cacheLayers, defaultCacheRoot, seedFromBase } from './cache-layers.js';
+import { defaultCacheRoot, repositoryLayers, seedFromBase } from './cache-layers.js';
 import type { CoverageBlock } from './index.js';
 import {
   UNNUMBERED,
@@ -54,7 +54,7 @@ export interface CapturedModule {
 
 /** Where a repository keeps the numbers it calls its modules by. */
 export function moduleNamesFile(root: string, cacheRoot = defaultCacheRoot()): string {
-  return resolve(cacheLayers(root, cacheRoot).top, 'names.bin');
+  return resolve(repositoryLayers(root, cacheRoot).top, 'names.bin');
 }
 
 /**
@@ -64,7 +64,7 @@ export function moduleNamesFile(root: string, cacheRoot = defaultCacheRoot()): s
  * must own the table rather than read across it.
  */
 export function openModuleNames(root: string, cacheRoot = defaultCacheRoot()): string {
-  const layers = cacheLayers(root, cacheRoot);
+  const layers = repositoryLayers(root, cacheRoot);
   seedFromBase(layers, ['names.bin', 'names.bin.segments']);
 
   return resolve(layers.top, 'names.bin');
@@ -91,7 +91,7 @@ export function openModuleNames(root: string, cacheRoot = defaultCacheRoot()): s
  * project id, which is Jest's own word for the thing a label means here.
  */
 export function recordStore(root: string, label = 'build', cacheRoot = defaultCacheRoot()): string {
-  return resolve(cacheLayers(root, cacheRoot).top, label);
+  return resolve(repositoryLayers(root, cacheRoot).top, label);
 }
 
 /**
@@ -115,7 +115,7 @@ export function recordStores(
   label = 'build',
   cacheRoot = defaultCacheRoot(),
 ): readonly string[] {
-  const layers = cacheLayers(root, cacheRoot);
+  const layers = repositoryLayers(root, cacheRoot);
 
   return layers.top === layers.base
     ? [resolve(layers.base, label)]

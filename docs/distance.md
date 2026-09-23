@@ -55,20 +55,23 @@ const { narrowing, distances } = await distanceByExecution(
 This is a partial integration: it reads recorded evidence but neither inventories
 the current suite nor invokes a runner. `narrowing.whole` names test files whose
 recording completed, `narrowing.entered` names the recorded files the diff
-reached, and `narrowing.unread` names changed paths the snapshot could not
-answer.
+reached, and `narrowing.unread` names changed paths the snapshot says nothing
+about and the graph does not list.
 
 A safe execution integration starts from its **current host inventory** and
 subtracts only exclusions the snapshot proved:
 
 ```text
-skip = unread is empty ? whole minus entered : nothing
+skip = whole minus entered
 selected = current host inventory minus skip
 ```
 
 Everything outside `whole` remains selected: new tests, partially recorded
-tests, files another host owns, and files absent from the snapshot. A non-empty
-`unread` clears the entire skip list.
+tests, files another host owns, and files absent from the snapshot. `unread` is
+a report, not an input to the join: it lists a README, a fixture a test reads
+with `fs`, a script a test spawns. When your suite depends on one of those,
+name it in the integration's `preconditions` option; it then selects every test
+that declared it and leaves `unread`.
 
 After that join, distance can divide the measured part of `selected` into
 ranges:
@@ -222,8 +225,9 @@ A longer path is not itself a problem.
 dispatches paths to a runner. A repository integration owns both operations.
 
 **Distance describes recorded execution.** It cannot provide a path for a
-branch that no recorded test took. Selection handles changes it cannot attribute
-by refusing exclusions; distance does not extend that guarantee to unseen paths.
+branch that no recorded test took. Selection charges a changed line no recorded
+region contains to every test that ran its module; distance counts only the
+imports those tests actually took, and says nothing about a path none of them did.
 
 **Distance is not detection distance.** It counts import hops to a selected
 test. It does not say that test can reveal this fault, that no nearer test can,

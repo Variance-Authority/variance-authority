@@ -2471,6 +2471,7 @@
         "readableTestCoverage": "function",
         "recordedCommit": "function",
         "remaining": "function",
+        "repositoryLayers": "function",
         "repositoryRoot": "function",
         "seedTestCoverage": "function",
         "selectTestFiles": "function",

@@ -86,8 +86,9 @@ const { whole, entered, unread, stale } = await narrowByExecution(
 );
 
 const reached = new Set(entered);
-const skip = unread.length > 0 ? [] : whole.filter((test) => !reached.has(test));
+const skip = whole.filter((test) => !reached.has(test));
 
+if (unread.length > 0) console.error(`the record says nothing about: ${unread.join(', ')}`);
 console.log(skip.join('\n'));
 ```
 
@@ -109,11 +110,13 @@ missing snapshot, a snapshot from another machine, and a first run all leave
 - `entered` — the tests the diff reached. Never read an empty `entered` as "run
   nothing": *this diff reached nobody* and *this snapshot recorded nobody* are
   opposite facts, and `whole` is the only thing that separates them.
-- `unread` — changed paths the record says nothing about. Non-empty means the
-  snapshot was never asked about some changed path, so it cannot have charged
-  anyone for covering it. Clear the skip list and name the paths, so the
-  operator knows the suite widened and why. The guard in the sample above is
-  this, and it is not optional.
+- `unread` — changed paths the record has no row or declaration for, and the
+  graph has no node for when you pass `relations`: a README, a script the tests
+  spawn, a file outside the directories you scanned. It is a report, not a
+  reason to run more. A suite that depends on such a file declares it as a
+  precondition, and from then on a change to it selects every test it governs
+  and the path leaves `unread`. Print it so the operator can see what nothing
+  recorded.
 - `stale` — modules whose text on disk no longer matches what their rows were
   recorded over. A report rather than work: a stale module is already charged
   whole inside `entered`. It comes back empty unless you pass `sourceAt`,
@@ -186,9 +189,11 @@ A changed file selects by how the snapshot records it.
   anything an import graph cannot see.
 - **A module with probes and no crossings** answers: the build read it and
   nobody covered it.
-- **A module with no row at all** is `unread`. Nothing loaded it, every test
-  that imports it mocked it, or it sits outside what the run instrumented — and
-  the record cannot say which.
+- **A module with no row at all** selects nothing from the record: nothing
+  loaded it, every test that imports it mocked it, or it sits outside what the
+  run instrumented. Pass `relations` and the nearest files that import it and
+  have a row answer for it (below). It is listed in `unread` when no test
+  declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
 
@@ -205,24 +210,32 @@ path, and a renamed file's hunks under its old name.
 
 A module the instrumenter could not parse is recorded with
 `instrumented: false`; selection widens to every test that loaded it, each of
-which treats the module as a precondition.
+which treats the module as a precondition. When another build did instrument
+the same file, that build's row answers, and the uninstrumented row takes
+nothing from it.
 
-### Answer a stylesheet through the import graph
+### Answer a file with no row through the import graph
 
-`narrowByExecution(file, diff, { relations })` walks from the changed file
-through `asset` edges — the kind the scan gives an import of anything that is
-not a module — through the stylesheets that import the stylesheet, to the
+`narrowByExecution(file, diff, { relations })` walks from a stylesheet, image
+or JSON file through `asset` edges — the kind the scan gives an import of
+anything that is not a module — through the stylesheets that import it, to the
 modules that import those, and no further. Build `relations` with
 [the scan](#scan-the-checkout-for-the-file-graph).
 
-Every chain the walk follows has to end at something the record measured before
-the file is answered; one chain ending at a module the record never saw leaves
-the file `unread` whatever the other chains selected. The graph may add to a
-selection and may never close a question it did not answer. The walk uses the
+A module with no instrumented row under any of its names is walked the same way
+along every runtime edge, never `type`, and each chain stops at the first test
+file or instrumented module it reaches. A module the build could not instrument
+is walked past, and its tests come from the preconditions. A test that mocked
+the changed module, or the file it loaded it through, is cut.
+
+Each chain answers for itself. A chain ending at a module the record measured
+selects the tests that ran it; a chain ending at a module the record never saw
+selects nobody, and takes nothing from the chain beside it. The walk uses the
 edges the scan read; an import the scan could not read is not one of them.
 
 A snapshot that stores a file under another name — the built twin a sibling
-package's tests loaded — is looked up under every name `knownAs` returns for it.
+package's tests loaded — is looked up under every name `knownAs` returns for it,
+and each name selects the tests recorded under it.
 
 ### Options on the Vitest seam
 
@@ -234,15 +247,16 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
-| `preconditions` | the configured setup files | naming additional files whose contents govern every test, such as runner configuration |
+| `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
 | `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-covered-a-region)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `executionFile` | `<coverageFile>.cases.bin` | choosing where the per-case recording goes; a name ending `.json` writes JSON instead |
 
-Configured setup files become preconditions automatically, and the runtime's own
-setup file is placed ahead of them so a setup file that loads an instrumented
-module finds the counter factory it needs. A setup entry that names a package
+The config file Vite loaded, the local modules it imports and the configured
+setup files become preconditions automatically, and the runtime's own setup file
+is placed ahead of them so a setup file that loads an instrumented module finds
+the counter factory it needs. A setup entry that names a package
 rather than a file is not a precondition, since no diff mentions it.
 
 Under `isolate: false` a run still records every file that consumed a module as
@@ -340,7 +354,9 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
-`cases`, `continuations`, and `executionFile`, with the meanings above. There is no `include`: product source is every
+`cases`, `continuations`, and `executionFile`, with the meanings above. Jest
+does not say which config file it loaded, so name it in `preconditions`. There
+is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
 does not name, less dependencies and built output. A setup entry that names a
 package — `dotenv/config` — is left alone. A configuration with `projects` is
@@ -397,7 +413,9 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
-`mode`, `cases`, `continuations`, and `executionFile`, with the meanings above. The loader runs
+`mode`, `cases`, `continuations`, and `executionFile`, with the meanings above.
+Rstest does not say which config file it loaded, so name it in `preconditions`.
+The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
 edited rather than the ones the transpiler emitted.
@@ -690,9 +708,8 @@ hops. `groupByDistance` reports the whole reading as one group per hop count.
 
 **Distance places a selection; it does not build a workload.** A runnable
 workload has one more input: the current inventory from every test host. Compute
-the skip list, clear it when `unread` is non-empty, subtract only that skip list
-from the current inventory, and keep the host identity needed to dispatch every
-remaining path.
+the skip list, subtract only that skip list from the current inventory, and keep
+the host identity needed to dispatch every remaining path.
 
 ## Scan the checkout for the file graph
 
@@ -869,7 +886,7 @@ as a changed file repaints the whole suite for nothing. The difference between
 two reads of it says exactly what arrived. Drop the lockfile and every
 `package.json` from your changed-file list once you have compared the two —
 `package.json` is the request and the lockfile is the answer, and counting
-either again widens for the very thing it just explained.
+either again reports the very thing it just explained a second time.
 
 `readLockfile` throws `Unreadable` with a sentence naming what stopped it — a
 format version this build does not read, a YAML construct it will not guess at.
@@ -1106,8 +1123,9 @@ different commits were not one run — and *absent* is a value there, so a shard
 recorded outside a checkout does not fold under a commit it never named. A test
 file two shards both recorded is a split that overlapped, and a module two
 shards built from different source has regions that do not name each other.
-Where the shards disagree, unknown wins: a module one shard could not
-instrument is unread in the fold.
+Where the shards disagree about whether a module was readable, the instrumented
+rows answer: a shard that could not instrument a module takes nothing from a
+shard that did.
 
 A fold is a fan-in and `mergeCoverage` is a layer; they are not interchangeable.
 A layer positions the result where the newer side stands and retires what that

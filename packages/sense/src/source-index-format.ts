@@ -32,7 +32,7 @@ import { encodeHarvest, openHarvest } from './source-index-harvest.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 6;
+const VERSION = 7;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */

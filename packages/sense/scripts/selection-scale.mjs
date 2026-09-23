@@ -106,7 +106,7 @@ if (MODE === 'band') {
     for (const count of steps) {
       const { narrowing, ms, rss } = answer(paths(count, shape));
       const run = narrowing.entered.length;
-      const skip = narrowing.unread.length > 0 ? 0 : narrowing.whole.length - run;
+      const skip = narrowing.whole.length - run;
       console.log(
         `${shape.padEnd(10)}${String(count).padStart(5)}` +
           `${ms.toFixed(1).padStart(8)}${(`${mb(rss)}M`).padStart(7)}` +

@@ -89,8 +89,7 @@ describe('charging a changed line to the regions that hold it', () => {
     // and alpha is the test that would have caught it.
     //
     // Read as text that only binds a name, the hunk charges nobody: alpha
-    // lands in the caller's skip list — `whole` minus `entered` — with nothing
-    // in `unread` to clear it.
+    // lands in the caller's skip list — `whole` minus `entered`.
     const diff = `--- a/src/decide.ts
 +++ b/src/decide.ts
 @@ -4,0 +5,3 @@
@@ -166,9 +165,8 @@ deleted file mode 100644
     //
     // Measured narrowest-first the `then` is the innermost thing on the line
     // and it closes rather than opens, so the walk outwards stops before the
-    // `else` is ever asked. Beta is then absent from `entered` with nothing in
-    // `unread` to rescue it, which puts the one test that catches the change on
-    // the caller's safe skip list.
+    // `else` is ever asked. Beta is then absent from `entered`, which puts the
+    // one test that catches the change on the caller's skip list.
     const grading: TestCoverage = {
       ...coverage,
       modules: [

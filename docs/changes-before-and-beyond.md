@@ -60,9 +60,9 @@ by the same walk, from a seed at the other end of the line.
 | --- | --- |
 | `@mui/material` bumped | Every file whose imports reach it is treated as changed, transitively, and selection proceeds from there |
 | `jsdom` bumped, and only `jest-environment-jsdom` depends on it | The bump is traced up through the install to the packages that rest on it, and then into your files. A transitive dependency is not a shorter question, only a longer trail |
-| `@mui/material` bumped and no file imports it | Nothing. An installed package with no importer reaches nothing, and an absent importer is not an unread one |
+| `@mui/material` bumped and no file imports it | Nothing. An installed package with no importer reaches nothing |
 | Only a `type` import names the bumped package | Nothing. Types are erased before anything runs, so nothing a run can observe rests on them |
-| A file that imports the bumped package was never measured | The whole suite runs. The record cannot say what covered that file, and a bump underneath an unwatched file is exactly the case a skip would hide |
+| A file that imports the bumped package was never measured | That file selects nothing, and every measured file the walk reaches beside it or above it selects the tests that ran it. The record has no crossing to charge an unmeasured file with, and declaring the file does not change that: a precondition selects on a change to the declared file's own text, never on a bump beneath it |
 
 Which **copy** of a package an importer got is not asked. A specifier names
 `@mui/material`; which of the installed instances a resolver hands it is
@@ -77,14 +77,13 @@ changed file here. They are read at two revisions — the base and the working
 tree — and compared as installs, which is a different question from *did this
 file's bytes change*:
 
-- A workspace edit rewrites `yarn.lock` and changes no package. Counted as a
-  changed path it would widen the run; compared as an install it contributes
-  nothing.
+- A workspace edit rewrites `yarn.lock` and changes no package. Compared as an
+  install it contributes nothing.
 - A resolution or an override changes what `^4.17.21` means without changing the
   line that asked for it. Compared as an install it is a bump like any other.
 - Both paths are then dropped from the changed-file list. They have no row in
-  any record, so left in they would widen the run for the very thing they just
-  explained.
+  any record, so left in they would be reported a second time for the very
+  thing they just explained.
 
 `yarn.lock` (classic and Berry), `pnpm-lock.yaml` and `package-lock.json` are
 read. **A lockfile that cannot be read widens the run**: a comparison that could
@@ -97,9 +96,11 @@ CI: none of them is imported by anything, so there is no edge to walk back
 along and no answer smaller than the whole suite. That much is decided for you.
 What is not decided is whether the run notices.
 
-A diff that is *only* a config file already runs everything, because a diff no
-part of which is in the graph says nothing about which component changed. That
-stops being true the moment anything else is in the diff. A CI workflow edited
+A diff that is *only* a config file already runs everything when no execution
+record is kept, because a diff no part of which is in the graph says nothing
+about which component changed. That stops being true the moment anything else
+is in the diff, or a record is kept: the record has no row for the config file,
+so it keeps no subject in the run. A CI workflow edited
 beside one component gives the walk a seed, and the run narrows to that
 component, though it never examined the change that seeded it.
 
@@ -126,6 +127,14 @@ that off would switch the config files off with it. Declared, it is exact.
 
 `source.before` needs `source.relations: true`, because what an entry point
 buys is everything below it.
+
+Test selection makes the same declaration on the runner. `variance select` reads
+no `variance.config.json`, so `source.before` does not reach it. The Vitest
+integration declares the config file Vite loaded and the local modules it
+imports; the Vitest, Jest and Rstest integrations take a `preconditions` option
+for the rest, and every test they record declares each file it lists. A change
+to one of those files selects the whole suite. A changed file nothing imports
+and nothing lists selects nothing, and `select` names it.
 
 ## What comes with a declared entry point
 

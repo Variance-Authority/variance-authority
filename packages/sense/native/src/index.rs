@@ -331,7 +331,7 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         .collect();
     let header = serde_json::to_vec(&Header {
         format: "variance-authority-source-index",
-        version: 6,
+        version: 7,
         sections,
     })
     .unwrap_or_default();

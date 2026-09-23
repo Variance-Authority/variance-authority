@@ -257,17 +257,10 @@ export async function indexPosition(
 
   try {
     const repository = await topLevel(run, roots[0] === undefined ? root : join(root, roots[0]));
-    // The seams key the index by the runner's root, which is the repository
-    // for a single-package checkout and the package for one inside a monorepo;
-    // a run started from either is asked for from both.
-    let commit: string | undefined;
-    for (const candidate of new Set([root, repository])) {
-      // The position, and nothing else decoded to reach it: a snapshot of a
-      // repository holds hundreds of thousands of regions and this asks it for
-      // forty characters.
-      commit = await selection.recordedCommit(selection.testCoverageFile(candidate));
-      if (commit !== undefined) break;
-    }
+    // The position, and nothing else decoded to reach it: a snapshot of a
+    // repository holds hundreds of thousands of regions and this asks it for
+    // forty characters.
+    const commit = await selection.recordedCommit(selection.testCoverageFile(repository));
     if (commit === undefined) return undefined;
     const changed = (await changedFiles(run, repository, commit)).length;
     return { commit, changed };

@@ -99,21 +99,33 @@ export function published(packages, specifier) {
 }
 
 /**
- * Put back the edges the resolver dropped for landing in built output.
+ * Put back the edges the resolver dropped for landing in built output, each as
+ * the kind the parser read it as.
  *
- * Kind `imports` for all of them, including the ones that were written `import
- * type`: the record keeps the specifier and not what it was asked for, and this
- * repository's rule for an uncertainty is to resolve it towards running more.
- * The cost is bounded — a type-only edge can only shorten a path between two
- * modules the test entered at runtime anyway, because the walk never leaves what
- * ran.
+ * `unresolved` keeps the specifier and `packages` keeps the kind, by package
+ * name, so a specifier bridges as `type` when every import the file makes of
+ * its package is `import type`, and as `imports` otherwise. A type-only import
+ * is erased before anything runs: bridged as runtime, it is an edge the default
+ * walk crosses and no run ever loaded, and it selects the importer's tests for a
+ * change they never executed. As `type` it stays in the graph for a caller that
+ * asks about source.
+ *
+ * By name because that is the grain the record keeps, so a file importing one
+ * subpath for its values and another for its types bridges both as runtime.
+ * A record with no package edge for the name bridges as runtime too: the
+ * reader did not say, and running more is the side an unanswered kind falls on.
  */
 export function bridgeWorkspace(records, packages) {
   return records.map((record) => {
     const extra = [];
     for (const specifier of record.unresolved ?? []) {
       const to = published(packages, specifier);
-      if (to !== undefined) extra.push({ to, kind: 'imports' });
+      if (to === undefined) continue;
+      const asked = (record.packages ?? []).filter(
+        (edge) => specifier === edge.to || specifier.startsWith(`${edge.to}/`),
+      );
+      const erased = asked.length > 0 && asked.every((edge) => edge.kind === 'type');
+      extra.push({ to, kind: erased ? 'type' : 'imports' });
     }
     return extra.length === 0 ? record : { ...record, edges: [...(record.edges ?? []), ...extra] };
   });

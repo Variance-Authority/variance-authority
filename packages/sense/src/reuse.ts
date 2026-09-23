@@ -99,8 +99,8 @@ export interface PersistentRecordCache extends RecordCache {
   save(): Promise<void>;
 }
 
-/** Bumped when `FileRecord` or the config inputs change, so record keys move. */
-const VERSION = 2;
+/** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
+const VERSION = 3;
 
 /**
  * Files whose *contents* decide where other files resolve to.

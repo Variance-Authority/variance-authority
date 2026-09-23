@@ -1,52 +1,57 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
-import { INERT, explain } from './test-since.mjs';
+import { explain, selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
- * The one list `yarn test:since` is allowed to skip on, and the rewrite it
- * narrows through.
+ * The decision `yarn test:since` makes, and the rewrite it narrows through.
  *
- * Everything else a diff touches and the snapshot has no row for widens the run
- * to the whole suite, which is the safe direction and needs no checking. These
- * two do not have that property. {@link INERT} is where the tool decides a
- * change cannot matter *without* consulting any evidence, and
- * `inSnapshotCoordinates` is where a changed `src` file is looked up under the
- * `dist` name every other package's tests actually loaded — get that wrong and
- * the narrowing quietly stops seeing cross-package reach, which looks exactly
- * like a clean diff.
+ * {@link selectedFiles} is where a reading becomes a run, and its one claim that
+ * no other check can see is a negative: a changed path no test ran keeps no
+ * test in the run and does not turn the answer into the whole suite. A widening
+ * that crept back would fail nothing else, because a whole suite is always green
+ * where a narrow one is. `inSnapshotCoordinates` is where a changed `src` file
+ * is looked up under the `dist` name every other package's tests actually
+ * loaded — get that wrong and the narrowing quietly stops seeing cross-package
+ * reach, which looks exactly like a clean diff.
  */
 
-/** Where the suite collects from, per `vitest.config.mts`. */
-const COLLECTED = ['packages/', 'examples/', 'cases/'];
+describe('a file runs because the reading placed it, never because a path went unmeasured', () => {
+  const suite = ['a.test.ts', 'b.test.ts', 'c.test.ts'];
+  const base = 'f'.repeat(40);
 
-describe('nothing skipped without evidence is inside the suite', () => {
-  it.each(INERT)('%s is there', (entry: string) => {
-    const path = join(ROOT, entry.replace(/\/$/, ''));
-    expect(existsSync(path), `${entry} names nothing in this repository`).toBe(true);
-    expect(statSync(path).isDirectory(), `${entry} is written as a ${entry.endsWith('/') ? 'directory' : 'file'}`).toBe(
-      entry.endsWith('/'),
-    );
+  it('keeps only the files the snapshot never saw whole when a change entered nothing', () => {
+    expect(
+      selectedFiles({ suite, whole: new Set(['a.test.ts', 'b.test.ts']), entered: new Set(), touched: [], moved: [], base }),
+    ).toEqual({ selected: ['c.test.ts'] });
   });
 
-  it.each(INERT)('%s is outside every workspace', (entry: string) => {
-    expect(COLLECTED.filter((group) => entry.startsWith(group))).toEqual([]);
+  it('adds what the change entered and the test files it edited', () => {
+    expect(
+      selectedFiles({
+        suite,
+        whole: new Set(suite),
+        entered: new Set(['a.test.ts']),
+        touched: ['b.test.ts'],
+        moved: [],
+        base,
+      }),
+    ).toEqual({ selected: ['a.test.ts', 'b.test.ts'] });
   });
 
-  it('collides with nothing the runner collects', () => {
-    const config = readFileSync(join(ROOT, 'vitest.config.mts'), 'utf8');
-    const include = [...config.matchAll(/'([^']*\*[^']*)'/g)].map((match) => match[1]!);
-    expect(include.length, 'no include patterns found — has the config moved?').toBeGreaterThan(0);
+  it('runs everything when the install could not be compared', () => {
+    const decided = selectedFiles({ suite, whole: new Set(suite), entered: new Set(), touched: [], moved: undefined, base });
+    expect(decided.selected).toBeUndefined();
+    expect(decided.widened).toContain(base.slice(0, 12));
+  });
 
-    const overlapping = include.filter((pattern) =>
-      INERT.some((entry: string) => pattern.startsWith(entry)),
-    );
-    expect(overlapping, 'the suite collects from a directory the tool treats as unreachable').toEqual(
-      [],
-    );
+  it('runs everything when the snapshot saw none of this suite whole', () => {
+    const decided = selectedFiles({ suite, whole: new Set(['elsewhere.test.ts']), entered: new Set(), touched: [], moved: [], base });
+    expect(decided.selected).toBeUndefined();
+    expect(decided.widened).toContain('no whole observation');
   });
 });
 

@@ -50,6 +50,7 @@ import { cpSync, existsSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { digestString } from '../digest.js';
+import { repositoryRoot } from './repository-root.js';
 
 /** The default cache root, honouring the XDG variable the rest of the tree honours. */
 export function defaultCacheRoot(): string {
@@ -84,6 +85,22 @@ export function cacheLayers(root: string, cacheRoot = defaultCacheRoot()): Cache
   const base = resolve(cacheRoot, 'variance-authority', 'test-selection', keyOf(primary));
 
   return primary === here ? { top: base, base } : { top: resolve(base, '.work', keyOf(here)), base };
+}
+
+/**
+ * The layers for a record whose names are spelled from the repository.
+ *
+ * A coverage snapshot, the module-name table and a record store all hold
+ * repository-relative names, so they belong to the checkout rather than to
+ * whichever directory asked: a recorder started from a package and a reader
+ * started from the repository root must land on one directory, or the reader
+ * reports no record for a suite that has one. {@link repositoryRoot} is the
+ * owner of that answer, and every writer already asks it; this is the same
+ * question asked on the read side. The source index is not one of these — its
+ * records are a scan root's, and two roots in one repository keep two.
+ */
+export function repositoryLayers(root: string, cacheRoot = defaultCacheRoot()): CacheLayers {
+  return cacheLayers(repositoryRoot(root), cacheRoot);
 }
 
 /** The layers to read for one artifact, nearest first; one entry in the primary checkout. */

@@ -361,7 +361,7 @@ describe('the Vitest integration', () => {
     /** The fixture run once, under either recipe, with whatever it wrote. */
     async function record(
       config: string,
-      files?: string,
+      env: Readonly<Record<string, string>> = {},
     ): Promise<{ coverage: Buffer; index?: ExecutionIndex }> {
       const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
       temporary.push(directory);
@@ -376,7 +376,7 @@ describe('the Vitest integration', () => {
             ...process.env,
             VARIANCE_AUTHORITY_COVERAGE: coverageFile,
             XDG_CACHE_HOME: directory,
-            ...(files === undefined ? {} : { VARIANCE_AUTHORITY_FILES: files }),
+            ...env,
           },
         },
       );
@@ -426,7 +426,8 @@ describe('the Vitest integration', () => {
       // A variable cannot hold two cases, and guessing which one owns a
       // crossing is the direction `selecting.md` forbids. So the run fails, and
       // says which mode records it.
-      const failed = await record('vitest.sequential.config.ts', 'test/concurrent.case.ts')
+      const concurrent = { VARIANCE_AUTHORITY_FILES: 'test/concurrent.case.ts' };
+      const failed = await record('vitest.sequential.config.ts', concurrent)
         .then(() => undefined, (error: { stdout?: string; stderr?: string }) => error);
       if (failed === undefined) throw new Error('the concurrent fixture recorded without a scope');
 
@@ -454,7 +455,7 @@ describe('the Vitest integration', () => {
       // and the cost of turning cases on is not paid by anyone reading this.
       const [cased, flat] = await Promise.all([
         record('vitest.config.ts'),
-        record('vitest.flat.config.ts'),
+        record('vitest.config.ts', { VARIANCE_AUTHORITY_CASES: 'off' }),
       ]);
 
       expect(cased.coverage.equals(flat.coverage)).toBe(true);

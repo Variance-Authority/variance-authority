@@ -39,36 +39,32 @@
  * - **No diff.** Not a checkout, no such ref, a shallow clone. Refusing to
  *   narrow is the only safe reading: an empty diff and an unobtainable one look
  *   identical, and one of them means *skip everything*.
+ * - **No install to compare.** The lockfile is missing at the diff's base, or
+ *   this cannot read it. Any package may have moved, and a bump shows in no
+ *   line a test covered, so every test that imports one would be skipped.
  * - **Nothing recorded whole.** A journal exists and holds no complete
  *   observation of any test, so no absence in it is evidence.
- * - **A changed file the journal has no measurement of** — see below.
  *
- * ## Why an unread path widens the whole answer
+ * Each of the four is a reading that could not be made. A reading that was
+ * made and found nothing is an answer, and it is given.
  *
- * `packages/sense/README.md` states the rule as `skip = whole − entered` and
- * calls `unread` "a report rather than a widening". That is the library's view
- * and it is right about the library: `unread` is populated when a changed path
- * has no row, no precondition and no importer that does, which for a README or
- * a fixture means the suite genuinely does not depend on it.
+ * ## An unread path is named, and keeps nothing in the run
  *
- * It is not right about this repository, and the two other places that ship
- * this rule already disagree with it. `unenteredSubjects` — the rule behind
- * `variance run --since` — returns an empty skip list the moment `unread` is
- * non-empty, and `tools/test-since.mjs` widens its run the same way. The reason
- * is that a module is `unread` for two causes that cannot be told apart from
- * the outside: the suite does not depend on it, or *no probe was ever placed in
- * it*. A build excludes its own instrumentation, a package outside the scanned
- * directories is never indexed, and a module added since the recording has no
- * row yet — and each of those is a real TypeScript module whose tests this
- * would then skip. Measured on this checkout, `unread` held twenty-six modules
- * of `packages/sense/src/test-selection` alone — `select.ts` among them, the
- * module that implements the rule.
+ * `unread` is a changed path the journal, the declared preconditions and the
+ * file graph all say nothing about. The ways a real module could land there
+ * are closed where they arise rather than here: a module the recorder loaded
+ * and could not instrument is declared a precondition of every test that loaded
+ * it, and a module with no row is answered by the nearest measured files that
+ * import it. What is left is a file the suite does not import — prose, a
+ * workflow, a fixture read with `fs`, a script it spawns — and for the last two
+ * the suite's own declaration is the fix, because only the suite knows it
+ * reads them.
  *
- * So a changed path nothing measured voids the ground. The cost is a full suite
- * on a commit that only touched a README, which is the direction this subsystem
- * is allowed to fail in; the saving that would buy is not worth a skip nobody
- * can audit. The files are named, because the fix is to record them or declare
- * them, not to widen forever.
+ * Widening on it would put the cost on the wrong commit. Every change that
+ * touches a README would run the whole suite, which empties the skip list on
+ * exactly the commits where it is longest, and it would still say nothing about
+ * the fixture a test reads undeclared. So the paths are named on stderr and in
+ * `json`'s `unread`, and the answer is the one the journal gave.
  *
  * ## Stale is already handled, and is reported anyway
  *
@@ -90,15 +86,17 @@ export type SelectFormat = 'plain' | 'json' | 'vitest' | 'jest';
 /**
  * What the journal answered, or why it did not.
  *
- * Three states rather than an optional reading, because *no snapshot*, *no
- * diff* and *a snapshot that answered* are three different claims and only one
- * of them is about the tests. Collapsing the first two into an empty narrowing
- * would make a broken `git` print the same thing as a clean recording.
+ * Four states rather than an optional reading, because *no snapshot*, *no
+ * diff*, *no install to compare* and *a snapshot that answered* are four
+ * different claims and only one of them is about the tests. Collapsing the
+ * first three into an empty narrowing would make a broken `git` print the same
+ * thing as a clean recording.
  */
 export type SelectGround =
   | { readonly kind: 'read'; readonly narrowing: ExecutionNarrowing }
   | { readonly kind: 'no-journal' }
-  | { readonly kind: 'no-diff'; readonly from: string };
+  | { readonly kind: 'no-diff'; readonly from: string }
+  | { readonly kind: 'no-install'; readonly whole: string };
 
 export interface SelectInput {
   /** Where the journal is, or would have been. Named in every outcome. */
@@ -180,8 +178,16 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
+  if (input.ground.kind === 'no-install') {
+    return {
+      ...base,
+      widened: input.ground.whole,
+      because: 'a package bump shows in no line a test covered, so every test file stays in the run',
+    };
+  }
+
   const { whole, entered, unread, stale } = input.ground.narrowing;
-  const notes = recordingNotes(stale, input.commit);
+  const notes = [...unreadNotes(unread), ...recordingNotes(stale, input.commit)];
   const measured = {
     ...base,
     notes,
@@ -189,20 +195,6 @@ export function skippableTests(input: SelectInput): TestSelection {
     stale,
     recorded: { whole: whole.length, entered: entered.length },
   };
-
-  // The correction to the README's recipe, argued at the top of this file. A
-  // path nothing measured is a path whose tests cannot be named, and the tests
-  // that would be skipped for it are skipped on a silence.
-  if (unread.length > 0) {
-    const [first] = unread;
-    return {
-      ...measured,
-      widened:
-        `the diff changes ${many(unread.length, 'file')} the journal holds no measurement of ` +
-        `(${first}), so it cannot say which tests cover them`,
-      because: 'the execution journal was not asked, having no record of every changed file',
-    };
-  }
 
   if (whole.length === 0) {
     return {
@@ -225,6 +217,23 @@ export function skippableTests(input: SelectInput): TestSelection {
       'covered none of the changed lines, and are skipped; every test file it does not speak ' +
       'for still runs',
   };
+}
+
+/**
+ * The changed paths the journal records nothing about, argued at the top of
+ * this file.
+ *
+ * Named rather than counted, because the one an operator acts on is a fixture a
+ * test reads without importing it, and that is recognised by its name.
+ */
+function unreadNotes(unread: readonly string[]): readonly string[] {
+  if (unread.length === 0) return [];
+  return [
+    `the journal records nothing about ${many(unread.length, 'changed file')} ` +
+      `(${unread.slice(0, 3).join(', ')}${unread.length > 3 ? ', …' : ''}), so ` +
+      `${unread.length === 1 ? 'it keeps' : 'they keep'} no test in the run; a file the suite ` +
+      'reads without importing it is declared as a precondition',
+  ];
 }
 
 /**

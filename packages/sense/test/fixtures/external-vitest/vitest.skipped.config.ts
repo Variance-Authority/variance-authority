@@ -22,6 +22,5 @@ export default withTestSelection(
   {
     coverageFile,
     include: (file) => file.startsWith(source),
-    preconditions: ['vitest.skipped.config.ts'],
   },
 );

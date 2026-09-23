@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
@@ -34,7 +34,9 @@ const corpus = execFileSync(
   },
 )
   .split('\0')
-  .filter((file) => file !== '' && !file.endsWith('.d.ts'));
+  .filter((file) => file !== '' && !file.endsWith('.d.ts'))
+  // Tracked but removed from the working tree: a deletion not yet committed.
+  .filter((file) => existsSync(join(root, file)));
 
 /** What a hand-written corpus has that this repository's sources may not. */
 const FIXTURES: Readonly<Record<string, string>> = {

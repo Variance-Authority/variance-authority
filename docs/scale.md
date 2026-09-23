@@ -419,10 +419,10 @@ and every row lands on the wrong region, silently, which is why the fold checks
 first. Two shards share a recipe when they run the same
 instrumented build of the same commit, which is what one checkout and one
 configuration give you. A test file two shards both recorded means the split
-overlapped, which only you can resolve. And where
-the shards disagree about whether a module was readable, **unknown wins**,
-because the row a reader widens on must not be outvoted by the shards that
-happened to measure it. The stitched record is the one you share.
+overlapped, which only you can resolve. And where one shard measured a module
+and another's build put no probes into it, **the measured row answers**: a shard
+with no probes in a module has no measurement to set against one that does. The
+stitched record is the one you share.
 
 **A shared record is supported and never required.** Locally you can record one
 and use it, fetch the one CI stitched and layer today's run on top, or work from

@@ -193,7 +193,8 @@ A bare specifier that resolves outside the repository, or into a directory the
 scan never descends into, yields no edge and no reason recorded: the record lists
 it as unresolved and stays whole, since an uninstalled package lies outside the
 diff. A relative specifier that lands there is a hole, and the record records a
-reason — which is the widening described above.
+reason — which is the file described above, whose other edges the walk still
+uses.
 
 **Lookup.** One map read over the rows this scan has touched, falling back to a
 newest-first walk of the persisted layers, O(s) map reads. A hit is copied
@@ -315,14 +316,18 @@ built to answer:
   `variance ask locate --to <path>` what rests on it, both at any depth.
   Details in [locate](locate.md).
 - `variance run --since <ref>` prints the selection and the chain behind each
-  reached component. `variance select` does not use the graph: it reads no
-  configuration, so it never has one, and it widens where this page narrows.
+  reached component. `variance select` reads no configuration and scans the
+  whole checkout instead: it walks a changed file with no row — a stylesheet,
+  a module the record never measured — to the nearest measured files that
+  import it, and a changed file neither the graph nor the record lists keeps no
+  test in the run and is named in the answer.
 - `variance serve` exposes the same tree over MCP.
 
 One property of the encoding is worth knowing because it shows up in behaviour:
 every list is stored with a flag distinguishing *absent* from *empty*. That is
 what keeps a file the scan could not read from being indistinguishable from a
-file with no imports — the first widens every selection, the second narrows it.
+file with no imports — the first is named as a file that hides an edge, the
+second has nothing to hide.
 
 ## The relations graph
 
@@ -348,9 +353,11 @@ remain two edges.
 republishes), `dynamic` (`import()` with a literal specifier), `type` (erased
 before anything runs), `asset` (a stylesheet's `@import`, or a `url()` that names
 a font or an image), and `declared-in` (a component to the file that declares it).
-A request is `type` when every binding it brings in is type-only, with
-`import type { T }` and `import { type T }` alike, and a re-export is `type`
-under the same rule. Because a component points at the file that declares it,
+A request is `type` only when its statement is written `import type` or
+`export type`; `import { type T } from './t'` is a value import, because under
+`verbatimModuleSyntax` it still loads `./t` and the `tsconfig` that decides is
+not in the file. A re-export is `type` only when every statement republishing
+from that specifier is written `export type`. Because a component points at the file that declares it,
 one walk against the arrows from a changed file reaches every importer and every
 component in one pass.
 

@@ -118,9 +118,9 @@ export interface Request {
   /**
    * What the whole request is, for the file-level edge.
    *
-   * A summary of the bindings rather than a replacement for them: `type` when
-   * every name it brings in is type-only, and the per-binding truth is still
-   * in `bindings` for anything that needs to disagree.
+   * What the statement declares, never a sum of its bindings: `type` only for
+   * `import type` and `export type`, and for a re-export only when every
+   * statement writing it says so. Each binding keeps its own typeness.
    */
   readonly kind: EdgeKind;
 
@@ -219,14 +219,6 @@ export interface Read {
 export const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'];
 
 /**
- * Static imports, re-exports, published names and literal dynamic imports.
- *
- * A type-only import is kept as its own kind rather than dropped. It cannot move
- * a pixel — every compiler erases it — and dropping it here would decide that for
- * every consumer, including the ones asking what a file rests on rather than what
- * a change could repaint.
- */
-/**
  * 1-based line numbers from offsets, over one file's text.
  *
  * Built once per file and searched, rather than counted per request: a barrel
@@ -250,7 +242,20 @@ export function linesOf(contents: string): (offset: number) => number {
   };
 }
 
-/** Reduce one JavaScript or TypeScript module to cacheable import and export facts. */
+/**
+ * Static imports, re-exports, published names and literal dynamic imports.
+ *
+ * A type-only import is kept as its own kind rather than dropped. It cannot move
+ * a pixel — every compiler erases it — and dropping it here would decide that for
+ * every consumer, including the ones asking what a file rests on rather than what
+ * a change could repaint.
+ *
+ * Type-only is the statement's keyword and never the sum of its names.
+ * `import { type X } from './y'` loads `./y` under `verbatimModuleSyntax`, which
+ * emits `import {} from './y'`, and loads nothing under the default elision.
+ * Which one applies is in a `tsconfig` this cannot see, so the statement is a
+ * runtime request and each binding still says it is a type.
+ */
 export function readModule(file: string, contents: string): Read {
   let result;
   try {
@@ -269,6 +274,14 @@ export function readModule(file: string, contents: string): Read {
   const lineAt = linesOf(contents);
   const docs = harvestDocs(contents, result.comments);
   const symbols = harvestSymbols(result.program, contents, docs);
+  // The record keeps typeness per name only, so each statement's keyword comes off
+  // the tree, keyed by the offset the record gives that statement.
+  const typed = new Set<number>();
+  for (const node of result.program.body) {
+    const kind =
+      node.type === 'ImportDeclaration' ? node.importKind : 'exportKind' in node ? node.exportKind : undefined;
+    if (kind === 'type') typed.add(node.start);
+  }
 
   for (const entry of record.staticImports) {
     const line = lineAt(entry.start);
@@ -281,17 +294,14 @@ export function readModule(file: string, contents: string): Read {
       }),
     );
 
-    // No entries at all is `import './x'` — a side effect, which is the shape a
-    // stylesheet arrives in and never a type import.
-    const type = bindings.length > 0 && bindings.every((binding) => binding.type);
-    requests.push({ value: entry.moduleRequest.value, kind: type ? 'type' : 'imports', bindings, line });
+    const kind = typed.has(entry.start) ? 'type' : 'imports';
+    requests.push({ value: entry.moduleRequest.value, kind, bindings, line });
   }
 
   // `export { a, b } from './x'` arrives as two entries naming one specifier.
   // Grouping keeps it one request, so a barrel republishing fifty names is one
-  // edge rather than fifty, and the type-only rule is decided over the whole
-  // request the way an import's is. The group carries its own `type` because
-  // `export type * from './x'` is type-only while binding no names at all.
+  // edge rather than fifty, and the request is type-only when every statement
+  // naming it was written `export type`.
   const republished = new Map<string, { bindings: Binding[]; type: boolean; line: number }>();
 
   for (const entry of record.staticExports) {
@@ -319,7 +329,7 @@ export function readModule(file: string, contents: string): Read {
       // The request's own line is the first statement that wrote it. Statements
       // arrive in source order, so the first one seen is the earliest.
       const group = republished.get(from) ?? { bindings: [], type: true, line };
-      if (!binding.isType) group.type = false;
+      if (!typed.has(entry.start)) group.type = false;
       // `export * from './x'` names nothing here, and a binding invented for it
       // would claim a name this file never wrote.
       if (exported !== undefined && imported !== undefined) {

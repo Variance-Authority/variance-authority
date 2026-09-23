@@ -71,6 +71,8 @@ export interface AffectedComponents {
 export interface GraphRefusal {
   readonly whole: string;
   readonly unscanned?: readonly string[];
+  /** The `source.before` files this diff moves, when that is the refusal. */
+  readonly rests?: readonly string[];
 }
 
 /**
@@ -200,6 +202,7 @@ function seedsOf(
       whole:
         `the run rests on ${listed(rests)} before any test imports ${them}, and this diff moves ` +
         `${them}: nothing here has an edge to walk back from`,
+      rests,
     };
   }
 

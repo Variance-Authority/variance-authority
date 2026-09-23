@@ -133,8 +133,10 @@ again.
 - `whole` is what the snapshot may speak for; `entered` is what the diff
   reached. **Skip is `whole` minus `entered`, and never a run list** — a skip
   list only has to be right about the paths it names.
-- `unread` is non-empty, so **the skip list is void**: run everything and name
-  the path. That is not an error, it is the guard working.
+- `unread` names a changed path the record says nothing about and the graph
+  does not list. It selects nothing, and the skip list is still `whole` minus
+  `entered`. Print it: if the suite reads that file without importing it, it is
+  a precondition to declare.
 - `because` gives one entry per selected test, in the order of `entered`: a
   `region` (file, name, path and lines of the innermost recorded block a changed
   line fell in), a `precondition` by name, or an `importer` with the trail.
@@ -188,11 +190,12 @@ is `yarn test:since --at-distance 0-2`, whose own `--help` says:
                         with the leg that reaches the end.
 ```
 
-Its widening path prints, verbatim, from an actual run here:
+A changed path no chain of imports connects to a measured module selects
+nothing there; one the graph does not list is named. The whole suite runs only
+when the reading itself could not be made:
 
 ```text
-test:since: running the whole suite — the snapshot has no measurement of
-packages/core/README.md and 30 other path(s), so it cannot say who entered it.
+test:since: running the whole suite — the install could not be compared against 03984ae78218.
   429 files
 ```
 
@@ -320,19 +323,17 @@ Selection over-includes on purpose, because skipping a test that should have run
 produces a green report over unwatched work, and silently. Expect these and do
 not argue with them:
 
-- A changed path the snapshot holds no row for — a file added since the
-  recording, a fixture, a module that cannot carry a probe — appears under
-  `unread`; the caller clears its skip list and names the path.
 - A test file that changed selects itself.
 - A run that cannot list its changed files at all does not narrow.
 - A lockfile that cannot be read, or cannot be read at the base revision, does
   not narrow. A comparison that failed is not a comparison that found nothing.
-- A dependency bump under a file the recording never measured does not narrow.
-  The moved package appears under `unread` by name rather than by path.
 - A change to the harness, the bundler config or the node version does not
   narrow. Nothing imports them, so there is no edge to walk and no answer
-  smaller than the whole suite. It is only *noticed* when the file is named in
-  `source.before` — undeclared, a config edited beside a component file is
+  smaller than the whole suite. It is only *noticed* when something declares
+  it: `source.before` for `variance run --since`, and a precondition for the
+  test integrations. The Vitest integration declares the config file Vite
+  loaded and the local modules it imports; Jest and Rstest take the config in
+  `preconditions`. Undeclared, a config edited beside a component file is
   invisible.
 - A file below a declared entry point — a setup module, a fixture only that
   setup imports — does not narrow either, and neither does a package the
@@ -341,6 +342,14 @@ not argue with them:
 
 When an integration reports that it retained the whole suite, read the named
 path. That is a wiring fact about the project, and usually a fixable one.
+
+Absence is the other direction, and it widens nothing. A changed path the
+snapshot has no row for is asked of the import graph when you pass
+`relations`, and the nearest measured files that import it select their tests.
+One the graph does not list — a README, a fixture — appears under `unread` and
+selects nothing; one it lists whose importers reach nothing measured selects
+nothing and is not reported. A bumped package selects the tests of its measured
+importers; one with none selects nothing and is not reported.
 
 ## A recorded run costs memory, not time
 

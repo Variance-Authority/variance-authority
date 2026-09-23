@@ -31,26 +31,19 @@ export interface ExecutionNarrowing {
   readonly entered: readonly string[];
 
   /**
-   * Changed paths nothing recorded holds: no row, no precondition, and no
-   * place in the graph when the caller handed one over.
+   * Changed paths the record and the graph hold nothing about: no row under
+   * any name the file may be held by, no precondition, and no place in the
+   * graph when the caller handed one over.
    *
-   * The record decides what a change reaches. A module nobody executed has no
-   * row and selects nobody, and so does a stylesheet nothing recorded imports.
+   * The record decides what a change reaches. A module with no row is answered
+   * by the nearest importers that have one, and selects nobody when no chain
+   * of imports reaches a row; so does a stylesheet nothing recorded imports.
    * What is listed here is different: a file the sense database has never
    * heard of — a README, a fixture the tests read with `fs`, a script they
    * spawn, a file outside the directories the scan was pointed at. It is a
-   * report, not a widening: a suite that depends on such a file declares it
-   * as a precondition, and it stops appearing here.
-   *
-   * A file the caller says the snapshot may hold under several names is here
-   * unless every one of them was answered for. What a record holds under one
-   * name is about the audience that read that name, and the built twin's
-   * audience is a different set of tests from the source's.
-   *
-   * A moved package is here under its name rather than a path, and means the
-   * same thing it means for a file: some file importing it entered a module
-   * the record never measured, so nothing here can say the bump changed
-   * nothing.
+   * report, not a widening, and no caller widens on it: a suite that depends
+   * on such a file declares it as a precondition, and it stops appearing here.
+   * A moved package is never here; its measured importers answer for it.
    *
    * Empty is the ordinary state.
    */
@@ -110,9 +103,9 @@ export interface SelectionCause {
  * it — with the source lines it spans, under the name the snapshot holds the
  * module by. A `precondition` is a changed file the test declared as governing
  * it: its own source, a setup file, a configuration. An `importer` is the chain
- * of `asset` imports from a changed file no probe can sit in to the module
- * whose row answered for it, which is how `ExecutionNarrowingOptions.relations`
- * answers a stylesheet.
+ * of imports from a changed file with no instrumented row to the file whose row
+ * answered for it, which is how `ExecutionNarrowingOptions.relations` answers a
+ * stylesheet, and a module the recording did not instrument.
  */
 export type SelectionReason =
   | {
@@ -153,10 +146,11 @@ export function selectTestFilesFromView(
  * Every changed file, asked of the snapshot under every name it may be held by.
  *
  * A file with an instrumented row under any of its names is answered by the
- * regions its changed lines fell in, from every such row. A name with no row, or
- * a row the build could not read, is asked of the preconditions instead, and
- * of the graph, then returned as unread under the name the diff gave it when
- * none of those holds it.
+ * regions its changed lines fell in, from every such row. Every name is asked
+ * of the preconditions. A file with no instrumented row under any name is asked
+ * of the graph, whose nearest importers with a row answer for it, and is
+ * reported as unread under the name the diff gave it when neither the record
+ * nor the graph holds it.
  */
 function readDiff(
   coverage: TestCoverageView,
@@ -198,17 +192,11 @@ function readDiff(
       // what no row can answer: a test's own file, a configured setup file, a
       // module some other run never instrumented.
       governing.add(name);
-      // A name is answered by its rows only when *every* row under it is one.
       // Rows are per build, not per path: one file read by a node build and a
-      // browser build is two rows, and `instrumented: false` on either of them
-      // is that build saying it never read this module. The instrumented row
-      // beside it holds the other build's crossings and says nothing whatever
-      // about this one's subjects, which hold no crossing here and — the
-      // browser recorder writing preconditions for the subject's own file only
-      // — no declaration either. Reading one row as the path's answer would
-      // close the valve over subjects nothing in the snapshot speaks for, so
-      // information about one build would remove the protection of another.
-      if (rows.length > 0 && rows.length === under.length) rowed.add(name);
+      // browser build is two rows, and `instrumented: false` on one of them is
+      // that build saying it never read this module. That is no measurement,
+      // so it takes nothing from the instrumented row beside it, which answers.
+      if (rows.length > 0) rowed.add(name);
       for (const module of rows) {
         const first = coverage.moduleBlocks.at(module);
         const end = coverage.moduleBlocks.at(module + 1);
@@ -250,17 +238,14 @@ function readDiff(
     }
   }
 
-  // A row answers for its file; the precondition table is asked only for the
-  // names no row answered. It cannot be asked for the rest: the browser
-  // recorder declares every module a subject entered as a precondition of
-  // that subject, so under it the table holds everyone who loaded the file,
-  // and reading it beside the row would hand a one-branch edit to every test
-  // that loaded the module. The names go to the graph's own walk with the
+  // A row answers for its file, and the graph is walked only for a file no
+  // name of which has one: `rowed` says which, so the walk does not ask the
+  // snapshot again. The changed names go to the graph's own walk with the
   // modules it reached that carry no probes, which need the same table:
   // handed over together they are one read of it rather than two, and that
   // table is the only part of a snapshot large enough for the difference to
   // be the query.
-  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), options, governing);
+  const answered = answerByImporters(coverage, [...changed.keys()].sort(codeUnitOrder), rowed, options, governing);
   // A declaration is unconditional — *if this file's text moves, retire this
   // observation* — and nothing here narrows it. It is the one thing a record
   // says that no region of any row can say.
@@ -276,38 +261,15 @@ function readDiff(
   // *nothing measured this* — a row measured it, whether or not any test wrote
   // the name down.
   const unmatched = new Set(answered.governed.unread.filter((name) => !rowed.has(name)));
-  // A file is measured when *every* name it may be held under was answered
-  // for. `knownAs` exists because one file is two names — a package's own suite
-  // loads `src`, every other package loads the built twin — and the two names
-  // carry different audiences. A row or a declaration under `src` witnesses the
-  // subjects that read `src` and says nothing whatever about the tests that
-  // loaded the built file, so reading either name as the file's answer closes
-  // the valve over an audience nothing in the snapshot speaks for: a `dist`
-  // shard that never reached the fold skips the consuming package's whole suite
-  // while the source package's own stories run over the same edit. It is the
-  // rule the graph's chains already follow — one chain ending where the record
-  // never looked leaves the file unread whatever the chains beside it found.
-  //
-  // A file `knownAs` gives no name at all was asked about under nothing, which
-  // is the same silence.
-  //
-  // It costs a caller that lists a name the snapshot never holds: every change
-  // to that file retires the skip list, every run, until the name is recorded
-  // or stops being listed. The option is the names the snapshot *may* hold the
-  // file under, and that is the sentence being paid for.
-  const measured = (file: string): boolean => {
-    const names = knownAs(file);
-    return names.length > 0 && names.every((name) => !unmatched.has(name));
-  };
-  // A package name reaches `unread` only from the install walk, and that walk
-  // already decided: its importers were not all measured. `measured` is about
-  // the names a snapshot may hold a *file* under and would answer for a package
-  // by accident — it holds no row under one, so it never appears in
-  // `unmatched`, and the valve the walk opened would close here unnoticed.
-  const moved = new Set(options.packages ?? []);
-  const unread = answered.unread
-    .filter((name) => moved.has(name) || !measured(name))
-    .sort(codeUnitOrder);
+  // A file is measured when *some* name it may be held under was answered for.
+  // `knownAs` exists because one file is two names — a package's own suite
+  // loads `src`, every other package loads the built twin — and each name
+  // selects the audience its own rows and declarations carry. A name the
+  // snapshot holds nothing under selects nobody and takes nothing from the
+  // name beside it. A file `knownAs` gives no name at all was asked about
+  // under nothing, and is reported.
+  const measured = (file: string): boolean => knownAs(file).some((name) => !unmatched.has(name));
+  const unread = answered.unread.filter((name) => !measured(name)).sort(codeUnitOrder);
 
   const because = [...selected]
     .map(([test, via]): SelectionCause => ({ test: coverage.string(coverage.testPath.at(test)), via }))

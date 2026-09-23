@@ -1,10 +1,10 @@
 # Spec 0046 — the rule that makes a skip list safe is written once, in the library
 
 **Missing:** an enforced contract between the record and its answer. The rule
-that keeps a skip list safe — subtract only when nothing is unread, and never
-trust a row whose text has moved — is written four times, in four dialects,
-across four callers, and the library that owns the record disclaims it. Two of
-its exported functions hand out `entered` with neither `whole` nor `unread`
+that keeps a skip list safe — subtract `entered` from `whole` and from nothing
+else, and never trust a row whose text has changed — is written four times, in
+four dialects, across four callers, and the library that owns the record
+disclaims it. Two of its exported functions hand out `entered` with no `whole`
 beside it, which is the one shape from which a caller can build an unsafe
 answer without noticing.
 **Built on:** [0045](0045-a-snapshot-states-its-own-age.md) (the refusals a
@@ -18,8 +18,10 @@ Every other spec in this set is about a record that costs too much or says too
 little. This one is about the moment the record is believed.
 
 `ExecutionNarrowing` returns four sets — `whole`, `entered`, `unread`, `stale`
-— and a safe answer is a function of all four. The library computes all four
-correctly and then leaves the function to its callers, who have each written it
+— and a safe answer is `whole` less `entered`. `stale` is already charged into
+`entered`, and `unread` names the changed paths the record says nothing about,
+which select nothing and are reported. The library computes all four correctly and
+then leaves the subtraction to its callers, who have each written it
 themselves: `variance select`, `variance run --since`, `tools/test-since.mjs`,
 and the README (`packages/sense/README.md:717`). A fourth exported surface
 hands out `entered` alone. **The sentence the entire feature rests on is not a
@@ -27,18 +29,12 @@ line of shipped code anywhere.**
 
 That would be a tidiness complaint if the four agreed. They do not:
 
-- `tools/test-since.mjs` narrows `unread` before deciding, with a
-  hand-maintained list of inert path prefixes and a test-file exemption.
-  `tools/test-since.check.ts:26-50` checks that list structurally — each entry
-  exists, is the directory or file it is written as, sits outside the collected
-  workspaces, and prefixes no include pattern in `vitest.config.mts`. Nothing
-  checks it against what the suite actually *opens*, which is the property the
-  guard rests on: an entry naming a real directory that some module imports
-  removes the guard for everything under it and passes every check there is.
-- `variance select` never passes `relations`; `variance run --since` does. Two
-  callers of one library run with the importer walk on and off, and nothing
-  reconciles them — the same diff against the same snapshot yields two different
-  skip lists depending on which command asked.
+- `variance select` always scans and passes `relations`; `variance run
+  --since` passes them only when `source.relations` is set. Two callers of one
+  library run with the importer walk on and off, and nothing reconciles them —
+  the same diff against the same snapshot yields two different skip lists
+  depending on which command asked. Without the walk a changed stylesheet is
+  `unread` rather than answered by its measured importers, and selects nothing.
 - `knownAs` is supplied only by `tools/test-since.mjs`. The CLI's reader passes
   `sourceAt` and `relations` and nothing else.
 - Only `tools/test-since.mjs` intersects `whole` with the suite that was
@@ -69,11 +65,10 @@ than restating the rule, and the two surfaces that hand out `entered` alone
 either hand out the whole narrowing or are removed.
 
 **2. The unguarded shape is not exported.** The four sets are each legitimate
-on their own — `whole: []` beside a non-empty `entered` means every test file
-was demoted, and the library already widens correctly for a non-empty `unread`
-(`test-selection/select.ts:206-214`). What is not legitimate is a surface that
-hands a caller `entered` with neither of the two sets that decide whether
-subtracting from it is safe. Either those surfaces return the whole narrowing,
+on their own — `whole: []` beside a non-empty `entered` means no test file was
+observed whole. What is not legitimate is a surface that hands a caller
+`entered` without `whole`, the set that bounds what subtracting from it may
+remove. Either those surfaces return the whole narrowing,
 or they return the answer itself and not its inputs. A caller that never holds
 a partial narrowing cannot build an unsafe one.
 
@@ -154,7 +149,7 @@ says which.
 
 **Acceptance:** a property test over generated narrowings asserting the algebra
 the one entry point implements — `skip` is a subset of `whole`, `skip` and
-`entered` are disjoint, and a non-empty `unread` forces an empty `skip` —
+`entered` are disjoint, and `unread` never changes `skip` —
 replacing the per-shape unit fixtures as the argument that the *rule* is
 applied. That the rule is the *right* rule is not a property a test can
 establish against the implementation that defines it: the measurement that
@@ -170,19 +165,13 @@ charged to the region it lands in at the base or the query refuses.
 ## What it forecloses
 
 **No caller reconstructs the rule.** A surface that returns `entered` without
-`whole` and `unread` is a surface that invites an unsafe skip list, and shipping
+`whole` is a surface that invites an unsafe skip list, and shipping
 one is not made acceptable by documenting the rule beside it.
 
 **Widening is not a substitute for knowing.** Every rule here that widens keeps
 its licence to widen. What it loses is the option of widening for an
 unestablished reason and reporting it as an established one — a missing
 instrument is not a stale module.
-
-**A hand-maintained exemption list is not a contract.** Prefixes that disable
-the guard for a subtree may exist as a measured, tested policy inside the
-library. A literal in a script, checked only for the shape of its entries and
-never against what the suite reaches, is not that — the check confirms the list
-is well-formed, which is not the property the guard rests on.
 
 **Ranking is not selection.** `loadedBy`, hop distance and ordering explain and
 prioritize a run. Nothing in this spec permits any of them to remove a test from

@@ -18,9 +18,10 @@ describe('a changed file the recording cannot answer for', () => {
     );
   });
 
-  it('names a changed file it has no measurement of instead of answering for it', () => {
-    // The silence above, said out loud. `[]` and *nobody entered this* are the
-    // same empty list, and only one of them licenses a caller to skip a suite.
+  it('reports a changed file nothing holds beside the selection', () => {
+    // The silence above, said out loud. It selects nobody either way; the
+    // report is where a suite that reads the file with `fs` learns to declare
+    // it.
     const diff = `--- a/README.md
 +++ b/README.md
 @@ -1,1 +1,1 @@
@@ -189,11 +190,11 @@ describe('a changed file the recording cannot answer for', () => {
     ).toEqual([]);
   });
 
-  it('names a module the build could not instrument rather than reading its silence', () => {
-    // A row with no blocks behind it. The lookup succeeds, so the file is not
-    // unknown the way `README.md` is — and its emptiness is the build saying it
-    // never parsed this module, not the journal saying nothing entered it.
-    // Selecting nobody would be an answer, and there is no answer here.
+  it('reports a module the build could not instrument rather than reading its silence', () => {
+    // A row with no blocks behind it, and no test holding it. Its emptiness is
+    // the build saying it never parsed this module, not the journal saying
+    // nothing entered it, so it is no measurement: it selects nobody, and is
+    // reported the way a file nothing holds is.
     const unparsed: TestCoverage = {
       ...coverage,
       modules: [
@@ -216,16 +217,12 @@ describe('a changed file the recording cannot answer for', () => {
     });
   });
 
-  it('keeps a module unread when one build read it and another says it never did', () => {
+  it('answers a module by the build that read it, whatever another build says it never did', () => {
     // Two rows under one path, which is what two builds reading one file look
     // like: the node build instrumented `src/widget.ts` and recorded a `render`
     // its own test crossed, and the browser build wrote `instrumented: false`
-    // for it — *this build never read this module*. The second row says nothing
-    // about the first build's subjects, and the first says nothing about the
-    // second's: the browser subjects that render `render` hold neither a
-    // crossing nor a declaration for it. Reading the instrumented row as the
-    // path's answer hands the caller a skip list with those subjects still on
-    // it, and a change to what they render goes out green.
+    // for it — *this build never read this module*. That is no measurement, so
+    // it takes nothing from the row beside it, which is one.
     const twoBuilds: TestCoverage = {
       ...coverage,
       modules: [
@@ -271,23 +268,17 @@ describe('a changed file the recording cannot answer for', () => {
 
     expect(narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(twoBuilds)), diff)).toMatchObject({
       entered: ['test/alpha.test.ts'],
-      unread: ['src/widget.ts'],
+      unread: [],
     });
   });
 
-  it('keeps a file unread when one name it is held under was measured and another was not', () => {
-    // `knownAs` is given precisely because one file is two names: this package's
-    // own suite loads `src/decide.ts`, and every package downstream loads the
-    // built twin the publish step wrote. The record holds the source name — the
-    // row alpha and beta entered — and holds nothing whatever under
-    // `dist/decide.js`, which is what a shard that never reached the fold looks
-    // like, and what a build that carried no probes looks like.
-    //
-    // The source row witnesses the subjects that read the source. The tests that
-    // loaded the built file are not in this snapshot to be missing from it, so
-    // the source row cannot answer for them, and the file is unread however
-    // fully the other name was measured. The alternative retires nothing and
-    // hands the caller a skip list with a whole downstream package still on it.
+  it('answers a file by the name that was measured, whatever the name beside it holds', () => {
+    // `knownAs` is given because one file is two names: this package's own
+    // suite loads `src/decide.ts`, and every package downstream loads the built
+    // twin the publish step wrote. The record holds the source name — the row
+    // alpha and beta entered — and nothing under `dist/decide.js`. Each name
+    // selects its own audience; the one with none selects nobody and does not
+    // report the file.
     const diff = `--- a/src/decide.ts
 +++ b/src/decide.ts
 @@ -4,1 +4,1 @@
@@ -298,13 +289,12 @@ describe('a changed file the recording cannot answer for', () => {
 
     expect(
       narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), diff, { knownAs }),
-    ).toMatchObject({ entered: ['test/alpha.test.ts'], unread: ['src/decide.ts'] });
+    ).toMatchObject({ entered: ['test/alpha.test.ts'], unread: [] });
   });
 
-  it('answers a file whose every name was measured, and widens nothing', () => {
+  it('selects the audience of every name a file is held under', () => {
     // The same two names, and this time the snapshot holds both: `src/decide.ts`
-    // by its row, `dist/decide.js` by the downstream test that declares it. Both
-    // audiences are accounted for, so there is nothing left to report.
+    // by its row, `dist/decide.js` by the downstream test that declares it.
     const published: TestCoverage = {
       ...coverage,
       tests: coverage.tests.map((test) =>

@@ -1,11 +1,11 @@
-// What the fold does to the *tests* of a shard whose crossings it throws away.
+// What the fold does to the *tests* of a shard beside one that could not read
+// the module they entered.
 //
 // `merge.test.ts` covers where an index stands after a fold and which module row
-// wins. This file asks the question on the other side of the same erasure: a
-// shard that could not instrument a module outvotes the shards that measured it,
-// and the tests that made those measurements have to stop being whole
-// observations of it, or the fold hands a reader a test it may skip on evidence
-// the fold itself deleted.
+// wins. This file asks the question on the tests' side: a shard that could not
+// instrument a module says nothing about the tests another shard watched enter
+// it, so their crossings stand, they stay whole observations, and the one shard's
+// own subjects are answered by what they declared.
 
 import { describe, expect, it } from 'vitest';
 import { INSTRUMENTATION_ID, instrument } from '../instrument/index.js';
@@ -77,8 +77,8 @@ const measured: TestCoverage = {
 /**
  * The shard whose build could not read `price.ts`, as the recorders write it:
  * an uninstrumented row, and the same name declared as a precondition of every
- * subject that entered the module — which is what closes `unread` for the file
- * and leaves the fold's widening with nowhere to come out.
+ * subject that entered the module — which is what answers for that shard's
+ * subjects whichever row the fold keeps.
  */
 const unknown: TestCoverage = {
   version: 3,
@@ -97,12 +97,27 @@ const DIFF = [
   '',
 ].join('\n');
 
-/** The caller of `packages/cli/src/commands/select.ts`, on the fold's own answer. */
+/** A second shard that measured `price.ts`, so the fold holds two witnesses of it. */
+const CHECKOUT = 'test/checkout.test.ts';
+const alsoMeasured: TestCoverage = {
+  ...measured,
+  tests: [testFile(CHECKOUT)],
+  modules: [{ ...measured.modules[0]!, blocks: BLOCKS.map((block) => ({ ...block, testFiles: [CHECKOUT] })) }],
+};
+
+/** What a reader of the fold's own answer is told about the diff. */
+const narrowed = (coverage: TestCoverage) =>
+  narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), DIFF);
+
+/** Each selected test, by the kinds of evidence that selected it. */
+const selectedBy = (coverage: TestCoverage) =>
+  narrowed(coverage).because.map((cause) => [cause.test, [...new Set(cause.via.map((reason) => reason.kind))]]);
+
+/** The caller of `packages/cli/src/commands/select.ts`: every whole test nothing selected. */
 function skipList(coverage: TestCoverage): readonly string[] {
-  const narrowing = narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(coverage)), DIFF);
-  if (narrowing.unread.length > 0) return [];
-  const reached = new Set(narrowing.entered);
-  return narrowing.whole.filter((test) => !reached.has(test));
+  const narrowing = narrowed(coverage);
+  const selected = new Set(narrowing.entered);
+  return narrowing.whole.filter((test) => !selected.has(test));
 }
 
 const complete = (coverage: TestCoverage): readonly (readonly [string, boolean])[] =>
@@ -111,34 +126,59 @@ const complete = (coverage: TestCoverage): readonly (readonly [string, boolean])
 const shards = (order: readonly TestCoverage[]) =>
   order.map((coverage, at) => ({ path: `shard-${at + 1}/coverage.bin`, coverage }));
 
-describe('a fold that erases crossings', () => {
-  it('demotes the tests whose crossings the unknown row wiped, in either order', () => {
+const price = (coverage: TestCoverage) => coverage.modules.find((module) => module.file === PRICE);
+
+/** Every order the shards could be named in. */
+function permutations<T>(items: readonly T[]): T[][] {
+  if (items.length <= 1) return [[...items]];
+  return items.flatMap((item, at) =>
+    permutations([...items.slice(0, at), ...items.slice(at + 1)]).map((rest) => [item, ...rest]));
+}
+
+describe('a fold beside a shard that could not instrument a module', () => {
+  it('keeps the measured row and every test whole, in either order', () => {
     for (const order of [[measured, unknown], [unknown, measured]]) {
       const folded = foldTestCoverage(shards(order));
 
-      expect(folded.modules.find((module) => module.file === PRICE))
-        .toMatchObject({ instrumented: false, blocks: [] });
+      expect(price(folded)?.instrumented).toBe(true);
+      expect(price(folded)?.blocks.map((block) => block.testFiles)).toEqual(BLOCKS.map(() => [READER]));
       expect(complete(folded)).toEqual([
-        [READER, false],
+        [READER, true],
         [BROWSER, true],
         [BYSTANDER, true],
       ]);
     }
   });
 
-  it('keeps the test that lost its evidence out of the skip list', () => {
-    // The whole of the point, and the narrowing that has to survive it. `unread`
-    // cannot carry this widening: the shard that wrote the uninstrumented row
-    // also declared the file, so no reader is ever told it went unmeasured. The
-    // bystander is still skipped — the fold widens by the one test whose
-    // evidence it deleted, and by nothing else.
+  it('is the same fold in every order the shards are read in', () => {
+    // An instrumented row replaces an unknown one whenever it arrives, and an
+    // unknown one never displaces a measurement, so where the blind shard falls
+    // among the measuring ones changes nothing — first, between them, or last.
+    const [first, ...rest] = permutations([measured, unknown, alsoMeasured])
+      .map((order) => foldTestCoverage(shards(order)));
+
+    expect(rest).toHaveLength(5);
+    for (const folded of rest) expect(folded).toEqual(first);
+    expect(price(first!)?.blocks.map((block) => block.testFiles)).toEqual(BLOCKS.map(() => [READER, CHECKOUT]));
+  });
+
+  it('selects the measured test by its region and the blind shard\'s by its declaration', () => {
+    // The blind shard's subject never needed the row: its recorder declared the
+    // file, and a declaration holds whichever row the fold keeps. The bystander
+    // is skipped, as it is in the measuring shard alone.
     for (const order of [[measured, unknown], [unknown, measured]]) {
-      expect(skipList(foldTestCoverage(shards(order)))).toEqual([BYSTANDER]);
+      const folded = foldTestCoverage(shards(order));
+
+      expect(selectedBy(folded)).toEqual([
+        [READER, ['region']],
+        [BROWSER, ['precondition']],
+      ]);
+      expect(skipList(folded)).toEqual([BYSTANDER]);
     }
     expect(skipList(measured)).toEqual([BYSTANDER]);
   });
 
-  it('demotes a test that only loaded the module, not only one that entered a region', () => {
+  it('keeps a test that only loaded the module on the row, and whole', () => {
     const early = {
       ...measured,
       modules: measured.modules.map((module) =>
@@ -148,23 +188,28 @@ describe('a fold that erases crossings', () => {
       ),
     };
 
-    expect(complete(foldTestCoverage(shards([early, unknown])))).toEqual([
-      [READER, false],
-      [BROWSER, true],
-      [BYSTANDER, true],
-    ]);
+    for (const order of [[early, unknown], [unknown, early]]) {
+      const folded = foldTestCoverage(shards(order));
+
+      expect(price(folded)?.blocks.map((block) => block.loadedBy)).toEqual(BLOCKS.map(() => [READER]));
+      expect(complete(folded).every(([, whole]) => whole)).toBe(true);
+    }
   });
 
-  it('leaves a test alone when the module it recorded is not the one erased', () => {
+  it('keeps an uninstrumented row where no shard measured the module', () => {
+    const blindToo: TestCoverage = { ...unknown, tests: [testFile('test/other.spec.ts')] };
     const elsewhere = {
       ...unknown,
       modules: [{ file: 'src/other.ts', sourceDigest: 'source:other', instrumented: false, blocks: [] }],
     };
 
-    expect(complete(foldTestCoverage(shards([measured, elsewhere])))).toEqual([
-      [READER, true],
-      [BROWSER, true],
-      [BYSTANDER, true],
-    ]);
+    for (const order of [[unknown, blindToo], [blindToo, unknown]]) {
+      expect(foldTestCoverage(shards(order)).modules)
+        .toEqual([{ file: PRICE, sourceDigest: CUT.sourceDigest, instrumented: false, blocks: [] }]);
+    }
+    const folded = foldTestCoverage(shards([measured, elsewhere]));
+    expect(folded.modules.find((module) => module.file === 'src/other.ts')?.instrumented).toBe(false);
+    expect(price(folded)?.instrumented).toBe(true);
+    expect(complete(folded).every(([, whole]) => whole)).toBe(true);
   });
 });

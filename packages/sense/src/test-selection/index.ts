@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
-import { cacheLayers, defaultCacheRoot, layeredFiles } from './cache-layers.js';
+import { defaultCacheRoot, layeredFiles, repositoryLayers } from './cache-layers.js';
 import { deviationFromView } from './deviation.js';
 import {
   journeyDivergences,
@@ -101,7 +101,13 @@ export type {
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, mergeCoverage };
-export { cacheLayers, defaultCacheRoot, layeredFiles, type CacheLayers } from './cache-layers.js';
+export {
+  cacheLayers,
+  defaultCacheRoot,
+  layeredFiles,
+  repositoryLayers,
+  type CacheLayers,
+} from './cache-layers.js';
 export { repositoryRoot } from './repository-root.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
 // columns of the file it is about to write over rather than over a model
@@ -231,13 +237,13 @@ export interface DeviationOptions {
  * Where this checkout keeps its snapshot.
  *
  * The checkout's own directory, which in the primary checkout is the
- * repository's and in a worktree is a layer above it — see {@link cacheLayers}.
+ * repository's and in a worktree is a layer above it — see {@link repositoryLayers}.
  * It is the write target either way: nothing writes to a layer it does not own.
  *
  * A worktree's is empty until {@link seedTestCoverage} fills it.
  */
 export function testCoverageFile(root: string, cacheRoot = defaultCacheRoot()): string {
-  return resolve(cacheLayers(root, cacheRoot).top, 'coverage.bin');
+  return resolve(repositoryLayers(root, cacheRoot).top, 'coverage.bin');
 }
 
 /**
@@ -271,7 +277,7 @@ export async function seedTestCoverage(
   root: string,
   cacheRoot = defaultCacheRoot(),
 ): Promise<void> {
-  const layers = cacheLayers(root, cacheRoot);
+  const layers = repositoryLayers(root, cacheRoot);
   // A caller that named its own file owns it, and it is not a layer of
   // anything: there is no base beneath a path somebody passed in.
   if (layers.top === layers.base || file !== resolve(layers.top, 'coverage.bin')) return;
@@ -309,7 +315,7 @@ export async function readableTestCoverage(
   root: string,
   cacheRoot = defaultCacheRoot(),
 ): Promise<string> {
-  const files = layeredFiles(cacheLayers(root, cacheRoot), 'coverage.bin');
+  const files = layeredFiles(repositoryLayers(root, cacheRoot), 'coverage.bin');
   for (const file of files) {
     try {
       await stat(file);

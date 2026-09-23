@@ -259,12 +259,26 @@ yarn test:since --at-distance 0-2  # only the tests within two imports of the ch
 yarn test:since --help             # every flag, and the loop below
 ```
 
-It narrows only where it has a measurement. A changed path the snapshot holds no
-row for — an untracked file, a fixture, a page-side module that cannot carry a
-probe — runs everything and names the path that caused it:
+It selects on what the recording measured, and on nothing else. A changed file
+with no row — a stylesheet, a page-side module that cannot take a probe, a file
+added since the recording — is asked of the import graph, and the nearest
+measured files that import it select their tests; a bumped package is answered
+the same way by its measured importers. A changed path the graph does not list
+either — a README, a fixture — selects nothing by itself and is reported. What
+the harness loads without importing it is declared instead: the seam declares
+`vitest.config.mts` and the local modules it imports, such as
+`tools/page-side.mjs`, and the config names the rest in `preconditions`
+(`tsconfig.base.json`). A change to any of them selects every test. A change
+confined to manifests is read as the install it records, and runs nothing when
+no installed package moved. A fixture a test reads with `fs` is named in
+`preconditions` the same way, or a change to it selects nothing.
+
+The whole suite runs only when the reading itself could not be made — an
+install it could not compare, or a snapshot with no whole observation of any
+file the suite collects — and it says which:
 
 ```
-test:since: running the whole suite — the snapshot has no measurement of packages/core/README.md and 30 other path(s), so it cannot say who entered it.
+test:since: running the whole suite — the install could not be compared against 03984ae78218.
   429 files
 ```
 
@@ -306,10 +320,11 @@ with no measurable distance, so those two legs together run every selected file
 exactly once. Either way, every run prints the files the leg it took left
 behind.
 
-`--at-distance` narrows a reading; it cannot narrow a widening. When a changed
-path has no measurement the run is the whole suite and the flag is never
-consulted — the message above is the whole output, and no leg of the loop is a
-shorter run than `yarn test` until the recording covers what you changed.
+`--at-distance` narrows a reading; it cannot narrow a widening. When the reading
+could not be made the run is the whole suite and the flag is never consulted —
+the message above is the whole output, and no leg of the loop is a shorter run
+than `yarn test` until the install compares or the recording has a whole
+observation.
 
 Two findings arrive whether or not anything failed: an import that reached past
 a directory's own entry point, and a test the change entered by no route it

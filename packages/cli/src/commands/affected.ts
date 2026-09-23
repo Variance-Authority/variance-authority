@@ -186,6 +186,13 @@ export interface Affected {
   readonly whole?: string;
 
   /**
+   * The `source.before` files this diff moves, when they are why the run is
+   * whole — carried from the walk that refused, for a later ground that must
+   * not narrow past the same refusal.
+   */
+  readonly rests?: readonly string[];
+
+  /**
    * Components this diff reached that no baseline records, when that was every
    * one of them.
    *
@@ -214,10 +221,11 @@ export function affectedSubjects(input: AffectedInput): Affected {
   const changedDirs = input.changedDirs ?? [];
   const install = input.install;
 
-  const everything = (whole: string): Affected => ({
+  const everything = (whole: string, rests?: readonly string[]): Affected => ({
     observe: planned,
     skipped: [],
     whole,
+    ...(rests === undefined ? {} : { rests }),
     because: `every subject was observed: ${whole}`,
   });
 
@@ -240,7 +248,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
       ? byDeclaration(changed, changedDirs, source, roots, moved)
       : byRelation(changed, changedDirs, relations, roots, install, input.before);
 
-  if ('whole' in narrowing) return everything(narrowing.whole);
+  if ('whole' in narrowing) return everything(narrowing.whole, narrowing.rests);
   const { touched, how } = narrowing;
 
   // The state the baselines are needed to see, and the only one this cannot
@@ -300,7 +308,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
  */
 type Narrowing =
   | { readonly touched: ReadonlySet<string>; readonly how: string }
-  | { readonly whole: string };
+  | { readonly whole: string; readonly rests?: readonly string[] };
 
 /**
  * What a diff moved, from the component index alone.
@@ -391,7 +399,9 @@ function byRelation(
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
   const reach = affectedComponents(relations, changed, changedDirs, roots, install, before);
-  if (refused(reach)) return { whole: reach.whole };
+  if (refused(reach)) {
+    return { whole: reach.whole, ...(reach.rests === undefined ? {} : { rests: reach.rests }) };
+  }
 
   return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };
 }

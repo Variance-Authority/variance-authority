@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { affectedBy, relationsOfFiles, type EdgeKind } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { sourceStem } from './page-side.mjs';
 import { bridgeWorkspace, foldBuilt, manifests, packageFaces, published } from './since-graph.mjs';
@@ -83,14 +84,57 @@ describe('the two copies of one module are one node', () => {
 });
 
 describe('an import the resolver refused is put back', () => {
+  const packages = manifests(ROOT, ['packages']);
+  const bridged = (asked: readonly { to: string; kind: EdgeKind }[], unresolved = ['@variance-authority/core/format']) =>
+    bridgeWorkspace([{ file: 'packages/cli/src/x.ts', unresolved, packages: asked }], packages)[0]!.edges;
+
   it('adds the edge the manifest describes, and nothing for a real dependency', () => {
-    const packages = manifests(ROOT, ['packages']);
-    const [record] = bridgeWorkspace(
-      [{ file: 'packages/cli/src/x.ts', unresolved: ['@variance-authority/core/format', 'vitest'] }],
+    expect(
+      bridged(
+        [
+          { to: '@variance-authority/core', kind: 'imports' },
+          { to: 'vitest', kind: 'imports' },
+        ],
+        ['@variance-authority/core/format', 'vitest'],
+      ),
+    ).toEqual([{ to: 'packages/core/dist/format/index.js', kind: 'imports' }]);
+  });
+
+  it('bridges an import only ever written `import type` as a type edge, which the default walk does not cross', () => {
+    const records = bridgeWorkspace(
+      [
+        {
+          file: 'packages/cli/src/x.ts',
+          unresolved: ['@variance-authority/core/format'],
+          packages: [{ to: '@variance-authority/core', kind: 'type' as const }],
+        },
+        { file: 'packages/core/src/format/index.ts' },
+      ],
       packages,
     );
+    expect(records[0]!.edges).toEqual([{ to: 'packages/core/dist/format/index.js', kind: 'type' }]);
 
-    expect(record!.edges).toEqual([{ to: 'packages/core/dist/format/index.js', kind: 'imports' }]);
+    // The file that only borrowed core's types loaded nothing of core, so a
+    // change to core selects nothing through it.
+    const relations = relationsOfFiles(foldBuilt(records, stemOf).records);
+    expect(affectedBy(relations, ['packages/core/src/format/index.ts']).files).toEqual([
+      'packages/core/src/format/index.ts',
+    ]);
+  });
+
+  it('bridges a package imported for its values anywhere in the file as runtime', () => {
+    // The record keeps kinds by package name, so a value import of one subpath
+    // makes every subpath of that package runtime — the side that runs more.
+    expect(
+      bridged([
+        { to: '@variance-authority/core', kind: 'imports' },
+        { to: '@variance-authority/core', kind: 'type' },
+      ]),
+    ).toEqual([{ to: 'packages/core/dist/format/index.js', kind: 'imports' }]);
+  });
+
+  it('bridges as runtime when the record carries no kind for the package', () => {
+    expect(bridged([])).toEqual([{ to: 'packages/core/dist/format/index.js', kind: 'imports' }]);
   });
 });
 

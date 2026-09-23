@@ -421,8 +421,9 @@ warm and changed-tree costs are kept in [`performance.md`](performance.md).
 
 **The scan is not a build.** It follows syntax and configured resolution. You can layer declared taints over the returned records, but a bundler
 plugin that invents or rewrites requests can still create an edge the scan does
-not see. A missing relative target becomes unknown and widens; a missing bare target
-remains an unresolved package request. Supply the relationship through supported
+not see. A missing relative target is named in the file's `unknown` sentence and
+left to the execution record to answer; a missing bare target remains an
+unresolved package request. Supply the relationship through supported
 configuration, a project-graph seed, or a taint rather than treating a quiet
 record as build equivalence.
 

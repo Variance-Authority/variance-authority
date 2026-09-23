@@ -121,10 +121,20 @@ retained format and invalidation reference beneath those readings.
 Skipping a subject changes how much of the run executes; it is not a claim that
 the change left that subject unaffected. A skipped subject produces no image and
 no **verdict** — the one word a result reports, from `unchanged` through
-`needs-review` to `violation`. Missing coverage, an unknown changed file, or
-incompatible recorded evidence widens the run or refuses the selection; it never becomes proof that nothing is affected. A narrowed run
+`needs-review` to `violation`. Missing coverage, a change to a file the run is
+declared to rest on, an install that could not be compared, or incompatible
+recorded evidence widens the run or refuses the selection; it never becomes
+proof that nothing is affected. A narrowed run
 reports what it did not render; it does not report the unrendered subjects as
 unchanged.
+
+`select` draws the line for a test suite at what the record measured. A test
+with no whole observation stays in the run, and so does every test that ran a
+changed region or declared a changed file as a precondition. A changed file
+with no row in the record is answered by the nearest measured files that import
+it. One the file graph does not list either keeps no test in the run and is
+named in the answer: what a suite rests on without importing it is declared on
+the runner integration, not guessed from the diff.
 
 ## Running fewer is not owning fewer
 

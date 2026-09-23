@@ -1,10 +1,11 @@
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
 import { withIndexLock } from './index-lock.js';
-import { cacheLayers, layeredFiles } from './cache-layers.js';
+import { cacheLayers, layeredFiles, repositoryLayers } from './cache-layers.js';
 import { openModuleNames, recordStore, recordStores } from './instrumented-modules.js';
 import {
   readTestCoverage,
@@ -97,6 +98,19 @@ describe('where a checkout keeps its cache', () => {
     const layers = cacheLayers(at, '/cache');
 
     expect(layers.top).toBe(layers.base);
+  });
+
+  test('a record asked for from a package is the record its repository wrote', async () => {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-layers-'));
+    execFileSync('git', ['init', '--quiet', at]);
+    const member = resolve(at, 'packages', 'member');
+    await mkdir(member, { recursive: true });
+    const cacheRoot = resolve(at, 'cache');
+
+    expect(repositoryLayers(member, cacheRoot)).toEqual(repositoryLayers(at, cacheRoot));
+    expect(testCoverageFile(member, cacheRoot)).toBe(testCoverageFile(at, cacheRoot));
+    expect(recordStore(member, 'storybook', cacheRoot)).toBe(recordStore(at, 'storybook', cacheRoot));
+    expect(cacheLayers(member, cacheRoot).top).not.toBe(cacheLayers(at, cacheRoot).top);
   });
 
   test('a checkout that is not a worktree is its own base, `.git` directory and all', async () => {

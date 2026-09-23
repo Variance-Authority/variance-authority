@@ -29,15 +29,21 @@
  */
 
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import { beforeReach, type BeforeReach } from '@variance-authority/core/relate';
+import {
+  beforeReach,
+  within,
+  type BeforeReach,
+  type Relations,
+} from '@variance-authority/core/relate';
+import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
-import { affectedSubjects } from './affected.js';
+import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
-import { many } from './reach.js';
+import { many, withoutManifests, type InstallDiff } from './reach.js';
 import { reachOf } from './reach-subjects.js';
-import type { ObserveContext, RunOptions } from './run-context.js';
+import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 
 export interface Selection {
   readonly skipped: ReadonlyMap<string, string>;
@@ -235,16 +241,18 @@ export async function selectionFor(
   // Absent all the way down: no diff text, no reader, or a reader that found no
   // snapshot. Each of those is *the journal was not consulted*, which narrows
   // nothing and is not an error — the probes are a build the operator opts into.
-  const journal = diff === undefined ? undefined : await deps.readJourney?.(diff, relations);
+  // So is a structural refusal over evidence the journal does not hold, which
+  // the note above the tally has already named.
+  const install = options.since.install;
+  const compared = install === undefined || 'whole' in install ? undefined : install;
+  const journal =
+    diff === undefined || beyondTheJournal(install, answer)
+      ? undefined
+      : await journalOf(deps, diff, relations, compared?.packages ?? [], config.source.dirs);
   const journey =
     journal === undefined
       ? undefined
-      : unenteredSubjects({
-          planned: surviving,
-          whole: journal.whole,
-          entered: journal.entered,
-          unread: journal.unread,
-        });
+      : unenteredSubjects({ planned: surviving, whole: journal.whole, entered: journal.entered });
 
   const because = (entry: { readonly because: string }): string =>
     `not affected by the diff against ${ref}: ${entry.because}`;
@@ -257,8 +265,70 @@ export async function selectionFor(
       ...answer.skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
-    notes: notesFor(ref, answer, journey, journal?.stale ?? [], before),
+    notes: notesFor(
+      ref,
+      answer,
+      journey,
+      {
+        // The lockfile and the manifests beside it are unread by the journal and
+        // answered by the install comparison, which has already said what moved.
+        unread: withoutManifests(journal?.unread ?? [], compared?.manifests ?? []),
+        stale: journal?.stale ?? [],
+      },
+      before,
+    ),
   };
+}
+
+/**
+ * Whether the structural ground refused for a reason the journal cannot
+ * overrule.
+ *
+ * Two of its refusals are about evidence the journal never had. An install that
+ * could not be compared may have moved any package, and no line of the diff
+ * shows it. A diff that moves what the run rests on — `source.before` — moves a
+ * file nothing imports, which the journal holds no row for and so answers with
+ * nobody. A journal consulted after either would rule out every subject the
+ * structural ground had just kept, over a change it never saw.
+ *
+ * Both are carried: the install is the reading the structural ground was
+ * handed, and the `before` files are the ones its walk refused on.
+ */
+function beyondTheJournal(install: InstallDiff | undefined, answer: Affected): boolean {
+  return (install !== undefined && 'whole' in install) || (answer.rests ?? []).length > 0;
+}
+
+/**
+ * The journal's reading of the diff, given the file graph whenever it needs one.
+ *
+ * A changed file no probe can sit in — a stylesheet — is answered by the
+ * modules that import it, and a reader with no graph leaves it `unread`, where
+ * it keeps no subject. The structural ground kept every subject because it could
+ * not place that same file, so a journal read without the graph would rule out
+ * every subject that renders it. The structural ground takes the graph only when
+ * `source.relations` asks; this ground scans for one itself, when a first
+ * reading left a path under `source.dirs` unread — a README outside them is not
+ * in any graph the scan could build.
+ *
+ * A bumped package is answered by its importers as well, so a reading that
+ * carries one is handed a graph from the start. With no scanner to build one the
+ * journal is not consulted at all: it would hear nothing of the bump, and the
+ * structural ground has already said it could not place it.
+ */
+async function journalOf(
+  deps: RunDeps,
+  diff: string,
+  relations: Relations | undefined,
+  packages: readonly string[],
+  dirs: readonly string[],
+): Promise<ExecutionNarrowing | undefined> {
+  const read = (graph?: Relations) => deps.readJourney?.(diff, graph, packages);
+  if (relations !== undefined) return read(relations);
+  if (deps.scanRelations === undefined) return packages.length === 0 ? read() : undefined;
+  if (packages.length > 0) return read(await deps.scanRelations(dirs));
+  const first = await read();
+  if (first === undefined || !first.unread.some((path) => within(path, dirs))) return first;
+  return read(await deps.scanRelations(dirs));
 }
 
 /**
@@ -285,11 +355,13 @@ function notesFor(
     readonly unwatched?: readonly string[];
   },
   journey: { readonly skipped: readonly unknown[]; readonly whole?: string } | undefined,
-  stale: readonly string[],
+  journal: { readonly unread: readonly string[]; readonly stale: readonly string[] },
   before: BeforeReach | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
   const unwatched = answer.unwatched ?? [];
+  const { stale } = journal;
+  const unentered = journal.unread;
 
   const unread = before?.unread ?? [];
 
@@ -319,6 +391,13 @@ function notesFor(
     ...(journey?.whole === undefined
       ? []
       : [`\`--since ${ref}\` was not narrowed by execution: ${journey.whole}`]),
+    ...(unentered.length === 0
+      ? []
+      : [
+          `the execution journal records nothing about ${many(unentered.length, 'changed file')} ` +
+            `(${unentered.slice(0, 3).join(', ')}${unentered.length > 3 ? ', …' : ''}), so ` +
+            `${unentered.length === 1 ? 'it kept' : 'they kept'} no subject in the run.`,
+        ]),
     ...(stale.length === 0
       ? []
       : [

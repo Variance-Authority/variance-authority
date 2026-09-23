@@ -125,6 +125,17 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     let harvest = Harvest::new(&parsed.program, source, &lines, symbols);
     let mut requests = Vec::new();
     let mut imports: Vec<ImportGroup> = Vec::new();
+    // A request's kind is the statement's keyword and never its names, for the
+    // reason `read.ts` gives; the record keeps that keyword per statement.
+    let mut typed: Vec<u32> = record
+        .requested_modules
+        .values()
+        .flatten()
+        .filter(|occurrence| occurrence.is_type)
+        .map(|occurrence| occurrence.statement_span.start)
+        .collect();
+    typed.sort_unstable();
+    let declared_type = |at: u32| typed.binary_search(&at).is_ok();
 
     for entry in &record.import_entries {
         let at = entry.statement_span.start;
@@ -161,18 +172,15 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         }
     }
     imports.sort_by_key(|group| group.at);
-    requests.extend(imports.into_iter().map(|group| {
-        let only_types = !group.bindings.is_empty() && group.bindings.iter().all(|b| b.type_only);
-        Request {
-            value: group.value,
-            kind: if only_types {
-                Kind::Type
-            } else {
-                Kind::Imports
-            },
-            bindings: group.bindings,
-            line: lines.at(group.at),
-        }
+    requests.extend(imports.into_iter().map(|group| Request {
+        value: group.value,
+        kind: if declared_type(group.at) {
+            Kind::Type
+        } else {
+            Kind::Imports
+        },
+        bindings: group.bindings,
+        line: lines.at(group.at),
     }));
 
     let mut entries: Vec<_> = record
@@ -223,7 +231,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
             }
         };
         let held = &mut republished[group];
-        held.only_types &= entry.is_type;
+        held.only_types &= declared_type(entry.statement_span.start);
         if let (Some(local), Some(imported)) = (exported, imported) {
             held.bindings.push(Binding {
                 imported,
@@ -429,5 +437,61 @@ mod tests {
         for (code, kind) in Kind::ALL.iter().enumerate() {
             assert_eq!(kind.code() as usize, code);
         }
+    }
+
+    fn read(source: &str) -> Read {
+        read_module("a.ts", source, &Allocator::default(), false)
+    }
+
+    fn kinds(source: &str) -> Vec<(String, &'static str)> {
+        read(source)
+            .requests
+            .into_iter()
+            .map(|request| (request.value, request.kind.as_str()))
+            .collect()
+    }
+
+    #[test]
+    fn only_the_statement_keyword_makes_a_request_type_only() {
+        let source = concat!(
+            "import type { A } from './a';\n",
+            "import { type B } from './b';\n",
+            "import { type C, D } from './c';\n",
+            "import type {} from './d';\n",
+            "export type { E } from './e';\n",
+            "export { type F } from './f';\n",
+            "export type * from './g';\n",
+        );
+        assert_eq!(
+            kinds(source),
+            [
+                ("./a", "type"),
+                ("./b", "imports"),
+                ("./c", "imports"),
+                ("./d", "type"),
+                ("./e", "type"),
+                ("./f", "reexports"),
+                ("./g", "type"),
+            ]
+            .map(|(value, kind)| (value.to_owned(), kind))
+        );
+    }
+
+    #[test]
+    fn an_inline_type_name_is_still_type_only_itself() {
+        let bindings = &read("import { type B } from './b';\n").requests[0].bindings;
+        assert!(bindings.iter().all(|binding| binding.type_only));
+    }
+
+    #[test]
+    fn a_republished_request_is_type_only_when_every_statement_says_so() {
+        assert_eq!(
+            kinds("export type { A } from './x';\nexport { type B } from './x';\n"),
+            [("./x".to_owned(), "reexports")]
+        );
+        assert_eq!(
+            kinds("export type { A } from './x';\nexport type * from './x';\n"),
+            [("./x".to_owned(), "type")]
+        );
     }
 }

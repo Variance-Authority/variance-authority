@@ -95,6 +95,16 @@ The last three produce an explicit warning or stop. A run that stays whole
 without saying so looks exactly like a selector that found nothing affected,
 although those facts require different next steps.
 
+These rows read the baselines and the file graph. When the suite also keeps an
+[execution record](execution-record.md), the record reads the same diff next
+and removes every subject it recorded whole that the diff did not reach, the
+subjects the two whole-suite rows kept included. A changed path it has no row
+for is answered by the measured files that import it, and one nothing measured
+imports keeps no subject in the run. Two refusals stand over the record, because it
+never saw what they are about — a change to a file named in
+[`source.before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
+and an install that could not be compared.
+
 ## What a skipped subject looks like
 
 It is in the report, with the sentence that skipped it:
@@ -124,7 +134,8 @@ forces a whole run. A changed file outside them is ignored when another in-scope
 change gives selection an answer; when the whole diff is outside the graph or
 the declared directories, the run is whole because the diff says nothing about
 which component changed. That is why `README.md` beside a component edit does
-not widen the run, while a diff containing only `README.md` does.
+not widen the run, while a diff containing only `README.md` does unless an
+execution record is kept.
 
 ## A change nothing has been seen rendering
 
@@ -259,7 +270,7 @@ repository runs `nx affected` on every pull request, so the graph there is not
 hypothetical. A one-line change inside `query-core` marks the 24 packages that
 depend on it, which is 168 of the 188 test files. Asked which tests covered
 that line, the record answers 10. Across sixty commits, `nx affected` selects
-10,207 test file runs and the record selects 2,355.
+10,207 test file runs and the record selects at most 2,355.
 
 Nx is not wrong about any of it: every one of those 168 files sits in a package
 that depends on the edited one. Only 149 of them load the edited module at all,

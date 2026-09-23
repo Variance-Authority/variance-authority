@@ -29,7 +29,7 @@ as the investigation grows.
 | --- | --- |
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
-| Run the tests this edit needs | [Combine source relationships with recorded execution](docs/selecting.md) to select affected test files, with the reason for each selection. Missing evidence widens the run. |
+| Run the tests this edit needs | [Combine source relationships with recorded execution](docs/selecting.md) to select affected test files, with the reason for each selection. A test with no complete recording always runs. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
 | Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
 | Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |

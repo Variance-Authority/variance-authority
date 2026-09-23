@@ -43,7 +43,15 @@ export interface RstestTestSelectionOptions {
   readonly coverageFile?: string;
   /** Decide which bundled modules are product source. */
   readonly include?: (file: string) => boolean;
-  /** Additional files whose contents are preconditions of every test observation. */
+  /**
+   * Additional files whose contents are preconditions of every test observation.
+   *
+   * The configured setup files are declared already; the config file is not,
+   * because Rstest hands neither a loader nor a reporter the path it loaded —
+   * it keeps that on an internal context, and a reporter is handed results,
+   * never configuration. Name the config file here, and any local module it
+   * imports.
+   */
   readonly preconditions?: readonly string[];
   /**
    * `presence` probes every arrival region; `entries` probes modules and

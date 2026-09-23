@@ -320,10 +320,10 @@ describe('foldTestCoverage', () => {
     expect(folded.modules[1]!.blocks[0]!.testFiles).toEqual(['test/beta.test.ts']);
   });
 
-  it('lets a shard that could not instrument a module outvote the ones that could', () => {
-    // The row that says *this build never measured this module* is the one a
-    // reader widens on. A fold where the measured shards won would turn that
-    // unknown into a narrowing nobody recorded.
+  it('keeps the measured row over a shard that could not instrument the module', () => {
+    // The row that says *this build never measured this module* is a sentence
+    // about that build. It says nothing about the test another shard watched
+    // enter the module, so the measurement stands, in either order.
     const alpha = shard('shard-1/coverage.bin', 'test/alpha.test.ts');
     const beta = shard('shard-2/coverage.bin', 'test/beta.test.ts');
     const unread = {
@@ -334,10 +334,11 @@ describe('foldTestCoverage', () => {
       },
     };
 
-    const [module] = foldTestCoverage([alpha, unread]).modules;
+    const folded = foldTestCoverage([alpha, unread]);
 
-    expect(module).toMatchObject({ file: 'src/decide.ts', instrumented: false, blocks: [] });
-    expect(foldTestCoverage([unread, alpha]).modules[0]).toEqual(module);
+    expect(folded.modules).toEqual(alpha.coverage.modules);
+    expect(folded.tests.every((test) => test.complete)).toBe(true);
+    expect(foldTestCoverage([unread, alpha])).toEqual(folded);
   });
 
   it('refuses shards that disagree about where they stand, by name', () => {

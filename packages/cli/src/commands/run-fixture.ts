@@ -19,6 +19,7 @@ import {
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
+import type { InstallDiff } from './reach.js';
 import {
   run,
   type CliRunReport,
@@ -322,10 +323,16 @@ export async function runWith(
     since?: {
       readonly ref: string;
       readonly changed: readonly string[];
+      readonly install?: InstallDiff;
       readonly diff?: string;
     };
     scanSource?: (dirs: readonly string[]) => Promise<SourceIndex>;
-    readJourney?: (diff: string, relations?: Relations) => Promise<ExecutionNarrowing | undefined>;
+    scanRelations?: (dirs: readonly string[]) => Promise<Relations>;
+    readJourney?: (
+      diff: string,
+      relations?: Relations,
+      packages?: readonly string[],
+    ) => Promise<ExecutionNarrowing | undefined>;
     readJourneys?: (subjects: readonly string[]) => Promise<JourneyReading>;
   } = {},
 ): Promise<{ report: CliRunReport; written: Written }> {
@@ -339,6 +346,7 @@ export async function runWith(
     ...(options.since !== undefined ? { since: options.since } : {}),
     deps: {
       ...(options.scanSource !== undefined ? { scanSource: options.scanSource } : {}),
+      ...(options.scanRelations !== undefined ? { scanRelations: options.scanRelations } : {}),
       ...(options.readJourney !== undefined ? { readJourney: options.readJourney } : {}),
       ...(options.readJourneys !== undefined ? { readJourneys: options.readJourneys } : {}),
       collector,

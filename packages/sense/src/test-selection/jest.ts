@@ -41,6 +41,11 @@ export interface JestTestSelectionOptions {
    * Additional files whose contents are preconditions of every test observation.
    * Jest transforms these files normally but Sense does not place probes in them,
    * because a precondition may run before the collector exists.
+   *
+   * The configured environment and setup files are declared already; the config
+   * file is not, because Jest hands no transformer or reporter the path it
+   * loaded — its global and project configs carry what the file said, never
+   * where it was. Name the config file here, and any local module it imports.
    */
   readonly preconditions?: readonly string[];
   /**

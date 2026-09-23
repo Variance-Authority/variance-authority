@@ -13,13 +13,13 @@
  * are nothing a worker needs.
  */
 
-import type { EdgeKind, FileEdge, FileRecord } from '@variance-authority/core/relate';
+import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from './digest.js';
 import type { NativeInstrumented } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import { type ResolveOptions } from './resolve.js';
-import { isRelative, kindFor, requestOf } from './specifier.js';
+import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
 import { witnessesOf } from './witness.js';
 
@@ -298,6 +298,7 @@ function builtFromBatch(
 
     const read = encoded === '' ? undefined : JSON.parse(encoded) as Parsed;
     const edges: FileEdge[] = [];
+    const packages: PackageEdge[] = [];
     const unresolved: string[] = [];
     const holes: string[] = [];
     const requests: string[] = [];
@@ -309,12 +310,17 @@ function builtFromBatch(
       targets.push(target === '' ? undefined : target);
       const request = requestOf(value);
       if (request === undefined) continue;
+      const kind = kinds[batch.kinds[at + step] ?? -1];
       if (target === '') {
         unresolved.push(value);
+        // The package edge the oracle records beside it ([`record.ts`](./record.ts)).
+        // Without it a bumped package has no importer in a graph this path
+        // built, and the install walk selects nothing for it.
+        const named = packageOf(request);
+        if (named !== undefined && kind !== undefined) packages.push({ to: named, kind });
         if (isRelative(request)) holes.push(value);
         continue;
       }
-      const kind = kinds[batch.kinds[at + step] ?? -1];
       if (kind !== undefined) edges.push({ to: target, kind: kindFor(kind, target) });
     }
     at += count;
@@ -330,6 +336,7 @@ function builtFromBatch(
       file,
       ...(digest === undefined ? {} : { digest }),
       ...(settled.length === 0 ? {} : { edges: settled }),
+      ...(packages.length === 0 ? {} : { packages: dedupe(packages) }),
       ...(declares.length === 0 ? {} : { declares }),
       ...(unresolved.length === 0
         ? {}
@@ -360,7 +367,7 @@ function asDigest(value: string | undefined): Digest | undefined {
   return value === undefined || value === '' ? undefined : value;
 }
 
-function dedupe(edges: readonly FileEdge[]): readonly FileEdge[] {
+function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
   const seen = new Set<string>();
   return edges
     .filter((edge) => {

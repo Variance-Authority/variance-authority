@@ -60,28 +60,35 @@ describe('what a foreign runner may skip', () => {
     expect(widened).toBeUndefined();
   });
 
-  it('refuses to narrow when the diff names a file the journal never measured', () => {
-    // The correction this command makes to `packages/sense/README.md`, which
-    // states the rule as `whole − entered` and calls `unread` a report. A path
-    // is unread when nothing measured it, and *the suite does not depend on it*
-    // and *no probe was ever placed in it* are the same silence. On this
-    // checkout that silence covers sixty-odd product modules, `select.ts` in
-    // `packages/sense` among them.
-    const { skip, widened, because } = skippableTests({
+  it('narrows past a changed file nothing recorded holds, and names it', () => {
+    // `unread` is a report. A path the journal, the preconditions and the graph
+    // all hold nothing about keeps no test in the run: the skip list is the one
+    // `entered` gave, and the path is named so a fixture read undeclared can be
+    // recognised and declared.
+    const selection = skippableTests({
       at: '/cache/coverage.bin',
       commit: 'c0ffee',
       ground: {
         kind: 'read',
-        narrowing: reading({
-          entered: ['test/beta.test.ts'],
-          unread: ['packages/sense/src/test-selection/format.ts'],
-        }),
+        narrowing: reading({ entered: ['test/beta.test.ts'], unread: ['docs/selecting.md'] }),
       },
     });
 
-    expect(skip).toEqual([]);
-    expect(widened).toContain('packages/sense/src/test-selection/format.ts');
-    expect(because).toContain('the execution journal was not asked');
+    expect(selection.skip).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
+    expect(selection.widened).toBeUndefined();
+    expect(selection.unread).toEqual(['docs/selecting.md']);
+    expect(selection.notes.join('\n')).toContain('docs/selecting.md');
+    expect(selectionNotes(selection)).not.toContain('skipping nothing');
+  });
+
+  it('names the first three unread paths and says there are more', () => {
+    const { notes } = skippableTests({
+      at: '/cache/coverage.bin',
+      commit: 'c0ffee',
+      ground: { kind: 'read', narrowing: reading({ unread: ['a.md', 'b.md', 'c.md', 'd.md'] }) },
+    });
+
+    expect(notes.join('\n')).toContain('4 changed files (a.md, b.md, c.md, …)');
   });
 
   it('refuses to narrow when the journal recorded nothing it can speak for', () => {
@@ -119,6 +126,18 @@ describe('what a foreign runner may skip', () => {
 
     expect(skip).toEqual([]);
     expect(widened).toContain('origin/main');
+  });
+
+  it('refuses to narrow when the install could not be compared', () => {
+    // A bump moves no line a test covered, so a journal read over it would skip
+    // every test that imports the package.
+    const { skip, widened } = skippableTests({
+      at: '/cache/coverage.bin',
+      ground: { kind: 'no-install', whole: 'yarn.lock is not in the tree at the base of this diff' },
+    });
+
+    expect(skip).toEqual([]);
+    expect(widened).toContain('yarn.lock is not in the tree');
   });
 
   it('reports a module recorded from another text, having already widened for it', () => {
@@ -323,18 +342,24 @@ describe('reading this checkout', () => {
     expect(said.out).toBe('test/alpha.test.ts\ntest/beta.test.ts\ntest/gamma.test.ts\n');
   });
 
-  it('refuses to narrow when the diff touches a file no probe was ever in', async () => {
+  it('narrows past a changed file no probe was ever in', async () => {
+    // The scan holds `src/elsewhere.ts` and no measured module imports it, so
+    // it is connected to nothing the suite ran: it keeps no test and is not
+    // `unread`, which names only a path the graph does not hold either.
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head));
 
-    writeFileSync(join(root, 'src/elsewhere.ts'), 'export const moved = 2;\n');
+    writeFileSync(join(root, 'src/elsewhere.ts'), 'export const other = 2;\n');
     process.chdir(root);
 
     const said = await selectOutput({ cwd: root, format: 'vitest' });
 
-    expect(said.out).toBe('');
-    expect(said.err).toContain('src/elsewhere.ts');
-    expect(said.err).toContain('skipping nothing');
+    expect(said.out).toBe(
+      ['alpha', 'beta', 'gamma'].map((name) => `--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''),
+    );
+    expect(said.err).not.toContain('skipping nothing');
+    expect(said.err).not.toContain('src/elsewhere.ts');
+    expect(said.err).toContain('3 of the 3 test files the journal recorded whole');
   });
 });
 

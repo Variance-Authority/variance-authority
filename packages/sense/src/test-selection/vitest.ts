@@ -3,15 +3,9 @@ import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
 import type { UserConfig } from 'vitest/config';
-import { instrument, type InstrumentMode, type ModuleId } from '../instrument/index.js';
-import type { ModuleNames } from '../module-names.js';
+import { instrument, type InstrumentMode } from '../instrument/index.js';
 import { priorMap, type TransformingContext } from './probes.js';
-import {
-  cleanId,
-  defaultInclude,
-  projectPath,
-  type CapturedModule,
-} from './instrumented-modules.js';
+import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
@@ -37,7 +31,13 @@ export interface TestSelectionOptions {
   readonly coverageFile?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
-  /** Additional files whose contents are preconditions of every test observation. */
+  /**
+   * Files whose contents are preconditions of every test observation, beside
+   * the ones the seam declares on its own: the config file Vite loaded, the
+   * local modules it bundled into it, and the configured setup files. Name a
+   * file the runner reads without Vite knowing — compiler settings, a fixture
+   * read with `fs`.
+   */
   readonly preconditions?: readonly string[];
   /**
    * `presence` probes every arrival region; `entries` probes modules and
@@ -91,8 +91,18 @@ export interface TestSelectionOptions {
   readonly executionFile?: string;
 }
 
-interface VitePlugin {
+/** What Vite resolved, as far as the seam reads it. */
+interface ResolvedViteConfig {
+  readonly configFile: string | undefined;
+  readonly configFileDependencies: readonly string[];
+}
+
+interface ConfigPlugin {
   readonly name: string;
+  readonly configResolved: (config: ResolvedViteConfig) => void;
+}
+
+interface VitePlugin extends ConfigPlugin {
   readonly enforce: 'post';
   readonly transform: (
     this: TransformingContext,
@@ -160,17 +170,25 @@ export function withTestSelection(
 
   // A configuration that names projects describes the run rather than a suite:
   // nothing is transformed under it, and it is the only place a reporter is
-  // read from. Adding the plugin and the setup file here would put them on a
-  // config that loads no test file.
+  // read from. The instrumenting plugin and the setup file would sit on a
+  // config that loads no test file; what it carries is its own file, which
+  // governs every project it lists.
   // `projects` is Vitest 3 and 4's name for it; Vitest 2 called the same idea
   // `workspace`. Read structurally, because the seam is built against one of
   // them and run against whichever the project installed.
   const describesProjects = (config.test as { projects?: unknown } | undefined)?.projects !== undefined;
   if (describesProjects) {
-    return { ...config, test: { ...config.test, reporters: [...reporters, reporter] } };
+    return {
+      ...config,
+      plugins: [...array(config.plugins), {
+        name: 'variance-authority:test-selection-config',
+        configResolved: declareConfig(run.preconditions),
+      } satisfies ConfigPlugin],
+      test: { ...config.test, reporters: [...reporters, reporter] },
+    };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, run.modules, include, run.names, mode);
+  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
@@ -239,18 +257,37 @@ function runnerImport(root: string, runnerId: string, specifier: string): string
   }
 }
 
+/**
+ * Declare the configuration Vite loaded as a precondition of every test, the
+ * way a setup file is declared.
+ *
+ * Asked of Vite, which read the file, rather than of the command line or a
+ * list of likely names: `configFile` is the file it loaded, and
+ * `configFileDependencies` the local modules it bundled into that file — the
+ * set Vite restarts the server over. A package the config imports stays
+ * outside it, as it does when Vite bundles, and is read as the install. A
+ * configuration handed to Vitest inline has no file, and declares nothing.
+ */
+function declareConfig(preconditions: Set<string>): (config: ResolvedViteConfig) => void {
+  return ({ configFile, configFileDependencies }) => {
+    for (const file of [...(configFile === undefined ? [] : [configFile]), ...configFileDependencies]) {
+      preconditions.add(resolve(file));
+    }
+  };
+}
+
 function selectionPlugin(
   root: string,
   setupId: string,
   runnerId: string,
-  modules: Map<ModuleId, CapturedModule>,
+  { modules, names, preconditions }: SelectionRun,
   include: (file: string) => boolean,
-  names: ModuleNames,
   mode: InstrumentMode,
 ): VitePlugin {
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
+    configResolved: declareConfig(preconditions),
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.

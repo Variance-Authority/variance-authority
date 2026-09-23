@@ -47,14 +47,21 @@ yarn test:since main        # since the merge base with main
 yarn test:since --dry-run   # print the reading, run nothing
 ```
 
-It narrows only where it has a measurement. A changed path the snapshot holds no
-row for — a file added since the recording, a fixture, a module that cannot
-carry a probe — runs everything and names the path that caused it:
+It selects on what the snapshot measured, and on nothing else. A changed file
+the snapshot has no row for — a stylesheet, a file added since the recording —
+is asked of the import graph, and the nearest measured files that import it
+select their tests. One the graph does not list either — a README, a fixture —
+selects nothing, and the reading names it in one line. What the harness loads
+without importing it is declared: the Vitest seam declares `vitest.config.mts`
+and the local modules it imports, and the config names the rest in
+`preconditions`. A change to any of them selects every test.
+
+The whole suite runs only when the reading itself could not be made, and it
+says which:
 
 ```
 $ yarn test:since --dry-run
-test:since: running the whole suite — the snapshot has no measurement of
-packages/core/README.md and 30 other path(s), so it cannot say who entered it.
+test:since: running the whole suite — the install could not be compared against 03984ae78218.
   429 files
 ```
 

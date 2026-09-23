@@ -22,7 +22,6 @@ describe('what the recorded journeys rule out', () => {
       planned: PLANNED,
       whole: PLANNED,
       entered: ['story:cart-card--removing'],
-      unread: [],
       because: [],
     });
 
@@ -40,7 +39,6 @@ describe('what the recorded journeys rule out', () => {
       planned: PLANNED,
       whole: ['story:cart-card--removing'],
       entered: ['story:cart-card--removing'],
-      unread: [],
       because: [],
     });
 
@@ -56,7 +54,6 @@ describe('what the recorded journeys rule out', () => {
       planned: PLANNED,
       whole: ['story:main-nav--empty'],
       entered: [],
-      unread: [],
       because: [],
     });
 
@@ -72,7 +69,6 @@ describe('what the recorded journeys rule out', () => {
       planned: ['story:cart-card--item'],
       whole: [...PLANNED, 'story:main-nav--empty'],
       entered: ['story:cart-card--removing'],
-      unread: [],
       because: [],
     });
 
@@ -85,7 +81,6 @@ describe('what the recorded journeys rule out', () => {
       planned: PLANNED,
       whole: PLANNED,
       entered: PLANNED,
-      unread: [],
       because: [],
     });
 

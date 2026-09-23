@@ -33,6 +33,45 @@ describe('reading a module', () => {
     expect(read.unknown).toBeUndefined();
   });
 
+  it('makes a request type-only by its keyword, never by its names', () => {
+    // `import { type B }` loads `./b` under `verbatimModuleSyntax` and nothing
+    // under the default elision, and the tsconfig that decides is not in the
+    // bytes. The leading astral character puts the tree's offsets and the
+    // record's through the same UTF-16 conversion before they are matched.
+    const read = readModule(
+      'a.ts',
+      [
+        '// 𝒳',
+        "import type { A } from './a';",
+        "import { type B } from './b';",
+        "import { type C, D } from './c';",
+        "import type {} from './d';",
+        "export type { E } from './e';",
+        "export { type F } from './f';",
+        "export type * from './g';",
+        '',
+      ].join('\n'),
+    );
+
+    expect(read.requests.map((request) => [request.value, request.kind])).toEqual([
+      ['./a', 'type'],
+      ['./b', 'imports'],
+      ['./c', 'imports'],
+      ['./d', 'type'],
+      ['./e', 'type'],
+      ['./f', 'reexports'],
+      ['./g', 'type'],
+    ]);
+    expect(read.requests[1]?.bindings).toEqual([{ imported: 'B', local: 'B', type: true, line: 3 }]);
+  });
+
+  it('makes a republished request type-only only when every statement naming it is', () => {
+    const kindOf = (source: string) => readModule('index.ts', source).requests.map((request) => request.kind);
+
+    expect(kindOf("export type { A } from './x';\nexport { type B } from './x';\n")).toEqual(['reexports']);
+    expect(kindOf("export type { A } from './x';\nexport type * from './x';\n")).toEqual(['type']);
+  });
+
   it('keeps the typeness of each binding, not of the statement', () => {
     const read = readModule('a.tsx', 'import C, { type D, E as F } from "./cd";\n');
 

@@ -31,18 +31,20 @@
  *   paint it, or painted it before the probes were built in;
  * - a subject whose recorded observation was partial is observed — an upper
  *   bound cannot justify an exclusion;
- * - a snapshot with nothing whole in it narrows nothing, and says so;
- * - a diff naming one file the snapshot has no row for narrows nothing, and says
- *   which file. The journal indexes the modules of an instrumented build, and a
- *   stylesheet, a fixture, or a component added since the recording is not one.
- *   Every subject is missing from `entered` for such a file, and every one of
- *   them for the same reason: nothing was measured.
+ * - a snapshot with nothing whole in it narrows nothing, and says so.
  *
  * That last one is the failure this shape exists to refuse. `entered` coming
  * back empty has two readings — *the diff reached nobody* and *the journal
  * recorded nobody* — and they are opposite facts about the same empty list. Held
  * apart here, because a run that confused them would skip its entire suite and
  * report success.
+ *
+ * A changed file the journal, its declarations and the file graph hold nothing
+ * about is not an input. The reader has already answered it by its measured
+ * importers where there were any, and a module the build loaded and could not
+ * instrument is declared a precondition of every subject that loaded it, so what
+ * is left entered nobody by any route the record can see. The caller names it
+ * beside the answer; it does not change the answer.
  */
 
 import { many } from './reach.js';
@@ -54,8 +56,6 @@ export interface JourneyInput {
   readonly whole: readonly string[];
   /** Recorded observations that crossed a region this diff changed. */
   readonly entered: readonly string[];
-  /** Changed files the snapshot holds no evidence about, which void the ground. */
-  readonly unread: readonly string[];
 }
 
 export interface Journeyed {
@@ -87,17 +87,6 @@ export function unenteredSubjects(input: JourneyInput): Journeyed {
   const { planned } = input;
   const whole = new Set(input.whole);
   const entered = new Set(input.entered);
-
-  if (input.unread.length > 0) {
-    const [first] = input.unread;
-    return {
-      skipped: [],
-      whole:
-        `the diff changes ${many(input.unread.length, 'file')} the recorded execution journal ` +
-        `has no measurement of (${first}), so it cannot say who covered them`,
-      because: 'the execution journal was not asked, having no record of every changed file',
-    };
-  }
 
   const known = planned.filter((subject) => whole.has(subject));
   if (known.length === 0) {

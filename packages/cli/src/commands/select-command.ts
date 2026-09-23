@@ -27,12 +27,20 @@
  * changed stylesheet or asset no probe can sit in by the module that imports
  * it. With no config there are no taint tables beyond the mock reader, which
  * runs unasked.
+ *
+ * The install is compared at the same point the diff is measured from, for
+ * the reason `variance run --since` compares it: a bumped package changes no
+ * line a test covered, so a diff that touched only the lockfile reaches nobody
+ * the journal can see. The graph answers a bumped name by the measured files
+ * that import it, and a lockfile that cannot be compared declines to narrow.
  */
 
 import { stat } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
+import { installDiff } from './installed.js';
+import { withoutManifests } from './reach.js';
 import { isMissing, journeyAgainst } from './resources.js';
-import { diffSince } from './since.js';
+import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
 import {
   formatSelection,
@@ -109,13 +117,34 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
   }
 
+  // Read at the base the diff was measured from — the journal's own commit, or
+  // the merge base with `--since` — so a bump is one this diff made and not one
+  // `main` made since. `undefined` is no lockfile to compare, which moves
+  // nothing; a comparison that could not be made declines before the graph is
+  // scanned for an answer nobody will read.
+  const installed = await installDiff(await diffPoint(from));
+  if (installed !== undefined && 'whole' in installed) {
+    const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
+    return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
+  }
+
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  const narrowing = await journeyAgainst(request.cwd, diff, relations);
+  const narrowing = await journeyAgainst(request.cwd, diff, relations, installed?.packages);
+  // The lockfile and the manifests beside it are unread by the journal and
+  // answered by the comparison above, which has already said what moved.
   const ground: SelectGround =
-    narrowing === undefined ? { kind: 'no-journal' } : { kind: 'read', narrowing };
+    narrowing === undefined
+      ? { kind: 'no-journal' }
+      : {
+          kind: 'read',
+          narrowing: {
+            ...narrowing,
+            unread: withoutManifests(narrowing.unread, installed?.manifests ?? []),
+          },
+        };
 
   return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
 }

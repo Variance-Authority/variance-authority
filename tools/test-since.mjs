@@ -27,26 +27,27 @@ import { describeRange, distanceLines, findingLines, helpLines } from './since-r
  * region; this reads that back and asks it the question it was recorded to
  * answer. `yarn test` is still the gate. This is the loop before it.
  *
- * ## What it will not do
+ * ## What it selects on, and what it does not
  *
- * Narrow on a guess. The snapshot speaks for the modules the build carried
- * probes into. A changed path it has no row for — a page-side module that
- * cannot hold a probe, a file every test mocks, a file added since the
- * recording — is asked of the import graph instead: whoever imports it, and
- * whoever imports them, until the chain reaches a module the snapshot did
- * record or a test file. That answer is the tests those importers reach, which
- * is wider than the truth and never narrower. Every other changed path — a
- * fixture, a manifest, anything the scan does not read — is a fact nothing here
- * has an opinion about, and *no row* reads identically to *nobody entered this*
- * while meaning the opposite. So that change runs everything and says which
- * path did it. `unenteredSubjects` in `packages/cli/src/commands/journey.ts` is
- * where that rule is argued, over subjects rather than files; this restates it
- * because the CLI does not export it.
+ * What the recording measured, and nothing else. The snapshot speaks for the
+ * modules the build put probes in. A changed path it has no row for — a
+ * page-side module that cannot take a probe, a file every test mocks, a file
+ * added since the recording — is asked of the import graph instead: whoever
+ * imports it, and whoever imports them, until the chain arrives at a module the
+ * snapshot did record or a test file. The measured importers answer with their
+ * tests, and an importer nobody measured answers with nothing. A path neither
+ * the snapshot nor the graph lists — prose, a fixture, a workflow — selects
+ * nothing on its own and is named in one line above the selection. What the
+ * harness loads without importing it is declared rather than guessed at: the
+ * seam declares `vitest.config.mts` and the local modules it imports, the
+ * config names the rest in `preconditions`, and a change to any of them retires
+ * every observation that declared it.
  *
- * Two kinds of path are exempt, and both are exempt for a reason about reach
- * rather than convenience. A test file is its own row: nothing instruments one,
- * and nothing has to, because the test a change to it selects is itself. And
- * {@link INERT} is the set nothing the suite loads can open.
+ * The whole suite runs only when the reading itself could not be made: an
+ * install that could not be compared, or a snapshot with no whole observation
+ * of any file this suite collects. A test file is its own row: nothing
+ * instruments one, and nothing has to, because the test a change to it selects
+ * is itself.
  *
  * ## Usage
  *
@@ -79,31 +80,6 @@ import { describeRange, distanceLines, findingLines, helpLines } from './since-r
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/**
- * Paths a change to which cannot alter what `yarn test` does.
- *
- * Narrow on purpose. Everything the snapshot has no row for widens the run to
- * everything, and in a repository whose prose is a third of its diffs that would
- * answer "all of them" to almost every question. So the exemption is stated
- * rather than inferred, and is about reach: nothing the suite loads opens any of
- * these.
- *
- * `tools/` is deliberately absent. `vitest.config.mts` imports
- * `tools/page-side.mjs`, so a file there decides what the suite instruments, and
- * the checks beside it read the tree as data. A change there widens.
- */
-export const INERT = [
-  'docs/',
-  'site/',
-  'backlog/',
-  '.github/',
-  '.changeset/',
-  'README.md',
-  'CONTRIBUTING.md',
-  'AGENTS.md',
-  'LICENSE',
-];
-
 const git = (...args) =>
   execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
@@ -131,11 +107,32 @@ export function explain(cause) {
   }
 }
 
+/**
+ * The files a change selects, or why the whole suite runs instead.
+ *
+ * The rule from `unenteredSubjects` in `packages/cli/src/commands/journey.ts`,
+ * over files rather than subjects: skip only what the snapshot saw whole and
+ * what ran nothing that changed. A file it never saw runs — a new test, a
+ * test that was skipped when the snapshot was taken, a file whose observation
+ * was an upper bound — and a changed test file is its own answer.
+ *
+ * What the reading did not measure is not an input. A changed path no test
+ * ran has already said everything it can by being absent from `entered`,
+ * and the only ways to the whole suite are a reading that could not be made.
+ */
+export function selectedFiles({ suite, whole, entered, touched, moved, base }) {
+  if (moved === undefined) {
+    return { widened: `the install could not be compared against ${base.slice(0, 12)}` };
+  }
+  if (!suite.some((file) => whole.has(file))) {
+    return { widened: 'the snapshot has no whole observation of any file this suite collects' };
+  }
+  return { selected: suite.filter((file) => !whole.has(file) || entered.has(file) || touched.includes(file)) };
+}
+
 const say = (...lines) => process.stdout.write(`${lines.join('\n')}\n`);
 
 const isTest = (path) => /\.(test|spec)\.[cm]?[jt]sx?$/.test(path);
-const isInert = (path) =>
-  INERT.some((entry) => (entry.endsWith('/') ? path.startsWith(entry) : path === entry));
 
 /**
  * The stem the snapshot would hold this file under, if it holds it at all.
@@ -184,9 +181,9 @@ function suiteFiles() {
  * Everything above is the reading; this is the decision and the run.
  *
  * Behind the usual guard so the reading can be imported — `tools/test-since.check.ts`
- * holds {@link INERT} and {@link inSnapshotCoordinates} to the claims their
- * comments make, and importing a module that has already run the suite is not a
- * check anybody wants twice.
+ * checks {@link selectedFiles} and {@link inSnapshotCoordinates} against the
+ * claims their comments make, and importing a module that has already run the
+ * suite is not a check anybody wants twice.
  */
 async function main() {
   const argv = process.argv.slice(2);
@@ -316,17 +313,17 @@ async function main() {
   const changed = [...lines(git('diff', '--name-only', '--no-renames', base)), ...untracked];
 
   // The install is read at the two revisions rather than counted as a changed
-  // path, and the paths that record it are then dropped: counted as changed
-  // files they have no row, so they would widen the run for the very thing
-  // they just explained. `undefined` is a comparison that could not be made.
+  // path, and the paths that record it are then set aside: a workspace version
+  // rewrite moves hundreds of manifest lines and no installed byte, and the
+  // comparison has already said so. `undefined` is a comparison that could not
+  // be made.
   const moved = movedPackages(ROOT, base, git);
-  const bumped = new Set(moved ?? []);
-  const consequential = changed.filter((path) => !isInert(path) && !isManifest(path));
+  const consequential = changed.filter((path) => !isManifest(path));
   if (consequential.length === 0 && moved !== undefined && moved.length === 0) {
     say(
       changed.length === 0
         ? `test:since: nothing has changed since ${base.slice(0, 12)}.`
-        : `test:since: ${changed.length} changed path(s), none of which the suite can open.`,
+        : `test:since: ${changed.length} changed manifest(s), and the install they record did not change.`,
       '  Nothing to run. `yarn test` is still the gate.',
     );
     return 0;
@@ -360,59 +357,34 @@ async function main() {
     },
   );
   const whole = new Set(narrowing.whole);
-  const entered = new Set(narrowing.entered);
   const because = new Map(narrowing.because.map((cause) => [cause.test, cause]));
 
-  /**
-   * Why this run cannot be narrowed, if it cannot.
-   *
-   * A changed path the snapshot holds nothing about — no row, or a row saying
-   * the build never read this module — and which the graph holds no importer
-   * for either arrives as `unread`.
-   */
-  const unmeasured = narrowing.unread.filter((p) => !isInert(p) && !isTest(p) && !bumped.has(p));
-  // A moved package whose importers the record never measured: unread for the
-  // reason a file there is, reported separately because "no measurement of
-  // @mui/material" reads as a missing path rather than a watched dependency.
-  const unwatched = narrowing.unread.filter((name) => bumped.has(name));
-
-  const widen = (because) => {
-    say(`test:since: running the whole suite — ${because}.`, `  ${suite.length} files`, '');
-    if (dryRun) return 0;
-    const result = spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' });
-    return result.status ?? 1;
-  };
-
-  if (moved === undefined) {
-    return widen(`the install could not be compared against ${base.slice(0, 12)}`);
-  }
-
-  if (unwatched.length > 0) {
-    const [first, ...rest] = [...new Set(unwatched)].sort();
-    const more = rest.length === 0 ? '' : ` and ${rest.length} other package(s)`;
-    return widen(`the install moved ${first}${more}, and no file importing it was measured`);
-  }
-
-  if (unmeasured.length > 0) {
-    const [first, ...rest] = [...new Set(unmeasured)].sort();
-    return widen(
-      `the snapshot has no measurement of ${first}${rest.length === 0 ? '' : ` and ${rest.length} other path(s)`}, ` +
-        'so it cannot say who entered it',
+  // A changed path the snapshot, the declarations and the graph all say
+  // nothing about selects nothing, and is named so a reader can see what the
+  // reading could not place.
+  const changedProduct = new Set(product);
+  const unentered = narrowing.unread.filter((path) => changedProduct.has(path));
+  if (unentered.length > 0) {
+    say(
+      `test:since: ${unentered.length} changed path(s) neither the recording nor the import graph lists ` +
+        `(${unentered.slice(0, 3).join(', ')}${unentered.length > 3 ? ', …' : ''}).`,
     );
   }
 
-  const known = suite.filter((file) => whole.has(file));
-  if (known.length === 0) {
-    return widen('the snapshot holds no whole observation of any file this suite collects');
+  const decided = selectedFiles({
+    suite,
+    whole,
+    entered: new Set(narrowing.entered),
+    touched,
+    moved,
+    base,
+  });
+  if (decided.widened !== undefined) {
+    say(`test:since: running the whole suite — ${decided.widened}.`, `  ${suite.length} files`, '');
+    if (dryRun) return 0;
+    return spawnSync('yarn', ['vitest', 'run'], { cwd: ROOT, stdio: 'inherit' }).status ?? 1;
   }
-
-  // The rule from `unenteredSubjects`: skip only what the snapshot saw whole and
-  // which entered nothing that changed. A file it never saw runs — a new test, a
-  // test that was skipped when the snapshot was taken, a file whose observation was
-  // an upper bound. And a changed test file is its own answer.
-  const selected = suite.filter(
-    (file) => !whole.has(file) || entered.has(file) || touched.includes(file),
-  );
+  const { selected } = decided;
 
   const why = (file) => {
     const cause = because.get(file);
@@ -451,7 +423,7 @@ async function main() {
   say(
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
-    `  changed  ${changed.length} path(s): ${product.length} measured, ${touched.length} test file(s), ${changed.length - consequential.length} the suite cannot open`,
+    `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
     ...(reframed.size === 0
       ? []

@@ -805,8 +805,8 @@ under different probe recipes, or at different commits — and a shard recorded
 outside a checkout names no commit, which is a disagreement rather than a
 blank. A test file two shards both recorded means the split overlapped, which
 only the operator can resolve. A module one shard could not instrument is
-unread in the fold however many others measured it, because that row is the
-one a selector widens on.
+answered by the shards that did: that row says one build could not read the
+module, and nothing about the tests another build watched run it.
 
 Where it lands is this checkout's own cache, the file every run on this
 machine layers over, unless `--into <path>` names somewhere else — a job that
@@ -858,17 +858,25 @@ itself.
 
 It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal cannot speak: nothing recorded on this machine, a diff git would not
-produce, a journal with no whole observation in it, or a diff touching a file no
-probe was ever in. That last one is the common case on a first read — an asset,
-a config, a module your probes do not cover — and it is why the command reads
-`0` even when it skips nothing:
+produce, a lockfile that cannot be compared at the diff's base, or a journal
+with no whole observation in it.
+
+A changed file the journal records nothing about is not one of those. Prose, a
+workflow, or a fixture your tests read with `fs` keeps no test in the run, and
+stderr names it beside the answer, as `json` does under `unread`:
 
 ```
 $ variance select
-skipping nothing: the diff changes 3 files the journal holds no measurement of
-(docs/selecting.md), so it cannot say which tests cover them.
-the execution journal was not asked, having no record of every changed file.
+212 of the 240 test files the journal recorded whole covered none of the changed
+lines, and are skipped; every test file it does not speak for still runs.
+the journal records nothing about 1 changed file (fixtures/cart.json), so it
+keeps no test in the run; a file the suite reads without importing it is
+declared as a precondition.
 ```
+
+When a test does read that fixture, name it in the `preconditions` option of the
+Vitest recorder in `@variance-authority/sense`: from the next recording on, a
+change to it selects every test it governs.
 
 The journal's own commit is what the diff is measured from, because its line
 numbers are coordinates in that commit's text. `--since <ref>` names a base only

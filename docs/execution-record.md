@@ -621,25 +621,35 @@ below is one stage of that call.
    the file's text changes at all, and the two are not the same sentence. A row
    does buy the path out of *unread*, which is why a module nothing declares is
    still measured.
-5. **Files the record cannot see.** Hand the relations graph in through
-   `options.relations` and every changed file is also asked of the graph. It
-   answers only for a file no probe can sit in: it walks the
-   graph from the file to its importers along `asset` edges, the kind the
-   source scan records for such a file, and selects the tests that crossed or
-   precondition on any importer it reaches. The file is answered only when
-   every chain of the walk ends at something the record measured — a test, a
-   module with probes, or a module without probes that some test declares; a
-   chain ending at a module with no row leaves the file unread whatever the
-   other chains selected. O(n + m) on the graph per changed file.
-6. **Unread.** A changed path is measured only when *every* name the caller
-   says the snapshot may list it under was answered for by a module row, a
-   precondition or a chain to a recorded importer. One file is often two names
-   — a package's own suite loads `src`, every other package loads the built
-   twin — and the two serve different audiences, so a row under one name
-   witnesses nothing about the tests that loaded the other. A path any of whose
-   names went unanswered, and a path the caller gives no name at all, is
-   reported as unread, and the caller runs everything. A name with a row is
-   answered even when no test names it: the row is the measurement.
+5. **Files with no row.** Hand the relations graph in through
+   `options.relations` and every changed file with no instrumented row under
+   any of its names is asked of the graph, which walks to the files that
+   import it. A file something imports as an asset — a stylesheet, an image, a
+   JSON file, where no probe can sit — is walked along `asset` edges only,
+   through the stylesheets that import it to the modules that import those. A
+   module is walked along every runtime edge and never `type`, and each chain
+   stops at the first test file or module with probes; a module without probes
+   measured nothing, so the chain goes on past it. Each file a walk stops at
+   answers for itself: a test selects itself, a module with probes selects the
+   tests that crossed it, and a module without probes selects the tests that
+   declare it. A file with no row selects nobody and takes nothing from the
+   chains beside it. A test that mocked the changed module, or a file between
+   the two, is cut there. A bumped package is walked from its node along every
+   runtime edge to every file that imports it at any distance, and each answers
+   the same way. A file with no row selects nobody even when a test declares
+   it: a declaration selects on a change to the declared file's own text, and a
+   walk asks for no such change. O(n + m) on the graph per changed file.
+6. **Unread.** A changed path is read when *some* name the caller says the
+   snapshot may list it under has a module row, a precondition or a node in
+   the graph. One file is often two names — a package's own suite loads `src`,
+   every other package loads the built twin — and each name selects the tests
+   its own rows and declarations name; a name the snapshot has nothing under
+   selects nobody and takes nothing from the name beside it. A path none of
+   whose names is read, and a path the caller gives no name at all, is reported
+   as unread. It is a report, not a widening: the skip list is still `whole`
+   less `entered`, and a suite that rests on such a file declares it as a
+   precondition, which removes it from `unread`. A name with a row is read even
+   when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks
 + P), and one graph walk more per changed file when a graph is supplied.
@@ -869,9 +879,12 @@ out.
 **Fold shards.** `foldTestCoverage` unions the records of a
 sharded run, in any order, O(sum of shard sizes). It refuses shards with
 differing instrumentation or commit, a test in two shards, and a module with
-two source digests. An uninstrumented observation of a module wins over an
-instrumented one, because a module that some shard could not instrument is
-not evidenced by the shards that could.
+two source digests. Where shards disagree about whether a module could be
+read, the instrumented rows answer: a shard that could not instrument a module
+says nothing about the tests another shard watched run it, and the tests that
+loaded the uninstrumented copy already declare it as a precondition. An
+uninstrumented row stands only where no shard measured the module, and the
+answer is the same whichever shard is read first.
 
 **Encode.** `writeTestCoverage` sorts tests and modules by path, blocks by
 ordinal, deduplicates preconditions and crossings, and builds one dictionary:

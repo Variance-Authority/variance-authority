@@ -157,9 +157,10 @@ export function outOfFrame(coverage, paths, sourceAtFor) {
   );
 
   // No source row: nothing to disagree with. A file with no row at all is
-  // `unread` in the run above and widens on its own; one with an uninstrumented
-  // row is the build saying it never read the module, and its zero blocks are
-  // not numbers anybody is about to trust.
+  // answered by the files that import it, or is `unread` and selects nothing;
+  // either way it has no line numbers to disagree with. One with an
+  // uninstrumented row is the build saying it never read the module, and its
+  // zero blocks are not numbers anybody is about to trust.
   const checkable = paths.filter((path) => digests.has(path));
   if (checkable.length === 0) return new Set();
   const sourceAt = sourceAtFor(checkable);

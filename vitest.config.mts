@@ -114,14 +114,14 @@ export const suite = defineConfig({
 export const selection = {
   root: ROOT,
   include: instrumentable,
-  // What governs every observation rather than any one of them: the runner
-  // itself, the manifest that resolves every import, the lockfile behind it,
-  // and the compiler settings the built half is emitted under. Editing one
-  // retires every inherited crossing, which is what declaring a precondition is
-  // for. Everything else a change touches — a package manifest, a fixture, a
-  // workflow — has no row, and `tools/test-since.mjs` widens to the whole suite
-  // rather than pretending the snapshot has an opinion about it.
-  preconditions: ['vitest.config.mts', 'package.json', 'yarn.lock', 'tsconfig.base.json'],
+  // What governs every observation rather than any one of them. The seam
+  // declares this file and the local modules it imports, and
+  // `tools/test-since.mjs` reads the manifests and the lockfile as the install
+  // they record. What is left is the compiler settings the built half is
+  // emitted under, which no import names. Editing a precondition retires every
+  // inherited crossing. A fixture or a workflow has no row of its own, and
+  // selects nothing until it is declared here.
+  preconditions: ['tsconfig.base.json'],
 };
 
 export default withTestSelection(suite, selection);

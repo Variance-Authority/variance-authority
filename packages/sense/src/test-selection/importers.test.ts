@@ -34,43 +34,12 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     });
   });
 
-  it('leaves a module nobody executed unread, however many files import it', () => {
-    // aaa names `src/rules.ts` and decide imports it, and the record has no row
-    // for it. Maybe every test mocked it, maybe it sits outside what the
-    // recording instrumented, maybe it is new since the recording: the record
-    // cannot say which, and `imports` edges are not walked, so the graph
-    // cannot either. Nobody answered, and nobody is not an answer.
-    const relations = relationsOf({
-      relations: [imports('test/aaa.test.ts', 'src/rules.ts'), imports('src/decide.ts', 'src/rules.ts')],
-    });
-
-    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual({
-      whole: testFiles,
-      entered: [],
-      unread: ['src/rules.ts'],
-      stale: [],
-      because: [],
-    });
-  });
-
-  it('answers the same as no graph at all when the graph answers nothing', () => {
-    // The graph is an enrichment. It may add a selection; it may never turn a
-    // question the record left open into a closed one by holding the file.
-    const relations = relationsOf({
-      relations: [imports('test/aaa.test.ts', 'src/rules.ts'), imports('src/decide.ts', 'src/rules.ts')],
-    });
-    const without = narrowByExecutionFromView(view(), diff('src/rules.ts'), {});
-
-    expect(without.unread).toEqual(['src/rules.ts']);
-    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toEqual(without);
-  });
-
-  it('leaves a changed asset unread when one chain from it ends where the record never looked', () => {
+  it('selects the tests behind the measured importer of an asset, whatever the importer beside it', () => {
     // Two files carry `src/tokens.css`. `src/decide.ts` has a row and its
     // tests are found; `src/legacy-widget.js` has none, and a test imports it.
-    // One measured importer says nothing about the importer beside it: the
-    // tests behind legacy-widget ran the stylesheet too, and the record cannot
-    // name them.
+    // Each importer answers for itself: decide's row names alpha and beta, and
+    // legacy-widget names nobody, which neither removes them nor reports the
+    // stylesheet.
     const relations = relationsOf({
       relations: [
         imports('test/aaa.test.ts', 'src/legacy-widget.js'),
@@ -78,17 +47,21 @@ describe('a changed file no probe can sit in, asked of the module that imports i
         asset('src/decide.ts', 'src/tokens.css'),
       ],
     });
-
-    expect(narrowByExecutionFromView(view(), diff('src/tokens.css'), { relations })).toMatchObject({
-      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
-      unread: ['src/tokens.css'],
+    const measuredAlone = narrowByExecutionFromView(view(), diff('src/tokens.css'), {
+      relations: relationsOf({ relations: [asset('src/decide.ts', 'src/tokens.css')] }),
     });
-    // The measured chain alone is the whole answer.
-    expect(
-      narrowByExecutionFromView(view(), diff('src/tokens.css'), {
-        relations: relationsOf({ relations: [asset('src/decide.ts', 'src/tokens.css')] }),
-      }),
-    ).toMatchObject({ entered: ['test/alpha.test.ts', 'test/beta.test.ts'], unread: [] });
+
+    expect(narrowByExecutionFromView(view(), diff('src/tokens.css'), { relations })).toEqual({
+      whole: testFiles,
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      unread: [],
+      stale: [],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
+      ],
+    });
+    expect(narrowByExecutionFromView(view(), diff('src/tokens.css'), { relations })).toEqual(measuredAlone);
   });
 
   it('counts a row with probes and no crossings as measured: nobody entered it', () => {
@@ -212,6 +185,12 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       unread: [],
       because: [{ test: 'test/aaa.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/legacy.js'] }] }],
     });
+    // The same row with no test holding it: nobody loaded it that the record
+    // can name, so it selects nobody, and the stylesheet is not reported.
+    const unheld: TestCoverage = { ...unparsed, tests: coverage.tests };
+    expect(
+      narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(unheld)), diff('src/rules.css'), { relations }),
+    ).toMatchObject({ entered: [], unread: [], because: [] });
   });
 
   it('looks the importing module up under every name the snapshot holds it by', () => {
@@ -229,7 +208,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     // decide has a computed require the scan could not follow. The graph holds
     // no edge from it, so it is no chain and nothing is added for it: the one
     // chain the graph does hold ends at `src/other.ts`, which the record never
-    // saw, and that is the whole answer. What the require loads is the recorded
+    // saw and which selects nobody. What the require loads is the recorded
     // run's to see, and the reason stays on decide's record for a report.
     const relations = relationsOf({
       relations: [asset('src/other.ts', 'src/rules.css')],
@@ -238,7 +217,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations })).toMatchObject({
       entered: [],
-      unread: ['src/rules.css'],
+      unread: [],
       because: [],
     });
   });
@@ -263,21 +242,6 @@ describe('a changed file no probe can sit in, asked of the module that imports i
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
       ],
-    });
-  });
-
-  it('does not answer for a changed module through a file whose edges could not be read', () => {
-    // A file with unreadable edges adds nothing to any answer. A changed module
-    // answers by its row, and `src/rules.ts` has none: the question stays open,
-    // and decide's tests are not the answer to it.
-    const relations = relationsOf({
-      relations: [imports('src/other.ts', 'src/rules.ts')],
-      unknown: [[file('src/decide.ts'), 'a computed require()']],
-    });
-
-    expect(narrowByExecutionFromView(view(), diff('src/rules.ts'), { relations })).toMatchObject({
-      entered: [],
-      unread: ['src/rules.ts'],
     });
   });
 
@@ -306,44 +270,6 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     ]);
   });
 
-  it('leaves a recorded module to its regions, whoever imports it without loading it', () => {
-    // `src/decide.ts` has a row: alpha and beta entered it. `test/aaa.test.ts`
-    // imports it and mocked it, so the journal holds nothing for aaa under
-    // decide, and an edit to the `then` branch is alpha alone.
-    const relations = relationsOf({ relations: [imports('test/aaa.test.ts', 'src/decide.ts')] });
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -4,1 +4,1 @@
--    return 'A';
-+    return 'a';`;
-
-    expect(narrowByExecutionFromView(view(), diff, { relations })).toEqual({
-      whole: testFiles,
-      entered: ['test/alpha.test.ts'],
-      unread: [],
-      stale: [],
-      because: [
-        {
-          test: 'test/alpha.test.ts',
-          via: [{ kind: 'region', file: 'src/decide.ts', name: 'decide', path: 'if#0/then', startLine: 3, endLine: 5 }],
-        },
-      ],
-    });
-  });
-
-  it('selects a changed test file by its own precondition and nobody through its helpers', () => {
-    // Nothing probes a test file, so an edit to `test/aaa.test.ts` selects aaa
-    // by its own precondition. beta imports aaa's helpers as a module, and a
-    // module with no row selects nobody.
-    const relations = relationsOf({ relations: [imports('test/beta.test.ts', 'test/aaa.test.ts')] });
-
-    expect(narrowByExecutionFromView(view(), diff('test/aaa.test.ts'), { relations })).toMatchObject({
-      entered: ['test/aaa.test.ts'],
-      unread: [],
-      because: [{ test: 'test/aaa.test.ts', via: [{ kind: 'precondition', name: 'test/aaa.test.ts' }] }],
-    });
-  });
-
   it('leaves a changed path the graph does not hold under unread', () => {
     // A README, or a source file outside the directories the scan was pointed
     // at. Nothing recorded it, and saying so is the whole point.
@@ -355,22 +281,23 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     });
   });
 
-  it('leaves an asset unread when the only file carrying it was never recorded', () => {
-    // `src/between.ts` imports the stylesheet and has no row. A fixture the
-    // tests read with `fs` looks the same from here, and a suite that reads
-    // one that way declares it as a precondition; nothing did, so nobody
-    // answered.
+  it('selects nobody for an asset whose only importer was never recorded', () => {
+    // `src/between.ts` imports the stylesheet and has no row, so no test the
+    // record names ran it. A fixture the tests read with `fs` looks the same
+    // from here, and a suite that reads one that way declares it as a
+    // precondition; nothing did.
     const relations = relationsOf({ relations: [asset('src/between.ts', 'src/rules.css')] });
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations })).toMatchObject({
       entered: [],
-      unread: ['src/rules.css'],
+      unread: [],
     });
   });
 
-  it('leaves an asset the graph holds and nothing imports unread', () => {
-    // The graph has the file and no edge leaves it: no chain, no end, no
-    // answer. Holding a file is not the same as having measured it.
+  it('reports an asset the graph does not hold, and not one it holds that nothing imports', () => {
+    // The first graph has no node for `src/rules.css` at all. The second holds
+    // it, importing a stylesheet of its own, and no edge arrives at it: no
+    // chain, so nobody selected, and nothing to report.
     const relations = relationsOf({ relations: [asset('src/decide.ts', 'src/other.css')] });
 
     expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations })).toMatchObject({
@@ -381,7 +308,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       narrowByExecutionFromView(view(), diff('src/rules.css'), {
         relations: relationsOf({ relations: [asset('src/rules.css', 'src/tokens.css')] }),
       }),
-    ).toMatchObject({ entered: [], unread: ['src/rules.css'] });
+    ).toMatchObject({ entered: [], unread: [] });
   });
 });
 
@@ -446,15 +373,32 @@ describe('a package the install moved, asked of the files that import it', () =>
     );
   });
 
-  it('leaves the package unread when the record never measured a file that imports it', () => {
+  it('selects nobody for a package whose every importer the record never measured', () => {
+    // Nothing the suite ran imports it, which is the same answer as nothing
+    // importing it at all.
     const relations = relationsOf({ relations: [uses('src/legacy-widget.js', '@mui/material')] });
 
     expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toEqual({
       whole: testFiles,
       entered: [],
-      unread: ['@mui/material'],
+      unread: [],
       stale: [],
       because: [],
+    });
+  });
+
+  it('selects the tests behind a measured importer, whatever the importer beside it', () => {
+    const relations = relationsOf({
+      relations: [uses('src/legacy-widget.js', '@mui/material'), uses('src/decide.ts', '@mui/material')],
+    });
+
+    expect(narrowByExecutionFromView(view(), '', { relations, packages: ['@mui/material'] })).toMatchObject({
+      entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
+      unread: [],
+      because: [
+        { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
+        { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
+      ],
     });
   });
 });

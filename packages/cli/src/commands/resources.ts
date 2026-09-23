@@ -153,8 +153,11 @@ function cacheRoot(kind: string): string {
  * would look identical to one that never had it.
  *
  * With `relations`, a changed file the journal holds no row for is asked of
- * the graph: its importers, and theirs, until one has a row. Without, that
- * file stays `unread` and the run keeps every subject.
+ * the graph: its importers, and theirs, until one is a test or has a row with
+ * probes behind it. Without, that file stays `unread`, which keeps no subject
+ * in the run and is named in its notes. `packages` are the names the install
+ * comparison says moved, and they are answered by the measured files that
+ * import them, so they are only heard when `relations` is given too.
  *
  * Every changed module is checked against the text it was recorded from before
  * its line ranges are read, because a snapshot is recorded by being *run* and a
@@ -167,6 +170,7 @@ export async function journeyAgainst(
   root: string,
   diff: string,
   relations?: Relations,
+  packages: readonly string[] = [],
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
   const file = selection.testCoverageFile(root);
@@ -176,6 +180,7 @@ export async function journeyAgainst(
     return await selection.narrowByExecution(file, diff, {
       sourceAt,
       ...(relations === undefined ? {} : { relations }),
+      ...(packages.length === 0 ? {} : { packages }),
     });
   } catch (error) {
     if (isMissing(error)) return undefined;

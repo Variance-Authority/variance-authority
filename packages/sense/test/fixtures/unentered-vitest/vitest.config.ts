@@ -17,6 +17,5 @@ export default withTestSelection(
   {
     coverageFile,
     include: (file) => file.startsWith(source),
-    preconditions: ['vitest.config.ts'],
   },
 );
