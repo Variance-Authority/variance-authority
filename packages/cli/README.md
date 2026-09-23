@@ -195,7 +195,10 @@ For source questions, `justAnswer` and its `--just-answer` spelling read the
 last published workspace generation regardless of age. They perform no Git
 status or refresh, refuse when no generation exists, and print when the value
 was produced. Without the flag a generation is reused for one hour before the
-next source question refreshes it.
+next source question refreshes it. `search` is the exception: it always reads
+the published generation, whatever its age, and never scans. It refuses when
+nothing is published. `--changed-file` and `--taint-file` still ask it for a new
+generation by name.
 
 A library host that injects `AskRequest.source` receives `SourceReadOptions`.
 Its `tree` field is true only when the selected source tool names a `from` or

@@ -117,6 +117,12 @@ or regeneration is performed, and the answer prints the generation time. If no
 generation has been published, the command refuses instead of silently turning
 the question into production work.
 
+`search` always answers as if `--just-answer` were given. It opens the
+published search at any age and never scans, because in CI the step before it
+already brought the index up to date and is the one that owns freshness. The
+flag is accepted and changes nothing. With no published generation, `search`
+refuses and names the command to run.
+
 When an editor, watcher, or orchestrator produces a generation and already
 knows the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file means the caller

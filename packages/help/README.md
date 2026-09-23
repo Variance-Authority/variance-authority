@@ -43,7 +43,8 @@ Producing a generation scans the checkout; answering one does not. Ordinary
 commands reuse a generation for one hour before refreshing it. `--just-answer`
 uses the last published generation regardless of age and prints when it was
 produced. It performs no Git status or refresh, and refuses if there is no
-generation to read. The detailed cost model, including why Git's packed objects
+generation to read. `search` always behaves this way: it is a lookup, and
+producing the generation is the job of the step before it. The detailed cost model, including why Git's packed objects
 beat opening hundreds of thousands of small files, is in [find code through the workspace
 index](../../docs/agent-workspace-api.md#choose-the-cheapest-entrance).
 

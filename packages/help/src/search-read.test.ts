@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { access, cp, mkdtemp, rm } from 'node:fs/promises';
+import { access, cp, mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,5 +77,23 @@ describe('search from its published file', () => {
     await expect(access(workspaceSearchPath(other))).resolves.toBeUndefined();
     const help = await readWorkspaceForAnswer(root, { index: other, justAnswer: true });
     expect(askSearch(search, ['--query', 'measure'])).toEqual(ask(help, 'search', ['--query', 'measure']));
+  });
+
+  it('opens a published search at any age, and scans nothing', async () => {
+    const written = async (): Promise<readonly number[]> =>
+      Promise.all([at, workspaceSearchPath(at)].map(async (file) => (await stat(file)).mtimeMs));
+    const before = await written();
+
+    const search = await readSearchForAnswer(root, { index: at, refreshAfterMs: 0 });
+
+    expect(await written()).toEqual(before);
+    expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
+  });
+
+  it('refuses when nothing is published, and publishes nothing', async () => {
+    const empty = join(root, '.unpublished');
+    await expect(readSearchForAnswer(root, { index: empty })).rejects.toThrow(/none is published/);
+    await expect(access(empty)).rejects.toThrow();
+    await expect(access(workspaceSnapshotPath(empty))).rejects.toThrow();
   });
 });

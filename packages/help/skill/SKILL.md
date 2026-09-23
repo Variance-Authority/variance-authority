@@ -47,7 +47,8 @@ the same code.
 - **No run, no config, no revision requirement.** Nothing here reads a run's
   output, and there is no config file. Ordinary questions reuse a published
   generation for up to one hour; `--just-answer` uses the last generation
-  without inspecting the checkout and refuses when none exists.
+  without inspecting the checkout and refuses when none exists. `search` always
+  reads that way, with or without the flag, and never scans.
 - **Working directory:** the workspace root, or pass `--root <dir>`. See the two
   argument shapes below.
 

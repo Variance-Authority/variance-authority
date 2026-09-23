@@ -140,7 +140,8 @@ variance ask search --query createStore --from src/checkout/ --just-answer
 
 Every answer prints when its workspace generation was produced. If no
 generation exists, `--just-answer` refuses instead of turning the question into
-an index build. [The source index](source-index.md) explains production,
+an index build. `search` always reads this way, with or without the flag: it
+is a lookup, and it expects the generation to be published already. [The source index](source-index.md) explains production,
 incremental reuse and CI caching.
 
 Subject orientation reads the report a completed run already produced. Its
