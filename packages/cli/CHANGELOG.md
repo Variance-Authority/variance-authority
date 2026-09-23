@@ -1,5 +1,134 @@
 # @variance-authority/cli
 
+## 0.6.0
+
+### Minor Changes
+
+- 1b4c0db: A changed file the record has no row for no longer runs the whole suite
+
+  A changed path the record has no row or declaration for, and the graph does not
+  list — a README, a fixture a test reads with `fs`, a script a test spawns — is
+  listed in `unread` and selects nothing by itself. `unread` is a report: the skip
+  list is `whole` less `entered` whatever it lists. `variance select` and
+  `variance run --since` name those paths on stderr, and `variance select --format
+  json` lists them under `unread`. A file the suite rests on without importing it
+  goes in the `preconditions` option of the Vitest, Jest or Rstest integration,
+  and a change to it then selects every test that declared it.
+
+  A changed module with no instrumented row under any of its names — one the
+  recording did not instrument, or one added since it — is walked to the files
+  that import it along every runtime edge, never `type`, and each chain stops at
+  the first test file or instrumented module it reaches. A module with a row but
+  no probes is walked past, and the tests that declare it are selected. A test
+  that mocked the changed module, or a file between it and the row, is cut. A
+  stylesheet, image or JSON file is walked along `asset` edges, as before.
+
+  Each importer answers for itself. A changed file whose importers the record
+  measured only in part selects the tests of the measured ones: an importer with
+  no row selects nobody and no longer voids what the chain beside it selects. A
+  file known under two names, its source and its built twin, is answered when
+  either name has a row, and each name selects the tests recorded under it.
+
+  A bumped package is never `unread`. It is walked to every file that imports it
+  at any distance; the measured ones select their tests, and one the record never
+  measured selects nothing. Declaring that file as a precondition does not change
+  this: a precondition selects on a change to the declared file's own text, not on
+  a bump beneath it.
+
+  `variance select` compares the install. It reads the lockfile at the diff's base
+  and in the working tree, answers a bumped package through the files that import
+  it, and declines to narrow when the lockfile cannot be compared. The lockfile
+  and `package.json` are left out of `unread`, because the comparison has already
+  said what moved. `variance run --since` reads the execution journal after the
+  baselines and the file graph, and narrows past their whole-suite answers, except
+  after a change to a `source.before` entry or an install it could not compare:
+  the journal never saw either, so the run stays whole.
+
+  `foldTestCoverage` keeps the instrumented rows where shards disagree about
+  whether a module could be read. The tests another shard watched run that module
+  keep their crossings and stay whole, rather than being demoted to incomplete and
+  running at every selection; the tests that loaded the uninstrumented copy
+  already declare it as a precondition.
+
+  A workspace package imported only with `import type` is not a runtime import.
+  The native scan records a package edge beside an unresolved bare specifier, with
+  the kind it was read as, the way the JavaScript scan does, so a caller bridging
+  workspace specifiers can tell an erased import from a loaded one. The record
+  cache is discarded once, so a record the native scan wrote without those edges
+  is read again rather than reused.
+- c9a35ca: `@variance-authority/core/relate` exports are renamed, and the old names are removed
+
+  The old names are removed, not kept as aliases:
+
+  | Was | Is |
+  |---|---|
+  | `movedBy` | `affectedBy` |
+  | `Reached` | `Affected` |
+  | `MovedOptions` | `AffectedOptions` |
+  | `movedBefore` | `changedBefore` |
+  | `Reach` | `Traversal` |
+  | `ReachOptions` | `TraversalOptions` |
+  | `Reach.reached` | `Traversal.nodes` |
+  | `Reached.reach` | `Affected.traversal` |
+
+  `dependentsOf` and `dependenciesOf` return a `Traversal`, and `trailOf` takes
+  one as its argument.
+- 8adc864: Code that runs when a module loads no longer counts as covered by every test in the file
+
+  A module's top level runs once per test file, while whichever test is running
+  at the time. Before, every test in the file was recorded as covering it, so
+  each line at module scope looked as covered as the function bodies in that
+  module. The record now marks such a region as loaded and lists no test as
+  covering it. `variance covering` works out, from the import graph, which tests
+  loaded it, and leaves out test files that mock the module. When no import graph
+  names a recorded test, for example a module that runs in the page and that a
+  browser spec never imports, `variance covering` prints no tests for it rather
+  than an empty list.
+
+  Recordings written by an earlier version still read. Their module-scope regions
+  are marked as loaded when the recording already said so, and are unmarked
+  otherwise.
+- 03984ae: A file whose imports could not all be read no longer widens selection
+
+  A `require(name)` or `import('./' + name)` has no written target. The walk uses
+  the edges that were read in such a file, and the recorded run answers the one
+  that was not: the module loads under the test however it was named.
+  `affectedBy` seeds only the changed files, the closure digest does not mark such
+  a file volatile, and it does not void a deviation baseline.
+
+  Removed, not kept as aliases: `Affected.opaque`, `Hole`, `ReachReport.opaque`,
+  `ReachHole` and `ReachedComponent.throughUnread`.
+
+### Patch Changes
+
+- 8adc864: `variance covering --since` resolves a symlinked `--root`
+
+  `variance covering --since` resolves a symlinked `--root` before making paths
+  relative to it, so changed paths no longer print as `../../private/var/...`.
+- 8adc864: `--no-git` reads source from disk, and a scan no longer makes Git fetch in a partial clone
+
+  `variance select` and `variance reach` take `--no-git`: source is read from the
+  disk rather than from Git's object store, and Git still supplies the diff. The
+  scan walks directories instead of Git's list of tracked files, and cached parse
+  results, which are keyed by Git object names, are not reused.
+
+  Without the flag, a file whose object is missing from the local Git store is
+  read from the disk. Before, in a partial clone, reading it made Git fetch the
+  object from the remote.
+- 1b4c0db: A recording made from a package is found from the repository root
+
+  The coverage snapshot, the module-name table and every record store are now kept
+  under the repository the directory you pass sits in, not under that directory
+  itself. The recorders already wrote there. The readers — `variance select`,
+  `variance covering`, the recording position `variance run` reports, and
+  `testCoverageFile(root)` itself — used
+  the directory they were given, so a suite recorded from a package-level config
+  read as unrecorded from anywhere but that package, and a run from the package
+  could not find a recording made from the root. `repositoryLayers(root)`, exported
+  from `@variance-authority/sense/test-selection`, returns the directories a record
+  of that repository lives in. The source index is still kept per scan root.
+- 8f65bcf: `variance select` and `variance covering --since` build the file graph, so a change inside a module a test mocked, or behind that mock, no longer selects that test.
+
 ## 0.5.10
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

@@ -1,5 +1,215 @@
 # @variance-authority/sense
 
+## 0.6.0
+
+### Minor Changes
+
+- 1b4c0db: A changed file the record has no row for no longer runs the whole suite
+
+  A changed path the record has no row or declaration for, and the graph does not
+  list — a README, a fixture a test reads with `fs`, a script a test spawns — is
+  listed in `unread` and selects nothing by itself. `unread` is a report: the skip
+  list is `whole` less `entered` whatever it lists. `variance select` and
+  `variance run --since` name those paths on stderr, and `variance select --format
+  json` lists them under `unread`. A file the suite rests on without importing it
+  goes in the `preconditions` option of the Vitest, Jest or Rstest integration,
+  and a change to it then selects every test that declared it.
+
+  A changed module with no instrumented row under any of its names — one the
+  recording did not instrument, or one added since it — is walked to the files
+  that import it along every runtime edge, never `type`, and each chain stops at
+  the first test file or instrumented module it reaches. A module with a row but
+  no probes is walked past, and the tests that declare it are selected. A test
+  that mocked the changed module, or a file between it and the row, is cut. A
+  stylesheet, image or JSON file is walked along `asset` edges, as before.
+
+  Each importer answers for itself. A changed file whose importers the record
+  measured only in part selects the tests of the measured ones: an importer with
+  no row selects nobody and no longer voids what the chain beside it selects. A
+  file known under two names, its source and its built twin, is answered when
+  either name has a row, and each name selects the tests recorded under it.
+
+  A bumped package is never `unread`. It is walked to every file that imports it
+  at any distance; the measured ones select their tests, and one the record never
+  measured selects nothing. Declaring that file as a precondition does not change
+  this: a precondition selects on a change to the declared file's own text, not on
+  a bump beneath it.
+
+  `variance select` compares the install. It reads the lockfile at the diff's base
+  and in the working tree, answers a bumped package through the files that import
+  it, and declines to narrow when the lockfile cannot be compared. The lockfile
+  and `package.json` are left out of `unread`, because the comparison has already
+  said what moved. `variance run --since` reads the execution journal after the
+  baselines and the file graph, and narrows past their whole-suite answers, except
+  after a change to a `source.before` entry or an install it could not compare:
+  the journal never saw either, so the run stays whole.
+
+  `foldTestCoverage` keeps the instrumented rows where shards disagree about
+  whether a module could be read. The tests another shard watched run that module
+  keep their crossings and stay whole, rather than being demoted to incomplete and
+  running at every selection; the tests that loaded the uninstrumented copy
+  already declare it as a precondition.
+
+  A workspace package imported only with `import type` is not a runtime import.
+  The native scan records a package edge beside an unresolved bare specifier, with
+  the kind it was read as, the way the JavaScript scan does, so a caller bridging
+  workspace specifiers can tell an erased import from a loaded one. The record
+  cache is discarded once, so a record the native scan wrote without those edges
+  is read again rather than reused.
+- c9a35ca: `@variance-authority/core/relate` exports are renamed, and the old names are removed
+
+  The old names are removed, not kept as aliases:
+
+  | Was | Is |
+  |---|---|
+  | `movedBy` | `affectedBy` |
+  | `Reached` | `Affected` |
+  | `MovedOptions` | `AffectedOptions` |
+  | `movedBefore` | `changedBefore` |
+  | `Reach` | `Traversal` |
+  | `ReachOptions` | `TraversalOptions` |
+  | `Reach.reached` | `Traversal.nodes` |
+  | `Reached.reach` | `Affected.traversal` |
+
+  `dependentsOf` and `dependenciesOf` return a `Traversal`, and `trailOf` takes
+  one as its argument.
+- 8adc864: Code that runs when a module loads no longer counts as covered by every test in the file
+
+  A module's top level runs once per test file, while whichever test is running
+  at the time. Before, every test in the file was recorded as covering it, so
+  each line at module scope looked as covered as the function bodies in that
+  module. The record now marks such a region as loaded and lists no test as
+  covering it. `variance covering` works out, from the import graph, which tests
+  loaded it, and leaves out test files that mock the module. When no import graph
+  names a recorded test, for example a module that runs in the page and that a
+  browser spec never imports, `variance covering` prints no tests for it rather
+  than an empty list.
+
+  Recordings written by an earlier version still read. Their module-scope regions
+  are marked as loaded when the recording already said so, and are unmarked
+  otherwise.
+- 16f6dd6: Recorded file names are relative to the repository root
+
+  The Jest, Vitest and Rstest wrappers, the Playwright reporter and the Storybook
+  collector now name every file relative to the root of the git checkout the run
+  starts in. Before, when the config was inside a package, file names were
+  relative to Jest's `rootDir` or Vitest's `root`. A recording made from
+  `packages/cart` said `src/cart.ts` where a diff says `packages/cart/src/cart.ts`,
+  and the two never matched. `rootDir` and `root` still resolve the config and the
+  relative paths in its options. Outside a git checkout, names are relative to the
+  directory the run starts in.
+
+  A recording that an earlier version made from a package-level config uses the
+  old names, so record it again. `repositoryRoot`, exported from
+  `@variance-authority/sense/test-selection`, returns the directory that file
+  names are relative to.
+- 1b4c0db: The Vitest integration declares the config file it ran under
+
+  The config file Vite loaded, and the local modules it bundled into it, are
+  preconditions of every test the seam records, beside the setup files. An edit to
+  `vitest.config.ts`, or to a module it imports, now selects the whole suite; a
+  package the config imports is read as the install. A configuration that lists
+  projects declares its own file too. Jest and Rstest do not say which config file
+  they loaded, so name it in `preconditions` there.
+- 03984ae: A file whose imports could not all be read no longer widens selection
+
+  A `require(name)` or `import('./' + name)` has no written target. The walk uses
+  the edges that were read in such a file, and the recorded run answers the one
+  that was not: the module loads under the test however it was named.
+  `affectedBy` seeds only the changed files, the closure digest does not mark such
+  a file volatile, and it does not void a deviation baseline.
+
+  Removed, not kept as aliases: `Affected.opaque`, `Hole`, `ReachReport.opaque`,
+  `ReachHole` and `ReachedComponent.throughUnread`.
+
+### Patch Changes
+
+- c92543d: Write the per-case execution index with far less time and memory
+
+  When a Jest or Vitest run records cases, the reporter now writes the index
+  beside the snapshot with the bounded fold, which reads the case journals a
+  slice at a time. On a 200-case run over a thousand ambient modules it takes
+  51 ms and 7 MB of heap, where building the whole index as objects first took
+  440 ms and 158 MB, at the end of the run, when workers have used most of the
+  memory. A late second frame for a case that had already settled is joined into
+  that case, as before. An `executionFile` ending in `.json` is written as it was.
+- 1b4c0db: `import { type X } from './x'` is a runtime import
+
+  A request is `type` only when its statement is written `import type` or
+  `export type`, and a re-export only when every statement naming it is. An import
+  whose names are all marked `type` inline stays a runtime edge, because under
+  `verbatimModuleSyntax` TypeScript emits `import {} from './x'` and the module
+  loads; which setting applies is in a `tsconfig` the scan does not read. Each
+  binding still says it is a type. The JavaScript and native scans agree on this,
+  and the source index moves to version 7, so a parse cached under the old rule
+  is parsed again rather than read.
+- 76fdc4d: A test that mocks a module is no longer selected when that module changes
+
+  `vi.mock` and `jest.mock` without a factory still evaluate the real module so
+  the runner can shape the automock. The recording saw that evaluation, so an
+  edit to a mocked module selected every test that had replaced it. Now, when the
+  file graph carries the taints' shadows, a test is not selected for a module it
+  mocks, or for anything it reaches only through the mock, whatever the record
+  shows it crossing there: the test ran against the mock, and a mock whose shape
+  drifted from the real module is a type error. `coveringChange` takes the graph
+  as `relations` and drops those cases the same way. `auditTaints` reports
+  `shadowed-but-entered` only when the test called into the real module, which is
+  a mock that did not take; loading it to shape the automock is the mock working.
+- 8adc864: `--no-git` reads source from disk, and a scan no longer makes Git fetch in a partial clone
+
+  `variance select` and `variance reach` take `--no-git`: source is read from the
+  disk rather than from Git's object store, and Git still supplies the diff. The
+  scan walks directories instead of Git's list of tracked files, and cached parse
+  results, which are keyed by Git object names, are not reused.
+
+  Without the flag, a file whose object is missing from the local Git store is
+  read from the disk. Before, in a partial clone, reading it made Git fetch the
+  object from the remote.
+- 83409da: A recorded test run spends less time in instrumented code
+
+  The probe in each instrumented region now sets one flag the first time a test
+  runs the region, where it used to increment a counter on every run. A hit costs
+  1.2 to 3.2 ns, down from 2.6 to 4.4 ns. Recordings are byte-identical to the
+  ones earlier versions wrote.
+- fdc698f: Read the collector once per module, which makes recording under Jest much faster
+
+  Jest runs each test file inside a `vm` context. Every global read there passes
+  through an interceptor, and the probe read `globalThis.__VA__` on every hit.
+  Now each instrumented module reads it once and keeps it. On the same loop in a
+  `vm` context, 729 ms of probing drops to 12 ms or less. That read was most of
+  what recording cost under Jest, and it was the likeliest reason recorded cases
+  ran past their timeouts. Vitest runs in the main realm and gains nothing
+  measurable.
+
+  A collector must now keep the object on `globalThis.__VA__` for the life of the
+  realm, and redirect counts through its `s` resolver instead of replacing it.
+  Every collector shipped in this package now does. Jest's transform cache now keys
+  on the probe text as well, so the first run after the upgrade instruments again
+  rather than serving the old probe from cache.
+- 1b4c0db: A recording made from a package is found from the repository root
+
+  The coverage snapshot, the module-name table and every record store are now kept
+  under the repository the directory you pass sits in, not under that directory
+  itself. The recorders already wrote there. The readers — `variance select`,
+  `variance covering`, the recording position `variance run` reports, and
+  `testCoverageFile(root)` itself — used
+  the directory they were given, so a suite recorded from a package-level config
+  read as unrecorded from anywhere but that package, and a run from the package
+  could not find a recording made from the root. `repositoryLayers(root)`, exported
+  from `@variance-authority/sense/test-selection`, returns the directories a record
+  of that repository lives in. The source index is still kept per scan root.
+- 8adc864: Coverage from two builds that divide a file into different regions is recorded against the regions both have
+
+  Two transforms of the same source can divide it into regions differently, so a
+  region number from one build names a different region in the other.
+  `variance journeys stitch` refused such shards, and folding them recorded
+  coverage against the wrong region. Now a region that only one build has is
+  recorded against the smallest containing region that every build has, or
+  against the whole file when there is none. A changed line there selects every
+  test that ran the containing region: the selection is wider, and it does not
+  miss a test. `variance journeys finalize` and `stitch` print the files this
+  applies to.
+
 ## 0.5.10
 
 ### Patch Changes

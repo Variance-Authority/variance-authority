@@ -1,5 +1,7 @@
 # @variance-authority/sense-win32-x64-msvc
 
+## 0.6.0
+
 ## 0.5.10
 
 ## 0.5.9

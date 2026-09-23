@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/session",
-  "version": "0.5.10",
+  "version": "0.6.0",
   "description": "Run many Variance Authority subjects in one standing DOM world, and detect cross-pollution rather than prevent it.",
   "keywords": [
     "variance-authority",
