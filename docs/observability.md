@@ -131,12 +131,15 @@ export default {
 };
 ```
 
-`testSelectionProbes(options?: TestSelectionProbeOptions)` takes four optional
+`testSelectionProbes(options?: TestSelectionProbeOptions)` takes five optional
 fields: `root` (a directory in the repository, defaults to the current directory;
 recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `label` (defaults to
-`build`, and separates two bundlers over one repository), and `cacheRoot` (where
-the module records go, defaulting to the user cache). Give a Storybook preview
+`build`, and separates two bundlers over one repository), `cacheRoot` (where
+the module records go, defaulting to the user cache), and `mode` (`presence`,
+the default, probes every arrival region; `entries` probes modules and functions
+only). Every seam that shares a coverage file needs the same `mode`: a record
+cut by one mode is discarded when the other merges over it. Give a Storybook preview
 and the application a Playwright suite drives different labels — one label for
 both answers a block ordinal with whichever build wrote its inventory last.
 
