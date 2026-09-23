@@ -148,7 +148,7 @@ variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]]
 variance reach   --since <ref> [--format plain|json] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
@@ -206,6 +206,11 @@ question and return it through `Sourced.tree` only then.
 editor, watcher, or CI step already knows changed. It is producer input: an
 empty file states that nothing changed, it replaces Git status discovery, and
 it cannot be combined with `--just-answer`.
+
+`--format json` prints `search` as data: the query, the area, and the
+`published`, `exported` and `loose` sections, each with its `total` and the
+rows `shown`. The generation is the `generatedAt` field rather than a footer
+line. Every other question answers in text and refuses the flag by name.
 
 ### Ask: the agent answers, without an agent protocol
 

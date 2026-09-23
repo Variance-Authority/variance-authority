@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
-import { answerSearch, type Help } from '@variance-authority/help/tools';
-import type { Tool, Tree } from '@variance-authority/mcp/tools';
+import { answerSearch, type Help, type SearchAnswer, searchIndexOf, searchNames } from '@variance-authority/help/tools';
+import { startPointArg, stringArg, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
@@ -21,7 +21,16 @@ import { scanCacheRoot } from './resources.js';
 /** A source answer not yet given, and the generation it will be given from. */
 export interface Answering {
   readonly answer: () => string;
+  /** The answer as data, for the one question that has a shape: `search`. */
+  readonly data?: () => SearchAnswer;
   readonly at: string | undefined;
+}
+
+/** The question `search` was asked, read off the input its schema accepted. */
+function searchQuestion(input: Readonly<Record<string, unknown>>) {
+  const from = startPointArg(input, 'from');
+  const to = startPointArg(input, 'to');
+  return { query: stringArg(input, 'query'), ...(from === undefined ? {} : { from }), ...(to === undefined ? {} : { to }) };
 }
 
 export async function wholeSource(
@@ -34,6 +43,7 @@ export async function wholeSource(
   const tree = reading.tree === true ? sourced.tree?.() : undefined;
   return {
     answer: () => tool.run(sourced.help, input, tree === undefined ? undefined : { tree }),
+    data: () => searchNames(searchIndexOf(sourced.help), searchQuestion(input), tree),
     at: workspaceGeneration(sourced.help),
   };
 }
@@ -51,7 +61,11 @@ export async function searchSource(
     ...(options.justAnswer === true ? { justAnswer: true } : {}),
     ...(options.tree === true ? { tree: (drawn: Tree) => { tree = drawn; } } : {}),
   });
-  return { answer: () => answerSearch(index, input, tree), at: index.generation?.generatedAt };
+  return {
+    answer: () => answerSearch(index, input, tree),
+    data: () => searchNames(index, searchQuestion(input), tree),
+    at: index.generation?.generatedAt,
+  };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import { ask, askSearch, inputFrom, toolNamed, verbs } from './ask.js';
+import { ask, askSearch, askSearchJson, inputFrom, toolNamed, verbs } from './ask.js';
 import { readWorkspaceForAnswer } from './read.js';
 import { readSearchForAnswer } from './search-read.js';
 import { search } from './tools/search.js';
@@ -26,7 +26,7 @@ import { writePages } from './write.js';
  */
 
 const USAGE = [
-  'usage: variance-authority-help <verb> [argument] [--root <dir>] [--just-answer]',
+  'usage: variance-authority-help <verb> [argument] [--root <dir>] [--just-answer] [--format text|json]',
   '       variance-authority-help [root] [--just-answer]',
   '       variance-authority-help write [root] [--out <dir>] [--base <url>]',
   '',
@@ -35,6 +35,7 @@ const USAGE = [
   '',
   '  --root  The workspace to read. Default: the working directory.',
   '  --just-answer  Use the last published generation without inspecting the checkout.',
+  '  --format json  Answer `search` as data rather than text.',
   '',
   'Or:',
   '  serve  Answer all six over MCP on stdio. The default with no verb.',
@@ -73,11 +74,15 @@ function asking(word: string | undefined): boolean {
   }
 }
 
-/** `--root` and its value, removed so what is left is the verb's own arguments. */
+/** One flag and its value, removed. */
+function without(args: readonly string[], name: string): readonly string[] {
+  const at = args.indexOf(name);
+  return at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
+}
+
+/** `--root`, `--format` and their values, removed so what is left is the verb's own arguments. */
 function withoutRoot(args: readonly string[]): readonly string[] {
-  const at = args.indexOf('--root');
-  const rooted = at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
-  return rooted.filter((argument) => argument !== '--just-answer');
+  return without(without(args, '--root'), '--format').filter((argument) => argument !== '--just-answer');
 }
 
 const [, , ...args] = process.argv;
@@ -98,6 +103,9 @@ if (asking(verb) && verb !== undefined) {
     // as it does over MCP, without walking the repository a second time.
     const ownArgs = withoutRoot(rest);
     const tool = toolNamed(verb);
+    const format = flag(args, 'format') ?? 'text';
+    if (format !== 'text' && format !== 'json') throw new Error(`--format must be text or json, not \`${format}\``);
+    if (format === 'json' && tool !== search) throw new Error(`\`${verb}\` answers in text only; \`--format json\` is taken by \`search\``);
     const wantsTree = tool.wants?.(inputFrom(tool, ownArgs)) === true;
     let tree: Tree | undefined;
     const reading = {
@@ -106,7 +114,7 @@ if (asking(verb) && verb !== undefined) {
     };
     // `search` opens the file published for it rather than the whole value.
     const answer = tool === search
-      ? askSearch(await readSearchForAnswer(root, reading), ownArgs, () => tree)
+      ? (format === 'json' ? askSearchJson : askSearch)(await readSearchForAnswer(root, reading), ownArgs, () => tree)
       : ask(await readWorkspaceForAnswer(root, reading), verb, ownArgs, () => tree);
 
     process.stdout.write(`${answer}\n`);

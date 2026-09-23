@@ -1,8 +1,10 @@
 import { HELP_TOOLS } from './tools.js';
 import type { Tool, Tree } from '@variance-authority/mcp/tools';
+import { startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
+import { searchNames } from './tools/search-answer.js';
 import { answerSearch, search } from './tools/search.js';
 
 /**
@@ -104,6 +106,17 @@ export function ask(
   const answer = tool.run(help, input, tree === undefined ? undefined : { tree });
   const at = workspaceGeneration(help);
   return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+}
+
+/** The same answer as data: the generation is a field, and absent when unknown. */
+export function askSearchJson(index: SearchIndex, args: readonly string[], walk?: () => Tree | undefined): string {
+  const input = inputFrom(search, args);
+  const tree = search.wants?.(input) === true ? walk?.() : undefined;
+  const from = startPointArg(input, 'from');
+  const to = startPointArg(input, 'to');
+  const answer = searchNames(index, { query: stringArg(input, 'query'), from, to }, tree);
+  const at = index.generation?.generatedAt;
+  return JSON.stringify({ ...answer, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2);
 }
 
 /** `search`, answered from its published index rather than the whole value. */

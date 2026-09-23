@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { countOf, type Flags } from './args.js';
+import { OperatorError } from './exit.js';
 
 /**
  * `variance ask` on the command line: argv into the shape one question takes.
@@ -106,6 +107,11 @@ export interface ParsedAsk {
    * and would otherwise be the second place a default lives.
    */
   readonly at?: string;
+  /**
+   * `--format json`: the answer as data rather than prose. Only `search` has a
+   * shape to give; `text` is the default and is never carried.
+   */
+  readonly format?: 'json';
   /** Reports to read instead of the configured one. More than one is merged. */
   readonly reports: readonly string[];
 }
@@ -140,6 +146,10 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
   const justAnswer = flags.present.has('--just-answer');
   const limit = countOf(flags.values.get('--limit'), 'tests to list');
   const at = flags.values.get('--at');
+  const format = flags.values.get('--format') ?? 'text';
+  if (format !== 'text' && format !== 'json') {
+    throw new OperatorError(`--format must be text or json, not \`${format}\``);
+  }
 
   return {
     command: 'ask',
@@ -166,6 +176,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(justAnswer ? { justAnswer: true as const } : {}),
     ...(limit !== undefined ? { limit } : {}),
     ...(at !== undefined ? { at } : {}),
+    ...(format === 'json' ? { format } : {}),
     reports: reports.map((path) => resolve(path)),
   };
 }

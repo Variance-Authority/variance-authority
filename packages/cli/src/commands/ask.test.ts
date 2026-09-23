@@ -212,6 +212,23 @@ describe('a question about the code', () => {
     ).rejects.toThrow('`--subject` is not an argument');
   });
 
+  it('answers `search` as data when asked for json', async () => {
+    const answer = JSON.parse(await askSource({ question: 'search', query: 'box', format: 'json', source: sourced }));
+
+    expect(answer.query).toBe('box');
+    expect(answer.published.shown.map((match: { name: string }) => match.name)).toContain('viewport');
+    expect(answer.published.total).toBeGreaterThanOrEqual(answer.published.shown.length);
+  });
+
+  it('refuses json for a question that has no shape to give', async () => {
+    await expect(askSource({ question: 'symbol', name: 'viewport', format: 'json', source: sourced })).rejects.toThrow(
+      '`symbol` answers in text only',
+    );
+    await expect(ask(asking('/nowhere/report.json', 'summary', { format: 'json' }))).rejects.toThrow(
+      '`summary` answers in text only',
+    );
+  });
+
   it('is not a run question, and says so when asked as one', async () => {
     await expect(askSource({ question: 'summary', source: sourced })).rejects.toThrow('about a run');
   });

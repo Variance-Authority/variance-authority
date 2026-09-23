@@ -57,7 +57,17 @@ export const HELP: Served<Help> = {
 };
 
 export { entrypoint, gaps, packages, search, symbol, uses };
-export { answerSearch } from './tools/search.js';
+export { answerSearch, searchIndexOf } from './tools/search.js';
+export type {
+  ExportedMatch,
+  InArea,
+  Matches,
+  PublishedMatch,
+  SearchAnswer,
+  SearchArea,
+  SearchQuestion,
+} from './tools/search-answer.js';
+export { searchNames } from './tools/search-answer.js';
 export type { Help };
 export { audience, block, importing, line, reach, said } from './tools/format.js';
 export { sharedSegments } from './tools/uses.js';

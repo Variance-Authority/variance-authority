@@ -207,9 +207,10 @@ looked in so you can place the count it gives you.
 ### When the word you typed is not the word that was written
 
 A substring answers the string you gave it and nothing else. Two questions it
-cannot answer at all: a word typed two characters wrong, and two words that are
-both written about a name but not written beside each other — `read span`
-appears in no text anywhere, and the declaration you wanted says both.
+cannot answer at all: a word one character off the name that was written, and
+two words that are both written about a name but not written beside each
+other — `read span` appears in no text anywhere, and the declaration you wanted
+says both.
 
 Those get a third section, and only those. Ask for `numbers order` in this
 repository's own fixture and the substring finds nothing, which is said first:
@@ -428,13 +429,23 @@ one file's run and cannot be flattened into a workspace-wide source tree.
 
 ```ts
 import { readWorkspace } from '@variance-authority/help';
-import { search, symbol } from '@variance-authority/help/tools';
+import { search, searchIndexOf, searchNames, symbol } from '@variance-authority/help/tools';
 
 const workspace = await readWorkspace('.', { save: false });
 
 console.log(search.run(workspace, { query: 'viewport' }));
 console.log(symbol.run(workspace, { name: 'Viewport' }));
+
+const answer = searchNames(searchIndexOf(workspace), { query: 'viewport' });
+console.log(answer.published?.shown[0]?.specifier);
 ```
+
+`searchNames` is the answer `search` prints, as a value: `published`,
+`exported` and `loose` sections, each with a `total` and the rows `shown`. A
+section that was not run is missing rather than empty, and a start point that
+did not resolve returns `refused` with no sections. `variance-authority-help
+search viewport --format json` and `variance ask search --format json` print
+it.
 
 `refreshWorkspace` takes a previous reading and refreshes its volatile half:
 symbol usage, exported names, unreadable files and the source graph all come

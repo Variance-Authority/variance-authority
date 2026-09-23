@@ -55,7 +55,7 @@ function reference(query: string): ReadonlySet<string> {
   });
   const names = [...held.keys()];
   mini.addAll(names.map((name, id) => ({ id, name, doc: held.get(name) ?? '' })));
-  const hits = mini.search(query, { combineWith: 'AND', fuzzy: 0.2, prefix: true });
+  const hits = mini.search(query, { combineWith: 'AND', fuzzy: 0.2, maxFuzzy: 1, prefix: true });
   return new Set(hits.map((hit) => names[hit.id as number] ?? ''));
 }
 

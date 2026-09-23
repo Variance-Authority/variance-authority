@@ -137,6 +137,8 @@ export interface AskRequest {
   readonly limit?: number;
   /** `--at <address>`: a running watcher, instead of the last report. */
   readonly at?: string;
+  /** `--format json`: the answer as data. Only `search` answers in it. */
+  readonly format?: 'json';
   /** The configured report. Names the directory the previous subject is kept in. */
   readonly report: string;
   /** The report to answer from — the configured one, or the shards the operator named. */
@@ -162,7 +164,7 @@ type Flagged = Pick<
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
-export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile'> & {
+export type SourceRequest = Flagged & Pick<AskRequest, 'source' | 'changedFile' | 'taintFile' | 'format'> & {
   readonly question: string;
   readonly justAnswer?: boolean;
 };
@@ -190,6 +192,9 @@ export async function ask(request: AskRequest): Promise<string> {
     const flag = request.changedFile !== undefined ? '--changed-file' : '--taint-file';
     throw new OperatorError(`\`${flag}\` supplies source identity and can only be used with a source question`);
   }
+  if (request.format === 'json') {
+    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
+  }
 
   const input = await inputFrom(question, request);
 
@@ -213,6 +218,11 @@ export async function askSource(request: SourceRequest): Promise<string> {
     throw new OperatorError(`\`${request.question}\` is about a run, not the source; ask it of a report`);
   }
 
+  // Refused before anything is read: a question that has no shape to give
+  // would otherwise answer in prose to a caller about to parse it.
+  if (request.format === 'json' && tool.name !== search.name) {
+    throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\``);
+  }
   const input = inputFor(tool, flagged(request));
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
@@ -237,8 +247,14 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
   // under it, the one useful line is the one a reader cannot find.
   try {
-    const answer = answering.answer();
     const at = answering.at;
+    if (request.format === 'json') {
+      // The generation is carried as a field rather than a footer line, and is
+      // absent when the reading could not say when it was made.
+      const data = answering.data?.();
+      return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
+    }
+    const answer = answering.answer();
     return `${at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`}\n`;
   } catch (refusal) {
     throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });

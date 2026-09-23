@@ -91,6 +91,7 @@ npx variance ask composition              # what explains each movement; flake v
 npx variance ask describe --subject <id>  # one subject: regions, components, files, fingerprints
 npx variance ask locate --query "<words>" # the subject you can only describe, by the names the run saw
 npx variance ask search --query "<word>"  # the exported name you can only describe, by the source; no run needed
+npx variance ask search --query "<word>" --format json  # the same answer as data: specifier, file, line, counts
 ```
 
 `summary` is the shape of every answer — counts, then the subjects that need

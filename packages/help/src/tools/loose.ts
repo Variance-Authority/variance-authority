@@ -7,19 +7,25 @@ import { termsOf } from '../search-index.js';
  * This answers the set MiniSearch answered when the pass built an index per
  * question: every held name tokenized with MiniSearch's default tokenizer, terms
  * shorter than two dropped and the rest lowercased, then `combineWith: 'AND'`,
- * `prefix: true` and `fuzzy: 0.2`. Each query term is satisfied by any
- * dictionary term equal to it, starting with it, or within
- * `round(0.2 × length)` edits of it (at most six); a name is in the answer
- * when every query term is satisfied by its name or by the doc of a published
- * row the area admits.
+ * `prefix: true`, `fuzzy: 0.2` and `maxFuzzy: 1`. Each query term is satisfied
+ * by any dictionary term equal to it, starting with it, or one edit from it
+ * when the term is three characters or longer; a name is in the answer when
+ * every query term is satisfied by its name or by the doc of a published row
+ * the area admits.
+ *
+ * One edit, because the caller is an agent. An agent copies a name; it does
+ * not mistype one. What it gets wrong is a letter of a name it recalled from
+ * elsewhere: a plural, a case, one character. A wider budget answers a
+ * human's slip and costs every agent a longer list of names it did not mean,
+ * and a typo in the code is fixed in the code, not searched around.
  *
  * Only membership was ever read from MiniSearch — the tool orders what it
  * returns by its own rules — so scores are not reproduced. `loose.test.ts`
  * holds the two to the same sets.
  */
 
-/** MiniSearch's `maxFuzzy` default. */
-const MAX_FUZZY = 6;
+/** The most edits a term may be from what was asked: one character. */
+const MAX_FUZZY = 1;
 
 /** How far a term may be from what was typed, as MiniSearch computes it. */
 export function editsAllowed(term: string, fuzzy: number): number {

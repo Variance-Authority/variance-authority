@@ -153,6 +153,19 @@ by how much path it shares with `--from`; `entrypoint` lists what one import
 specifier opens; `gaps` lists the published names anybody imports that nothing
 documents.
 
+To read the answer as data, add `--format json`:
+
+```bash
+variance ask search --query viewport --from packages/app/ --format json
+```
+
+Each section has a `total`, which counts every match, and `shown`, which holds
+the rows the text would print. A published row carries `specifier`, `at`, the
+first paragraph of its documentation as `summary`, and `inArea` when you gave a
+start point. An exported row carries `at` and `line`. A section that was not run
+is missing: `loose` is present only when the other two are empty, and a refused
+start point returns `refused` with no sections. Only `search` answers in JSON.
+
 These questions read the checkout under the working directory and nothing else:
 no report has to exist and `variance.config.json` is not opened. `--from` and
 `--to` mean what they mean on `locate` — a path in the source tree, answered

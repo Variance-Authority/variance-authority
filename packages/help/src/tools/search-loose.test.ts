@@ -9,8 +9,8 @@ import { search } from './search.js';
 /**
  * What the loose pass may do, and the two things it may never do.
  *
- * It exists for the queries a substring cannot answer at all: a word typed
- * wrong, and two words written about a name but not written beside each other.
+ * It exists for the queries a substring cannot answer at all: a word one
+ * character off a name, and two words written about a name but not written beside each other.
  * Everything else about it is a restriction — it may not reorder the answer, it
  * may not reach outside the area, and it may not print when it has nothing to
  * add — so most of what is asserted here is an absence.
@@ -47,6 +47,14 @@ describe('a name the substring cannot reach', () => {
     expect(text).toContain('loosely');
     // The fact about the substring is still told, whole, above the offer.
     expect(text).toContain('Nothing in this repository is named or documented with `meesure`');
+  });
+
+  it('allows one character off a long word, and not two, because an agent does not mistype', () => {
+    // `behind` is documented *Only reachable through a second door.*
+    expect(ask({ query: 'reachible' })).toContain('behind [const]');
+    const swapped = ask({ query: 'raechable' });
+    expect(swapped).toContain('Nothing in this repository is named or documented with `raechable`');
+    expect(swapped).not.toContain('loosely');
   });
 
   it('answers two words that are written apart', () => {
