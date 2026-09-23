@@ -5,6 +5,7 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { findModules } from './lookup.js';
 import { changedLines, type LineRange } from './diff-lines.js';
 import { bindsOnly } from './inert.js';
+import { disownedIn } from './shadowed.js';
 
 export type { ExecutionNarrowingOptions, ImporterReason };
 
@@ -173,6 +174,8 @@ function readDiff(
   const governing = new Set<string>();
   const rowed = new Set<string>();
   const stale = new Set<string>();
+  // A test that mocked the module is not its audience, whatever it crossed there (`shadowed.ts`).
+  const disowned = disownedIn(coverage, options.relations);
 
   for (const [file, ranges] of changed) {
     for (const name of knownAs(file)) {
@@ -240,7 +243,7 @@ function readDiff(
             endLine: coverage.blockEnd.at(block),
           };
           for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-            select(test, reason);
+            if (disowned?.(file, test) !== true) select(test, reason);
           }
         }
       }

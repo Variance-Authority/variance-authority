@@ -2380,6 +2380,7 @@
         "InstrumentOptions": "interface",
         "Instrumented": "interface",
         "ModuleId": "type",
+        "PROBE_RUNTIME": "const",
         "instrument": "function",
         "instrumentModeOf": "function",
         "instrumentationId": "function"
@@ -2397,6 +2398,7 @@
         "CoverageTest": "interface",
         "CoveringChange": "interface",
         "CoveringChangeHeading": "interface",
+        "CoveringChangeOptions": "interface",
         "CoveringRegion": "interface",
         "CoveringTest": "interface",
         "DeviationOptions": "interface",

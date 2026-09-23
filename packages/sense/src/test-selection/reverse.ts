@@ -1,3 +1,6 @@
+import type { Relations } from '@variance-authority/core/relate';
+import { shadowedFor, type ShadowedFor } from './shadowed.js';
+
 export interface ExecutionTest {
   /** Stable producer identity; names are not required to be unique. */
   readonly id: string;
@@ -238,6 +241,18 @@ export interface CoveringChange {
   readonly cases: readonly ExecutionTest[];
 }
 
+export interface CoveringChangeOptions {
+  /**
+   * The file graph, carrying the taints' shadows (`relationsOfFiles(records, { shadows })`).
+   *
+   * A case whose file mocked the changed module, or reaches it only through a
+   * mock, is neither a test nor a passenger there: it ran against the mock, and
+   * nothing in the real module's text reaches it. Without the graph every
+   * crossing stands, which is the record as written.
+   */
+  readonly relations?: Relations;
+}
+
 /**
  * Join a diff to the cases that went where it changed.
  *
@@ -254,7 +269,9 @@ export interface CoveringChange {
 export function coveringChange(
   index: ExecutionIndex,
   changed: ReadonlyMap<string, readonly { readonly start: number; readonly end: number }[]>,
+  options: CoveringChangeOptions = {},
 ): readonly CoveringChange[] {
+  const shadowed = shadowedFor(options.relations);
   const modules = new Map(index.modules.map((module) => [module.file, module]));
   const declared = new Map<string, ExecutionTest[]>();
   for (const test of index.tests) {
@@ -272,6 +289,7 @@ export function coveringChange(
       continue;
     }
 
+    const owned = ownedIn(index, module, shadowed);
     const regions = module.blocks
       .filter((block) =>
         block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
@@ -281,11 +299,29 @@ export function coveringChange(
         name: block.name,
         startLine: block.startLine,
         endLine: block.endLine,
-        tests: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => crossing.loaded !== true) }]),
-        passengers: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => crossing.loaded === true) }]),
+        tests: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded !== true) }]),
+        passengers: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded === true) }]),
       }));
 
     answers.push({ file, recorded: true, regions, cases });
   }
   return answers;
+}
+
+/**
+ * Whether a crossing in this module belongs to its case.
+ *
+ * A case whose file mocked the module, or reaches it only through a mock, holds
+ * none of its crossings there, whatever they were. See `shadowed.ts`.
+ */
+function ownedIn(
+  index: ExecutionIndex,
+  module: ExecutionModule,
+  shadowed: ShadowedFor | undefined,
+): (crossing: ExecutionCrossing) => boolean {
+  if (shadowed === undefined) return () => true;
+  return (crossing) => {
+    const file = index.tests[crossing.test]?.file;
+    return file === undefined || !shadowed(file).has(module.file);
+  };
 }

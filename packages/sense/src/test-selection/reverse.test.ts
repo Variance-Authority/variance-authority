@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { relationsOfFiles } from '@variance-authority/core/relate';
 import {
   coveringChange,
   coveringTests,
@@ -206,6 +207,31 @@ describe('coveringChange', () => {
 
     expect(file?.regions[0]?.tests.map((test) => test.id)).toEqual(['guest']);
     expect(file?.regions[0]?.passengers.map((test) => test.id)).toEqual(['other-staff']);
+  });
+
+  it('drops every case whose file mocked the module, whatever it crossed there', () => {
+    // Both test files mock `total.ts`. `other.test.ts` was only on the blocks
+    // while the runner evaluated the real module to shape its automock;
+    // `cart.test.ts` called in, which is a mock that did not take and still not
+    // the module's audience.
+    const mocked = ['test/cart.test.ts', 'test/other.test.ts'];
+    const relations = relationsOfFiles(
+      [{ file: 'src/cart/total.ts' }, ...mocked.map((file) => ({ file, edges: [{ to: 'src/cart/total.ts', kind: 'imports' as const }] }))],
+      { shadows: new Map(mocked.map((file) => [file, ['src/cart/total.ts']])) },
+    );
+    const [file] = coveringChange({
+      tests: index.tests,
+      modules: [{
+        file: 'src/cart/total.ts',
+        blocks: [{
+          kind: 'function', name: 'priceOf', path: 'entry', startLine: 1, endLine: 10, source: true,
+          crossings: [{ test: 0, distance: 2 }, { test: 1, distance: 0, loaded: true }, { test: 2, distance: 0, loaded: true }],
+        }],
+      }],
+    }, changed('src/cart/total.ts', 4, 4), { relations });
+
+    expect(file?.regions[0]?.tests).toEqual([]);
+    expect(file?.regions[0]?.passengers).toEqual([]);
   });
 
   it('reports a changed region no case entered rather than leaving it out', () => {

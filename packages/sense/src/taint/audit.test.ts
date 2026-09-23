@@ -43,10 +43,35 @@ describe('the taint audit', () => {
     expect(auditTaints(coverage, relations, { shadows, additions })).toEqual([]);
   });
 
-  it('names a shadowed module the test entered anyway', () => {
+  it('names a shadowed module the test called into anyway', () => {
     const coverage = record({
       'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
-      'src/api.ts': [block(['src/plain.test.ts'], ['src/card.test.ts'])],
+      'src/api.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
+    });
+
+    expect(auditTaints(coverage, relations, { shadows, additions })).toEqual([
+      { test: 'src/card.test.ts', module: 'src/api.ts', kind: 'shadowed-but-entered' },
+    ]);
+  });
+
+  it('says nothing of a shadowed module the test only loaded, which is how an automock is shaped', () => {
+    // The runner evaluated the real `api.ts` to learn its export shape, so the
+    // test is on its blocks — as a loader. It ran against the mock.
+    const coverage = record({
+      'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
+      'src/api.ts': [block(['src/card.test.ts', 'src/plain.test.ts'], ['src/card.test.ts'])],
+    });
+
+    expect(auditTaints(coverage, relations, { shadows, additions })).toEqual([]);
+  });
+
+  it('names a shadowed module once one region was called, however many were only loaded', () => {
+    const coverage = record({
+      'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
+      'src/api.ts': [
+        block(['src/card.test.ts', 'src/plain.test.ts'], ['src/card.test.ts']),
+        block(['src/card.test.ts']),
+      ],
     });
 
     expect(auditTaints(coverage, relations, { shadows, additions })).toEqual([
@@ -95,7 +120,7 @@ describe('the taint audit', () => {
   it('names the taints whose word the record disagrees with', () => {
     const coverage = record({
       'src/card.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
-      'src/api.ts': [block(['src/plain.test.ts'], ['src/card.test.ts'])],
+      'src/api.ts': [block(['src/card.test.ts', 'src/plain.test.ts'])],
     });
     const shadowedBy = new Map([['src/card.test.ts', new Map([['src/api.ts', ['hand', 'mocks']]])]]);
 

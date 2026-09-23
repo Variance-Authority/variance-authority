@@ -5,8 +5,11 @@
  * Where the two are both present they can be held against each other, and
  * every disagreement is a fact about one of them:
  *
- * - a module a test shadows, and the record says the test entered — the taint
- *   is wrong about that mock, or the mock did not take;
+ * - a module a test shadows, and the record says the test called into it — the
+ *   taint is wrong about that mock, or the mock did not take. Loading is not
+ *   calling: a runner evaluates the real module to shape an automock, and a
+ *   test whose only crossings there were made while loading ran against the
+ *   mock, which is the taint being right;
  * - a module the test reaches on the graph with none of its shadows in the
  *   way, and the record says nobody entered it for that test — an import the
  *   run never loaded, or a mock nobody has written a taint for yet;
@@ -75,7 +78,7 @@ export function auditTaints(
   options: TaintAuditOptions = {},
 ): readonly TaintDeviation[] {
   const knownAs = options.knownAs ?? ((file: string) => [file]);
-  const { entered, instrumented: probed } = enteredBy(coverage);
+  const { entered, called, instrumented: probed } = enteredBy(coverage);
   const found: TaintDeviation[] = [];
   const say = (
     test: string,
@@ -91,11 +94,13 @@ export function auditTaints(
     const test = observation.file;
     const seen = entered.get(test) ?? new Set<string>();
     const sees = (module: string): boolean => knownAs(module).some((name) => seen.has(name));
+    const ran = called.get(test) ?? new Set<string>();
+    const calls = (module: string): boolean => knownAs(module).some((name) => ran.has(name));
     const instrumented = (module: string): boolean => knownAs(module).some((name) => probed.has(name));
 
     const shadows = tainted.shadows.get(test) ?? [];
     for (const module of shadows) {
-      if (sees(module)) say(test, module, 'shadowed-but-entered', tainted.shadowedBy);
+      if (calls(module)) say(test, module, 'shadowed-but-entered', tainted.shadowedBy);
     }
 
     for (const module of tainted.additions.get(test) ?? []) {
@@ -122,25 +127,39 @@ export function auditTaints(
 interface Entered {
   /** Per test, the instrumented modules it entered: by a probe of its own or by loading. */
   readonly entered: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Per test, the instrumented modules it crossed other than while loading them.
+   *
+   * Absence and presence ask different things of the record. Whether a module
+   * the graph reaches was entered at all counts loading, because an import the
+   * run loaded is an import the run followed. Whether a mock took counts only
+   * calls, because loading the real module is how a runner shapes the mock.
+   */
+  readonly called: ReadonlyMap<string, ReadonlySet<string>>;
   /** Every instrumented module the record holds, entered by anyone or not. */
   readonly instrumented: ReadonlySet<string>;
 }
 
 function enteredBy(coverage: TestCoverage): Entered {
   const entered = new Map<string, Set<string>>();
+  const called = new Map<string, Set<string>>();
   const instrumented = new Set<string>();
   for (const module of coverage.modules) {
     if (!module.instrumented) continue;
     instrumented.add(module.file);
     for (const block of module.blocks) {
-      for (const test of [...block.testFiles, ...(block.loadedBy ?? [])]) {
-        const held = entered.get(test) ?? new Set<string>();
-        held.add(module.file);
-        entered.set(test, held);
-      }
+      const loaded = new Set(block.loadedBy ?? []);
+      for (const test of [...block.testFiles, ...loaded]) hold(entered, test, module.file);
+      for (const test of block.testFiles) if (!loaded.has(test)) hold(called, test, module.file);
     }
   }
-  return { entered, instrumented };
+  return { entered, called, instrumented };
+}
+
+function hold(into: Map<string, Set<string>>, test: string, file: string): void {
+  const held = into.get(test) ?? new Set<string>();
+  held.add(file);
+  into.set(test, held);
 }
 
 function byCodeUnit(a: string, b: string): number {

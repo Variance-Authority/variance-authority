@@ -9,6 +9,7 @@ import {
 } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { findModules, findTest, testsGovernedBy } from './lookup.js';
+import { disownedIn } from './shadowed.js';
 
 /**
  * Answering a changed file that can hold no probe from the module that imports
@@ -183,6 +184,9 @@ export function answerByImporters(
     return { selected: new Map(), unread: changed, governed: testsGovernedBy(coverage, [...also]) };
   }
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
+  // A chain that ends at a module a test mocked does not reach
+  // that test, for the reason a region of it does not (`shadowed.ts`).
+  const disowned = disownedIn(coverage, relations);
   // Every test a walk reached, with what reached it — held rather than
   // selected, because whether the chain is worth reporting depends on the
   // preconditions the test carries, and those are not read until the walks have
@@ -240,6 +244,7 @@ export function answerByImporters(
           for (const entered of coverage.crossings.members(set)) {
             if (seen.has(entered)) continue;
             seen.add(entered);
+            if (disowned?.(node.name, entered) === true) continue;
             reached.push({ test: entered, reason, seed });
           }
         }

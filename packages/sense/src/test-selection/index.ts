@@ -37,6 +37,7 @@ export {
   coveringTests,
   coveringTestsInFile,
   type CoveringChange,
+  type CoveringChangeOptions,
   type CoveringRegion,
   type CoveringTest,
   type ExecutionBlock,

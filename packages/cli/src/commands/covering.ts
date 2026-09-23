@@ -269,6 +269,9 @@ async function sinceAnswer(
 
   return {
     since,
+    // TODO: pass `{ relations }` carrying the configured taints' shadows, so a case whose file mocked the
+    // changed module stops being listed under it; needs `relationsFor` with
+    // `source.taints` and `source.before` read from the configuration here, as `run --since` does in `dispatch.ts`.
     changed: coveringChange(index, changed),
     ...(at === undefined ? {} : { at }),
     from,
