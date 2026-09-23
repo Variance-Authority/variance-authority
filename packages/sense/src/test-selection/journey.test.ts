@@ -1,8 +1,6 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executionCollectorSource, testSelectionProbes } from './probes.js';
+import { executionCollectorSource } from './probes.js';
 import { joinObservations, recordExecution } from './journal.js';
 import {
   JOURNEY_COOKIE,
@@ -13,160 +11,28 @@ import {
   journeyReportFrom,
   mintJourney,
   stitchJourneys,
-  type JourneyReport,
+  unsettledScopes,
 } from './journey.js';
-import { RETURN_COOKIE } from '@variance-authority/wire';
-import { listen, type Wire } from '@variance-authority/wire/listen';
 import { selectTestFiles } from './index.js';
+import { INSTRUMENTATION_ID } from '../instrument/index.js';
+import {
+  DOLLAR_LINE,
+  EURO_LINE,
+  LAZY,
+  LAZY_DOLLAR_LINE,
+  LAZY_EURO_LINE,
+  diffAt,
+  evaluate,
+  driver,
+  forget,
+  head,
+  inRoot,
+  record,
+  until,
+} from './__fixtures__/journey-head.js';
 
-/**
- * A module that decides, then awaits, then decides again.
- *
- * The `await` is the whole point. Everything after it is instrumented too, so
- * two callers overlap inside one module rather than merely following each other
- * through it — which is the only arrangement under which a shared counter set
- * gives a crossing to the wrong subject.
- */
-const SOURCE = [
-  'async function later(value) {',
-  '  return value;',
-  '}',
-  'async function currency(locale) {',
-  '  if (locale === "de") {',
-  '    return `${await later(1200)} euros`;',
-  '  }',
-  '  return `${await later(1200)} dollars`;',
-  '}',
-  'globalThis.__head_test_currency = currency;',
-].join('\n');
+afterEach(forget);
 
-const EURO_LINE = 6;
-const DOLLAR_LINE = 8;
-
-/** A module whose top level calls a helper once, the moment it is first needed. */
-const LAZY = [
-  'function label(locale) {',
-  '  if (locale === "de") return "euros";',
-  '  return "dollars";',
-  '}',
-  'globalThis.__head_test_default = label("de");',
-  'globalThis.__head_test_currency = async (locale) => label(locale);',
-].join('\n');
-
-const LAZY_EURO_LINE = 2;
-const LAZY_DOLLAR_LINE = 3;
-
-type Currency = (locale: string) => Promise<string>;
-const unevaluated: Currency = () => Promise.reject(new Error('the module has not been evaluated'));
-
-/** Evaluate the transformed module the way a service's loader would. */
-function evaluate(transformed: string): Currency {
-  new Function(transformed.replace(/^import "[^"]+";/, ''))();
-  return (globalThis as unknown as Record<string, unknown>)['__head_test_currency'] as Currency;
-}
-
-const listening: Wire[] = [];
-
-/**
- * The collector this file found installed, which is the runner's when the suite
- * is instrumenting itself and nothing at all otherwise.
- *
- * A collector that closes puts back what it displaced. One that a test leaves
- * open has to be put back here, because the process outside these tests is
- * still reporting through the global and the next thing to read it is not a
- * fixture.
- */
-const AMBIENT = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
-
-afterEach(async () => {
-  for (const wire of listening.splice(0)) await wire.close();
-  const global = globalThis as unknown as Record<string, unknown>;
-  delete global['__head_test_currency'];
-  if (AMBIENT === undefined) delete global['__VA__'];
-  else Object.defineProperty(globalThis, '__VA__', AMBIENT);
-});
-
-/** What a head answers to, and everything it has said so far. */
-interface Driver {
-  readonly reports: JourneyReport[];
-  /** The `Cookie` header a request driven by this journey carries. */
-  readonly carrying: (journey: string) => string;
-}
-
-async function driver(): Promise<Driver> {
-  const reports: JourneyReport[] = [];
-  const wire = await listen();
-  listening.push(wire);
-  wire.on('journeys', (journey, body) => {
-    const report = journey === undefined ? undefined : journeyReportFrom(journey, body);
-    if (report !== undefined) reports.push(report);
-  });
-  return {
-    reports,
-    carrying: (journey) =>
-      `theme=dark; ${JOURNEY_COOKIE}=${journey}; ${RETURN_COOKIE}=${wire.addressFor(journey)}`,
-  };
-}
-
-async function inRoot(run: (root: string) => Promise<void>): Promise<void> {
-  const root = await mkdtemp(resolve(tmpdir(), 'variance-journey-'));
-  try {
-    await run(root);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-}
-
-function diffAt(file: string, line: number): string {
-  return `--- a/${file}\n+++ b/${file}\n@@ -${line},1 +${line},1 @@\n`;
-}
-
-/** Stitch what the driver heard to its owners, and record the `api` head's part. */
-async function record(
-  root: string,
-  parts: Head,
-  driven: Driver,
-  owners: readonly (readonly [string, string])[],
-): Promise<{ stitched: ReturnType<typeof stitchJourneys>; recorded: Awaited<ReturnType<typeof recordExecution>> }> {
-  const stitched = stitchJourneys({ reports: driven.reports, heads: ['api'], owners: new Map(owners) });
-  const recorded = await recordExecution({
-    root,
-    ...parts.where,
-    subjects: stitched.heads.get('api')!,
-  });
-  return { stitched, recorded };
-}
-
-type HeadOptions = { readonly source?: string; readonly lazy?: boolean };
-
-interface Head {
-  /** What `recordExecution` needs to find this head's records and its index. */
-  readonly where: { readonly cacheRoot: string; readonly label: string; readonly coverageFile: string };
-  readonly currency: Currency;
-  readonly code: string;
-}
-
-/**
- * Instrument the module, install the collector, and evaluate — in that order.
- * `lazy` leaves it unevaluated, for a test that loads it inside a journey.
- */
-async function head(root: string, label = 'build', options: HeadOptions = {}): Promise<Head> {
-  const source = options.source ?? SOURCE;
-  const cacheRoot = resolve(root, 'cache');
-  const module = resolve(root, 'currency.js');
-  await writeFile(module, source, 'utf8');
-  const plugin = testSelectionProbes({ root, label, cacheRoot });
-  const transformed = plugin.transform.call(
-    { getCombinedSourcemap: () => ({ mappings: '' }) },
-    source,
-    module,
-  )!;
-  return {
-    where: { cacheRoot, label, coverageFile: resolve(root, 'coverage.bin') },
-    currency: options.lazy ? unevaluated : evaluate(transformed.code),
-    code: transformed.code,
-  };
-}
 
 describe('a head reports what each journey entered', () => {
   it('keeps two journeys apart while they interleave inside one module', async () => {
@@ -276,17 +142,69 @@ describe('a head reports what each journey entered', () => {
       await collector.close();
 
       const reports = driven.reports;
-      const mine = reports.filter((report) => report.journey === journey);
+      const mine = reports.filter((report) => report.journey === journey && report.opened === undefined);
       expect(mine).toHaveLength(1);
       // Not just the entry block: the resume block after the `await` is in here
       // too, and a drain at the request boundary is what loses it.
       expect(mine[0]!.modules[0]!.hits.length).toBeGreaterThan(1);
       expect(mine[0]!.head).toBe('api');
+      expect(mine[0]!.settled).toBe(1);
+    });
+  });
+
+  it('says a request is open before it settles, so a driver can wait for its account', async () => {
+    await inRoot(async (root) => {
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
+      const parts = await head(root);
+      const journey = mintJourney();
+      let respond = (): void => {};
+      const tail = new Promise<void>((settle) => (respond = settle));
+
+      // The response is long gone by the time this settles, which is the shape
+      // of a streamed body or a write behind.
+      const serving = collector.enter(driven.carrying(journey), async () => {
+        await tail;
+        return parts.currency('de');
+      });
+      await until(() => unsettledScopes(driven.reports).get('api') === 1);
+
+      respond();
+      await serving;
+      await until(() => unsettledScopes(driven.reports).size === 0);
+      const [account] = driven.reports.filter((report) => report.settled === 1);
+      expect(account?.modules.length).toBeGreaterThan(0);
+      await collector.close();
+    });
+  });
+
+  it('closes a request that entered nothing, since the driver cannot tell nothing from not yet', async () => {
+    await inRoot(async () => {
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true });
+      await collector.enter(driven.carrying(mintJourney()), () => undefined);
+      await collector.flush();
+      await until(() => driven.reports.some((report) => report.settled === 1));
+
+      expect(unsettledScopes(driven.reports).size).toBe(0);
+      await collector.close();
     });
   });
 });
 
 describe('a head that was not there', () => {
+  it('refuses the run when a request it said it was serving never reported', () => {
+    const journey = mintJourney();
+    const notice = { version: 1, instrumentation: INSTRUMENTATION_ID, head: 'api', scope: 'journey', opened: 1, modules: [] };
+    const stitched = stitchJourneys({
+      reports: [journeyReportFrom(journey, notice)!],
+      heads: ['api'],
+      owners: new Map([[journey, 'euros.spec.ts']]),
+    });
+    expect(stitched.complete).toBe(false);
+    expect(stitched.because).toContain('head api had 1 request still running');
+  });
+
   it('refuses to let any subject in the run justify an exclusion', async () => {
     await inRoot(async (root) => {
       const driven = await driver();

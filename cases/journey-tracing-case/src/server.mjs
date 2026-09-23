@@ -45,6 +45,12 @@ async function instrumented() {
 
 const { quote } = await instrumented();
 
+// A handler whose work outlives its response, as a streamed body, a write
+// behind or a log flushed after `end()` does. The scope is the request's until
+// what the handler returned settles.
+const tail = Number(process.env.VA_TAIL_MS ?? 0);
+const settled = () => (tail > 0 ? new Promise((done) => setTimeout(done, tail)) : undefined);
+
 const page = `<!doctype html>
 <meta charset="utf-8"><title>pricing</title>
 <main><p data-testid="quote">…</p></main>
@@ -65,9 +71,10 @@ createServer((request, response) => {
         response
           .writeHead(200, { 'content-type': 'text/plain' })
           .end(quote(url.searchParams.get('locale')));
-        return;
+        return settled();
       }
       response.writeHead(200, { 'content-type': 'text/html' }).end(page);
+      return settled();
     }),
   );
 }).listen(Number(process.env.VA_PORT));

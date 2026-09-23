@@ -546,8 +546,10 @@ process's rather than the nearest subject's.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is
-attributed at all. `flush` reports what has accumulated without ending anything;
-`close` restores the global and reports the rest.
+attributed at all. That can be well after the response went out, so the head
+says a scope opened before the body runs and says it settled when it does.
+`flush` reports what has accumulated without ending anything; `close` restores
+the global and reports the rest.
 
 The driver mints the id and the driver joins the reports, because it is the only
 participant that knows `journey -> subject`:
@@ -558,6 +560,7 @@ import {
   journeyReportFrom,
   mintJourney,
   stitchJourneys,
+  unsettledScopes,
   type JourneyReport,
 } from '@variance-authority/sense/journey';
 import { listen } from '@variance-authority/wire/listen';
@@ -574,6 +577,12 @@ const journey = mintJourney(); // one per attempt: a flake and its retry are two
 owners.set(journey, 'checkout.spec.ts');
 // Drive the subject with `wire.addressFor(journey)` on the return cookie.
 
+// A request can still be running after the subject finished. Wait for it, up to
+// a bound you choose.
+const deadline = Date.now() + 5_000;
+while (unsettledScopes(reports).size > 0 && Date.now() < deadline) {
+  await new Promise((resume) => setTimeout(resume, 10));
+}
 const stitched = stitchJourneys({ reports, heads: ['api'], owners });
 
 await recordExecution({
@@ -598,8 +607,9 @@ a health check is not a subject. `mintJourney` produces a UUID and nothing else.
 **A declared head must actually report.** A head is extra setup, and extra setup
 can be forgotten, skipped in one CI job, or fail to start. *The head executed
 nothing* and *the head was not watched* are the two states this cannot confuse,
-so a declared head that reported nothing all run, or one reporting a different
-probe recipe, sets `complete` to false with a `because` you can print, and every
+so a declared head that reported nothing all run, one reporting a different
+probe recipe, or one with a request still open when you stitch, sets `complete`
+to false with a `because` you can print, and every
 subject in the run is recorded incomplete — including the ones the page observed
 perfectly. The crossings are still written and still queryable; what they lose is
 the right to justify a skip, so `narrowByExecution` reports them under `entered`

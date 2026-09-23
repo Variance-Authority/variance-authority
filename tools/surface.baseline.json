@@ -2526,7 +2526,8 @@
         "journeyOf": "function",
         "journeyReportFrom": "function",
         "mintJourney": "function",
-        "stitchJourneys": "function"
+        "stitchJourneys": "function",
+        "unsettledScopes": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",

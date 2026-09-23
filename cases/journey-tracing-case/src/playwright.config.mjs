@@ -12,7 +12,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 export default defineConfig(withTestSelection({
   testDir: './spec',
   outputDir: process.env.VA_RESULTS,
-  workers: 2,
+  workers: Number(process.env.VA_WORKERS ?? 2),
   fullyParallel: true,
   reporter: [['list']],
   use: {
@@ -26,6 +26,7 @@ export default defineConfig(withTestSelection({
     env: {
       VA_PORT: port,
       VA_ROOT: root,
+      VA_TAIL_MS: process.env.VA_TAIL_MS ?? '0',
       // One block, both instruments. Neither value is a path.
       VARIANCE_AUTHORITY_EVENTS: '1',
       VARIANCE_AUTHORITY_JOURNEYS: '1',

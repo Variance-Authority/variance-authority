@@ -43,7 +43,7 @@ if (!BROWSER_AVAILABLE) {
 // A port per invocation, because two of these runs may be in flight at once.
 let next = 4519;
 
-function playwright(work) {
+function playwright(work, env = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [cli, 'test', '--config=src/playwright.config.mjs'], {
       cwd: root,
@@ -56,6 +56,7 @@ function playwright(work) {
         // Keyed by repository, so pointing both at one directory is the whole of
         // what keeps this run out of a developer's own cache.
         XDG_CACHE_HOME: join(work, 'cache'),
+        ...env,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -114,6 +115,25 @@ live('a journey that crosses into a service', () => {
         at('src/spec/euros.spec.mjs'),
       ]);
       expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), dollars))).toEqual([
+        at('src/spec/dollars.spec.mjs'),
+      ]);
+    });
+  }, 120_000);
+
+  it('keeps an account that lands after the worker ran its last spec', async () => {
+    // One worker, so the second spec is the last thing it runs, and a handler
+    // whose scope settles after its response: the spec is over before the
+    // service has said what it entered.
+    await inFreshWork(async (work) => {
+      const run = await playwright(work, { VA_WORKERS: '1', VA_TAIL_MS: '300' });
+      expect(run, run.output).toMatchObject({ code: 0 });
+      expect(run.output).not.toContain('variance-authority:');
+
+      const coverage = join(work, 'coverage.bin');
+      expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), await lineOf("'1200 EUR'")))).toEqual([
+        at('src/spec/euros.spec.mjs'),
+      ]);
+      expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), await lineOf("'1200 USD'")))).toEqual([
         at('src/spec/dollars.spec.mjs'),
       ]);
     });

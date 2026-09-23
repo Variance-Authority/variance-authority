@@ -47,6 +47,18 @@ export interface JourneyAccount {
    * the same reason and by the same path.
    */
   readonly lost?: number;
+  /**
+   * Present on a notice rather than an account: a scope of this journey opened
+   * in this head, and an account closing it follows when it settles.
+   *
+   * A handler's scope ends when what it returned settles, which can be long
+   * after its response — a streamed body, a write behind. The driver has no
+   * other way to know an account is still coming, and one that lands after the
+   * join is lost without a word.
+   */
+  readonly opened?: number;
+  /** How many of this head's opened scopes of this journey the account closes. */
+  readonly settled?: number;
   readonly modules: readonly ExecutedModule[];
 }
 
@@ -121,6 +133,7 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   const silent = options.heads.filter((head) => !reported.has(head));
   const foreign = reports.find((report) => report.instrumentation !== INSTRUMENTATION_ID);
   const dropped = reports.reduce((most, report) => Math.max(most, report.lost ?? 0), 0);
+  const unsettled = unsettledScopes(reports);
 
   const because =
     foreign !== undefined
@@ -134,7 +147,11 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
           ? `${dropped} ${dropped === 1 ? 'account' : 'accounts'} never reached this driver, so ` +
             'some subject covered code nothing here can name and no subject in this run may ' +
             'justify an exclusion'
-          : undefined;
+          : unsettled.size > 0
+            ? `${[...unsettled].map(([head, open]) => `head ${head} had ${open} ${open === 1 ? 'request' : 'requests'}`).join(', ')} ` +
+              'still running when this driver finished, so what they entered never arrived and no ' +
+              'subject in this run may justify an exclusion'
+            : undefined;
   const complete = because === undefined;
 
   // Everything a process did outside any journey is everybody's: it ran, it is
@@ -146,6 +163,8 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   let unclaimed = 0;
 
   for (const report of reports) {
+    // A notice says an account is coming and carries nothing of its own.
+    if (report.opened !== undefined) continue;
     const common = shared.get(report.head) ?? new Map<ModuleId, Set<number>>();
     if (report.journey === UNATTRIBUTED) {
       add(common, report.modules, (module) => module.hits);
@@ -211,6 +230,30 @@ export function stitchJourneys(options: StitchJourneysOptions): StitchedJourneys
   }
 
   return { heads, silent, unclaimed, complete, ...(because === undefined ? {} : { because }) };
+}
+
+/**
+ * Scopes a head said it opened and has not yet said were settled, by head.
+ *
+ * Counted per journey and never below zero, so the order the notice and the
+ * account arrive in does not matter: they travel as two requests and loopback
+ * does not promise which lands first. A driver waits on this before it joins,
+ * and whatever is left when it stops waiting makes the run incomplete.
+ */
+export function unsettledScopes(reports: readonly JourneyReport[]): ReadonlyMap<string, number> {
+  const open = new Map<string, number>();
+  for (const report of reports) {
+    if (report.opened === undefined && report.settled === undefined) continue;
+    const key = `${report.head}\u0000${report.journey}`;
+    open.set(key, (open.get(key) ?? 0) + (report.opened ?? 0) - (report.settled ?? 0));
+  }
+  const byHead = new Map<string, number>();
+  for (const [key, count] of open) {
+    if (count <= 0) continue;
+    const head = key.slice(0, key.indexOf('\u0000'));
+    byHead.set(head, (byHead.get(head) ?? 0) + count);
+  }
+  return byHead;
 }
 
 function add(

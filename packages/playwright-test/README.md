@@ -612,6 +612,12 @@ Nothing is written by the service. Its accounts are acknowledged over the same
 listener the announcements below use, under the same journey, and the run's only
 artifact is the coverage index this worker merges into at teardown.
 
+A handler's work can outlast its response: a streamed body, a write behind, a
+log flushed after `end()`. The head says a request opened before the handler
+runs, so at teardown the worker waits up to five seconds for every opened
+request to report. One still open at that point retires the run the same way a
+silent head does, and the reason names the head.
+
 Nothing above happens when `heads` is empty, which is the default and the
 ordinary case. A suite driving one application has one instrumented process, and
 nothing can be missing from it.

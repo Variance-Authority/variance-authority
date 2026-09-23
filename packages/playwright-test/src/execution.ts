@@ -35,6 +35,7 @@ import {
   journeyReportFrom,
   mintJourney,
   stitchJourneys,
+  unsettledScopes,
   type JourneyReport,
 } from '@variance-authority/sense/journey';
 import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
@@ -185,6 +186,9 @@ interface Accumulated {
   complete: boolean;
 }
 
+/** How long a worker waits at its end for requests a head is still serving. */
+const SETTLING_MS = 5_000;
+
 /** The test file a subject's crossings belong to, repository-relative. */
 export function ownerOf(root: string, testInfo: TestInfo): string {
   return relative(resolve(root), testInfo.file).split(sep).join('/');
@@ -301,6 +305,7 @@ export function createExecutionRecorder(
 
     close: async () => {
       try {
+        await settled();
         await contribute();
       } finally {
         // Only a listener this recorder opened for itself: one it was handed
@@ -310,6 +315,21 @@ export function createExecutionRecorder(
       }
     },
   };
+
+  /**
+   * Wait for every request a head said it was still serving, up to a bound.
+   *
+   * A spec is over when its page is, and a handler's scope is over when what it
+   * returned settles: a streamed body or a write behind outlives the response
+   * that ended the test. Nothing is waited on when nothing is open, and what is
+   * still open at the bound is named by the stitch and retires the run.
+   */
+  async function settled(): Promise<void> {
+    const deadline = Date.now() + SETTLING_MS;
+    while (unsettledScopes(reports).size > 0 && Date.now() < deadline) {
+      await new Promise((settle) => setTimeout(settle, 10));
+    }
+  }
 
   /** Fold one drained window into an accumulation, keeping evaluation apart. */
   function absorb(accumulated: Accumulated, journal: { modules: readonly ExecutedModule[] }): void {

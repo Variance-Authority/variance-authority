@@ -81,6 +81,7 @@ import probeLog from '../instrument/probe-log.cjs';
 export {
   journeyReportFrom,
   stitchJourneys,
+  unsettledScopes,
   type JourneyAccount,
   type JourneyReport,
   type StitchedJourneys,
@@ -233,30 +234,15 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     return lastBucket;
   });
 
-  const report = (journey: string, over: Channel | undefined): void => {
-    const bucket = buckets.get(journey);
-    buckets.delete(journey);
-    if (bucket === undefined) return;
-    // A module a request was the first to need evaluated inside that journey,
-    // and what it did then is every subject's: the driver folds its `shared`
-    // in beside the process's own unattributed crossings.
-    const entered: ExecutedModule[] = engine.lists(engine.close(bucket), false);
-    if (entered.length === 0) return;
-    if (over === undefined) return;
-    const account: JourneyAccount = {
-      version: 1,
-      instrumentation: INSTRUMENTATION_ID,
-      head,
-      scope: journey === UNATTRIBUTED ? 'process' : 'journey',
-      ...(lost === 0 ? {} : { lost }),
-      modules: entered.sort((left, right) => idOrder(left.id, right.id)),
-    };
-    // Now, rather than once at shutdown. A driver stitches while the service is
-    // still serving, and an account that waited for teardown would be read by
-    // nobody: `webServer` teardown happens after the workers that needed it have
-    // already recorded.
+  const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
     const sent = over
-      .deliver('journeys', account)
+      .deliver('journeys', {
+        version: 1,
+        instrumentation: INSTRUMENTATION_ID,
+        head,
+        ...(lost === 0 ? {} : { lost }),
+        ...account,
+      } satisfies JourneyAccount)
       .catch(() => {
         lost += 1;
       })
@@ -264,6 +250,34 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
         sending.delete(sent);
       });
     sending.add(sent);
+  };
+
+  /**
+   * Report what one journey entered. `settled` is how many of the scopes this
+   * head said it opened for that journey the account closes; the driver waits
+   * for every one of them before it joins anything.
+   */
+  const report = (journey: string, over: Channel | undefined, settled = 0): void => {
+    const bucket = buckets.get(journey);
+    buckets.delete(journey);
+    // A module a request was the first to need evaluated inside that journey,
+    // and what it did then is every subject's: the driver folds its `shared`
+    // in beside the process's own unattributed crossings.
+    const entered: ExecutedModule[] =
+      bucket === undefined ? [] : engine.lists(engine.close(bucket), false);
+    if (over === undefined) return;
+    // An empty account still goes when it closes a scope, because the driver
+    // is waiting on that scope and cannot tell *entered nothing* from *not yet*.
+    if (entered.length === 0 && settled === 0) return;
+    // Now, rather than once at shutdown. A driver stitches while the service is
+    // still serving, and an account that waited for teardown would be read by
+    // nobody: `webServer` teardown happens after the workers that needed it have
+    // already recorded.
+    send(over, {
+      scope: journey === UNATTRIBUTED ? 'process' : 'journey',
+      ...(settled === 0 ? {} : { settled }),
+      modules: entered.sort((left, right) => idOrder(left.id, right.id)),
+    });
   };
 
   const release = (journey: string): void => {
@@ -275,7 +289,7 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
     depth.delete(journey);
     const over = channels.get(journey);
     channels.delete(journey);
-    report(journey, over);
+    report(journey, over, 1);
     // Whatever the process did outside any journey goes home on the address that
     // is open right now. It belongs to every subject, so which one carries it is
     // nobody's business but the driver's, and the driver unions them.
@@ -283,9 +297,12 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   };
 
   const flush = async (): Promise<void> => {
-    // `report` deletes the key it was handed, which is the one being visited —
-    // the only mutation a Map iteration is allowed to see and go on.
-    for (const journey of buckets.keys()) report(journey, channels.get(journey));
+    // A scope still open is closed by this account, since nothing will report
+    // it again; `report` deletes the bucket it was handed, which is the one
+    // being visited — the only mutation a Map iteration may see and go on.
+    for (const journey of new Set([...buckets.keys(), ...depth.keys()])) {
+      report(journey, channels.get(journey), depth.has(journey) ? 1 : 0);
+    }
     await Promise.all(sending);
   };
 
@@ -307,7 +324,12 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       const journey = channel?.journey;
       if (channel === undefined || journey === undefined) return body();
       channels.set(journey, channel);
+      const opening = !depth.has(journey);
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
+      // Said before the body runs, so the driver knows to wait for this scope
+      // however long after the response it settles. Without it, an account
+      // that lands after the driver joined is lost without a word.
+      if (opening) send(channel, { scope: 'journey', opened: 1, modules: [] });
       let done: Result;
       try {
         done = store.run(journey, body);
