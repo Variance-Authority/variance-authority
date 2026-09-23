@@ -24,9 +24,14 @@ import { caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { testCoverageFile } from './index.js';
+import { repositoryRoot } from './repository-root.js';
 
 export interface TestSelectionOptions {
-  /** Repository root. Defaults to the Vitest config root, then the current directory. */
+  /**
+   * A directory inside the repository; defaults to the Vitest config root, then
+   * the current directory. Names are relative to the checkout it sits in, never
+   * to it, and relative option paths resolve against it.
+   */
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
@@ -108,10 +113,11 @@ export function withTestSelection(
   config: UserConfig = {},
   options: TestSelectionOptions = {},
 ): UserConfig {
-  const root = resolve(options.root ?? config.root ?? process.cwd());
+  const configRoot = resolve(options.root ?? config.root ?? process.cwd());
+  const root = repositoryRoot(configRoot);
   const coverageFile = options.coverageFile === undefined
     ? testCoverageFile(root)
-    : resolve(root, options.coverageFile);
+    : resolve(configRoot, options.coverageFile);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
   if (options.cases === true) run.cases = true;
@@ -121,8 +127,8 @@ export function withTestSelection(
   // setup shim, and a shim carries the directory its journals go to. The run
   // directory already carries a pid and a uuid; the same stamp names the shim.
   const stamp = runStamp(run);
-  const setupId = resolve(root, `.variance-authority/test-selection-setup-${stamp}.mjs`);
-  const runnerId = resolve(root, `.variance-authority/test-selection-case-runner-${stamp}.mjs`);
+  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
+  const runnerId = resolve(configRoot, `.variance-authority/test-selection-case-runner-${stamp}.mjs`);
   // A `globalSetup` file runs once, in the Vitest process, before any test
   // environment exists — the setup shim that installs `globalThis.__VA__` is a
   // `setupFiles` entry and has never run there. Instrumented, such a file
@@ -133,7 +139,7 @@ export function withTestSelection(
   const globalSetup = new Set(
     array((config.test as { globalSetup?: string | readonly string[] } | undefined)?.globalSetup)
       .filter((file): file is string => typeof file === 'string')
-      .map((file) => resolve(root, file)),
+      .map((file) => resolve(configRoot, file)),
   );
   const chosen = options.include ?? defaultInclude;
   const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
@@ -142,14 +148,14 @@ export function withTestSelection(
   // the project's; a package is no precondition a diff can carry, and read as a
   // path it is a missing file that fails the reporter and loses the snapshot.
   for (const file of [
-    ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(root, file))),
+    ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(configRoot, file))),
     ...(options.preconditions ?? []),
-  ]) run.preconditions.add(resolve(root, file));
+  ]) run.preconditions.add(resolve(configRoot, file));
 
   const executionFile = options.executionFile === undefined
     ? `${coverageFile}.cases.bin`
-    : resolve(root, options.executionFile);
-  const reporter = selectionReporter(coverageFile, executionFile, run);
+    : resolve(configRoot, options.executionFile);
+  const reporter = selectionReporter(coverageFile, executionFile, run, [setupId, runnerId]);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
   // A configuration that names projects describes the run rather than a suite:
@@ -192,8 +198,8 @@ export function withTestSelection(
       ...(options.cases === true && config.test?.runner === undefined
         ? {
           runner: writeSeamModule(runnerId, caseRunnerSource({
-            module: runnerImport(root, runnerId, '@vitest/runner'),
-            utils: runnerImport(root, runnerId, '@vitest/runner/utils'),
+            module: runnerImport(configRoot, runnerId, '@vitest/runner'),
+            utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
           })),
         }
         : {}),
@@ -295,16 +301,9 @@ function selectionReporter(
   coverageFile: string,
   executionFile: string,
   run: SelectionRun,
+  shims: readonly string[],
 ): Reporter {
-  const stamp = runStamp(run);
-  const settle = foldRun(run, {
-    coverageFile,
-    executionFile,
-    shims: [
-      resolve(run.root, `.variance-authority/test-selection-setup-${stamp}.mjs`),
-      resolve(run.root, `.variance-authority/test-selection-case-runner-${stamp}.mjs`),
-    ],
-  });
+  const settle = foldRun(run, { coverageFile, executionFile, shims });
 
   // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
   // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over

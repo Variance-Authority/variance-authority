@@ -78,13 +78,16 @@ them, builds a one-hunk diff at each, and calls `selectTestFiles` against the
 coverage index:
 
 ```js
-expect(await selectTestFiles(coverage, diffAt('src/pricing.mjs', euros))).toEqual([
-  'src/spec/euros.spec.mjs',
+expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), euros))).toEqual([
+  at('src/spec/euros.spec.mjs'),
 ]);
-expect(await selectTestFiles(coverage, diffAt('src/pricing.mjs', dollars))).toEqual([
-  'src/spec/dollars.spec.mjs',
+expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), dollars))).toEqual([
+  at('src/spec/dollars.spec.mjs'),
 ]);
 ```
+
+`at` puts `cases/journey-tracing-case/` in front of a path. Every recorded name
+is relative to the repository root, and so is every path in a diff.
 
 Neither spec mentions the other's branch, and neither one ran a line of
 `pricing.mjs` — it executed in the service process. The answer exists only

@@ -12,13 +12,15 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { selectTestFiles } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
+// Recorded names are relative to the checkout, and this case sits inside it.
+const at = (path) => `${relative(dirname(dirname(root)), root)}/${path}`;
 const cli = fileURLToPath(new URL('../../../node_modules/@playwright/test/cli.js', import.meta.url));
 
 const BROWSER_AVAILABLE = (() => {
@@ -108,11 +110,11 @@ live('a journey that crosses into a service', () => {
       // Neither spec mentions the other's branch, and neither one ran a line of
       // this file: it executed in the service, and this is the driver reading
       // back what the service reported about it.
-      expect(await selectTestFiles(coverage, diffAt('src/pricing.mjs', euros))).toEqual([
-        'src/spec/euros.spec.mjs',
+      expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), euros))).toEqual([
+        at('src/spec/euros.spec.mjs'),
       ]);
-      expect(await selectTestFiles(coverage, diffAt('src/pricing.mjs', dollars))).toEqual([
-        'src/spec/dollars.spec.mjs',
+      expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), dollars))).toEqual([
+        at('src/spec/dollars.spec.mjs'),
       ]);
     });
   }, 120_000);

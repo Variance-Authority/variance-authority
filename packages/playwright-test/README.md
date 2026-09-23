@@ -520,7 +520,7 @@ to an array of one.
 
 | Option | Purpose | Default |
 | --- | --- | --- |
-| `root` | Repository root the recorded paths are relative to. | The cwd. |
+| `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
 | `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
 | `cacheRoot` | Where that build wrote its block records. | The user cache. |
 | `coverageFile` | The coverage index this run merges into. | The repository-keyed user cache. |

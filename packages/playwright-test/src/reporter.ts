@@ -34,7 +34,7 @@ import {
   stagingDirectory,
   type InstrumentMode,
 } from '@variance-authority/sense/journal';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { repositoryRoot, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { dirname, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
@@ -47,7 +47,10 @@ import { randomUUID } from 'node:crypto';
  * later run will ask about.
  */
 export interface ExecutionReporterOptions {
-  /** Repository root the recorded paths are relative to. Defaults to the cwd. */
+  /**
+   * A directory inside the repository; defaults to the cwd. Recorded paths are
+   * relative to the checkout it sits in, never to it.
+   */
   readonly root?: string;
   /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
   readonly label?: string;
@@ -99,12 +102,14 @@ export interface ExecutionReporterOptions {
  */
 export default class implements Reporter {
   readonly #options: ExecutionReporterOptions;
+  readonly #start: string;
   readonly #root: string;
   #directory: string | undefined;
 
   constructor(options: ExecutionReporterOptions = {}) {
     this.#options = options;
-    this.#root = resolve(options.root ?? process.cwd());
+    this.#start = resolve(options.root ?? process.cwd());
+    this.#root = repositoryRoot(this.#start);
   }
 
   /** Reporters print nothing here; the only lines are refusals, and those go to stderr. */
@@ -120,7 +125,7 @@ export default class implements Reporter {
     const snapshot =
       this.#options.coverageFile === undefined
         ? testCoverageFile(this.#root)
-        : resolve(this.#root, this.#options.coverageFile);
+        : resolve(this.#start, this.#options.coverageFile);
     this.#directory = resolve(dirname(snapshot), `.run-${process.pid}-${randomUUID()}`);
     openStage(this.#directory);
   }

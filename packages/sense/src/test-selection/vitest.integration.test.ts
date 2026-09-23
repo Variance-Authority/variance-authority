@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -22,6 +22,12 @@ const entriesFixture = resolve(repository, 'packages/sense/test/fixtures/entries
 const unenteredFixture = resolve(repository, 'packages/sense/test/fixtures/unentered-vitest');
 const casesFixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
+// Every recorded name is relative to the checkout, and these fixtures sit inside it.
+const inCheckout = (at: string) => (path: string): string => `${relative(repository, at)}/${path}`;
+const ext = inCheckout(fixture);
+const entries = inCheckout(entriesFixture);
+const unentered = inCheckout(unenteredFixture);
+const cased = inCheckout(casesFixture);
 const temporary: string[] = [];
 
 afterEach(async () => {
@@ -54,10 +60,10 @@ describe('the Vitest integration', () => {
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/beta.case.ts', true]]);
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[ext('test/beta.case.ts'), true]]);
     // The default instruments every file under the root, the suite's own
     // setup included; the seam's setup module is not among them.
-    expect(coverage.modules.map((module) => module.file)).toEqual(['src/decide.ts', 'test/beta.case.ts', 'test/setup.ts']);
+    expect(coverage.modules.map((module) => module.file)).toEqual([ext('src/decide.ts'), ext('test/beta.case.ts'), ext('test/setup.ts')]);
   });
 
   it('records a file the runner transformed for a document', async () => {
@@ -76,8 +82,8 @@ describe('the Vitest integration', () => {
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.tests.map((test) => test.file)).toEqual(['test/browser.dom.ts']);
-    expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual(['test/browser.dom.ts']);
+    expect(coverage.tests.map((test) => test.file)).toEqual([ext('test/browser.dom.ts')]);
+    expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual([ext('test/browser.dom.ts')]);
   }, 20_000);
 
   it('counts a module every file consumed when the runner shares one module graph across files', async () => {
@@ -98,11 +104,11 @@ describe('the Vitest integration', () => {
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.tests.map((test) => test.file)).toContain('test/delta.case.ts');
+    expect(coverage.tests.map((test) => test.file)).toContain(ext('test/delta.case.ts'));
     expect(coverage.modules[0]?.blocks[0]?.testFiles).toEqual([
-      'test/alpha.case.ts',
-      'test/beta.case.ts',
-      'test/gamma.case.ts',
+      ext('test/alpha.case.ts'),
+      ext('test/beta.case.ts'),
+      ext('test/gamma.case.ts'),
     ]);
   });
 
@@ -125,7 +131,7 @@ describe('the Vitest integration', () => {
     );
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/skipped.only.ts', false]]);
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[ext('test/skipped.only.ts'), false]]);
     // Nothing credited it, which is the whole reason its record cannot be whole.
     expect(coverage.modules.flatMap((module) => module.blocks.flatMap((block) => block.testFiles))).toEqual([]);
 
@@ -133,8 +139,8 @@ describe('the Vitest integration', () => {
     // it out of `whole`, and a caller narrowing by this answer runs it.
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
-    const narrowing = await narrowByExecution(coverageFile, `--- a/src/decide.ts
-+++ b/src/decide.ts
+    const narrowing = await narrowByExecution(coverageFile, `--- a/${ext('src/decide.ts')}
++++ b/${ext('src/decide.ts')}
 @@ -${line},1 +${line},1 @@
 -    return 'A';
 +    return 'Alpha';`);
@@ -162,9 +168,9 @@ describe('the Vitest integration', () => {
     ).catch(() => undefined);
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([['test/hook.throws.ts', false]]);
+    expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([[ext('test/hook.throws.ts'), false]]);
     // The amputation this is about: the region behind the thrown hook.
-    const gate = coverage.modules.find((module) => module.file === 'src/gate.ts');
+    const gate = coverage.modules.find((module) => module.file === ext('src/gate.ts'));
     expect(gate?.blocks.find((block) => block.name === 'locked')?.testFiles).toEqual([]);
 
     // So a change inside that region must leave the file out of `whole`. Were
@@ -173,8 +179,8 @@ describe('the Vitest integration', () => {
     // because every diff it still answers to is a diff somewhere else.
     const source = await readFile(resolve(fixture, 'src/gate.ts'), 'utf8');
     const line = source.slice(0, source.indexOf('return `locked')).split('\n').length;
-    const narrowing = await narrowByExecution(coverageFile, `--- a/src/gate.ts
-+++ b/src/gate.ts
+    const narrowing = await narrowByExecution(coverageFile, `--- a/${ext('src/gate.ts')}
++++ b/${ext('src/gate.ts')}
 @@ -${line},1 +${line},1 @@
 -  return \`locked:\${value}\`;
 +  return \`LOCKED:\${value}\`;`);
@@ -195,12 +201,12 @@ describe('the Vitest integration', () => {
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.instrumentation).toBe(instrumentationId('entries'));
-    const eager = coverage.modules.find((module) => module.file === 'src/eager.ts');
+    const eager = coverage.modules.find((module) => module.file === entries('src/eager.ts'));
     // No branch of `cold` is a region: three rows for a module with two functions.
     expect(eager?.blocks.map((block) => [block.kind, block.name, block.testFiles, block.loadedBy])).toEqual([
-      ['module', '', ['test/eager.case.ts'], ['test/eager.case.ts']],
-      ['function', 'warm', ['test/eager.case.ts'], ['test/eager.case.ts']],
-      ['function', 'cold', ['test/eager.case.ts'], undefined],
+      ['module', '', [entries('test/eager.case.ts')], [entries('test/eager.case.ts')]],
+      ['function', 'warm', [entries('test/eager.case.ts')], [entries('test/eager.case.ts')]],
+      ['function', 'cold', [entries('test/eager.case.ts')], undefined],
     ]);
   }, 20_000);
 
@@ -227,21 +233,21 @@ describe('the Vitest integration', () => {
 
     // The branch never taken. The module root was crossed *because the module
     // loaded* — `loadedBy` says so — and `HeavyChart` was crossed by nobody.
-    expect(regions('src/heavy-chart.tsx')).toEqual([
-      ['module', '', ['test/branch.dom.tsx'], ['test/branch.dom.tsx']],
+    expect(regions(unentered('src/heavy-chart.tsx'))).toEqual([
+      ['module', '', [unentered('test/branch.dom.tsx')], [unentered('test/branch.dom.tsx')]],
       ['function', 'HeavyChart', [], undefined],
       ['function', 'HeavyChart/reduce.arg0', [], undefined],
     ]);
     // The spy standing in front of the import, recorded identically.
-    expect(regions('src/format-total.ts')).toEqual([
-      ['module', '', ['test/spy.dom.tsx'], ['test/spy.dom.tsx']],
+    expect(regions(unentered('src/format-total.ts'))).toEqual([
+      ['module', '', [unentered('test/spy.dom.tsx')], [unentered('test/spy.dom.tsx')]],
       ['function', 'formatTotal', [], undefined],
     ]);
     // And the control: a module the test did enter, so the reading above is
     // about these two files and not about every file in the run.
-    expect(regions('src/panel.tsx')).toEqual([
-      ['module', '', ['test/branch.dom.tsx'], ['test/branch.dom.tsx']],
-      ['function', 'Panel', ['test/branch.dom.tsx'], undefined],
+    expect(regions(unentered('src/panel.tsx'))).toEqual([
+      ['module', '', [unentered('test/branch.dom.tsx')], [unentered('test/branch.dom.tsx')]],
+      ['function', 'Panel', [unentered('test/branch.dom.tsx')], undefined],
     ]);
   }, 20_000);
 
@@ -263,20 +269,20 @@ describe('the Vitest integration', () => {
 
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'A'")).split('\n').length;
-    const diff = `--- a/src/decide.ts
-+++ b/src/decide.ts
+    const diff = `--- a/${ext('src/decide.ts')}
++++ b/${ext('src/decide.ts')}
 @@ -${line},1 +${line},1 @@
 -    return 'A';
 +    return 'Alpha';`;
-    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual(['test/alpha.case.ts']);
+    await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([ext('test/alpha.case.ts')]);
     // gamma entered the `G` branch, reset the registry, and evaluated the
     // module again: the second evaluation must not zero what the first counted.
     const gammaLine = source.slice(0, source.indexOf("return 'G'")).split('\n').length;
-    await expect(selectTestFiles(coverageFile, `--- a/src/decide.ts
-+++ b/src/decide.ts
+    await expect(selectTestFiles(coverageFile, `--- a/${ext('src/decide.ts')}
++++ b/${ext('src/decide.ts')}
 @@ -${gammaLine},1 +${gammaLine},1 @@
 -    return 'G';
-+    return 'Gamma';`)).resolves.toEqual(['test/gamma.case.ts']);
++    return 'Gamma';`)).resolves.toEqual([ext('test/gamma.case.ts')]);
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.instrumentation).toBe(INSTRUMENTATION_ID);
@@ -289,23 +295,23 @@ describe('the Vitest integration', () => {
       preconditions: test.preconditions.map((precondition) => precondition.name),
     }))).toEqual([
       {
-        file: 'test/alpha.case.ts',
+        file: ext('test/alpha.case.ts'),
         complete: false,
-        preconditions: ['test/alpha.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: [ext('test/alpha.case.ts'), ext('test/setup.ts'), ext('vitest.config.ts')],
       },
       {
-        file: 'test/beta.case.ts',
+        file: ext('test/beta.case.ts'),
         complete: true,
-        preconditions: ['test/beta.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: [ext('test/beta.case.ts'), ext('test/setup.ts'), ext('vitest.config.ts')],
       },
       {
-        file: 'test/gamma.case.ts',
+        file: ext('test/gamma.case.ts'),
         complete: true,
-        preconditions: ['test/gamma.case.ts', 'test/setup.ts', 'vitest.config.ts'],
+        preconditions: [ext('test/gamma.case.ts'), ext('test/setup.ts'), ext('vitest.config.ts')],
       },
     ]);
     expect(coverage.modules[0]).toMatchObject({
-      file: 'src/decide.ts',
+      file: ext('src/decide.ts'),
       sourceDigest: expect.stringMatching(/^v1:/),
       instrumented: true,
     });
@@ -317,8 +323,8 @@ describe('the Vitest integration', () => {
     expect(coverage.modules[0]?.blocks.slice(1).every((block) => block.owner !== undefined))
       .toBe(true);
 
-    const records = await scanRelations({ root: fixture, dirs: ['src', 'test'], digests: false });
-    const deviation = await deviationOfTests(coverageFile, { root: fixture, records });
+    const records = await scanRelations({ root: repository, dirs: [ext('src'), ext('test')], digests: false });
+    const deviation = await deviationOfTests(coverageFile, { root: repository, records });
     expect(deviation).toEqual({
       baseline: { files: 1, loc: 9 },
       coverage: { files: 1, loc: 9 },
@@ -326,14 +332,14 @@ describe('the Vitest integration', () => {
       sensitivity: ((5 / 9) + (3 / 9) + (6 / 9)) / 3,
       tests: [
         {
-          testFile: 'test/alpha.case.ts',
+          testFile: ext('test/alpha.case.ts'),
           baseline: { files: 1, loc: 9 },
           slice: { files: 1, loc: 5 },
           sensitivity: 5 / 9,
           deviation: 1 - (5 / 9),
         },
         {
-          testFile: 'test/beta.case.ts',
+          testFile: ext('test/beta.case.ts'),
           baseline: { files: 1, loc: 9 },
           slice: { files: 1, loc: 3 },
           sensitivity: 3 / 9,
@@ -341,7 +347,7 @@ describe('the Vitest integration', () => {
         },
         {
           // Both branches: `G` before the registry reset, `B` after it.
-          testFile: 'test/gamma.case.ts',
+          testFile: ext('test/gamma.case.ts'),
           baseline: { files: 1, loc: 9 },
           slice: { files: 1, loc: 6 },
           sensitivity: 6 / 9,
@@ -381,7 +387,7 @@ describe('the Vitest integration', () => {
     }
 
     const named = (index: ExecutionIndex, line: number): readonly string[] =>
-      coveringTests(index, { file: 'src/decide.ts', line }).map((test) => test.name);
+      coveringTests(index, { file: cased('src/decide.ts'), line }).map((test) => test.name);
 
     it('separates two cases in one file that entered different branches', async () => {
       const { index } = await record('vitest.config.ts');
@@ -460,7 +466,7 @@ describe('the Vitest integration', () => {
       if (index === undefined) throw new Error('the run wrote no execution index');
 
       const files = decodeTestCoverage(coverage).modules
-        .filter((module) => module.file === 'src/decide.ts')
+        .filter((module) => module.file === cased('src/decide.ts'))
         .flatMap((module) => module.blocks)
         .reduce((total, block) => total + block.testFiles.length, 0);
 

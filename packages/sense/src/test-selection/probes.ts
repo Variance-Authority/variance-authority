@@ -9,7 +9,6 @@
  * {@link EvaluatingPage} and the join live next door.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import {
   EVALUATING,
   instrument,
@@ -30,6 +29,7 @@ import {
 } from './instrumented-modules.js';
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame, type TransformSourceMap } from './source-lines.js';
+import { repositoryRoot } from './repository-root.js';
 
 /**
  * Where a page hands its journal over.
@@ -71,7 +71,10 @@ export interface ExecutionCollector {
 }
 
 export interface TestSelectionProbeOptions {
-  /** Repository root. Defaults to the current directory. */
+  /**
+   * A directory inside the repository; defaults to the current directory.
+   * Names are relative to the checkout it sits in, never to it.
+   */
   readonly root?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
@@ -166,7 +169,7 @@ const RESOLVED_COLLECTOR = `\0${VIRTUAL_COLLECTOR}`;
 export function testSelectionProbes(
   options: TestSelectionProbeOptions = {},
 ): InstrumentingPlugin {
-  const root = resolve(options.root ?? process.cwd());
+  const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
 
   // One record per module, written as that module is transformed. A dev server

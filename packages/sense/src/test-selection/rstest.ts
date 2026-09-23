@@ -30,9 +30,14 @@ import { foldRun } from './selection-fold.js';
 import { runFor, runStamp, writeSeamModule } from './selection-run.js';
 import { caseGlobalsSource, setupSource } from './worker-source.js';
 import { testCoverageFile } from './index.js';
+import { repositoryRoot } from './repository-root.js';
 
 export interface RstestTestSelectionOptions {
-  /** Repository root. Defaults to the Rstest config root, then the current directory. */
+  /**
+   * A directory inside the repository; defaults to the Rstest config root, then
+   * the current directory. Names are relative to the checkout it sits in, never
+   * to it, and relative option paths resolve against it.
+   */
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
@@ -142,10 +147,11 @@ export function withTestSelection(
   config: RstestConfig = {},
   options: RstestTestSelectionOptions = {},
 ): RstestConfig {
-  const root = resolve(options.root ?? config.root ?? process.cwd());
+  const configRoot = resolve(options.root ?? config.root ?? process.cwd());
+  const root = repositoryRoot(configRoot);
   const coverageFile = options.coverageFile === undefined
     ? testCoverageFile(root)
-    : resolve(root, options.coverageFile);
+    : resolve(configRoot, options.coverageFile);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
   if (options.cases === true) run.cases = true;
@@ -154,14 +160,14 @@ export function withTestSelection(
   // one project — a watch run beside a CLI one — do not write each other's
   // setup shim, which carries the directory its journals go to.
   const stamp = runStamp(run);
-  const setupId = resolve(root, `.variance-authority/test-selection-setup-${stamp}.mjs`);
+  const setupId = resolve(configRoot, `.variance-authority/test-selection-setup-${stamp}.mjs`);
   run.shims.add(setupId);
 
   // A `globalSetup` file runs before any test environment exists, so the setup
   // shim that installs the counter factory has never run where one evaluates:
   // instrumented, such a file throws at its first probe and takes the whole
   // suite with it.
-  const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(root, file)));
+  const globalSetup = new Set(array(config.globalSetup).map((file) => resolve(configRoot, file)));
   const chosen = options.include ?? defaultInclude;
   run.include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
 
@@ -170,13 +176,13 @@ export function withTestSelection(
   // the project's; a package is no precondition a diff can carry, and read as a
   // path it is a missing file that fails the reporter and loses the snapshot.
   for (const file of [
-    ...setupFiles.filter((file) => existsSync(resolve(root, file))),
+    ...setupFiles.filter((file) => existsSync(resolve(configRoot, file))),
     ...(options.preconditions ?? []),
-  ]) run.preconditions.add(resolve(root, file));
+  ]) run.preconditions.add(resolve(configRoot, file));
 
   const executionFile = options.executionFile === undefined
     ? `${coverageFile}.cases.bin`
-    : resolve(root, options.executionFile);
+    : resolve(configRoot, options.executionFile);
   const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId] });
   const reporter = {
     onTestRunEnd: (payload: { readonly results: readonly RstestFileResult[] }) => settle(

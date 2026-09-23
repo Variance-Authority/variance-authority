@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -13,6 +13,8 @@ const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-rstest');
+// Recorded names are relative to the checkout, and the fixture sits inside it.
+const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const rstest = resolve(repository, 'node_modules/@rstest/core/bin/rstest.js');
 const temporary: string[] = [];
 
@@ -42,18 +44,18 @@ describe('the Rstest integration', () => {
     await run('rstest.config.mjs', directory);
 
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
-    const at = (returned: string): number =>
+    const lineOf = (returned: string): number =>
       source.slice(0, source.indexOf(`return '${returned}'`)).split('\n').length;
-    const changing = (returned: string, to: string): string => `--- a/src/decide.ts
-+++ b/src/decide.ts
-@@ -${at(returned)},1 +${at(returned)},1 @@
+    const changing = (returned: string, to: string): string => `--- a/${at('src/decide.ts')}
++++ b/${at('src/decide.ts')}
+@@ -${lineOf(returned)},1 +${lineOf(returned)},1 @@
 -    return '${returned}';
 +    return '${to}';`;
 
     // The lines are the author's, not the bundle's: SWC moved every one of them
     // and the loader read them back through the map it was handed.
     await expect(selectTestFiles(coverageFile, changing('A', 'Alpha')))
-      .resolves.toEqual(['test/alpha.case.ts']);
+      .resolves.toEqual([at('test/alpha.case.ts')]);
 
     // `alpha.case.ts` holds an `it.skip` whose body would reach the `B` branch,
     // and it is still not selected when that branch changes: a skipped test
@@ -62,26 +64,26 @@ describe('the Rstest integration', () => {
     // a precondition of alpha's own record, so the record stops applying the
     // moment that test could run.
     const onB = await selectTestFiles(coverageFile, changing('B', 'Beta'));
-    expect(onB).toContain('test/beta.case.ts');
-    expect(onB).not.toContain('test/alpha.case.ts');
+    expect(onB).toContain(at('test/beta.case.ts'));
+    expect(onB).not.toContain(at('test/alpha.case.ts'));
 
     const coverage = decodeTestCoverage(await readFile(coverageFile));
-    expect(coverage.modules.map((module) => module.file)).toContain('src/decide.ts');
+    expect(coverage.modules.map((module) => module.file)).toContain(at('src/decide.ts'));
     // Whole, skipped test and all — see `usableOutcome` in `finished-files.ts`
     // for why a skip leaves the record usable as evidence where a failure does
     // not.
     expect(coverage.tests.map((test) => [test.file, test.complete])).toEqual([
-      ['test/alpha.case.ts', true],
-      ['test/beta.case.ts', true],
+      [at('test/alpha.case.ts'), true],
+      [at('test/beta.case.ts'), true],
     ]);
     // The project's setup file stayed configured and is a precondition of every
     // observation. `src/decide.ts` is not one: a precondition is a file the
     // answer depended on that the instrument could not see inside, and an
     // instrumented module is one it could.
     expect(coverage.tests[0]!.preconditions.map((precondition) => precondition.name)).toEqual([
-      'rstest.config.mjs',
-      'test/alpha.case.ts',
-      'test/setup.mjs',
+      at('rstest.config.mjs'),
+      at('test/alpha.case.ts'),
+      at('test/setup.mjs'),
     ]);
   }, 120_000);
 
@@ -101,11 +103,11 @@ describe('the Rstest integration', () => {
     // skipped one never reaches the registrar's callback, and the one that only
     // reads a global crossed nothing.
     expect(index.tests.map((test) => test.id)).toEqual([
-      'test/alpha.case.ts > takes the alpha path',
-      'test/beta.case.ts > takes the beta path',
+      at('test/alpha.case.ts > takes the alpha path'),
+      at('test/beta.case.ts > takes the beta path'),
     ]);
 
-    const decide = index.modules.find((module) => module.file === 'src/decide.ts');
+    const decide = index.modules.find((module) => module.file === at('src/decide.ts'));
     expect(decide).toBeDefined();
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     // The innermost region holding the branch's line: the module's own region
@@ -122,8 +124,8 @@ describe('the Rstest integration', () => {
     // One branch, one case. The other case of the suite imported the same
     // module and never took this turn, and the ambient bucket every case is
     // credited with holds the file's evaluation, not its branches.
-    expect(walking('A')).toEqual(['test/alpha.case.ts > takes the alpha path']);
-    expect(walking('B')).toEqual(['test/beta.case.ts > takes the beta path']);
+    expect(walking('A')).toEqual([at('test/alpha.case.ts > takes the alpha path')]);
+    expect(walking('B')).toEqual([at('test/beta.case.ts > takes the beta path')]);
   }, 120_000);
 
   it('names a case declared with the realm\'s registrars, the spelling the other configurations never take', async () => {
@@ -139,10 +141,10 @@ describe('the Rstest integration', () => {
     // seam survived until somebody outside the project read the page.
     const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
     expect(index.tests.map((test) => test.id)).toEqual([
-      'test/gamma.injected.ts > takes the gamma path with the registrars on the realm',
+      at('test/gamma.injected.ts > takes the gamma path with the registrars on the realm'),
     ]);
 
-    const decide = index.modules.find((module) => module.file === 'src/decide.ts');
+    const decide = index.modules.find((module) => module.file === at('src/decide.ts'));
     expect(decide).toBeDefined();
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const line = source.slice(0, source.indexOf("return 'G'")).split('\n').length;
@@ -155,7 +157,7 @@ describe('the Rstest integration', () => {
     // reaches halfway is worse than one it misses, because it reads as an
     // answer.
     expect(block!.crossings.map((crossing) => index.tests[crossing.test]!.id)).toEqual([
-      'test/gamma.injected.ts > takes the gamma path with the registrars on the realm',
+      at('test/gamma.injected.ts > takes the gamma path with the registrars on the realm'),
     ]);
   }, 120_000);
 });

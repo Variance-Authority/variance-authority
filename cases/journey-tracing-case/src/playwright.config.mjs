@@ -4,9 +4,9 @@ import { defineConfig } from '@playwright/test';
 import { withTestSelection } from '@variance-authority/playwright-test';
 
 const port = process.env.VA_PORT;
-// The case root, not the config's directory: the driver and the service must
-// agree on what a recorded path is relative to, and a service started by
-// `webServer` runs beside this file rather than beside the specs it serves.
+// The case root, not the config's directory: a service started by `webServer`
+// runs beside this file, and reads its source from here. Recorded paths are
+// relative to the checkout that contains it, on both sides of the wire.
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 export default defineConfig(withTestSelection({

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -12,6 +12,8 @@ const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-vitest');
+// Recorded names are relative to the checkout, and the fixture sits inside it.
+const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 // By path rather than by package name: the configuration below is written into
 // a temporary directory, where nothing resolves `@variance-authority/sense`.
@@ -122,6 +124,6 @@ describe('which of the two complete writers this checkout drives', () => {
     // reported reading to.
     const coverage = decodeTestCoverage(await readFile(coverageFile));
     expect(coverage.tests.map((test) => [test.file, test.complete]))
-      .toEqual([['test/hook.throws.ts', false]]);
+      .toEqual([[at('test/hook.throws.ts'), false]]);
   }, 20_000);
 });

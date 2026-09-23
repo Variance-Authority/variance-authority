@@ -36,14 +36,17 @@ import {
   stitchJourneys,
   type JourneyReport,
 } from '@variance-authority/sense/journey';
-import type { CoveragePrecondition } from '@variance-authority/sense/test-selection';
+import { repositoryRoot, type CoveragePrecondition } from '@variance-authority/sense/test-selection';
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { listen, type Wire } from '@variance-authority/wire/listen';
 import { relative, resolve, sep } from 'node:path';
 
 /** Where the index and the block records live, when the defaults are wrong. */
 export interface ExecutionRecording {
-  /** Repository root the recorded paths are relative to. Defaults to the cwd. */
+  /**
+   * A directory inside the repository; defaults to the cwd. Recorded paths are
+   * relative to the checkout it sits in, never to it.
+   */
   readonly root?: string;
   /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
   readonly label?: string;
@@ -197,7 +200,8 @@ export function createExecutionRecorder(
   recording: ExecutionRecording = {},
   wire?: Wire,
 ): ExecutionRecorder {
-  const root = resolve(recording.root ?? process.cwd());
+  const start = resolve(recording.root ?? process.cwd());
+  const root = repositoryRoot(start);
   const owners = new Map<string, Accumulated>();
   // Kept beside the owners rather than derived from them: a case is a window
   // inside a file's window, and both are wanted whole. The key carries all
@@ -424,7 +428,7 @@ export function createExecutionRecorder(
       subjects: joined,
       ...(recording.label === undefined ? {} : { label: recording.label }),
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
-      ...(recording.coverageFile === undefined ? {} : { coverageFile: recording.coverageFile }),
+      ...(recording.coverageFile === undefined ? {} : { coverageFile: resolve(start, recording.coverageFile) }),
       ...(recording.mode === undefined ? {} : { mode: recording.mode }),
       ...(recording.preconditions === undefined
         ? {}

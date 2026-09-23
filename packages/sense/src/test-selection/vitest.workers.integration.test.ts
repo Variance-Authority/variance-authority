@@ -16,7 +16,7 @@
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -27,6 +27,8 @@ const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/external-vitest');
+// Recorded names are relative to the checkout, and the fixture sits inside it.
+const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const vitest = resolve(repository, 'node_modules/vitest/vitest.mjs');
 const temporary: string[] = [];
 
@@ -70,10 +72,10 @@ describe('a local run spread across workers', () => {
     // upper bound and the snapshot does not speak wholly for it; the three that
     // ran everything do.
     expect(coverage.tests.map((test) => [test.file, test.complete]).sort()).toEqual([
-      ['test/alpha.case.ts', false],
-      ['test/beta.case.ts', true],
-      ['test/delta.case.ts', true],
-      ['test/gamma.case.ts', true],
+      [at('test/alpha.case.ts'), false],
+      [at('test/beta.case.ts'), true],
+      [at('test/delta.case.ts'), true],
+      [at('test/gamma.case.ts'), true],
     ]);
 
     // The crossings are per file, not per worker: each branch still names the
@@ -82,14 +84,14 @@ describe('a local run spread across workers', () => {
     const source = await readFile(resolve(fixture, 'src/decide.ts'), 'utf8');
     const change = (text: string, to: string): string => {
       const line = lineOf(source, text);
-      return `--- a/src/decide.ts\n+++ b/src/decide.ts\n@@ -${line},1 +${line},1 @@\n-    ${text}\n+    ${to}`;
+      return `--- a/${at('src/decide.ts')}\n+++ b/${at('src/decide.ts')}\n@@ -${line},1 +${line},1 @@\n-    ${text}\n+    ${to}`;
     };
 
     await expect(selectTestFiles(coverageFile, change("return 'A';", "return 'Alpha';"))).resolves.toEqual([
-      'test/alpha.case.ts',
+      at('test/alpha.case.ts'),
     ]);
     await expect(selectTestFiles(coverageFile, change("return 'G';", "return 'Gamma';"))).resolves.toEqual([
-      'test/gamma.case.ts',
+      at('test/gamma.case.ts'),
     ]);
   }, 120_000);
 });

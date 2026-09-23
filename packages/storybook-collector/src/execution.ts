@@ -24,11 +24,14 @@ import {
   type ObservedSubject,
 } from '@variance-authority/sense/journal';
 import { parseStoryIndex } from '@variance-authority/storybook';
-import { resolve } from 'node:path';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 
 /** Where a story run's execution evidence is joined, read and kept. */
 export interface StoryExecutionOptions {
-  /** Repository root the recorded paths are relative to. Defaults to the cwd. */
+  /**
+   * A directory inside the repository; defaults to the cwd. Recorded paths are
+   * relative to the checkout it sits in, never to it.
+   */
   readonly root?: string;
   /** Matches the `label` the build's `testSelectionProbes()` used. Defaults to `build`. */
   readonly label?: string;
@@ -103,7 +106,7 @@ export async function createStoryRecorder(
   index: string,
   options: StoryExecutionOptions,
 ): Promise<StoryRecorder> {
-  const root = resolve(options.root ?? process.cwd());
+  const root = repositoryRoot(options.root ?? process.cwd());
   const storyFiles = await storyFilesFrom(index);
   const observed: ObservedSubject[] = [];
   const cases: ObservedCase[] = [];

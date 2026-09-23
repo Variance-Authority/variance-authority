@@ -26,9 +26,14 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import { testCoverageFile } from './index.js';
+import { repositoryRoot } from './repository-root.js';
 
 export interface JestTestSelectionOptions {
-  /** Repository root. Defaults to `rootDir`, then the current directory. */
+  /**
+   * A directory inside the repository; defaults to `rootDir`, then the current
+   * directory. Names are relative to the checkout it sits in, never to it, and
+   * relative option paths resolve against it.
+   */
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository-keyed user cache. */
   readonly coverageFile?: string;
@@ -93,7 +98,11 @@ export interface JestTestSelectionOptions {
 
 /** Record per-test journeys from Jest without creating a test-selection snapshot. */
 export interface JestJourneyCoverageOptions {
-  /** Repository root. Defaults to `rootDir`, then the current directory. */
+  /**
+   * A directory inside the repository; defaults to `rootDir`, then the current
+   * directory. Names are relative to the checkout it sits in, never to it, and
+   * relative option paths resolve against it.
+   */
   readonly root?: string;
   /** Native per-test journey artifact written by `variance journeys finalize` after Jest. */
   readonly journeyFile: string;
@@ -220,19 +229,21 @@ export function withTestSelection(
   config: JestConfig = {},
   options: JestTestSelectionOptions = {},
 ): JestConfig {
-  const root = resolve(options.root ?? config.rootDir ?? process.cwd());
+  const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
+  const root = repositoryRoot(rootDir);
   const coverageFile = options.coverageFile === undefined
     ? testCoverageFile(root)
-    : resolve(root, options.coverageFile);
+    : resolve(rootDir, options.coverageFile);
   const inline = inlineProjects(config);
   const mode = options.mode;
-  const declared = (options.preconditions ?? []).map((file) => resolve(root, file));
-  const projects = inline?.map((project) => instrumented(project, root, projectRoot(project, root), mode, declared));
+  const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
+  const projects = inline?.map((project) =>
+    instrumented(project, root, projectRoot(project, rootDir), mode, declared));
   const preconditions = [
-    ...environmentPaths(config, root),
-    ...setupPaths(config, root),
-    ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, root))),
-    ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, root))),
+    ...environmentPaths(config, rootDir),
+    ...setupPaths(config, rootDir),
+    ...(inline ?? []).flatMap((project) => environmentPaths(project, projectRoot(project, rootDir))),
+    ...(inline ?? []).flatMap((project) => setupPaths(project, projectRoot(project, rootDir))),
     ...declared,
   ];
   const reporter: SelectionReporterConfig = {
@@ -244,12 +255,12 @@ export function withTestSelection(
     ...(options.cases === true && options.continuations === true ? { continuations: true } : {}),
     ...(options.executionFile === undefined
       ? {}
-      : { executionFile: resolve(root, options.executionFile) }),
+      : { executionFile: resolve(rootDir, options.executionFile) }),
   };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, root, mode, declared) : config),
-    rootDir: config.rootDir ?? root,
+    ...(projects === undefined ? instrumented(config, root, rootDir, mode, declared) : config),
+    rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };
@@ -263,21 +274,22 @@ export function withJourneyCoverage(
   config: JestConfig,
   options: JestJourneyCoverageOptions,
 ): JestConfig {
-  const root = resolve(options.root ?? config.rootDir ?? process.cwd());
+  const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
+  const root = repositoryRoot(rootDir);
   const inline = inlineProjects(config);
-  const declared = (options.preconditions ?? []).map((file) => resolve(root, file));
+  const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
   const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, root), options.mode, declared));
+    instrumented(project, root, projectRoot(project, rootDir), options.mode, declared));
   const reporter: JourneyReporterConfig = {
     root,
-    journeyFile: resolve(root, options.journeyFile),
+    journeyFile: resolve(rootDir, options.journeyFile),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
   };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, root, options.mode, declared) : config),
-    rootDir: config.rootDir ?? root,
+    ...(projects === undefined ? instrumented(config, root, rootDir, options.mode, declared) : config),
+    rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
   };

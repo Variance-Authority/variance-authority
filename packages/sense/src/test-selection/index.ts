@@ -102,6 +102,7 @@ export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, mergeCoverage };
 export { cacheLayers, defaultCacheRoot, layeredFiles, type CacheLayers } from './cache-layers.js';
+export { repositoryRoot } from './repository-root.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
 // columns of the file it is about to write over rather than over a model
 // somebody decoded first.

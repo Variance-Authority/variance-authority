@@ -132,7 +132,8 @@ export default {
 ```
 
 `testSelectionProbes(options?: TestSelectionProbeOptions)` takes four optional
-fields: `root` (repository root, defaults to the current directory), `include`
+fields: `root` (a directory in the repository, defaults to the current directory;
+recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `label` (defaults to
 `build`, and separates two bundlers over one repository), and `cacheRoot` (where
 the module records go, defaulting to the user cache). Give a Storybook preview
