@@ -140,7 +140,12 @@ export interface ExecutionRecorder {
    * `events` fixture, most of all — uses the one that is already on the context
    * rather than minting a second and overwriting the first.
    */
-  readonly join: (page: Page, owner: string, origin?: string) => Promise<string | undefined>;
+  readonly join: (
+    page: Page,
+    owner: string,
+    origin?: string,
+    subject?: ObservedTest,
+  ) => Promise<string | undefined>;
   /**
    * The owner key for one test, against the root this recorder was given.
    *
@@ -213,9 +218,12 @@ export function createExecutionRecorder(
   // inside a file's window, and both are wanted whole. The key carries all
   // three coordinates because a test retried in the same worker drains twice
   // and is one case.
-  const cases = new Map<string, { readonly of: ObservedCase; readonly hits: Accumulated }>();
+  const cases = new Map<string, { readonly of: Omit<ObservedCase, 'journal'>; readonly hits: Accumulated }>();
   const heads = recording.heads ?? [];
   const minted = new Map<string, string>();
+  // The case each journey was minted for, where the run records cases: a head
+  // knows only the journey, so this is the one place its crossings meet a test.
+  const mintedFor = new Map<string, { readonly owner: string; readonly subject: ObservedTest }>();
   const failed = new Set<string>();
   const reports: JourneyReport[] = [];
   let seen = false;
@@ -251,18 +259,10 @@ export function createExecutionRecorder(
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
       if (recording.cases !== true || subject === undefined) return;
-      const key = `${owner}\u0000${subject.id}`;
-      const held =
-        cases.get(key) ??
-        ({
-          of: { file: owner, name: subject.name, id: subject.id, journal },
-          hits: { hits: new Map(), shared: new Map(), complete: true },
-        } as const);
-      absorb(held.hits, journal);
-      cases.set(key, held);
+      absorb(caseOf(owner, subject), journal);
     },
 
-    join: async (page, owner, origin) => {
+    join: async (page, owner, origin, subject) => {
       if (heads.length === 0) return undefined;
       const url = recording.origin ?? origin;
       if (url === undefined) {
@@ -279,6 +279,7 @@ export function createExecutionRecorder(
       const open = await takeReports();
       const journey = mintJourney();
       minted.set(journey, owner);
+      if (recording.cases === true && subject !== undefined) mintedFor.set(journey, { owner, subject });
       // Both at one site, because they are one fact: this is the execution, and
       // this is where it answers. Written apart, whichever half a later mint
       // overwrote would leave a head reporting under an id nobody claims.
@@ -355,6 +356,17 @@ export function createExecutionRecorder(
     };
   }
 
+  /** One case's accumulation, made on first sight from whichever half saw it first. */
+  function caseOf(owner: string, subject: ObservedTest): Accumulated {
+    const key = `${owner}\u0000${subject.id}`;
+    const held = cases.get(key) ?? {
+      of: { file: owner, name: subject.name, id: subject.id },
+      hits: { hits: new Map(), shared: new Map(), complete: true },
+    };
+    cases.set(key, held);
+    return held.hits;
+  }
+
   /** Every case this worker could name, as the index reads them. */
   function observedCases(): readonly ObservedCase[] {
     return [...cases.values()].map((held) => ({ ...held.of, journal: journalOf(held.hits) }));
@@ -393,6 +405,19 @@ export function createExecutionRecorder(
     });
     if (!stitched.complete) {
       process.stderr.write(`variance-authority: ${stitched.because}\n`);
+    }
+    // The same accounts joined a test finer, for the case index. What every
+    // subject shares comes with each case, as the stitch folds it into each file.
+    if (mintedFor.size > 0) {
+      const keys = new Map([...mintedFor].map(([journey, { owner, subject }]) => [journey, `${owner}\u0000${subject.id}`]));
+      const byKey = new Map([...mintedFor.values()].map((minted) => [`${minted.owner}\u0000${minted.subject.id}`, minted]));
+      for (const subjects of stitchJourneys({ reports, heads, owners: keys }).heads.values()) {
+        for (const { owner: key, journal } of subjects) {
+          const { owner, subject } = byKey.get(key)!;
+          instrumentation ??= journal.instrumentation;
+          absorb(caseOf(owner, subject), journal);
+        }
+      }
     }
 
     const subjects: ObservedSubject[] = [];

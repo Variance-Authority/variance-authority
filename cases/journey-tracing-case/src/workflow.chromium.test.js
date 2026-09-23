@@ -15,7 +15,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { selectTestFiles } from '@variance-authority/sense/test-selection';
+import {
+  coveringTests,
+  decodeExecutionIndex,
+  selectTestFiles,
+} from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -136,6 +140,20 @@ live('a journey that crosses into a service', () => {
       expect(await selectTestFiles(coverage, diffAt(at('src/pricing.mjs'), await lineOf("'1200 USD'")))).toEqual([
         at('src/spec/dollars.spec.mjs'),
       ]);
+    });
+  }, 120_000);
+
+  it('names the test inside the spec, when the run records cases', async () => {
+    await inFreshWork(async (work) => {
+      const run = await playwright(work, { VA_CASES: '1' });
+      expect(run, run.output).toMatchObject({ code: 0 });
+      expect(run.output).not.toContain('variance-authority:');
+
+      const index = decodeExecutionIndex(await readFile(join(work, 'coverage.bin.cases.bin')));
+      const named = async (text) =>
+        coveringTests(index, { file: at('src/pricing.mjs'), line: await lineOf(text) }).map((test) => test.name);
+      expect(await named("'1200 EUR'")).toEqual(['the euro branch is covered by this spec and no other']);
+      expect(await named("'1200 USD'")).toEqual(['the dollar branch is covered by this spec and no other']);
     });
   }, 120_000);
 });

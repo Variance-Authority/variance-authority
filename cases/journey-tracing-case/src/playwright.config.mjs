@@ -40,4 +40,5 @@ export default defineConfig(withTestSelection({
   root,
   heads: ['pricing'],
   coverageFile: process.env.VA_COVERAGE,
+  cases: process.env.VA_CASES === '1',
 }));

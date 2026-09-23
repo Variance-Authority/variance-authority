@@ -553,6 +553,8 @@ folding under `presence` would each wipe the other every run.
 so a suite that indexes to answer a question nobody asks has bought a large file
 and nothing else. Selection does not read it: a spec file is the smallest thing
 Playwright can be asked to run, and the file-level record already names that.
+What a declared head executed is joined to the test that sent the request, so a
+branch that only ever ran in a service still names its test.
 
 ### Optional fixture composition
 
