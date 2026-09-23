@@ -41,8 +41,7 @@
  * join only reads the mark.
  */
 
-import { readFile, rename, writeFile } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
@@ -71,6 +70,7 @@ import { coverageModule } from './coverage-rows.js';
 import {
   seedTestCoverage,
   testCoverageFile,
+  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -423,9 +423,7 @@ export async function recordExecution(
   // onto nothing. A no-op here and after the first run.
   await seedTestCoverage(coverageFile, root, options.cacheRoot);
   const merged = await withIndexLock(coverageFile, async (lock) => {
-    const temporary = `${coverageFile}.${process.pid}-${randomUUID()}.tmp`;
-    await writeFile(temporary, await layeredCoverage(coverageFile, current, root));
-    await rename(temporary, coverageFile);
+    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
     // Every module this run could identify, numbered for the next one. A file
     // first met today was instrumented under its path; from here on it has a
     // number, and the transform that emits it needs to consult nothing. Under
@@ -464,7 +462,9 @@ export async function recordExecution(
       ? `${coverageFile}.cases.bin`
       : resolve(root, options.executionFile);
   const journals = caseJournals(options.cases);
-  await writeFile(executionFile, executionIndexBytes(executionFile, executionIndexFrom(journals, byId)));
+  // Replaced whole, as the snapshot is: a worker killed mid-write would
+  // otherwise leave an index the next `--since` cannot decode.
+  await writeCoverageBytes(executionFile, executionIndexBytes(executionFile, executionIndexFrom(journals, byId)));
   return {
     recorded: true,
     coverageFile,

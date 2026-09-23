@@ -1,4 +1,4 @@
-import { readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -13,6 +13,7 @@ import {
 } from './instrumented-modules.js';
 import { AMBIENT, executionIndexFrom, readCaseJournals, unpackCase, unpackFrames } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
+import { writeCoverageBytes } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
@@ -136,10 +137,10 @@ export async function writeCaseIndex(
   modules: ReadonlyMap<ModuleId, CapturedModule>,
 ): Promise<void> {
   if (file.endsWith('.json')) {
-    await writeFile(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
+    await writeCoverageBytes(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
     return;
   }
-  await writeFile(file, (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes);
+  await writeCoverageBytes(file, (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes);
 }
 
 /**
