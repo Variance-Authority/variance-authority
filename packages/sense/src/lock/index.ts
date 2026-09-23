@@ -24,4 +24,5 @@
 
 export { changedPackages, packageNameOf, packageRelations, type Lockfile } from './lockfile.js';
 export { LOCKFILES, readLockfile } from './read.js';
+export { MANIFEST, manifestMoved } from './manifest.js';
 export { Unreadable } from './yaml.js';

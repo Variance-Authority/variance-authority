@@ -39,7 +39,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
 import { installDiff, installDiffOfPatch } from './installed.js';
-import { withoutManifests } from './reach.js';
+import { movedPackages, withMovedPackages, withoutManifests } from './reach.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -128,7 +128,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // `main` made since. `undefined` is no lockfile to compare, which moves
   // nothing; a comparison that could not be made declines before the graph is
   // scanned for an answer nobody will read.
-  const installed = await installDiff(await diffPoint(from));
+  const installed = await installDiff(await diffPoint(from), [...selection.changedLines(diff).keys()]);
   if (installed !== undefined && 'whole' in installed) {
     const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
     return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
@@ -138,7 +138,9 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
     why: 'a mocked module is ruled out by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  const narrowing = await journeyAgainst(request.cwd, diff, relations, installed?.packages);
+  // A package whose manifest moved is every file of it, changed whole.
+  const moved = movedPackages(relations, installed);
+  const narrowing = await journeyAgainst(request.cwd, withMovedPackages(diff, moved.files), relations, installed?.packages);
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparison above, which has already said what moved.
   const ground: SelectGround =
@@ -148,7 +150,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
           kind: 'read',
           narrowing: {
             ...narrowing,
-            unread: withoutManifests(narrowing.unread, installed?.manifests ?? []),
+            unread: [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort(),
           },
         };
 
@@ -187,9 +189,8 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
         'and that is `variance reach`.',
     );
   }
-  const changed = selection.changedLines(text);
   const installed = request.diff === undefined
-    ? await installDiff(await diffPoint(from))
+    ? await installDiff(await diffPoint(from), [...selection.changedLines(text).keys()])
     : await installDiffOfPatch(text);
   if (installed !== undefined && 'whole' in installed) {
     return said({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
@@ -198,10 +199,13 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     why: 'a whole-file change is answered by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
+  // A package whose manifest moved is every file of it, changed whole.
+  const moved = movedPackages(relations, installed);
+  const changed = selection.changedLines(withMovedPackages(text, moved.files));
   const options = { relations, packages: installed?.packages ?? [] };
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
-  const unread = withoutManifests(narrowing.unread, installed?.manifests ?? []);
+  const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort();
   return said({ at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread } } }, request);
 }
 

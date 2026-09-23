@@ -190,7 +190,7 @@ describe('the chain from a bumped package to a component', () => {
       relations: INSTALLED,
       roots: ROOTS,
       baselines: baselines([['story:button', ['Button']]]),
-      install: { packages: ['@emotion/react'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['@emotion/react'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(reach.components).toEqual([
@@ -208,7 +208,7 @@ describe('the chain from a bumped package to a component', () => {
       relations: INSTALLED,
       roots: ROOTS,
       baselines: baselines([['story:typed', ['Typed']]]),
-      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(reach.components.map((entry) => entry.component)).toEqual(['Button']);
@@ -222,7 +222,7 @@ describe('the chain from a bumped package to a component', () => {
       relations: INSTALLED,
       roots: ROOTS,
       baselines: baselines([['story:button', ['Button']]]),
-      install: { packages: ['eslint'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['eslint'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     // An empty answer that is a fact, not a gap: the graph holds every file

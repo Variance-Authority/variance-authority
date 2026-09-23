@@ -15,7 +15,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
 import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
-import { importGraph, isManifest, movedPackages } from './since-graph.mjs';
+import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
 import { describeRange, distanceLines, findingLines, helpLines } from './since-report.mjs';
 
 /**
@@ -316,10 +316,12 @@ async function main() {
   // path, and the paths that record it are then set aside: a workspace version
   // rewrite moves hundreds of manifest lines and no installed byte, and the
   // comparison has already said so. `undefined` is a comparison that could not
-  // be made.
+  // be made. A manifest whose change the install does not read — `exports`,
+  // `main`, `type` — is set aside too, and its package's files stand in for it.
   const moved = movedPackages(ROOT, base, git);
+  const manifests = movedManifests(ROOT, base, git, changed);
   const consequential = changed.filter((path) => !isManifest(path));
-  if (consequential.length === 0 && moved !== undefined && moved.length === 0) {
+  if (consequential.length === 0 && manifests.length === 0 && moved !== undefined && moved.length === 0) {
     say(
       changed.length === 0
         ? `test:since: nothing has changed since ${base.slice(0, 12)}.`
@@ -345,9 +347,23 @@ async function main() {
       : outOfFrame(coverage, consequential, (checkable) => textAtRecording(ROOT, checkable));
 
   const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, stemOf });
+  // Named with no hunk, each is every region it has, and a file with no row is
+  // answered by its importers.
+  const wholePackages = movedPackageFiles(relations, manifests);
+  if (manifests.length > 0) {
+    say(
+      `test:since: ${manifests.length} manifest(s) moved what the install does not read ` +
+        `(${manifests.slice(0, 3).join(', ')}${manifests.length > 3 ? ', …' : ''}); ` +
+        `${wholePackages.length} file(s) of their packages are read as changed whole.`,
+    );
+  }
   const { narrowing, distances } = await distanceByExecution(
     snapshotFile,
-    inSnapshotCoordinates(diff, byStem, (path) => reframed.has(path)),
+    inSnapshotCoordinates(
+      [diff, ...wholePackages.map((file) => `diff --git a/${file} b/${file}`)].join('\n'),
+      byStem,
+      (path) => reframed.has(path),
+    ),
     {
       relations,
       enumerated,

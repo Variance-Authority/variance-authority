@@ -41,6 +41,11 @@
  * already read. Those paths are then dropped from the seeds, because a lockfile
  * counted twice — once as the packages it resolved and once as an unknown file
  * — would widen for the very thing it just explained.
+ *
+ * A `package.json` is only half read by that comparison. Its `exports`, `main`
+ * and `type` decide which file an importer of the package loads, and the
+ * lockfile holds none of them, so a manifest whose change reaches them arrives
+ * as `moved` and its package is walked as a changed directory.
  */
 
 import {
@@ -97,23 +102,33 @@ export function refused<T extends object>(reach: T | GraphRefusal): reach is Gra
  * resolved differently says everything.
  *
  * `manifests` are the *file names* that comparison speaks for — the lockfile's
- * own, and `package.json`, whose text can differ for reasons no install shares
- * and whose installed meaning is exactly what was just read. A walk drops them
- * from its seeds; anything else in the diff is still a changed file.
+ * own, and `package.json`, whose dependency fields are a request the lockfile
+ * answered. A walk drops them from its seeds; anything else in the diff is
+ * still a changed file.
+ *
+ * `moved` are the changed `package.json` *paths* whose change reaches past
+ * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
+ * the same comparison. Each one's directory is a changed directory: every
+ * importer of the package may now load a different file.
  */
 export type InstallDiff =
-  | { readonly packages: readonly string[]; readonly manifests: readonly string[] }
+  | {
+      readonly packages: readonly string[];
+      readonly manifests: readonly string[];
+      readonly moved: readonly string[];
+    }
   | { readonly whole: string };
 
 /** The install as *nothing happened*, for a caller that has no reading to offer. */
-export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [] };
+export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [], moved: [] };
 
 /**
- * Paths the install comparison has already spoken for.
+ * Paths the install comparison has already spoken for, or handed on as `moved`.
  *
  * Matched on the last segment, so a monorepo's every `package.json` goes the
  * same way the root one does: a resolver, a `resolutions` block, a version
- * range — the install answered all three, at both revisions, by name.
+ * range — the install answered all three, at both revisions, by name. A moved
+ * manifest is dropped here too; {@link movedPackages} says what stands in for it.
  */
 export function withoutManifests(
   changed: readonly string[],
@@ -122,6 +137,52 @@ export function withoutManifests(
   return changed.filter(
     (file) => !manifests.some((name) => file === name || file.endsWith(`/${name}`)),
   );
+}
+
+/**
+ * The files of every package whose manifest moved, from the graph.
+ *
+ * The directory of a moved `package.json` is expanded the way a monorepo tool's
+ * changed directory is: every file the graph holds under it. A moved manifest
+ * the graph holds no file beside is returned in `unplaced`, to be read as the
+ * ordinary changed path it would have been — a gap under the scanned roots, a
+ * file nothing reads outside them — rather than as a package that reached
+ * nothing.
+ */
+export function movedPackages(
+  relations: Relations,
+  install: InstallDiff | undefined,
+): { readonly files: readonly string[]; readonly unplaced: readonly string[] } {
+  const moved = install === undefined || 'whole' in install ? [] : install.moved;
+  if (moved.length === 0) return { files: [], unplaced: [] };
+  const names = nodesOfKind(relations, 'file').map((id) => relations.names[id]!);
+  const files = new Set<string>();
+  const unplaced: string[] = [];
+  for (const manifest of moved) {
+    const beside = names.filter((file) => within(file, [directoryOf(manifest)]));
+    if (beside.length === 0) unplaced.push(manifest);
+    for (const file of beside) files.add(file);
+  }
+  return { files: [...files].sort(byCodeUnit), unplaced };
+}
+
+/**
+ * A patch that also changes, whole, every file of a package whose manifest
+ * moved — the journal's reading of {@link movedPackages}.
+ *
+ * A file named with no hunk is every recorded region of it, and a file with no
+ * row is answered by its recorded importers, so a package whose `exports`
+ * moved selects every test that entered it or anything importing it, which is
+ * what the walk's changed directory selects.
+ */
+export function withMovedPackages(diff: string, files: readonly string[]): string {
+  if (files.length === 0) return diff;
+  return [diff, ...files.map((file) => `diff --git a/${file} b/${file}`)].join('\n');
+}
+
+function directoryOf(file: string): string {
+  const at = file.lastIndexOf('/');
+  return at === -1 ? '.' : file.slice(0, at);
 }
 
 /**
@@ -189,7 +250,8 @@ function seedsOf(
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
-  const files = withoutManifests(changed, install.manifests);
+  const moved = movedPackages(relations, install);
+  const files = [...withoutManifests(changed, install.manifests), ...moved.unplaced];
 
   // Before anything is walked, and it refuses rather than narrows. A walk
   // against the arrows from a setup file the suite loads for every test reaches
@@ -206,12 +268,16 @@ function seedsOf(
     };
   }
 
-  const expanded =
-    changedDirs.length === 0
-      ? []
-      : nodesOfKind(relations, 'file')
-          .map((id) => relations.names[id]!)
-          .filter((file) => within(file, changedDirs));
+  const expanded = [
+    ...new Set([
+      ...(changedDirs.length === 0
+        ? []
+        : nodesOfKind(relations, 'file')
+            .map((id) => relations.names[id]!)
+            .filter((file) => within(file, changedDirs))),
+      ...moved.files,
+    ]),
+  ];
 
   const packages = install.packages.map((name) => ({ kind: 'package', name }) as const);
   const affected = affectedBy(relations, [...files, ...expanded, ...packages]);

@@ -15,9 +15,9 @@
  * outside the tree — and it is reported as such rather than walked through.
  */
 
-import { relationsOfFiles } from '@variance-authority/core/relate';
+import { nodesOfKind, relationsOfFiles, within } from '@variance-authority/core/relate';
 import { publishedSources, sourcesWithin } from '@variance-authority/sense';
-import { LOCKFILES, changedPackages, packageRelations, readLockfile } from '@variance-authority/sense/lock';
+import { LOCKFILES, MANIFEST, changedPackages, manifestMoved, packageRelations, readLockfile } from '@variance-authority/sense/lock';
 import { isCI } from 'ci-info';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -278,15 +278,54 @@ export function movedPackages(root, base, git) {
 }
 
 /**
- * A path whose meaning the install comparison already read.
+ * A path whose meaning the install comparison already read, or handed on.
  *
  * `package.json` is a request and the lockfile is the answer, and both are
  * dropped once the two installs have been compared, so neither is counted
- * twice. Matched on the last segment, because every workspace has one.
+ * twice. Matched on the last segment, because every workspace has one. A
+ * manifest whose change the install does not read is dropped here as well, and
+ * {@link movedManifests} names it so its package can stand in for it.
  */
 export function isManifest(path) {
   const name = path.slice(path.lastIndexOf('/') + 1);
-  return name === 'package.json' || LOCKFILES.includes(name);
+  return name === MANIFEST || LOCKFILES.includes(name);
+}
+
+/**
+ * The changed manifests whose change reaches past what the install reads.
+ *
+ * `exports`, `main`, `type` and `name` decide which file an importer of the
+ * package loads and appear nowhere in the lockfile. Each changed `package.json`
+ * is read at the base and in the working tree, and `manifestMoved` — the
+ * lockfile reader's, so this and `variance select` cannot disagree — says
+ * whether the difference is one of those.
+ */
+export function movedManifests(root, base, git, changed) {
+  return changed
+    .filter((path) => path.slice(path.lastIndexOf('/') + 1) === MANIFEST)
+    .filter((path) => manifestMoved(attempt(() => git('show', `${base}:${path}`)), attempt(() => readFileSync(join(root, path), 'utf8'))));
+}
+
+/**
+ * Every file the graph holds beside a moved manifest, to be read as changed
+ * whole: a package whose `exports` moved is a package every importer of which
+ * may now load a different file.
+ */
+export function movedPackageFiles(relations, manifests) {
+  if (manifests.length === 0) return [];
+  const dirs = manifests.map((path) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'));
+  return nodesOfKind(relations, 'file')
+    .map((id) => relations.names[id])
+    .filter((file) => within(file, dirs))
+    .sort();
+}
+
+function attempt(read) {
+  try {
+    return read();
+  } catch {
+    return undefined;
+  }
 }
 
 /** The names a lockfile in this repository's root may go by, and the first one there. */

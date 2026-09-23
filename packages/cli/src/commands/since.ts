@@ -401,14 +401,17 @@ export async function narrowingFor(
   // The install is read at the same point the file list is measured from. A
   // diff of files against the merge base beside a diff of packages against
   // anything else would report bumps nobody made every time `main` moved.
+  const changed = request.since === undefined ? undefined : await changedSince(request.since, dirs);
   const installed =
-    request.since === undefined ? undefined : await installDiff(await diffPoint(request.since, dirs));
+    request.since === undefined || changed === undefined
+      ? undefined
+      : await installDiff(await diffPoint(request.since, dirs), changed);
   const since =
-    request.since === undefined
+    request.since === undefined || changed === undefined
       ? undefined
       : {
           ref: request.since,
-          changed: await changedSince(request.since, dirs),
+          changed,
           ...(installed === undefined ? {} : { install: installed }),
           ...(diff === undefined ? {} : { diff }),
         };
@@ -418,16 +421,14 @@ export async function narrowingFor(
       ? undefined
       : againstRef === since?.ref
         ? { ref: againstRef, changed: since.changed, ...(installed === undefined ? {} : { install: installed }) }
-        : {
-            ref: againstRef,
-            changed: await changedSince(againstRef, dirs),
+        : await (async () => {
+            const changed = await changedSince(againstRef, dirs);
             // A second ref is a second install. Explaining a run by one diff's
             // packages while narrowing it by another's would put a bump in the
             // report that no selected subject was selected for.
-            ...(await installDiff(await diffPoint(againstRef, dirs)).then((read) =>
-              read === undefined ? {} : { install: read },
-            )),
-          };
+            const read = await installDiff(await diffPoint(againstRef, dirs), changed);
+            return { ref: againstRef, changed, ...(read === undefined ? {} : { install: read }) };
+          })();
 
   return {
     ...(since === undefined ? {} : { since }),

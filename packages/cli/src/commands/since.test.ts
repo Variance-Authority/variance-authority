@@ -297,7 +297,7 @@ describe('narrowing a run to what a diff could have changed', () => {
         since: {
           ref: 'origin/main',
           changed: ['yarn.lock'],
-          install: { packages: ['left-pad'], manifests: ['yarn.lock', 'package.json'] },
+          install: { packages: ['left-pad'], manifests: ['yarn.lock', 'package.json'], moved: [] },
           diff: lock,
         },
         scanSource: async () => SOURCE,
@@ -319,6 +319,42 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       // The comparison answered the lockfile, so the journal's silence about it
       // is not news.
+      expect(report.warnings?.join('\n')).not.toContain('records nothing about');
+    });
+
+    it('reads every file of a package whose manifest moved as changed whole', async () => {
+      // The lockfile did not move and the diff has one hunk, in a `package.json`
+      // whose `exports` now name another file. The journal holds no row for a
+      // manifest, so it is handed the package's files instead, each named with
+      // no hunk, which is every region of each.
+      const manifest = ['--- a/packages/ds/package.json', '+++ b/packages/ds/package.json', '@@ -1,1 +1,1 @@'].join('\n');
+      const asked: string[] = [];
+
+      const { report } = await runWith(CONFIG, BOTH, stored(['Button']), {
+        since: {
+          ref: 'origin/main',
+          changed: ['packages/ds/package.json'],
+          install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] },
+          diff: manifest,
+        },
+        scanSource: async () => SOURCE,
+        scanRelations: async () => relationsOfFiles([{ file: 'packages/ds/src/index.ts' }, { file: 'src/Button.tsx' }]),
+        readJourney: async (diff, relations) => {
+          asked.push(relations === undefined ? 'no graph' : diff);
+          const answered = diff.includes('diff --git a/packages/ds/src/index.ts b/packages/ds/src/index.ts');
+          return {
+            whole: ['fixture:a', 'fixture:b'],
+            entered: answered ? ['fixture:a'] : [],
+            unread: ['packages/ds/package.json'],
+            stale: [],
+            because: [],
+          };
+        },
+      });
+
+      expect(asked).toHaveLength(1);
+      expect(asked[0]).not.toContain('src/Button.tsx');
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
       expect(report.warnings?.join('\n')).not.toContain('records nothing about');
     });
 

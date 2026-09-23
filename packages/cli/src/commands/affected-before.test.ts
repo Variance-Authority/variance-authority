@@ -53,7 +53,7 @@ describe('a diff that moved what the run rests on', () => {
       relations: GRAPH,
       baselines: BASELINES,
       before: BEFORE,
-      install: { packages, manifests: ['yarn.lock', 'package.json'] },
+      install: { packages, manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
   }
 
@@ -115,7 +115,7 @@ describe('a diff that moved what the run rests on', () => {
       roots: ROOTS,
       relations: GRAPH,
       baselines: BASELINES,
-      install: { packages: [], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual(['story:clock']);

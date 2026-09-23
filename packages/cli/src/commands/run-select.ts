@@ -41,7 +41,7 @@ import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
-import { many, withoutManifests, type InstallDiff } from './reach.js';
+import { many, movedPackages, withMovedPackages, withoutManifests, type InstallDiff } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 
@@ -241,7 +241,7 @@ export async function selectionFor(
   const journal =
     diff === undefined || beyondTheJournal(install, answer)
       ? undefined
-      : await journalOf(deps, diff, relations, compared?.packages ?? [], config.source.dirs);
+      : await journalOf(deps, diff, relations, compared, config.source.dirs);
 
   // A structural skip the recording contradicts is not proven. That ground reads
   // the components a baseline names and the edges the graph could read, and
@@ -277,9 +277,7 @@ export async function selectionFor(
       { ...answer, skipped, kept },
       journey,
       {
-        // The lockfile and the manifests beside it are unread by the journal and
-        // answered by the install comparison, which has already said what moved.
-        unread: withoutManifests(journal?.unread ?? [], compared?.manifests ?? []),
+        unread: journal?.unread ?? [],
         stale: journal?.stale ?? [],
       },
       before,
@@ -326,13 +324,25 @@ async function journalOf(
   deps: RunDeps,
   diff: string,
   relations: Relations | undefined,
-  packages: readonly string[],
+  install: Extract<InstallDiff, { readonly moved: unknown }> | undefined,
   dirs: readonly string[],
 ): Promise<ExecutionNarrowing | undefined> {
-  const read = (graph?: Relations) => deps.readJourney?.(diff, graph, packages);
+  const packages = install?.packages ?? [];
+  const read = async (graph?: Relations) => {
+    // A package whose manifest moved is every file of it, changed whole, and
+    // only the graph can say which files those are.
+    const moved = graph === undefined ? { files: [], unplaced: [] } : movedPackages(graph, install);
+    const narrowing = await deps.readJourney?.(withMovedPackages(diff, moved.files), graph, packages);
+    // The lockfile and the manifests beside it are unread by the journal and
+    // answered by the install comparison, which has already said what moved.
+    return narrowing === undefined
+      ? undefined
+      : { ...narrowing, unread: [...withoutManifests(narrowing.unread, install?.manifests ?? []), ...moved.unplaced].sort() };
+  };
   if (relations !== undefined) return read(relations);
-  if (deps.scanRelations === undefined) return packages.length === 0 ? read() : undefined;
-  if (packages.length > 0) return read(await deps.scanRelations(dirs));
+  const needsGraph = packages.length > 0 || (install?.moved.length ?? 0) > 0;
+  if (deps.scanRelations === undefined) return needsGraph ? undefined : read();
+  if (needsGraph) return read(await deps.scanRelations(dirs));
   const first = await read();
   if (first === undefined || !first.unread.some((path) => within(path, dirs))) return first;
   return read(await deps.scanRelations(dirs));

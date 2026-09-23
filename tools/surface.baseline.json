@@ -2370,8 +2370,10 @@
       "./lock": {
         "LOCKFILES": "const",
         "Lockfile": "interface",
+        "MANIFEST": "const",
         "Unreadable": "class",
         "changedPackages": "function",
+        "manifestMoved": "function",
         "packageNameOf": "function",
         "packageRelations": "function",
         "readLockfile": "function"

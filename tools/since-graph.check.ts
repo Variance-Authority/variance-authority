@@ -1,9 +1,9 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { affectedBy, relationsOfFiles, type EdgeKind } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
 import { sourceStem } from './page-side.mjs';
-import { bridgeWorkspace, foldBuilt, manifests, packageFaces, published } from './since-graph.mjs';
+import { bridgeWorkspace, foldBuilt, manifests, movedManifests, movedPackageFiles, packageFaces, published } from './since-graph.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -159,5 +159,28 @@ describe('a face is what a package publishes', () => {
 
   it('leaves a published entry alone', () => {
     expect(faces('packages/core/src/format/index.ts', 'packages/cli/src/x.ts')).toBeUndefined();
+  });
+});
+
+describe('a manifest the install only half reads', () => {
+  const at = (texts: Readonly<Record<string, string>>) => (...args: readonly string[]) => {
+    const text = texts[args[1]!.slice(args[1]!.indexOf(':') + 1)];
+    if (text === undefined) throw new Error('not at base');
+    return text;
+  };
+
+  it('names the changed manifest whose `exports` moved, and not one that bumped a range', () => {
+    const here = JSON.parse(readFileSync(join(ROOT, 'packages/core/package.json'), 'utf8')) as object;
+    const exportsWere = JSON.stringify({ ...here, exports: { '.': './elsewhere.js' } });
+    const rangeWas = JSON.stringify({ ...here, devDependencies: { nothing: '0.0.0' } });
+
+    expect(movedManifests(ROOT, 'base', at({ 'packages/core/package.json': exportsWere }), ['packages/core/package.json', 'README.md'])).toEqual(['packages/core/package.json']);
+    expect(movedManifests(ROOT, 'base', at({ 'packages/core/package.json': rangeWas }), ['packages/core/package.json'])).toEqual([]);
+  });
+
+  it('reads every file the graph holds beside a moved manifest', () => {
+    const relations = relationsOfFiles([{ file: 'packages/ds/src/a.ts' }, { file: 'packages/dsx/src/b.ts' }, { file: 'src/c.ts' }]);
+    expect(movedPackageFiles(relations, ['packages/ds/package.json'])).toEqual(['packages/ds/src/a.ts']);
+    expect(movedPackageFiles(relations, ['package.json'])).toHaveLength(3);
   });
 });

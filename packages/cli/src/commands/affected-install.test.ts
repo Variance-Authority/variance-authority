@@ -54,7 +54,7 @@ describe('a diff that changed the install rather than a file', () => {
       roots: ROOTS,
       relations: GRAPH,
       baselines: BASELINES,
-      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual(['story:button']);
@@ -73,7 +73,7 @@ describe('a diff that changed the install rather than a file', () => {
       // Nothing imports `@emotion/react` by name. `@mui/material` rests on it,
       // and that is the whole reason the install is read as a graph rather than
       // as a list of direct dependencies.
-      install: { packages: ['@emotion/react'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['@emotion/react'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual(['story:button']);
@@ -91,7 +91,7 @@ describe('a diff that changed the install rather than a file', () => {
       // The case this whole layer exists for. A workspace version bump rewrites
       // the lockfile and installs nothing, and read as a changed file it used
       // to repaint the entire suite.
-      install: { packages: [], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual([]);
@@ -106,7 +106,7 @@ describe('a diff that changed the install rather than a file', () => {
       roots: ROOTS,
       relations: GRAPH,
       baselines: BASELINES,
-      install: { packages: ['eslint'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['eslint'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual([]);
@@ -138,10 +138,82 @@ describe('a diff that changed the install rather than a file', () => {
       source: SOURCE,
       roots: ROOTS,
       baselines: BASELINES,
-      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'] },
+      install: { packages: ['@mui/material'], manifests: ['yarn.lock', 'package.json'], moved: [] },
     });
 
     expect(answer.observe).toEqual(PLANNED);
     expect(answer.whole).toContain('source: { relations: true }');
+  });
+});
+
+/**
+ * A manifest whose change the install does not speak for.
+ *
+ * `exports`, `main`, `type`, `name` are read by every resolver that loads the
+ * package, and none of them is in the lockfile. A diff confined to one of them
+ * moves which file every importer of the package loads, so the package is a
+ * changed directory, walked back to its importers like one.
+ */
+describe('a manifest change the install comparison does not read', () => {
+  const GRAPH = relationsOfFiles([
+    { file: 'packages/ds/src/index.ts' },
+    {
+      file: 'src/ds/Button.tsx',
+      declares: ['Button'],
+      edges: [{ to: 'packages/ds/src/index.ts', kind: 'imports' }],
+    },
+    { file: 'src/ds/Clock.tsx', declares: ['Clock'] },
+  ]);
+
+  const PLANNED = ['story:button', 'story:clock'];
+  const BASELINES = baselines([
+    ['story:button', ['Button']],
+    ['story:clock', ['Clock']],
+  ]);
+
+  it('observes the importers of a package whose `exports` moved', () => {
+    const answer = affectedSubjects({
+      planned: PLANNED,
+      changed: ['packages/ds/package.json'],
+      source: SOURCE,
+      roots: ROOTS,
+      relations: GRAPH,
+      baselines: BASELINES,
+      install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['packages/ds/package.json'] },
+    });
+
+    expect(answer.observe).toEqual(['story:button']);
+    expect(answer.whole).toBeUndefined();
+  });
+
+  it('still sets a manifest aside when the install spoke for all of it', () => {
+    const answer = affectedSubjects({
+      planned: PLANNED,
+      changed: ['packages/ds/package.json'],
+      source: SOURCE,
+      roots: ROOTS,
+      relations: GRAPH,
+      baselines: BASELINES,
+      install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: [] },
+    });
+
+    expect(answer.observe).toEqual([]);
+    expect(answer.whole).toBeUndefined();
+  });
+
+  it('reads a moved manifest the graph holds no file beside as an ordinary changed file', () => {
+    const answer = affectedSubjects({
+      planned: PLANNED,
+      changed: ['src/vendored/package.json'],
+      source: SOURCE,
+      roots: ROOTS,
+      relations: GRAPH,
+      baselines: BASELINES,
+      install: { packages: [], manifests: ['yarn.lock', 'package.json'], moved: ['src/vendored/package.json'] },
+    });
+
+    // Under the scanned roots and nothing scanned beside it: a gap, not an answer.
+    expect(answer.observe).toEqual(PLANNED);
+    expect(answer.whole).toContain('src/vendored/package.json');
   });
 });
