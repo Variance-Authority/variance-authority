@@ -1,6 +1,7 @@
 # @variance-authority/sense-linux-x64-gnu
 
-The prebuilt source scanner for **Linux on x64, against glibc**, loaded by
+The prebuilt source scanner for **Linux on x64, against glibc 2.17 or newer**,
+loaded by
 [`@variance-authority/sense`](https://www.npmjs.com/package/@variance-authority/sense).
 
 Install `@variance-authority/sense` instead of this. It names one of these

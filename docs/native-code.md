@@ -50,6 +50,10 @@ The scanner ships three: **macOS arm64**, **Linux x64 against glibc**, and
 Linux runner, and a Windows desktop, and it is a short list because it can
 afford to be — see *When a binary does not arrive* below.
 
+The Linux scanner needs glibc 2.17 or newer. Node 22 itself needs 2.28 and oxc
+needs 2.14, so an image that runs Node already meets it: the scanner adds no
+requirement of its own.
+
 `oxc-parser`, `oxc-resolver` and `sharp` each publish a musl build for x64 and
 arm64, so on Alpine and other musl images the usual failure — an addon that
 resolves to a glibc binary and fails to load — does not apply to these three.

@@ -155,9 +155,26 @@ jobs:
       # already native to it this is a no-op.
       - run: rustup target add ${{ matrix.target }}
 
+      # Linux links against the glibc floor in `native/targets.mjs` rather than
+      # the runner's own, which is what `cargo zigbuild` is for. Built on
+      # ubuntu-latest without it, the scanner asked for glibc 2.39 and failed
+      # to load on Debian 12 while Node and oxc ran there fine.
+      - if: matrix.platform == 'linux-x64-gnu'
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - if: matrix.platform == 'linux-x64-gnu'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
       # No `yarn install`. This builds a Rust crate and copies the result — it
       # needs neither the workspace's dependencies nor its `dist/`.
       - run: node packages/sense/native/build.mjs --target ${{ matrix.target }}
+
+      # The same refusal `prepack` makes at publish, made here so a binary over
+      # its glibc floor fails the platform that built it.
+      - run: node packages/sense/scripts/verify-native-pack.mjs packages/sense/npm/${{ matrix.platform }}
 
       - uses: actions/upload-artifact@v4
         with:

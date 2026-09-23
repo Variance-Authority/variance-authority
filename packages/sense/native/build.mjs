@@ -47,21 +47,9 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TARGETS } from './targets.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Every target we publish a package for, by the Rust triple that builds it.
- *
- * `package` is the directory under `npm/`, and `tools/native-packages.check.ts`
- * holds it against the manifest's `optionalDependencies` and the loader's own
- * table. `artifact` is what `cargo` calls the `cdylib` on that platform.
- */
-const TARGETS = {
-  'aarch64-apple-darwin': { package: 'darwin-arm64', artifact: 'libsense_native.dylib' },
-  'x86_64-unknown-linux-gnu': { package: 'linux-x64-gnu', artifact: 'libsense_native.so' },
-  'x86_64-pc-windows-msvc': { package: 'win32-x64-msvc', artifact: 'sense_native.dll' },
-};
 
 /** What `cargo` calls the artifact on this host, for a target nobody named. */
 const HOST_ARTIFACT = {
@@ -99,6 +87,28 @@ if (cargo === undefined) {
   process.exit(0);
 }
 
+/**
+ * The subcommand and triple a named target is built with.
+ *
+ * A target with a glibc floor is linked against that glibc's symbol versions
+ * rather than the runner's, which `cargo zigbuild` does from the triple's
+ * suffix and writes under the plain triple. Asked for and missing is a failure
+ * like a missing target: the binary it would have produced loads on fewer
+ * machines than the one we publish, and nothing would say so until a `dlopen`.
+ */
+const floor = target === undefined ? undefined : TARGETS[target].glibc;
+const subcommand = floor === undefined ? 'build' : 'zigbuild';
+const triple = floor === undefined ? target : `${target}.${floor}`;
+
+const linkable =
+  floor === undefined || spawnSync(cargo, ['zigbuild', '--help'], { stdio: 'ignore' }).status === 0;
+if (!linkable) {
+  console.error(
+    `sense: ${target} links against glibc ${floor} through \`cargo zigbuild\`, which is not installed`,
+  );
+  process.exit(1);
+}
+
 if (target === undefined && HOST_ARTIFACT === undefined) {
   console.log(`sense: no native scanner for ${process.platform}, skipping`);
   process.exit(0);
@@ -117,7 +127,7 @@ function build(cpu, extra = []) {
     .join(' ');
   const run = spawnSync(
     cargo,
-    ['build', '--release', ...(target === undefined ? [] : ['--target', target]), ...extra],
+    [subcommand, '--release', ...(triple === undefined ? [] : ['--target', triple]), ...extra],
     { cwd: here, stdio: 'inherit', env: { ...process.env, ...(flags === '' ? {} : { RUSTFLAGS: flags }) } },
   );
 
