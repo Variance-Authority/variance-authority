@@ -32,11 +32,11 @@ export default function MermaidDiagram({ source }: { source: string }) {
             edgeLabelBackground: "#181b1d",
             clusterBkg: "#181b1d",
             clusterBorder: "#383e41",
-            // Bar series in order: text search, the Variance answer, a one-off
-            // cost. The last colour is the card behind the chart
-            // (`.mermaid-canvas`): a chart ends with an all-zero series in it,
-            // which paints over the stub the value axis's padding draws in
-            // front of every bar, including a zero one.
+            // Series in order: what the page is about, what it is compared
+            // with, a one-off cost. The last colour is the card behind the
+            // chart (`.mermaid-canvas`): a bar chart ends with an all-zero
+            // series in it, which paints over the stub the value axis's
+            // padding draws in front of every bar, including a zero one.
             xyChart: {
               backgroundColor: "transparent",
               titleColor: "#f3f4f6",
@@ -48,7 +48,7 @@ export default function MermaidDiagram({ source }: { source: string }) {
               yAxisTitleColor: "#8f8580",
               yAxisLineColor: "#756d67",
               yAxisTickColor: "#756d67",
-              plotColorPalette: "#756d67, #ff4a19, #8f8580, #15181a",
+              plotColorPalette: "#ff4a19, #756d67, #8f8580, #15181a",
             },
           },
           // A chart here is a handful of horizontal bars; Mermaid's default

@@ -303,15 +303,21 @@ known, and each removes a layer:
   a path appearing, disappearing or moving rebuilds the records watching its
   directory. An unreadable configuration falls back to the whole path set.
 
-30,500 files and 40,479 edges, one Mac:
+On 30,500 files and 40,479 edges, one Mac, naming every file's content takes
+95 ms and opens nothing. What the scan costs as each layer is remembered:
 
-| | cost |
-|---|---|
-| Naming every file's content | 95 ms, and nothing opened |
-| A cold scan | 3002 ms |
-| Parses remembered | 657 ms |
-| Records remembered too | 236 ms |
-| The run after a one-file edit | 236 ms — the edit is inside the noise |
+```mermaid
+xychart-beta horizontal
+  accTitle: Milliseconds to scan 30,500 files, by what the caches remember
+  x-axis ["nothing, a cold scan", "the parses", "the records too", "the records, after a one-file edit"]
+  y-axis "ms" 0 --> 3100
+  bar [0, 657, 236, 236]
+  bar [3002, 0, 0, 0]
+  bar [0, 0, 0, 0]
+  bar [0, 0, 0, 0]
+```
+
+The last two bars are the same: the edit is inside the noise.
 
 Both caches live under `XDG_CACHE_HOME` (or `~/.cache`), keyed by repository
 root, outside the work tree — so nothing here is committed and `git clean` will
@@ -366,6 +372,17 @@ plain, **93.69 s** recorded — **1.02×** — and **110.86 s** under `--coverag
 cores, because what it charges for is what the tests ran rather than how long
 they took to run. The gap between the two instruments is the figure to carry:
 on that run coverage costs 19.3 s and recording costs 2.1 s.
+
+```mermaid
+xychart-beta horizontal
+  accTitle: Seconds each instrument adds to Material UI's suite on two workers
+  x-axis ["recording", "--coverage, V8"]
+  y-axis "seconds added to 91.56" 0 --> 20
+  bar [2.1, 0]
+  bar [0, 19.3]
+  bar [0, 0]
+  bar [0, 0]
+```
 
 That is the setting `--coverage` gives you, not a pessimistic one.
 `Profiler.startPreciseCoverage` takes two independent flags — a counter per

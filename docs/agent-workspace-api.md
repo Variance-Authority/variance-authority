@@ -77,8 +77,8 @@ xychart-beta horizontal
   accTitle: Seconds to answer createStore in a large monorepo
   x-axis ["rg", "git grep", "produce the generation, once", "ask search", "ask search --from"]
   y-axis "seconds" 0 --> 50
-  bar [17.85, 15.72, 0, 0, 0]
   bar [0, 0, 0, 0.91, 1.31]
+  bar [17.85, 15.72, 0, 0, 0]
   bar [0, 0, 46.85, 0, 0]
   bar [0, 0, 0, 0, 0]
 ```

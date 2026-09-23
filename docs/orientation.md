@@ -87,8 +87,8 @@ xychart-beta horizontal
   accTitle: Results to read for createStore in a large monorepo
   x-axis ["rg", "git grep", "ask search", "ask search --from"]
   y-axis "files, or exported-name groups" 0 --> 1800
-  bar [1743, 1748, 0, 0]
   bar [0, 0, 33, 12]
+  bar [1743, 1748, 0, 0]
   bar [0, 0, 0, 0]
   bar [0, 0, 0, 0]
 ```

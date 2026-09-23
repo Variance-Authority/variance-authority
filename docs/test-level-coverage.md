@@ -40,6 +40,17 @@ tracks what your tests *ran*. The engine's counters are not fired but read, and
 the read hands back every script the worker had open, whether a test went near
 it or not.
 
+```mermaid
+xychart-beta horizontal
+  accTitle: Percent each instrument adds to a suite run
+  x-axis ["Zod, recording", "Zod, --coverage", "TanStack Query, recording", "TanStack Query, --coverage", "Material UI, recording", "Material UI, --coverage"]
+  y-axis "% added to the run" 0 --> 35
+  bar [2, 0, 8, 0, 3, 0]
+  bar [0, 30, 0, 29, 0, 26]
+  bar [0, 0, 0, 0, 0, 0]
+  bar [0, 0, 0, 0, 0, 0]
+```
+
 Two of those suites are short enough that you should not believe a percentage
 taken off them, and that objection is why the third is here. Every Material UI
 round runs the suite plain, recorded, and plain again; the two plain arms come
@@ -48,10 +59,21 @@ disk. Run the same suite on two workers, where it takes a minute and a half
 instead of half a minute, and the two baseline arms land **0.02%** apart:
 **91.56 s** plain against **93.69 s** recorded, and **110.86 s** under
 `--coverage`. Recording does not grow with the clock, and at that length the
-comparison stops being a ratio and becomes a number you can spend — **19.3
-seconds a run for the union, 2.1 seconds for the relation**. (Medians, warm-up
-discarded, both caches cleared between runs, on an Apple M4 Max, 64 GB, Node
-26. The full table is in [running less of the
+comparison stops being a ratio and becomes a number you can spend:
+
+```mermaid
+xychart-beta horizontal
+  accTitle: Seconds each instrument adds to Material UI's suite on two workers
+  x-axis ["recording, the relation", "--coverage, the union"]
+  y-axis "seconds added to 91.56" 0 --> 20
+  bar [2.1, 0]
+  bar [0, 19.3]
+  bar [0, 0]
+  bar [0, 0]
+```
+
+(Medians, warm-up discarded, both caches cleared between runs, on an Apple M4
+Max, 64 GB, Node 26. The full table is in [running less of the
 suite](selecting.md#what-recording-costs-while-the-suite-runs).)
 
 Per test, the gap stops being a percentage and becomes the reason this axis

@@ -71,6 +71,17 @@ test in an affected project counts as affected; the repository's own `test:pr`
 is `nx affected`, so that is not a hypothetical selector. Both answers are
 defensible; one of them is 16.8 times the other.
 
+```mermaid
+xychart-beta horizontal
+  accTitle: Test files selected for a one-line change in query-core
+  x-axis ["the record", "nx affected", "every test file"]
+  y-axis "test files" 0 --> 190
+  bar [10, 0, 0]
+  bar [0, 168, 0]
+  bar [0, 0, 188]
+  bar [0, 0, 0]
+```
+
 ## Why the grain is the whole argument
 
 A module's regions are not covered uniformly, and the spread is what a graph
@@ -91,7 +102,20 @@ reports separately on the commits whose files have not moved since the
 recording, because a commit is priceable against a record only while its line
 numbers still mean what they meant.
 
-Against 11,280 runs if you always run everything:
+Test file runs over the sixty commits:
+
+```mermaid
+xychart-beta horizontal
+  accTitle: Test file runs selected over sixty TanStack Query commits
+  x-axis ["record + declared inert", "project graph", "run everything"]
+  y-axis "test file runs" 0 --> 11500
+  bar [2355, 0, 0]
+  bar [0, 10207, 0]
+  bar [0, 0, 11280]
+  bar [0, 0, 0]
+```
+
+Per commit, against 188 files if you always run everything:
 
 | | total | median | p90 |
 | --- | --- | --- | --- |

@@ -23,7 +23,7 @@ an M4 Max with twelve performance cores, four efficiency cores and a warm
 filesystem cache. The two figures that come from somewhere else say so where
 they appear. [The closing section](#what-these-were-measured-on) is the full
 stamp, and it is also where the four different counts of that one repository
-are reconciled, because the tables below are not all charged per the same one.
+are reconciled, because the figures below are not all charged per the same one.
 
 ## A parser was never the problem
 
@@ -31,11 +31,16 @@ The first suspect on a job that reads 24.9 MB of TypeScript is the thing that
 turns text into a tree. It is the wrong suspect, and one thread is enough to
 show it:
 
-| Doing only this, on one thread | Costs |
-| --- | --- |
-| read 24,519 files from disk | 321 ms |
-| parse them with oxc | 155 ms |
-| **read and parse, back to back** | **476 ms** |
+```mermaid
+xychart-beta horizontal
+  accTitle: Milliseconds on one thread for Material UI's 24,519 modules
+  x-axis ["parse them with oxc", "read them from disk"]
+  y-axis "milliseconds" 0 --> 350
+  bar [155, 0]
+  bar [0, 321]
+  bar [0, 0]
+  bar [0, 0]
+```
 
 [oxc](https://oxc.rs) parses every module in the checkout in 155 ms. Handing it
 the files costs more than twice that, on the same thread, off a warm page
@@ -50,8 +55,20 @@ That is the first wall, and everything below is what it takes to get under it.
 Parsing in 155 ms is only useful if nothing between the file and the parse
 costs more than the parse. In JavaScript it does, and the same files say by how
 much. Doing the whole stage — read every module, parse it, pull every specifier
-out of the tree — over 27,748 of them costs **1,997 ms** written in TypeScript
-and **276 ms** written in Rust. Both sides are given the same file list in the
+out of the tree — over 27,748 of them:
+
+```mermaid
+xychart-beta horizontal
+  accTitle: Milliseconds to read, parse and extract specifiers from 27,748 modules
+  x-axis ["written in Rust", "written in TypeScript"]
+  y-axis "milliseconds" 0 --> 2000
+  bar [276, 0]
+  bar [0, 1997]
+  bar [0, 0]
+  bar [0, 0]
+```
+
+Both sides are given the same file list in the
 same order and both are made to produce the same 101,655 specifiers, compared
 element by element, before either time is printed; a run whose two sides
 disagree prints no time at all.
@@ -108,27 +125,32 @@ begins.
 It does not go flat. Past four readers it goes back up, and keeps going up.
 
 Same files, same work, only the width moving. The width is the size of the
-addon's read pool — the parse pool stays at machine width in every row, so the
+addon's read pool — the parse pool stays at machine width at every point, so the
 only thing changing is how many threads are inside the filesystem at once.
 `packages/sense/scripts/read-width.mjs` is a driver that calls into it, forty
-lines of JavaScript around `readBatch`, so what the table prices is the Rust:
+lines of JavaScript around `readBatch`, so what the sweep prices is the Rust:
 
-| Readers | Wall | System | Kernel µs per file |
-| ---: | ---: | ---: | ---: |
-| 1 | 449.6 ms | 459 ms | 16.5 |
-| 2 | 310.9 ms | 555 ms | 20.0 |
-| 3 | 301.3 ms | 732 ms | 26.4 |
-| 4 | 280.7 ms | 860 ms | 31.0 |
-| 6 | **271.4 ms** | 1,188 ms | 42.8 |
-| 8 | 281.3 ms | 1,650 ms | 59.5 |
-| 12 | 398.6 ms | 3,635 ms | 131.0 |
-| 16 | 480.8 ms | 5,293 ms | 190.8 |
+```mermaid
+xychart-beta
+  accTitle: Wall milliseconds to read 27,748 files, by number of readers
+  x-axis "readers" ["1", "2", "3", "4", "6", "8", "12", "16"]
+  y-axis "milliseconds" 0 --> 500
+  line [449.6, 310.9, 301.3, 280.7, 271.4, 281.3, 398.6, 480.8]
+```
 
-Read the first column against the last. System time rises elevenfold across the
-same 27,748 `open` calls — not more calls, the same ones — and the per-file
-kernel cost rises with it, from 16.5 µs to 190.8 µs.
+The wall clock is the symptom. Across the same sweep, system time rises
+elevenfold for the same 27,748 `open` calls — not more calls, the same ones —
+and what the kernel spends on one file rises with it:
 
-That last column is the finding, and it is what separates the two explanations.
+```mermaid
+xychart-beta
+  accTitle: Kernel microseconds per file, by number of readers
+  x-axis "readers" ["1", "2", "3", "4", "6", "8", "12", "16"]
+  y-axis "microseconds" 0 --> 200
+  line [16.5, 20.0, 26.4, 31.0, 42.8, 59.5, 131.0, 190.8]
+```
+
+That per-file cost is the finding, and it is what separates the two explanations.
 A saturated device — one serving as fast as it can while callers queue — holds
 the per-call cost flat: the wall clock stops improving because each caller
 waits longer, not because each call costs more. Here the call itself gets more
@@ -173,20 +195,22 @@ anyway.
 
 If the readers are making each other's work more expensive, the next question is
 which part of the work. A read is a path walk, a descriptor and some bytes, and
-only one of those three is worth attacking. Four probes over the same 27,748
-files, at widths 1 through 16, each doing a little more than the last:
+only one of those three is worth attacking. Two probes over the same 27,748
+files, at widths 1 through 16: one opens each file and reads every byte, the
+other opens it and closes it again.
 
-| Milliseconds, at width | 1 | 2 | 4 | 6 | 8 | 16 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `open` then `close` | 354 | 201 | 150 | 170 | 258 | 705 |
-| `open` then `fstat` | 307 | 193 | 165 | 201 | 252 | 620 |
-| `open` then `read` | 350 | 211 | 198 | 190 | 237 | 622 |
-| `stat`, then `open` then `read` | 365 | 222 | 179 | 189 | 232 | 599 |
+```mermaid
+xychart-beta
+  accTitle: Milliseconds for open then read, and open then close, by number of threads
+  x-axis "threads" ["1", "2", "4", "6", "8", "16"]
+  y-axis "milliseconds" 0 --> 750
+  line [350, 211, 198, 190, 237, 622]
+  line [354, 201, 150, 170, 258, 705]
+```
 
 `open` and `close`, touching no file data whatsoever, reproduce the entire
-collapse. Read the second row against the third and try to find the bytes in
-it: adding a full read of all 30.3 MiB moves the probe by less than the probe
-moves between runs, and at three of the six widths the version that reads every
+collapse. Try to find the bytes between the two lines: adding a full read of
+all 30.3 MiB moves the probe by less than the probe moves between runs, and at three of the six widths the version that reads every
 byte finishes *ahead* of the version that opens the file and immediately closes
 it. Thirty megabytes is not a small cost here. It is a cost that does not
 survive the noise of the thing it is sitting on top of, and twenty-seven
@@ -195,8 +219,8 @@ thousand `open` calls is that thing.
 Three things follow from that, and two of them killed an optimization that
 looked obvious:
 
-- **A second pathname resolution is free.** `stat` then `open` costs what `open`
-  alone costs, because the second lookup finds the vnode the first one just
+- **A second pathname resolution is free.** `stat` then `open` then `read`
+  costs what `open` then `read` costs, because the second lookup finds the vnode the first one just
   cached.
 - **Path depth is free.** `openat` from a directory descriptor opened once per
   directory, resolving one component instead of every component of every path,
@@ -206,8 +230,8 @@ looked obvious:
   the checkout's 1,161 directory groups are uneven enough that the sort buys
   stragglers rather than locality.
 
-Two more were tried and are not here. **`mimalloc`**: the table above spends
-nearly all of itself in the kernel, so an allocator was never going to appear
+Two more were tried and are not here. **`mimalloc`**: the probes above spend
+nearly all of their time in the kernel, so an allocator was never going to appear
 in it, and it did not.
 **Per-file `mmap`**: it adds virtual-memory work to a process already bounded
 by kernel-wide coordination, which is the same reason ripgrep's authors found
@@ -226,8 +250,8 @@ file is being opened while the previous batch is still being parsed.
 That is close to the best a schedule can do, and the way to see it is to price
 the half that cannot be hidden. Acquiring those files costs 165 ms — the
 worktree row of the git table below. The whole stage, acquisition and parsing
-and extraction together, costs 218 ms at the same width — the sense column of
-the ripgrep table further down. So everything that is not acquisition fits in
+and extraction together, costs 218 ms at the same width — the six-thread point
+of the sense line in the ripgrep comparison further down. So everything that is not acquisition fits in
 53 ms, over files whose parse alone is 155 ms on one thread. Most of the parse
 is already happening inside the reads, which is what the overlap is for, and a
 schedule that hid the rest of it perfectly could take back 53 ms at the
@@ -497,31 +521,31 @@ without the regex engine ever starting — so what is left on its side is
 acquisition, which is the thing being compared.
 
 ripgrep opens, reads and searches; sense opens, reads, parses and extracts.
-Milliseconds throughout:
+Wall clock for each, sense first:
 
-| Threads | ripgrep wall | ripgrep user | ripgrep system | sense wall | sense user | sense system |
-| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 420.0 | 30 | 380 | 594.1 | 241 | 355 |
-| 2 | 240.0 | 30 | 440 | 315.8 | 314 | 438 |
-| 4 | 180.0 | 40 | 640 | 285.5 | 434 | 817 |
-| 6 | **180.0** | 50 | 1,000 | **218.2** | 447 | 796 |
-| 8 | 240.0 | 60 | 1,830 | 293.6 | 931 | 1,591 |
-| 16 | 550.0 | 80 | 7,740 | 430.8 | 980 | 4,307 |
+```mermaid
+xychart-beta
+  accTitle: Wall milliseconds for sense and ripgrep over the same files, by number of threads
+  x-axis "threads" ["1", "2", "4", "6", "8", "16"]
+  y-axis "milliseconds" 0 --> 600
+  line [594.1, 315.8, 285.5, 218.2, 293.6, 430.8]
+  line [420.0, 240.0, 180.0, 180.0, 240.0, 550.0]
+```
 
 Two curves, one shape. Both bottom out at six, both climb again, and both spend
-almost everything they spend in the kernel. That is what the table is here for:
+almost everything they spend in the kernel. That is what the comparison is here for:
 a program with no parser, no resolver, no tree and no index collapses at width
 on the same machine, which is what makes the collapse the machine's rather than
 the scanner's.
 
-The two user columns are the control, and this is the one table on the page that
-can carry them, because here the thread count is set per process before either
-program starts and caps everything both of them do. Read them downward.
+User time is the control, and this is the one comparison on the page that can
+use it, because here the thread count is set per process before either program
+starts and caps everything both of them do. From one thread to sixteen,
 ripgrep's user time goes from 30 ms to 80 ms while its system time goes from 380
 to 7,740: its searching never changes, and everything that happens to it across
-those six rows happens in the kernel. Sense's user column is larger throughout,
-which is what building a syntax tree costs over rejecting a buffer on a literal
-prefilter, and it is still not what any of these rows are paying for.
+the sweep happens in the kernel. Sense's user time is larger throughout, 241 ms
+to 980, which is what building a syntax tree costs over rejecting a buffer on a literal
+prefilter, and it is still not what any of these widths are paying for.
 
 Which of the two is faster is the smaller point, and at the minimum the answer
 does not flatter this scanner: 180 ms against 218, so the side that parses
@@ -550,7 +574,7 @@ is not sloppiness so much as three scripts having three reasons to disagree
 about what a module is.
 
 - **24,519 modules, 24.9 MB** is what `source-index.mjs` scans — `packages` and
-  `docs/src`, with declaration files left out — and it is what the floor table
+  `docs/src`, with declaration files left out — and it is what the floor chart
   and the whole incremental table are charged per.
 - **27,748 modules, 30.3 MiB** is every module path in the repository,
   declaration files included, which is what the width sweep, the probes, the
@@ -567,7 +591,7 @@ about what a module is.
   having been read and parsed inside the native batch where no counter sees
   them.
 
-Method, because the tables were not all taken the same way. The floor rows, the
+Method, because the figures were not all taken the same way. The floor figures, the
 git rows and the cold scan are each the **median of five** timings. The width
 sweep, the probes, the chunk sweep and the ripgrep comparison are each the
 **best of three**, which is the run least disturbed by the rest of the machine.
@@ -577,7 +601,7 @@ because a single sample is worth about that much either way.
 
 Every figure comes from a committed script, run against a clone of that
 checkout, all of them under `packages/sense/scripts`: `source-index.mjs` for the
-incremental, floor and git tables, `read-cost.mjs` for TypeScript against Rust,
+incremental table, the floor chart and the git table, `read-cost.mjs` for TypeScript against Rust,
 `read-width.mjs` for the width sweep, `scan-cost.mjs` for ripgrep.
 
 Material UI is not a large repository, and none of the trees measured above
