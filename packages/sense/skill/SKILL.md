@@ -342,9 +342,36 @@ not argue with them:
 When an integration reports that it retained the whole suite, read the named
 path. That is a wiring fact about the project, and usually a fixable one.
 
+## A recorded run costs memory, not time
+
+Recording changes the suite's wall clock very little, but every module a test
+loads runs with probes in it, so each worker needs more memory. On a machine
+that is already near its memory limit with the plain suite, the recorded suite
+can push it over: workers swap or are killed, and the symptom is tests that time
+out, often at several times their usual duration, rather than an out-of-memory
+error.
+
+When a wrapped run times out or loses workers and the same suite without the
+wrap does not:
+
+1. Check memory before you read the timeout as a slow or broken test. Compare
+   peak memory summed over all workers, wrapped and unwrapped, at the same
+   worker count.
+2. Lower the worker count (`--maxWorkers` in Jest and Vitest). A recording run
+   with fewer workers still pays for itself: the snapshot it writes shortens
+   every later run.
+3. Under Jest, set `workerIdleMemoryLimit` in the configuration, so a worker is
+   restarted once it grows past that size. That caps the growth without
+   lowering concurrency.
+
+Do not remove the wrap to make a run pass, and do not change the repository's
+worker settings without saying so. Report the two memory figures instead.
+
 ## Do not
 
 - Do not report a narrowed run, or a near range, as a passing suite.
+- Do not read a timeout under a recorded run as a slow test before you have
+  compared memory with and without the wrap.
 - Do not re-record the snapshot to make a selection smaller. A stale snapshot
   widens the run; it does not hide tests.
 - Do not infer a distance from reading imports yourself. The graph says what

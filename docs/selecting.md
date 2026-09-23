@@ -418,6 +418,19 @@ plugin installed and five times with that one line taken out, and compare the
 medians — one configuration with the plugin behind a flag rather than two
 configurations, because two that can drift are one and a coincidence.
 
+Wall clock is not the only cost, and on a large suite it is not the one to
+watch. The probes add code to every module your tests load, and each worker
+runs and keeps that larger code. So a recorded run can finish in the same time
+as a plain one and still need more memory in every worker. On a CI machine whose
+workers already use most of its memory, that extra memory is what fails the
+run, and it rarely looks like a memory error: the operating system swaps or
+kills a worker, and you see tests time out at several times their usual
+duration. If a recorded run does that and the plain run does not, lower the
+worker count before you look at the tests. Under Jest, `workerIdleMemoryLimit`
+restarts a worker once it grows past the limit you set, which caps the growth
+without lowering concurrency. Measure memory the same way you measure time:
+peak memory summed over every worker, with the recorder and without.
+
 The second worry is size rather than time — one row per test per region sounds
 like gigabytes before it is written. What the record does instead, what it
 measures at two hundred thousand modules, and how much of it one answer opens
