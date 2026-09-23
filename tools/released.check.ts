@@ -33,14 +33,13 @@ describe('what a release publishes', () => {
   // beside their siblings, and a check that walked only `packages/*` would have
   // called the split 0.5.6 complete — `sense-darwin-arm64` was one of the five
   // that published and the other two were not.
-  it.each(['darwin-arm64', 'linux-x64-gnu', 'win32-x64-msvc'])(
-    'includes the %s scanner',
-    (platform) => {
-      expect(packages.map((entry) => entry.name)).toContain(
-        `@variance-authority/sense-${platform}`,
-      );
-    },
-  );
+  it.each([
+    '@variance-authority/sense-darwin-arm64',
+    '@variance-authority/sense-linux-x64-gnu',
+    '@variance-authority/sense-win32-x64-msvc',
+  ])('includes %s', (name) => {
+    expect(packages.map((entry) => entry.name)).toContain(name);
+  });
 
   it('is every package that is not private', () => {
     expect(packages.length).toBeGreaterThan(30);

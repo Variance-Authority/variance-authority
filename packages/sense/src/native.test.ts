@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
-import { nativeAvailable } from './native.js';
+import { nativeAvailable, nativeRefusal, refusal } from './native.js';
 import { seedPaths } from './files.js';
 import { scanRelations } from './scan.js';
 import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
@@ -159,6 +159,40 @@ describe('the native tree against the JavaScript one', () => {
     ]);
     expect(tree.get('src/Button.tsx')).toMatch(/^git:[0-9a-f]{40}$/u);
     expect(tree.directories().get('')).toBe(tree.directories().get(''));
+  });
+});
+
+describe('why the addon did not load', () => {
+  const GNU = '@variance-authority/sense-linux-x64-gnu';
+
+  it('carries the dynamic linker\'s own message', () => {
+    const error = Object.assign(
+      new Error(
+        "/lib/x86_64-linux-gnu/libc.so.6: version `GLIBC_2.39' not found (required by scan.node)",
+      ),
+      { code: 'ERR_DLOPEN_FAILED' },
+    );
+    expect(refusal(GNU, error)).toBe(
+      `${GNU} did not load: /lib/x86_64-linux-gnu/libc.so.6: version \`GLIBC_2.39' not found (required by scan.node)`,
+    );
+  });
+
+  it('names the platform package that was not installed', () => {
+    const error = Object.assign(new Error(`Cannot find module '${GNU}'\nRequire stack:\n- x`), {
+      code: 'MODULE_NOT_FOUND',
+    });
+    expect(refusal(GNU, error)).toBe(`${GNU} is not installed`);
+  });
+
+  it('says nothing about the local build every install lacks', () => {
+    const error = Object.assign(new Error("Cannot find module '../dist/native/scan.node'"), {
+      code: 'MODULE_NOT_FOUND',
+    });
+    expect(refusal('../dist/native/scan.node', error)).toBeUndefined();
+  });
+
+  it('is absent when the addon loaded', () => {
+    expect(nativeRefusal() === undefined).toBe(native);
   });
 });
 

@@ -35,6 +35,10 @@ export const PLATFORMS: Readonly<Record<string, string>> = {
 };
 
 let loaded: NativeScanner | undefined | null;
+let refusals: readonly string[] = [];
+
+/** Where a build for a platform outside the matrix lands, relative to `dist/`. */
+const LOCAL_BUILD = '../dist/native/scan.node';
 
 /**
  * The addon, or nothing when no binary reached this machine.
@@ -47,26 +51,63 @@ let loaded: NativeScanner | undefined | null;
  * One binary per platform, built for the floor of it. What a newer machine
  * wants is not a narrower instruction set but a different number of workers,
  * and that is chosen at runtime where it can see the machine it is on.
+ *
+ * A failed load is kept rather than swallowed. Scanning does not need it —
+ * the TypeScript scanner answers instead — but a command that has no fallback
+ * does, and "requires the addon" without the `dlopen` message sends somebody
+ * to their package manager when the loader already knew the answer was a
+ * glibc symbol.
  */
 export function native(): NativeScanner | undefined {
   if (loaded !== undefined) return loaded ?? undefined;
 
   const require = createRequire(import.meta.url);
-  const shipped = PLATFORMS[`${process.platform}-${process.arch}`];
+  const platform = `${process.platform}-${process.arch}`;
+  const shipped = PLATFORMS[platform];
+  const failed: string[] = [];
 
-  for (const specifier of [
-    ...(shipped === undefined ? [] : [shipped]),
-    '../dist/native/scan.node',
-  ]) {
+  for (const specifier of [...(shipped === undefined ? [] : [shipped]), LOCAL_BUILD]) {
     try {
       loaded = require(specifier) as NativeScanner;
+      refusals = [];
       return loaded;
-    } catch {
+    } catch (error) {
       loaded = null;
+      const reason = refusal(specifier, error);
+      if (reason !== undefined) failed.push(reason);
     }
   }
 
+  refusals =
+    failed.length > 0 || shipped !== undefined
+      ? failed
+      : [`no prebuilt scanner is published for ${platform}`];
   return undefined;
+}
+
+/**
+ * Why one candidate did not load, or nothing when its absence is not news.
+ *
+ * The published package not being installed is news: it names the package a
+ * reader goes looking for. The local build not existing is the ordinary state
+ * of every install, and saying so on each refusal would bury the line that
+ * matters under one that never does.
+ */
+export function refusal(specifier: string, error: unknown): string | undefined {
+  const { code, message } = (error ?? {}) as { code?: unknown; message?: unknown };
+  const missing = code === 'MODULE_NOT_FOUND' && String(message).includes(specifier);
+  if (missing) return specifier === LOCAL_BUILD ? undefined : `${specifier} is not installed`;
+
+  return `${specifier} did not load: ${String(message ?? error).split('\n')[0]}`;
+}
+
+/**
+ * The reason the addon is absent, for an error from a command that cannot run
+ * without it. Nothing when it loaded.
+ */
+export function nativeRefusal(): string | undefined {
+  if (native() !== undefined) return undefined;
+  return refusals.join('; ');
 }
 
 /** Whether the native scanner is available, for a test that must say which ran. */

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { native } from '../native.js';
+import { native, nativeRefusal, type NativeScanner } from '../native.js';
 
 const MANIFEST = 'run.json';
 const CASES = 'cases';
@@ -56,7 +56,9 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
   const scanner = native();
   const foldTo = scanner?.foldJourneyTo;
   if (foldTo === undefined) {
-    throw new Error('finalizing journey coverage requires the Sense native addon');
+    throw new Error(
+      `finalizing journey coverage requires the Sense native addon: ${whyAbsent('foldJourneyTo')}`,
+    );
   }
   const result = foldTo(cases, manifest.root, [...manifest.stores], manifest.instrumentation, output);
   await rm(pending, { recursive: true, force: true });
@@ -72,7 +74,14 @@ export async function stitchJourneyArtifacts(
   const scanner = native();
   const stitchTo = scanner?.stitchJourneysTo;
   if (stitchTo === undefined) {
-    throw new Error('stitching journey coverage requires the Sense native addon');
+    throw new Error(
+      `stitching journey coverage requires the Sense native addon: ${whyAbsent('stitchJourneysTo')}`,
+    );
   }
   return stitchTo(inputs, resolve(journeyFile));
+}
+
+/** What stopped the addon loading, or which export the addon that did load lacks. */
+function whyAbsent(entry: keyof NativeScanner): string {
+  return nativeRefusal() ?? `the loaded addon has no \`${entry}\``;
 }

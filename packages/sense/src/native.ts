@@ -23,7 +23,7 @@ import { isRelative, kindFor, requestOf } from './specifier.js';
 import type { Aliases } from './witness.js';
 import { witnessesOf } from './witness.js';
 
-export { PLATFORMS, native, nativeAvailable } from './addon.js';
+export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
 
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree {
