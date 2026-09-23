@@ -476,7 +476,9 @@ second tab opened with `context.newPage()`. A document the test replaced is
 gone by then: a second `goto`, a `reload()`, a frame the application removed,
 or a page that closed or crashed. What it executed after its last read is lost,
 so the spec is recorded as incomplete and the next selection runs it.
-`pushState` and hash changes keep the same document and lose nothing.
+`pushState` and hash changes keep the same document and lose nothing. A context
+the spec creates for itself with `browser.newContext()` is not read: open pages
+from the test's own `context`, or hand one to `createVariance`.
 [`cases/playwright-storybook-case`](../../cases/playwright-storybook-case/README.md)
 runs each of these shapes against a built Storybook.
 

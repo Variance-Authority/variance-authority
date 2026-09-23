@@ -153,12 +153,3 @@ live('a Playwright suite over a Storybook it opens itself', () => {
     });
   }, 180_000);
 });
-
-it.todo(
-  'a spec that navigates keeps the crossings of the document it left and is recorded whole — ' +
-    'needs a drain the navigation waits for, through the runner rather than the browser protocol',
-);
-it.todo(
-  'a spec that opens its own context with `browser.newContext()` is recorded by it — ' +
-    'needs the recorder to watch a context no fixture handed the test',
-);

@@ -80,6 +80,7 @@ outer file points `XDG_CACHE_HOME` at its own temporary directory, which keeps
 the run out of your cache. The coverage file and Playwright's results go to the
 same temporary directory, and it is removed when the run ends.
 
-The replaced document is the gap. The two `it.todo` lines at the bottom of the
-outer file name it, together with a context a spec creates for itself through
-`browser.newContext()`. Neither is recorded yet.
+A document the spec replaced is not read after it goes, so that spec runs again
+rather than being skipped. A context a spec creates for itself through
+`browser.newContext()` is not read at all: a page is recorded when the test
+opens it from the context Playwright handed it.
