@@ -42,8 +42,10 @@
 
 // compass: variance-authority.reach
 
+import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
+import { promisify } from 'node:util';
 import type { InstallDiff } from './reach.js';
 
 /** A package name each importing file gets an edge to, and the package it rests on. */
@@ -123,14 +125,67 @@ export async function installDiff(
     };
   }
 
+  return await compared(path, before, found.text, manifests);
+}
+
+/**
+ * Which packages a patch installed differently, read off the patch itself.
+ *
+ * A patch handed in is not a diff this run measured, so neither end of it is
+ * the working tree: a replayed commit's lockfile is somewhere in history. The
+ * patch already names both ends — `index <before>..<after>` is git's name for
+ * each blob — so git is asked for them by that name rather than anything being
+ * reconstructed from the hunks. An after-blob git does not hold is an edit
+ * nobody committed, and it is the working tree's file when that file hashes to
+ * the same name.
+ *
+ * `undefined` when the patch leaves every lockfile alone. A lockfile the patch
+ * changes and git cannot produce at both ends is a sentence, for the reason
+ * {@link installDiff} gives one.
+ */
+export async function installDiffOfPatch(patch: string, root: string = process.cwd()): Promise<InstallDiff | undefined> {
+  const names = await import('@variance-authority/sense/lock')
+    .then((lock) => lock.LOCKFILES as readonly string[])
+    .catch(() => undefined);
+  if (names === undefined) return undefined;
+
+  const found = lockfileIn(patch, names);
+  if (found === undefined) return undefined;
+  const manifests = [pathTail(found.path), 'package.json'];
+  if (found.before === undefined || found.after === undefined) {
+    return {
+      whole:
+        `${found.path} changed in this patch and the patch carries no \`index\` line naming its ` +
+        'blobs, so there is no install to compare. Hand in the output of `git diff` itself',
+    };
+  }
+  const { path, before: from, after: to } = found;
+  const [before, after] = await Promise.all([
+    blob(from, root),
+    blob(to, root).then((text) => text ?? worktree(path, to, root)),
+  ]);
+  if (before === undefined || after === undefined) {
+    const missing = before === undefined ? from : to;
+    return {
+      whole:
+        `${found.path} changed in this patch and blob ${missing} is not in this repository, so ` +
+        'there is no install to compare it against and any package in it may have moved',
+    };
+  }
+  return await compared(found.path, before, after, manifests);
+}
+
+async function compared(
+  path: string,
+  before: string,
+  after: string,
+  manifests: readonly string[],
+): Promise<InstallDiff> {
   try {
     const lock = await import('@variance-authority/sense/lock');
     return {
       manifests,
-      packages: lock.changedPackages(
-        lock.readLockfile(path, before),
-        lock.readLockfile(path, found.text),
-      ),
+      packages: lock.changedPackages(lock.readLockfile(path, before), lock.readLockfile(path, after)),
     };
   } catch (error) {
     return {
@@ -139,6 +194,51 @@ export async function installDiff(
         'invisible without it, so the run observes everything rather than reporting success ' +
         'over a package it never compared',
     };
+  }
+}
+
+/** The lockfile a patch changes, and the blob names its `index` line gives each end. */
+function lockfileIn(
+  patch: string,
+  names: readonly string[],
+): { readonly path: string; readonly before?: string; readonly after?: string } | undefined {
+  const lines = patch.split('\n');
+  for (let at = 0; at < lines.length; at += 1) {
+    const header = /^diff --git a\/(.+) b\/(.+)$/u.exec(lines[at]!);
+    if (header === null || !names.includes(pathTail(header[2]!))) continue;
+    for (let next = at + 1; next < lines.length && !lines[next]!.startsWith('diff --git '); next += 1) {
+      const index = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/u.exec(lines[next]!);
+      if (index === null) continue;
+      const absent = (id: string) => /^0+$/u.test(id);
+      return {
+        path: header[2]!,
+        ...(absent(index[1]!) ? {} : { before: index[1]! }),
+        ...(absent(index[2]!) ? {} : { after: index[2]! }),
+      };
+    }
+    return { path: header[2]! };
+  }
+  return undefined;
+}
+
+async function blob(id: string, root: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await promisify(execFile)('git', ['cat-file', 'blob', id], {
+      cwd: root,
+      maxBuffer: 256 * 1024 * 1024,
+    });
+    return stdout;
+  } catch {
+    return undefined;
+  }
+}
+
+async function worktree(path: string, id: string, root: string): Promise<string | undefined> {
+  try {
+    const { stdout } = await promisify(execFile)('git', ['hash-object', '--', path], { cwd: root });
+    return stdout.trim().startsWith(id) ? await readFile(join(root, path), 'utf8') : undefined;
+  } catch {
+    return undefined;
   }
 }
 

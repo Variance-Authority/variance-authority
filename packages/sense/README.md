@@ -228,6 +228,13 @@ file or instrumented module it reaches. A module the build could not instrument
 is walked past, and its tests come from the preconditions. A test that mocked
 the changed module, or the file it loaded it through, is cut.
 
+A bumped dependency changes no line anybody recorded. Pass the names whose
+install moved as `packages`, beside `relations`, and each is walked from its
+package node: back through the packages that rest on it, to the files that
+import them, and on to the tests. Compare two lockfiles with
+[`changedPackages`](#read-which-packages-the-install-changed) to get the names. A package only a `type`
+import names reaches nothing.
+
 Each chain answers for itself. A chain ending at a module the record measured
 selects the tests that ran it; a chain ending at a module the record never saw
 selects nobody, and takes nothing from the chain beside it. The walk uses the

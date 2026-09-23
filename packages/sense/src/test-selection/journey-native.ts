@@ -21,6 +21,7 @@ import { open } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import type { LineRange } from './diff-lines.js';
+import type { JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
 import type { ExecutionIndex } from './reverse.js';
 import type { ExecutionNarrowing } from './select.js';
@@ -37,12 +38,12 @@ import type { ExecutionNarrowing } from './select.js';
 export async function selectJourneyFile(
   file: string,
   changed: ReadonlyMap<string, readonly LineRange[]>,
-  options: { readonly relations?: Relations } = {},
+  options: JourneySelectionOptions = {},
 ): Promise<ExecutionNarrowing | undefined> {
   const select = native()?.selectJourneys;
   if (select === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
-  const selected = select(file, nativeChange(changed), graph);
+  const selected = select(file, nativeChange(changed), graph, [...(options.packages ?? [])]);
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
     entered: [...selected.entered].sort(codeUnitOrder),

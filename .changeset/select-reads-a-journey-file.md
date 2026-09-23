@@ -9,8 +9,7 @@
 skip, read off the journey file `journeys finalize` or `journeys stitch` wrote.
 The change comes from `--diff <patch>`, from `--diff -` on stdin, or from
 `git diff` against `--since`. A patch with hunks selects the cases that entered
-the innermost function holding each changed line. A list of paths selects every
-test file that imports them, off the import graph. A case's crossings into a
+the innermost function holding each changed line. A case's crossings into a
 module it mocks do not select it.
 
 The reading happens in the native addon: `selectJourneyFile` answers a stitched

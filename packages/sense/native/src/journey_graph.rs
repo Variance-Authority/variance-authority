@@ -40,6 +40,7 @@ pub struct JourneyGraph {
 }
 
 const FILE: u8 = 0;
+const PACKAGE: u8 = 2;
 
 struct Adjacency<'a> {
     offset: &'a [u32],
@@ -54,6 +55,7 @@ pub(crate) struct Graph<'a> {
     dependents: Adjacency<'a>,
     allowed: [bool; 256],
     files: HashMap<&'a str, u32>,
+    packages: HashMap<&'a str, u32>,
     shadows: &'a [JourneyShadow],
     closures: HashMap<String, HashSet<String>>,
 }
@@ -84,10 +86,14 @@ impl<'a> Graph<'a> {
                 *slot = true;
             }
         }
-        let files = (0..nodes)
-            .filter(|id| kinds[*id] == FILE)
-            .map(|id| (graph.names[id].as_str(), id as u32))
-            .collect();
+        let of_kind = |kind: u8| {
+            (0..nodes)
+                .filter(|id| kinds[*id] == kind)
+                .map(|id| (graph.names[id].as_str(), id as u32))
+                .collect::<HashMap<_, _>>()
+        };
+        let files = of_kind(FILE);
+        let packages = of_kind(PACKAGE);
         Ok(Graph {
             names: &graph.names,
             kinds,
@@ -95,6 +101,7 @@ impl<'a> Graph<'a> {
             dependents,
             allowed,
             files,
+            packages,
             shadows: &graph.shadows,
             closures: HashMap::new(),
         })
@@ -147,14 +154,22 @@ impl<'a> Graph<'a> {
     /// `affectedBy(relations, [file]).files`, or `None` where that call reports
     /// the file `missing`.
     pub fn importers(&self, file: &str) -> Option<Vec<&'a str>> {
-        let seed = self.file(file)?;
+        Some(self.reached(self.file(file)?))
+    }
+
+    /// `affectedBy(relations, [{ kind: 'package', name }]).files`: every file
+    /// whose runtime imports reach the package, or `None` when nothing here
+    /// names it.
+    pub fn package_importers(&self, name: &str) -> Option<Vec<&'a str>> {
+        Some(self.reached(self.packages.get(name).copied()?))
+    }
+
+    fn reached(&self, seed: u32) -> Vec<&'a str> {
         let mask = self.unshadowed(&[seed]);
-        Some(
-            (0..self.names.len())
-                .filter(|id| mask[*id] == 1 && self.kinds[*id] == FILE)
-                .map(|id| self.names[id].as_str())
-                .collect(),
-        )
+        (0..self.names.len())
+            .filter(|id| mask[*id] == 1 && self.kinds[*id] == FILE)
+            .map(|id| self.names[id].as_str())
+            .collect()
     }
 
     /// The walk against the arrows with every file left out whose own shadows

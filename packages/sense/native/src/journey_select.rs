@@ -8,12 +8,15 @@
 //! the file graph, plus the record's own entrants wherever it holds a row. A
 //! changed test file selects itself, and a path neither knows is `unread`. A
 //! test's crossings into a module its mocks take out of its run are not its own.
+//! A package whose install moved changes no line, so it is answered by the
+//! graph: every test file whose imports reach it, and every case the record saw
+//! enter a module that does.
 //!
 //! Only the regions a change lands on have their sets expanded, and each test is
 //! looked at once per module, so the cost follows the change and not the day of
 //! shards the file holds.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use napi_derive::napi;
 
@@ -130,9 +133,27 @@ impl<'a> Selecting<'a> {
         }
         Ok(None)
     }
+
+    fn bumped(&mut self, name: &str, by_file: &HashMap<&str, usize>) -> Result<(), String> {
+        let Some(files) = self.graph.as_ref().and_then(|graph| graph.package_importers(name)) else { return Ok(()) };
+        for file in files {
+            if let Some(test) = self.held.get(file).copied() {
+                self.entered.insert(test);
+            }
+            if let Some(module) = by_file.get(file).copied() {
+                self.every_entrant(module, file)?;
+            }
+        }
+        Ok(())
+    }
 }
 
-fn select(file: &str, changed: &[JourneyChange], graph: Option<&JourneyGraph>) -> Result<JourneySelection, String> {
+fn select(
+    file: &str,
+    changed: &[JourneyChange],
+    graph: Option<&JourneyGraph>,
+    packages: &[String],
+) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
     let tests = journey.test_file_names()?;
     let by_file = journey.by_file()?;
@@ -152,6 +173,9 @@ fn select(file: &str, changed: &[JourneyChange], graph: Option<&JourneyGraph>) -
             unread.push(file);
         }
     }
+    for name in packages {
+        selecting.bumped(name, &by_file)?;
+    }
     Ok(JourneySelection {
         whole: selecting.held.iter().map(|test| (*test).to_owned()).collect(),
         entered: selecting.entered.iter().map(|test| (*test).to_owned()).collect(),
@@ -160,12 +184,14 @@ fn select(file: &str, changed: &[JourneyChange], graph: Option<&JourneyGraph>) -
 }
 
 /// The test files `changed` needs, read off the journey file at `file` and,
-/// when given, the file graph. Unsorted: the caller orders by code unit.
+/// when given, the file graph; `packages` are the names whose install moved.
+/// Unsorted: the caller orders by code unit.
 #[napi]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,
     graph: Option<JourneyGraph>,
+    packages: Option<Vec<String>>,
 ) -> napi::Result<JourneySelection> {
-    select(&file, &changed, graph.as_ref()).map_err(napi::Error::from_reason)
+    select(&file, &changed, graph.as_ref(), &packages.unwrap_or_default()).map_err(napi::Error::from_reason)
 }

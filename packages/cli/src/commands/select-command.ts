@@ -36,10 +36,9 @@
  */
 
 import { readFile, stat } from 'node:fs/promises';
-import type { LineRange } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
-import { installDiff } from './installed.js';
+import { installDiff, installDiffOfPatch } from './installed.js';
 import { withoutManifests } from './reach.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
@@ -160,52 +159,50 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
  * `--execution`: read a journey file against a change the caller hands in.
  *
  * A journey file names no commit, so it never looks for its own change: it is
- * given one, as a patch, on stdin, or as whatever `--since` measures. A patch
- * with hunks selects by region — each changed line goes to the innermost region
- * holding it, and only the cases that entered that region run. A list of paths,
- * or a patch that names a file and shows none of it, selects by the file graph:
- * every test file that imports it. So a replay, a synthetic diff or a diff nobody
- * committed is asked exactly the way a real one is.
+ * given one, as a patch, on stdin, or as whatever `--since` measures. Each
+ * changed line goes to the innermost region holding it, and only the cases that
+ * entered that region run. A list of paths is refused: it carries no line, so
+ * the only answer it can have is the import graph's, and that is `reach`.
+ *
+ * The lockfile is read as an install, not as a changed file. A handed-in patch
+ * names both ends of it by blob, and the packages that moved between them are
+ * walked back through the install to every file that imports them.
  */
 async function journeyOutput(request: SelectRequest & { readonly execution: string }): Promise<SelectOutput> {
   const selection = await import('@variance-authority/sense/test-selection');
+  const from = request.since ?? 'HEAD';
   const text = request.diff === undefined
-    ? await diffSince(request.since ?? 'HEAD')
+    ? await diffSince(from)
     : request.diff === '-'
       ? await stdin()
       : await readFile(request.diff, 'utf8');
   if (text === undefined) {
-    return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from: request.since ?? 'HEAD' } }, request);
+    return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
   }
-  const changed = changeOf(text, selection.changedLines);
+  if (!/^diff --git /mu.test(text)) {
+    throw new OperatorError(
+      `\`--execution\` selects by changed lines, and the change handed in is a list of paths, ` +
+        `starting \`${text.trimStart().split('\n')[0] ?? ''}\`. Hand in the patch — \`git diff\`, ` +
+        'not `git diff --name-only`. A list of paths can only be answered by the import graph, ' +
+        'and that is `variance reach`.',
+    );
+  }
+  const changed = selection.changedLines(text);
+  const installed = request.diff === undefined
+    ? await installDiff(await diffPoint(from))
+    : await installDiffOfPatch(text);
+  if (installed !== undefined && 'whole' in installed) {
+    return said({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request);
+  }
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
     why: 'a whole-file change is answered by the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   }, request.noGit);
-  // TODO: a bumped package in the change selects the test files that import it,
-  // as the recorded journal does through `installDiff` — narrowByJourneys takes
-  // no packages yet, so a lockfile in the change is reported unread.
-  const narrowing = await selection.selectJourneyFile(request.execution, changed, { relations })
-    ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, { relations });
-  return said({ at: request.execution, given: true, ground: { kind: 'read', narrowing } }, request);
-}
-
-/**
- * The change in `text`: a patch read for its lines, or `git diff --name-only`,
- * each path named whole. A patch always carries a `diff --git` header, and a
- * list of paths never does.
- */
-function changeOf(
-  text: string,
-  lines: (diff: string) => ReadonlyMap<string, readonly LineRange[]>,
-): ReadonlyMap<string, readonly LineRange[]> {
-  if (/^diff --git /mu.test(text)) return lines(text);
-  const named = new Map<string, readonly LineRange[]>();
-  for (const line of text.split('\n')) {
-    const path = line.trim();
-    if (path !== '') named.set(path, []);
-  }
-  return named;
+  const options = { relations, packages: installed?.packages ?? [] };
+  const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
+    ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
+  const unread = withoutManifests(narrowing.unread, installed?.manifests ?? []);
+  return said({ at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread } } }, request);
 }
 
 async function stdin(): Promise<string> {

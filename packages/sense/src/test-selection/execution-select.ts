@@ -20,6 +20,12 @@
  * A changed test file selects itself. A path neither the record nor the graph
  * knows selects nothing and is named in `unread`, by the rule the snapshot
  * reader applies (`ExecutionNarrowing.unread`).
+ *
+ * A package whose install moved changes no line anybody recorded. It is a node
+ * in the graph, joined to the files that import it and to the packages that rest
+ * on it, so the walk from it reaches every file whose imports lead there however
+ * deep the bump sat: each test file it reaches runs, and so does every case the
+ * record saw enter a module it reaches.
  */
 
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
@@ -35,6 +41,8 @@ export interface JourneySelectionOptions {
    * that only imported it.
    */
   readonly relations?: Relations;
+  /** Packages whose installed version moved, by name. Heard only with `relations`. */
+  readonly packages?: readonly string[];
 }
 
 /**
@@ -98,6 +106,15 @@ export function narrowByJourneys(
       const byGraph = importers(file);
       if (byGraph === undefined || byGraph.length === 0) everyEntrant(module);
       else for (const test of byGraph) entered.add(test);
+    }
+  }
+
+  for (const name of options.packages ?? []) {
+    if (relations === undefined) break;
+    for (const file of affectedBy(relations, [{ kind: 'package', name }]).files) {
+      if (held.has(file)) entered.add(file);
+      const module = modules.get(file);
+      if (module !== undefined) everyEntrant(module);
     }
   }
 

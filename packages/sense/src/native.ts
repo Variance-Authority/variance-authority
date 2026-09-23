@@ -157,7 +157,12 @@ export interface NativeScanner {
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */
   projectJourneys?(file: string, changed: NativeJourneyChange[]): NativeJourneyProjection;
   /** The test files a change needs, read off a journey file and the file graph; unsorted. */
-  selectJourneys?(file: string, changed: NativeJourneyChange[], graph?: NativeJourneyGraph): NativeJourneySelection;
+  selectJourneys?(
+    file: string,
+    changed: NativeJourneyChange[],
+    graph?: NativeJourneyGraph,
+    packages?: string[],
+  ): NativeJourneySelection;
 }
 
 /** `Relations`, flattened to the columns the addon walks. */

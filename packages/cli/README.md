@@ -894,7 +894,6 @@ hand it the change:
 ```bash
 git diff origin/main | variance select --execution journeys.bin --diff - --format jest
 variance select --execution journeys.bin --diff change.patch
-git diff --name-only origin/main | variance select --execution journeys.bin --diff -
 ```
 
 Without `--diff`, the change is `git diff` against `--since`, or `HEAD` when you
@@ -902,15 +901,23 @@ give no ref. The change does not have to come from git history: a replayed
 commit, a synthetic patch and an edit nobody committed are read the same way.
 Run it from the repository root, because the file names paths relative to it.
 
-What the change holds decides how it is read:
+The change has to be a patch, because a journey file selects by changed lines.
+A list of paths from `git diff --name-only` is refused: it can only be answered
+by the import graph, and that is [`reach`](#reach-what-a-diff-reaches-for-a-pipe).
 
-- **A patch with hunks.** Each changed line goes to the innermost function
-  holding it, and only the test files whose cases entered that function run.
-- **A list of paths, or a patch that names a file and shows none of it.** Every
-  test file that imports the file runs, read off the import graph, together with
-  every case the journey saw enter it.
+- **A changed line.** It goes to the innermost function holding it, and only the
+  test files whose cases entered that function run.
+- **A file the patch names and shows none of**, such as a binary or a rename, or a
+  file the journey has no row for. Every test file that imports it runs, read off
+  the import graph, together with every case the journey saw enter it.
 - **A line in code that runs while its module loads.** The journey saw every
   importer run it, so the import graph answers it as a whole file.
+- **A changed lockfile.** It is compared as an install, not as text. The patch's
+  `index` line names both versions of the file, git produces them, and every
+  package that resolved differently is walked back through the packages that
+  depend on it to the files that import them. Every test file those imports
+  reach runs, and so does every case the journey saw enter one of those files.
+  A lockfile the patch changes without naming its blobs keeps every test.
 
 A changed test file runs itself. A case's crossings into a module it mocks do
 not select it. A path neither the journey nor the import graph knows keeps no

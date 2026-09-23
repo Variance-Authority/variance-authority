@@ -14,13 +14,14 @@ import { projectJourneyFile, selectJourneyFile } from './journey-native.js';
  * `api.ts` imports `http.ts`; `card.ts` imports `api.ts`. `card.test.ts` mocks
  * `api.ts` and reaches `http.ts` only through it, `wire.test.ts` mocks `api.ts`
  * and imports `http.ts` itself, `plain.test.ts` mocks nothing, and
- * `other.test.ts` imports `solo.ts` alone.
+ * `other.test.ts` imports `solo.ts` alone. `http.ts` imports the package `ky`,
+ * which rests on `ky-core`; `solo.ts` imports `left-pad` for its types only.
  */
 const RECORDS: readonly FileRecord[] = [
-  { file: 'src/http.ts' },
+  { file: 'src/http.ts', packages: [{ to: 'ky', kind: 'imports' }] },
   { file: 'src/api.ts', edges: [{ to: 'src/http.ts', kind: 'imports' }] },
   { file: 'src/card.ts', edges: [{ to: 'src/api.ts', kind: 'imports' }] },
-  { file: 'src/solo.ts' },
+  { file: 'src/solo.ts', packages: [{ to: 'left-pad', kind: 'type' }] },
   { file: 'test/card.test.ts', edges: [{ to: 'src/card.ts', kind: 'imports' }, { to: 'src/api.ts', kind: 'imports' }] },
   { file: 'test/plain.test.ts', edges: [{ to: 'src/card.ts', kind: 'imports' }] },
   {
@@ -29,10 +30,12 @@ const RECORDS: readonly FileRecord[] = [
   },
   { file: 'test/other.test.ts', edges: [{ to: 'src/solo.ts', kind: 'imports' }] },
 ];
+const depends = [['ky', 'ky-core']] as const;
 const mocked = relationsOfFiles(RECORDS, {
   shadows: new Map([['test/card.test.ts', ['src/api.ts']], ['test/wire.test.ts', ['src/api.ts']]]),
+  depends,
 });
-const plain = relationsOfFiles(RECORDS);
+const plain = relationsOfFiles(RECORDS, { depends });
 
 const TESTS = [
   { id: 'card > a', file: 'test/card.test.ts', name: 'a' },
@@ -94,8 +97,34 @@ const CHANGES: readonly (readonly [string, ReadonlyMap<string, readonly LineRang
   ])],
 ];
 
+const BUMPS: readonly (readonly [string, readonly string[]])[] = [
+  ['a package a file imports', ['ky']],
+  ['a package under the one a file imports', ['ky-core']],
+  ['a package only a type import names', ['left-pad']],
+  ['a package nothing names', ['nowhere']],
+];
+
 describe('selecting off a journey file in the addon', () => {
   const index = decodeExecutionIndex(readFileSync(FILE));
+
+  for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
+    for (const [what, packages] of BUMPS) {
+      it(`answers ${what} bumped as narrowByJourneys does, with ${graph}`, async () => {
+        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), packages };
+        const changed = new Map<string, readonly LineRange[]>();
+        expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
+      });
+    }
+  }
+
+  it('traces a bump through the install to the files importing it, and past a mock only where a test imports it itself', async () => {
+    const bumped = async (name: string) =>
+      (await selectJourneyFile(FILE, new Map(), { relations: mocked, packages: [name] }))?.entered;
+    expect(await bumped('ky-core')).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await bumped('ky')).toEqual(['test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await bumped('left-pad')).toEqual([]);
+    expect(await bumped('nowhere')).toEqual([]);
+  });
 
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
     for (const [what, changed] of CHANGES) {
