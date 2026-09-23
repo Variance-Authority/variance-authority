@@ -5,7 +5,8 @@
  * publishes, so a pipeline pays for its diff here once rather than once per
  * reader. It absorbs what moved since the last publish as one appended layer
  * over the whole checkout; an index restored from a cache is the base it builds
- * on, and a missing one costs a cold scan.
+ * on, a worktree with none builds on the primary checkout's, and anything else
+ * missing costs a cold scan.
  *
  * One line on stdout, because the step's output is read by the person looking
  * at a pipeline log: where the index is, how many files it holds, and how many
@@ -29,7 +30,9 @@ function describe(update: SourceUpdate): string {
   const files = `${update.files} ${update.files === 1 ? 'file' : 'files'}`;
   const reread = `${update.reread} read again`;
   switch (update.was) {
-    case 'missing': return `source index built: ${files}, at ${update.path}`;
+    case 'missing': return update.from === undefined
+      ? `source index built: ${files}, at ${update.path}`
+      : `source index built on ${update.from}: ${files}, ${reread}, at ${update.path}`;
     case 'damaged': return `source index repaired: ${files}, ${reread}, at ${update.path}`;
     case 'published': return `source index updated: ${files}, ${reread}, at ${update.path}`;
   }

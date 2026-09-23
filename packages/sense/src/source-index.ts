@@ -51,9 +51,19 @@ export interface PersistentSourceIndex {
  * one nobody updated answer.
  */
 export function sourceIndexPath(root: string, cacheRoot?: string): string {
-  // TODO: a worktree's index starts from nothing; its first update should
-  // append to the primary checkout's generation, the way coverage reads both layers.
   return resolve(cacheLayers(realPath(resolve(root)), cacheRoot).top, 'source-index.bin');
+}
+
+/**
+ * The primary checkout's source index, when `root` is a worktree cut from it.
+ *
+ * A worktree's own index starts where the primary checkout's last update left
+ * off, so its first update reads only what differs between the two checkouts.
+ * `undefined` in the primary checkout itself, which has no other layer to start from.
+ */
+export function primarySourceIndexPath(root: string, cacheRoot?: string): string | undefined {
+  const layers = cacheLayers(realPath(resolve(root)), cacheRoot);
+  return layers.top === layers.base ? undefined : resolve(layers.base, 'source-index.bin');
 }
 
 /**
@@ -129,7 +139,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
       return found;
     },
     set(record, witnesses, targets) {
-      if (adopted !== undefined && record.digest !== undefined) {
+      if (adopted !== undefined) {
         const next = { record, witnesses, ...(targets === undefined ? {} : { targets }) };
         const previous = records.get(record.file) ?? available.get(record.file);
         if (!isDeepStrictEqual(previous, next)) dirty = true;

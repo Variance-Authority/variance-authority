@@ -79,6 +79,18 @@ describe('variance index', () => {
     expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n`);
   });
 
+  it("names the primary checkout's index a worktree's first update built on", async () => {
+    const root = checkout();
+    await indexOutput({ cwd: root });
+    const worktree = join(mkdtempSync(join(tmpdir(), 'va-index-worktree-')), 'worktree');
+    execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree], { cwd: root, stdio: 'pipe' });
+    writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
+
+    expect(await indexOutput({ cwd: worktree })).toBe(
+      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\n`,
+    );
+  });
+
   // Spawned, because CI is the runner's answer and `ci-info` reads it once, when
   // the process loads it: an environment stubbed inside this one is never asked.
   it('is the step a reader in CI names when nothing is published, and the refusal is the operator\'s', () => {

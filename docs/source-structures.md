@@ -43,9 +43,9 @@ ${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-
 
 Deleting the index and its `source-index.bin.segments/` directory, then running
 `variance index`, is how you force the first row deliberately. The digest is
-taken over the absolute path, so a git worktree is a different checkout as far
-as the index is concerned: it gets one of its own, inherits nothing from the
-checkout it was cut from, and pays the first row once.
+taken over the absolute path, so a git worktree gets an index of its own. Its
+first update starts from a copy of the index of the checkout it was cut from,
+and pays for the files that differ between the two, not the first row.
 
 ## What a change rebuilds
 

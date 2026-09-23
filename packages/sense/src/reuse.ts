@@ -83,7 +83,11 @@ export interface RecordCache {
   /**
    * Remember a record and the directories that answered it.
    *
-   * One without a digest is not remembered — see `save`.
+   * Every record is held, and only one with a digest is ever handed back: a
+   * record the scan could not read — past the size cap, in a language with no
+   * reader — is still the scan's answer for that file, and a reader of what was
+   * saved must find it `unknown` rather than not find it. Without a digest it
+   * names no bytes, so the next scan builds it again.
    */
   set(record: FileRecord, witnesses: readonly string[], targets?: readonly (string | undefined)[]): void;
 }
@@ -100,7 +104,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 3;
+const VERSION = 4;
 
 /**
  * Files whose *contents* decide where other files resolve to.
@@ -155,9 +159,11 @@ export async function shapeOf(input: {
   // which is the same question the config digest asks, minus the manifests.
   const aliases = await aliasesIn(root, tree.named(['jsconfig.json']));
 
+  // No `root`: a record names files relative to the checkout it was scanned
+  // from and holds no absolute path, so a worktree adopts the primary
+  // checkout's records wherever the two are laid out alike.
   const header = [
     `version ${VERSION}`,
-    `root ${root}`,
     `tsconfig ${options?.tsconfig ?? 'auto'}`,
     `conditions ${(options?.conditionNames ?? DEFAULT_CONDITIONS).join(',')}`,
   ];
@@ -186,11 +192,7 @@ export function memoryRecordCache(): RecordCache {
     get: (file, digest) => matching(entries.get(file), digest)?.record,
     getIndexed: (file, digest) => matching(entries.get(file), digest),
     set(record, witnesses, targets) {
-      if (record.digest !== undefined) entries.set(record.file, {
-        record,
-        witnesses,
-        ...(targets === undefined ? {} : { targets }),
-      });
+      entries.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
     },
   };
 }
@@ -233,11 +235,7 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
       return found;
     },
     set(record, witnesses, targets) {
-      if (record.digest !== undefined) used.set(record.file, {
-        record,
-        witnesses,
-        ...(targets === undefined ? {} : { targets }),
-      });
+      used.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
     },
     async save() {
       if (adopted === undefined) return;

@@ -132,6 +132,34 @@ export function readImmutableLog(path: string): readonly Buffer[] {
   });
 }
 
+/**
+ * Start the chain at `path` from the committed chain at `from`, when `path` has
+ * none of its own.
+ *
+ * A copy, not a reference: the owner of `from` compacts its chain and deletes
+ * the segments it dropped, so a manifest naming them would break the day it
+ * did. The segments are read through {@link openImmutableLog}, so each one is
+ * checked against its digest, and they are published under one manifest commit,
+ * so a reader of `path` sees the whole copy or nothing. Anything that stops the
+ * copy leaves `path` as it was and answers `false`.
+ */
+export async function seedImmutableLog(path: string, from: string): Promise<boolean> {
+  named(path);
+  named(from);
+  try {
+    const target = await openImmutableLog(path);
+    if (target.committed) return false;
+    const source = await openImmutableLog(from);
+    if (!source.committed || source.legacy || source.segments.length === 0) return false;
+    await target.publishAll(source.segments, () => {
+      throw new Error('a copied chain is never longer than the chain it copies');
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** A new writer used to replace state that could not be opened. */
 export function emptyImmutableLog(path: string): ImmutableLog {
   named(path);

@@ -108,6 +108,54 @@ describe('the published source index', () => {
     expect(sourceIndexPath(link, cache)).toBe(sourceIndexPath(root, cache));
   });
 
+  it("starts a worktree's first update from the primary checkout's, reading only what differs", async () => {
+    const layers = await mkdtemp(join(tmpdir(), 'variance-published-layers-'));
+    const worktree = join(layers, 'worktree');
+    const cacheHome = process.env['XDG_CACHE_HOME'];
+    process.env['XDG_CACHE_HOME'] = layers;
+    try {
+      const primary = await updateSourceIndex(root);
+      const published = await openImmutableLog(primary.path);
+      git('worktree', 'add', '--quiet', '--detach', worktree);
+      await writeFile(join(worktree, 'lib/alone.ts'), 'export const alone = 3;\n');
+
+      const first = await updateSourceIndex(worktree);
+      expect(first).toMatchObject({ was: 'missing', from: primary.path, files: 5, reread: 1 });
+      expect(first.path).not.toBe(primary.path);
+      expect((await readPublishedSources(first.path)).records)
+        .toEqual(await scanRelations({ root: worktree, dirs: ['.'] }));
+      expect((await openImmutableLog(primary.path)).digests).toEqual(published.digests);
+
+      expect(await updateSourceIndex(worktree)).not.toHaveProperty('from');
+    } finally {
+      if (cacheHome === undefined) delete process.env['XDG_CACHE_HOME'];
+      else process.env['XDG_CACHE_HOME'] = cacheHome;
+      git('worktree', 'remove', '--force', worktree);
+      await rm(layers, { recursive: true, force: true });
+    }
+  });
+
+  it('publishes a file it could not read as unknown, rather than leaving it out', async () => {
+    const bundled = await mkdtemp(join(tmpdir(), 'variance-published-unknown-'));
+    try {
+      await writeFile(join(bundled, 'index.js'), "import './bundle.js';\n");
+      await writeFile(join(bundled, 'bundle.js'), `export const bytes = '${'x'.repeat(1024 * 1024)}';\n`);
+      execFileSync('git', ['init', '--quiet'], { cwd: bundled });
+      execFileSync('git', ['add', '.'], { cwd: bundled });
+      execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'bundle'], {
+        cwd: bundled,
+      });
+      const at = index('unknown');
+
+      expect(await updateSourceIndex(bundled, { index: at })).toMatchObject({ files: 2, reread: 2 });
+      const { records } = await readPublishedSources(at);
+      expect(records).toEqual(await scanRelations({ root: bundled, dirs: ['.'] }));
+      expect(records.find((record) => record.file === 'bundle.js')?.unknown).toMatch(/over the \d+ this scan opens/);
+    } finally {
+      await rm(bundled, { recursive: true, force: true });
+    }
+  });
+
   it('refuses in CI when nothing is published, and names the step the pipeline lacks', async () => {
     const at = index('refused');
     const said: string[] = [];

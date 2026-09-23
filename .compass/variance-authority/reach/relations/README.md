@@ -21,7 +21,7 @@ chain that reached each one.
 
 ## Depends on
 
-- [`source-scan`](../source-scan/README.md) — the records it folds; it opens nothing itself
+- [`source-index`](../source-index/README.md) — the published records it folds; it opens nothing itself
 - [`installed`](../installed/README.md) — which package rests on which, folded
   in beside the records
 
@@ -97,7 +97,7 @@ changed paths it does not hold.
 
 ```mermaid
 flowchart LR
-  SCAN[source-scan] -->|file records| REL[relations]
+  IDX[source-index] -->|published file records| REL[relations]
   INS[installed] -->|which package rests on which| REL
   REL -->|the structure| CLO[closure]
   REL -->|reached files, reached components, trails, missing paths| SEL[selection]

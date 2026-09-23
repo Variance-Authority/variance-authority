@@ -30,13 +30,14 @@ an execution inside a service process.
 
 ## Implementation coordinates
 
-- `packages/sense/src/` — the scan, the resolver, the durable source index
+- `packages/sense/src/` — the scan, the resolver, the published source index
 - `packages/sense/src/lock/` — the lockfile readers and the install comparison
 - `packages/sense/src/instrument/` — the source transform that marks regions
 - `packages/sense/src/test-selection/` — the execution record and its queries
 - `packages/core/src/relate/` — the graph, its traversals, and the closure fold
 - `packages/cli/src/commands/` — `run-select.ts`, `affected.ts`, `reach.ts`,
-  `journey.ts`, `since.ts`, `changes.ts`, `installed.ts`
+  `journey.ts`, `since.ts`, `changes.ts`, `installed.ts`, `index-command.ts`,
+  `source-graph.ts`
 
 ## Communicates with
 
@@ -126,7 +127,7 @@ block would have to print its own.
 | Component | Responsibility |
 |---|---|
 | [source-scan](./source-scan/README.md) | Walking a checkout once and turning each file into its resolved outgoing edges, its content digest, and what it declares |
-| [source-index](./source-index/README.md) | Remembering parses and resolved records across runs so a second scan costs the diff rather than the repository |
+| [source-index](./source-index/README.md) | Holding the checkout's published file records, updated in layers by one step, so every reader reads them instead of scanning |
 | [installed](./installed/README.md) | Reading the lockfile at two revisions and naming which packages the install moved, transitive bumps traced up to their parents |
 | [relations](./relations/README.md) | The typed bidirectional graph of what depends on what, and the two traversals that walk it either way |
 | [closure](./closure/README.md) | Hashing a node over everything it rests on, so sameness is proven without consulting a ref |
@@ -146,7 +147,7 @@ flowchart TB
 
   subgraph reach
     SCAN[source-scan] --> INDEX[source-index]
-    SCAN --> REL[relations]
+    INDEX --> REL[relations]
     INS[installed] --> REL
     INS --> SEL
     REL --> CLO[closure]

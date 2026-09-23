@@ -144,8 +144,9 @@ share bytes. `testCoverageFile(root)` returns that path, and
 `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` beneath the primary checkout's directory. Its coverage
 reads both layers and writes only its own, so a worktree cut this morning
-inherits what the repository already recorded; its source index is its own, and
-the first update in it reads every file. Pass `coverageFile` in the options to put
+inherits what the repository already recorded. Its source index is its own too,
+and the first update in it starts from a copy of the primary checkout's and reads
+only the files that differ between the two. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 wants that.
 

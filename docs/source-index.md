@@ -133,7 +133,9 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 
 A git worktree keeps its own index under
 `test-selection/<primary digest>/.work/<digest>/`, beneath the checkout it was
-cut from. `sourceIndexPath(root)` returns the path for a checkout. Cache
+cut from. Its first `variance index` starts from a copy of that checkout's
+index and reads only the files that differ between the two.
+`sourceIndexPath(root)` returns the path for a checkout. Cache
 `${XDG_CACHE_HOME:-~/.cache}/variance-authority` whole and you do not need to
 compute either.
 
@@ -144,7 +146,8 @@ together. The file alone names segments that are not there, and a chain whose
 members are missing is rejected whole — a cold scan, not a wrong answer.
 
 To force a cold scan, delete the two and run `variance index`. That is the
-whole recovery procedure. The directory also holds test-selection recordings,
+whole recovery procedure. In a worktree the update starts from the primary
+checkout's index again, so delete that one as well if you want nothing reused. The directory also holds test-selection recordings,
 so delete the index and not the directory:
 
 ```bash

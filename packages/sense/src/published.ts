@@ -17,16 +17,17 @@
  * says so.
  */
 
-// compass: variance-authority.reach
+// compass: variance-authority.reach.source-index
 
 import { resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
+import { seedImmutableLog } from './immutable-log.js';
 import type { RecordCache } from './reuse.js';
 import { scanRelations } from './scan.js';
-import { openSourceIndex, sourceIndexPath } from './source-index.js';
+import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { taintRecords } from './taint/index.js';
 import { mockTaint } from './taint/mocks.js';
@@ -112,6 +113,11 @@ export interface SourceUpdate {
   readonly files: number;
   /** Files whose record this update rebuilt, because the published one no longer described them. */
   readonly reread: number;
+  /**
+   * The primary checkout's index this one started from, when this checkout is a
+   * worktree that had none of its own.
+   */
+  readonly from?: string;
 }
 
 /**
@@ -131,6 +137,12 @@ export async function updateSourceIndex(
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
   const was = (await openSourceIndexFile(path)).state;
+  // A worktree's first update starts from the primary checkout's generation and
+  // pays only for what differs between the two checkouts.
+  const primary = options.index === undefined && was === 'missing'
+    ? primarySourceIndexPath(where)
+    : undefined;
+  const from = primary !== undefined && await seedImmutableLog(path, primary) ? primary : undefined;
   const source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there
@@ -159,7 +171,13 @@ export async function updateSourceIndex(
   });
   await taintRecords(records, [mockTaint()], { root: where, cache: source.cache });
   await source.save();
-  return { path, was, files: records.length, reread: records.length - reused.size };
+  return {
+    path,
+    was,
+    files: records.length,
+    reread: records.length - reused.size,
+    ...(from === undefined ? {} : { from }),
+  };
 }
 
 /** The refusal a reader gives in CI when the index it reads was never published. */

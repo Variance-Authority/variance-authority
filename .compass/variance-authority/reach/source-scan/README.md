@@ -23,7 +23,8 @@ the sentence saying which.
 
 Content digests come from the version control object store, so a file edited and
 then edited back to its committed contents lands on its committed digest and
-nothing runs for it.
+nothing runs for it. The bytes behind a digest come from the object store or the
+working tree, as the operator chooses; the digest names the record either way.
 
 ## Depends on
 
@@ -34,9 +35,9 @@ nothing runs for it.
 
 ## Used by
 
-- [`relations`](../relations/README.md) — the records it folds into the graph,
-  package edges among them, and the harness records that let a walk descend from
-  a declared entry point
+- [`source-index`](../source-index/README.md) — the records an update
+  publishes, package edges among them, and the harness records that let a walk
+  descend from a declared entry point
 - [`crossings`](../crossings/README.md) — the statically reachable files behind
   a test file, for measuring how much of them a run entered
 
@@ -92,7 +93,6 @@ flowchart LR
   CHECKOUT[[checkout]] --> SCAN[source-scan]
   NORM[normalization] -->|declared components| SCAN
   IDX[source-index] -->|parses and records already known| SCAN
-  SCAN --> IDX
-  SCAN -->|file records| REL[relations]
+  SCAN -->|file records| IDX
   SCAN -->|reachable source behind a test| CROSS[crossings]
 ```
