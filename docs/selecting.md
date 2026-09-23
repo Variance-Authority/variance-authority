@@ -98,7 +98,10 @@ although those facts require different next steps.
 These rows read the baselines and the file graph. When the suite also keeps an
 [execution record](execution-record.md), the record reads the same diff next
 and removes every subject it recorded whole that the diff did not reach, the
-subjects the two whole-suite rows kept included. A changed path it has no row
+subjects the two whole-suite rows kept included. It also keeps every subject it
+recorded entering the changed lines, including one whose baseline names none of
+the components the change reached, so the run prints the subjects it kept that
+way. A changed path it has no row
 for is answered by the measured files that import it, and one nothing measured
 imports keeps no subject in the run. Two refusals stand over the record, because it
 never saw what they are about — a change to a file named in

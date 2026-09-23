@@ -205,6 +205,36 @@ describe('narrowing a run to what a diff could have changed', () => {
       expect(report.notObserved?.[0]?.because).toContain('every region it covered');
     });
 
+    it('keeps a subject the diff ruled out when the last run recorded it entering the changed lines', async () => {
+      // The structural ground walks only the imports it could read. A chain
+      // through one it could not — a computed specifier, a file that did not
+      // parse — leaves a subject unreached on the graph, and the recording is the
+      // only party holding the answer. It keeps `fixture:a`; it has no say over
+      // `fixture:b`, which it never saw enter the change.
+      const { report } = await runWith(CONFIG, BOTH, stored(['Clock']), {
+        since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
+        scanSource: async () => SOURCE,
+        readJourney: async () => ({
+          whole: ['fixture:a', 'fixture:b'],
+          entered: ['fixture:a'],
+          unread: [],
+          stale: [],
+          because: [],
+        }),
+      });
+
+      expect(report.observations.map((entry) => entry.subject)).toEqual(['fixture:a']);
+      expect(report.notObserved?.map((entry) => [entry.subject, entry.because])).toEqual([
+        ['fixture:b', expect.stringContaining('this diff touched none of them')],
+      ]);
+      const warnings = report.warnings?.join('\n') ?? '';
+      expect(warnings).toContain(
+        'kept 1 subject the diff ruled out: the last run recorded it entering the changed lines (fixture:a)',
+      );
+      expect(warnings).toContain('ruled out 1 subject: 1 by what the diff declares and reaches, 0 by');
+      expect(warnings).not.toContain('ruled out every subject');
+    });
+
     it('narrows past a changed file the journal records nothing about, and names it', async () => {
       // `unread` is a report. The journal answered for the file it measured, and
       // the one it records nothing about is printed beside the answer rather than
@@ -354,10 +384,11 @@ describe('narrowing a run to what a diff could have changed', () => {
       );
     });
 
-    it('never asks the journal about a subject the diff already ruled out', async () => {
-      // The grounds only remove, and they remove in order. A journal recorded
-      // before `fixture:b` existed must not be able to speak for it, and a run
-      // that let it would report the same skip under two reasons.
+    it('never lets the journal rule out a subject the diff already ruled out', async () => {
+      // The journal can keep a subject the structural ground removed, and cannot
+      // remove one a second time. A journal recorded before `fixture:b` existed
+      // must not be able to speak for it, and a run that let it would report the
+      // same skip under two reasons.
       const { report } = await runWith(CONFIG, BOTH, stored(['Clock']), {
         since: { ref: 'origin/main', changed: ['src/Button.tsx'], diff: DIFF },
         scanSource: async () => SOURCE,

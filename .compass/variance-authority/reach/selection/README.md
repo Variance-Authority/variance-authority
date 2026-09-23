@@ -60,14 +60,16 @@ When the diff cannot be computed at all the run is refused rather than widened,
 because answering a broken query with an empty list would narrow a run to
 nothing while reporting success.
 
-The two grounds only ever remove. The structural ground answers what a change
-could have moved through the shape of source; the execution ground removes
-further, from what the first ground kept, on the evidence of which regions a
-**subject** was witnessed to enter — an edit inside a handler no story fires is
-one two stories can be ruled out of, and no reading of the file could have ruled
-them out. Running the second ground over the whole plan instead would let a
-record made before a **subject** existed rule out a **subject** the diff plainly
-reaches. When the first ground kept everything because it could not place a
+The structural ground answers what a change could have moved through the shape
+of source; the execution ground removes further, from what the first ground
+kept, on the evidence of which regions a **subject** was witnessed to enter — an
+edit inside a handler no story fires is one two stories can be ruled out of, and
+no reading of the file could have ruled them out. Running the second ground over
+the whole plan instead would let a record made before a **subject** existed rule
+out a **subject** the diff plainly reaches. The same evidence keeps what the
+first ground could not prove: a **subject** witnessed entering a changed region
+is observed even when the structural ground ruled it out, because that ground
+reads only what a **baseline** names and the edges the graph could read. When the first ground kept everything because it could not place a
 change, the second still narrows, since a module that loaded under a recorded
 **subject** holds a row however it was reached. It is not asked after a change
 it never saw: an install that could not be compared, or a diff that moves what

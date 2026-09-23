@@ -17,11 +17,14 @@
  * A diff falling entirely in the second is a diff two of those three subjects
  * can be ruled out of — and no reading of the file could have ruled them out.
  *
- * ## It only ever removes, and only from what the first ground kept
+ * ## It removes only from what the first ground kept
  *
- * Both grounds narrow, neither widens, and a subject either survives both or is
- * not observed. Running this over the whole plan instead would let a journal
- * recorded before a subject existed rule out a subject the diff plainly reaches.
+ * Running this over the whole plan instead would let a journal recorded before a
+ * subject existed rule out a subject the diff plainly reaches. What it hands
+ * back in the other direction is `entered`: the caller keeps a subject recorded
+ * entering the change even when the first ground ruled it out, because that
+ * ground reads what a baseline names and the edges the graph could read, and
+ * what neither holds is the record's to answer.
  *
  * ## Absent is unknown, and unknown is observed
  *

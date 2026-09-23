@@ -231,13 +231,6 @@ export async function selectionFor(
     ...(options.since.install === undefined ? {} : { install: options.since.install }),
   });
 
-  // Only what survived the structural ground. A journal recorded before a
-  // subject existed must not be allowed to rule out a subject the diff plainly
-  // reaches, and the two grounds only ever remove.
-  const surviving = planned.filter(
-    (subject) => !answer.skipped.some((entry) => entry.subject === subject),
-  );
-
   // Absent all the way down: no diff text, no reader, or a reader that found no
   // snapshot. Each of those is *the journal was not consulted*, which narrows
   // nothing and is not an error — the probes are a build the operator opts into.
@@ -249,6 +242,20 @@ export async function selectionFor(
     diff === undefined || beyondTheJournal(install, answer)
       ? undefined
       : await journalOf(deps, diff, relations, compared?.packages ?? [], config.source.dirs);
+
+  // A structural skip the recording contradicts is not proven. That ground reads
+  // the components a baseline names and the edges the graph could read, and
+  // leaves what neither holds to the execution record — so a subject recorded
+  // entering the changed lines is observed. The journal keeps what the structural
+  // ground removed; it never removes it a second time.
+  const entered = new Set(journal?.entered ?? []);
+  const kept = answer.skipped.filter((entry) => entered.has(entry.subject)).map((entry) => entry.subject);
+  const skipped = answer.skipped.filter((entry) => !entered.has(entry.subject));
+
+  // Only what survived the structural ground. A journal recorded before a
+  // subject existed must not be allowed to rule out a subject the diff plainly
+  // reaches, so it reads these and nothing the structural ground removed.
+  const surviving = planned.filter((subject) => !skipped.some((entry) => entry.subject === subject));
   const journey =
     journal === undefined
       ? undefined
@@ -262,12 +269,12 @@ export async function selectionFor(
     changed: explains.changed,
     ...(reach === undefined ? {} : { reach }),
     skipped: new Map([
-      ...answer.skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
+      ...skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
     notes: notesFor(
       ref,
-      answer,
+      { ...answer, skipped, kept },
       journey,
       {
         // The lockfile and the manifests beside it are unread by the journal and
@@ -351,6 +358,7 @@ function notesFor(
   ref: string,
   answer: {
     readonly skipped: readonly unknown[];
+    readonly kept: readonly string[];
     readonly whole?: string;
     readonly unwatched?: readonly string[];
   },
@@ -359,7 +367,9 @@ function notesFor(
   before: BeforeReach | undefined,
 ): readonly string[] {
   const ruled = answer.skipped.length + (journey?.skipped.length ?? 0);
-  const unwatched = answer.unwatched ?? [];
+  const { kept } = answer;
+  // Every subject ruled out is no longer true once the recording kept one.
+  const unwatched = kept.length === 0 ? (answer.unwatched ?? []) : [];
   const { stale } = journal;
   const unentered = journal.unread;
 
@@ -387,6 +397,13 @@ function notesFor(
             'either nothing here watches that surface, or something here paints it without ' +
             'recording it, which is what a server component always does. `source.unrendered: ' +
             '"whole"` is the second.',
+        ]),
+    ...(kept.length === 0
+      ? []
+      : [
+          `\`--since ${ref}\` kept ${many(kept.length, 'subject')} the diff ruled out: the last run ` +
+            `recorded ${kept.length === 1 ? 'it' : 'them'} entering the changed lines ` +
+            `(${kept.slice(0, 3).join(', ')}${kept.length > 3 ? ', …' : ''}).`,
         ]),
     ...(journey?.whole === undefined
       ? []
