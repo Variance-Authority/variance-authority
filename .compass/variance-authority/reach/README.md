@@ -112,8 +112,8 @@ traces is owned by neither its writer nor its readers.
 A place for a **not observed** entry that names the **subject** and the reason;
 a place for the reachability trail, so *`Button` is affected because
 `src/tokens.css` → `src/button.css` → `src/Button.tsx`* survives into the
-artifact; and a place for the files whose edges could not be read, each with the
-sentence saying why, counted apart from what was found.
+artifact; and a place for the changed files the walk could not place, counted
+apart from what was found.
 
 #### What would make me leave
 
@@ -130,7 +130,7 @@ block would have to print its own.
 | [installed](./installed/README.md) | Reading the lockfile at two revisions and naming which packages the install moved, transitive bumps traced up to their parents |
 | [relations](./relations/README.md) | The typed bidirectional graph of what depends on what, and the two traversals that walk it either way |
 | [closure](./closure/README.md) | Hashing a node over everything it rests on, so sameness is proven without consulting a ref |
-| [selection](./selection/README.md) | Deciding which subjects to observe from both grounds, and refusing to narrow whenever either ground cannot answer |
+| [selection](./selection/README.md) | Deciding which subjects to observe from both grounds, each removing only what its own evidence proves |
 | [instrument](./instrument/README.md) | Cutting source into arrival regions and splicing a presence probe in front of each one |
 | [crossings](./crossings/README.md) | The record of which tests entered which region, and the answers taken from it |
 | [journey](./journey/README.md) | Carrying a **journey** across process boundaries under one opaque identity, and joining what each participant reported into one path |

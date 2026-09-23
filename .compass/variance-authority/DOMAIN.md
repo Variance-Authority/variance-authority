@@ -282,10 +282,12 @@ build, with the transpose materialized so *what depends on this* costs what
 
 ##### Invariants
 
-A missed edge is a wrong answer, not a smaller one. A file whose imports cannot
-be enumerated carries the sentence saying so, and every traversal seeds itself
-with that file as though it changed. Uncertainty widens toward observing more.
-The graph never rules a subject out on its own.
+A file whose imports cannot all be enumerated keeps the edges that were read
+and carries the sentence naming the one that was not, and no traversal is
+seeded from it. The graph walks only the edges it read; an edge it could not
+read is the execution record's to answer, because a module that loads under a
+test is recorded however it was named. The graph never rules a subject out on
+its own.
 
 #### Closure
 

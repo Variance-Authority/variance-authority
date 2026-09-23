@@ -24,8 +24,9 @@ prove anything — plus, between two such digest sets, which nodes moved.
 
 ## Used by
 
-- [`selection`](../selection/README.md) — the proof that a subject's whole input
-  closure is byte-identical to the one that produced its **baseline**
+- [`selection`](../selection/README.md) — the proof that a subject's input
+  closure, over every edge that was read, is byte-identical to the one that
+  produced its **baseline**
 
 ## Boundary
 
@@ -42,11 +43,13 @@ cycle carries one digest — which is the truth about a cycle, since no member c
 be called unchanged while another moved.
 
 A node whose closure cannot be proven is volatile and reports changed. A file
-whose content was not supplied, or whose own edges could not be read, breaks the
-claim a digest makes; the mark propagates to everything resting on it, and a
-volatile node is treated as changed however its digest compares. That set is
-returned beside the digests rather than folded into them, because a caller that
-ignores it converts a missing input into a **subject** nobody observed.
+whose content was not supplied breaks the claim a digest makes; the mark
+propagates to everything resting on it, and a volatile node is treated as
+changed however its digest compares. That set is returned beside the digests
+rather than folded into them, because a caller that ignores it converts a
+missing input into a **subject** nobody observed. A file whose edges could not
+all be read is not volatile: its bytes are hashed and the edges that were read
+are folded, and the one nobody could read is left to a recorded run.
 
 ## Implementation coordinates
 

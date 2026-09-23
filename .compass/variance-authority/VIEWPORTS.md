@@ -469,19 +469,24 @@ integer from claiming a clean run over a surface nobody observed.
 ### Participants
 
 - [`source-scan`](./reach/source-scan/README.md) — reads a file's outgoing
-  edges, and when it cannot, keeps the sentence saying why instead of an empty
-  edge list
+  edges, and when it cannot read one, keeps the sentence saying which beside the
+  edges it did read
 - [`relations`](./reach/relations/README.md) — folds those records into the
-  graph and seeds every traversal with the files whose edges are unknown, so an
-  unreadable file widens the run rather than narrowing it
+  graph, keeps each sentence on its node for whoever reports on the scan, and
+  names every changed path it does not hold; an edge nobody could read is left
+  to the [execution record](./reach/crossings/README.md)
+  ([Reach](./DOMAIN.md#reach))
 - [`installed`](./reach/installed/README.md) — compares the lockfile at two
   revisions, and reports *the comparison could not be made* as its own answer
   rather than as an install that moved nothing
 - [`selection`](./reach/selection/README.md) — narrows from the structural and
-  execution grounds, refuses to narrow at all when either ground cannot answer,
-  and names every **subject** it removed with the reason; a diff that moves what
-  the run rests on is refused before any walk, because *no component* is the
-  honest answer there and a whole suite is the safe one
+  execution grounds, each removing only what its own evidence proves, and names
+  every **subject** it removed with the reason; a changed path the execution
+  record holds nothing about is named in a note rather than kept as a reason to
+  observe everything, and a diff that moves what the run rests on is refused
+  before any walk and the execution record is not asked,
+  because *no component* is the honest answer there and a whole suite is the
+  safe one
 - [`subject-plan`](./acquisition/subject-plan/README.md) — the enumeration
   exclusion subtracts from: every **subject** by id before anything is reached,
   plus the refusals planning itself makes
@@ -513,7 +518,7 @@ integer from claiming a clean run over a surface nobody observed.
 ```mermaid
 flowchart TB
   SCAN[source-scan<br/>edges could not be enumerated] -->|the file, with its sentence| REL[relations]
-  REL -->|unknown files seeded into the walk| SEL[selection]
+  REL -->|changed paths it does not hold, by name| SEL[selection]
   INS[installed<br/>the lockfile could not be compared] -->|no narrowing, not an empty diff| SEL
   BEFORE[the harness<br/>nothing imports it] -->|declared, so the diff can name it| SEL
   PLAN[subject-plan<br/>a viewport it cannot resolve] -->|every subject by id| SEL
@@ -538,35 +543,39 @@ flowchart TB
 ### Seams
 
 - Unreadable file to graph — `FileRecord.unknown` in
-  `packages/core/src/relate/records.ts` carries the reason as a string rather
-  than a flag; `relationsOfFiles` folds it into `Relations.reasons`, and
-  `movedBy` seeds the breadth-first walk with the changed files *and* every node
-  marked unknown, returning them as `Reached.opaque` (`Hole[]`) counted apart
-  from `Reached.files`. `packages/sense/src/scan.ts` (`scanRelations`) is the
-  only producer.
+  `packages/core/src/relate/records.ts` carries the reason as a string beside
+  the edges that were read; `relationsOfFiles` folds it into
+  `Relations.reasons` for whoever reports on the scan, and no walk reads it.
+  `affectedBy` seeds the breadth-first walk with the changed files and nothing
+  else, returning the changed paths the graph does not hold as
+  `Affected.missing`, counted apart from `Affected.files`.
+  `packages/sense/src/scan.ts` (`scanRelations`) is the only producer.
 - An install that could not be read — `readLockfile` in
   `packages/sense/src/lock/` throws rather than returning an empty install, and
   `changedPackages` compares two reads instead of a path. A caller that cannot
   produce both reads has no comparison, which is not the same value as a
-  comparison that found nothing, and the run widens. A moved package whose
-  importers the execution record never measured travels the same channel as an
-  unread path — `ExecutionNarrowing.unread` in
-  `packages/sense/src/test-selection/select.ts` carries it under the package's
-  own name, so the valve the walk opened in
-  `packages/sense/src/test-selection/importers.ts` cannot be closed by a filter
-  written for file paths.
+  comparison that found nothing, and the run widens. A moved package the
+  comparison names is never `ExecutionNarrowing.unread` in
+  `packages/sense/src/test-selection/select.ts`: its importers answer for it
+  through `packages/sense/src/test-selection/importers.ts`, each chain for
+  itself, and a chain that reaches no importer the record measured selects
+  nothing.
 - What a run rests on, to the walk that cannot see it — `beforeReach` in
   `packages/core/src/relate/before.ts` descends *along* the arrows from the
   paths in `source.before`, stopping at the first file under `source.dirs`, and
   returns the files and packages it reached plus the declared entries the graph
-  does not hold. `componentsReached` in `packages/cli/src/commands/reach.ts`
-  asks `movedBefore` before it walks anything and returns a `whole` sentence
-  naming what moved, so the selector and the report refuse for the same reason.
+  does not hold. `affectedComponents` in `packages/cli/src/commands/reach.ts`
+  asks `changedBefore` before it walks anything and returns a `whole` sentence
+  naming what moved, carrying the moved paths as `rests`, so the selector and
+  the report refuse for the same reason and `beyondTheJournal` in
+  `packages/cli/src/commands/run-select.ts` keeps the execution record from
+  being asked after it.
   An entry with no node is a note rather than a refusal, because a `.nvmrc` has
   nothing below it to read and a harness config that lands there means its
   setup files are still narrowing to nothing. `packages/sense/src/scan.ts` seeds
   those paths by name and drops one that is absent or unreadable rather than
-  recording it unknown, which would make a typo a permanent widening.
+  recording it unknown, which would make a typo read in every scan report as a
+  scan that had failed.
 - Two grounds to one narrowing — `affectedSubjects` in
   `packages/cli/src/commands/affected.ts` returns `Affected` with `skipped: {
   subject, because }[]` and a `whole` sentence when it declined to narrow;

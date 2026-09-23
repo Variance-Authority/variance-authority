@@ -61,17 +61,23 @@ It performs no I/O, opens no file and resolves no specifier. It distinguishes
 edge kinds — a value import, a re-export, a dynamic import with a literal
 specifier, a type-only import, a stylesheet or asset reference, a declaration, a
 dependency between two installed packages —
-because those explain a finding, and it still walks every kind by default:
-narrowing on a kind is the caller's declaration rather than the default, because
-the cost of being wrong is a green run over a surface nobody looked at.
+because those explain a finding, and one of them also decides a walk: a
+type-only import is erased before anything runs, so the default traversal walks
+every kind but that one, and a caller whose question is about source rather
+than a runtime names the full list. Type-only is the statement written
+`import type` or `export type`; an import whose names are each marked `type`
+inline stays a runtime edge, because the emitted statement may still load the
+module.
 
-A missed edge is a wrong answer, not a smaller one. A file whose edges are
-unknown is marked as such and carries the reason, and the mark is a node
-property so the sentence travels with the node rather than being reduced to a
-count somewhere else. An empty record and an unreadable one are different facts
-and are never folded together
-([absent is not empty](../../DOMAIN.md#reach)). The graph never rules a **subject** out on its
-own; it reports what it reached and what it could not read.
+A file whose edges could not all be read keeps the ones that were, is marked as
+such and carries the reason, and the mark is a node property so the sentence
+travels with the node rather than being reduced to a count somewhere else. An
+empty record and an unreadable one are different facts and are never folded
+together ([absent is not empty](../../DOMAIN.md#reach)). The mark is for
+whoever reports on the scan, and no walk reads it: the edge nobody could read is
+left to the execution record ([Reach](../../DOMAIN.md#reach)). The graph never
+rules a **subject** out on its own; it reports what a change affects and which
+changed paths it does not hold.
 
 ## Implementation coordinates
 
@@ -80,10 +86,10 @@ own; it reports what it reached and what it could not read.
 - `packages/core/src/relate/reach.ts` — `dependentsOf`, `dependenciesOf`,
   `trailOf`; breadth-first from every seed at once, so the recorded parent lies
   on a shortest path and the printed explanation is the shortest true one
-- `packages/core/src/relate/records.ts` — `relationsOfFiles`, `movedBy` and
-  `explain`; the seed set is the changed files *and* every file whose edges are
-  unknown, and `depends` folds the install in beside them
-- `packages/core/src/relate/before.ts` — `beforeReach` and `movedBefore`; the
+- `packages/core/src/relate/records.ts` — `relationsOfFiles`, `affectedBy` and
+  `explain`; the seed set is the changed files and nothing else, and `depends`
+  folds the install in beside them
+- `packages/core/src/relate/before.ts` — `beforeReach` and `changedBefore`; the
   one descent along the arrows, the sensed directories it stops at, and the
   declared entries the graph does not hold
 
@@ -94,6 +100,6 @@ flowchart LR
   SCAN[source-scan] -->|file records| REL[relations]
   INS[installed] -->|which package rests on which| REL
   REL -->|the structure| CLO[closure]
-  REL -->|reached files, reached components, trails, holes| SEL[selection]
+  REL -->|reached files, reached components, trails, missing paths| SEL[selection]
   REL -->|what the run rests on, walked down from a declared entry| SEL
 ```

@@ -5,8 +5,7 @@
 ## Responsibility
 
 Decides which **subjects** a run observes, from the structural ground and the
-execution ground together, refusing to narrow at all whenever either ground
-cannot answer.
+execution ground together, each removing only what its own evidence proves.
 
 ## Bounded context
 
@@ -54,20 +53,33 @@ symmetric: a **subject** observed unnecessarily costs a collection, and a
 **subject** skipped in error is a green run over an unwatched surface, produced
 silently, since the **subject** is not in the report to be missing from. So a
 **subject** with no **baseline** is observed, a **baseline** recording no
-component list is observed, a changed source file declaring no component makes
-the run whole, and a run that cannot list its changed files does not narrow.
+component list is observed, a changed source file declaring no component keeps
+every **subject** on the structural ground, and a run that cannot list its
+changed files does not narrow.
 When the diff cannot be computed at all the run is refused rather than widened,
 because answering a broken query with an empty list would narrow a run to
 nothing while reporting success.
 
-Uncertainty widens toward observing more, and the two grounds only ever remove.
-The structural ground answers what a change could have moved through the shape
-of source; the execution ground removes further, from what the first ground
-kept, on the evidence of which regions a **subject** was witnessed to enter — an
-edit inside a handler no story fires is one two stories can be ruled out of, and
-no reading of the file could have ruled them out. Running the second ground over
-the whole plan instead would let a record made before a **subject** existed rule
-out a **subject** the diff plainly reaches.
+The two grounds only ever remove. The structural ground answers what a change
+could have moved through the shape of source; the execution ground removes
+further, from what the first ground kept, on the evidence of which regions a
+**subject** was witnessed to enter — an edit inside a handler no story fires is
+one two stories can be ruled out of, and no reading of the file could have ruled
+them out. Running the second ground over the whole plan instead would let a
+record made before a **subject** existed rule out a **subject** the diff plainly
+reaches. When the first ground kept everything because it could not place a
+change, the second still narrows, since a module that loaded under a recorded
+**subject** holds a row however it was reached. It is not asked after a change
+it never saw: an install that could not be compared, or a diff that moves what
+the run rests on.
+
+Absence on the execution ground selects nothing. A changed path the record holds
+no row for, that no measured importer answers and no observation declared — a
+README, a file read from disk that nothing named — entered nobody by any route
+the record can see, so it is named in a note beside the answer and keeps no
+**subject**. What a run loads without importing it is declared as a
+precondition of the observations it was loaded under, and a change to it keeps
+each of them.
 
 A **seed** is more changed input, never a second opinion and never a selection,
 and there are two kinds. A package the install moved is the precise kind: it is
@@ -88,21 +100,23 @@ not run*.
 An install that could not be compared — an unreadable lockfile, or a base
 revision that does not carry it — does not narrow, for the reason a missing diff
 does not: *nothing moved* and *nothing could be read* are the same empty list
-and opposite facts. So is a moved package whose importers the execution record
-never measured; it is named under the package's own name rather than a path,
-because *no measurement of `@mui/material`* would otherwise read as a missing
-file.
+and opposite facts. A package the comparison does name as moved is answered on
+the execution ground through the files that import it, each chain for itself:
+the nearest importer the record measured contributes the observations that
+entered it, and a chain that reaches none contributes nothing rather than
+voiding the rest.
 
 One question is asked before any walk and it can only refuse. What a run rests
 on — the harness config, the setup it loads, the packages that environment is
 built on — is imported by nothing, so a walk against the arrows from one arrives
 nowhere and the honest structural answer is *no component moved*. That answer
 would skip the whole suite over the file deciding how every test in it runs. A
-diff wholly outside the graph already widened; the hole is a config edited
-*beside* an ordinary source file, where the walk has a seed and answers
-confidently about a change it never looked at. So when the diff moves one of
-these, the run is whole and the sentence names the file or the package that put
-it there.
+diff wholly outside the graph widens the structural ground, and the execution
+ground would narrow past that, since the record holds no row for a file nothing
+imports; the other hole is a config edited *beside* an ordinary source file,
+where the walk has a seed and answers confidently about a change it never looked
+at. So when the diff moves one of these, the run is whole on both grounds and
+the sentence names the file or the package that put it there.
 
 Which paths govern a run is declared rather than derived. No rule can find them:
 *every changed path the graph does not hold* is the README, the changelog and
@@ -145,8 +159,9 @@ single story is the unit of execution.
 - `packages/cli/src/commands/changes.ts` — affected projects from a workspace tool, as **seeds**
 - `packages/cli/src/commands/installed.ts` — the packages an install comparison
   says moved, as **seeds**
-- `packages/sense/src/test-selection/importers.ts` — the same walk from a
-  package seed, and the widening when an importer was never measured
+- `packages/sense/src/test-selection/importers.ts` — the walk from a changed
+  file with no row, or a package seed, to the nearest importers the record
+  measured, over runtime edges only
 - `packages/sense/src/test-selection/select.ts` — `selectTestFilesFromView` and
   `narrowByExecutionFromView`, the same rules over test files
 

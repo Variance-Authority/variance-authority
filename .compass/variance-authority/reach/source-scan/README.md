@@ -18,8 +18,8 @@ rests on that nothing imports, the installed dependencies and path mappings a
 specifier needs to resolve, and — when something already knows them — a map of
 content digests. Out: one record per file, carrying resolved edges, the digest
 the record was read from, the component names the file declares, specifiers that
-resolved nowhere, and, when the file's edges could not be enumerated at all, the
-sentence saying why.
+resolved nowhere, and, when not all of the file's edges could be enumerated,
+the sentence saying which.
 
 Content digests come from the version control object store, so a file edited and
 then edited back to its committed contents lands on its committed digest and
@@ -63,8 +63,8 @@ scan would be pointed at, so no walk arrives at it and the file that decides how
 the whole suite runs has no node. Seeded by name it becomes an ordinary record,
 and so does everything it loads. A named path that is not there, or that has no
 reader, is dropped rather than recorded as a file whose edges could not be read:
-an unknown file seeds every traversal forever, so one misspelling would widen
-every run in the repository and read as a scan that had failed.
+one misspelling would then name a file nobody wrote in every report on the scan,
+and read there as a scan that had failed.
 
 It decides where a specifier points and never what counts as one; that is
 settled from syntax alone. A specifier that resolves nowhere is still a fact
@@ -72,7 +72,8 @@ worth keeping, and *binds nothing* has several causes that must stay apart: a
 bare specifier is recorded as a package edge whether or not anything is
 installed under that name, since whether a package is present here decides
 nothing about which files import it, while an unreadable or unresolved relative
-edge means this file may depend on anything and carries the sentence saying so.
+request names repository source nobody could identify, so the file carries the
+sentence naming it and the edge is left to the recorded run.
 
 ## Implementation coordinates
 

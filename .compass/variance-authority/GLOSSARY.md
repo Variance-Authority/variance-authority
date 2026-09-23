@@ -675,7 +675,7 @@ to touch.
 
 ### Implementation aliases
 
-`beforeReach`, `movedBefore`, `BeforeReach`; `source.before` in the operator's
+`beforeReach`, `changedBefore`, `BeforeReach`; `source.before` in the operator's
 config, `ScanOptions.before` where those files are seeded
 
 ## **Journey**
