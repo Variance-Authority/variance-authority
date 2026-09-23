@@ -14,6 +14,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import { relative, resolve, sep } from 'node:path';
 import {
   drainExecution,
   preconditionOf,
@@ -30,7 +31,8 @@ import { repositoryRoot } from '@variance-authority/sense/test-selection';
 export interface StoryExecutionOptions {
   /**
    * A directory inside the repository; defaults to the cwd. Recorded paths are
-   * relative to the checkout it sits in, never to it.
+   * relative to the checkout it sits in, never to it. A story's `importPath` is
+   * read from here, because it is relative to the directory Storybook ran in.
    */
   readonly root?: string;
   /** Matches the `label` the build's `testSelectionProbes()` used. Defaults to `build`. */
@@ -107,7 +109,7 @@ export async function createStoryRecorder(
   options: StoryExecutionOptions,
 ): Promise<StoryRecorder> {
   const root = repositoryRoot(options.root ?? process.cwd());
-  const storyFiles = await storyFilesFrom(index);
+  const storyFiles = await storyFilesFrom(index, resolve(options.root ?? process.cwd()), root);
   const observed: ObservedSubject[] = [];
   const cases: ObservedCase[] = [];
   let seen = false;
@@ -205,13 +207,25 @@ export async function createStoryRecorder(
  * enters a module, so without this a commit that edits one selects nothing. The
  * title and the name come along because the execution index names a case by its
  * declaration rather than by the id Storybook slugged from it.
+ *
+ * Storybook writes `importPath` from the directory it ran in, `./` and all. A
+ * diff names files from the checkout, so the path is resolved from `ran` and
+ * named from `root`; in a workspace the two are a package apart.
  */
-async function storyFilesFrom(index: string): Promise<Map<string, StoryCoordinate>> {
+async function storyFilesFrom(
+  index: string,
+  ran: string,
+  root: string,
+): Promise<Map<string, StoryCoordinate>> {
   const parsed = parseStoryIndex(JSON.parse(await readFile(index, 'utf8')), index);
   return new Map(
     parsed.stories.map((story) => [
       story.id,
-      { file: story.importPath, title: story.title, name: story.name },
+      {
+        file: relative(root, resolve(ran, story.importPath)).split(sep).join('/'),
+        title: story.title,
+        name: story.name,
+      },
     ]),
   );
 }

@@ -4,9 +4,10 @@
  * already here. What the index costs is the file, which is why it is asked for.
  */
 
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import {
   testSelectionProbes,
   type EvaluatingPage,
@@ -91,6 +92,50 @@ describe('a Storybook run records what each story executed', () => {
         'src/Price.stories.tsx',
       ]);
     });
+  });
+
+  it('names a story file from the checkout, not from where Storybook ran', async () => {
+    // Storybook writes `importPath` relative to its own directory, with a `./`
+    // in front. In a workspace that directory is a package, and a story file
+    // named from there is a path the diff never spells: its precondition read
+    // nothing and its case named a file no commit touches.
+    const checkout = await mkdtemp(resolve(tmpdir(), 'variance-storybook-checkout-'));
+    try {
+      execFileSync('git', ['init', '-q'], { cwd: checkout });
+      const root = resolve(checkout, 'packages/ui');
+      await mkdir(resolve(root, 'src'), { recursive: true });
+      const cacheRoot = resolve(checkout, 'cache');
+      const module = resolve(root, 'price.js');
+      await writeFile(module, SOURCE, 'utf8');
+      await writeFile(resolve(root, 'src/Price.stories.tsx'), 'export default {};\n', 'utf8');
+      testSelectionProbes({ root, cacheRoot }).transform(SOURCE, module);
+      const index = resolve(root, 'storybook-static/index.json');
+      await mkdir(dirname(index), { recursive: true });
+      const entry = INDEX.entries['price--premium'];
+      await writeFile(
+        index,
+        JSON.stringify({ ...INDEX, entries: { [entry.id]: { ...entry, importPath: './src/Price.stories.tsx' } } }),
+        'utf8',
+      );
+      const coverageFile = resolve(checkout, 'coverage.bin');
+
+      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile, cases: true });
+      await recorder.note(
+        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
+        'story:price--premium',
+        true,
+      );
+      await recorder.close();
+
+      const [test] = (await readTestCoverage(coverageFile)).tests;
+      expect(test?.preconditions.map((precondition) => precondition.name)).toContain(
+        'packages/ui/src/Price.stories.tsx',
+      );
+      const written = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
+      expect(written.tests.map((each) => each.file)).toEqual(['packages/ui/src/Price.stories.tsx']);
+    } finally {
+      await rm(checkout, { recursive: true, force: true });
+    }
   });
 
   it('writes the same record and no index for a run that did not ask', async () => {
