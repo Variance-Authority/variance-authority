@@ -467,6 +467,19 @@ skipped test leaves the file whole: it covered nothing, and every way it stops
 being skipped edits either the spec file or a module the file already reaches,
 both of which select it anyway.
 
+Your specs do not have to ask for `variance` to be recorded. A spec that
+destructures only `page` is recorded the same way, because recording reads the
+test's browser context rather than a fixture. It reads after every `afterEach`
+and before the context closes, from every frame of every page the test opened.
+That covers a story running inside Storybook's `#storybook-preview-iframe` and a
+second tab opened with `context.newPage()`. A document the test replaced is
+gone by then: a second `goto`, a `reload()`, a frame the application removed,
+or a page that closed or crashed. What it executed after its last read is lost,
+so the spec is recorded as incomplete and the next selection runs it.
+`pushState` and hash changes keep the same document and lose nothing.
+[`cases/playwright-storybook-case`](../../cases/playwright-storybook-case/README.md)
+runs each of these shapes against a built Storybook.
+
 ### Fold what the workers recorded
 
 Playwright runs specs in worker processes, and the execution index is one file

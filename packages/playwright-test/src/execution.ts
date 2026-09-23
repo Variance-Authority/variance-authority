@@ -24,6 +24,7 @@ import {
   recordExecution,
   stageExecution,
   stagingDirectory,
+  type EvaluatingPage,
   type ExecutedModule,
   type InstrumentMode,
   type ModuleId,
@@ -117,13 +118,14 @@ export interface ExecutionRecording {
 /** One worker's accumulation, drained per observation and written once. */
 export interface ExecutionRecorder {
   /**
-   * Take everything the page has entered since the last drain.
+   * Take everything one document has entered since the last drain — a page's,
+   * or any frame's, since the application is not always the top document.
    *
    * `subject` names the individual test the window belongs to, for a run
    * recording cases. Without it the crossings join the file and nothing finer,
    * which is what selection reads either way.
    */
-  readonly note: (page: Page, owner: string, subject?: ObservedTest) => Promise<void>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest) => Promise<void>;
   /**
    * Mint this execution's journey and put it on the page's context.
    *

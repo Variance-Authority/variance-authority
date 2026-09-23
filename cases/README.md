@@ -42,6 +42,7 @@ yarn vitest run cases/playwright-additive-case/src/workflow.chromium.test.js
 | A jsdom unit test whose screenshot is taken later, by a different process | [`unit-capture-case/src/workflow.chromium.test.js`](unit-capture-case/src/workflow.chromium.test.js) | An ordinary Vitest run that imports no browser package writes a capture; a second CLI process opens it, renders it in Chromium, records the baseline and re-observes it. |
 | A test that waits on the decision an application made, not on what it drew | [`event-announcement-case/src/workflow.chromium.test.js`](event-announcement-case/src/workflow.chromium.test.js) | A page and a service announcing decisions, six executions running against one service process without hearing each other, and what a wait that never settles reports. |
 | One execution followed from the browser into a service serving many at once | [`journey-tracing-case/src/workflow.chromium.test.js`](journey-tracing-case/src/workflow.chromium.test.js) | An execution id carried in a `Cookie` header, the service reporting both its decision and the source regions it entered under that id, and a following run narrowed to the spec that reached the changed branch. |
+| An ordinary Playwright suite over a Storybook, recorded without naming a fixture | [`playwright-storybook-case/src/workflow.chromium.test.js`](playwright-storybook-case/src/workflow.chromium.test.js) | A Storybook that Storybook built with probes, seven specs that open it themselves — straight to a story, through the manager, in a second tab, past `afterEach`, across a reload — and a change to one line narrowed to the specs whose pages executed it. |
 
 Two cases build an external artifact first, through their own package script:
 
@@ -52,8 +53,8 @@ yarn workspace @variance-authority/case-incumbent incumbent
 
 The `incumbent` script runs Playwright's own comparator in the two phases a team
 runs it in — record on the trunk, compare on the branch — and its second phase
-exits non-zero on purpose. The other five cases have no scripts of their own:
-the Vitest file above is the whole entry point.
+exits non-zero on purpose. The other cases have no scripts of their own: the
+Vitest file above is the whole entry point.
 
 Each case README owns the rest — its prerequisites in detail, its expected
 evidence, and what it does not test. Run the narrowest case that matches the
@@ -97,7 +98,9 @@ cover the two ways an existing suite adopts this: in place, and with the browser
 step deferred; the rstest case covers both of those under one runner, so the
 choice between them is visible as a choice rather than as two products. The announcement and journey-tracing cases cover waiting on an
 application's own decision, and carrying one execution id from a browser into a
-service that answers many callers at once.
+service that answers many callers at once. The Playwright-over-Storybook case
+covers recording which spec executed which source lines, for a suite whose specs
+never name this project.
 
 These cases are run on one Mac and one Chromium. They say nothing about a hosted
 review product, a browser fleet, a service-level deployment, or repository-scale

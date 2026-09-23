@@ -1,0 +1,19 @@
+{
+  "name": "@variance-authority/case-playwright-storybook",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@playwright/test": "^1.49.0",
+    "@variance-authority/playwright-test": "workspace:^",
+    "@variance-authority/sense": "workspace:^",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@storybook/react-vite": "^9.1.13",
+    "storybook": "^9.1.13",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.8"
+  }
+}

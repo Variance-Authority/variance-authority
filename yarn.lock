@@ -4079,6 +4079,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-playwright-storybook@workspace:cases/playwright-storybook-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-playwright-storybook@workspace:cases/playwright-storybook-case"
+  dependencies:
+    "@playwright/test": "npm:^1.49.0"
+    "@storybook/react-vite": "npm:^9.1.13"
+    "@variance-authority/playwright-test": "workspace:^"
+    "@variance-authority/sense": "workspace:^"
+    react: "npm:^19"
+    react-dom: "npm:^19"
+    storybook: "npm:^9.1.13"
+    vite: "npm:^6.0.0"
+    vitest: "npm:^2.1.8"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-rstest@workspace:cases/rstest-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-rstest@workspace:cases/rstest-case"

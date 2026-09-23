@@ -31,11 +31,11 @@ import { acquireFrom } from './acquire.js';
 import { runOf, type VarianceRun } from './run.js';
 import { settledCapture } from './in-place.js';
 import { varianceCompletedFixtures, type VarianceCompletedFixtures } from './completed.js';
+import { varianceDocumentFixtures } from './documents.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
 import {
   createExecutionRecorder,
-  testOf,
   type ExecutionRecorder,
   type ExecutionRecording,
 } from './execution.js';
@@ -188,6 +188,7 @@ export const varianceFixtures: Fixtures<
   ...varianceVantageFixtures,
   ...varianceEventFixtures,
   ...varianceCompletedFixtures,
+  ...varianceDocumentFixtures,
 
   varianceBaselines: ['.variance/baselines', { scope: 'worker', option: true }],
 
@@ -249,50 +250,38 @@ export const varianceFixtures: Fixtures<
     // cookie on the context, and it has to be there before the subject
     // navigates — a head cannot be told which execution a request belongs to by
     // an id that arrived after the request did.
-    {
-      page,
-      varianceBundle,
-      varianceRenderer,
-      varianceStore,
-      varianceRecorder,
-      varianceJourney,
-      varianceVantage,
-    },
+    //
+    // Nothing is drained here. The page belongs to the test's context, and the
+    // context drains every document it held once the test is done with it —
+    // for every spec, including the ones that never destructure this fixture.
+    { page, varianceBundle, varianceRenderer, varianceStore, varianceJourney, varianceVantage },
     use,
     testInfo,
   ) => {
     void varianceJourney;
     await page.addInitScript(varianceBundle);
-    const owner = varianceRecorder?.owner(testInfo);
     const declared = createDeclarationReader(page, { global: AGENT });
     const observing = async (locator: Locator, options?: VarianceOptions) => {
-      try {
-        // The runner already owns a per-test output directory it cleans and
-        // reports from, so on this path evidence is on by default and lands
-        // where a Playwright user looks for artifacts. The direct helper has no
-        // such directory and therefore no such default.
-        const observed = await observeLocator(
-          {
-            page,
-            run: runOf(testInfo),
-            renderer: varianceRenderer,
-            store: varianceStore,
-            declared,
-            evidence: testInfo.outputPath('variance'),
-          },
-          locator,
-          options,
-        );
-        for (const [name, path] of Object.entries(observed.evidence ?? {})) {
-          await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
-        }
-        return observed;
-      } finally {
-        // Drained on the way out of a refusal too. A subject that threw still
-        // executed code, and counters left in the page would be handed to
-        // whichever spec drained next — an attribution that is simply false.
-        if (owner !== undefined) await varianceRecorder!.note(page, owner, testOf(testInfo));
+      // The runner already owns a per-test output directory it cleans and
+      // reports from, so on this path evidence is on by default and lands where
+      // a Playwright user looks for artifacts. The direct helper has no such
+      // directory and therefore no such default.
+      const observed = await observeLocator(
+        {
+          page,
+          run: runOf(testInfo),
+          renderer: varianceRenderer,
+          store: varianceStore,
+          declared,
+          evidence: testInfo.outputPath('variance'),
+        },
+        locator,
+        options,
+      );
+      for (const [name, path] of Object.entries(observed.evidence ?? {})) {
+        await testInfo.attach(`${observed.subject} ${name}`, { path, contentType: 'image/png' });
       }
+      return observed;
     };
 
     await use(
@@ -303,23 +292,6 @@ export const varianceFixtures: Fixtures<
         }),
       ),
     );
-    // One last window, here rather than at an observation, because the test
-    // goes on executing after the last thing it compared: a final assertion, a
-    // teardown of its own, a navigation away. Those crossings are as real as
-    // the ones before them, and the verdict this file's record carries says
-    // the file was walked whole — so leaving them out is the under-recording
-    // that makes a later `--since` skip a line that ran. The page is still
-    // open: this fixture asked for it, so it is torn down first.
-    if (owner !== undefined) {
-      try {
-        await varianceRecorder!.note(page, owner, testOf(testInfo));
-      } catch {
-        // A page closed inside the test — `page.close()`, a crash, a context
-        // the test tore down itself — has nothing left to drain and no way to
-        // say so other than throwing. The window is lost either way; ending
-        // the test over it would lose the run as well.
-      }
-    }
     await declared.close();
   },
 };

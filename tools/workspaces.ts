@@ -283,5 +283,6 @@ export const AMBIENT = new Set(['vitest', '@types/node', '@types/react', '@types
  */
 export const REQUIRED_WITHOUT_IMPORT: Readonly<Record<string, readonly string[]>> = {
   // Storybook's React renderer resolves this itself; no story file imports it.
+  '@variance-authority/case-playwright-storybook': ['react-dom'],
   '@variance-authority/case-storybook': ['react-dom'],
 };
