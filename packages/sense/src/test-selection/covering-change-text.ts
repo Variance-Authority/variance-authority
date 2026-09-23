@@ -90,7 +90,7 @@ export function formatCoveringChange(
       continue;
     }
     for (const region of file.regions) {
-      lines.push(`  ${extent(region)} — ${claim(region.tests.length)}${carried(region.passengers.length)}`);
+      lines.push(`  ${extent(region)} — ${claim(region.tests.length)}${carried(region.passengers)}`);
       lines.push(...region.tests.map((test) => `    ${describe(test)}`));
     }
   }
@@ -134,8 +134,18 @@ function claim(tests: number): string {
   return `${tests} cases`;
 }
 
-function carried(passengers: number): string {
-  return passengers === 0 ? '' : ` (+${passengers} carried in while the module evaluated)`;
+/**
+ * The cases present while the module evaluated, or why they are not counted.
+ *
+ * A region that ran during load and was read without the file graph has
+ * loaders nobody named. Printing nothing there would make it read like a
+ * region no case was ever inside.
+ */
+function carried(passengers: CoveringChange['regions'][number]['passengers']): string {
+  if (passengers === undefined) {
+    return ' (also ran while the module evaluated; no file graph this reading held names who loaded it)';
+  }
+  return passengers.length === 0 ? '' : ` (+${passengers.length} carried in while the module evaluated)`;
 }
 
 /**

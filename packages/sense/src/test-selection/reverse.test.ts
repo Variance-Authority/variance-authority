@@ -4,6 +4,7 @@ import {
   coveringChange,
   coveringTests,
   coveringTestsInFile,
+  ranWhileLoading,
   type ExecutionIndex,
 } from './reverse.js';
 
@@ -206,7 +207,7 @@ describe('coveringChange', () => {
     }, changed('src/cart/total.ts', 4, 4));
 
     expect(file?.regions[0]?.tests.map((test) => test.id)).toEqual(['guest']);
-    expect(file?.regions[0]?.passengers.map((test) => test.id)).toEqual(['other-staff']);
+    expect(file?.regions[0]?.passengers?.map((test) => test.id)).toEqual(['other-staff']);
   });
 
   it('drops every case whose file mocked the module, whatever it crossed there', () => {
@@ -261,3 +262,69 @@ describe('coveringChange', () => {
     expect(file?.regions.map((region) => [region.startLine, region.endLine])).toEqual([[1, 10]]);
   });
 });
+
+describe('a region that ran while its module evaluated', () => {
+  // `total.ts` sets a constant at load; `guest` then calls `priceOf`. The flag
+  // says the constant ran, and credits it to no case.
+  const loadedIndex: ExecutionIndex = {
+    tests: index.tests,
+    modules: [{
+      file: 'src/cart/total.ts',
+      blocks: [
+        { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+        { kind: 'function', name: 'priceOf', path: 'entry', startLine: 3, endLine: 9, source: true, crossings: [{ test: 0, distance: 0 }] },
+      ],
+    }],
+  };
+  const importers = (files: readonly string[], shadowing: readonly string[] = []) => relationsOfFiles(
+    [{ file: 'src/cart/total.ts' }, ...files.map((file) => ({ file, edges: [{ to: 'src/cart/total.ts', kind: 'imports' as const }] }))],
+    { shadows: new Map(shadowing.map((file) => [file, ['src/cart/total.ts']])) },
+  );
+  const at = { file: 'src/cart/total.ts', line: 1 };
+  const change = new Map([['src/cart/total.ts', [{ start: 1, end: 1 }]]]);
+
+  it('says so, and names no case without a file graph', () => {
+    expect(ranWhileLoading(loadedIndex, at)).toBe(true);
+    expect(ranWhileLoading(loadedIndex, { file: 'src/cart/total.ts', line: 4 })).toBe(false);
+    expect(coveringTests(loadedIndex, at)).toEqual([]);
+    expect(coveringChange(loadedIndex, change)[0]?.regions[0]?.passengers).toBeUndefined();
+  });
+
+  it('names every case whose file imports the module, by the file graph', () => {
+    const relations = importers(['test/cart.test.ts', 'test/other.test.ts']);
+
+    expect(coveringTests(loadedIndex, at, { relations }).map((test) => [test.id, test.loaded])).toEqual([
+      ['staff', true],
+      ['guest', true],
+      ['other-staff', true],
+    ]);
+    expect(coveringChange(loadedIndex, change, { relations })[0]?.regions[0]?.passengers?.map((test) => test.id))
+      .toEqual(['staff', 'guest', 'other-staff']);
+  });
+
+  it('leaves out a case whose file mocked the module', () => {
+    const relations = importers(['test/cart.test.ts', 'test/other.test.ts'], ['test/other.test.ts']);
+
+    expect(coveringTests(loadedIndex, at, { relations }).map((test) => test.id)).toEqual(['staff', 'guest']);
+  });
+
+  it('has no answer when the graph names none of the recorded cases', () => {
+    // A browser spec reaches a page-side module through the page, never an
+    // import: somebody loaded it, and the graph cannot say who.
+    const relations = importers(['src/app.ts']);
+
+    expect(coveringTests(loadedIndex, at, { relations })).toEqual([]);
+    expect(coveringChange(loadedIndex, change, { relations })[0]?.regions[0]?.passengers).toBeUndefined();
+  });
+
+  it('keeps a caller as a caller when its file also loaded the module', () => {
+    const relations = importers(['test/cart.test.ts']);
+    const whole = coveringTestsInFile(loadedIndex, 'src/cart/total.ts', { relations });
+
+    expect(whole?.map((range) => [range.startLine, range.loaded, range.tests.map((test) => test.id)])).toEqual([
+      [1, true, ['staff', 'guest']],
+      [3, undefined, ['guest']],
+    ]);
+  });
+});
+

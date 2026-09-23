@@ -148,12 +148,11 @@ fn fold(
     }
     let block_count = *module_blocks.last().unwrap_or(&0);
     let mut called_sets = vec![0; block_count];
-    let mut loaded_sets = vec![0; block_count];
+    let mut loaded_flags = vec![false; block_count];
     let mut module_entered = vec![false; modules.len()];
     let mut sets = SetPool::new(run.tests.len());
     let empty = sets.intern(&[]);
     called_sets.fill(empty);
-    loaded_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {
         return Ok(Folded {
             bytes: journey_format::encode(&run.tests, &[], &sets)?,
@@ -185,7 +184,6 @@ fn fold(
         let first_block = module_blocks[first];
         let local_blocks = module_blocks[last] - first_block;
         let mut called = vec![0_u32; local_blocks * words];
-        let mut loaded = vec![0_u32; local_blocks * words];
         let mut visitor = FoldVisitor {
             run,
             row_of: &row_of,
@@ -196,7 +194,7 @@ fn fold(
             first_block,
             words,
             called: &mut called,
-            loaded: &mut loaded,
+            loaded: &mut loaded_flags[first_block..first_block + local_blocks],
             case_frame: 0,
             test_first: 0,
             test_last: 0,
@@ -211,14 +209,11 @@ fn fold(
         for local in 0..local_blocks {
             let at = local * words;
             scratch.clear();
-            collect(&called, None, at, words, &mut scratch);
-            let called_count = scratch.len();
-            collect(&loaded, Some(&called), at, words, &mut scratch);
+            collect(&called, at, words, &mut scratch);
             let block = first_block + local;
-            called_sets[block] = sets.intern(&scratch[..called_count]);
-            loaded_sets[block] = sets.intern(&scratch[called_count..]);
+            called_sets[block] = sets.intern(&scratch);
             crossings += scratch.len() as u64;
-            if !scratch.is_empty() {
+            if !scratch.is_empty() || loaded_flags[block] {
                 module_entered[module_of(&module_blocks, first, last, block)] = true;
             }
         }
@@ -232,7 +227,7 @@ fn fold(
         .map(|(row, module)| EncodedModule {
             module,
             called: &called_sets[module_blocks[row]..module_blocks[row + 1]],
-            loaded: &loaded_sets[module_blocks[row]..module_blocks[row + 1]],
+            loaded: &loaded_flags[module_blocks[row]..module_blocks[row + 1]],
         })
         .collect();
     let module_count = encoded.len() as u32;
@@ -255,7 +250,9 @@ struct FoldVisitor<'a> {
     first_block: usize,
     words: usize,
     called: &'a mut [u32],
-    loaded: &'a mut [u32],
+    /// One flag per region in this pass, and no test: what ran while a module
+    /// evaluated is answered through the import graph, not credited here.
+    loaded: &'a mut [bool],
     case_frame: usize,
     test_first: u32,
     test_last: u32,
@@ -318,14 +315,15 @@ impl Visitor for FoldVisitor<'_> {
             while shared_at < shared.len() && shared[shared_at] < ordinal_value {
                 shared_at += 1;
             }
-            let target = if shared.get(shared_at).copied() == Some(ordinal_value) {
-                &mut self.loaded
-            } else {
-                &mut self.called
-            };
+            if shared.get(shared_at).copied() == Some(ordinal_value) {
+                for block in targets {
+                    self.loaded[base + *block as usize] = true;
+                }
+                continue;
+            }
             for block in targets {
                 mark_range(
-                    target,
+                    self.called,
                     (base + *block as usize) * self.words,
                     self.test_first as usize,
                     self.test_last as usize,
@@ -341,15 +339,9 @@ fn mark_range(bits: &mut [u32], at: usize, first: usize, last: usize) {
     }
 }
 
-fn collect(
-    bits: &[u32],
-    exclude: Option<&[u32]>,
-    at: usize,
-    words: usize,
-    out: &mut Vec<u32>,
-) {
+fn collect(bits: &[u32], at: usize, words: usize, out: &mut Vec<u32>) {
     for word in 0..words {
-        let mut value = bits[at + word] & !exclude.map_or(0, |held| held[at + word]);
+        let mut value = bits[at + word];
         while value != 0 {
             let low = value.trailing_zeros();
             out.push(((word as u32) << 5) + low);

@@ -30,6 +30,7 @@
  * on demand, off the file graph, in [`covering-reach.ts`](./covering-reach.ts).
  */
 
+import { realpath } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import {
   changedLines,
@@ -37,6 +38,7 @@ import {
   coveringTests,
   coveringTestsInFile,
   formatCoveringChange,
+  ranWhileLoading,
   recordedCommit,
   testCoverageFile,
   type CoveringChange,
@@ -45,6 +47,7 @@ import {
   type ExecutionIndex,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
+import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionIndex } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
@@ -136,7 +139,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
           'print — which again is not the same as nobody covering it.',
       );
     }
-    const found = coveringTests(index, { file: file, line });
+    const target = { file, line };
+    const found = coveringTests(index, target, await loadersFor(index, target, request.root));
     const kept = near.whole ? found : found.filter(near.keep);
     return {
       file: file,
@@ -162,7 +166,8 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
             : `It has ${functions.join(', ')}.`),
       );
     }
-    const found = coveringTests(index, { file: file, function: named });
+    const target = { file, function: named };
+    const found = coveringTests(index, target, await loadersFor(index, target, request.root));
     const kept = near.whole ? found : found.filter(near.keep);
     return {
       file: file,
@@ -173,7 +178,11 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     };
   }
 
-  const found = coveringTestsInFile(index, file);
+  const found = coveringTestsInFile(
+    index,
+    file,
+    module.blocks.some((block) => block.loaded === true) ? { relations: await fileGraph(request.root) } : {},
+  );
   if (near.whole) return { file: file, ranges: found, from };
   const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
   return {
@@ -257,10 +266,13 @@ async function sinceAnswer(
     );
   }
 
+  // The working directory is always a real path and `--root` is spelled however
+  // the caller spelled it; through a symlink (`/var` on macOS) the two never meet.
   const here = process.cwd();
+  const base = await realpath(root);
   const changed = new Map<string, readonly LineRange[]>();
   for (const [file, ranges] of changedLines(diff)) {
-    changed.set(here === root ? file : relative(root, resolve(here, file)), ranges);
+    changed.set(here === base ? file : relative(base, resolve(here, file)), ranges);
   }
   if (changed.size === 0) {
     throw new OperatorError(
@@ -272,13 +284,34 @@ async function sinceAnswer(
     since,
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.
-    changed: coveringChange(index, changed, { relations: await relationsFor(root, ['.'], [], [], {
-      why: 'a mocked module is ruled out by the file graph',
-      fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
-    }) }),
+    changed: coveringChange(index, changed, { relations: await fileGraph(root) }),
     ...(at === undefined ? {} : { at }),
     from,
   };
+}
+
+/**
+ * The file graph, read only when a region the question landed on ran while its
+ * module evaluated.
+ *
+ * The record credits no case with that: a module evaluates once per realm, for
+ * whichever case imported it first. The graph names every case whose file
+ * imports the module, and rules out one that mocked it. A question about a
+ * region only a case called into never pays for the scan.
+ */
+async function loadersFor(
+  index: ExecutionIndex,
+  target: Parameters<typeof ranWhileLoading>[1],
+  root: string,
+): Promise<{ readonly relations?: Relations }> {
+  return ranWhileLoading(index, target) ? { relations: await fileGraph(root) } : {};
+}
+
+function fileGraph(root: string): Promise<Relations> {
+  return relationsFor(root, ['.'], [], [], {
+    why: 'a region that ran while its module evaluated is answered, and a mocked module ruled out, by the file graph',
+    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
+  });
 }
 
 /** Say the answer in the shape the caller asked for. */
@@ -367,7 +400,7 @@ function sinceText(answer: Covering, changed: readonly CoveringChange[]): string
 }
 
 function describe(test: CoveringTest): string {
-  return `${test.name} — ${test.file} [${test.id}]`;
+  return `${test.name} — ${test.file} [${test.id}]${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`;
 }
 
 /**

@@ -8,7 +8,7 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
-import { decodeSetExecutionIndex, SET_EXECUTION_FORMAT } from './execution-set-format.js';
+import { decodeSetExecutionIndex } from './execution-set-format.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -51,8 +51,15 @@ import { decodeSetExecutionIndex, SET_EXECUTION_FORMAT } from './execution-set-f
  * The execution file's layout version, which is its own: an execution index and
  * a snapshot share the column machinery and share nothing else, and a reader
  * that confused one for the other would decode a coherent lie.
+ *
+ * The rows and the set spelling number from one sequence: rows were 1, sets
+ * took 2 and 3, and rows are 4 since a region carries its load-time flag
+ * ({@link ExecutionBlock.loaded}). Version 1 is still read, as a file that
+ * flagged nothing — which it did not, since it credited load time per crossing.
  */
-export const EXECUTION_FORMAT = 1;
+export const EXECUTION_FORMAT = 4;
+
+const UNFLAGGED_ROWS = 1;
 
 /**
  * How a crossing says which of the two kinds of entry it was.
@@ -101,6 +108,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
   const blockStart = new Uint32Array(blockCount);
   const blockEnd = new Uint32Array(blockCount);
   const blockSource = new Uint8Array(blockCount);
+  const blockLoaded = new Uint8Array(blockCount);
   const blockCrossings = new Uint32Array(blockCount + 1);
   const crossingTest = new Uint32Array(crossingCount);
   const crossingDistance = new Uint32Array(crossingCount);
@@ -118,6 +126,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       blockStart[block] = held.startLine;
       blockEnd[block] = held.endLine;
       blockSource[block] = held.source ? 1 : 0;
+      blockLoaded[block] = held.loaded === true ? 1 : 0;
       blockCrossings[block] = crossing;
       for (const entered of held.crossings) {
         crossingTest[crossing] = entered.test;
@@ -147,6 +156,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'blocks.start': column(blockStart),
       'blocks.end': column(blockEnd),
       'blocks.source': column(blockSource),
+      'blocks.loaded': column(blockLoaded),
       'blocks.crossings': column(blockCrossings),
       'crossings.test': column(crossingTest),
       'crossings.distance': column(crossingDistance),
@@ -181,9 +191,9 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       .toString('utf8')
       .replace(/\0+$/u, ''),
   ) as Header;
-  if (header.version === SET_EXECUTION_FORMAT) return decodeSetExecutionIndex(bytes);
-  if (header.version !== EXECUTION_FORMAT) {
-    throw new Error(`unsupported execution index version: ${header.version}`);
+  // The set spelling owns every other version, and refuses one it did not write.
+  if (header.version !== EXECUTION_FORMAT && header.version !== UNFLAGGED_ROWS) {
+    return decodeSetExecutionIndex(bytes);
   }
   const base = 4 + headerLength;
   if (!validSections(header.sections, bytes.length - base)) throw invalid();
@@ -254,12 +264,14 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const blockStart = words('blocks.start');
   const blockEnd = words('blocks.end');
   const blockSource = flags('blocks.source');
+  const blockLoaded = header.version === UNFLAGGED_ROWS ? new Uint8Array(blockKind.length) : flags('blocks.loaded');
   const blockCrossings = words('blocks.crossings');
   const crossingTest = words('crossings.test');
   const crossingDistance = words('crossings.distance');
   const crossingLoaded = flags('crossings.loaded');
   if (moduleBlocks.length !== moduleFile.length + 1) throw invalid();
   if (blockCrossings.length !== blockKind.length + 1) throw invalid();
+  if (blockLoaded.length !== blockKind.length) throw invalid();
 
   const modules: ExecutionModule[] = [];
   for (let module = 0; module < moduleFile.length; module += 1) {
@@ -287,6 +299,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
         startLine: blockStart[block]!,
         endLine: blockEnd[block]!,
         source: blockSource[block] === 1,
+        ...(blockLoaded[block] === 1 ? { loaded: true as const } : {}),
         crossings,
       });
     }

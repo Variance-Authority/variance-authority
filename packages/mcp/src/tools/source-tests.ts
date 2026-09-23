@@ -1,6 +1,7 @@
 import {
   coveringTests,
   coveringTestsInFile,
+  ranWhileLoading,
   type CoveringTest,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
@@ -38,16 +39,14 @@ export const sourceTests: Tool<ExecutionIndex> = {
       if (!module.blocks.some((block) =>
         block.source && block.startLine <= line && line <= block.endLine,
       )) return `Line ${line} is not indexed in ${file}.`;
-      return focused(file, `line ${line}`, coveringTests(index, { file, line }));
+      return focused(file, `line ${line}`, coveringTests(index, { file, line }), ranWhileLoading(index, { file, line }));
     }
     if (functionName !== undefined) {
       if (!module.blocks.some((block) =>
         block.source && block.kind === 'function' && block.name === functionName,
       )) return `Function ${functionName} is not indexed in ${file}.`;
-      return focused(file, `function ${functionName}`, coveringTests(index, {
-        file,
-        function: functionName,
-      }));
+      const target = { file, function: functionName };
+      return focused(file, `function ${functionName}`, coveringTests(index, target), ranWhileLoading(index, target));
     }
     return wholeFile(index, file);
   },
@@ -67,13 +66,26 @@ function optionalFunction(input: Readonly<Record<string, unknown>>): string | un
   return stringArg(input, 'function');
 }
 
-function focused(file: string, target: string, tests: readonly CoveringTest[]): string {
-  if (tests.length === 0) return `No named test reached ${target} in ${file}.`;
-  return [
-    `${tests.length} named test(s) reached ${target} in ${file}:`,
-    ...tests.map(formatTest),
-  ].join('\n');
+function focused(file: string, target: string, tests: readonly CoveringTest[], loaded: boolean): string {
+  const lines = tests.length === 0
+    ? [`No named test called into ${target} in ${file}.`]
+    : [`${tests.length} named test(s) reached ${target} in ${file}:`, ...tests.map(formatTest)];
+  if (loaded) lines.push(UNNAMED_LOADERS);
+  return lines.join('\n');
 }
+
+/**
+ * Said under a region that ran while its module evaluated.
+ *
+ * The record credits no case with that, because a module evaluates once per
+ * realm for whichever case imported it first. The file graph names every case
+ * whose file imports the module, and this host does not hold it, so the list
+ * above is the callers alone.
+ */
+const UNNAMED_LOADERS =
+  'It also ran while its module evaluated. The cases that loaded it are every case whose file ' +
+  'imports the module, which the file graph answers and this index does not carry; ' +
+  '`variance covering` reads the graph and names them wherever an import reaches the module.';
 
 function wholeFile(index: ExecutionIndex, file: string): string {
   const ranges = coveringTestsInFile(index, file);
@@ -87,9 +99,11 @@ function wholeFile(index: ExecutionIndex, file: string): string {
       ? `line ${range.startLine}`
       : `lines ${range.startLine}-${range.endLine}`);
     lines.push(...(range.tests.length === 0
-      ? ['  no named test reached this range']
+      ? [range.loaded === true ? '  no named test called into this range' : '  no named test reached this range']
       : range.tests.map((test) => `  ${formatTest(test)}`)));
+    if (range.loaded === true) lines.push('  ran while its module evaluated');
   }
+  if (ranges.some((range) => range.loaded === true)) lines.push(UNNAMED_LOADERS);
   return lines.join('\n');
 }
 

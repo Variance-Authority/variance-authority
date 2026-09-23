@@ -43,6 +43,41 @@ describe('the execution index as columns', () => {
     expect('loaded' in back.modules[0]!.blocks[0]!.crossings[0]!).toBe(false);
   });
 
+  it('keeps a region flagged as having run while its module evaluated', () => {
+    const index: ExecutionIndex = {
+      tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
+      modules: [{
+        file: 'src/a.ts',
+        blocks: [
+          { kind: 'statement', name: 'RATE', path: 'statement#0', startLine: 1, endLine: 1, source: true, loaded: true, crossings: [] },
+          { kind: 'function', name: 'total', path: 'total', startLine: 3, endLine: 5, source: true, crossings: [{ test: 0, distance: 0 }] },
+        ],
+      }],
+    };
+
+    const back = decodeExecutionIndex(encodeExecutionIndex(index));
+    expect(back).toEqual(index);
+    expect('loaded' in back.modules[0]!.blocks[1]!).toBe(false);
+  });
+
+  it('reads rows written before a region carried the flag as flagging nothing', () => {
+    const index: ExecutionIndex = {
+      tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],
+      modules: [{
+        file: 'src/a.ts',
+        blocks: [{ kind: 'function', name: 'total', path: 'total', startLine: 3, endLine: 5, source: true, crossings: [{ test: 0, distance: 0, loaded: true }] }],
+      }],
+    };
+    const bytes = encodeExecutionIndex(index);
+    const headerLength = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/u, '')) as { version: number };
+    const older = Buffer.from(JSON.stringify({ ...header, version: 1 }).padEnd(headerLength, '\0'), 'utf8');
+    expect(older.length).toBe(headerLength);
+
+    expect(decodeExecutionIndex(Buffer.concat([bytes.subarray(0, 4), older, bytes.subarray(4 + headerLength)])))
+      .toEqual(index);
+  });
+
   it('holds a module with no regions and a region nothing crossed', () => {
     const index: ExecutionIndex = {
       tests: [],

@@ -72,6 +72,14 @@ describe('formatCoveringChange', () => {
     expect(text).not.toContain('    staff —');
   });
 
+  it('says why the cases evaluation carried in are not counted, rather than printing none', () => {
+    const text = formatCoveringChange([file({ regions: [region({ passengers: undefined })] })]);
+
+    expect(text).toContain(
+      '1-6 function priceOf — no case covered this region (also ran while the module evaluated; no file graph this reading held names who loaded it)',
+    );
+  });
+
   it('prints no call-stack depth beside a witness, because nothing here records one', () => {
     expect(formatCoveringChange([file({ regions: [region({ tests: [witness('guest')] })] })]))
       .not.toMatch(/depth \d/);

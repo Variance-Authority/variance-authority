@@ -18,7 +18,7 @@ import {
   type ExecutionJournal,
 } from './journal.js';
 import { selectTestFiles } from './index.js';
-import { coveringTests, type ExecutionIndex } from './reverse.js';
+import { coveringChange, coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import {
   INITIALIZING,
@@ -109,7 +109,7 @@ describe('a driver that can tell its cases apart', () => {
     });
   });
 
-  it('credits every case with what the module entered while it was evaluating', async () => {
+  it('flags what the module entered while it was evaluating, and credits it to no case', async () => {
     await inRoot(async (root) => {
       const cacheRoot = resolve(root, 'cache');
       const coverageFile = resolve(root, 'coverage.bin');
@@ -129,11 +129,16 @@ describe('a driver that can tell its cases apart', () => {
 
       const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
       // `label(1)` ran once, while the module evaluated, before either case
-      // existed. Whichever case drained first did not earn it and the other
-      // ones did not miss it: a module evaluates once per realm, so the region
-      // belongs to every case of the file or the index under-credits — the one
-      // direction selection may not go.
-      expect(named(index, LABEL_PLAIN_LINE)).toEqual(['above ten', 'below ten']);
+      // existed. Whichever case drained first did not earn it, and a page
+      // evaluates a module once for every case it serves, so the region is
+      // flagged rather than credited. The spec never imports `price.js`, so no
+      // file graph names its loader either, and the answer is absent.
+      const line = { file: 'price.js', line: LABEL_PLAIN_LINE };
+      expect(named(index, LABEL_PLAIN_LINE)).toEqual([]);
+      expect(ranWhileLoading(index, line)).toBe(true);
+      const [change] = coveringChange(index, new Map([['price.js', [{ start: LABEL_PLAIN_LINE, end: LABEL_PLAIN_LINE }]]]));
+      expect(change?.regions.length).toBeGreaterThan(0);
+      expect(change?.regions.filter((region) => region.passengers !== undefined)).toEqual([]);
     });
   });
 });

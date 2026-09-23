@@ -102,13 +102,18 @@
  *
  * ## What no case owns
  *
- * Module evaluation, `beforeAll`, `beforeEach`, `afterEach` and whatever a
- * floating promise does after its case settled run outside any case scope. Their
- * crossings go to the **ambient** bucket and are given to *every* case in the
- * file, which is the same over-inclusion
- * [`selecting.md`](../../../../docs/selecting.md) already argues for and the same
- * treatment a shared, module-evaluating region already gets. A case is never
- * credited with less than it reached; it is sometimes credited with more.
+ * `beforeAll`, `beforeEach`, `afterEach` and whatever a floating promise does
+ * after its case settled run outside any case scope. Their crossings go to the
+ * **ambient** bucket and are given to *every* case in the file, which is the
+ * over-inclusion [`selecting.md`](../../../../docs/selecting.md) already argues
+ * for. A case is never credited with less than it reached; it is sometimes
+ * credited with more.
+ *
+ * Module evaluation is the exception, because it is not a case's work even
+ * collectively: a module evaluates once per realm, for whichever case imported
+ * it first. A region that ran then is flagged `loaded` and credited to no case,
+ * and a reader asks the file graph who imports the module
+ * ({@link ExecutionBlock.loaded}).
  */
 
 import { readFile, readdir } from 'node:fs/promises';
@@ -235,37 +240,33 @@ export function executionIndexFrom(
     };
   });
 
-  interface Held {
-    readonly test: number;
-    readonly loaded: boolean;
-  }
-  const crossings = new Map<ModuleId, Map<number, Map<number, Held>>>();
-  const record = (module: ModuleId, ordinal: number, test: number, loaded: boolean): void => {
-    const byOrdinal = crossings.get(module) ?? new Map<number, Map<number, Held>>();
-    const byTest = byOrdinal.get(ordinal) ?? new Map<number, Held>();
-    const before = byTest.get(test);
-    // A region a case entered on its own is not loaded, whatever the ambient
-    // bucket said about it: the weaker claim never overwrites the stronger.
-    byTest.set(test, { test, loaded: (before?.loaded ?? true) && loaded });
-    byOrdinal.set(ordinal, byTest);
+  const crossings = new Map<ModuleId, Map<number, Set<number>>>();
+  // What ran while a module evaluated ran for whichever case imported it first,
+  // so it is kept as a flag on the region and no case is credited with it: the
+  // file graph names every case that loaded the module.
+  const loaded = new Map<ModuleId, Set<number>>();
+  const record = (module: ModuleId, ordinal: number, test: number): void => {
+    const byOrdinal = crossings.get(module) ?? new Map<number, Set<number>>();
+    byOrdinal.set(ordinal, (byOrdinal.get(ordinal) ?? new Set<number>()).add(test));
     crossings.set(module, byOrdinal);
+  };
+  const visit = (module: CaseJournal['modules'][number], test: number): void => {
+    const evaluating = new Set(module.shared);
+    for (const ordinal of module.hits) {
+      if (!evaluating.has(ordinal)) record(module.id, ordinal, test);
+      else loaded.set(module.id, (loaded.get(module.id) ?? new Set<number>()).add(ordinal));
+    }
   };
 
   for (const [at, journal] of ordered.entries()) {
-    for (const module of journal.modules) {
-      const evaluating = new Set(module.shared);
-      for (const ordinal of module.hits) record(module.id, ordinal, at, evaluating.has(ordinal));
-    }
+    for (const module of journal.modules) visit(module, at);
     for (const shared of ambient.get(journal.file) ?? []) {
-      for (const module of shared.modules) {
-        const evaluating = new Set(module.shared);
-        for (const ordinal of module.hits) record(module.id, ordinal, at, evaluating.has(ordinal));
-      }
+      for (const module of shared.modules) visit(module, at);
     }
   }
 
   const rows = [...modules.entries()]
-    .filter(([id]) => crossings.has(id))
+    .filter(([id]) => crossings.has(id) || loaded.has(id))
     .sort(([left], [right]) => idOrder(left, right));
 
   return {
@@ -280,13 +281,10 @@ export function executionIndexFrom(
           startLine: block.startLine,
           endLine: block.endLine,
           source: block.source,
-          crossings: [...(crossings.get(id)?.get(block.ordinal)?.values() ?? [])]
-            .sort((left, right) => left.test - right.test)
-            .map((held): ExecutionCrossing => ({
-              test: held.test,
-              distance: 0,
-              ...(held.loaded ? { loaded: true } : {}),
-            })),
+          ...(loaded.get(id)?.has(block.ordinal) === true ? { loaded: true as const } : {}),
+          crossings: [...(crossings.get(id)?.get(block.ordinal) ?? [])]
+            .sort((left, right) => left - right)
+            .map((test): ExecutionCrossing => ({ test, distance: 0 })),
         })),
       }))
       .sort((left, right) => codeUnitOrder(left.file, right.file)),

@@ -177,12 +177,13 @@ export async function foldCaseRun(
 
   const blockCount = moduleBlocks.at(-1) ?? 0;
   const calledSets = new Uint32Array(blockCount);
-  const loadedSets = new Uint32Array(blockCount);
+  // One flag per region and no test: what ran while a module evaluated ran for
+  // whichever case imported it first, and the file graph names who loaded it.
+  const loaded = new Uint8Array(blockCount);
   const moduleEntered = new Uint8Array(shaped.length);
   const sets = new CrossingSets(run.tests.length);
   const empty = sets.intern([]);
   calledSets.fill(empty);
-  loadedSets.fill(empty);
   if (blockCount === 0 || run.tests.length === 0) {
     return {
       bytes: encodeSetExecutionIndex({ tests: run.tests, modules: [], sets: sets.pool() }),
@@ -210,7 +211,6 @@ export async function foldCaseRun(
     const firstBlock = moduleBlocks[first]!;
     const localBlocks = moduleBlocks[last]! - firstBlock;
     const called = new Uint32Array(localBlocks * words);
-    const loaded = new Uint32Array(localBlocks * words);
     let caseFrame = 0;
     let testFirst = 0;
     let testLast = 0;
@@ -246,8 +246,8 @@ export async function foldCaseRun(
           while (sharedAt < shared.length && shared[sharedAt]! < ordinal) sharedAt += 1;
           const block = ordinalBlocks[ordinalBase + ordinal]!;
           if (block < 0) continue;
-          const target = shared[sharedAt] === ordinal ? loaded : called;
-          markRange(target, (block - firstBlock) * words, words, testFirst, testLast);
+          if (shared[sharedAt] === ordinal) loaded[block] = 1;
+          else markRange(called, (block - firstBlock) * words, words, testFirst, testLast);
         }
       },
     };
@@ -261,13 +261,11 @@ export async function foldCaseRun(
 
     for (let local = 0; local < localBlocks; local += 1) {
       const at = local * words;
-      const calledCount = collect(called, undefined, at, words, scratch);
-      const loadedCount = collect(loaded, called, at, words, scratch, calledCount);
+      const calledCount = collect(called, at, words, scratch);
       const block = firstBlock + local;
       calledSets[block] = sets.intern(scratch.subarray(0, calledCount));
-      loadedSets[block] = sets.intern(scratch.subarray(calledCount, calledCount + loadedCount));
-      crossings += calledCount + loadedCount;
-      if (calledCount + loadedCount > 0) moduleEntered[moduleOf(moduleBlocks, first, last, block)] = 1;
+      crossings += calledCount;
+      if (calledCount > 0 || loaded[block] === 1) moduleEntered[moduleOf(moduleBlocks, first, last, block)] = 1;
     }
     first = last;
   }
@@ -288,7 +286,7 @@ export async function foldCaseRun(
         source: block.source,
       })),
       called: calledSets.subarray(from, to),
-      loaded: loadedSets.subarray(from, to),
+      loaded: loaded.subarray(from, to),
     });
   }
   return {
@@ -323,21 +321,14 @@ function markRange(
   if (lastWord >= words) throw new Error('case journal names a test outside the run');
 }
 
-/** Collect set bits, optionally excluding bits held by the stronger relation. */
-function collect(
-  bits: Uint32Array,
-  exclude: Uint32Array | undefined,
-  at: number,
-  words: number,
-  out: Uint32Array,
-  outAt = 0,
-): number {
+/** Collect one block's set bits as test ordinals. */
+function collect(bits: Uint32Array, at: number, words: number, out: Uint32Array): number {
   let held = 0;
   for (let word = 0; word < words; word += 1) {
-    let value = bits[at + word]! & ~(exclude?.[at + word] ?? 0);
+    let value = bits[at + word]!;
     while (value !== 0) {
       const low = 31 - Math.clz32(value & -value);
-      out[outAt + held++] = (word << 5) + low;
+      out[held++] = (word << 5) + low;
       value &= value - 1;
     }
   }

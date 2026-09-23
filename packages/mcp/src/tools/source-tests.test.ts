@@ -108,7 +108,7 @@ describe('variance_source_tests', () => {
       'Line 9 is not indexed in src/cart/total.ts.',
     );
     expect(sourceTests.run(INDEX, { file: 'src/cart/total.ts', line: 10 })).toBe(
-      'No named test reached line 10 in src/cart/total.ts.',
+      'No named test called into line 10 in src/cart/total.ts.',
     );
     expect(sourceTests.run(INDEX, {
       file: 'src/cart/total.ts',

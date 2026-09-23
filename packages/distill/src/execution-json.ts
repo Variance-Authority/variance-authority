@@ -38,6 +38,8 @@ function parseBlock(
   const startLine = integer(block['startLine'], `${where} startLine`);
   const endLine = integer(block['endLine'], `${where} endLine`);
   if (typeof block['source'] !== 'boolean') throw new Error(`${where} source must be boolean`);
+  const loaded = block['loaded'];
+  if (loaded !== undefined && typeof loaded !== 'boolean') throw new Error(`${where} loaded must be boolean`);
   return {
     kind: string(block['kind'], `${where} kind`),
     // A module root is the one region with no declaration to be named after,
@@ -47,6 +49,8 @@ function parseBlock(
     startLine,
     endLine,
     source: block['source'],
+    // Only a region that ran during load says so; `false` and absent read alike.
+    ...(loaded === true ? { loaded } : {}),
     crossings: block['crossings'].map((value, crossingAt) => {
       const crossing = object(value, `${where} crossing ${crossingAt}`);
       const test = integer(crossing['test'], `${where} crossing ${crossingAt} test`, true);

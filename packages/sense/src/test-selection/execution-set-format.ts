@@ -5,16 +5,24 @@ import type { CrossingSetsPool, SetId } from './crossing-sets.js';
 import { codeUnitOrder } from './instrumented-modules.js';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
-/** A journey-only execution index: every crossing has measured distance zero. */
-export const SET_EXECUTION_FORMAT = 2;
+/**
+ * A journey-only execution index: every crossing has measured distance zero.
+ *
+ * Version 3 records load time as one flag per region ({@link
+ * ExecutionBlock.loaded}); version 2 recorded the set of cases that loaded each
+ * region, and is still read, as the flag its set implies.
+ */
+export const SET_EXECUTION_FORMAT = 3;
+
+const LOADED_SETS_FORMAT = 2;
 
 export interface SetExecutionModule {
   readonly file: string;
   readonly blocks: readonly Omit<ExecutionBlock, 'crossings'>[];
   /** Tests that called into each block, as ids in {@link SetExecutionIndex.sets}. */
   readonly called: Uint32Array;
-  /** Tests that only loaded each block, as ids in {@link SetExecutionIndex.sets}. */
-  readonly loaded: Uint32Array;
+  /** `1` where the block ran while its module evaluated, in any test file. */
+  readonly loaded: Uint8Array;
 }
 
 export interface SetExecutionIndex {
@@ -26,9 +34,10 @@ export interface SetExecutionIndex {
 /**
  * Store a journey relation as interned test sets rather than one row per crossing.
  *
- * A region has at most two sets: tests that called it and tests that only loaded
- * it. The representation therefore grows with regions plus distinct sets, not
- * with the test-by-region product that exhausted Jest's parent-process heap.
+ * A region has one set, the tests that called it, and one flag for having run
+ * while its module evaluated. The representation therefore grows with regions
+ * plus distinct sets, not with the test-by-region product that exhausted Jest's
+ * parent-process heap.
  */
 export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const strings = dictionary(index);
@@ -53,7 +62,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   const blockEnd = new Uint32Array(blockCount);
   const blockSource = new Uint8Array(blockCount);
   const blockCalled = new Uint32Array(blockCount);
-  const blockLoaded = new Uint32Array(blockCount);
+  const blockLoaded = new Uint8Array(blockCount);
 
   let block = 0;
   for (const [moduleAt, module] of index.modules.entries()) {
@@ -91,7 +100,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     'blocks.end': column(blockEnd),
     'blocks.source': column(blockSource),
     'blocks.calledSet': column(blockCalled),
-    'blocks.loadedSet': column(blockLoaded),
+    'blocks.loaded': column(blockLoaded),
     'sets.blob': blob(index.sets.bytes, index.sets.offsets),
     'sets.off': column(index.sets.offsets),
   }, SET_EXECUTION_FORMAT);
@@ -100,7 +109,8 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
 /** Read the compact journey spelling into the runner-independent object model. */
 export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const opened = sectionsOf(bytes);
-  if (opened.header.version !== SET_EXECUTION_FORMAT) {
+  const version = opened.header.version;
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) {
     throw new Error(`unsupported execution index version: ${opened.header.version}`);
   }
   const words = (name: string): Uint32Array => columnWords(opened, name);
@@ -135,7 +145,7 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const blockEnd = words('blocks.end');
   const blockSource = flags('blocks.source');
   const blockCalled = words('blocks.calledSet');
-  const blockLoaded = words('blocks.loadedSet');
+  const blockLoaded = version === LOADED_SETS_FORMAT ? words('blocks.loadedSet') : flags('blocks.loaded');
   if (moduleBlocks.length !== moduleFile.length + 1) throw invalid();
   const blockCount = blockKind.length;
   if ([blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded]
@@ -152,7 +162,9 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
     const blocks: ExecutionBlock[] = [];
     for (let block = first; block < last; block += 1) {
       const called = members(sets, blockCalled[block]!, tests.length);
-      const loaded = members(sets, blockLoaded[block]!, tests.length);
+      const loaded = version === LOADED_SETS_FORMAT
+        ? members(sets, blockLoaded[block]!, tests.length).length > 0
+        : blockLoaded[block] === 1;
       blocks.push({
         kind: string(blockKind[block]!),
         name: string(blockName[block]!),
@@ -160,7 +172,8 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
         startLine: blockStart[block]!,
         endLine: blockEnd[block]!,
         source: blockSource[block] === 1,
-        crossings: mergeMembers(called, loaded),
+        ...(loaded ? { loaded: true as const } : {}),
+        crossings: Array.from(called, (test) => ({ test, distance: 0 })),
       });
     }
     modules.push({ file: string(moduleFile[module]!), blocks });
@@ -195,25 +208,6 @@ function members(
   const found = sets.members(set);
   if (found.some((test) => test >= testCount)) throw invalid();
   return found;
-}
-
-function mergeMembers(called: Uint32Array, loaded: Uint32Array): ExecutionBlock['crossings'] {
-  const crossings: Array<{ test: number; distance: number; loaded?: true }> = [];
-  let call = 0;
-  let load = 0;
-  while (call < called.length || load < loaded.length) {
-    const calledTest = called[call];
-    const loadedTest = loaded[load];
-    if (loadedTest === undefined || (calledTest !== undefined && calledTest <= loadedTest)) {
-      crossings.push({ test: calledTest!, distance: 0 });
-      call += 1;
-      if (loadedTest === calledTest) load += 1;
-    } else {
-      crossings.push({ test: loadedTest, distance: 0, loaded: true });
-      load += 1;
-    }
-  }
-  return crossings;
 }
 
 interface OpenedSections {

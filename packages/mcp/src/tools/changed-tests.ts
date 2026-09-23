@@ -48,7 +48,8 @@ export const changedTests: Tool<ExecutionIndex> = {
       return 'That diff names no changed file, so there is no region to ask about.';
     }
     // TODO: pass `{ relations }` so a case whose file mocked the changed module is not
-    // listed under it, as `variance covering --since` does; needs the host to hold the file graph.
+    // listed under it, and a region that ran while its module evaluated names the cases
+    // that loaded it, as `variance covering --since` does; needs the host to hold the file graph.
     return formatCoveringChange(coveringChange(index, changed));
   },
 };

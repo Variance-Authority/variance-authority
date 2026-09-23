@@ -102,18 +102,26 @@ describe('folding case frames into an execution index', () => {
     ]);
   });
 
-  it('marks a region only a load reached, and unmarks it for a case that entered it', () => {
+  it('flags a region a load reached and credits only the cases that called into it', () => {
     const index = executionIndexFrom([
       journal('test/branch.case.ts', 'never calls in', '1_0', []),
       journal('test/branch.case.ts', 'calls in', '1_1', [1]),
       journal('test/branch.case.ts', AMBIENT, AMBIENT, [1], [1]),
     ], inventory);
 
-    const crossings = index.modules[0]?.blocks[1]?.crossings;
-    expect(crossings?.map((crossing) => [index.tests[crossing.test]?.name, crossing.loaded])).toEqual([
-      ['calls in', undefined],
-      ['never calls in', true],
-    ]);
+    const block = index.modules[0]?.blocks[1];
+    expect(block?.loaded).toBe(true);
+    expect(block?.crossings.map((crossing) => index.tests[crossing.test]?.name)).toEqual(['calls in']);
+  });
+
+  it('keeps a region only a load reached, with no case credited', () => {
+    const index = executionIndexFrom([
+      journal('test/branch.case.ts', 'never calls in', '1_0', []),
+      journal('test/branch.case.ts', AMBIENT, AMBIENT, [1], [1]),
+    ], inventory);
+
+    const block = index.modules[0]?.blocks[1];
+    expect(block).toMatchObject({ loaded: true, crossings: [] });
   });
 
   it('distinguishes two cases a file gave the same name', () => {

@@ -60,7 +60,7 @@ async function directory(): Promise<string> {
 }
 
 describe('the bounded case fold', () => {
-  it('preserves direct, ambient, and load-only attribution', async () => {
+  it('credits direct and ambient calls, and flags a region only a load reached', async () => {
     const cases = await directory();
     const frames = [
       journalFormat.encodeJournal(
@@ -86,7 +86,8 @@ describe('the bounded case fold', () => {
 
     expect(decoded).toEqual(previous);
     expect(folded.passes).toBe(1);
-    expect(folded.crossings).toBe(5);
+    expect(folded.crossings).toBe(3);
+    expect(decoded.modules[0]?.blocks[2]).toMatchObject({ loaded: true, crossings: [] });
   });
 
   it('joins a case written twice, across workers and passes, as the object fold does', async () => {

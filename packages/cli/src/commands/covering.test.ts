@@ -261,3 +261,76 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(formatCovering(answer, 'text')).not.toContain('depth');
   });
 });
+
+/**
+ * A region that ran while its module evaluated is credited to no case; the file
+ * graph names who loaded it. The graph is read from a real checkout, because
+ * what it answers — who imports the module, and whose import is a mock — is
+ * decided by `git` and the parser, not by anything a fixture index can hold.
+ */
+describe('asking who loaded a region that ran while its module evaluated', () => {
+  const cwd = process.cwd();
+  afterEach(() => process.chdir(cwd));
+
+  async function checkout(): Promise<{ root: string; execution: string }> {
+    const root = await mkdtemp(join(tmpdir(), 'variance-covering-loaded-'));
+    const git = (args: readonly string[]): void => {
+      execFileSync('git', args, { cwd: root, stdio: 'pipe' });
+    };
+    await mkdir(join(root, 'src'), { recursive: true });
+    git(['init', '--quiet', '--initial-branch', 'main']);
+    git(['config', 'user.email', 'fixture@example.test']);
+    git(['config', 'user.name', 'Fixture']);
+    const body = Array.from({ length: 20 }, (_, at) => `export const line${at + 1} = ${at + 1};`).join('\n');
+    await writeFile(join(root, 'src/total.ts'), `${body}\n`);
+    await writeFile(join(root, 'src/other.ts'), 'export const other = 1;\n');
+    await writeFile(join(root, 'total.test.ts'), "import { line1 } from './src/total';\nit('discounts', () => line1);\n");
+    await writeFile(join(root, 'flow.test.ts'), "import { other } from './src/other';\nit('checks out', () => other);\n");
+    await writeFile(
+      join(root, 'mocked.test.ts'),
+      "import { vi } from 'vitest';\nimport { line1 } from './src/total';\nvi.mock('./src/total');\nit('stubs', () => line1);\n",
+    );
+    git(['add', '-A']);
+    git(['commit', '--quiet', '-m', 'first']);
+    process.chdir(root);
+
+    const dir = await mkdtemp(join(tmpdir(), 'variance-covering-'));
+    const execution = join(dir, 'cases.json');
+    await writeFile(execution, JSON.stringify({
+      tests: [
+        { id: 'near', file: 'total.test.ts', name: 'discounts' },
+        { id: 'far', file: 'flow.test.ts', name: 'checks out' },
+        { id: 'stub', file: 'mocked.test.ts', name: 'stubs' },
+      ],
+      modules: [{
+        file: 'src/total.ts',
+        blocks: [
+          { kind: 'statement', name: 'line3', path: 'statement#2', startLine: 3, endLine: 3, source: true, loaded: true, crossings: [] },
+          { kind: 'function', name: 'late', path: 'entry', startLine: 10, endLine: 12, source: true, crossings: [{ test: 1, distance: 0 }] },
+        ],
+      }],
+    }));
+    return { root, execution };
+  }
+
+  it('names the case whose file imports the module, and not one that mocked it', async () => {
+    const { root, execution } = await checkout();
+
+    const answer = await covering(parse(['--file', 'src/total.ts', '--line', '3', '--root', root, '--execution', execution]));
+
+    expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
+    expect(formatCovering(answer, 'text')).toContain('its file imports the module; ran while it evaluated');
+  });
+
+  it('carries the same loaders into a change', async () => {
+    const { root, execution } = await checkout();
+    const text = (await readFile(join(root, 'src/total.ts'), 'utf8')).split('\n');
+    text[2] = `${text[2]} // edited`;
+    await writeFile(join(root, 'src/total.ts'), text.join('\n'));
+
+    const answer = await covering(parse(['--since', 'main', '--root', root, '--execution', execution]));
+
+    expect(answer.changed?.[0]?.regions.map((region) => [region.name, region.tests.length, region.passengers?.map((test) => test.id)]))
+      .toEqual([['line3', 0, ['near']]]);
+  });
+});

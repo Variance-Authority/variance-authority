@@ -5,7 +5,12 @@ use crate::journey_journal::Test;
 use crate::journey_record::Module;
 use crate::order;
 
-pub const FORMAT: u8 = 2;
+/// Version 3 carries load time as one flag per region rather than as the set of
+/// tests that loaded it. A region that ran while its module evaluated ran for
+/// whoever imported the module first, so the set named an import order and
+/// not a test; the import graph answers that question, and the flag says when
+/// to ask it.
+pub const FORMAT: u8 = 3;
 
 pub struct SetPool {
     test_count: usize,
@@ -113,7 +118,8 @@ fn number(out: &mut Vec<u8>, value: u32, width: usize) {
 pub struct EncodedModule<'a> {
     pub module: &'a Module,
     pub called: &'a [u32],
-    pub loaded: &'a [u32],
+    /// Whether the region ran while its module evaluated, in any test file.
+    pub loaded: &'a [bool],
 }
 
 pub fn encode(
@@ -167,7 +173,7 @@ pub fn encode(
             block_end.push(block.end_line);
             block_source.push(u8::from(block.source));
             block_called.push(held.called[at]);
-            block_loaded.push(held.loaded[at]);
+            block_loaded.push(u8::from(held.loaded[at]));
         }
     }
     module_blocks.push(block_kind.len() as u32);
@@ -187,7 +193,7 @@ pub fn encode(
         Column::Words("blocks.end", block_end),
         Column::Bytes("blocks.source", block_source),
         Column::Words("blocks.calledSet", block_called),
-        Column::Words("blocks.loadedSet", block_loaded),
+        Column::Bytes("blocks.loaded", block_loaded),
         Column::Blob("sets.blob", sets.bytes().to_vec(), sets.offsets().to_vec()),
         Column::Words("sets.off", sets.offsets().to_vec()),
     ], FORMAT)

@@ -1,4 +1,4 @@
-import type { Relations } from '@variance-authority/core/relate';
+import { movedBy, type Relations } from '@variance-authority/core/relate';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 
 export interface ExecutionTest {
@@ -37,6 +37,20 @@ export interface ExecutionBlock {
   readonly endLine: number;
   /** False for a synthesized region with no source of its own. */
   readonly source: boolean;
+  /**
+   * The region ran while its module evaluated, in at least one recorded file.
+   *
+   * Which cases that was is not in `crossings`, and is not recorded at all. A
+   * module evaluates once per realm, for whichever case imported it first, so a
+   * set of cases here names an import order rather than a test; the file graph
+   * answers the question it was standing in for — every case whose file
+   * imports the module — and reads a mock the way the rest of selection does.
+   * Absent on a region that never ran during load, and on an index whose
+   * producer writes load time per crossing instead
+   * ({@link ExecutionCrossing.loaded}).
+   */
+  readonly loaded?: true;
+  /** Cases that called into the region. */
   readonly crossings: readonly ExecutionCrossing[];
 }
 
@@ -59,6 +73,22 @@ export type SourceTestTarget =
 export interface CoveringTest extends ExecutionTest {
   /** Shortest observed call-stack depth to the requested source region. */
   readonly distance: number;
+  /**
+   * Named because its file imports a module whose region ran while it
+   * evaluated, not because the case called into the region.
+   */
+  readonly loaded?: true;
+}
+
+/** What a reading of the record may consult besides the record itself. */
+export interface CoveringOptions {
+  /**
+   * The file graph. A region that ran only while its module evaluated names
+   * the cases whose files import the module through it ({@link
+   * ExecutionBlock.loaded}); without it those cases are not named, and
+   * {@link ranWhileLoading} says the list is short.
+   */
+  readonly relations?: Relations;
 }
 
 /**
@@ -76,31 +106,52 @@ export interface SourceTestRange {
   readonly endLine: number;
   /** Named tests shared by every line in this inclusive range. */
   readonly tests: readonly CoveringTest[];
+  /** The range ran while its module evaluated; see {@link ExecutionBlock.loaded}. */
+  readonly loaded?: true;
 }
 
 /** Find named tests that reached a source line or function, nearest first. */
 export function coveringTests(
   index: ExecutionIndex,
   target: SourceTestTarget,
+  options: CoveringOptions = {},
 ): readonly CoveringTest[] {
   const module = index.modules.find((candidate) => candidate.file === target.file);
   if (module === undefined) return [];
+  const blocks = blocksAt(module, target);
+  return withLoaders(testsForBlocks(index, blocks), blocks, loadersOf(index, module.file, options.relations));
+}
 
-  const blocks = 'line' in target
+/**
+ * Whether the region a target names ran while its module evaluated.
+ *
+ * The cases that loaded it are named only through the file graph, so a reader
+ * that asked {@link coveringTests} without one holds a list that may be short,
+ * and this is how it finds out. An empty list and a region that only ran
+ * during load are opposite answers to *did anything go here*.
+ */
+export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget): boolean {
+  const module = index.modules.find((candidate) => candidate.file === target.file);
+  return module !== undefined && blocksAt(module, target).some((block) => block.loaded === true);
+}
+
+function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
+  return 'line' in target
     ? innermostAt(module.blocks, target.line)
     : module.blocks.filter((block) =>
       block.source && block.kind === 'function' && block.name === target.function,
     );
-  return testsForBlocks(index, blocks);
 }
 
 /** Find named tests for every indexed source line, grouped into equal adjacent ranges. */
 export function coveringTestsInFile(
   index: ExecutionIndex,
   file: string,
+  options: CoveringOptions = {},
 ): readonly SourceTestRange[] {
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) return [];
+  const loaders = loadersOf(index, file, options.relations);
 
   const boundaries = new Set<number>();
   for (const block of module.blocks) {
@@ -116,12 +167,18 @@ export function coveringTestsInFile(
     const endLine = lines[at + 1]! - 1;
     const blocks = innermostAt(module.blocks, startLine);
     if (blocks.length === 0) continue;
-    const tests = testsForBlocks(index, blocks);
+    const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
+    const loaded = blocks.some((block) => block.loaded === true);
     const previous = ranges.at(-1);
-    if (previous !== undefined && previous.endLine + 1 === startLine && sameTests(previous.tests, tests)) {
+    if (
+      previous !== undefined &&
+      previous.endLine + 1 === startLine &&
+      (previous.loaded === true) === loaded &&
+      sameTests(previous.tests, tests)
+    ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
     } else {
-      ranges.push({ startLine, endLine, tests });
+      ranges.push({ startLine, endLine, tests, ...(loaded ? { loaded: true as const } : {}) });
     }
   }
   return ranges;
@@ -143,19 +200,58 @@ function testsForBlocks(
     }
   }
 
-  return [...distance]
-    .map(([test, observed]) => ({ ...index.tests[test]!, distance: observed }))
-    .sort((left, right) =>
-      left.distance - right.distance ||
-      codeUnitOrder(left.file, right.file) ||
-      codeUnitOrder(left.name, right.name) ||
-      codeUnitOrder(left.id, right.id),
-    );
+  return sortTests([...distance].map(([test, observed]) => ({ ...index.tests[test]!, distance: observed })));
 }
 
 function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]): boolean {
   return left.length === right.length && left.every((test, at) =>
-    test.id === right[at]!.id && test.distance === right[at]!.distance,
+    test.id === right[at]!.id && test.distance === right[at]!.distance && test.loaded === right[at]!.loaded,
+  );
+}
+
+/**
+ * The cases whose files import this module, by the file graph.
+ *
+ * `movedBy` is the owner: it seeds every file whose edges it could not read and
+ * leaves out a file whose mocks cut every trail, which is the reading the
+ * file-grain selector gives the same module. Absent without a graph, and when
+ * the graph does not hold the module, because then it cannot say who imports
+ * it and an empty list would say nobody does. Absent too when the graph names
+ * none of the recorded cases: the flag is only ever set inside a case's run, so
+ * somebody loaded the module, and a graph that finds nobody did not see how —
+ * a page-side module a browser spec reached through the page, not an import.
+ */
+function loadersOf(
+  index: ExecutionIndex,
+  file: string,
+  relations: Relations | undefined,
+): readonly CoveringTest[] | undefined {
+  if (relations === undefined) return undefined;
+  const moved = movedBy(relations, [file]);
+  if (moved.missing.length > 0) return undefined;
+  const files = new Set(moved.files);
+  const loaders = index.tests.filter((test) => files.has(test.file));
+  if (loaders.length === 0) return undefined;
+  return sortTests(loaders.map((test) => ({ ...test, distance: 0, loaded: true as const })));
+}
+
+/** Callers first, then the loaders of any region among `blocks` that ran during load. */
+function withLoaders(
+  tests: readonly CoveringTest[],
+  blocks: readonly ExecutionBlock[],
+  loaders: readonly CoveringTest[] | undefined,
+): readonly CoveringTest[] {
+  if (loaders === undefined || !blocks.some((block) => block.loaded === true)) return tests;
+  const called = new Set(tests.map((test) => test.id));
+  return [...tests, ...loaders.filter((test) => !called.has(test.id))];
+}
+
+function sortTests(tests: CoveringTest[]): readonly CoveringTest[] {
+  return tests.sort((left, right) =>
+    left.distance - right.distance ||
+    codeUnitOrder(left.file, right.file) ||
+    codeUnitOrder(left.name, right.name) ||
+    codeUnitOrder(left.id, right.id),
   );
 }
 
@@ -212,8 +308,15 @@ export interface CoveringRegion {
   readonly endLine: number;
   /** Cases that called into the region, nearest first. */
   readonly tests: readonly CoveringTest[];
-  /** Cases that were inside it only while its module was evaluating. */
-  readonly passengers: readonly CoveringTest[];
+  /**
+   * Cases that were inside it only while its module was evaluating.
+   *
+   * Absent when the region ran during load and no file graph was given to name
+   * who loaded it, or the graph named none of the recorded cases
+   * ({@link ExecutionBlock.loaded}): some cases were carried in, and which ones
+   * is a question this reading could not answer.
+   */
+  readonly passengers?: readonly CoveringTest[];
 }
 
 /**
@@ -290,18 +393,21 @@ export function coveringChange(
     }
 
     const owned = ownedIn(index, module, shadowed);
+    let loaders: readonly CoveringTest[] | undefined;
     const regions = module.blocks
       .filter((block) =>
         block.source && ranges.some((range) => block.startLine <= range.end && range.start <= block.endLine),
       )
-      .map((block) => ({
-        kind: block.kind,
-        name: block.name,
-        startLine: block.startLine,
-        endLine: block.endLine,
-        tests: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded !== true) }]),
-        passengers: testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded === true) }]),
-      }));
+      .map((block): CoveringRegion => {
+        const tests = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded !== true) }]);
+        const carried = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded === true) }]);
+        const region = { kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine, tests };
+        if (block.loaded !== true) return { ...region, passengers: carried };
+        loaders ??= loadersOf(index, file, options.relations);
+        if (loaders === undefined) return region;
+        const known = new Set([...tests, ...carried].map((test) => test.id));
+        return { ...region, passengers: [...carried, ...loaders.filter((test) => !known.has(test.id))] };
+      });
 
     answers.push({ file, recorded: true, regions, cases });
   }

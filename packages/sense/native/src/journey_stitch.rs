@@ -45,7 +45,7 @@ struct ShardModule {
     /// Which of this file's distinct inventories the shard read its regions against.
     inventory: usize,
     called: Vec<u32>,
-    loaded: Vec<u32>,
+    loaded: Vec<bool>,
 }
 
 struct Stitched {
@@ -130,7 +130,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     let mut crossings = 0_u64;
     for (module, lands) in modules.iter().zip(&landings) {
         let mut called_by_block = vec![Vec::new(); module.blocks.len()];
-        let mut loaded_by_block = vec![Vec::new(); module.blocks.len()];
+        let mut loaded = vec![false; module.blocks.len()];
         for shard in &shards {
             let Ok(at) = shard
                 .modules
@@ -143,23 +143,18 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
             for own in 0..held.called.len() {
                 let block = landed.map_or(own, |landed| landed[own] as usize);
                 append_members(shard, held.called[own], &mut called_by_block[block])?;
-                append_members(shard, held.loaded[own], &mut loaded_by_block[block])?;
+                loaded[block] |= held.loaded[own];
             }
         }
         let mut called_ids = Vec::with_capacity(module.blocks.len());
-        let mut loaded_ids = Vec::with_capacity(module.blocks.len());
-        for (mut called, mut loaded) in called_by_block.into_iter().zip(loaded_by_block) {
+        for mut called in called_by_block {
             called.sort_unstable();
             called.dedup();
-            loaded.sort_unstable();
-            loaded.dedup();
-            loaded.retain(|test| called.binary_search(test).is_err());
-            crossings += (called.len() + loaded.len()) as u64;
+            crossings += called.len() as u64;
             called_ids.push(sets.intern(&called));
-            loaded_ids.push(sets.intern(&loaded));
         }
         called_by_module.push(called_ids);
-        loaded_by_module.push(loaded_ids);
+        loaded_by_module.push(loaded);
     }
     let encoded: Vec<EncodedModule<'_>> = modules
         .iter()
@@ -228,7 +223,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let module_files = decoded.words("modules.file")?;
     let module_blocks = decoded.words("modules.blocks")?;
     let called = decoded.words("blocks.calledSet")?;
-    let loaded = decoded.words("blocks.loadedSet")?;
+    let loaded = decoded.bytes("blocks.loaded")?;
     let kinds = decoded.words("blocks.kind")?;
     let block_names = decoded.words("blocks.name")?;
     let paths = decoded.words("blocks.path")?;
@@ -274,7 +269,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
             file,
             inventory,
             called: called[first..last].to_vec(),
-            loaded: loaded[first..last].to_vec(),
+            loaded: loaded[first..last].iter().map(|flag| *flag == 1).collect(),
         });
     }
     Ok(Shard {
