@@ -340,8 +340,7 @@ const settling = (factory, body) => {
     (thrown) => { release(factory); throw thrown; },
   );
 };
-// The coordinate is \`file\\0declaration path\\0ordinal\`; a reader knows a case
-// by the middle one.
+// The coordinate is \`file\\0declaration path\\0ordinal\`; a reader knows a case by the middle one.
 const nameOf = (key) => key.split('\\u0000')[1] || key.split('\\u0000')[0];
 ${installRoot('ambientFactory', 'resolve')}
 globalThis[Symbol.for('variance-authority.test-selection.cases')] = { enter };
