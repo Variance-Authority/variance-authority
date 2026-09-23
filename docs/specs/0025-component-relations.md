@@ -41,7 +41,7 @@ nobody can act on.
 The structure already takes it. `NODE_KINDS` has `component`; `EDGE_KINDS` is a
 closed list an entry is added to; `relationsOfFiles` folds `declares` into
 `declared-in` edges and would fold a new field the same way. Nothing about
-`movedBy`, `dependentsOf` or `closureOf` changes: they walk kinds they are given.
+`affectedBy`, `dependentsOf` or `closureOf` changes: they walk kinds they are given.
 
 Four decisions it forces, and each one is why this is a spec and not a
 refactoring:

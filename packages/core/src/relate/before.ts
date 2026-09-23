@@ -5,7 +5,7 @@
  * the tests into the repository's own files, and goes out past them into the
  * dependencies ([`records.ts`](./records.ts) holds all three as nodes). Every
  * question it asks is asked *against* the arrows: what depends on the thing
- * that moved.
+ * that changed.
  *
  * The far-left end of that line answers no such question. A `vitest.config.ts`,
  * a `jest.config.js`, a Next.js setup, a CI workflow, the Node version in a
@@ -48,7 +48,7 @@
  * it into the harness would trade an exact answer for a whole run — the one
  * direction this is not allowed to be wrong in. The walk avoids sensed files,
  * and avoiding a node stops the walk there rather than stepping over it: what
- * lies below a sensed file is reached *through* it, and it already answers.
+ * lies below a sensed file is imported *through* it, and it already answers.
  *
  * ## Where the two ends meet
  *
@@ -60,7 +60,7 @@
  *
  * That cost is real and is the operator's to spend: a config that imports a
  * bundler reaches everything the bundler rests on, so a bump inside that set
- * widens. It is the correct answer — the harness did move — and a repository
+ * widens. It is the correct answer — the harness did change — and a repository
  * that finds it too wide narrows what it declares rather than what this
  * concludes.
  */
@@ -111,7 +111,7 @@ export interface BeforeReachOptions {
  *
  * Along the arrows, unlike every other walk here, because this is the one
  * question whose subject has no dependents: *what does the harness rest on*.
- * Type-only edges are not followed — a config's `import type` is erased before
+ * Type-only edges are not walked — a config's `import type` is erased before
  * the suite runs, exactly as a component's is.
  */
 export function beforeReach(
@@ -149,7 +149,7 @@ export function beforeReach(
     if (!entered.has(id) && within(name, sensed)) avoid.push(id);
   }
 
-  for (const id of dependenciesOf(relations, seeds, { avoid }).reached) {
+  for (const id of dependenciesOf(relations, seeds, { avoid }).nodes) {
     const node = nodeAt(relations, id);
     if (node === undefined) continue;
     if (node.kind === 'file') files.add(node.name);
@@ -164,15 +164,15 @@ export function beforeReach(
  *
  * Files and packages together and in that order, because the caller's next act
  * is to print them in one sentence and a reader does not care which list a name
- * came out of. Empty is a real answer: the diff moved nothing the run rests on.
+ * came out of. Empty is a real answer: the diff changed nothing the run rests on.
  *
  * A declared entry claims every path under it, so naming a directory of
  * workflows is one line of configuration rather than one per file. A file the
- * walk found claims only itself: it was reached, so it is known exactly, and
+ * walk found claims only itself: the walk visited it, so it is known exactly, and
  * widening it to its directory would put its neighbours before reach without
  * anybody saying they were.
  */
-export function movedBefore(
+export function changedBefore(
   before: BeforeReach,
   changed: readonly string[],
   packages: readonly string[] = [],

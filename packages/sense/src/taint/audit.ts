@@ -44,7 +44,7 @@ export interface TaintDeviation {
    *
    * Absent where nothing said it — `reachable-but-not-entered` is a trail the
    * scan drew and no taint touched — and where the caller passed only the two
-   * tables `movedBy` needs.
+   * tables `affectedBy` needs.
    */
   readonly taints?: readonly string[];
 }
@@ -111,7 +111,7 @@ export function auditTaints(
     const seed = idOf(relations, 'file', test);
     if (seed === undefined) continue;
     const avoid = shadows.map((name) => idOf(relations, 'file', name)).filter((id): id is number => id !== undefined);
-    for (const id of dependenciesOf(relations, [seed], { avoid }).reached) {
+    for (const id of dependenciesOf(relations, [seed], { avoid }).nodes) {
       const node = nodeAt(relations, id);
       if (node === undefined || node.kind !== 'file' || node.name === test) continue;
       if (instrumented(node.name) && !sees(node.name)) say(test, node.name, 'reachable-but-not-entered');
@@ -132,7 +132,7 @@ interface Entered {
    *
    * Absence and presence ask different things of the record. Whether a module
    * the graph reaches was entered at all counts loading, because an import the
-   * run loaded is an import the run followed. Whether a mock took counts only
+   * run loaded is an import the run executed. Whether a mock took counts only
    * calls, because loading the real module is how a runner shapes the mock.
    */
   readonly called: ReadonlyMap<string, ReadonlySet<string>>;

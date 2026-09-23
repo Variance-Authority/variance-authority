@@ -30,11 +30,11 @@ npm install --save-dev @variance-authority/sense
 ```
 
 `scanRelations` reads the checkout and returns the records;
-`relationsOfFiles` and `movedBy` from `@variance-authority/core` turn them into
+`relationsOfFiles` and `affectedBy` from `@variance-authority/core` turn them into
 an answer about one change.
 
 ```ts
-import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { scanRelations } from '@variance-authority/sense';
 
 const records = await scanRelations({ root: '.', dirs: ['src'] });
@@ -46,12 +46,12 @@ const records = await scanRelations({ root: '.', dirs: ['src'] });
 //   declares: ['Button'],
 // }
 
-const moved = movedBy(relationsOfFiles(records), ['src/tokens.css']);
+const affected = affectedBy(relationsOfFiles(records), ['src/tokens.css']);
 
-moved.files;      // files the change can reach, the changed file included
-moved.components; // component names declared in any of them
-moved.missing;    // changed paths the graph does not hold
-moved.opaque;     // files widened because their own edges are unknown
+affected.files;      // files the change can reach, the changed file included
+affected.components; // component names declared in any of them
+affected.missing;    // changed paths the graph does not hold
+affected.opaque;     // files widened because their own edges are unknown
 ```
 
 `scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
@@ -281,7 +281,7 @@ both its size and the configured cap.
 
 **The scan recognises React components only.** It reads no other framework's
 component model, so on a Vue, Svelte, Angular or Solid codebase `declares` is
-empty, no `declared-in` edge exists, and `moved.components` comes back empty.
+empty, no `declared-in` edge exists, and `affected.components` comes back empty.
 File-level reach is unaffected: you still get which files a change can reach.
 
 A component is one the source spells as a `function`, `const`, `let` or `class`
@@ -348,11 +348,11 @@ Type-only edges remain in the graph because source-oriented questions need
 them. The default reach and closure use `RUNTIME_EDGES`, every kind except
 `type`: a type-only dependency runs no test and paints no pixel. To ask about source instead — a
 documentation generator reading prop types, say — pass `EDGE_KINDS` or another
-explicit set. `relationsOfFiles`, `movedBy`,
+explicit set. `relationsOfFiles`, `affectedBy`,
 `RUNTIME_EDGES` and `EDGE_KINDS` are all exported from
 `@variance-authority/core/relate`.
 
-Files with `unknown` edges are retained as unknown nodes. `movedBy` seeds every
+Files with `unknown` edges are retained as unknown nodes. `affectedBy` seeds every
 such file alongside the changed set, because it may import the changed file.
 The result distinguishes files and components reached normally, changed paths
 missing from the graph, unknown files that widened the walk, and the

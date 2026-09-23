@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beforeReach, movedBefore, relationsOfFiles, within, type FileRecord } from './index.js';
+import { beforeReach, changedBefore, relationsOfFiles, within, type FileRecord } from './index.js';
 
 /**
  * The far-left end of the line, and the two ways it can be wrong.
@@ -91,23 +91,23 @@ describe('what a run rests on', () => {
   });
 });
 
-describe('what a diff moved before reach', () => {
+describe('what a diff changed before reach', () => {
   const before = beforeReach(RELATIONS, ['.github/workflows', 'vitest.config.ts'], { sensed: ['src'] });
 
   it('names a file the walk found, and says nothing about one it did not', () => {
-    expect(movedBefore(before, ['test/setup.ts', 'src/Button.tsx'])).toEqual(['test/setup.ts']);
+    expect(changedBefore(before, ['test/setup.ts', 'src/Button.tsx'])).toEqual(['test/setup.ts']);
   });
 
   it('claims everything under a declared entry, so a directory is one line of config', () => {
-    expect(movedBefore(before, ['.github/workflows/ci.yml'])).toEqual(['.github/workflows/ci.yml']);
+    expect(changedBefore(before, ['.github/workflows/ci.yml'])).toEqual(['.github/workflows/ci.yml']);
   });
 
   it('names a package the harness rests on, and leaves the rest of the install alone', () => {
-    expect(movedBefore(before, [], ['jsdom', 'react'])).toEqual(['jsdom']);
+    expect(changedBefore(before, [], ['jsdom', 'react'])).toEqual(['jsdom']);
   });
 
-  it('is empty when the diff moved nothing the run rests on', () => {
-    expect(movedBefore(before, ['src/Button.tsx'], ['react'])).toEqual([]);
+  it('is empty when the diff changed nothing the run rests on', () => {
+    expect(changedBefore(before, ['src/Button.tsx'], ['react'])).toEqual([]);
   });
 });
 

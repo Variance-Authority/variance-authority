@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readModule } from './read.js';
 import { readStyle } from './style.js';
 import { scanRelations } from './scan.js';
@@ -327,15 +327,15 @@ describe('scanning a tree', () => {
 
   it('answers the question the component index cannot', async () => {
     const records = await scanRelations({ root, dirs: ['src'] });
-    const moved = movedBy(relationsOfFiles(records), ['design/tokens.css']);
+    const affected = affectedBy(relationsOfFiles(records), ['design/tokens.css']);
 
     // Nothing declares a component in `tokens.css`, so a scan that reads
     // declarations alone has to run the whole suite. Two hops of resolution
     // narrow it to one component — and `Legacy` rides along because its own
     // dependency is unreadable, which is stated rather than hidden.
-    expect(moved.components).toEqual(['Button', 'Legacy']);
-    expect(moved.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
-    expect(moved.opaque[0]?.because).toContain('require()');
+    expect(affected.components).toEqual(['Button', 'Legacy']);
+    expect(affected.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
+    expect(affected.opaque[0]?.because).toContain('require()');
   });
 
   it('produces the same records twice', async () => {

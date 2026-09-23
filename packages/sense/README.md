@@ -232,7 +232,7 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 
 | option | default | use it when |
 |---|---|---|
-| `root` | the configuration root, then the current directory | the repository root is not where Vitest thinks it is |
+| `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
 | `preconditions` | the configured setup files | naming additional files whose contents govern every test, such as runner configuration |
@@ -366,7 +366,7 @@ the flag releases it. Then lower `maxWorkers` or set `workerIdleMemoryLimit` so
 Jest restarts a worker once it passes that size.
 
 Selection is the same call as for Vitest. `narrowByExecution` returns paths
-relative to the Jest root, and each remaining path is a pattern Jest accepts on
+relative to the checkout, whatever `rootDir` says, and each remaining path is a pattern Jest accepts on
 its command line — `jest test/alpha.case.ts test/beta.case.ts`. The snapshot is
 one file, so a repository whose unit tests run under Jest and whose pages are
 driven by Playwright selects from one index.
@@ -708,12 +708,12 @@ npm install --save-dev @variance-authority/sense @variance-authority/core
 ```
 
 ```ts
-import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { scanRelations } from '@variance-authority/sense';
 
 const records = await scanRelations({ root: '.', dirs: ['src'] });
 const relations = relationsOfFiles(records);
-const selection = movedBy(relations, ['src/tokens.css']);
+const selection = affectedBy(relations, ['src/tokens.css']);
 
 console.log(selection.components); // components reached by the changed file
 console.log(selection.opaque);     // files widened because their edges are unknown
@@ -840,7 +840,7 @@ the selector as seeds:
 
 ```ts
 const relations = relationsOfFiles(records, { depends: packageRelations(after) });
-const selection = movedBy(relations, changedPackages(before, after));
+const selection = affectedBy(relations, changedPackages(before, after));
 ```
 
 A bump then reaches your code by the same backwards walk an edited file takes,
@@ -898,13 +898,13 @@ can be viewed under several taints, or none.
 ```ts
 import { scanRelations } from '@variance-authority/sense';
 import { mockTaint, taintFile, taintRecords } from '@variance-authority/sense/taint';
-import { movedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 
 const records = await scanRelations({ root: '.', dirs: ['src'] });
 const tainted = await taintRecords(records, [mockTaint(), await taintFile('variance.taint.json')], { root: '.' });
 const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
 
-movedBy(relations, ['src/api.ts']).files; // no test that mocks `./api`
+affectedBy(relations, ['src/api.ts']).files; // no test that mocks `./api`
 ```
 
 The two halves land in different places. A `+` is one more import the file
@@ -914,9 +914,9 @@ replaces `api.ts` for the whole of that test's run — for the test, for the
 component it imports, for anything under it — so it is the module taken out of
 the graph as seen from that file, at every level. It lands in `tainted.shadows`,
 keyed by file, and a graph built with that table applies it to every walk: a
-file is moved by a change only when some trail from the change arrives without
+change affects a file only when some trail from the change arrives without
 crossing one of its shadows, and what is reached only through such a file goes
-with it. `movedBy` names the files it left out this way in `shadowed`.
+with it. `affectedBy` names the files it left out this way in `shadowed`.
 
 An addition can name a file outside the directories the scan walked. That file
 comes back as a record of its own, marked `unknown` rather than given an empty

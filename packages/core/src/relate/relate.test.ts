@@ -5,7 +5,7 @@ import {
   dependentsOf,
   explain,
   idOf,
-  movedBy,
+  affectedBy,
   nodesOfKind,
   relationsOf,
   relationsOfFiles,
@@ -70,7 +70,7 @@ describe('the graph', () => {
     // Both components arrive in the same walk, which is the point of holding one
     // graph: the file question and the component question are one traversal.
     const dependents = dependentsOf(relations, [util]);
-    expect(dependents.reached.map((id) => relations.names[id])).toEqual([
+    expect(dependents.nodes.map((id) => relations.names[id])).toEqual([
       'src/Button.tsx',
       'src/Clock.tsx',
       'src/util.ts',
@@ -79,7 +79,7 @@ describe('the graph', () => {
     ]);
 
     const dependencies = dependenciesOf(relations, [idOf(relations, 'file', 'src/Button.tsx')!]);
-    expect(dependencies.reached.map((id) => relations.names[id])).toEqual([
+    expect(dependencies.nodes.map((id) => relations.names[id])).toEqual([
       'src/Button.tsx',
       'src/button.css',
       'src/tokens.css',
@@ -100,7 +100,7 @@ describe('the graph', () => {
       { file: 'b.ts', edges: [{ to: 'a.ts', kind: 'imports' }] },
     ]);
 
-    expect(dependentsOf(relations, [idOf(relations, 'file', 'a.ts')!]).reached).toHaveLength(2);
+    expect(dependentsOf(relations, [idOf(relations, 'file', 'a.ts')!]).nodes).toHaveLength(2);
   });
 
   it('keeps two kinds of edge between one pair', () => {
@@ -131,7 +131,7 @@ describe('the graph', () => {
       through: ['imports'],
     });
 
-    expect(value.reached.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
+    expect(value.nodes.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
   });
 
   it('does not cross a type-only import unless asked to', () => {
@@ -142,32 +142,32 @@ describe('the graph', () => {
     ]);
     const seed = idOf(relations, 'file', 'types.ts')!;
 
-    // Nothing behind `import type` runs, so a change to `types.ts` moves `b.ts`
-    // and leaves `a.ts` where it was — until a caller says its question is
+    // Nothing behind `import type` runs, so a change to `types.ts` affects `b.ts`
+    // and not `a.ts` — until a caller says its question is
     // about source, not about a runtime.
-    expect(dependentsOf(relations, [seed]).reached.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
-    expect(dependentsOf(relations, [seed], { through: EDGE_KINDS }).reached.map((id) => relations.names[id]))
+    expect(dependentsOf(relations, [seed]).nodes.map((id) => relations.names[id])).toEqual(['b.ts', 'types.ts']);
+    expect(dependentsOf(relations, [seed], { through: EDGE_KINDS }).nodes.map((id) => relations.names[id]))
       .toEqual(['a.ts', 'b.ts', 'types.ts']);
   });
 });
 
-describe('what a change moved', () => {
+describe('what a change affects', () => {
   it('reaches a component through a stylesheet nothing declares anything in', () => {
     // The case the whole feature exists for. `tokens.css` declares no component,
     // so a scan that only reads declarations can say nothing about it and has to
     // run the entire suite.
     const relations = relationsOfFiles(SUITE);
-    const moved = movedBy(relations, ['src/tokens.css']);
+    const affected = affectedBy(relations, ['src/tokens.css']);
 
-    expect(moved.components).toEqual(['Button']);
-    expect(moved.files).toEqual(['src/Button.tsx', 'src/button.css', 'src/tokens.css']);
+    expect(affected.components).toEqual(['Button']);
+    expect(affected.files).toEqual(['src/Button.tsx', 'src/button.css', 'src/tokens.css']);
   });
 
   it('shows the chain it arrived by', () => {
     const relations = relationsOfFiles(SUITE);
-    const moved = movedBy(relations, ['src/tokens.css']);
+    const affected = affectedBy(relations, ['src/tokens.css']);
 
-    expect(explain(relations, moved, { kind: 'component', name: 'Button' })).toEqual([
+    expect(explain(relations, affected, { kind: 'component', name: 'Button' })).toEqual([
       'src/tokens.css',
       'src/button.css',
       'src/Button.tsx',
@@ -178,8 +178,8 @@ describe('what a change moved', () => {
   it('is stable however the changed files were ordered', () => {
     const relations = relationsOfFiles(SUITE);
 
-    expect(movedBy(relations, ['src/tokens.css', 'src/util.ts']).files).toEqual(
-      movedBy(relations, ['src/util.ts', 'src/tokens.css']).files,
+    expect(affectedBy(relations, ['src/tokens.css', 'src/util.ts']).files).toEqual(
+      affectedBy(relations, ['src/util.ts', 'src/tokens.css']).files,
     );
   });
 
@@ -188,32 +188,32 @@ describe('what a change moved', () => {
     // through the module it replaced. `Clock.tsx` imports the real one.
     const relations = relationsOfFiles(SUITE);
     const shadows = new Map([['src/Button.tsx', ['src/util.ts']]]);
-    const moved = movedBy(relations, ['src/util.ts'], { shadows });
+    const affected = affectedBy(relations, ['src/util.ts'], { shadows });
 
-    expect(moved.files).toEqual(['src/Clock.tsx', 'src/util.ts']);
-    expect(moved.components).toEqual(['Clock']);
-    expect(moved.shadowed).toEqual(['src/Button.tsx']);
+    expect(affected.files).toEqual(['src/Clock.tsx', 'src/util.ts']);
+    expect(affected.components).toEqual(['Clock']);
+    expect(affected.shadowed).toEqual(['src/Button.tsx']);
   });
 
   it('keeps a file some other trail from the change still reaches', () => {
     const relations = relationsOfFiles(SUITE);
     const shadows = new Map([['src/Button.tsx', ['src/util.ts']]]);
-    const moved = movedBy(relations, ['src/util.ts', 'src/tokens.css'], { shadows });
+    const affected = affectedBy(relations, ['src/util.ts', 'src/tokens.css'], { shadows });
 
-    expect(moved.files).toContain('src/Button.tsx');
-    expect(moved.shadowed).toEqual([]);
+    expect(affected.files).toContain('src/Button.tsx');
+    expect(affected.shadowed).toEqual([]);
   });
 
   it('reports a changed path the graph never saw rather than ignoring it', () => {
     const relations = relationsOfFiles(SUITE);
-    const moved = movedBy(relations, ['README.md']);
+    const affected = affectedBy(relations, ['README.md']);
 
     // Not an error here — a changed `README.md` is genuinely nothing to this
     // graph. It is reported because the caller is the only one that knows
     // whether the path should have been scanned, and a selector that silently
     // drops a source file it never read is the failure mode being avoided.
-    expect(moved.missing).toEqual(['README.md']);
-    expect(moved.components).toEqual([]);
+    expect(affected.missing).toEqual(['README.md']);
+    expect(affected.components).toEqual([]);
   });
 });
 
@@ -226,16 +226,16 @@ describe('a file whose edges could not be read', () => {
 
   it('is treated as depending on everything that changed', () => {
     const relations = relationsOfFiles(UNREADABLE);
-    const moved = movedBy(relations, ['src/tokens.css']);
+    const affected = affectedBy(relations, ['src/tokens.css']);
 
     // `legacy.js` might import `tokens.css`. Nothing here can tell, so it is
     // seeded, and `Legacy` — which depends on it — is observed. The alternative
     // is a green run over a component nobody looked at.
-    expect(moved.components).toEqual(['Button', 'Legacy']);
+    expect(affected.components).toEqual(['Button', 'Legacy']);
 
     // The sentence rides along with the path. A count is something to live
     // with; a named cause is something to fix.
-    expect(moved.opaque).toEqual([
+    expect(affected.opaque).toEqual([
       {
         file: 'src/legacy.js',
         because: 'a require() call with a specifier that is not a literal',
@@ -243,14 +243,14 @@ describe('a file whose edges could not be read', () => {
     ]);
   });
 
-  it('is counted apart from what was actually reached', () => {
+  it('is counted apart from what the walk actually visited', () => {
     const relations = relationsOfFiles(UNREADABLE);
-    const moved = movedBy(relations, []);
+    const affected = affectedBy(relations, []);
 
     // No file changed at all, and the unreadable one is still in the answer.
     // "We widened" must never hide inside "we found".
-    expect(moved.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
-    expect(moved.components).toEqual(['Legacy']);
+    expect(affected.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
+    expect(affected.components).toEqual(['Legacy']);
   });
 });
 
@@ -269,18 +269,18 @@ describe('the trail', () => {
       },
     ]);
 
-    const reach = dependentsOf(relations, [idOf(relations, 'file', 'root.ts')!]);
-    const trail = trailOf(reach, idOf(relations, 'file', 'app.ts')!);
+    const traversal = dependentsOf(relations, [idOf(relations, 'file', 'root.ts')!]);
+    const trail = trailOf(traversal, idOf(relations, 'file', 'app.ts')!);
 
     expect(trail).toHaveLength(3);
     expect(relations.names[trail[0]!]).toBe('root.ts');
     expect(relations.names[trail[2]!]).toBe('app.ts');
   });
 
-  it('is empty for a node the search never reached', () => {
+  it('is empty for a node the search never visited', () => {
     const relations = relationsOfFiles(SUITE);
-    const reach = dependentsOf(relations, [idOf(relations, 'file', 'src/tokens.css')!]);
+    const traversal = dependentsOf(relations, [idOf(relations, 'file', 'src/tokens.css')!]);
 
-    expect(trailOf(reach, idOf(relations, 'component', 'Clock')!)).toEqual([]);
+    expect(trailOf(traversal, idOf(relations, 'component', 'Clock')!)).toEqual([]);
   });
 });

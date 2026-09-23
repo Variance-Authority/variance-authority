@@ -59,7 +59,7 @@ describe('the closure digest', () => {
     expect(forwards.volatile.size).toBe(0);
   });
 
-  it('changes every node above the one that moved, and none beside it', () => {
+  it('changes every node above the one that changed, and none beside it', () => {
     const before = closureFor(suite('accent: purple'));
     const after = closureFor(suite('accent: green'));
 
@@ -154,7 +154,7 @@ describe('a cycle', () => {
     const closure = closureFor(CYCLE);
 
     // Not a compromise. No file in a cycle can be called unchanged while another
-    // member moved, so one digest for the loop is the true statement.
+    // member changed, so one digest for the loop is the true statement.
     expect(closure.digests.get('file:a.ts')).toBe(closure.digests.get('file:b.ts'));
     expect(closure.digests.get('file:app.ts')).not.toBe(closure.digests.get('file:a.ts'));
   });
@@ -186,11 +186,11 @@ describe('the edge kinds a closure folds', () => {
   const relations = relationsOfFiles(records);
 
   it('leaves a type-only import out, so a change behind it drifts nothing', () => {
-    const moved = new Map(content).set('types.ts', at('types!'));
+    const edited = new Map(content).set('types.ts', at('types!'));
 
     // A type-only import is erased before a render, so the importer's digest is
     // a claim about what it runs, and `types.ts` is not among those inputs.
-    expect(driftedBetween(closureOf({ relations, content }), closureOf({ relations, content: moved })).files)
+    expect(driftedBetween(closureOf({ relations, content }), closureOf({ relations, content: edited })).files)
       .toEqual(['types.ts']);
   });
 

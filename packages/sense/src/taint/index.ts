@@ -31,8 +31,8 @@
  * whole of that test's run — for the test, for the component it imports, for
  * anything under it — so it is the module taken out of the graph as seen from
  * that file, at every level. That is a row in {@link Tainted.shadows}, keyed by
- * the file and naming the files it never reaches, and `movedBy` in
- * `core/relate` consults it: a file is moved by a change only when some trail
+ * the file and naming the files it never reaches, and `affectedBy` in
+ * `core/relate` consults it: a change affects a file only when some trail
  * from the change arrives without crossing one of its shadows.
  *
  * ## A plus the scan never walked to
@@ -153,7 +153,7 @@ export interface Tainted {
    */
   readonly records: readonly FileRecord[];
   /**
-   * Per file, the resolved files its run never reaches. The table `movedBy`
+   * Per file, the resolved files its run never reaches. The table `affectedBy`
    * takes as `shadows`. A removal that resolves to nothing names no node and
    * cuts nothing.
    */

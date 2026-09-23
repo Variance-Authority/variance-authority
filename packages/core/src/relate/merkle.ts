@@ -1,7 +1,7 @@
 /**
  * The graph, hashed the way a build system hashes an action's inputs.
  *
- * Reachability answers *what could this diff have moved*. It needs a diff, which
+ * Reachability answers *what could this diff affect*. It needs a diff, which
  * means it needs `git`, a ref that exists, a checkout deep enough to contain it,
  * and the assumption that the ref is where this branch actually diverged. Every
  * one of those is a thing CI gets wrong, and each failure narrows a run.
@@ -20,7 +20,7 @@
  * | a change, then a revert | both commits are in the diff, so it widens | identical digest, nothing runs |
  * | rebase, squash, branch switch | the merge base moves and the diff with it | unaffected — no ref is consulted |
  * | a shallow clone with no merge base | cannot answer; runs everything | unaffected |
- * | a dependency changed two hops away | reached, and observed | different digest, and observed |
+ * | a dependency changed two hops away | affected, and observed | different digest, and observed |
  * | *why* a subject is being observed | a chain of files | a digest that differs |
  *
  * Neither replaces the other. The trail is the explanation, and the digest is the
@@ -31,13 +31,13 @@
  * A dependency graph has them and a Merkle tree cannot. Strongly connected
  * components are condensed and hashed as a unit, so every file in a cycle carries
  * the same digest — which is exactly the truth about a cycle: no member of one can
- * be called unchanged while another moved.
+ * be called unchanged while another changed.
  *
  * ## The digest that must never lie
  *
  * A digest says *these inputs are the same*. A file whose content was not supplied,
  * or whose own imports could not be read, breaks that claim — its closure may have
- * moved with no digest in this structure changing. Those nodes are marked
+ * changed with no digest in this structure changing. Those nodes are marked
  * **volatile**, the mark propagates to everything that rests on them, and a
  * volatile node is treated as changed however its digest compares. A cache that
  * cannot be trusted must not be silently trusted.
@@ -59,7 +59,7 @@ export interface ClosureInput {
   /**
    * Content digest per file, keyed by the file's path.
    *
-   * A file with no entry is volatile: nothing here can tell whether it moved.
+   * A file with no entry is volatile: nothing here can tell whether it changed.
    * Component nodes take no entry — a component has no bytes of its own, and its
    * content is the file that declares it, which it already depends on.
    */
@@ -165,7 +165,7 @@ export interface Drift {
 }
 
 /**
- * What moved between two closures, without consulting a repository.
+ * What changed between two closures, without consulting a repository.
  *
  * Three ways a node lands in `changed`, and only the first is a difference: its
  * digest differs, it is **new**, or it is **volatile** — the last because a node
@@ -306,7 +306,7 @@ function condense(relations: Relations, allowed: Uint8Array): Condensation {
  *
  * `depends-on` is not in it either, for the opposite reason. It runs between two
  * packages, and a package node is a name rather than a content digest — an
- * install that moved is a fact the diff carries, never one a hash of names could
+ * install that changed is a fact the diff carries, never one a hash of names could
  * reveal. Folding it would add a term that cannot change and a walk that cannot
  * answer.
  */

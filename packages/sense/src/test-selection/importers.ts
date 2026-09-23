@@ -271,7 +271,7 @@ export function answerByImporters(
     // a seed beside it: the walk continues from there exactly as it would have
     // done had the edge been in the graph, and everything it reaches is an end
     // of this file's question like any other.
-    const reach = dependentsOf(
+    const traversal = dependentsOf(
       relations,
       importedAsAsset(relations, id) ? [id, ...opaque] : [id],
       { through: ['asset'] },
@@ -282,7 +282,7 @@ export function answerByImporters(
     let ends = 0;
     let unmeasured = false;
     const chains: (readonly string[])[] = [];
-    for (const other of reach.reached) {
+    for (const other of traversal.nodes) {
       // The file itself, and a file something imports as an asset: the second
       // is a step on the way to the module that carries it, and the walk went
       // on through it.
@@ -291,7 +291,7 @@ export function answerByImporters(
       // edges nobody could read, and the step from the changed file to it is
       // the edge nobody saw: it is named, because a chain that starts in the
       // middle explains nothing.
-      const trail = trailOf(reach, other);
+      const trail = trailOf(traversal, other);
       const named = (trail[0] === id ? trail : [id, ...trail]).map((step) => relations.names[step]!);
       const found = read(other, named, seed);
       ends += 1;
@@ -315,16 +315,16 @@ export function answerByImporters(
   for (const name of moved) {
     const id = idOf(relations, 'package', name);
     if (id === undefined) continue;
-    const reach = dependentsOf(relations, [id]);
+    const traversal = dependentsOf(relations, [id]);
     let ends = 0;
     let unmeasured = false;
     const chains: (readonly string[])[] = [];
-    for (const other of reach.reached) {
+    for (const other of traversal.nodes) {
       // Packages the walk passed through on its way up from a transitive
       // dependency, and the components a reached file declares: steps, not
       // ends. Only a file can have been measured.
       if (other === id || nodeAt(relations, other)?.kind !== 'file') continue;
-      const named = trailOf(reach, other).map((step) => relations.names[step]!);
+      const named = trailOf(traversal, other).map((step) => relations.names[step]!);
       const found = read(other, named, [name]);
       ends += 1;
       if (found.measured) continue;

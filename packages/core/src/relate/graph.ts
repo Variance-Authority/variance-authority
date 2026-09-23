@@ -54,7 +54,7 @@
  * A `package` earns its kind for the same reason and one more: it is the far end
  * of the same line. A run starts at the harness, arrives at our code through the
  * tests, and leaves it again at the packages — so a bumped dependency is a node
- * like any other, and *which of our files a new `jsdom` can have moved* is the
+ * like any other, and *which of our files a new `jsdom` can affect* is the
  * one traversal this file already performs, seeded on the other side
  * ([`docs/selecting.md`](../../../../docs/selecting.md)).
  *
@@ -102,8 +102,8 @@ export const EDGE_KINDS = [
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 /**
- * The edge kinds something at runtime can follow: every kind but `type`. The
- * default for a reach, and the list a caller widens from. A closure folds a
+ * The edge kinds a runtime loads through: every kind but `type`. The
+ * default for a traversal, and the list a caller widens from. A closure folds a
  * shorter list (`CLOSURE_EDGES`), because a digest is a claim about bytes and
  * one of these kinds leads nowhere any bytes are.
  */
@@ -186,7 +186,7 @@ export interface Relations {
    * Carried with the graph rather than handed to each walk, because the graph
    * crosses every seam a walk does and a table left behind at one of them is a
    * selection that quietly widened. Empty for a graph nobody tainted. A walk
-   * against the arrows consults it: a file is moved by a change only when some
+   * against the arrows consults it: a change affects a file only when some
    * trail from the change arrives without crossing one of that file's shadows.
    */
   readonly shadows: ReadonlyMap<string, readonly string[]>;

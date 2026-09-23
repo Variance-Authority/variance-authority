@@ -364,11 +364,11 @@ function walk(
   const avoid: NodeId[] = [];
   for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
 
-  const reach = dependenciesOf(relations, start, { avoid });
+  const traversal = dependenciesOf(relations, start, { avoid });
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
-    if (reach.mask[id] !== 1) continue;
-    const trail = trailOf(reach, id);
+    if (traversal.mask[id] !== 1) continue;
+    const trail = trailOf(traversal, id);
     if (best === undefined || trail.length < best.length) best = trail;
   }
   if (best === undefined) {
@@ -378,7 +378,7 @@ function walk(
     // the graph has never heard of, or at one it holds without ever having read
     // what that file itself imports.
     if (blind > 0) return { because: `${blind} module(s) it covered are outside the graph` };
-    for (const id of reach.reached) {
+    for (const id of traversal.nodes) {
       const name = nodeAt(relations, id)?.name;
       if (name !== undefined && !held(name)) return { because: `nothing enumerated what ${name} imports` };
     }
@@ -392,7 +392,7 @@ function walk(
     let stranded = 0;
     for (const file of entered) {
       const found = nodes(file);
-      if (found.length > 0 && found.every((id) => !wanted.has(id) && reach.mask[id] !== 1)) stranded += 1;
+      if (found.length > 0 && found.every((id) => !wanted.has(id) && traversal.mask[id] !== 1)) stranded += 1;
     }
     return stranded === 0
       ? { because: undefined }

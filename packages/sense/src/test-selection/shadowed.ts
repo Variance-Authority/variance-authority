@@ -77,8 +77,8 @@ function closure(relations: Relations, test: string, direct: readonly string[]):
   if (seed === undefined) return found;
   const cut = direct.map((file) => idOf(relations, 'file', file)).filter((id): id is NodeId => id !== undefined);
   const kept = dependenciesOf(relations, [seed], { avoid: cut });
-  if (kept.reached.some((id) => relations.unknown[id] === 1)) return found;
-  for (const id of dependenciesOf(relations, cut).reached) {
+  if (kept.nodes.some((id) => relations.unknown[id] === 1)) return found;
+  for (const id of dependenciesOf(relations, cut).nodes) {
     if (kept.mask[id] === 1) continue;
     const node = nodeAt(relations, id);
     if (node?.kind === 'file') found.add(node.name);

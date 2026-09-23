@@ -5,7 +5,7 @@ describe('cached source selection', () => {
   it('keeps the selection answer while reusing parse and relation work', async () => {
     const result = await runDemo();
 
-    expect(result.cold).toEqual({ reached: ['Button'], collect: ['story:catalog'], skip: ['story:account'] });
+    expect(result.cold).toEqual({ affected: ['Button'], collect: ['story:catalog'], skip: ['story:account'] });
     expect(result.warm).toEqual(result.cold);
     expect(result.afterEdit).toEqual(result.cold);
     expect(result.coldMs).toBeGreaterThan(0);

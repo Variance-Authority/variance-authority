@@ -1,4 +1,4 @@
-import { movedBy, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, type Relations } from '@variance-authority/core/relate';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
 
 export interface ExecutionTest {
@@ -212,7 +212,7 @@ function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]
 /**
  * The cases whose files import this module, by the file graph.
  *
- * `movedBy` is the owner: it seeds every file whose edges it could not read and
+ * `affectedBy` is the owner: it seeds every file whose edges it could not read and
  * leaves out a file whose mocks cut every trail, which is the reading the
  * file-grain selector gives the same module. Absent without a graph, and when
  * the graph does not hold the module, because then it cannot say who imports
@@ -227,9 +227,9 @@ function loadersOf(
   relations: Relations | undefined,
 ): readonly CoveringTest[] | undefined {
   if (relations === undefined) return undefined;
-  const moved = movedBy(relations, [file]);
-  if (moved.missing.length > 0) return undefined;
-  const files = new Set(moved.files);
+  const affected = affectedBy(relations, [file]);
+  if (affected.missing.length > 0) return undefined;
+  const files = new Set(affected.files);
   const loaders = index.tests.filter((test) => files.has(test.file));
   if (loaders.length === 0) return undefined;
   return sortTests(loaders.map((test) => ({ ...test, distance: 0, loaded: true as const })));

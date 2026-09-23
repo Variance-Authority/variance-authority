@@ -17,7 +17,7 @@
  * refusals in [`reach.ts`](./reach.ts) plus the empty diff below.
  *
  * On exit `0`, stdout is never empty. It holds by construction rather than by
- * check: `movedBy` returns the seeds among the files it reached, so an answer
+ * check: `affectedBy` returns the seeds among the files it reached, so an answer
  * that got past the refusals holds at least the changed files themselves.
  *
  * ## A path no reader claims
@@ -31,7 +31,7 @@
  */
 
 import { OperatorError } from '../exit.js';
-import { filesReached, refused } from './reach.js';
+import { affectedFiles, refused } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { changedSince } from './since.js';
 
@@ -81,7 +81,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const readable = changed.filter((file) => READABLE.has(suffixOf(file)));
   const unread = changed.filter((file) => !READABLE.has(suffixOf(file)));
 
-  const reach = filesReached(relations, readable, ['.']);
+  const reach = affectedFiles(relations, readable, ['.']);
   if (refused(reach)) {
     throw new OperatorError(
       `${reach.whole}. Rather than print a file list this cannot stand behind, \`reach\` stops ` +

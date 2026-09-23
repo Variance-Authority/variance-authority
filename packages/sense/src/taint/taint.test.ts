@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { idOf, movedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
+import { idOf, affectedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { memoryParseCache } from '../cache.js';
 import { scanRelations } from '../scan.js';
 import { moduleCallsTaint } from './calls.js';
@@ -13,7 +13,7 @@ import { isTestLike, mockTaint } from './mocks.js';
  * A taint is a second table joined onto the scan's records, so what is tested
  * is the join: the records the scan produced stay as they were, an addition
  * lands on the file's record, and a removal lands in the shadows table that
- * `movedBy` consults.
+ * `affectedBy` consults.
  */
 
 let root: string;
@@ -92,9 +92,9 @@ const edgesOf = async (taints: readonly Taint[], file: string) =>
 const targets = (record: FileRecord | undefined) => record?.edges?.map((edge) => edge.to);
 
 /** The files a change to `changed` moves, seen through the taints. */
-const movedUnder = async (taints: readonly Taint[], changed: readonly string[]) => {
+const affectedUnder = async (taints: readonly Taint[], changed: readonly string[]) => {
   const tainted = await under(taints);
-  return movedBy(relationsOfFiles(tainted.records, { shadows: tainted.shadows }), changed);
+  return affectedBy(relationsOfFiles(tainted.records, { shadows: tainted.shadows }), changed);
 };
 
 describe('a static taint table', () => {
@@ -295,7 +295,7 @@ describe('several taints at once', () => {
     const cut = taintTable('cut', { 'src/card.test.ts': { '-': ['./api'] } });
     const add = taintTable('add', { 'src/card.test.ts': { '+': ['./api'] } });
 
-    expect((await movedUnder([cut, add], ['src/api.ts'])).files).not.toContain('src/card.test.ts');
+    expect((await affectedUnder([cut, add], ['src/api.ts'])).files).not.toContain('src/card.test.ts');
   });
 });
 
@@ -322,20 +322,20 @@ describe('the mock taint', () => {
 
   it('takes the mocked module out of the run at every level', async () => {
     // `card.test.ts` mocks `./api`; the `api.ts` under `card.ts` is the mock too.
-    const moved = await movedUnder([mockTaint()], ['src/api.ts']);
+    const affected = await affectedUnder([mockTaint()], ['src/api.ts']);
 
-    expect(moved.files).toContain('src/card.ts');
-    expect(moved.files).not.toContain('src/card.test.ts');
-    expect(moved.files).not.toContain('src/card.stories.ts');
-    expect(moved.shadowed).toEqual(['src/card.stories.ts', 'src/card.test.ts', 'src/panel.jest.test.ts']);
-    expect(moved.files).toContain('src/actual.test.ts');
+    expect(affected.files).toContain('src/card.ts');
+    expect(affected.files).not.toContain('src/card.test.ts');
+    expect(affected.files).not.toContain('src/card.stories.ts');
+    expect(affected.shadowed).toEqual(['src/card.stories.ts', 'src/card.test.ts', 'src/panel.jest.test.ts']);
+    expect(affected.files).toContain('src/actual.test.ts');
   });
 
   it('still moves the test for a change beside the mock', async () => {
-    const moved = await movedUnder([mockTaint()], ['src/card.ts']);
+    const affected = await affectedUnder([mockTaint()], ['src/card.ts']);
 
-    expect(moved.files).toContain('src/card.test.ts');
-    expect(moved.shadowed).toEqual([]);
+    expect(affected.files).toContain('src/card.test.ts');
+    expect(affected.shadowed).toEqual([]);
   });
 
   it('opens only files a mock is expected in, unless told otherwise', async () => {

@@ -30,7 +30,7 @@ import {
   type Relation,
   type Relations,
 } from './graph.js';
-import { dependenciesOf, dependentsOf, trailOf, type Reach, type ReachOptions } from './reach.js';
+import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions } from './reach.js';
 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
@@ -60,7 +60,7 @@ export interface FileRecord {
   /**
    * The content digest this record was read from.
    *
-   * Two jobs. It lets a second scan skip the parse for a file that has not moved,
+   * Two jobs. It lets a second scan skip the parse for a file that has not changed,
    * which is the difference between a scan that costs a second and one nobody
    * leaves enabled. And it is the leaf of the Merkle fold in
    * [`merkle.ts`](./merkle.ts) — a file with no digest is one nothing can prove
@@ -83,8 +83,8 @@ export interface FileRecord {
    * dependency, and what the install currently has under that name is a question
    * for the lockfile ([`sense/lock`](../../../sense/src/lock/index.ts)).
    *
-   * A file that imports `@mui/material` is moved by `@mui/material` moving; a
-   * file that does not, is not. That is the whole rule, and it is why this is
+   * A file that imports `@mui/material` is affected when `@mui/material`
+   * changes; a file that does not, is not. That is the whole rule, and it is why this is
    * read from the imports rather than from a manifest: a `package.json` says what
    * a workspace may use, and the imports say what a file does use.
    */
@@ -172,7 +172,7 @@ export interface RelationsOptions {
    * Optional, and a graph without them is not wrong, only shorter-sighted: it
    * answers a change to a package some file imports directly, and says nothing
    * about a change three levels down. Supplying them is what turns *`jsdom`
-   * moved* into *every test whose environment is built on it*.
+   * changed* into *every test whose environment is built on it*.
    */
   readonly depends?: Iterable<readonly [string, string]>;
 }
@@ -189,18 +189,18 @@ export interface Hole {
  *
  * Every field is part of one answer and none of them stands alone: `files` is
  * the answer, `missing` and `opaque` are the two ways it is not the whole truth,
- * and `reach` is what an explanation is read back out of. A caller that took
+ * and `traversal` is what an explanation is read back out of. A caller that took
  * `files` and dropped the rest would be a caller that cannot say whether the
  * list is narrow because the diff was small or because the scan never ran.
  */
-export interface Reached {
-  /** Files the change could have moved, including the changed files themselves. */
+export interface Affected {
+  /** Files the change could affect, including the changed files themselves. */
   readonly files: readonly string[];
   /** Components declared in any of them. */
   readonly components: readonly string[];
 
   /**
-   * Packages the change could have moved, including the changed packages
+   * Packages the change could affect, including the changed packages
    * themselves and everything the install resolved beneath them.
    *
    * Reported rather than used: the answer a caller acts on is in `files`, and
@@ -214,7 +214,7 @@ export interface Reached {
    * Changed paths the graph does not hold.
    *
    * Never silently ignored. A `README.md` belongs here and means nothing; a
-   * source file belongs here only because the scan never reached it, and the
+   * source file belongs here only because the scan never read it, and the
    * caller — which knows where it told the scan to look — is the one that can
    * tell those apart.
    */
@@ -222,7 +222,7 @@ export interface Reached {
 
   /**
    * Files seeded because their own edges are unknown, rather than because
-   * anything reached them, each with the reason it could not be read.
+   * a changed file leads to them, each with the reason it could not be read.
    *
    * Counted separately so that "we widened" never hides inside "we found", and
    * carrying its sentence so the widening is a work item rather than a tax: *four
@@ -232,25 +232,25 @@ export interface Reached {
   readonly opaque: readonly Hole[];
 
   /**
-   * Files the graph reached and their own shadows cut: every trail from a
+   * Files the walk visited and their own shadows cut: every trail from a
    * changed file to each one crossed a module the file replaces for its run.
    * Listed so the report can say a test was left out and by whose word.
    */
   readonly shadowed: readonly string[];
 
-  /** The traversal, kept so a caller can ask how any one file was reached. */
-  readonly reach: Reach;
+  /** The walk itself, kept so a caller can ask why any one file is in the answer. */
+  readonly traversal: Traversal;
 }
 
-export interface MovedOptions extends ReachOptions {
+export interface AffectedOptions extends TraversalOptions {
   /**
    * Per file, the files it takes out of its own graph: what a test mocks.
    *
    * A row is a fact about one file's run and nothing else's, so it is kept
    * beside the records rather than in them — the records say what the text
-   * imports, this says what the run never reaches. A file with a row is moved
+   * imports, this says what the run never loads. A file with a row is affected
    * only if some trail from a changed file arrives at it without crossing a
-   * file in its row, and what is reached only *through* it goes with it: the
+   * file in its row, and what depends on the change only *through* it goes with it: the
    * component a story declares, the test a setup file's mocks hold for. The
    * graph's own table when absent ({@link Relations.shadows}).
    */
@@ -258,7 +258,7 @@ export interface MovedOptions extends ReachOptions {
 }
 
 /**
- * What a set of changed files could have moved.
+ * What a set of changed files could affect.
  *
  * The seed set is the changed files **and every file whose edges are unknown**,
  * which is the rule the whole structure rests on. An unreadable file might import
@@ -277,11 +277,11 @@ export interface MovedOptions extends ReachOptions {
  * One breadth-first search, whatever the number of changed files, over the
  * runtime edges unless the caller names others.
  */
-export function movedBy(
+export function affectedBy(
   relations: Relations,
   changed: Iterable<string | Node>,
-  options: MovedOptions = {},
-): Reached {
+  options: AffectedOptions = {},
+): Affected {
   const seeds: NodeId[] = [];
   const missing: string[] = [];
 
@@ -301,10 +301,10 @@ export function movedBy(
     opaque.push({ file: relations.names[id]!, ...(because === undefined ? {} : { because }) });
   }
 
-  const reach = unshadowed(relations, seeds, options);
+  const traversal = unshadowed(relations, seeds, options);
   const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
 
-  for (const id of reach.reached) {
+  for (const id of traversal.nodes) {
     const node = nodeAt(relations, id);
     if (node === undefined) continue;
     found[node.kind].push(node.name);
@@ -316,34 +316,34 @@ export function movedBy(
     packages: found.package,
     missing: missing.sort(byCodeUnit),
     opaque,
-    shadowed: reach.shadowed,
-    reach,
+    shadowed: traversal.shadowed,
+    traversal,
   };
 }
 
 /**
  * The walk against the arrows with every file left out whose own shadows cut
- * every trail to it, and with nothing reached through such a file.
+ * every trail to it, and with nothing visited through such a file.
  *
  * The walk records one parent per node, so it cannot say whether *another*
  * trail avoided the shadows. Asking the other way can: a walk along the arrows
  * from the file, entering none of its shadows, either finds a seed or does not.
- * It runs only for a reached file whose row names a reached node — a mock of
+ * It runs only for a visited file whose row names a visited node — a mock of
  * something the change never touched cuts nothing, and costs nothing. A file
  * found shadowed is then avoided and the walk repeated, so a component or a
- * file reached only through it is not reached either; the repeat ends when a
+ * file visited only through it is not visited either; the repeat ends when a
  * walk finds no new shadowed file, and a row once decided is not asked again.
  */
 function unshadowed(
   relations: Relations,
   seeds: readonly NodeId[],
-  options: MovedOptions,
-): Reach & { readonly shadowed: readonly string[] } {
+  options: AffectedOptions,
+): Traversal & { readonly shadowed: readonly string[] } {
   const shadowed: string[] = [];
   const avoid = new Set<NodeId>(options.avoid ?? []);
   const shadows = options.shadows ?? relations.shadows;
-  let reach = dependentsOf(relations, seeds, options);
-  if (shadows.size === 0) return { ...reach, shadowed };
+  let traversal = dependentsOf(relations, seeds, options);
+  if (shadows.size === 0) return { ...traversal, shadowed };
 
   const seeded = new Uint8Array(relations.names.length);
   for (const seed of seeds) seeded[seed] = 1;
@@ -353,40 +353,40 @@ function unshadowed(
     let found = 0;
     for (const [name, row] of shadows) {
       const id = idOf(relations, 'file', name);
-      if (id === undefined || reach.mask[id] !== 1 || seeded[id] === 1 || decided.has(id)) continue;
+      if (id === undefined || traversal.mask[id] !== 1 || seeded[id] === 1 || decided.has(id)) continue;
 
       const cut: NodeId[] = [];
       for (const shadow of row) {
         const target = idOf(relations, 'file', shadow);
-        if (target !== undefined && reach.mask[target] === 1) cut.push(target);
+        if (target !== undefined && traversal.mask[target] === 1) cut.push(target);
       }
       if (cut.length === 0) continue;
       decided.add(id);
 
       const forward = dependenciesOf(relations, [id], { ...options, avoid: cut });
-      if (forward.reached.some((node) => seeded[node] === 1)) continue;
+      if (forward.nodes.some((node) => seeded[node] === 1)) continue;
 
       avoid.add(id);
       shadowed.push(name);
       found += 1;
     }
     if (found === 0) break;
-    reach = dependentsOf(relations, seeds, { ...options, avoid });
+    traversal = dependentsOf(relations, seeds, { ...options, avoid });
   }
 
-  return { ...reach, shadowed: shadowed.sort(byCodeUnit) };
+  return { ...traversal, shadowed: shadowed.sort(byCodeUnit) };
 }
 
 /**
- * How one file or component was reached, as the chain that reached it.
+ * Why one file or component is affected: the chain of imports from a changed file to it.
  *
  * The sentence a run prints when somebody asks why a subject was observed. Empty
- * when the node was not reached at all.
+ * when the node is not affected at all.
  */
-export function explain(relations: Relations, moved: Reached, node: Node): readonly string[] {
+export function explain(relations: Relations, affected: Affected, node: Node): readonly string[] {
   const id = idOf(relations, node.kind, node.name);
   if (id === undefined) return [];
-  return trailOf(moved.reach, id).map((step) => relations.names[step]!);
+  return trailOf(affected.traversal, id).map((step) => relations.names[step]!);
 }
 
 function byCodeUnit(a: string, b: string): number {

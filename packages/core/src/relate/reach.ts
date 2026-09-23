@@ -3,7 +3,7 @@
  *
  * Two questions, one traversal each way:
  *
- * - **`dependentsOf`** — against the arrows. *What could this change have moved?*
+ * - **`dependentsOf`** — against the arrows. *What could this change affect?*
  *   This is the one selection asks, and it is asked once per run over the whole
  *   seed set rather than once per seed, because a breadth-first search from many
  *   sources costs the same as one from a single source.
@@ -12,7 +12,7 @@
  *
  * ## The trail is not an extra
  *
- * Both return the path each node was reached by, and that is load-bearing rather
+ * Both return the path to each node they visit, and that is load-bearing rather
  * than a convenience. A selector that says *observe 41 of 300* is asking to be
  * trusted; a selector that says *`Button` is affected because
  * `src/tokens.css` → `src/button.css` → `src/Button.tsx`* has shown its work, and
@@ -31,28 +31,28 @@
 import { EDGE_KINDS, RUNTIME_EDGES, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
 
 /**
- * What one walk from a set of seeds reached: a mark over every node, the node
- * each one was reached through, and the reached ids in the order they were
- * found. `trailOf` reads the chain from any reached node back to its seed.
+ * What one walk from a set of seeds visited: a mark over every node, the node
+ * each one was entered from, and the visited ids in id order. `trailOf` reads
+ * the chain from any visited node back to its seed.
  */
-export interface Reach {
-  /** `1` where the node was reached, including the seeds themselves. */
+export interface Traversal {
+  /** `1` where the node was visited, including the seeds themselves. */
   readonly mask: Uint8Array;
   /**
-   * The node that reached each one, or `-1` for a seed and for anything
-   * unreached. Following it lands on a seed, which is what `trailOf` walks.
+   * The node each one was entered from, or `-1` for a seed and for anything
+   * not visited. Walking it back lands on a seed, which is what `trailOf` does.
    */
   readonly via: Int32Array;
-  /** Reached nodes in id order, which is kind-major and then code unit. */
-  readonly reached: readonly NodeId[];
+  /** Visited nodes in id order, which is kind-major and then code unit. */
+  readonly nodes: readonly NodeId[];
 }
 
-export interface ReachOptions {
+export interface TraversalOptions {
   /**
    * Edge kinds to walk. `RUNTIME_EDGES` when absent: every kind but `type`.
    *
    * A type-only import is erased before anything runs, so a change behind it
-   * moves no test and no pixel, and walking it selects work nothing can fail.
+   * fails no test and changes no pixel, and walking it selects work nothing can fail.
    * A caller asking a question about source rather than about a runtime passes
    * `EDGE_KINDS`, or any narrower list, and gets exactly those.
    */
@@ -72,8 +72,8 @@ export interface ReachOptions {
 export function dependentsOf(
   relations: Relations,
   seeds: Iterable<NodeId>,
-  options: ReachOptions = {},
-): Reach {
+  options: TraversalOptions = {},
+): Traversal {
   return search(relations.dependents, relations.names.length, seeds, options);
 }
 
@@ -81,23 +81,23 @@ export function dependentsOf(
 export function dependenciesOf(
   relations: Relations,
   seeds: Iterable<NodeId>,
-  options: ReachOptions = {},
-): Reach {
+  options: TraversalOptions = {},
+): Traversal {
   return search(relations.depends, relations.names.length, seeds, options);
 }
 
 /**
- * The chain from a reached node back to the seed that reached it.
+ * The chain from a visited node back to the seed the walk started it from.
  *
  * In arrival order — seed first, `id` last — because that is the direction the
  * sentence reads: *the token file, then the stylesheet, then the component*.
- * Empty when the node was never reached.
+ * Empty when the node was never visited.
  */
-export function trailOf(reach: Reach, id: NodeId): readonly NodeId[] {
-  if (reach.mask[id] !== 1) return [];
+export function trailOf(traversal: Traversal, id: NodeId): readonly NodeId[] {
+  if (traversal.mask[id] !== 1) return [];
 
   const trail: NodeId[] = [];
-  for (let at: number = id; at !== -1; at = reach.via[at]!) trail.push(at);
+  for (let at: number = id; at !== -1; at = traversal.via[at]!) trail.push(at);
   return trail.reverse();
 }
 
@@ -116,8 +116,8 @@ function search(
   adjacency: Adjacency,
   nodes: number,
   seeds: Iterable<NodeId>,
-  options: ReachOptions,
-): Reach {
+  options: TraversalOptions,
+): Traversal {
   const mask = new Uint8Array(nodes);
   const via = new Int32Array(nodes).fill(-1);
   const queue: NodeId[] = [];
@@ -152,10 +152,10 @@ function search(
   // `queue` is in visit order, which depends on seed order. The result is in id
   // order instead, so a report built from it is byte-stable whatever order the
   // caller listed its changed files in.
-  const reached: NodeId[] = [];
-  for (let id = 0; id < nodes; id += 1) if (mask[id] === 1) reached.push(id);
+  const visited: NodeId[] = [];
+  for (let id = 0; id < nodes; id += 1) if (mask[id] === 1) visited.push(id);
 
-  return { mask, via, reached };
+  return { mask, via, nodes: visited };
 }
 
 /** A kind filter as a byte lookup. */

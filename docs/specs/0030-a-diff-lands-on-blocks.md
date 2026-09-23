@@ -80,7 +80,7 @@ zero probes and replaces an enumeration with one lookup.
 | a block with a current, complete history | its recorded test files |
 | a block minted this run | the nearest surviving ancestor scope's recorded test files |
 | no surviving ancestor | the module — **the union over its blocks**, not the test files of its init probe |
-| a module with no history at all | the static graph: `movedBy`, as it ships today |
+| a module with no history at all | the static graph: `affectedBy`, as it ships today |
 | no graph either | the whole suite |
 
 The module rung has one trap worth naming. `tests(module)` must be the union

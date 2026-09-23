@@ -30,7 +30,7 @@ export {
 
 export {
   beforeReach,
-  movedBefore,
+  changedBefore,
   within,
   type BeforeReach,
   type BeforeReachOptions,
@@ -40,8 +40,8 @@ export {
   dependenciesOf,
   dependentsOf,
   trailOf,
-  type Reach,
-  type ReachOptions,
+  type Traversal,
+  type TraversalOptions,
 } from './reach.js';
 
 export {
@@ -55,13 +55,13 @@ export {
 
 export {
   explain,
-  movedBy,
+  affectedBy,
   relationsOfFiles,
   type FileEdge,
   type FileRecord,
   type Hole,
-  type MovedOptions,
+  type AffectedOptions,
   type PackageEdge,
   type RelationsOptions,
-  type Reached,
+  type Affected,
 } from './records.js';

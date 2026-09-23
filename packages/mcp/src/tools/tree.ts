@@ -179,17 +179,17 @@ function distances(
   seeds: Iterable<string>,
   direction: Direction,
 ): ReadonlyMap<string, number> {
-  const reach = direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
+  const traversal = direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
   const depths = new Int32Array(relations.names.length).fill(-1);
   const found = new Map<string, number>();
 
-  for (const id of reach.reached) {
+  for (const id of traversal.nodes) {
     if (depths[id] === -1) {
       const pending: NodeId[] = [];
       let at: NodeId = id;
-      while (depths[at] === -1 && reach.via[at] !== -1) {
+      while (depths[at] === -1 && traversal.via[at] !== -1) {
         pending.push(at);
-        at = reach.via[at]!;
+        at = traversal.via[at]!;
       }
 
       let depth = depths[at]!;
@@ -229,8 +229,8 @@ function walk(relations: Relations, seeds: Iterable<string>, direction: Directio
 
   // One breadth-first search over the whole seed set, not one per seed: a
   // search from many sources costs what a search from one costs.
-  const reach = direction(relations, ids, { through: EDGE_KINDS });
-  for (const id of reach.reached) {
+  const traversal = direction(relations, ids, { through: EDGE_KINDS });
+  for (const id of traversal.nodes) {
     // A component is a name, and a name is not a place. It arrives here
     // because the graph carries the component that declares a file as a node
     // of its own, and it leaves here for the same reason a component never

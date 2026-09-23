@@ -13,7 +13,7 @@ import type { ReachReport, SubjectReach } from '@variance-authority/report';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
 
 import {
-  componentsReached,
+  affectedComponents,
   listed,
   many,
   refused,
@@ -67,7 +67,7 @@ export interface ReachInput {
  */
 export function reachOf(input: ReachInput): ReachReport {
   const { against, changed, relations, roots, baselines } = input;
-  const walk = componentsReached(
+  const walk = affectedComponents(
     relations,
     changed,
     input.changedDirs ?? [],

@@ -35,7 +35,7 @@ configured nothing.
 answer exits `2` and writes nothing at all.**
 
 The property holds by construction rather than by a final guard:
-[`movedBy`](../../../packages/core/src/relate/records.ts) returns the seeds among
+[`affectedBy`](../../../packages/core/src/relate/records.ts) returns the seeds among
 the files it reached, so any answer that got past the refusals holds at least the
 changed files themselves. There is no branch where a short list is printed.
 

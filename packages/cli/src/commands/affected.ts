@@ -4,7 +4,7 @@ import {
   type SourceIndex,
 } from '@variance-authority/core/attribute';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
-import { componentsReached, many, refused, within, type InstallDiff } from './reach.js';
+import { affectedComponents, many, refused, within, type InstallDiff } from './reach.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,
@@ -391,7 +391,7 @@ function byRelation(
   // The same call the report makes. Two walks would let the run skip a subject
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
-  const reach = componentsReached(relations, changed, changedDirs, roots, install, before);
+  const reach = affectedComponents(relations, changed, changedDirs, roots, install, before);
   if (refused(reach)) return { whole: reach.whole };
 
   return { touched: new Set(reach.components.map((entry) => entry.component)), how: reach.how };

@@ -5,7 +5,7 @@
  * reason it lives in its own file. [`affected.ts`](./affected.ts) uses it to
  * decide what *not* to observe, and throws the reasoning away the moment the skip
  * list is built. The report uses the reasoning itself: which components this diff
- * can possibly have moved, and by which chain.
+ * can possibly affect, and by which chain.
  *
  * They must not be two walks. A run that skipped a subject for one reason and
  * then printed another would be worse than one that printed nothing, because the
@@ -36,7 +36,7 @@
  * entry there: every `yarn add` repainted the whole suite, because a file the
  * graph has no node for is a file nothing can say anything about. It is a node
  * now — several — and the diff of the install arrives here as `InstallDiff`:
- * the package **names** whose resolution moved, seeded into the same walk the
+ * the package **names** whose resolution changed, seeded into the same walk the
  * changed files are, and the manifest paths whose meaning that comparison has
  * already read. Those paths are then dropped from the seeds, because a lockfile
  * counted twice — once as the packages it resolved and once as an unknown file
@@ -45,21 +45,21 @@
 
 import {
   explain,
-  movedBefore,
-  movedBy,
+  changedBefore,
+  affectedBy,
   nodesOfKind,
   within,
   type BeforeReach,
-  type Reached,
+  type Affected,
   type Relations,
 } from '@variance-authority/core/relate';
 import type { ReachHole, ReachedComponent } from '@variance-authority/report';
 
 /** What the walk found, when it could answer. */
-export interface GraphReach {
-  /** Components the diff reaches, sorted by name, each with its chain. */
+export interface AffectedComponents {
+  /** Components the diff affects, sorted by name, each with its chain. */
   readonly components: readonly ReachedComponent[];
-  /** Files the diff reaches, including the seeds themselves. */
+  /** Files the diff affects, including the seeds themselves. */
   readonly files: readonly string[];
   /** How many of the diff's own paths the graph actually holds. */
   readonly seeded: number;
@@ -92,7 +92,7 @@ export function refused<T extends object>(reach: T | GraphRefusal): reach is Gra
  *
  * A read of the lockfile at both revisions, collapsed to package names, or the
  * sentence saying the comparison could not be made. Never a list of changed
- * lockfile paths: which bytes of a lockfile moved says nothing (a workspace
+ * lockfile paths: which bytes of a lockfile changed says nothing (a workspace
  * version bump rewrites it and installs nothing), and which package names
  * resolved differently says everything.
  *
@@ -130,7 +130,7 @@ export function withoutManifests(
  * answer was built from.
  */
 interface Seeds {
-  readonly moved: Reached;
+  readonly affected: Affected;
   readonly seeded: number;
   /** The changed paths the install comparison did not already answer for. */
   readonly files: readonly string[];
@@ -141,11 +141,11 @@ interface Seeds {
 }
 
 /**
- * The walk reached nothing, and that is an answer rather than a gap.
+ * The diff affects nothing, and that is an answer rather than a gap.
  *
  * Only the install can produce it: a diff of manifests alone, where every
  * package resolved to what it resolved before or no file imports the ones that
- * moved. The callers part here — a report says *no component moved* and carries
+ * changed. The callers part here — a report says *no component is affected* and carries
  * the sentence, and a run list cannot, because an empty list on the far side of
  * an `xargs` runs nothing and reads as a fast green build.
  */
@@ -153,7 +153,7 @@ interface Nothing {
   readonly nothing: string;
 }
 
-function reachedNothing<T extends object>(walk: T | Nothing): walk is Nothing {
+function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
   return 'nothing' in walk;
 }
 
@@ -199,7 +199,7 @@ function seedsOf(
   // against the arrows from a setup file the suite loads for every test reaches
   // whatever happens to import it, which is nothing, and answering *no
   // component* there would skip the whole suite over the file that governs it.
-  const rests = before === undefined ? [] : [...movedBefore(before, files, install.packages)].sort(byCodeUnit);
+  const rests = before === undefined ? [] : [...changedBefore(before, files, install.packages)].sort(byCodeUnit);
   if (rests.length > 0) {
     const them = rests.length === 1 ? 'it' : 'them';
     return {
@@ -217,21 +217,21 @@ function seedsOf(
           .filter((file) => within(file, changedDirs));
 
   const packages = install.packages.map((name) => ({ kind: 'package', name }) as const);
-  const moved = movedBy(relations, [...files, ...expanded, ...packages]);
+  const affected = affectedBy(relations, [...files, ...expanded, ...packages]);
   // Only the diff's own seeds can be missing; an expanded one came out of the
   // graph, so it is in it by construction.
-  const seeded = files.length + packages.length - moved.missing.length + expanded.length;
+  const seeded = files.length + packages.length - affected.missing.length + expanded.length;
 
   // Files only. A missing *package* name is an answer — nothing imports it — and
   // `within` would not tell the two apart, since a package may be named anything.
   const named = new Set(files);
-  const unscanned = moved.missing.filter((file) => named.has(file) && within(file, roots));
+  const unscanned = affected.missing.filter((file) => named.has(file) && within(file, roots));
 
   // What the answer was built from, for the sentence the selector prints. The
   // two halves are counted apart because they are read from different places —
   // one from the diff, one from the lockfile at both revisions — and an
   // operator who cannot see which is which cannot check either.
-  const absent = new Set(moved.missing);
+  const absent = new Set(affected.missing);
   const fromPackages = install.packages.filter((name) => !absent.has(name)).length;
   const fromFiles = seeded - fromPackages;
   const source =
@@ -254,7 +254,7 @@ function seedsOf(
     // every file that names a package has an edge to it, so *no file names this
     // one* is as complete as anything the walk ever says. The same holds one
     // step earlier — a lockfile rewritten by a workspace version bump resolves
-    // every package to what it resolved before, and moved nothing.
+    // every package to what it resolved before, and changed nothing.
     if (files.length === 0 && expanded.length === 0 && changed.length > 0) {
       return {
         nothing:
@@ -272,12 +272,12 @@ function seedsOf(
     };
   }
 
-  return { moved, seeded, files, packages: install.packages, source };
+  return { affected, seeded, files, packages: install.packages, source };
 }
 
 /** What the file walk found, when it could answer. */
-export interface FilesReach {
-  /** Every file the diff reaches, the changed files among them, sorted. */
+export interface AffectedFiles {
+  /** Every file the diff affects, the changed files among them, sorted. */
   readonly files: readonly string[];
   /** How many of the diff's own paths the graph actually holds. */
   readonly seeded: number;
@@ -288,45 +288,45 @@ export interface FilesReach {
 }
 
 /**
- * Every file a diff reaches, or a refusal — the answer a foreign runner is given.
+ * Every file a diff affects, or a refusal — the answer a foreign runner is given.
  *
- * The same walk {@link componentsReached} makes, stopped one step earlier. It
+ * The same walk {@link affectedComponents} makes, stopped one step earlier. It
  * has no third refusal of its own, and that is the property the command over it
- * rests on: *reaches no component* is a real thing a diff can do, while
- * *reaches no file* is not, because `movedBy` returns the seeds among the files
- * it reached. So an answer that gets past {@link seedsOf} holds at least the
+ * rests on: *affects no component* is a real thing a diff can do, while
+ * *affects no file* is not, because `affectedBy` returns the seeds among the files
+ * it affects. So an answer that gets past {@link seedsOf} holds at least the
  * changed files themselves, and a caller substituting this into a command line
  * can never be handed an empty list that means `run nothing`.
  */
-export function filesReached(
+export function affectedFiles(
   relations: Relations,
   changed: readonly string[],
   roots: readonly string[],
   changedDirs: readonly string[] = [],
-): FilesReach | GraphRefusal {
+): AffectedFiles | GraphRefusal {
   const walk = seedsOf(relations, changed, changedDirs, roots);
   if (refused(walk)) return walk;
   // The one place this and the report disagree. There is a real answer here and
   // it is *nothing*, which a report can print and a run list cannot hand over.
-  if (reachedNothing(walk)) return { whole: walk.nothing };
+  if (affectsNothing(walk)) return { whole: walk.nothing };
 
-  const { moved, seeded, source } = walk;
+  const { affected, seeded, source } = walk;
   const widened =
-    moved.opaque.length === 0
+    affected.opaque.length === 0
       ? ''
-      : `, ${moved.opaque.length} of them reached because their own imports could not be read ` +
-        `(${sample(moved.opaque.map(holeOf))})`;
+      : `, ${affected.opaque.length} of them reached because their own imports could not be read ` +
+        `(${sample(affected.opaque.map(holeOf))})`;
 
   return {
-    files: [...moved.files].sort(byCodeUnit),
+    files: [...affected.files].sort(byCodeUnit),
     seeded,
-    opaque: moved.opaque,
-    how: `${many(moved.files.length, 'file')} reached from ${source}${widened}`,
+    opaque: affected.opaque,
+    how: `${many(affected.files.length, 'file')} reached from ${source}${widened}`,
   };
 }
 
 /**
- * Every component a diff reaches, or a refusal — the answer the report prints.
+ * Every component a diff affects, or a refusal — the answer the report prints.
  *
  * {@link seedsOf}'s two refusals, and one of its own: a diff that reaches no
  * component at all. `changedDirs` is a monorepo tool's coarser answer — whole
@@ -334,23 +334,23 @@ export function filesReached(
  * rather than as the selection, so the graph narrows outwards from them exactly
  * as it does from a file somebody edited.
  */
-export function componentsReached(
+export function affectedComponents(
   relations: Relations,
   changed: readonly string[],
   changedDirs: readonly string[],
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
-): GraphReach | GraphRefusal {
+): AffectedComponents | GraphRefusal {
   const walk = seedsOf(relations, changed, changedDirs, roots, install, before);
   if (refused(walk)) return walk;
-  if (reachedNothing(walk)) {
+  if (affectsNothing(walk)) {
     return { components: [], files: [], seeded: 0, opaque: [], how: walk.nothing };
   }
 
-  const { moved, seeded, files, packages, source } = walk;
+  const { affected, seeded, files, packages, source } = walk;
 
-  if (moved.components.length === 0) {
+  if (affected.components.length === 0) {
     return {
       whole:
         `the ${source} in the graph reach no component, which is also what a changed file ` +
@@ -358,10 +358,10 @@ export function componentsReached(
     };
   }
 
-  // A seed the diff did not name. `movedBy` seeds every file whose imports could
+  // A seed the diff did not name. `affectedBy` seeds every file whose imports could
   // not be read, because an unreadable file may import the one that changed —
   // sound for deciding what to observe, and an outright false attribution if a
-  // trail opened with it unlabelled. A package the install moved is named, and a
+  // trail opened with it unlabelled. A package the install changed is named, and a
   // trail opening with it is the whole point of reading the lockfile.
   const seeds = new Set([...files, ...packages]);
   const unread = (trail: readonly string[]): string | undefined => {
@@ -370,8 +370,8 @@ export function componentsReached(
     return seed;
   };
 
-  const components = [...moved.components].sort(byCodeUnit).map((component) => {
-    const trail = explain(relations, moved, { kind: 'component', name: component });
+  const components = [...affected.components].sort(byCodeUnit).map((component) => {
+    const trail = explain(relations, affected, { kind: 'component', name: component });
     const seed = unread(trail);
     return { component, trail, ...(seed === undefined ? {} : { throughUnread: seed }) };
   });
@@ -380,19 +380,19 @@ export function componentsReached(
   // tells an operator which file to fix in order to make the next run smaller,
   // and a bare number tells them there is nothing to be done.
   const widened =
-    moved.opaque.length === 0
+    affected.opaque.length === 0
       ? ''
-      : `, ${moved.opaque.length} of them traversed as changed because their own imports could ` +
-        `not be read (${sample(moved.opaque.map(holeOf))})`;
+      : `, ${affected.opaque.length} of them traversed as changed because their own imports could ` +
+        `not be read (${sample(affected.opaque.map(holeOf))})`;
 
   return {
     components,
-    files: moved.files,
+    files: affected.files,
     seeded,
-    opaque: moved.opaque,
+    opaque: affected.opaque,
     how:
-      `${many(moved.components.length, 'component')} reached from ${source} ` +
-      `through ${many(moved.files.length, 'file')}${widened}`,
+      `${many(affected.components.length, 'component')} reached from ${source} ` +
+      `through ${many(affected.files.length, 'file')}${widened}`,
   };
 }
 
