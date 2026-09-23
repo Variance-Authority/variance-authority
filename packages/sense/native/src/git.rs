@@ -37,25 +37,30 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     let prefix = trim(&prefix);
     let (listing, status) = std::thread::scope(|scope| {
         let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None));
+        // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
+        // for the reason `tree.ts` gives: they are what make this call cheap, and
+        // overriding either way spends a user's configuration on their behalf.
+        // At the top of the checkout the question is also asked in the one shape
+        // git's untracked cache answers, for the reason `tree.ts` gives.
         let status = scope.spawn(|| {
-            git(
-                root,
-                &[
-                    // `core.fsmonitor` and `core.untrackedCache` are left to the
-                    // repository, for the reason `tree.ts` gives: they are what
-                    // make this call cheap, and overriding either way spends a
-                    // user's configuration on their behalf.
-                    "-c",
-                    "status.relativePaths=true",
-                    "status",
-                    "--porcelain=v1",
-                    "-z",
-                    "--untracked-files=all",
-                    "--",
-                    ".",
-                ],
-                None,
-            )
+            if prefix.is_empty() {
+                git(root, &["status", "--porcelain=v1", "-z", "--untracked-files=normal"], None)
+            } else {
+                git(
+                    root,
+                    &[
+                        "-c",
+                        "status.relativePaths=true",
+                        "status",
+                        "--porcelain=v1",
+                        "-z",
+                        "--untracked-files=all",
+                        "--",
+                        ".",
+                    ],
+                    None,
+                )
+            }
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
     });
@@ -68,7 +73,10 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         None => return None,
     };
 
-    let mut held: HashMap<Vec<u8>, Oid> = HashMap::with_capacity(1 << 16);
+    // Kept in the order `ls-tree` prints it, which is byte order over the whole
+    // path: a map here would scatter it, and putting it back cost more than
+    // reading it did. The overlay is the part that moves, and it is small.
+    let mut listed: Vec<(Vec<u8>, Oid)> = Vec::with_capacity(listing.len() / 96);
     for entry in listing.split(|byte| *byte == 0) {
         // `<mode> <type> <object>\t<path>`, and only blobs are files.
         let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
@@ -85,18 +93,32 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         };
         let path = &path[1..];
         let relative = path.strip_prefix(prefix).unwrap_or(path);
-        held.insert(relative.to_vec(), oid);
+        listed.push((relative.to_vec(), oid));
     }
 
-    overlay(root, &mut held, status)?;
+    let moved = overlay(root, status);
+    let held = match moved {
+        None => Vec::new(),
+        Some(moved) if moved.is_empty() => listed,
+        Some(moved) => {
+            let kept: Vec<(Vec<u8>, Oid)> = listed.into_iter().filter(|(path, _)| !moved.contains_key(path)).collect();
+            let mut added: Vec<(Vec<u8>, Oid)> = moved.into_iter().filter_map(|(path, oid)| oid.map(|oid| (path, oid))).collect();
+            added.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+            merge(kept, added)
+        }
+    };
 
-    let mut paths: Vec<String> = Vec::with_capacity(held.len());
     let mut by_path: Vec<(String, Oid)> = held
         .into_iter()
         .map(|(path, oid)| (String::from_utf8_lossy(&path).into_owned(), oid))
         .collect();
-    by_path.sort_unstable_by(|a, b| crate::order::code_unit(&a.0, &b.0));
+    // Byte order and code unit order part only past U+E000, and a name git could
+    // not spell as UTF-8 is respelled above; either way this is checked, not assumed.
+    if !by_path.is_sorted_by(|a, b| crate::order::code_unit(&a.0, &b.0).is_le()) {
+        by_path.sort_unstable_by(|a, b| crate::order::code_unit(&a.0, &b.0));
+    }
 
+    let mut paths: Vec<String> = Vec::with_capacity(by_path.len());
     let mut oids = Vec::with_capacity(by_path.len());
     for (path, oid) in by_path {
         paths.push(path);
@@ -115,19 +137,24 @@ fn unborn(root: &str) -> bool {
     git(root, &["rev-parse", "--quiet", "--verify", "HEAD"], None).is_none()
 }
 
-/// Replace the committed digest of every path the working tree disagrees about.
+/// What the working tree says instead of the committed listing, path by path:
+/// `Some` is a digest for the bytes on disk, and `None` a path not there to name
+/// — deleted, renamed away, or unreadable.
+type Moved = HashMap<Vec<u8>, Option<Oid>>;
+
+/// Every path the working tree disagrees about, or `None` when git did not
+/// answer and every committed digest is withdrawn with it.
 ///
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, held: &mut HashMap<Vec<u8>, Oid>, status: Option<Vec<u8>>) -> Option<()> {
-    let Some(status) = status else {
-        held.clear();
-        return Some(());
-    };
+fn overlay(root: &str, status: Option<Vec<u8>>) -> Option<Moved> {
+    let status = status?;
 
     let fields: Vec<&[u8]> = status.split(|byte| *byte == 0).collect();
+    let mut moved: Moved = HashMap::new();
     let mut dirty: Vec<Vec<u8>> = Vec::new();
+    let mut collapsed: Vec<&[u8]> = Vec::new();
 
     let mut at = 0;
     while at < fields.len() {
@@ -143,37 +170,73 @@ fn overlay(root: &str, held: &mut HashMap<Vec<u8>, Oid>, status: Option<Vec<u8>>
         // A rename carries its old path as the next field, and that path is gone.
         if codes.contains(&b'R') {
             if let Some(from) = fields.get(at) {
-                held.remove(*from);
+                moved.insert(from.to_vec(), None);
             }
             at += 1;
         }
 
         if codes.contains(&b'D') {
-            held.remove(path);
+            moved.insert(path.to_vec(), None);
+        } else if path.ends_with(b"/") {
+            // A directory git did not descend: untracked, collapsed by
+            // `--untracked-files=normal`, or a repository of its own. It has no
+            // blob, and one in the batch fails `hash-object` for every file.
+            if codes == b"??" {
+                collapsed.push(path);
+            }
         } else {
             dirty.push(path.to_vec());
         }
     }
 
-    if dirty.is_empty() {
-        return Some(());
-    }
-
-    let hashed = hash_on_disk(root, &dirty);
-    for (path, oid) in &hashed {
-        held.insert(path.clone(), *oid);
-    }
-    // Hashed nothing: the file is unreadable or vanished between the two calls.
-    // Removing the entry hands the question back to the scan rather than
-    // answering it with a digest for contents nobody saw.
-    let named: std::collections::HashSet<&Vec<u8>> = hashed.iter().map(|(path, _)| path).collect();
-    for path in &dirty {
-        if !named.contains(path) {
-            held.remove(path);
+    if !collapsed.is_empty() {
+        // Only the directories git collapsed are walked, and the walk is git's,
+        // so the ignore rules are the ones `status` applied. Unanswered, the
+        // files under them are unknown, and git has not answered.
+        let mut args = vec!["--literal-pathspecs", "ls-files", "-z", "--others", "--exclude-standard", "--"];
+        let spelled: Option<Vec<&str>> = collapsed.iter().map(|dir| std::str::from_utf8(dir).ok()).collect();
+        let listed = spelled.and_then(|dirs| {
+            args.extend(dirs);
+            git(root, &args, None)
+        });
+        let listed = listed?;
+        for path in listed.split(|byte| *byte == 0) {
+            if !path.is_empty() && !path.ends_with(b"/") {
+                dirty.push(path.to_vec());
+            }
         }
     }
 
-    Some(())
+    if dirty.is_empty() {
+        return Some(moved);
+    }
+
+    // Hashed nothing: the file is unreadable or vanished between the two calls.
+    // Withdrawing the entry hands the question back to the scan rather than
+    // answering it with a digest for contents nobody saw.
+    for path in &dirty {
+        moved.insert(path.clone(), None);
+    }
+    for (path, oid) in hash_on_disk(root, &dirty) {
+        moved.insert(path, Some(oid));
+    }
+
+    Some(moved)
+}
+
+/// Two lists in byte order, as one.
+fn merge(left: Vec<(Vec<u8>, Oid)>, right: Vec<(Vec<u8>, Oid)>) -> Vec<(Vec<u8>, Oid)> {
+    let mut out = Vec::with_capacity(left.len() + right.len());
+    let (mut left, mut right) = (left.into_iter().peekable(), right.into_iter().peekable());
+    loop {
+        let take_left = match (left.peek(), right.peek()) {
+            (Some(l), Some(r)) => l.0 <= r.0,
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => return out,
+        };
+        out.extend(if take_left { left.next() } else { right.next() });
+    }
 }
 
 /// Blob digests for the bytes currently on disk.

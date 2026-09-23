@@ -103,6 +103,30 @@ describe('the native tree against the JavaScript one', () => {
     expect(answered).toEqual(oracle);
   });
 
+  it.runIf(native)('names every file in a directory git collapsed, and none it ignores', async () => {
+    const root = await repository();
+    // At the top of a checkout `status` is asked with `--untracked-files=normal`,
+    // which answers a new directory as the directory. A repository of its own
+    // answers the same way under either setting, and has no blob to hash.
+    await write(root, '.git/info/exclude', 'src/fresh/built.ts\n');
+    await write(root, 'src/fresh/Fresh.tsx', 'export const Fresh = () => null\n');
+    await write(root, 'src/fresh/deep/leaf.ts', 'export const leaf = 2\n');
+    await write(root, 'src/fresh/built.ts', 'export const ignored = 1\n');
+    await write(root, 'vendor/other/index.ts', 'export const other = 1\n');
+    await git(join(root, 'vendor/other'), ['init', '--quiet']);
+    await write(root, 'src/Button.tsx', 'export function Button() { return <b /> }\n');
+
+    const { oracle, answered } = await both(root);
+    const tree = (await gitTreeOf(root))!;
+    const edited = (await run('git', ['hash-object', 'src/Button.tsx'], { cwd: root })).stdout.trim();
+
+    expect(answered).toEqual(oracle);
+    expect(tree.get('src/fresh/Fresh.tsx')).toBeDefined();
+    expect(tree.get('src/fresh/deep/leaf.ts')).toBeDefined();
+    expect([...tree.paths()]).not.toContain('src/fresh/built.ts');
+    expect(tree.get('src/Button.tsx')).toBe(`git:${edited}`);
+  });
+
   it.runIf(native)('seeds from the Git-visible path set', async () => {
     const root = await repository();
     await write(root, '.git/info/exclude', 'src/generated/\n');

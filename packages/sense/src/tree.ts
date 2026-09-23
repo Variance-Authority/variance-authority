@@ -80,7 +80,7 @@ export async function gitDigests(
     digests.set(relative, blob(fields[2]));
   }
 
-  if (changed === undefined) await overlayWorkingTree(root, digests);
+  if (changed === undefined) await overlayWorkingTree(root, digests, prefix === '');
   else await overlayKnownChanges(root, digests, changed);
 
   return digests;
@@ -130,34 +130,28 @@ async function overlayKnownChanges(
  * digest on an edited file is a subject nobody observes, and no digest at all is
  * a file the scan hashes for itself.
  */
-async function overlayWorkingTree(root: string, digests: Map<string, Digest>): Promise<void> {
+async function overlayWorkingTree(root: string, digests: Map<string, Digest>, top: boolean): Promise<void> {
+  // Nothing is passed for `core.fsmonitor` or `core.untrackedCache`. Both are the
+  // repository's to configure and both are what make this call cheap on a large
+  // checkout; an override here would quietly cost a user who turned them on the
+  // whole saving, and turning them on from here would start a daemon nobody
+  // asked for. The untracked cache answers only `--untracked-files=normal` with
+  // no pathspec, and either one alone walks every directory again: 370 ms
+  // against 40 ms on 288,197 paths. So at the top of the checkout the question
+  // is asked in that shape, and the directories it collapses are listed apart.
+  const args = top
+    ? ['status', '--porcelain=v1', '-z', '--untracked-files=normal']
+    : ['-c', 'status.relativePaths=true', 'status', '--porcelain=v1', '-z', '--untracked-files=all', '--', '.'];
   let status: string;
   try {
-    ({ stdout: status } = await run(
-      'git',
-      [
-        // Nothing is passed for `core.fsmonitor` or `core.untrackedCache`. Both
-        // are the repository's to configure and both are what make this call
-        // cheap on a large checkout; an override here would quietly cost a user
-        // who turned them on the whole saving, and turning them on from here
-        // would start a daemon nobody asked for.
-        '-c',
-        'status.relativePaths=true',
-        'status',
-        '--porcelain=v1',
-        '-z',
-        '--untracked-files=all',
-        '--',
-        '.',
-      ],
-      { cwd: root, maxBuffer: MAX_OUTPUT },
-    ));
+    ({ stdout: status } = await run('git', args, { cwd: root, maxBuffer: MAX_OUTPUT }));
   } catch {
     digests.clear();
     return;
   }
 
   const dirty: string[] = [];
+  const collapsed: string[] = [];
   const fields = status.split('\0');
 
   for (let at = 0; at < fields.length; at += 1) {
@@ -175,7 +169,30 @@ async function overlayWorkingTree(root: string, digests: Map<string, Digest>): P
     }
 
     if (codes.includes('D')) digests.delete(path);
-    else dirty.push(path);
+    // A directory git did not descend: untracked, collapsed by
+    // `--untracked-files=normal`, or a repository of its own. It has no blob,
+    // and one in the batch fails `hash-object` for every file.
+    else if (path.endsWith('/')) {
+      if (codes === '??') collapsed.push(path);
+    } else dirty.push(path);
+  }
+
+  if (collapsed.length > 0) {
+    // Only the directories git collapsed are walked, and the walk is git's, so
+    // the ignore rules are the ones `status` applied. Unanswered, the files under
+    // them are unknown, and git has not answered.
+    let listed: string;
+    try {
+      ({ stdout: listed } = await run(
+        'git',
+        ['--literal-pathspecs', 'ls-files', '-z', '--others', '--exclude-standard', '--', ...collapsed],
+        { cwd: root, maxBuffer: MAX_OUTPUT },
+      ));
+    } catch {
+      digests.clear();
+      return;
+    }
+    for (const path of listed.split('\0')) if (path !== '' && !path.endsWith('/')) dirty.push(path);
   }
 
   if (dirty.length === 0) return;

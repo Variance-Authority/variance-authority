@@ -136,14 +136,17 @@ export async function updateSourceIndex(
 ): Promise<SourceUpdate> {
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
-  const was = (await openSourceIndexFile(path)).state;
+  // Opened once: the open decodes the whole chain, and the state is read off
+  // that same open rather than off a second one.
+  let source = await openSourceIndex(path);
+  const was = source.state;
   // A worktree's first update starts from the primary checkout's generation and
   // pays only for what differs between the two checkouts.
   const primary = options.index === undefined && was === 'missing'
     ? primarySourceIndexPath(where)
     : undefined;
   const from = primary !== undefined && await seedImmutableLog(path, primary) ? primary : undefined;
-  const source = await openSourceIndex(path);
+  if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there
   // would publish without it.

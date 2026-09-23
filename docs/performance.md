@@ -504,18 +504,23 @@ accelerators for it that are off by default:
 
 | Asking git for `status` | Costs |
 | --- | --- |
-| neither accelerator | 93 ms |
-| `core.fsmonitor` | 54 ms |
-| both | 52 ms |
+| neither accelerator | 98 ms |
+| `core.fsmonitor` | 56 ms |
+| both | 17 ms |
 
-The monitor answers for tracked files. The untracked cache answers the other
-half of the same question — what is on disk that the index has never heard of —
-and it does not move this row, because these figures are taken on a clean
-checkout and the walk it spares finds nothing. On a working tree with build
-output in it, that is the half that costs.
+The monitor answers for tracked files: it reports what changed, and git stops
+stat-ing every path. The untracked cache answers the other half — what is on disk
+that the index has never heard of — by skipping every directory whose
+modification time has not moved. It answers only one shape of the question, the
+top of the checkout with `--untracked-files=normal` and no pathspec, which
+reports a new directory as the directory. So that is what Variance Authority
+asks there, and it lists the files of any directory git collapses with
+`git ls-files --others --exclude-standard`. Asked with a pathspec or with
+`--untracked-files=all`, the same status walks every directory again and costs
+what the monitor alone costs.
 
-Forty milliseconds off every warm run is worth having, and nothing here takes it
-for you: starting a file-system daemon on somebody else's repository is not a
+Eighty milliseconds off every warm run is worth having, and nothing here takes
+it for you: starting a file-system daemon on somebody else's repository is not a
 scanner's decision to make. The repository's own configuration decides, and this
 is how you make it.
 

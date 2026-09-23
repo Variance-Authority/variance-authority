@@ -18,6 +18,7 @@ import {
   openSourceIndexFile,
   type EncodedParseLayer,
   type IndexedRecord,
+  type SourceIndexState,
 } from './source-index-file.js';
 import { decodeSourceIndex } from './source-index-format.js';
 
@@ -29,6 +30,8 @@ export function adoptNativeParses(cache: ParseCache, layer: EncodedParseLayer): 
 }
 
 export interface PersistentSourceIndex {
+  /** Whether the chain this opened was whole, absent, or readable only up to a bad segment. */
+  readonly state: SourceIndexState;
   /** Content-keyed facts passed to `scanRelations` as `cache`. */
   readonly cache: ParseCache;
   /** Tree-keyed resolved records passed to `scanRelations` as `reuse`. */
@@ -149,6 +152,7 @@ export async function openSourceIndex(path: string): Promise<PersistentSourceInd
   };
 
   return {
+    state: file.state,
     cache,
     reuse,
     async save() {
