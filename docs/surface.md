@@ -537,15 +537,16 @@ before you pick.
 | Before, after and diff images | Written by the report | Written by the report | Written beside the verdict | Written by the report | Not written | You hold both images |
 | Approving a change | `variance accept` | `variance accept` | Promoted in the run that observed it | `variance accept` | Vitest's own `--update` | Your store |
 | The same subject across runs | Kept, with a `history` endpoint configured | Kept, with a `history` endpoint configured | Not kept from this path | Kept, with a `history` endpoint configured | Not kept from this path | Your store |
-| Which tests to run after a diff | Per story | Not recorded | Per spec file, and per test | Per test file, and per case | Not recorded | Not recorded |
-| `parted` and `unentered` findings | Yes | Not recorded | Yes | Yes | Not recorded | Not recorded |
+| Which tests to run after a diff | Per story | Not recorded | Per spec file, and per test | Per test file, and per case | Per test file | Not recorded |
+| `parted` and `unentered` findings | Yes | Not recorded | Yes | Yes | Yes | Not recorded |
 | One execution followed into a service | No | No | Yes | No | No | No |
 
 The last three rows are written by your runner rather than by the surface, so
 they arrive on a different install and answer a different question — not *did
 this subject change* but *which tests could this commit have moved*. A jsdom
-suite gets them from the Vitest, Jest or Rstest integration and a Playwright
-suite from the recording fixtures beside its observations; [what each host
+suite gets them from the Vitest, Jest or Rstest integration, a Vitest
+browser-mode suite from the same Vitest integration, and a Playwright suite from
+the recording fixtures beside its observations; [what each host
 records](execution-record.md#what-each-host-records) is the per-runner detail,
 and [own fewer tests](own-fewer-tests.md) is the loop they serve.
 

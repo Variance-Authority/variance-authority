@@ -14,6 +14,8 @@
  */
 
 import { CASE_SCOPE } from './cases.js';
+import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
+import type { InstrumentMode } from '../instrument/index.js';
 
 /** The realm key {@link CASE_SCOPE} is, as the generated source has to spell it. */
 const CASE_SCOPE_KEY = Symbol.keyFor(CASE_SCOPE) ?? '';
@@ -120,6 +122,48 @@ ${caseDirectory === undefined ? '' : `  const outlived = runaways();
     );
   }
 `}${writeCases}});`;
+}
+
+/**
+ * The key a page puts its file's journal under, on the file task's `meta`.
+ *
+ * Named for the package rather than for the job, because `meta` is one
+ * namespace shared with the project's own tests and every other reporter's.
+ */
+export const BROWSER_JOURNAL = 'varianceAuthority';
+
+/**
+ * The setup module for a test file that runs in a page: the page collector, and
+ * the handoff through the runner at the end.
+ *
+ * A page has no disk and no builtins, so the frame {@link setupSource} writes
+ * has nowhere to go. What does reach the Vitest process is the file task
+ * itself: the runner sends its `meta` with the file's result once `afterAll`
+ * has run, which is the one channel the page and the reporter already share.
+ * The two drains are what {@link setupSource} reads as `loaded` and `modules`:
+ * everything before the first test, then everything after it.
+ *
+ * The collector is the one a built preview carries, so a module a page ran is
+ * counted by the code every other page counts with. It is evaluated in a block,
+ * where a bundle's module scope would put it, and a realm that already has a
+ * collector keeps it: the drain is always the realm's own.
+ */
+export function browserSetupSource(mode?: InstrumentMode, runner = 'vitest'): string {
+  return `
+import { afterAll, beforeAll } from ${JSON.stringify(runner)};
+{${executionCollectorSource(mode)}}
+const execution = globalThis[${JSON.stringify(EXECUTION_GLOBAL)}];
+let loaded = [];
+beforeAll(() => { loaded = execution.drain().modules; });
+// The file task is the hook's first argument through Vitest 4 and its second
+// from 5, where the first is a fixture context and a parameter the hook names
+// has to destructure it. So the hook names none.
+afterAll(function () {
+  const file = [...arguments].find((task) => task?.type === 'suite' && typeof task.filepath === 'string');
+  if (file === undefined) return;
+  (file.meta ??= {})[${JSON.stringify(BROWSER_JOURNAL)}] = { loaded, ran: execution.drain().modules };
+});
+`;
 }
 
 /**

@@ -30,16 +30,8 @@ one.
 ## 2. Recording, where the placement has not been reached
 
 The execution record follows the runner rather than the surface, so a jsdom
-suite and a Playwright suite both have one. Two placements do not:
-
-Vitest browser mode. The worker journal is written with `node:fs/promises`
-(`packages/sense/src/test-selection/worker-source.ts`), and a browser-mode test
-body runs in the tab, where there is no such module and no worker to write from.
-The Vitest seam has no branch for it and installs the same setup file either
-way. Per [ADR-0068](../context/adr/0068-a-seam-takes-the-hosts-own-unit.md) that
-is a defect, not a documented limitation: the artifact would have to travel the
-protocol the runner already gives its test body, which is the one
-`packages/vitest-browser/src/protocol.ts` uses for every observation.
+suite, a Vitest browser-mode suite and a Playwright suite all have one. One
+placement does not:
 
 A served application. `packages/route-collector` visits URLs a server already
 renders and records nothing, because the process that executes the product is

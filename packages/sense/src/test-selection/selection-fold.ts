@@ -74,7 +74,12 @@ export function foldRun(
 
   const record = async (files: readonly FinishedFile[]): Promise<void> => {
     noteAnEmptyRecord(files.length, modules.size);
-    const journals = await readJournals(runDirectory);
+    // A worker wrote its journal down; a page handed its own to the runner,
+    // which carried it here on the file.
+    const journals = [
+      ...await readJournals(runDirectory),
+      ...files.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
+    ];
     // A journal names modules by id, so nothing here re-keys paths; the id is
     // what the map is keyed by too.
     const rows = journals.map((journal) => ({

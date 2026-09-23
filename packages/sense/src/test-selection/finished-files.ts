@@ -26,11 +26,13 @@ import {
   type ReadJournal,
 } from './instrumented-modules.js';
 import type { CoveragePrecondition, CoverageTest } from './index.js';
+import type { ExecutedModule } from './probes.js';
 
 export interface RunnerTask {
   readonly filepath?: string;
   readonly result?: { readonly state: string };
   readonly tasks?: readonly RunnerTask[];
+  readonly meta?: object;
 }
 
 /**
@@ -51,6 +53,8 @@ export interface ReportedModule {
   readonly ok?: () => boolean;
   /** What the module itself failed on, a thrown file-level hook included. */
   readonly errors?: () => { readonly length: number };
+  /** What the file's own hooks attached to it, carried from wherever it ran. */
+  readonly meta?: () => object;
 }
 
 /**
@@ -88,6 +92,51 @@ export interface FinishedFile {
   readonly filepath: string;
   /** Every test in it ran and passed, so its record is the whole file's reach. */
   readonly complete: boolean;
+  /**
+   * What the file ran, when the runner carried it here rather than a worker
+   * writing it down: a page has no disk to write a frame to.
+   */
+  readonly journal?: ReadJournal;
+}
+
+/** What a page's two drains carry: before the first test, and after it. */
+interface PageDrains {
+  readonly loaded: readonly ExecutedModule[];
+  readonly ran: readonly ExecutedModule[];
+}
+
+/**
+ * The journal a page carried on its file's `meta`, as the fold reads a frame.
+ *
+ * The page drains twice, so a module is in either drain or both; the file
+ * entered the union, and had entered the first drain before its first test.
+ * Absent when the file carried nothing — its `afterAll` never ran, or it ran
+ * somewhere other than a page — which {@link coverageTest} reads as a file
+ * that left no journal.
+ */
+export function carriedJournal(testFile: string, carried: unknown): ReadJournal | undefined {
+  if (typeof carried !== 'object' || carried === null) return undefined;
+  const { loaded, ran } = carried as Partial<PageDrains>;
+  if (!Array.isArray(loaded) || !Array.isArray(ran)) return undefined;
+  const modules = new Map<ModuleId, { hits: Set<number>; shared: Set<number>; loaded: readonly number[] }>();
+  for (const [drain, early] of [[loaded, true], [ran, false]] as const) {
+    for (const module of drain) {
+      const row = modules.get(module.id) ?? { hits: new Set(), shared: new Set(), loaded: [] };
+      for (const ordinal of module.hits) row.hits.add(ordinal);
+      for (const ordinal of module.shared) row.shared.add(ordinal);
+      modules.set(module.id, early ? { ...row, loaded: module.hits } : row);
+    }
+  }
+  const ascending = (ordinals: Iterable<number>): number[] => [...ordinals].sort((a, b) => a - b);
+  return {
+    testFile,
+    modules: [...modules].map(([id, row]) => ({
+      id,
+      hits: ascending(row.hits),
+      shared: ascending(row.shared),
+      loaded: ascending(row.loaded),
+    })),
+  };
 }
 
 /**

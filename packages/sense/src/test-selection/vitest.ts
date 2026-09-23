@@ -9,12 +9,19 @@ import { cleanId, defaultInclude, projectPath } from './instrumented-modules.js'
 import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
+  carriedJournal,
   reportedComplete,
   taskComplete,
+  type FinishedFile,
   type ReportedModule,
   type RunnerTask,
 } from './finished-files.js';
-import { caseRunnerSource, setupSource } from './worker-source.js';
+import {
+  BROWSER_JOURNAL,
+  browserSetupSource,
+  caseRunnerSource,
+  setupSource,
+} from './worker-source.js';
 import { foldRun } from './selection-fold.js';
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { testCoverageFile } from './index.js';
@@ -102,8 +109,14 @@ interface ConfigPlugin {
   readonly configResolved: (config: ResolvedViteConfig) => void;
 }
 
+/** The part of the configuration Vite hands a plugin that decides where a file runs. */
+interface TestConfig {
+  test?: { browser?: { enabled?: boolean }; runner?: string };
+}
+
 interface VitePlugin extends ConfigPlugin {
   readonly enforce: 'post';
+  readonly config: (config: TestConfig) => void;
   readonly transform: (
     this: TransformingContext,
     code: string,
@@ -280,13 +293,34 @@ function selectionPlugin(
   root: string,
   setupId: string,
   runnerId: string,
-  { modules, names, preconditions }: SelectionRun,
+  run: SelectionRun,
   include: (file: string) => boolean,
   mode: InstrumentMode,
 ): VitePlugin {
+  const { modules, names, preconditions } = run;
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
+    // Where a file runs is the runner's to say, and `--browser` says it after
+    // the configuration was written, so it is read here, where the command line
+    // has already been merged in. A file in a page has no disk, no builtins and
+    // no runner of this seam's: its setup module hands the runner what it ran.
+    // TODO: record cases in a page — a drain per test in `beforeEach` and
+    // `afterEach`, carried on each test's `meta` as the file's is.
+    config(config) {
+      if (config.test?.browser?.enabled !== true) return;
+      writeSeamModule(setupId, browserSetupSource(mode));
+      if (config.test.runner === runnerId) delete config.test.runner;
+      // An index with no case in it answers *which cases walk this line* with
+      // none, so a run that recorded no case writes no index.
+      if (run.cases) {
+        run.cases = false;
+        console.warn(
+          'variance-authority: `cases` is not recorded for a test file that runs in a page; ' +
+            'this run writes the file-level snapshot only.',
+        );
+      }
+    },
     configResolved: declareConfig(preconditions),
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
@@ -353,12 +387,26 @@ function selectionReporter(
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
-        : [{ filepath: file.filepath, complete: taskComplete(file) }]),
+        : [{
+          filepath: file.filepath,
+          complete: taskComplete(file),
+          ...carried(file.filepath, file.meta),
+        }]),
     ),
     onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
-      reported.map((module) => ({ filepath: module.moduleId, complete: reportedComplete(module) })),
+      reported.map((module) => ({
+        filepath: module.moduleId,
+        complete: reportedComplete(module),
+        ...carried(module.moduleId, module.meta?.()),
+      })),
     ),
   } as Reporter;
+}
+
+/** The journal a page handed its runner, when this file ran in one. */
+function carried(testFile: string, meta: object | undefined): Pick<FinishedFile, 'journal'> {
+  const journal = carriedJournal(testFile, (meta as Record<string, unknown> | undefined)?.[BROWSER_JOURNAL]);
+  return journal === undefined ? {} : { journal };
 }
 
 function array<T>(value: T | readonly T[] | undefined): T[] {
