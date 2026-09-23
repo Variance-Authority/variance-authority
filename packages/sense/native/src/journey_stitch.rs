@@ -8,7 +8,7 @@ use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, SetPool};
 use crate::journey_journal::{ModuleId, Test};
 use crate::journey_output;
-use crate::journey_record::{Block, Module};
+use crate::journey_record::{self, Block, Module};
 use crate::order;
 
 #[napi(object)]
@@ -18,6 +18,8 @@ pub struct JourneyStitch {
     pub modules: u32,
     pub crossings: f64,
     pub shards: u32,
+    /// Files two shards numbered differently, read at the regions both hold.
+    pub renumbered: Vec<String>,
 }
 
 #[napi(object)]
@@ -26,6 +28,8 @@ pub struct JourneyStitchResult {
     pub modules: u32,
     pub crossings: f64,
     pub shards: u32,
+    /// Files two shards numbered differently, read at the regions both hold.
+    pub renumbered: Vec<String>,
 }
 
 struct Shard {
@@ -38,6 +42,8 @@ struct Shard {
 
 struct ShardModule {
     file: String,
+    /// Which of this file's distinct inventories the shard read its regions against.
+    inventory: usize,
     called: Vec<u32>,
     loaded: Vec<u32>,
 }
@@ -48,6 +54,7 @@ struct Stitched {
     modules: u32,
     crossings: u64,
     shards: u32,
+    renumbered: Vec<String>,
 }
 
 fn stitch(files: &[String]) -> Result<Stitched, String> {
@@ -56,10 +63,10 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     }
     let mut shards = Vec::with_capacity(files.len());
     let mut tests_by_id: HashMap<String, Test> = HashMap::new();
-    let mut shapes: HashMap<String, Module> = HashMap::new();
+    let mut inventories: HashMap<String, Vec<Vec<Block>>> = HashMap::new();
     for file in files {
         let bytes = fs::read(file).map_err(|error| format!("cannot read {file}: {error}"))?;
-        let shard = read_shard(&bytes, &mut shapes)
+        let shard = read_shard(&bytes, &mut inventories)
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
         for test in &shard.tests {
             if let Some(before) = tests_by_id.get(&test.id) {
@@ -91,8 +98,29 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         shard.local_to_global = shard.tests.iter().map(|test| test_at[&*test.id]).collect();
     }
 
-    let mut modules: Vec<Module> = shapes.into_values().collect();
-    modules.sort_by(|left, right| order::code_unit(&left.file, &right.file));
+    let mut shapes: Vec<(String, Vec<Vec<Block>>)> = inventories.into_iter().collect();
+    shapes.sort_by(|left, right| order::code_unit(&left.0, &right.0));
+    let mut modules = Vec::with_capacity(shapes.len());
+    let mut landings: Vec<Vec<Vec<u32>>> = Vec::with_capacity(shapes.len());
+    let mut renumbered = Vec::new();
+    for (file, mut held) in shapes {
+        let (blocks, lands) = if held.len() == 1 {
+            (held.pop().unwrap_or_default(), Vec::new())
+        } else {
+            let cut: Vec<&[Block]> = held.iter().map(Vec::as_slice).collect();
+            let reconciled = journey_record::reconcile(&cut);
+            renumbered.push(file.clone());
+            (reconciled.blocks, reconciled.lands)
+        };
+        modules.push(Module {
+            id: ModuleId::Name(file.clone()),
+            file,
+            digest: [0; 16],
+            blocks,
+            lands: Vec::new(),
+        });
+        landings.push(lands);
+    }
     for shard in &mut shards {
         shard.modules.sort_by(|left, right| order::code_unit(&left.file, &right.file));
     }
@@ -100,23 +128,27 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
     let mut loaded_by_module = Vec::with_capacity(modules.len());
     let mut sets = SetPool::new(tests.len());
     let mut crossings = 0_u64;
-    for module in &modules {
+    for (module, lands) in modules.iter().zip(&landings) {
+        let mut called_by_block = vec![Vec::new(); module.blocks.len()];
+        let mut loaded_by_block = vec![Vec::new(); module.blocks.len()];
+        for shard in &shards {
+            let Ok(at) = shard
+                .modules
+                .binary_search_by(|candidate| order::code_unit(&candidate.file, &module.file))
+            else {
+                continue;
+            };
+            let held = &shard.modules[at];
+            let landed = lands.get(held.inventory);
+            for own in 0..held.called.len() {
+                let block = landed.map_or(own, |landed| landed[own] as usize);
+                append_members(shard, held.called[own], &mut called_by_block[block])?;
+                append_members(shard, held.loaded[own], &mut loaded_by_block[block])?;
+            }
+        }
         let mut called_ids = Vec::with_capacity(module.blocks.len());
         let mut loaded_ids = Vec::with_capacity(module.blocks.len());
-        for block in 0..module.blocks.len() {
-            let mut called = Vec::new();
-            let mut loaded = Vec::new();
-            for shard in &shards {
-                let Ok(at) = shard
-                    .modules
-                    .binary_search_by(|candidate| order::code_unit(&candidate.file, &module.file))
-                else {
-                    continue;
-                };
-                let held = &shard.modules[at];
-                append_members(shard, held.called[block], &mut called)?;
-                append_members(shard, held.loaded[block], &mut loaded)?;
-            }
+        for (mut called, mut loaded) in called_by_block.into_iter().zip(loaded_by_block) {
             called.sort_unstable();
             called.dedup();
             loaded.sort_unstable();
@@ -145,6 +177,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         modules: modules.len() as u32,
         crossings,
         shards: files.len() as u32,
+        renumbered,
     })
 }
 
@@ -158,6 +191,7 @@ pub fn stitch_journeys(files: Vec<String>) -> napi::Result<JourneyStitch> {
         modules: answered.modules,
         crossings: answered.crossings as f64,
         shards: answered.shards,
+        renumbered: answered.renumbered,
     })
 }
 
@@ -171,10 +205,11 @@ pub fn stitch_journeys_to(files: Vec<String>, output: String) -> napi::Result<Jo
         modules: answered.modules,
         crossings: answered.crossings as f64,
         shards: answered.shards,
+        renumbered: answered.renumbered,
     })
 }
 
-fn read_shard(bytes: &[u8], shapes: &mut HashMap<String, Module>) -> Result<Shard, String> {
+fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) -> Result<Shard, String> {
     let decoded = journey_columns::decode(bytes, journey_format::FORMAT)?;
     let strings = strings(&decoded)?;
     let ids = decoded.words("tests.id")?;
@@ -217,44 +252,30 @@ fn read_shard(bytes: &[u8], shapes: &mut HashMap<String, Module>) -> Result<Shar
             return Err("module block bounds are invalid".to_owned());
         }
         let file = string(&strings, module_files[at])?.to_owned();
+        let blocks: Vec<Block> = (first..last)
+            .map(|block| Ok(Block {
+                kind: string(&strings, kinds[block])?.to_owned(),
+                name: string(&strings, block_names[block])?.to_owned(),
+                path: string(&strings, paths[block])?.to_owned(),
+                start_line: starts[block],
+                end_line: ends[block],
+                source: sources[block] == 1,
+            }))
+            .collect::<Result<_, String>>()?;
+        let held = inventories.entry(file.clone()).or_default();
+        let inventory = match held.iter().position(|known| *known == blocks) {
+            Some(inventory) => inventory,
+            None => {
+                held.push(blocks);
+                held.len() - 1
+            }
+        };
         modules.push(ShardModule {
-            file: file.clone(),
+            file,
+            inventory,
             called: called[first..last].to_vec(),
             loaded: loaded[first..last].to_vec(),
         });
-        if let Some(before) = shapes.get(&file) {
-            if before.blocks.len() != last - first
-                || before.blocks.iter().zip(first..last).any(|(held, block)| {
-                    string(&strings, kinds[block]).map_or(true, |value| value != held.kind)
-                        || string(&strings, block_names[block]).map_or(true, |value| value != held.name)
-                        || string(&strings, paths[block]).map_or(true, |value| value != held.path)
-                        || starts[block] != held.start_line
-                        || ends[block] != held.end_line
-                        || (sources[block] == 1) != held.source
-                })
-            {
-                return Err(format!(
-                    "cannot stitch journey artifacts: {file} has incompatible region inventories"
-                ));
-            }
-        } else {
-            let blocks = (first..last)
-                .map(|block| Ok(Block {
-                    kind: string(&strings, kinds[block])?.to_owned(),
-                    name: string(&strings, block_names[block])?.to_owned(),
-                    path: string(&strings, paths[block])?.to_owned(),
-                    start_line: starts[block],
-                    end_line: ends[block],
-                    source: sources[block] == 1,
-                }))
-                .collect::<Result<_, String>>()?;
-            shapes.insert(file.clone(), Module {
-                id: ModuleId::Name(file.clone()),
-                file,
-                digest: [0; 16],
-                blocks,
-            });
-        }
     }
     Ok(Shard {
         tests,

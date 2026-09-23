@@ -282,7 +282,9 @@ function layersOf(store: string | readonly string[]): readonly string[] {
  * Every record the ids name, read across every store this run can see.
  *
  * When two stores answer for one module and disagree about the text it was cut
- * from, the module is recorded as not instrumented: its ordinals mean two
+ * from, or about the regions they cut from one text — two projects whose
+ * transforms differ share the source digest and still number its regions
+ * apart — the module is recorded as not instrumented: its ordinals mean two
  * things, and a consumer that widens on unknown evidence is right where a
  * consumer that picked one of them would be wrong half the time. Agreement is
  * the ordinary case — two builds of one repository share most of their source
@@ -306,7 +308,8 @@ export async function readRecords(
     if (first === undefined) continue;
     found.set(
       id,
-      answers.every((module) => module.sourceDigest === first.sourceDigest)
+      // TODO: read disagreeing inventories at the regions they share, as the native journey fold does, rather than at the whole file.
+      answers.every((module) => module.sourceDigest === first.sourceDigest && sameRegions(module, first))
         ? first
         : {
             file: first.file,
@@ -320,6 +323,11 @@ export async function readRecords(
   return found;
 }
 
+function sameRegions(left: CapturedModule, right: CapturedModule): boolean {
+  return left.blocks === right.blocks ||
+    (left.blocks.length === right.blocks.length &&
+      JSON.stringify(left.blocks) === JSON.stringify(right.blocks));
+}
 
 /** Strip a bundler's query suffix: `Button.tsx?v=1` is `Button.tsx`. */
 export function cleanId(id: string): string {

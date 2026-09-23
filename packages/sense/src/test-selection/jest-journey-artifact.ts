@@ -13,12 +13,23 @@ interface PendingJourneyRun {
   readonly instrumentation: string;
 }
 
+/**
+ * What finalizing or stitching a journey artifact wrote, as counts. `passes`
+ * comes from a finalize and `shards` from a stitch; each is absent from the
+ * other.
+ */
 export interface JourneyArtifactResult {
   readonly tests: number;
   readonly modules: number;
   readonly crossings: number;
   readonly passes?: number;
   readonly shards?: number;
+  /**
+   * Files different transforms cut into different regions. Their crossings are
+   * credited to the regions every transform shares, which is coarser than
+   * either build recorded and never misses a case that ran a changed line.
+   */
+  readonly renumbered: readonly string[];
 }
 
 /** The retryable material Jest leaves for a post-run finalizer. */

@@ -162,6 +162,8 @@ export interface NativeJourneyFold {
   readonly modules: number;
   readonly crossings: number;
   readonly passes: number;
+  /** Files two builds cut into different regions, read at the regions both hold. */
+  readonly renumbered: readonly string[];
 }
 
 export type NativeJourneyFoldResult = Omit<NativeJourneyFold, 'bytes'>;
@@ -172,6 +174,8 @@ export interface NativeJourneyStitch {
   readonly modules: number;
   readonly crossings: number;
   readonly shards: number;
+  /** Files two shards cut into different regions, read at the regions both hold. */
+  readonly renumbered: readonly string[];
 }
 
 export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;

@@ -18,7 +18,7 @@ beforeEach(() => {
 
 describe('the public journey artifact commands', () => {
   it('finalizes a named artifact without reading project configuration', async () => {
-    finalize.mockResolvedValue({ tests: 65, modules: 374, crossings: 60_015 });
+    finalize.mockResolvedValue({ tests: 65, modules: 374, crossings: 60_015, renumbered: [] });
     const out: string[] = [];
     const code = await main(['journeys', 'finalize', 'artifacts/journeys.bin'], {
       out: (text) => out.push(text),
@@ -28,10 +28,17 @@ describe('the public journey artifact commands', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(finalize).toHaveBeenCalledWith(resolve('artifacts/journeys.bin'));
     expect(out.join('')).toContain('65 tests, 374 modules, 60015 crossings');
+    expect(out.join('')).not.toContain('regions');
   });
 
   it('stitches named shard artifacts without reading project configuration', async () => {
-    stitch.mockResolvedValue({ tests: 130, modules: 400, crossings: 120_030, shards: 2 });
+    stitch.mockResolvedValue({
+      tests: 130,
+      modules: 400,
+      crossings: 120_030,
+      shards: 2,
+      renumbered: ['src/cart.ts'],
+    });
     const out: string[] = [];
     const code = await main(
       ['journeys', 'stitch', 'shard-0.bin', 'shard-1.bin', '--into', 'journeys.bin'],
@@ -44,6 +51,8 @@ describe('the public journey artifact commands', () => {
       resolve('journeys.bin'),
     );
     expect(out.join('')).toContain('stitched 2 shards');
+    expect(out.join('')).toContain('1 file was cut into different regions');
+    expect(out.join('')).toContain('  src/cart.ts\n');
   });
 
   it('parses the two operations as paths rather than journey readings', () => {

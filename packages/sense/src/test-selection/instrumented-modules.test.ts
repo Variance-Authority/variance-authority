@@ -205,6 +205,21 @@ describe('a store of module records', () => {
     });
   });
 
+  it('records a module two builds cut apart from one text as one nobody may attribute', async () => {
+    const cut = captured().blocks[0]!;
+    writeRecord(openRecords(storeOf('app')), captured());
+    writeRecord(openRecords(storeOf('preview')), captured({
+      blocks: [cut, { ...cut, ordinal: 1, kind: 'function', owner: 0, name: 'total', path: 'total', endLine: 2 }],
+    }));
+
+    const found = await readRecords(
+      [storeOf('app'), storeOf('preview')],
+      ['src/cart.js'],
+    );
+
+    expect(found.get('src/cart.js')).toMatchObject({ instrumented: false, blocks: [] });
+  });
+
   it('keeps a module two builds agree about', async () => {
     writeRecord(openRecords(storeOf('app')), captured());
     writeRecord(openRecords(storeOf('preview')), captured());

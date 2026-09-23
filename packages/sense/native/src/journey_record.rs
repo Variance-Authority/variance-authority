@@ -22,7 +22,7 @@ const KINDS: [&str; 8] = [
     "handler",
 ];
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Block {
     pub kind: String,
     pub name: String,
@@ -38,6 +38,123 @@ pub struct Module {
     pub file: String,
     pub digest: [u8; 16],
     pub blocks: Vec<Block>,
+    /// The blocks each journal ordinal lands on, when two builds numbered this
+    /// file's regions differently; empty when an ordinal is its own block.
+    pub lands: Vec<Vec<u32>>,
+}
+
+/// The regions every inventory of one file holds, and where each inventory's
+/// own regions land among them.
+pub struct Reconciled {
+    pub blocks: Vec<Block>,
+    /// `lands[inventory][region]` is the reconciled block that region reads as.
+    pub lands: Vec<Vec<u32>>,
+}
+
+/// Read several inventories of one source text at the regions they share.
+///
+/// Two transforms of one file can cut its regions apart, so an ordinal names a
+/// region only against the inventory that cut it. The lines are common ground:
+/// a region that only some builds hold lands on the innermost shared source
+/// region that encloses it, and the whole file only when nothing does. That is
+/// the region a changed line resolves to, since a shared region is in every
+/// inventory and regions of one inventory nest — so every case that ran the
+/// line is credited where the change will look.
+// TODO: keep each build's own regions and read a case's ordinals against the build that cut them — needs the case journal to name that build.
+pub fn reconcile(inventories: &[&[Block]]) -> Reconciled {
+    let mut blocks: Vec<Block> = Vec::new();
+    let mut at: HashMap<&Block, u32> = HashMap::new();
+    // The order comes from one inventory chosen by content, so the answer is
+    // the same whichever store or shard happened to be read first.
+    let base = inventories.iter().copied().min_by(|left, right| inventory_order(left, right));
+    if let Some(base) = base {
+        let held: Vec<HashSet<&Block>> = inventories.iter().map(|blocks| blocks.iter().collect()).collect();
+        for block in base {
+            if !at.contains_key(block) && held.iter().all(|other| other.contains(block)) {
+                at.insert(block, blocks.len() as u32);
+                blocks.push(block.clone());
+            }
+        }
+    }
+    let shared = blocks.len();
+    let mut whole = None;
+    let mut lands = Vec::with_capacity(inventories.len());
+    for inventory in inventories {
+        let mut landed = Vec::with_capacity(inventory.len());
+        for block in inventory.iter() {
+            let target = match at.get(block).copied().or_else(|| enclosing(&blocks[..shared], block)) {
+                Some(target) => target,
+                None => *whole.get_or_insert_with(|| {
+                    blocks.push(whole_file(inventories, base.and_then(<[Block]>::first)));
+                    (blocks.len() - 1) as u32
+                }),
+            };
+            landed.push(target);
+        }
+        lands.push(landed);
+    }
+    Reconciled { blocks, lands }
+}
+
+fn enclosing(shared: &[Block], block: &Block) -> Option<u32> {
+    shared
+        .iter()
+        .enumerate()
+        .filter(|(_, outer)| {
+            outer.source && outer.start_line <= block.start_line && block.end_line <= outer.end_line
+        })
+        .min_by_key(|(at, outer)| (outer.end_line.saturating_sub(outer.start_line), *at))
+        .map(|(at, _)| at as u32)
+}
+
+fn inventory_order(left: &[Block], right: &[Block]) -> std::cmp::Ordering {
+    left.len().cmp(&right.len()).then_with(|| {
+        left.iter()
+            .zip(right)
+            .map(|(left, right)| {
+                left.start_line
+                    .cmp(&right.start_line)
+                    .then(left.end_line.cmp(&right.end_line))
+                    .then(left.source.cmp(&right.source))
+                    .then_with(|| order::code_unit(&left.kind, &right.kind))
+                    .then_with(|| order::code_unit(&left.name, &right.name))
+                    .then_with(|| order::code_unit(&left.path, &right.path))
+            })
+            .find(|ordering| ordering.is_ne())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })
+}
+
+fn whole_file(inventories: &[&[Block]], first: Option<&Block>) -> Block {
+    let (start_line, end_line) = inventories
+        .iter()
+        .flat_map(|blocks| blocks.iter())
+        .filter(|block| block.source)
+        .fold((u32::MAX, 0), |(start, end), block| {
+            (start.min(block.start_line), end.max(block.end_line))
+        });
+    let source = start_line <= end_line;
+    Block {
+        kind: "module".to_owned(),
+        name: first.map_or_else(String::new, |block| block.name.clone()),
+        path: first.map_or_else(String::new, |block| block.path.clone()),
+        start_line: if source { start_line } else { first.map_or(0, |block| block.start_line) },
+        end_line: if source { end_line } else { first.map_or(0, |block| block.end_line) },
+        source,
+    }
+}
+
+/// Every block one ordinal may name, across the inventories that hold it.
+fn by_ordinal(lands: &[Vec<u32>]) -> Vec<Vec<u32>> {
+    let count = lands.iter().map(Vec::len).max().unwrap_or(0);
+    (0..count)
+        .map(|ordinal| {
+            let mut targets: Vec<u32> = lands.iter().filter_map(|landed| landed.get(ordinal).copied()).collect();
+            targets.sort_unstable();
+            targets.dedup();
+            targets
+        })
+        .collect()
 }
 
 struct Answer {
@@ -70,6 +187,13 @@ pub fn read_records(
         let mut module = (*first).clone();
         if answers.iter().any(|candidate| candidate.digest != module.digest) {
             module.blocks.clear();
+        } else if answers.iter().any(|candidate| candidate.blocks != module.blocks) {
+            // One source text, cut apart by two transforms: the digest vouches
+            // for the lines and not for the ordinals.
+            let inventories: Vec<&[Block]> = answers.iter().map(|answer| answer.blocks.as_slice()).collect();
+            let reconciled = reconcile(&inventories);
+            module.lands = by_ordinal(&reconciled.lands);
+            module.blocks = reconciled.blocks;
         }
         found.insert(id.clone(), module);
     }
@@ -249,6 +373,7 @@ fn decode_record(raw: &[u8], frame: Frame) -> Result<Option<Module>, String> {
         file,
         digest,
         blocks,
+        lands: Vec::new(),
     }))
 }
 
@@ -285,4 +410,46 @@ fn aligned(value: usize, to: usize) -> usize {
 
 fn damaged() -> String {
     "not a variance-authority instrument record".to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn block(kind: &str, name: &str, start_line: u32, end_line: u32) -> Block {
+        Block {
+            kind: kind.to_owned(),
+            name: name.to_owned(),
+            path: String::new(),
+            start_line,
+            end_line,
+            source: true,
+        }
+    }
+
+    #[test]
+    fn a_region_one_build_cut_lands_on_the_innermost_region_both_hold() {
+        let module = block("module", "", 1, 20);
+        let outer = block("function", "outer", 2, 10);
+        let inner = block("function", "inner", 12, 15);
+        let branch = block("branch", "", 4, 6);
+        let one = [module.clone(), outer.clone(), inner.clone()];
+        let two = [module.clone(), outer.clone(), branch, inner.clone()];
+        let reconciled = reconcile(&[&one, &two]);
+        assert!(reconciled.blocks == [module, outer, inner]);
+        assert_eq!(reconciled.lands, [vec![0, 1, 2], vec![0, 1, 1, 2]]);
+        assert_eq!(by_ordinal(&reconciled.lands), [vec![0], vec![1], vec![1, 2], vec![2]]);
+    }
+
+    #[test]
+    fn a_region_nothing_shared_encloses_lands_on_the_whole_file() {
+        let shared = block("function", "shared", 2, 4);
+        let one = [block("module", "a", 1, 10), shared.clone()];
+        let two = [block("module", "b", 1, 12), shared.clone()];
+        let reconciled = reconcile(&[&one, &two]);
+        assert_eq!(reconciled.blocks.len(), 2);
+        let whole = &reconciled.blocks[1];
+        assert_eq!((whole.start_line, whole.end_line, whole.source), (1, 12, true));
+        assert_eq!(reconciled.lands, [vec![1, 0], vec![1, 0]]);
+    }
 }

@@ -19,6 +19,8 @@ pub struct JourneyFold {
     pub modules: u32,
     pub crossings: f64,
     pub passes: u32,
+    /// Files two builds numbered differently, read at the regions both hold.
+    pub renumbered: Vec<String>,
 }
 
 #[napi(object)]
@@ -27,6 +29,8 @@ pub struct JourneyFoldResult {
     pub modules: u32,
     pub crossings: f64,
     pub passes: u32,
+    /// Files two builds numbered differently, read at the regions both hold.
+    pub renumbered: Vec<String>,
 }
 
 /// Read, fold, and encode one run's case journals without crossing per-row objects into V8.
@@ -52,6 +56,7 @@ pub fn fold_journey(
         modules: answered.folded.modules,
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
+        renumbered: answered.folded.renumbered,
     })
 }
 
@@ -104,6 +109,7 @@ pub fn fold_journey_to(
         modules: answered.folded.modules,
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
+        renumbered: answered.folded.renumbered,
     })
 }
 
@@ -112,6 +118,7 @@ struct Folded {
     modules: u32,
     crossings: u64,
     passes: u32,
+    renumbered: Vec<String>,
 }
 
 fn fold(
@@ -128,6 +135,12 @@ fn fold(
         .enumerate()
         .map(|(row, module)| (module.id.clone(), row))
         .collect();
+    let mut renumbered: Vec<String> = modules
+        .iter()
+        .filter(|module| !module.lands.is_empty())
+        .map(|module| module.file.clone())
+        .collect();
+    renumbered.dedup();
     let mut module_blocks = Vec::with_capacity(modules.len() + 1);
     module_blocks.push(0);
     for module in &modules {
@@ -147,6 +160,7 @@ fn fold(
             modules: 0,
             crossings: 0,
             passes: 0,
+            renumbered,
         });
     }
 
@@ -227,6 +241,7 @@ fn fold(
         modules: module_count,
         crossings,
         passes,
+        renumbered,
     })
 }
 
@@ -281,29 +296,41 @@ impl Visitor for FoldVisitor<'_> {
     }
 
     fn module(&mut self, _: &ModuleId, hits: &[u32], shared: &[u32], _: &[u32]) {
-        let blocks = self.modules[self.module_row].blocks.len();
+        let modules = self.modules;
+        let module = &modules[self.module_row];
+        let base = self.module_blocks[self.module_row] - self.first_block;
         let mut shared_at = 0;
         for ordinal in hits {
             let ordinal_value = *ordinal;
             let ordinal = ordinal_value as usize;
-            if ordinal >= blocks {
-                continue;
-            }
+            let own = [ordinal_value];
+            let targets: &[u32] = if module.lands.is_empty() {
+                if ordinal >= module.blocks.len() {
+                    continue;
+                }
+                &own
+            } else {
+                let Some(targets) = module.lands.get(ordinal) else {
+                    continue;
+                };
+                targets
+            };
             while shared_at < shared.len() && shared[shared_at] < ordinal_value {
                 shared_at += 1;
             }
-            let block = self.module_blocks[self.module_row] + ordinal - self.first_block;
             let target = if shared.get(shared_at).copied() == Some(ordinal_value) {
                 &mut self.loaded
             } else {
                 &mut self.called
             };
-            mark_range(
-                target,
-                block * self.words,
-                self.test_first as usize,
-                self.test_last as usize,
-            );
+            for block in targets {
+                mark_range(
+                    target,
+                    (base + *block as usize) * self.words,
+                    self.test_first as usize,
+                    self.test_last as usize,
+                );
+            }
         }
     }
 }
