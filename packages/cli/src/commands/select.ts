@@ -103,6 +103,12 @@ export interface SelectInput {
   readonly at: string;
   /** The commit the journal's line ranges are coordinates in, when it named one. */
   readonly commit?: string;
+  /**
+   * The change was handed in by the caller, who vouches that it is in the
+   * journal's coordinates. A journey file names no commit and needs none: it is
+   * read against whatever diff it is given, a synthetic one included.
+   */
+  readonly given?: boolean;
   readonly ground: SelectGround;
 }
 
@@ -187,7 +193,7 @@ export function skippableTests(input: SelectInput): TestSelection {
   }
 
   const { whole, entered, unread, stale } = input.ground.narrowing;
-  const notes = [...unreadNotes(unread), ...recordingNotes(stale, input.commit)];
+  const notes = [...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
   const measured = {
     ...base,
     notes,
@@ -246,10 +252,14 @@ function unreadNotes(unread: readonly string[]): readonly string[] {
  * text nobody at that commit has, and it goes to zero by recording once over a
  * clean tree.
  */
-function recordingNotes(stale: readonly string[], commit: string | undefined): readonly string[] {
+function recordingNotes(
+  stale: readonly string[],
+  commit: string | undefined,
+  given: boolean,
+): readonly string[] {
   const notes: string[] = [];
 
-  if (commit === undefined) {
+  if (commit === undefined && !given) {
     notes.push(
       'the journal names no commit, so none of its line ranges could be checked against the ' +
         'text they were cut from; every changed module with a row was charged whole',

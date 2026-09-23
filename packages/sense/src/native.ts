@@ -154,6 +154,56 @@ export interface NativeScanner {
   stitchJourneys?(files: string[]): NativeJourneyStitch;
   /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
+  /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */
+  projectJourneys?(file: string, changed: NativeJourneyChange[]): NativeJourneyProjection;
+  /** The test files a change needs, read off a journey file and the file graph; unsorted. */
+  selectJourneys?(file: string, changed: NativeJourneyChange[], graph?: NativeJourneyGraph): NativeJourneySelection;
+}
+
+/** `Relations`, flattened to the columns the addon walks. */
+export interface NativeJourneyGraph {
+  readonly names: readonly string[];
+  readonly kinds: Uint8Array;
+  readonly dependsOffset: Uint32Array;
+  readonly dependsTarget: Uint32Array;
+  readonly dependsKind: Uint8Array;
+  readonly dependentsOffset: Uint32Array;
+  readonly dependentsTarget: Uint32Array;
+  readonly dependentsKind: Uint8Array;
+  /** The `EDGE_KINDS` indices a runtime walk follows. */
+  readonly through: readonly number[];
+  readonly shadows: readonly { readonly file: string; readonly shadows: readonly string[] }[];
+}
+
+export interface NativeJourneySelection {
+  readonly whole: readonly string[];
+  readonly entered: readonly string[];
+  readonly unread: readonly string[];
+}
+
+export interface NativeJourneyChange {
+  readonly file: string;
+  /** Flat inclusive `[start, end]` pairs; empty names the whole file. */
+  readonly ranges: number[];
+}
+
+export interface NativeJourneyProjection {
+  readonly tests: readonly { readonly id: string; readonly file: string; readonly name: string }[];
+  readonly modules: readonly {
+    readonly file: string;
+    readonly blocks: readonly {
+      readonly kind: string;
+      readonly name: string;
+      readonly path: string;
+      readonly startLine: number;
+      readonly endLine: number;
+      readonly source: boolean;
+      readonly loaded: boolean;
+      readonly tests: readonly number[];
+    }[];
+  }[];
+  /** Every file the journey holds a row for. */
+  readonly files: readonly string[];
 }
 
 export interface NativeJourneyFold {

@@ -51,7 +51,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--flakes',
     '--exit-zero-on-changes',
   ],
-  select: ['--since', '--format', '--no-git'],
+  select: ['--since', '--execution', '--diff', '--format', '--no-git'],
   reach: ['--since', '--format', '--no-git'],
   covering: [
     '--file',
@@ -109,7 +109,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
-  'variance select  [--since <ref>] [--format plain|json|vitest|jest] [--no-git]',
+  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',

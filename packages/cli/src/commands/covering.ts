@@ -49,7 +49,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { defaultExecutionFile, readExecutionIndex } from './execution-input.js';
+import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -101,29 +101,35 @@ export interface Covering {
 export async function covering(request: ParsedCovering): Promise<Covering> {
   const from = request.execution ?? (await defaultExecutionFile(request.root));
 
-  let index: ExecutionIndex;
-  try {
-    index = await readExecutionIndex(from);
-  } catch (error) {
-    throw new OperatorError(
-      `no readable per-case execution index at \`${from}\` (${
-        error instanceof Error ? error.message : String(error)
-      }). One is written by a run configured with \`withTestSelection(config, { cases: true })\`; ` +
-        'without it this project knows which files a test covered but not which case covered them.',
-    );
+  if (request.since !== undefined) {
+    // The snapshot's commit is the coordinate of what was recorded beside it,
+    // and of nothing else: a journey file handed in by path names no commit, and
+    // diffing it from the snapshot's would land its hunks on another text.
+    const at = from.startsWith(testCoverageFile(request.root))
+      ? await recordedCommit(testCoverageFile(request.root))
+      : undefined;
+    const changed = await changeSince(request.since, request.root, at);
+    const { index } = await readIndex(from, changed);
+    return {
+      since: request.since,
+      // The graph carries the mocks: a case whose file mocked the changed module
+      // is not listed under it, whatever it crossed there.
+      changed: coveringChange(index, changed, { relations: await fileGraph(request.root) }),
+      ...(at === undefined ? {} : { at }),
+      from,
+    };
   }
 
-  if (request.since !== undefined) return await sinceAnswer(request.since, request.root, index, from);
-
   const file = request.file;
+  const { index, files } = await readIndex(from, new Map([[file, []]]));
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) {
     throw new OperatorError(
       `\`${file}\` is not in the index at \`${from}\`, which holds ${
-        index.modules.length
-      } file${index.modules.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
+        files.length
+      } file${files.length === 1 ? '' : 's'}. A file the run never loaded has no answer ` +
         `here, and that is a different statement from no test covering it. ${
-          spelling(file, index)
+          spelling(file, files)
         }`,
     );
   }
@@ -235,10 +241,10 @@ function countOf(
 }
 
 /**
- * Every region a diff changed, and which named cases went there.
+ * Every line a diff changed, in the index's coordinates.
  *
- * The diff is measured from the commit the record was written at rather than
- * from the merge base with `ref`, because the index's line ranges are in that
+ * The diff is measured from the commit the record was written at, when it has
+ * one, rather than from the merge base with `ref`, because the index's line ranges are in that
  * commit's coordinates and nothing else's. The two part company as soon as the
  * branch moves under the recording, and a hunk read at the wrong end lands on
  * lines the index numbered for a different region — which is the one failure
@@ -251,13 +257,11 @@ function countOf(
  * silently left out half a diff is worse than one that says it cannot speak to
  * it.
  */
-async function sinceAnswer(
+async function changeSince(
   since: string,
   root: string,
-  index: ExecutionIndex,
-  from: string,
-): Promise<Covering> {
-  const at = await recordedCommit(testCoverageFile(root));
+  at: string | undefined,
+): Promise<ReadonlyMap<string, readonly LineRange[]>> {
   const diff = await diffSince(since, [], at);
   if (diff === undefined) {
     throw new OperatorError(
@@ -279,15 +283,30 @@ async function sinceAnswer(
       `nothing has changed since \`${since}\`, so there is no region to ask about.`,
     );
   }
+  return changed;
+}
 
-  return {
-    since,
-    // The graph carries the mocks: a case whose file mocked the changed module
-    // is not listed under it, whatever it crossed there.
-    changed: coveringChange(index, changed, { relations: await fileGraph(root) }),
-    ...(at === undefined ? {} : { at }),
-    from,
-  };
+/**
+ * The index, read for the files a question is about.
+ *
+ * A missing file is refused rather than answered empty: an empty list here
+ * reads as *no test covers this line*, which is the sentence that gets a test
+ * deleted.
+ */
+async function readIndex(
+  from: string,
+  changed: ReadonlyMap<string, readonly LineRange[]>,
+): Promise<{ readonly index: ExecutionIndex; readonly files: readonly string[] }> {
+  try {
+    return await readExecutionFor(from, changed);
+  } catch (error) {
+    throw new OperatorError(
+      `no readable per-case execution index at \`${from}\` (${
+        error instanceof Error ? error.message : String(error)
+      }). One is written by a run configured with \`withTestSelection(config, { cases: true })\`; ` +
+        'without it this project knows which files a test covered but not which case covered them.',
+    );
+  }
 }
 
 /**
@@ -411,10 +430,9 @@ function describe(test: CoveringTest): string {
  * editor path is one prefix away. Three candidates answer that; a list of every
  * recorded file answers nothing and scrolls the refusal off the screen.
  */
-function spelling(file: string, index: ExecutionIndex): string {
+function spelling(file: string, files: readonly string[]): string {
   const tail = file.slice(file.lastIndexOf('/') + 1);
-  const near = index.modules
-    .map((module) => module.file)
+  const near = files
     .filter((candidate) => candidate === tail || candidate.endsWith(`/${tail}`))
     .sort();
   return near.length === 0

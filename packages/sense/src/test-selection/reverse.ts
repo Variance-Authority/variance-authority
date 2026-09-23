@@ -255,7 +255,7 @@ function sortTests(tests: CoveringTest[]): readonly CoveringTest[] {
   );
 }
 
-function innermostAt(
+export function innermostAt(
   blocks: readonly ExecutionBlock[],
   line: number,
 ): readonly ExecutionBlock[] {
@@ -420,7 +420,7 @@ export function coveringChange(
  * A case whose file mocked the module, or reaches it only through a mock, holds
  * none of its crossings there, whatever they were. See `shadowed.ts`.
  */
-function ownedIn(
+export function ownedIn(
   index: ExecutionIndex,
   module: ExecutionModule,
   shadowed: ShadowedFor | undefined,

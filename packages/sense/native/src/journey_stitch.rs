@@ -281,7 +281,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     })
 }
 
-fn strings(decoded: &journey_columns::Decoded) -> Result<Vec<String>, String> {
+pub(crate) fn strings(decoded: &journey_columns::Decoded) -> Result<Vec<String>, String> {
     let bytes = decoded.bytes("strings.blob")?;
     let offsets = decoded.words("strings.off")?;
     offsets
@@ -299,7 +299,7 @@ fn strings(decoded: &journey_columns::Decoded) -> Result<Vec<String>, String> {
         .collect()
 }
 
-fn string(strings: &[String], id: u32) -> Result<&str, String> {
+pub(crate) fn string(strings: &[String], id: u32) -> Result<&str, String> {
     strings
         .get(id as usize)
         .map(String::as_str)
@@ -325,7 +325,7 @@ fn append_members(shard: &Shard, set: u32, out: &mut Vec<u32>) -> Result<(), Str
     Ok(())
 }
 
-fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String> {
+pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String> {
     let (&kind, body) = bytes
         .split_first()
         .ok_or_else(|| "journey set is empty".to_owned())?;

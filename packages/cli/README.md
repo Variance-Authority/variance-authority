@@ -144,7 +144,7 @@ ids are the safe default after initial setup.
 
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
-variance select  [--since <ref>] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
@@ -883,6 +883,40 @@ numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which names no commit of its own.
 No `variance.config.json` is read, so a repository that uses this tool for
 nothing else can still ask.
+
+#### Selecting from a journey file
+
+A journey file from [`journeys finalize` or `journeys stitch`](#finalize-and-stitch-journey-coverage)
+records which cases entered which function, so it can skip a test that imports
+a changed file but never ran the changed branch. It names no commit, so you
+hand it the change:
+
+```bash
+git diff origin/main | variance select --execution journeys.bin --diff - --format jest
+variance select --execution journeys.bin --diff change.patch
+git diff --name-only origin/main | variance select --execution journeys.bin --diff -
+```
+
+Without `--diff`, the change is `git diff` against `--since`, or `HEAD` when you
+give no ref. The change does not have to come from git history: a replayed
+commit, a synthetic patch and an edit nobody committed are read the same way.
+Run it from the repository root, because the file names paths relative to it.
+
+What the change holds decides how it is read:
+
+- **A patch with hunks.** Each changed line goes to the innermost function
+  holding it, and only the test files whose cases entered that function run.
+- **A list of paths, or a patch that names a file and shows none of it.** Every
+  test file that imports the file runs, read off the import graph, together with
+  every case the journey saw enter it.
+- **A line in code that runs while its module loads.** The journey saw every
+  importer run it, so the import graph answers it as a whole file.
+
+A changed test file runs itself. A case's crossings into a module it mocks do
+not select it. A path neither the journey nor the import graph knows keeps no
+test in the run and is named on stderr. The whole reading happens in the native
+addon, so a stitched file with hundreds of millions of crossings is answered in
+milliseconds without expanding it in JavaScript.
 
 ### `reach`: what a diff reaches, for a pipe
 

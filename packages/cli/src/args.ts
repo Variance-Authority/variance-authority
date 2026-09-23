@@ -140,7 +140,8 @@ export function readFlags(
     const inline = equals === -1 ? undefined : argument.slice(equals + 1);
     const value = inline ?? argv[index];
 
-    if (value === undefined || (inline === undefined && value.startsWith('-'))) {
+    // `-` alone is stdin, by the convention every shell tool shares, and never a flag.
+    if (value === undefined || (inline === undefined && value.startsWith('-') && value !== '-')) {
       throw new OperatorError(
         `\`${name}\` needs a value; nothing followed it. A missing value is a mistake, ` +
           'not a request for the default.',

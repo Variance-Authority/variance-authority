@@ -35,8 +35,10 @@
  * that import it, and a lockfile that cannot be compared declines to narrow.
  */
 
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import type { LineRange } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { readExecutionFor } from './execution-input.js';
 import { installDiff } from './installed.js';
 import { withoutManifests } from './reach.js';
 import { isMissing, journeyAgainst } from './resources.js';
@@ -57,6 +59,10 @@ export interface SelectRequest {
   readonly since?: string;
   readonly format: SelectFormat;
   readonly noGit?: boolean;
+  /** `--execution <file>`: a journey file to read instead of the recorded journal. */
+  readonly execution?: string;
+  /** `--diff <patch>`: the change, handed in; `-` is stdin. */
+  readonly diff?: string;
 }
 
 /**
@@ -75,6 +81,7 @@ export interface SelectOutput {
 
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
+  if (request.execution !== undefined) return await journeyOutput({ ...request, execution: request.execution });
   const selection = await import('@variance-authority/sense/test-selection');
   const at = selection.testCoverageFile(request.cwd);
 
@@ -149,8 +156,66 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
 }
 
+/**
+ * `--execution`: read a journey file against a change the caller hands in.
+ *
+ * A journey file names no commit, so it never looks for its own change: it is
+ * given one, as a patch, on stdin, or as whatever `--since` measures. A patch
+ * with hunks selects by region — each changed line goes to the innermost region
+ * holding it, and only the cases that entered that region run. A list of paths,
+ * or a patch that names a file and shows none of it, selects by the file graph:
+ * every test file that imports it. So a replay, a synthetic diff or a diff nobody
+ * committed is asked exactly the way a real one is.
+ */
+async function journeyOutput(request: SelectRequest & { readonly execution: string }): Promise<SelectOutput> {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const text = request.diff === undefined
+    ? await diffSince(request.since ?? 'HEAD')
+    : request.diff === '-'
+      ? await stdin()
+      : await readFile(request.diff, 'utf8');
+  if (text === undefined) {
+    return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from: request.since ?? 'HEAD' } }, request);
+  }
+  const changed = changeOf(text, selection.changedLines);
+  const relations = await relationsFor(request.cwd, ['.'], [], [], {
+    why: 'a whole-file change is answered by the file graph',
+    fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
+  }, request.noGit);
+  // TODO: a bumped package in the change selects the test files that import it,
+  // as the recorded journal does through `installDiff` — narrowByJourneys takes
+  // no packages yet, so a lockfile in the change is reported unread.
+  const narrowing = await selection.selectJourneyFile(request.execution, changed, { relations })
+    ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, { relations });
+  return said({ at: request.execution, given: true, ground: { kind: 'read', narrowing } }, request);
+}
+
+/**
+ * The change in `text`: a patch read for its lines, or `git diff --name-only`,
+ * each path named whole. A patch always carries a `diff --git` header, and a
+ * list of paths never does.
+ */
+function changeOf(
+  text: string,
+  lines: (diff: string) => ReadonlyMap<string, readonly LineRange[]>,
+): ReadonlyMap<string, readonly LineRange[]> {
+  if (/^diff --git /mu.test(text)) return lines(text);
+  const named = new Map<string, readonly LineRange[]>();
+  for (const line of text.split('\n')) {
+    const path = line.trim();
+    if (path !== '') named.set(path, []);
+  }
+  return named;
+}
+
+async function stdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 function said(
-  input: { readonly at: string; readonly commit?: string; readonly ground: SelectGround },
+  input: { readonly at: string; readonly commit?: string; readonly given?: boolean; readonly ground: SelectGround },
   request: { readonly format: SelectFormat; readonly cwd: string },
 ): SelectOutput {
   const selection = skippableTests(input);

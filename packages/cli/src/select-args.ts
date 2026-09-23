@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import type { SelectFormat } from './commands/select.js';
@@ -8,6 +9,10 @@ export interface ParsedSelect {
   readonly since?: string;
   readonly format: SelectFormat;
   readonly noGit?: boolean;
+  /** `--execution <path>`: a journey file to read instead of this checkout's snapshot. */
+  readonly execution?: string;
+  /** `--diff <path>`, or `-` for stdin: the change, handed in rather than read from git. */
+  readonly diff?: string;
 }
 
 /**
@@ -28,11 +33,29 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
     throw new OperatorError(`--format must be plain, json, vitest or jest, not \`${format}\``);
   }
   const since = flags.values.get('--since');
+  const execution = flags.values.get('--execution');
+  const diff = flags.values.get('--diff');
+  if (diff !== undefined && execution === undefined) {
+    throw new OperatorError(
+      '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',
+    );
+  }
+  if (execution !== undefined && diff === undefined && since === undefined) {
+    throw new OperatorError(
+      'a journey file names no commit, so the change has to be given: pass `--diff <patch>` ' +
+        '(`-` reads stdin) or `--since <ref>`',
+    );
+  }
+  if (diff !== undefined && since !== undefined) {
+    throw new OperatorError('`--diff` and `--since` both name the change; pass one');
+  }
 
   return {
     command: 'select',
     ...(since === undefined ? {} : { since }),
     format,
     ...(flags.present.has('--no-git') ? { noGit: true } : {}),
+    ...(execution === undefined ? {} : { execution: resolve(execution) }),
+    ...(diff === undefined ? {} : { diff: diff === '-' ? diff : resolve(diff) }),
   };
 }

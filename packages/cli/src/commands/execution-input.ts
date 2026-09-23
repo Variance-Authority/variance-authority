@@ -5,8 +5,10 @@ import { parseExecutionIndex } from '@variance-authority/distill';
 import {
   decodeExecutionIndex,
   isEncodedExecutionIndex,
+  projectJourneyFile,
   testCoverageFile,
   type ExecutionIndex,
+  type LineRange,
 } from '@variance-authority/sense/test-selection';
 
 /**
@@ -25,6 +27,24 @@ export async function readExecutionIndex(file: string): Promise<ExecutionIndex> 
   const bytes = await readFile(file);
   if (isEncodedExecutionIndex(bytes)) return decodeExecutionIndex(bytes);
   return parseExecutionIndex(JSON.parse(bytes.toString('utf8')));
+}
+
+/**
+ * An execution index read for one change, and the name of every file it holds.
+ *
+ * A journey file is read by the addon, which keeps only the changed modules and
+ * the regions the change can ask about: a stitched day of shards holds hundreds
+ * of millions of crossings, and decoding all of them to answer four changed lines
+ * exhausts the heap. Every other spelling is decoded whole, as before.
+ */
+export async function readExecutionFor(
+  file: string,
+  changed: ReadonlyMap<string, readonly LineRange[]>,
+): Promise<{ readonly index: ExecutionIndex; readonly files: readonly string[] }> {
+  const projected = await projectJourneyFile(file, changed);
+  if (projected !== undefined) return projected;
+  const index = await readExecutionIndex(file);
+  return { index, files: index.modules.map((module) => module.file) };
 }
 
 /**

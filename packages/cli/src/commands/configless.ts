@@ -139,6 +139,8 @@ export async function answerConfigless(
         format: parsed.format,
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
         ...(parsed.noGit ? { noGit: true } : {}),
+        ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
+        ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
       });
       streams.err(said.err);
       streams.out(said.out);
