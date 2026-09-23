@@ -89,24 +89,24 @@ describe('test-file deviation', () => {
     });
   });
 
-  it('leaves an opaque static baseline absent instead of reporting zero', async () => {
+  it('counts a file whose imports could not be read in the static baseline, with the edges it has', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-deviation-'));
     roots.push(root);
-    await writeFile(resolve(root, 'opaque.ts'), 'export const opaque = true;\n');
+    await writeFile(resolve(root, 'dynamic.ts'), 'export const dynamic = true;\n');
     const coverage: TestCoverage = {
       version: 3,
       instrumentation: 'fixture-instrumentation',
-      tests: observations(['opaque.test.ts']),
+      tests: observations(['dynamic.test.ts']),
       modules: [{
-        file: 'opaque.ts',
-        sourceDigest: 'source:opaque',
+        file: 'dynamic.ts',
+        sourceDigest: 'source:dynamic',
         instrumented: true,
-        blocks: [block(0, 'module', 1, 1, ['opaque.test.ts'])],
+        blocks: [block(0, 'module', 1, 1, ['dynamic.test.ts'])],
       }],
     };
     const records: readonly FileRecord[] = [
-      { file: 'opaque.test.ts', edges: [{ to: 'opaque.ts', kind: 'imports' }] },
-      { file: 'opaque.ts', unknown: 'computed require()' },
+      { file: 'dynamic.test.ts', edges: [{ to: 'dynamic.ts', kind: 'imports' }] },
+      { file: 'dynamic.ts', unknown: 'computed require()' },
     ];
 
     const report = await deviationFromView(
@@ -115,11 +115,16 @@ describe('test-file deviation', () => {
     );
 
     expect(report).toEqual({
+      baseline: { files: 1, loc: 1 },
       coverage: { files: 1, loc: 1 },
+      coverageRatio: 1,
+      sensitivity: 1,
       tests: [{
-        testFile: 'opaque.test.ts',
+        testFile: 'dynamic.test.ts',
+        baseline: { files: 1, loc: 1 },
         slice: { files: 1, loc: 1 },
-        unknown: ['opaque.ts: computed require()'],
+        sensitivity: 1,
+        deviation: 0,
       }],
     });
   });

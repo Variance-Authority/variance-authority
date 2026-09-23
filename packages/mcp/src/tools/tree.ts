@@ -83,11 +83,13 @@ export interface Tree {
    * Files whose imports could not be enumerated — an unreadable file, a
    * specifier nothing resolved.
    *
-   * What lies behind one of these is not knowable from the graph, so a scope
-   * holding one is not a proof about the files it leaves out. It is counted and
-   * said rather than widened over: every file that imports an unknown one is
-   * 209 of the 1,574 files in this repository, which is a number no start point
-   * could survive being unioned with.
+   * The graph keeps the edges such a file does state and has none for the one
+   * nobody could read, the same as every other walk over it: nothing is widened
+   * for an unread import, and the recorded run is what sees the module it loads.
+   * So a scope rests on the edges the scan read, and these are counted and said
+   * beside it — every file that imports an unknown one is 209 of the 1,574 files
+   * in this repository, which is a number no start point could survive being
+   * unioned with.
    */
   unknownAmong(files: Iterable<string>): readonly string[];
   /**

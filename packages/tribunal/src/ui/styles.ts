@@ -316,7 +316,6 @@ ${JOURNEY_STYLES}
 .va-trails { display: grid; font-size: 0.84rem; gap: 0.35rem; margin-top: 0.55rem; }
 .va-trails code { background: var(--va-sunken); border-radius: 5px; color: var(--va-ink-2); padding: 0.1rem 0.35rem; }
 .va-arrow { color: var(--va-ink-3); padding: 0 0.3rem; }
-.va-axis.va-unread { background: var(--va-warn-bg); color: var(--va-warn-ink); margin-left: 0.5rem; }
 
 /* Drawn where the crossing would have been, never beside it: an empty grid over
    a diff nothing could attribute reads as this commit reaches none of your
@@ -356,7 +355,6 @@ ${JOURNEY_STYLES}
 .va-bar-moved { background: var(--va-collateral); }
 .va-bar-still { background: var(--va-good); }
 .va-bar-uncompared { background: var(--va-line-firm); }
-.va-map-aside { border-top: 1px solid var(--va-line); display: grid; gap: 0.5rem; padding-top: 0.6rem; }
 .va-map-note { color: var(--va-ink-3); font-size: 0.8rem; }
 .va-map-alarm { color: var(--va-bad-ink); }
 

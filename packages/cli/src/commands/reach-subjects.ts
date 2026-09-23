@@ -121,7 +121,6 @@ export function reachOf(input: ReachInput): ReachReport {
     changed,
     components: walk.components,
     subjects,
-    ...(walk.opaque.length === 0 ? {} : { opaque: walk.opaque }),
   };
 }
 function byCodeUnit(a: string, b: string): number {

@@ -28,7 +28,7 @@ import { isSwiftRelative } from './swift.js';
  * Query and fragment suffixes are a build-tool convention — `?raw`, `?url`,
  * `?inline` — and they name the same file with different handling. Stripping
  * them is what keeps a perfectly ordinary asset import from being reported as an
- * unresolvable hole and widening the run.
+ * unresolvable hole, which marks its file unknown.
  */
 export function requestOf(value: string): string | undefined {
   const trimmed = value.trim();

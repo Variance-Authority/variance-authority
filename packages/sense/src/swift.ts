@@ -39,9 +39,10 @@
  * A parse error **where an import could have been**, and a missing grammar. A
  * grammar recovers from syntax it cannot read by wrapping it in an `ERROR` node
  * and carrying on, so one unreadable expression inside one function body costs
- * nothing: every import in the file is still there to be read. Widening on that
- * would let a single unsupported form — one the grammar is simply a version
- * behind on — pull the whole repository into reach. An error hides an import
+ * nothing: every import in the file is still there to be read. Marking the file
+ * unknown over that would report a single unsupported form — one the grammar is
+ * simply a version behind on — as imports nobody could read, when every one of
+ * them was. An error hides an import
  * only when it sits where this reader looks, which for Swift is the top level,
  * because that is the only place an `import` is allowed.
  *

@@ -221,15 +221,13 @@ describe('the panel', () => {
           [],
           reach({
             unscanned: ['app/src/generated/icons.ts'],
-            opaque: [{ file: 'app/src/ds/theme.ts', because: 'the parser refused it' }],
           }),
         )}
       />,
     );
 
-    // Both are things an operator can go and fix, and a bare count tells them
+    // It is something an operator can go and fix, and a bare count tells them
     // there is nothing to do.
     expect(markup).toContain('app/src/generated/icons.ts');
-    expect(markup).toContain('app/src/ds/theme.ts');
   });
 });

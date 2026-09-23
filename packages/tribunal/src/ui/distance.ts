@@ -191,14 +191,6 @@ export interface Spread {
    * which is the reassurance this surface exists to withhold.
    */
   readonly undeclared: readonly Unplaced[];
-  /**
-   * Components reached only through a file the scan could not read.
-   *
-   * Kept out of the rungs and counted, because their depth is measured from the
-   * blind spot rather than from the edit — a histogram that folded them in would
-   * put the scanner's own gaps on the same axis as the commit's consequences.
-   */
-  readonly throughUnread: number;
 }
 
 /**
@@ -241,13 +233,8 @@ export function spreadOf(build: BuildDetail): Spread | null {
   }
 
   const rungs = new Map<number, { reached: number; moved: number }>();
-  let throughUnread = 0;
 
   for (const each of reach.components) {
-    if (each.throughUnread !== undefined) {
-      throughUnread += 1;
-      continue;
-    }
     const depth = Math.max(each.trail.length - 2, 0);
     const rung = rungs.get(depth) ?? { reached: 0, moved: 0 };
     rung.reached += 1;
@@ -265,6 +252,5 @@ export function spreadOf(build: BuildDetail): Spread | null {
       .filter(([component]) => !named.has(component))
       .map(([component, subjects]) => ({ component, subjects }))
       .sort((left, right) => left.component.localeCompare(right.component)),
-    throughUnread,
   };
 }

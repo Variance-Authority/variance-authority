@@ -56,17 +56,6 @@ export interface ReachedComponent {
    * is the shortest true one rather than whichever a stack happened to unwind.
    */
   readonly trail: readonly string[];
-
-  /**
-   * Present when the chain does not begin at a file this diff named.
-   *
-   * The traversal seeds every file whose own imports could not be read, because
-   * an unreadable file may import the one that changed. A component reached only
-   * through such a file is reached by the *scan's blind spot*, not by the edit,
-   * and a trail that opened with a path nobody touched would read as an
-   * attribution.
-   */
-  readonly throughUnread?: string;
 }
 
 /** Whether this commit could have moved this subject, and through what. */
@@ -87,12 +76,6 @@ export interface SubjectReach {
   readonly because: string;
 }
 
-/** A file the graph holds but could not read the edges of. */
-export interface ReachHole {
-  readonly file: string;
-  readonly because?: string;
-}
-
 /**
  * What the commit reaches, as the run recorded it.
  *
@@ -105,8 +88,7 @@ export interface ReachHole {
  *
  * Every field is written so the report can say *unknown* as loudly as it says
  * *yes* and *no*. `whole` is the walk's refusal to attribute, `unscanned` the
- * files it could not parse, `opaque` the edges it could not follow, and
- * `subjects` is absent rather than empty when none of it could be attributed —
+ * changed files it could not place, and `subjects` is absent rather than empty when none of it could be attributed —
  * because a commit that was understood and reaches nothing supports the opposite
  * decision to a commit nothing could be read from.
  */
@@ -156,13 +138,4 @@ export interface ReachReport {
    * operator's own statement of where renders come from.
    */
   readonly unscanned?: readonly string[];
-
-  /**
-   * Files in the graph whose own edges could not be read, with the reason.
-   *
-   * Every one of them is traversed as though it changed. Reported because a
-   * reader who can see them can go and fix the scan; a reader who cannot sees an
-   * attribution that quietly covers more than the diff.
-   */
-  readonly opaque?: readonly ReachHole[];
 }

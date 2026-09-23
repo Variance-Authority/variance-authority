@@ -64,7 +64,6 @@ export type { LexiconReport, LexiconField, SubjectLexicon, Landmark } from './le
 export type {
   ReachReport,
   ReachedComponent,
-  ReachHole,
   SubjectReach,
 } from './reach.js';
 

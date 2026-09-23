@@ -5,7 +5,6 @@ import type {
   JourneysReport,
   NotObserved,
   ObservationRecord,
-  ReachHole,
   ReachedComponent,
   RegionRecord,
   SensitivityLedger,
@@ -194,7 +193,6 @@ export function toReach(row: Row, subjects: readonly Row[]): ReachView {
   const what = 'a build reach';
   const whole = optionalText(row, 'whole', what);
   const unscanned = optionalText(row, 'unscanned', what);
-  const opaque = optionalText(row, 'opaque', what);
 
   const attributed: Record<string, SubjectReach> = {};
   for (const entry of subjects) {
@@ -215,7 +213,6 @@ export function toReach(row: Row, subjects: readonly Row[]): ReachView {
     components: JSON.parse(text(row, 'components', what)) as ReachedComponent[],
     ...(whole === undefined ? { subjects: attributed } : { whole }),
     ...(unscanned === undefined ? {} : { unscanned: JSON.parse(unscanned) as string[] }),
-    ...(opaque === undefined ? {} : { opaque: JSON.parse(opaque) as ReachHole[] }),
   };
 }
 

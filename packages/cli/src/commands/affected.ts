@@ -73,8 +73,7 @@ import { affectedComponents, many, refused, within, type InstallDiff } from './r
  * file**: `tokens.css` ← `button.css` ← `Button.tsx` ← `Button`.
  *
  * The over-inclusion arrangement survives it intact. A changed file the graph
- * never saw still makes the run whole, a file whose own imports could not be
- * read is traversed as though it changed, and a diff that reaches no component at
+ * never saw still makes the run whole, and a diff that reaches no component at
  * all is still refused rather than narrowed to nothing — because a component the
  * scanner failed to recognise is declared in a file that reaches nothing either,
  * and those two look identical from here.

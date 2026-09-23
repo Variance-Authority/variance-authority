@@ -249,8 +249,8 @@ export async function ingestBuild(
       db
         .prepare(
           `INSERT OR REPLACE INTO build_reach
-             (project, build, against_ref, changed, components, whole, unscanned, opaque)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (project, build, against_ref, changed, components, whole, unscanned)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
         .bind(
           project,
@@ -260,7 +260,6 @@ export async function ingestBuild(
           JSON.stringify(reach.components),
           reach.whole ?? null,
           reach.unscanned === undefined ? null : JSON.stringify(reach.unscanned),
-          reach.opaque === undefined ? null : JSON.stringify(reach.opaque),
         ),
     );
 

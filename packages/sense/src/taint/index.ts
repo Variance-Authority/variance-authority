@@ -43,9 +43,10 @@
  * the graph must never spell as an empty set
  * ([ADR-0002](../../../../docs/context/adr/0002-observation-profiles.md)). So
  * such a file arrives with {@link FileRecord.unknown} set, which is what the
- * scan already does for a file it could not read: its edges are unavailable,
- * the graph treats it as possibly depending on anything, and it widens a
- * selection rather than narrowing one.
+ * scan already does for a file it could not read: the reason is recorded for
+ * whoever reports on the scan, the file contributes no edges of its own, and
+ * nothing is widened for it. What that file imports is the recorded run's to
+ * answer, which sees the module load whatever the scan did not read.
  *
  * The other honest answer — queue the file and read it — is the one this does
  * not take, because it would make the scan's output depend on which taints were

@@ -8,14 +8,15 @@
  * without touching a disk. `core` performs no I/O (ADR-0006); whoever owns the
  * disk produces these and hands them over.
  *
- * ## An empty record and an unreadable one are different facts
+ * ## An unreadable file contributes what was read of it
  *
- * A file with no imports and a file nothing could parse both produce a record
- * with no edges, and treating them alike is the one mistake that turns this from
- * a saving into a silent hole: the second one may import anything, including
- * whatever just changed. So `unknown` carries the *reason* the edges are not
- * known, and every consumer seeds its traversal with those files (ADR-0002 —
- * absent is not empty, and here absent is not even absent, it is *unread*).
+ * A `require(name)` with a variable for a name, an `import('./' + page)`, a
+ * parse that did not finish: the edges a reader could see are recorded, and the
+ * one it could not is not guessed at. `unknown` carries the sentence saying why,
+ * for whoever reports on the scan. It widens no walk. Seeding every such file as
+ * though it had changed turns one computed `require` into a whole run on every
+ * diff, forever, and the edge it hides is exactly what a recorded run sees: the
+ * module loaded, whatever expression named it.
  */
 
 import type { Digest } from '../format/hash.js';
@@ -101,11 +102,11 @@ export interface FileRecord {
   readonly unresolved?: readonly string[];
 
   /**
-   * Why this file's outgoing edges could not be enumerated, when they could not.
+   * Why this file's outgoing edges could not all be enumerated, when they could not.
    *
-   * Present means *this file may depend on anything*. The sentence is carried
-   * rather than a flag, because it ends up in the paragraph explaining why a run
-   * observed more than the operator expected.
+   * The edges that were read are in `edges`; this names what was not. A walk
+   * treats the file like any other, and the edge nobody could read is left to a
+   * recorded run, which sees the module load whatever named it.
    */
   readonly unknown?: string;
 }
@@ -177,19 +178,12 @@ export interface RelationsOptions {
   readonly depends?: Iterable<readonly [string, string]>;
 }
 
-export interface Hole {
-  /** The file whose outgoing edges could not be enumerated. */
-  readonly file: string;
-  /** Why, in the words of whoever read it. Absent when nobody said. */
-  readonly because?: string;
-}
-
 /**
- * What one backwards walk over the file graph found, and what widened it.
+ * What one backwards walk over the file graph found.
  *
  * Every field is part of one answer and none of them stands alone: `files` is
- * the answer, `missing` and `opaque` are the two ways it is not the whole truth,
- * and `traversal` is what an explanation is read back out of. A caller that took
+ * the answer, `missing` is what it could not say anything about, and
+ * `traversal` is what an explanation is read back out of. A caller that took
  * `files` and dropped the rest would be a caller that cannot say whether the
  * list is narrow because the diff was small or because the scan never ran.
  */
@@ -221,17 +215,6 @@ export interface Affected {
   readonly missing: readonly string[];
 
   /**
-   * Files seeded because their own edges are unknown, rather than because
-   * a changed file leads to them, each with the reason it could not be read.
-   *
-   * Counted separately so that "we widened" never hides inside "we found", and
-   * carrying its sentence so the widening is a work item rather than a tax: *four
-   * files could not be read* is something to live with, and ``src/legacy.js — a
-   * computed require()`` is something to fix.
-   */
-  readonly opaque: readonly Hole[];
-
-  /**
    * Files the walk visited and their own shadows cut: every trail from a
    * changed file to each one crossed a module the file replaces for its run.
    * Listed so the report can say a test was left out and by whose word.
@@ -260,11 +243,9 @@ export interface AffectedOptions extends TraversalOptions {
 /**
  * What a set of changed files could affect.
  *
- * The seed set is the changed files **and every file whose edges are unknown**,
- * which is the rule the whole structure rests on. An unreadable file might import
- * the one that changed; seeding it means everything depending on *it* is observed
- * too, and the cost is a collection rather than a green run over an unwatched
- * surface.
+ * The seed set is the changed files and nothing else. A file whose edges could
+ * not all be read is walked through the edges that were; the one nobody saw is
+ * a recorded run's to answer, not a reason to seed the file on every diff.
  *
  * A seed is a path, or a node naming its own kind. The second form is how a
  * changed *package* enters: a bare string keeps meaning a file, because that is
@@ -292,15 +273,6 @@ export function affectedBy(
     else seeds.push(id);
   }
 
-  const opaque: Hole[] = [];
-  for (let id = 0; id < relations.unknown.length; id += 1) {
-    if (relations.unknown[id] !== 1) continue;
-    seeds.push(id);
-
-    const because = relations.reasons.get(id);
-    opaque.push({ file: relations.names[id]!, ...(because === undefined ? {} : { because }) });
-  }
-
   const traversal = unshadowed(relations, seeds, options);
   const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
 
@@ -315,7 +287,6 @@ export function affectedBy(
     components: found.component,
     packages: found.package,
     missing: missing.sort(byCodeUnit),
-    opaque,
     shadowed: traversal.shadowed,
     traversal,
   };

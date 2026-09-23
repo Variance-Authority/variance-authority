@@ -258,8 +258,8 @@ describe('choosing what to observe from a file graph', () => {
     expect(answer.whole).toContain('reach no component');
   });
 
-  it('names the file it widened for, and why, rather than counting it', () => {
-    const opaque = relationsOfFiles([
+  it('observes nothing for a file whose imports could not be read', () => {
+    const unreadable = relationsOfFiles([
       { file: 'src/ds/tokens.css' },
       { file: 'src/ds/Button.tsx', declares: ['Button'] },
       { file: 'src/ds/legacy.js', unknown: 'a require() call with a specifier that is not a literal' },
@@ -276,14 +276,12 @@ describe('choosing what to observe from a file graph', () => {
       source: SOURCE,
       roots: ROOTS,
       baselines: BOTH,
-      relations: opaque,
+      relations: unreadable,
     });
 
-    // `Clock` rides along because its own dependency could not be read. That is
-    // the only line in a run telling an operator which file to fix to make the
-    // next run smaller, and a bare count tells them there is nothing to be done.
-    expect(answer.observe).toEqual(['story:button', 'story:clock']);
-    expect(answer.because).toContain('src/ds/legacy.js: a require() call');
+    // The edge `legacy.js` hides is a recorded run's to answer. Observing
+    // `Clock` on every change for it is the run that never narrows.
+    expect(answer.observe).toEqual(['story:button']);
   });
 });
 

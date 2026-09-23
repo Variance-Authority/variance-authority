@@ -43,9 +43,9 @@ describe('files a run rests on, seeded by name', () => {
   });
 
   it('drops a path that is not there rather than recording it unreadable', async () => {
-    // An unknown file is a seed of every walk forever, so a misspelled entry
-    // recorded that way would widen every run in the repository and read, in
-    // the report, as a scan that had failed.
+    // A misspelled entry recorded as a file whose edges could not be read would
+    // name a file nobody wrote in every report on the scan, and read there as a
+    // scan that had failed.
     const records = await scanRelations({
       root,
       dirs: ['src'],

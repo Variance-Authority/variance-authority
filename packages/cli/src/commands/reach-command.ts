@@ -98,10 +98,6 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
             `language this build reads and ${unread.length === 1 ? 'was' : 'were'} left out of ` +
             `the walk: ${unread.join(', ')}`,
         ]),
-    ...reach.opaque.map((hole) =>
-      hole.because === undefined
-        ? `${hole.file} was traversed as changed: its own imports could not be read`
-        : `${hole.file} was traversed as changed: ${hole.because}`),
   ];
 
   return {

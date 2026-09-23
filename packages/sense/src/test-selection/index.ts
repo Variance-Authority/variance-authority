@@ -199,7 +199,10 @@ export interface CodeExtent {
 
 export interface TestDeviation {
   readonly testFile: string;
-  /** Absent when the test is missing from Sense or its closure contains an opaque file. */
+  /**
+   * Absent when the test, or a file its closure imports, is missing from Sense.
+   * A file whose imports could not all be read counts with the edges it has.
+   */
   readonly baseline?: CodeExtent;
   readonly slice: CodeExtent;
   readonly sensitivity?: number;

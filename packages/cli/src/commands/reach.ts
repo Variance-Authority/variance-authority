@@ -53,7 +53,7 @@ import {
   type Affected,
   type Relations,
 } from '@variance-authority/core/relate';
-import type { ReachHole, ReachedComponent } from '@variance-authority/report';
+import type { ReachedComponent } from '@variance-authority/report';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
@@ -63,8 +63,6 @@ export interface AffectedComponents {
   readonly files: readonly string[];
   /** How many of the diff's own paths the graph actually holds. */
   readonly seeded: number;
-  /** Files in the graph whose own edges could not be read. */
-  readonly opaque: readonly ReachHole[];
   /** One sentence naming the size of the answer, for the selector to print. */
   readonly how: string;
 }
@@ -126,16 +124,12 @@ export function withoutManifests(
 
 /**
  * The walk, and what the two callers below need in order to say it in their own
- * words: the seeds the install did not speak for, and the phrase naming what the
- * answer was built from.
+ * words: how many seeds the graph held, and the phrase naming what the answer
+ * was built from.
  */
 interface Seeds {
   readonly affected: Affected;
   readonly seeded: number;
-  /** The changed paths the install comparison did not already answer for. */
-  readonly files: readonly string[];
-  /** The package names the install comparison seeded, in its own words. */
-  readonly packages: readonly string[];
   /** `3 changed files and 1 changed package`, for whichever sentence prints. */
   readonly source: string;
 }
@@ -272,7 +266,7 @@ function seedsOf(
     };
   }
 
-  return { affected, seeded, files, packages: install.packages, source };
+  return { affected, seeded, source };
 }
 
 /** What the file walk found, when it could answer. */
@@ -281,9 +275,7 @@ export interface AffectedFiles {
   readonly files: readonly string[];
   /** How many of the diff's own paths the graph actually holds. */
   readonly seeded: number;
-  /** Files in the graph whose own edges could not be read. */
-  readonly opaque: readonly ReachHole[];
-  /** One sentence naming the size of the answer and what widened it. */
+  /** One sentence naming the size of the answer. */
   readonly how: string;
 }
 
@@ -311,17 +303,11 @@ export function affectedFiles(
   if (affectsNothing(walk)) return { whole: walk.nothing };
 
   const { affected, seeded, source } = walk;
-  const widened =
-    affected.opaque.length === 0
-      ? ''
-      : `, ${affected.opaque.length} of them reached because their own imports could not be read ` +
-        `(${sample(affected.opaque.map(holeOf))})`;
 
   return {
     files: [...affected.files].sort(byCodeUnit),
     seeded,
-    opaque: affected.opaque,
-    how: `${many(affected.files.length, 'file')} reached from ${source}${widened}`,
+    how: `${many(affected.files.length, 'file')} reached from ${source}`,
   };
 }
 
@@ -345,10 +331,10 @@ export function affectedComponents(
   const walk = seedsOf(relations, changed, changedDirs, roots, install, before);
   if (refused(walk)) return walk;
   if (affectsNothing(walk)) {
-    return { components: [], files: [], seeded: 0, opaque: [], how: walk.nothing };
+    return { components: [], files: [], seeded: 0, how: walk.nothing };
   }
 
-  const { affected, seeded, files, packages, source } = walk;
+  const { affected, seeded, source } = walk;
 
   if (affected.components.length === 0) {
     return {
@@ -358,41 +344,18 @@ export function affectedComponents(
     };
   }
 
-  // A seed the diff did not name. `affectedBy` seeds every file whose imports could
-  // not be read, because an unreadable file may import the one that changed —
-  // sound for deciding what to observe, and an outright false attribution if a
-  // trail opened with it unlabelled. A package the install changed is named, and a
-  // trail opening with it is the whole point of reading the lockfile.
-  const seeds = new Set([...files, ...packages]);
-  const unread = (trail: readonly string[]): string | undefined => {
-    const seed = trail[0];
-    if (seed === undefined || seeds.has(seed) || within(seed, changedDirs)) return undefined;
-    return seed;
-  };
-
-  const components = [...affected.components].sort(byCodeUnit).map((component) => {
-    const trail = explain(relations, affected, { kind: 'component', name: component });
-    const seed = unread(trail);
-    return { component, trail, ...(seed === undefined ? {} : { throughUnread: seed }) };
-  });
-
-  // Named with their reasons, not counted. This is the only line in the run that
-  // tells an operator which file to fix in order to make the next run smaller,
-  // and a bare number tells them there is nothing to be done.
-  const widened =
-    affected.opaque.length === 0
-      ? ''
-      : `, ${affected.opaque.length} of them traversed as changed because their own imports could ` +
-        `not be read (${sample(affected.opaque.map(holeOf))})`;
+  const components = [...affected.components].sort(byCodeUnit).map((component) => ({
+    component,
+    trail: explain(relations, affected, { kind: 'component', name: component }),
+  }));
 
   return {
     components,
     files: affected.files,
     seeded,
-    opaque: affected.opaque,
     how:
       `${many(affected.components.length, 'component')} reached from ${source} ` +
-      `through ${many(affected.files.length, 'file')}${widened}`,
+      `through ${many(affected.files.length, 'file')}`,
   };
 }
 
@@ -424,10 +387,6 @@ export function listed(names: readonly string[]): string {
     return head === '' ? names[0]! : `${head} and ${names[names.length - 1]!}`;
   }
   return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more`;
-}
-
-function holeOf(hole: ReachHole): string {
-  return hole.because === undefined ? hole.file : `${hole.file}: ${hole.because}`;
 }
 
 function byCodeUnit(a: string, b: string): number {

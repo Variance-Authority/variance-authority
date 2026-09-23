@@ -67,18 +67,15 @@ describe('every file a diff affects', () => {
     expect(refused(affected) && affected.whole).toMatch(/none of the 2 changed files is in the file graph/);
   });
 
-  it('seeds a file whose own imports could not be read, and says so', () => {
-    // `affectedBy` widens through anything unreadable, because an unreadable file
-    // may import the one that changed. The widening is named rather than
-    // absorbed, so it is a work item rather than a tax.
-    const opaque = relationsOfFiles([
+  it('adds no file whose own imports could not be read', () => {
+    const unreadable = relationsOfFiles([
       { file: 'src/lib/parse.py' },
       { file: 'src/app/generated.py', unknown: 'the file is generated at build time' },
     ]);
-    const affected = affectedFiles(opaque, ['src/lib/parse.py'], ROOTS);
+    const affected = affectedFiles(unreadable, ['src/lib/parse.py'], ROOTS);
     if (refused(affected)) throw new Error(affected.whole);
 
-    expect(affected.files).toContain('src/app/generated.py');
-    expect(affected.how).toMatch(/because their own imports could not be read/);
+    expect(affected.files).toEqual(['src/lib/parse.py']);
+    expect(affected.how).toBe('1 file reached from 1 changed file');
   });
 });

@@ -218,9 +218,8 @@ modules that import those, and no further. Build `relations` with
 Every chain the walk follows has to end at something the record measured before
 the file is answered; one chain ending at a module the record never saw leaves
 the file `unread` whatever the other chains selected. The graph may add to a
-selection and may never close a question it did not answer. A file whose own
-edges the scan could not read may reach the asset by an edge nobody saw, so its
-tests are selected and only selected.
+selection and may never close a question it did not answer. The walk uses the
+edges the scan read; an import the scan could not read is not one of them.
 
 A snapshot that stores a file under another name — the built twin a sibling
 package's tests loaded — is looked up under every name `knownAs` returns for it.
@@ -715,8 +714,7 @@ const records = await scanRelations({ root: '.', dirs: ['src'] });
 const relations = relationsOfFiles(records);
 const selection = affectedBy(relations, ['src/tokens.css']);
 
-console.log(selection.components); // components reached by the changed file
-console.log(selection.opaque);     // files widened because their edges are unknown
+console.log(selection.components); // components that import the changed file, directly or through others
 ```
 
 You need a readable checkout, installed dependencies for bare specifiers, and
@@ -734,7 +732,7 @@ never touch a disk.
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
-| `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded opaque instead of parsed |
+| `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded `unknown` instead of parsed |
 | `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
 
 `conditionNames` and `tsconfig` are accepted by the same call and control how
@@ -752,16 +750,24 @@ resolver, and a selector that guessed would skip on the guess.
 [Read the install](#read-which-packages-the-install-changed) to find out
 which names to seed.
 
-A file over `largestFile` is marked opaque rather than parsed, because a file
+A file over `largestFile` is marked `unknown` rather than parsed, because a file
 that size is nearly always generated output and a single one of them can cost a
 scan hundreds of megabytes. Raise it when you mean to read one anyway.
 
-An unreadable or unresolved relative edge marks its file **opaque**: its true
-edges are unknown, so the file stays in the selection instead of being dropped,
-and `selection.opaque` lists exactly these files. A bare specifier that resolves
-to nothing on disk is recorded as a package edge without that widening: the name
-is what a bump is seeded by, and whether the package is installed here decides
-nothing about which files import it.
+An unreadable or unresolved relative edge marks its file **unknown**:
+`record.unknown` gives the reason — a parse error, a `require()` of a variable,
+an `import()` of a computed string, a file over `largestFile`, a language with
+no reader. The graph keeps every edge the scan could read from that file and has
+none for the one it could not, so a selection answers from what the source
+states and nothing is added for the gap. The expression nobody could read is
+answered by the recorded run: a [wrapped runner](#cut-a-vitest-run-down-to-a-diff)
+sees the module load whatever named it. To list these files, filter the records:
+`records.filter((record) => record.unknown !== undefined)`.
+
+A bare specifier that resolves to nothing on disk is recorded as a package edge,
+and its file is not marked `unknown`: the name is what a bump is seeded by, and
+whether the package is installed here decides nothing about which files import
+it.
 
 ### Keep repeated scans cheap
 
@@ -920,8 +926,8 @@ with it. `affectedBy` names the files it left out this way in `shadowed`.
 
 An addition can name a file outside the directories the scan walked. That file
 comes back as a record of its own, marked `unknown` rather than given an empty
-edge list: nobody read it, so it widens a selection instead of narrowing one.
-Point the scan at its directory to have it read.
+edge list: nobody read it, so the graph has none of its edges and the recorded
+run answers for what it loads. Point the scan at its directory to have it read.
 
 Every shadow and every addition keeps the name of whoever said it.
 `tainted.shadowedBy` is the file, the file it never reaches, and the taints that
@@ -1234,11 +1240,12 @@ narrowest covered source regions. The row's `sensitivity` is
 `coverage` is the union of every slice, and `coverageRatio` compares that union
 with the union of every baseline; shared modules and lines count once.
 Suite-level `sensitivity` is the arithmetic mean of the per-test ratios, so a
-large test file does not outweigh a small one. A missing test-file node or an
-opaque dependency leaves that row's `baseline`, `sensitivity`, and `deviation`
-absent — check for `undefined` rather than treating a missing value as `0`. If
-any row is indeterminate, the suite baseline, coverage ratio, and sensitivity
-are absent too.
+large test file does not outweigh a small one. A test file, or a file it
+imports, that is missing from `records` leaves that row's `baseline`,
+`sensitivity`, and `deviation` absent — check for `undefined` rather than
+treating a missing value as `0`. If any row is indeterminate, the suite
+baseline, coverage ratio, and sensitivity are absent too. A file whose imports
+could not all be read counts in the baseline with the edges the scan read.
 
 ## Find the tests that cover a line
 

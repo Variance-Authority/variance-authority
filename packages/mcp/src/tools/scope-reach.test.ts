@@ -244,10 +244,9 @@ describe('the path is the entrance, not the room', () => {
   });
 
   it('counts the files whose imports could not be read, rather than widening over them', () => {
-    // What lies behind an unreadable file is not knowable from the graph, so
-    // the scope is not a proof about what it leaves out. Unioning in every file
-    // that reaches one is a number no start point would survive, so the hole is
-    // counted and said.
+    // An unreadable file contributes no edges it could not state, and nothing
+    // is widened for it: the recorded run sees what it loads. The scope rests on
+    // the edges the scan read, so the hole is counted and said beside it.
     const holed = treeOf(
       [reads('app/x/Page.tsx', 'app/x/opaque.ts'), { file: 'app/x/opaque.ts', unknown: 'could not parse' }],
       ROOT,

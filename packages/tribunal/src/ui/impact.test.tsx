@@ -10,8 +10,8 @@ import { divergeFrom } from './shift.js';
  *
  * Three claims, and each one has a way of overclaiming. A single commit hash on a
  * page whose changes accumulated over two builds invites the reader to blame the
- * last commit. A depth histogram drawn from a scan's blind spots puts the
- * scanner's gaps on the same axis as the commit's consequences. And a file list
+ * last commit. A depth histogram that omits what moved outside the diff reads
+ * as a commit that stayed inside it. And a file list
  * printed for a run that carried no diff would be a list of nothing presented as
  * a diff that touched nothing.
  */

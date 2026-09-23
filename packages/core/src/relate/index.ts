@@ -59,7 +59,6 @@ export {
   relationsOfFiles,
   type FileEdge,
   type FileRecord,
-  type Hole,
   type AffectedOptions,
   type PackageEdge,
   type RelationsOptions,

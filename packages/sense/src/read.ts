@@ -40,14 +40,14 @@
  * of the file that produced it and a scan's live set is its own findings rather
  * than 200,000 syntax trees.
  *
- * ## The dangerous direction
+ * ## What this cannot read
  *
  * A missed edge is not a smaller answer; it is a **wrong** one. A file whose
- * imports this cannot enumerate may import the file that just changed, and a
- * selector that treats "I found no imports" as "it imports nothing" produces a
- * green run over a surface nobody looked at.
+ * imports this cannot enumerate may import the file that just changed, and
+ * "I found no imports" spelled as "it imports nothing" hides that.
  *
- * So this refuses to guess, and says so instead. `unknown` is set when:
+ * So this refuses to guess, and says so instead. `unknown` is set, with its
+ * reason, when:
  *
  * | shape | why |
  * |---|---|
@@ -55,15 +55,21 @@
  * | `import(x)` where `x` is not a literal | the target is a runtime value |
  * | a `require(…)` this could not read as a literal | same, and invisible to the module record |
  *
+ * The reason is recorded for whoever reports on the scan, and nothing is widened
+ * for it: the edges this did read stay edges, and the one it could not is left
+ * to the recorded run, which sees the module load whatever expression named it.
+ * A graph that stood in for the missing edge by depending on everything would
+ * put one `require(name)` in front of every question the repository asks.
+ *
  * A literal `require('./x')` is *not* in that table: it is read and becomes an
- * edge, which is what keeps a CommonJS corner of a repository from widening
- * every run it appears in.
+ * edge, which is what keeps a CommonJS corner of a repository in the graph.
  *
  * `export * from './x'` is not in that table either, and the distinction is the
  * point. The *edge* is known — it is `./x`, right there. What is unknown is this
  * file's export set, which is a fact about names and is carried as one: an
- * `Export` with no `exported`. Treating it as an unknown edge list would widen
- * every barrel in the repository to depend on everything, which is most of them.
+ * `Export` with no `exported`. Treating it as an unknown edge list would report
+ * every barrel in the repository as unreadable over an edge it states, and
+ * barrels are most of them.
  */
 
 import { parseSync } from 'oxc-parser';
@@ -365,11 +371,14 @@ export function readModule(file: string, contents: string): Read {
  * The module record cannot see `require`, so this is a text scan, and it is
  * written as a *count* comparison rather than as a parse: every `require(` is
  * counted, then every `require('literal')`, and a difference means at least one
- * call takes a value this cannot follow. The file is then unknown, which widens.
+ * call takes a value this cannot follow. The file is then unknown, and the
+ * reason says which call.
  *
- * Both failure modes of a text scan are safe here. A `require(` inside a comment
- * inflates the total and widens; a literal matched inside a string adds an edge
- * to a file that may not exist, and an edge to nothing reaches nothing.
+ * Both failure modes of a text scan are cheap here. A `require(` inside a
+ * comment inflates the total and marks the file unknown over a call that is not
+ * there, which costs one line in a report; a literal matched inside a string
+ * adds an edge to a file that may not exist, and an edge to nothing reaches
+ * nothing.
  *
  * What a `require` binds is a destructuring on the left of an `=`, which the
  * module record never saw and this does not parse for, so the request binds no
@@ -458,7 +467,8 @@ function quoted(text: string): string | undefined {
 
   const value = trimmed.slice(1, -1);
   // A specifier that is a template with a hole is quoted and still not a
-  // constant. `import(`./${name}`)` is exactly the shape that must widen.
+  // constant. `import(`./${name}`)` is exactly the shape that must mark its
+  // file unknown.
   return value.includes('${') ? undefined : value;
 }
 

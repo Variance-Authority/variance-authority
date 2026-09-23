@@ -913,8 +913,7 @@ nobody read.
 Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile —
 are left out of the walk and named on stderr, so you can see the part of your
 diff the answer is not about. Everything else a person needs goes there too,
-including how many files were reached from how many, and which files were
-traversed because their own imports could not be read. `--format json` gives
+including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
 
 No `variance.config.json` is read, and there is no default for `--since`: without

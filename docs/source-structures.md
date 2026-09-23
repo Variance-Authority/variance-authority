@@ -107,13 +107,13 @@ boundary the file graph cannot. See [what the scan reads](source.md).
 
 A file whose own imports cannot be enumerated — a dynamic `import('./' + name)`,
 a `require` whose argument is not a literal, a parse that did not finish, a file
-that could not be opened — gets a record with the reason recorded and no edges.
-It is then traversed **as though it changed** on every diff, because it might
-import the file that changed.
+that could not be opened — gets a record with the reason and every edge that could be read. The walk uses
+those edges and nothing more. The edge it could not read is answered by the
+[execution record](execution-record.md): a module that loads under a test is
+in that test's record, whatever expression named it.
 
-This one is not silent: the run names those files in its report with the reason,
-under the walk's refusals. It is the only one of the three you can see happening,
-and it costs a run that is wider than it should be rather than narrower.
+This one is not silent either: the record keeps the reason, so the scan can
+say which files hide an edge.
 
 ## Notation
 
@@ -355,18 +355,15 @@ one walk against the arrows from a changed file reaches every importer and every
 component in one pass.
 
 **Files with unrecorded edges.** A bitmask marks the nodes whose edges could not
-be enumerated, with the reason recorded alongside. The mask is what the inner loop
-tests; the reason is what the report prints.
+all be enumerated, with the reason recorded alongside. No walk reads it; it is
+there for whoever reports on the scan.
 
 ## Tracing a change through the graph
 
 One walk answers what a diff affected. The seed set is every changed file the
-graph has a node for, plus every node whose edges could not be enumerated,
-because an unreadable file might import the one that changed. Changed paths with
-no node in the graph are returned as missing rather than as *affects nothing*,
-and the
-unreadable ones are returned separately with their reasons. Each is a refusal
-the caller acts on: the selector widens to the whole suite, and the report
+graph has a node for, and nothing else. Changed paths with no node in the graph
+are returned as missing rather than as *affects nothing*. That is a refusal the
+caller acts on: the selector widens to the whole suite, and the report
 prints the refusal where the attribution would have been.
 
 **The walk.** One breadth-first search from every seed at once, against the

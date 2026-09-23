@@ -60,7 +60,7 @@ describe('what a JVM file asks for', () => {
     expect(readJava('Thing.java', 'import a.B;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
 
-  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+  it('reads a file whose only error is inside a body, rather than marking it unknown', () => {
     const read = readJava('Thing.java', 'import a.B;\nclass Thing { void ( }\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['a.B']);

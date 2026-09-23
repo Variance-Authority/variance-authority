@@ -12,11 +12,11 @@
  * ## A grammar that is not there
  *
  * An absent grammar makes a language *unreadable*, not *edgeless*. Every file in
- * it is recorded with `unknown` set, which widens the runs that touch it and
- * says why in words a person can act on. The alternative — no grammar, no
+ * it is recorded with `unknown` set, which says why in words a person can act
+ * on, and a report on the scan names it. The alternative — no grammar, no
  * requests, no complaint — is a repository whose Python nobody parsed reporting
- * the same shape as a repository with no Python in it, and a selector built on
- * that ships a green run over a surface nobody looked at.
+ * the same shape as a repository with no Python in it, and nobody reading the
+ * scan can tell which of the two they have.
  *
  * This is the same rule [ADR-0065](../../../docs/context/adr/0065-source-scanning-is-one-native-side.md)
  * states for the native scanner, arrived at from the other side. There the rule
@@ -135,7 +135,7 @@ export function parserFor(id: LanguageId): GrammarParser | undefined {
 /**
  * Why a file in this language could not be read, for the record's `unknown`.
  *
- * Names the package to install, because the person reading a widened run is the
+ * Names the package to install, because the person reading the report is the
  * person who can end it, and "no grammar" without the name of one is a dead end.
  */
 export function missingGrammar(file: string, id: LanguageId): string {

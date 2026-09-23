@@ -5,7 +5,6 @@ import type {
   JourneysReport,
   NotObserved,
   ObservationRecord,
-  ReachHole,
   ReachedComponent,
   RegionRecord,
   SensitivityLedger,
@@ -353,7 +352,6 @@ export interface ReachView {
   readonly subjects?: Readonly<Record<string, SubjectReach>>;
   readonly whole?: string;
   readonly unscanned?: readonly string[];
-  readonly opaque?: readonly ReachHole[];
 }
 
 export interface Cause {

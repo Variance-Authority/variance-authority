@@ -121,9 +121,8 @@ retained format and invalidation reference beneath those readings.
 Skipping a subject changes how much of the run executes; it is not a claim that
 the change left that subject unaffected. A skipped subject produces no image and
 no **verdict** — the one word a result reports, from `unchanged` through
-`needs-review` to `violation`. Missing coverage, an unreadable edge, an unknown
-changed file, or incompatible recorded evidence widens the run or refuses the
-selection; it never becomes proof that nothing is affected. A narrowed run
+`needs-review` to `violation`. Missing coverage, an unknown changed file, or
+incompatible recorded evidence widens the run or refuses the selection; it never becomes proof that nothing is affected. A narrowed run
 reports what it did not render; it does not report the unrendered subjects as
 unchanged.
 

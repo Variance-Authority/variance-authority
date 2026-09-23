@@ -47,11 +47,13 @@ const NONE: ReadonlySet<string> = new Set();
  * also reaches by a route of its own is not, because that route loads it for
  * real.
  *
- * The transitive half is withheld when the test's own walk meets a file whose
- * edges the scan could not read. Such a file may import anything, including a
- * dependency of the mock, and "reached only through the mock" is then a claim
- * the graph cannot make: the direct shadows still hold, because the test's own
- * text says them.
+ * The transitive half is read off the edges the scan could read. A file whose
+ * imports could not all be read contributes the edges it has and no others, the
+ * same as it does to every other walk over the graph: a dependency of the mock
+ * that such a file also loads through an unreadable expression is disowned with
+ * the mock. That is the position, not an oversight: a walk that stopped at
+ * every such file would give up the transitive half for the whole test over one
+ * expression nobody could read.
  *
  * Memoized per test, because a selection asks once per crossing and the walk is
  * the cost.
@@ -77,7 +79,6 @@ function closure(relations: Relations, test: string, direct: readonly string[]):
   if (seed === undefined) return found;
   const cut = direct.map((file) => idOf(relations, 'file', file)).filter((id): id is NodeId => id !== undefined);
   const kept = dependenciesOf(relations, [seed], { avoid: cut });
-  if (kept.nodes.some((id) => relations.unknown[id] === 1)) return found;
   for (const id of dependenciesOf(relations, cut).nodes) {
     if (kept.mask[id] === 1) continue;
     const node = nodeAt(relations, id);

@@ -179,9 +179,9 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     mainFields: ['source', 'module', 'main'],
     // A TypeScript file under `nodenext` imports `./graph.js` and means
     // `./graph.ts`. Without this the extension on disk never matches, every
-    // relative specifier fails, and — because a failed relative specifier
-    // widens — a repository written the modern way scans to an entirely opaque
-    // graph: no error, no edges, and every run a whole run.
+    // relative specifier fails, and — because a failed relative specifier is a
+    // missing edge — a repository written the modern way scans to a graph with
+    // every file unknown and no edges, and no error says so.
     extensionAlias: {
       '.js': ['.ts', '.tsx', '.js', '.jsx'],
       '.mjs': ['.mts', '.mjs'],

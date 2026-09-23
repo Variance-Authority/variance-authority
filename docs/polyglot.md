@@ -52,8 +52,9 @@ Everything that narrows below the graph narrows from evidence. An
 [execution record](execution-record.md) says which regions a test actually
 covered, and [running less of the suite](selecting.md) uses it to skip work the
 graph would have included. Nothing narrows from absence — "I saw no import" is
-never a reason on its own, because a file whose edges could not be read may
-import anything.
+never a reason on its own. An import the reader cannot see, such as a `require`
+of a computed name, is the record's to answer: the module loads under the test,
+and the test is in its record.
 
 Type-level references are the one thing the walk does not follow, because they
 are erased before anything runs. A TypeScript `import type`, a Python

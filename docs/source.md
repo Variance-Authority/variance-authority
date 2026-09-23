@@ -51,7 +51,6 @@ const affected = affectedBy(relationsOfFiles(records), ['src/tokens.css']);
 affected.files;      // files the change can reach, the changed file included
 affected.components; // component names declared in any of them
 affected.missing;    // changed paths the graph does not hold
-affected.opaque;     // files widened because their own edges are unknown
 ```
 
 `scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
@@ -272,9 +271,11 @@ produces byte-stable graph input across machines.
 | `unresolved` | Specifiers that produced no repository file, preserved as written. |
 | `unknown` | Sentence explaining why outgoing edges could not be enumerated completely. |
 
-An unreadable file still receives a record. Its `unknown` sentence is the
-answer; an empty edge list would make the stronger and unsafe claim that it
-depends on nothing. A file above `largestFile` behaves the same way and says
+An unreadable file still receives a record, with the edges that could be read
+and an `unknown` sentence naming what could not. The walk uses the edges; the
+edge behind the sentence is the [execution record](execution-record.md)'s to
+answer, since a module that loads under a test is recorded however it was
+named. A file above `largestFile` behaves the same way and says
 both its size and the configured cap.
 
 ### Component declarations
@@ -323,10 +324,10 @@ An unresolved request is not always a hole in the same boundary:
 | Bare, such as `react` or `@scope/ui` | Added to `unresolved` only | It normally names a dependency outside this repository; the file's repository edge list remains usable. |
 | Builtin, `data:` URL, or an external URL | No repository edge | No repository file can answer it. |
 
-This distinction is conservative in both directions. Treating a missing
-relative target as an external package could skip its dependants. Treating every
-missing package as an unknown repository edge would make an uninstalled optional
-dependency widen every traversal.
+A relative request names repository source, so the file's reason says an edge
+is missing and which one. A bare request normally names a dependency, and
+recording it as a missing repository edge would put every uninstalled optional
+dependency in that list.
 
 ## Graph handoff
 
@@ -352,11 +353,11 @@ explicit set. `relationsOfFiles`, `affectedBy`,
 `RUNTIME_EDGES` and `EDGE_KINDS` are all exported from
 `@variance-authority/core/relate`.
 
-Files with `unknown` edges are retained as unknown nodes. `affectedBy` seeds every
-such file alongside the changed set, because it may import the changed file.
-The result distinguishes files and components reached normally, changed paths
-missing from the graph, unknown files that widened the walk, and the
-breadth-first trail explaining each arrival. Selection decides what to do with
+Files with `unknown` edges are retained as nodes with the edges that were read,
+and `affectedBy` walks them like any other. It seeds the changed files and
+nothing else. The result distinguishes files and components the change
+affects, changed paths missing from the graph, and the breadth-first trail
+explaining each arrival. Selection decides what to do with
 those facts; the graph does not rule a subject out by itself.
 
 ## Content and resolution reuse

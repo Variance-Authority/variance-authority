@@ -233,10 +233,11 @@ export function scopeLine(scope: Scope, indexed: number): string {
   }
 
   // Counted and said rather than widened over. A file whose imports could not
-  // be enumerated may import anything, so the scope is not a proof about what
-  // it leaves out — but unioning in every file that reaches an unknown one is
-  // 209 of this repository's 1,574 files whatever the start point was, which is
-  // not a narrowing any caller would recognise as one.
+  // all be enumerated contributes the edges it states and no others, as it does
+  // to every walk over the graph; what its unread import loads is the recorded
+  // run's to see. The count tells the reader the scope rests on the edges the
+  // scan read, without unioning in every file that reaches an unknown one —
+  // 209 of this repository's 1,574 files whatever the start point was.
   const holes =
     scope.unresolved.length === 0
       ? ''

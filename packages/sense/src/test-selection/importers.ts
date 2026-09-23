@@ -40,16 +40,9 @@ import { disownedIn } from './shadowed.js';
  * from it reaches nothing, and the graph says nothing about it: its row does.
  *
  * A file whose own edges the scan could not read may import the asset by an
- * edge nobody saw. When the changed file is an asset, the walk starts at every
- * such file as well — as though that edge were in the graph — and what it
- * reaches is read like any chain: a row there selects its tests, and a chain
- * ending where the record never looked leaves the changed file unmeasured.
- * Asking the unreadable file alone for a row is not enough, and is unsafe: what
- * an asset walk passes through is stylesheets and images, which by the
- * paragraph above can hold no row at all, so an unreadable stylesheet would
- * answer nothing and unsettle nothing while a measured chain beside it closed
- * the question — and the test that renders through it would be skipped over a
- * change it carries.
+ * edge nobody saw. The walk does not start there: that edge is the record's to
+ * answer, since the module that loaded the asset is in the row of every test
+ * that ran it, whatever expression named it.
  *
  * A test the snapshot says *holds* the changed file — it is a precondition of
  * the test, under any of its names — is left to the preconditions, which
@@ -253,8 +246,6 @@ export function answerByImporters(
     return { measured, deferred };
   };
 
-  const opaque: NodeId[] = [];
-  for (let id = 0; id < relations.unknown.length; id += 1) if (relations.unknown[id] === 1) opaque.push(id);
   const unread: string[] = [];
   // Files whose walks ended only at rows without probes, waiting on the one
   // read of the table below; every other file is settled as it is walked.
@@ -266,16 +257,7 @@ export function answerByImporters(
       continue;
     }
     const seed = knownAs(file);
-    // A file whose edges the scan could not read may import the asset by an
-    // edge nobody saw, so when the changed file is an asset every such file is
-    // a seed beside it: the walk continues from there exactly as it would have
-    // done had the edge been in the graph, and everything it reaches is an end
-    // of this file's question like any other.
-    const traversal = dependentsOf(
-      relations,
-      importedAsAsset(relations, id) ? [id, ...opaque] : [id],
-      { through: ['asset'] },
-    );
+    const traversal = dependentsOf(relations, [id], { through: ['asset'] });
     // The question is answered when every chain from the file ends at something
     // the record measured. One chain ending where the record never looked
     // leaves the file unmeasured, whatever the other chains found.
@@ -287,12 +269,7 @@ export function answerByImporters(
       // is a step on the way to the module that carries it, and the walk went
       // on through it.
       if (other === id || importedAsAsset(relations, other)) continue;
-      // A trail that does not begin at the changed file begins at a file whose
-      // edges nobody could read, and the step from the changed file to it is
-      // the edge nobody saw: it is named, because a chain that starts in the
-      // middle explains nothing.
-      const trail = trailOf(traversal, other);
-      const named = (trail[0] === id ? trail : [id, ...trail]).map((step) => relations.names[step]!);
+      const named = trailOf(traversal, other).map((step) => relations.names[step]!);
       const found = read(other, named, seed);
       ends += 1;
       if (found.measured) continue;

@@ -137,7 +137,8 @@ export async function recordFor(subject: RecordSubject): Promise<BuiltRecord> {
 
       // A *relative* one names a path inside this repository and could not be
       // identified, which is a hole in the edge list rather than an absence of
-      // one — so the file widens instead of narrowing.
+      // one — so the file is marked unknown with the specifier named, and the
+      // edge is left to the recorded run.
       if (isRelative(request, language)) holes.push(asked.value);
       continue;
     }

@@ -35,12 +35,15 @@
  *
  * ## The digest that must never lie
  *
- * A digest says *these inputs are the same*. A file whose content was not supplied,
- * or whose own imports could not be read, breaks that claim — its closure may have
- * changed with no digest in this structure changing. Those nodes are marked
- * **volatile**, the mark propagates to everything that rests on them, and a
- * volatile node is treated as changed however its digest compares. A cache that
- * cannot be trusted must not be silently trusted.
+ * A digest says *these inputs are the same*. A file whose content was not supplied
+ * breaks that claim — its bytes may have changed with no digest in this structure
+ * changing. Those nodes are marked **volatile**, the mark propagates to everything
+ * that rests on them, and a volatile node is treated as changed however its digest
+ * compares. A cache that cannot be trusted must not be silently trusted.
+ *
+ * A file whose imports could not all be read is not volatile. Its bytes are
+ * hashed, and the edges that were read are folded; the one nobody could read is
+ * left to a recorded run, which sees the module load whatever named it.
  */
 
 import { digestCombine, digestString, type Digest } from '../format/hash.js';
@@ -74,7 +77,7 @@ export interface Closure {
   readonly digests: ReadonlyMap<string, Digest>;
 
   /**
-   * Nodes whose digest cannot prove sameness, and everything resting on them.
+   * Nodes whose content was not supplied, and everything resting on them.
    *
    * Not an error. It is the honest half of the answer, and a caller that ignores
    * it converts a missing input into a subject nobody observed.
@@ -114,7 +117,7 @@ export function closureOf(input: ClosureInput): Closure {
       const name = relations.names[node]!;
       const own = kind === 'file' ? content.get(name) : SETTLED;
 
-      if (own === undefined || relations.unknown[node] === 1) shaky = true;
+      if (own === undefined) shaky = true;
       terms.push(`${kind}\u0000${name}\u0000${own ?? UNREAD}`);
 
       const { offset, target, kind: edgeKind } = relations.depends;

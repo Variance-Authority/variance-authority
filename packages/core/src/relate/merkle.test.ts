@@ -115,8 +115,8 @@ describe('a digest that must not be believed', () => {
     ]);
   });
 
-  it('marks a file whose own imports could not be read', () => {
-    const closure = closureFor([
+  it('does not mark a file whose own imports could not all be read', () => {
+    const records: readonly FileRecord[] = [
       { file: 'src/legacy.js', digest: at('legacy'), unknown: 'a computed require()' },
       {
         file: 'src/Legacy.tsx',
@@ -124,22 +124,14 @@ describe('a digest that must not be believed', () => {
         declares: ['Legacy'],
         edges: [{ to: 'src/legacy.js', kind: 'imports' }],
       },
-    ]);
-
-    // Its bytes are known and its *inputs* are not, so an identical digest proves
-    // nothing about what it renders.
-    expect(closure.volatile.has('file:src/legacy.js')).toBe(true);
-    expect(closure.volatile.has('component:Legacy')).toBe(true);
-  });
-
-  it('is treated as changed even when it compares equal', () => {
-    const records: readonly FileRecord[] = [
-      { file: 'src/legacy.js', digest: at('legacy'), unknown: 'a computed require()' },
     ];
+    const closure = closureFor(records);
 
-    expect(driftedBetween(closureFor(records), closureFor(records)).files).toEqual([
-      'src/legacy.js',
-    ]);
+    // Its bytes are hashed. The `require` nobody could read is a recorded run's
+    // to answer, and marking the file would re-observe everything above it on
+    // every run.
+    expect(closure.volatile.size).toBe(0);
+    expect(driftedBetween(closure, closureFor(records)).files).toEqual([]);
   });
 });
 

@@ -193,7 +193,7 @@ describe('an addition the scan never walked to', () => {
     expect(brought?.unknown).toMatch(/outside the scanned directories/);
   });
 
-  it('leaves that file opaque on the graph, so a selection widens rather than narrows', async () => {
+  it('records that file unknown on the graph, so a report can name it', async () => {
     const tainted = await outside();
     const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
     const id = idOf(relations, 'file', 'outside/tool.ts');

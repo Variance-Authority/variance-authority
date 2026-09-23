@@ -19,7 +19,7 @@ import type { ParserOptions } from 'oxc-parser';
  * inference is right. For `.js`, `.mjs` and `.cjs` it is not: JSX stays off, so
  * every React component written in plain JavaScript — which is most of the ones
  * in the wild — parses to an error, and an error is what sets `unknown`. The
- * file then widens every answer it appears in, forever, for a dialect question.
+ * file then has no edges in the graph, forever, over a dialect question.
  *
  * Only those three extensions are overridden. `.ts` must keep its own dialect
  * because `<string>value` is a cast there and an unclosed element under JSX, so
@@ -79,7 +79,7 @@ const RAW_JSX: TransferOptions = { lang: 'jsx', experimentalRawTransfer: true };
  * The buffer reserves three bytes per code unit up front because UTF-8 length is
  * not knowable before encoding, and refuses over a gibibyte. No source file is
  * near this — the scanner stops at a megabyte — but a caller reading something
- * else should get the parse it would have got, not a file that widens.
+ * else should get the parse it would have got, not a file marked unknown.
  */
 const LARGEST_RAW_SOURCE = (1024 * 1024 * 1024) / 3;
 

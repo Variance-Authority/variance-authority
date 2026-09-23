@@ -50,7 +50,7 @@ describe('what a Swift file asks for', () => {
     expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
 
-  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+  it('reads a file whose only error is inside a body, rather than marking it unknown', () => {
     const read = readSwift('a.swift', 'import Core\nstruct Lens { func ( }\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['*', 'Core']);

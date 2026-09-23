@@ -215,15 +215,16 @@ refusals of its own:
 | A changed file under `source.dirs` is not in the graph | The whole suite runs. The roots are your statement about where renders come from, so a file inside them the scan never read is a gap in the scan, not a file that affects nothing |
 | The diff is entirely outside the graph | The whole suite runs. A CI config, a `tsconfig`, a build config: none of them is a node here, and every one of them can repaint the suite. A lockfile is the exception — it is [read rather than counted](changes-before-and-beyond.md#why-the-lockfile-is-read-and-not-diffed) |
 | The files it did reach declare no component | The whole suite runs. That is also exactly what a changed file declaring a component the scan failed to recognise looks like |
-| A file's own imports could not be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | It is traversed **as though it changed**, and named in the report with the reason |
-| A relative specifier resolves nowhere | Its file is treated as having unknown edges and widens for the same reason: the missing target belongs to this repository but could not be identified |
+| A file's own imports could not all be read — `import('./' + name)`, a `require` this could not read as a literal, a parse that did not finish | The edges it could read are walked. The one it could not is left to the [execution record](execution-record.md), which sees the module load whatever expression named it |
+| A relative specifier resolves nowhere | The same: the specifier is recorded with the file's reason, and the edge is the record's to answer |
 | A bare specifier resolves nowhere | It becomes an edge to a [package node](changes-before-and-beyond.md#what-a-bumped-package-reaches) under the name it asked for and does not widen the graph. Whether the package is installed here decides nothing about which files import it. If it names repository source through an alias or build plugin, configure that mapping or supply the package boundary through the project graph |
 
-The widening rows are why the report distinguishes *reached* from *widened*. A
-file that had to be widened is printed with the specifier or read failure that
-caused it, because that line is the only thing in the run that tells you which
-file to fix to make the next run smaller — and a count would tell you there is
-nothing to be done.
+The graph walks what is written. A specifier built at runtime has no written
+target, and seeding every such file on every diff would make the run as wide as
+the codebase's least legible corner. Recorded coverage has no such blind spot:
+a module that loads under a test is in that test's record however it was
+named. The file's reason stays on its record, so the scan can say which files
+hide an edge.
 
 What the scan reads, and where it stops, is
 [`packages/sense`](../packages/sense). The graph itself is data: fold the records

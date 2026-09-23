@@ -222,25 +222,6 @@ describe('how far the edit landed, as a histogram', () => {
     expect(spread?.rungs.find((rung) => rung.depth === 1)?.moved).toBe(1);
   });
 
-  it('keeps a component reached through an unreadable file off the axis', () => {
-    // Its depth is measured from the scan's blind spot, not from the edit. Folded
-    // in, it would put the scanner's own gaps on the same scale as consequences.
-    const spread = spreadOf(
-      build({
-        reach: {
-          ...build().reach!,
-          components: [
-            { component: 'Button', trail: ['app/tokens.css', 'ui/button.tsx', 'Button'] },
-            { component: 'Ghost', trail: ['vendor/opaque.js', 'Ghost'], throughUnread: 'vendor/opaque.js' },
-          ],
-        },
-      }),
-    );
-
-    expect(spread?.rungs).toEqual([{ depth: 1, reached: 1, moved: 0 }]);
-    expect(spread?.throughUnread).toBe(1);
-  });
-
   it('has no histogram at all when there was no diff to measure from', () => {
     expect(spreadOf(build({ reach: null }))).toBeNull();
   });

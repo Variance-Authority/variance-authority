@@ -14,7 +14,7 @@ import { scanRelations } from './scan.js';
  * still returns records, and the selector built on them still returns subjects —
  * fewer of them, with no error anywhere. So the cases with the most weight here
  * are the ones about files that could not be read: `unknown` is the difference
- * between a saving and a silent hole.
+ * between a hole a report names and a silent one.
  */
 
 describe('reading a module', () => {
@@ -141,17 +141,18 @@ describe('reading a module', () => {
 
     expect(read.requests).toEqual([{ value: './dyn', kind: 'dynamic', bindings: [], line: 1 }]);
     // The template is quoted and still not a constant, which is exactly the
-    // shape that must widen rather than resolve to a directory.
+    // shape that must mark the file unknown rather than resolve to a directory.
     expect(read.unknown).toContain('not a literal');
   });
 
-  it('reads a literal require in either quote, and widens on one it cannot read', () => {
+  it('reads a literal require in either quote, and marks the file unknown on one it cannot read', () => {
     for (const source of ["const a = require('./req');\n", 'const a = require("./req");\n']) {
       const literal = readModule('a.cjs', source);
       // Reading only the single-quoted alternative is the worst shape a bug can
       // take here: the specifier is undefined, so the edge points nowhere, and
       // the literal still counts against the call total, so the file is not
-      // marked unknown either. A lost edge that does not widen is a green run.
+      // marked unknown either. A lost edge nothing records is a lost edge
+      // nobody is told about.
       expect(literal.requests).toEqual([{ value: './req', kind: 'imports', bindings: [], line: 1 }]);
       expect(literal.unknown).toBeUndefined();
     }
@@ -163,9 +164,10 @@ describe('reading a module', () => {
   it('reads JSX in a file whose extension does not announce it', () => {
     // `.jsx` is the rarer spelling. Most React components written in JavaScript
     // sit in a `.js`, and the parser's own inference leaves JSX off for that
-    // extension — so the element below is a syntax error, the file is opaque,
-    // and it widens every answer it appears in for the rest of its life. The
-    // cost is not theoretical: it is 307 of material-ui's 1,582 source files.
+    // extension — so the element below is a syntax error, the file is recorded
+    // unknown with none of its edges, and every static answer that should pass
+    // through it stops at it for the rest of its life. The cost is not
+    // theoretical: it is 307 of material-ui's 1,582 source files.
     const read = readModule('Alert.js', "import { cx } from './cx';\nexport const A = () => <div className={cx()} />;\n");
 
     expect(read.requests).toEqual([{ value: './cx', kind: 'imports', bindings: [{ imported: 'cx', local: 'cx', type: false, line: 1 }], line: 1 }]);
@@ -286,9 +288,9 @@ describe('scanning a tree', () => {
     const clock = records.find((record) => record.file === 'src/Clock.tsx');
 
     // `./util.js` is `util.ts`, which is what every TypeScript file under
-    // `nodenext` looks like. Getting this wrong fails the safe way and is
-    // therefore invisible: each specifier becomes a hole, each file becomes
-    // opaque, every run stays green and every run is a whole run.
+    // `nodenext` looks like. Getting this wrong empties the graph without an
+    // error: each specifier resolves to nothing, each file is recorded unknown
+    // with no edges, and every static answer is left to the recorded run.
     expect(clock?.edges).toEqual([{ to: 'src/util.ts', kind: 'imports' }]);
     expect(clock?.unknown).toBeUndefined();
   });
@@ -313,7 +315,8 @@ describe('scanning a tree', () => {
     const vendor = records.find((record) => record.file === 'src/vendor.ts');
 
     // A builtin and an uninstalled package are both *not files in this
-    // repository*, so neither can appear in a diff of it and neither widens.
+    // repository*, so neither can appear in a diff of it and neither marks the
+    // file unknown.
     expect(vendor?.edges).toBeUndefined();
     expect(vendor?.unknown).toBeUndefined();
   });
@@ -331,11 +334,10 @@ describe('scanning a tree', () => {
 
     // Nothing declares a component in `tokens.css`, so a scan that reads
     // declarations alone has to run the whole suite. Two hops of resolution
-    // narrow it to one component — and `Legacy` rides along because its own
-    // dependency is unreadable, which is stated rather than hidden.
-    expect(affected.components).toEqual(['Button', 'Legacy']);
-    expect(affected.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
-    expect(affected.opaque[0]?.because).toContain('require()');
+    // narrow it to one component. `Legacy` is not among them: its dependency's
+    // `require()` could not be read, so the graph has no edge there, and the
+    // recorded run is what sees whatever that call loads.
+    expect(affected.components).toEqual(['Button']);
   });
 
   it('produces the same records twice', async () => {

@@ -70,7 +70,7 @@ describe('what a Rust file asks for', () => {
     expect(readRust('src/a.rs', 'use self::b::C;\n@ ~ !\n').unknown).toContain('did not parse cleanly');
   });
 
-  it('reads a file whose only error is inside a body, rather than widening on it', () => {
+  it('reads a file whose only error is inside a body, rather than marking it unknown', () => {
     const read = readRust('src/a.rs', 'use self::b::C;\nfn held() { let ( ; }\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['self::b::C']);

@@ -51,8 +51,6 @@ export interface Arrival {
   readonly component: string;
   /** Seed first, component last. Its middle is the chain worth printing. */
   readonly trail: readonly string[];
-  /** Set when the chain opens at a file the scan could not read, not at an edit. */
-  readonly throughUnread?: string;
   readonly renders: readonly { readonly subject: SubjectView; readonly landing: Landing }[];
 }
 
@@ -69,15 +67,6 @@ export interface Edit {
 
 export interface OutcomeMap {
   readonly edits: readonly Edit[];
-  /**
-   * Reached components no changed file claims.
-   *
-   * Their own row, never folded into an edit. A component reached only through a
-   * file the scan could not read was reached by the blind spot rather than by the
-   * commit, and hanging it under a file somebody actually edited would read as an
-   * attribution the traversal declined to make.
-   */
-  readonly aside: readonly Arrival[];
   /** Changed subjects the commit reaches none of. Counted here, listed below. */
   readonly unreached: number;
 }
@@ -96,33 +85,22 @@ export function outcomeOf(build: BuildDetail): OutcomeMap | null {
   if (reach === null || reach.whole !== undefined || reach.subjects === undefined) return null;
 
   const drawn = rendersOf(build.subjects, reach);
-  const claimed = new Set<string>();
   const edits = reach.changed.map((file) => {
     const arrivals = reach.components
-      .filter((component) => component.throughUnread === undefined && component.trail[0] === file)
+      .filter((component) => component.trail[0] === file)
       .map((component): Arrival => ({
         component: component.component,
         trail: component.trail,
         renders: drawn.get(component.component) ?? [],
       }));
-    for (const arrival of arrivals) claimed.add(arrival.component);
     return { file, arrivals, ...verdictOf(arrivals) };
   });
-
-  const aside = reach.components
-    .filter((component) => !claimed.has(component.component))
-    .map((component): Arrival => ({
-      component: component.component,
-      trail: component.trail,
-      ...(component.throughUnread === undefined ? {} : { throughUnread: component.throughUnread }),
-      renders: drawn.get(component.component) ?? [],
-    }));
 
   const unreached = build.subjects.filter(
     (subject) => subject.verdict === 'changed' && reach.subjects?.[subject.subject]?.reached === false,
   ).length;
 
-  return { edits, aside, unreached };
+  return { edits, unreached };
 }
 
 /** Every render that draws each component, in the order the report listed them. */
@@ -201,21 +179,6 @@ export function OutcomeMapView({ build }: { readonly build: BuildDetail }): Reac
         ))}
       </ol>
 
-      {map.aside.length === 0 ? null : (
-        <div className="va-map-aside">
-          <p className="va-map-note">
-            {count(map.aside.length, 'component')} reached by a chain that does not open at a
-            changed file. The traversal seeds every file it could not read, so these were reached by
-            the scan&rsquo;s blind spot rather than by the commit.
-          </p>
-          <ul className="va-arrivals">
-            {map.aside.map((arrival) => (
-              <ArrivalRow key={arrival.component} arrival={arrival} />
-            ))}
-          </ul>
-        </div>
-      )}
-
       {map.unreached === 0 ? null : (
         <p className="va-map-note va-map-alarm">
           {count(map.unreached, 'render')} moved with no edge on this map — nothing in the commit
@@ -269,11 +232,6 @@ function ArrivalRow({ arrival }: { readonly arrival: Arrival }): ReactElement {
       {through.length === 0 ? null : (
         <span className="va-arrival-through" title={arrival.trail.join(' → ')}>
           through {through.length === 1 ? through[0] : count(through.length, 'file')}
-        </span>
-      )}
-      {arrival.throughUnread === undefined ? null : (
-        <span className="va-arrival-through" title={arrival.throughUnread}>
-          from an unread file
         </span>
       )}
       <Bar tally={tally} />

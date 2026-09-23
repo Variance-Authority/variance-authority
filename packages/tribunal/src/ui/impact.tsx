@@ -139,13 +139,6 @@ function Spread({ build }: { readonly build: BuildDetail }): ReactElement | null
         ))}
       </ul>
       <Undeclared build={build} moved={spread.undeclared} />
-      {spread.throughUnread === 0 ? null : (
-        <p className="va-note">
-          {count(spread.throughUnread, 'component')} reached only through a file the scan could not
-          read, so their depth is measured from the blind spot rather than from the edit — they are
-          not counted above.
-        </p>
-      )}
     </div>
   );
 }

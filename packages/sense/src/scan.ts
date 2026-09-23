@@ -128,8 +128,8 @@ export interface ScanOptions extends ResolveOptions {
    * The files that reach that size are built output — a bundle, a generated
    * client, a vendored dist — and a repository large enough to matter has some.
    * One of them is the whole memory budget, and nothing in its edges was worth
-   * it. Past the cap the file is recorded `unknown`, which widens selection for
-   * whatever imports it rather than narrowing on a blank.
+   * it. Past the cap the file is recorded `unknown` with its size, rather than
+   * as a file that imports nothing, and its edges are left to the recorded run.
    */
   readonly largestFile?: number;
 
@@ -244,9 +244,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   //
   // A path that is not there is dropped here rather than recorded as a file
   // whose edges could not be read. The second is what a *misspelled* entry
-  // would become, and a file with unknown edges is a seed of every walk
-  // forever: one typo in the configuration would widen every run in the
-  // repository and read, in the report, as a scan that had failed.
+  // would become: one typo in the configuration would name a file nobody wrote
+  // in every report on the scan, and read there as a scan that had failed.
   for (const entry of options.before ?? []) {
     if (!READABLE.has(extname(entry))) continue;
     if (await readable(join(root, entry))) queue.push(entry);

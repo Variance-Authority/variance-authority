@@ -630,9 +630,7 @@ below is one stage of that call.
    every chain of the walk ends at something the record measured — a test, a
    module with probes, or a module without probes that some test declares; a
    chain ending at a module with no row leaves the file unread whatever the
-   other chains selected. When something imports the file as an asset, every
-   file whose edges are unknown is charged as well, as an addition that
-   neither answers nor unsettles. O(n + m) on the graph per changed file.
+   other chains selected. O(n + m) on the graph per changed file.
 6. **Unread.** A changed path is measured only when *every* name the caller
    says the snapshot may list it under was answered for by a module row, a
    precondition or a chain to a recorded importer. One file is often two names

@@ -212,8 +212,8 @@ function sameTests(left: readonly CoveringTest[], right: readonly CoveringTest[]
 /**
  * The cases whose files import this module, by the file graph.
  *
- * `affectedBy` is the owner: it seeds every file whose edges it could not read and
- * leaves out a file whose mocks cut every trail, which is the reading the
+ * `affectedBy` is the owner: it walks the edges the scan read and leaves out a
+ * file whose mocks cut every trail, which is the reading the
  * file-grain selector gives the same module. Absent without a graph, and when
  * the graph does not hold the module, because then it cannot say who imports
  * it and an empty list would say nobody does. Absent too when the graph names

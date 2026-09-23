@@ -151,7 +151,6 @@ async function baselineOf(
       unknown.push(`${file}: missing from Sense`);
       continue;
     }
-    if (record.unknown !== undefined) unknown.push(`${file}: ${record.unknown}`);
     for (const edge of record.edges ?? []) queue.push(edge.to);
 
     if (file === testFile || !isModule(file)) continue;

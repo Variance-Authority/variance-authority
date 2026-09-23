@@ -13,10 +13,12 @@
  *
  * ## The one rule
  *
- * A file whose outgoing edges cannot be enumerated says so, and every consumer
- * treats it as though it changed. Under-reporting an edge does not produce a
- * smaller answer, it produces a **wrong** one: a green run over a surface nobody
- * looked at. Over-reporting one costs a collection.
+ * A file whose outgoing edges cannot all be enumerated says so: its record
+ * names the reason, and a report on the scan names the file. An edge dropped in
+ * silence does not produce a smaller answer, it produces a **wrong** one that
+ * nobody can see. The graph does not stand in for the edge it could not read —
+ * nothing is widened for it — because the recorded run sees the module load
+ * whatever expression named it, and that is who answers for the edge.
  */
 
 // compass: variance-authority.reach

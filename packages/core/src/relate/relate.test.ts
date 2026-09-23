@@ -21,7 +21,8 @@ import {
  * wrong. The **safety** half does not: a graph that quietly drops an edge still
  * answers every query, returns a smaller set, and produces a green run over a
  * surface nobody looked at. So the cases that matter most are the ones about
- * files this could not read.
+ * edges: the ones that were read, and the one nobody could read, which is left
+ * to the recorded run rather than guessed at.
  */
 
 /** `src/tokens.css` ← `src/button.css` ← `src/Button.tsx`, which declares `Button`. */
@@ -224,33 +225,29 @@ describe('a file whose edges could not be read', () => {
     { file: 'src/Legacy.tsx', declares: ['Legacy'], edges: [{ to: 'src/legacy.js', kind: 'imports' }] },
   ];
 
-  it('is treated as depending on everything that changed', () => {
+  it('adds nothing to a change it has no written edge to', () => {
     const relations = relationsOfFiles(UNREADABLE);
     const affected = affectedBy(relations, ['src/tokens.css']);
 
-    // `legacy.js` might import `tokens.css`. Nothing here can tell, so it is
-    // seeded, and `Legacy` — which depends on it — is observed. The alternative
-    // is a green run over a component nobody looked at.
-    expect(affected.components).toEqual(['Button', 'Legacy']);
-
-    // The sentence rides along with the path. A count is something to live
-    // with; a named cause is something to fix.
-    expect(affected.opaque).toEqual([
-      {
-        file: 'src/legacy.js',
-        because: 'a require() call with a specifier that is not a literal',
-      },
-    ]);
+    // `legacy.js` might `require` `tokens.css` by a name built at runtime. The
+    // walk does not guess: a recorded run sees the module load, whatever
+    // expression named it, and that is the answer for the edge nobody could read.
+    expect(affected.components).toEqual(['Button']);
+    expect(affected.files).not.toContain('src/legacy.js');
   });
 
-  it('is counted apart from what the walk actually visited', () => {
+  it('is walked through the edges that were read', () => {
     const relations = relationsOfFiles(UNREADABLE);
-    const affected = affectedBy(relations, []);
+    const affected = affectedBy(relations, ['src/legacy.js']);
 
-    // No file changed at all, and the unreadable one is still in the answer.
-    // "We widened" must never hide inside "we found".
-    expect(affected.opaque.map((hole) => hole.file)).toEqual(['src/legacy.js']);
     expect(affected.components).toEqual(['Legacy']);
+    expect(affected.files).toEqual(['src/Legacy.tsx', 'src/legacy.js']);
+  });
+
+  it('selects nothing when nothing changed', () => {
+    const relations = relationsOfFiles(UNREADABLE);
+
+    expect(affectedBy(relations, []).components).toEqual([]);
   });
 });
 

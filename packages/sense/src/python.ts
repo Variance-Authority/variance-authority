@@ -44,7 +44,7 @@
  * A parse error, and a non-literal `importlib.import_module(x)` or `__import__(x)`.
  * A literal one is read and becomes a `dynamic` edge, for the reason the module
  * reader reads a literal `require`: a dynamic corner of a repository that is
- * legible should not widen every run it appears in.
+ * legible belongs in the graph.
  */
 
 import type { EdgeKind } from '@variance-authority/core/relate';
@@ -70,8 +70,8 @@ interface Gathering {
 export function readPython(file: string, source: string): Read {
   const parser = parserFor('python');
   // An absent grammar makes the language unreadable, not edgeless. Every file
-  // in it is answered with `unknown` naming the package to install, which
-  // widens the runs that touch it rather than quietly narrowing them
+  // in it is answered with `unknown` naming the package to install, so a report
+  // on the scan says so rather than showing a language with no imports
   // ([`grammar.ts`](./grammar.ts)).
   if (parser === undefined) {
     return { requests: [], unknown: missingGrammar(file, 'python') };

@@ -100,7 +100,7 @@ const megabytes = (bytes) => `${(bytes / 1_048_576).toFixed(1)} MB`;
 console.log(`  rss: ${megabytes(afterScan)} after the scan, ${megabytes(afterGraph)} with the graph built, ${megabytes(afterRelease)} once the records are let go`);
 
 console.log(`graph: ${FILES.toLocaleString()} files, ${EDGES.toLocaleString()} edges, ${tests.length.toLocaleString()} test files in ${since()}`);
-if (opaque > 0) console.log(`  ${opaque.toLocaleString()} files whose own edges could not be enumerated — their reach is everything downstream of them`);
+if (opaque > 0) console.log(`  ${opaque.toLocaleString()} files whose own edges could not all be enumerated — counted with the edges they state, and none for the rest`);
 
 /**
  * One test's forward closure, and how deep each module sat.

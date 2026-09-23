@@ -9,10 +9,10 @@ import { OutcomeMapView, outcomeOf } from './outcome.js';
  * Every one of them fails silently. A file filed under *the cause* on the strength
  * of a render it merely appeared on reads as an attribution and is not one; a file
  * whose components nothing renders, filed under *nothing moved*, hides a coverage
- * hole behind a reassuring sentence; a component reached through the scan's blind
- * spot, hung under a file somebody edited, credits the commit with a chain the
- * traversal refused to claim. In each case the page reads correctly and says the
- * wrong thing, which is why these are asserted rather than looked at.
+ * hole behind a reassuring sentence; a left column drawn over a diff the store
+ * refused to attribute reads as a commit that reaches nothing. In each case the
+ * page reads correctly and says the wrong thing, which is why these are asserted
+ * rather than looked at.
  */
 
 function subject(overrides: Partial<SubjectView> = {}): SubjectView {
@@ -153,28 +153,7 @@ describe('the two findings a comparison tool cannot reach', () => {
   });
 });
 
-describe('the map does not credit the commit with the scan’s blind spot', () => {
-  it('keeps a component reached through an unread file out of every edit', () => {
-    const map = outcomeOf(
-      build([], {
-        against: 'HEAD~1',
-        changed: [BUTTON],
-        components: [
-          { component: 'Button', trail: [BUTTON, 'Button'] },
-          {
-            component: 'Legacy',
-            trail: ['app/src/vendor/bundle.min.js', 'Legacy'],
-            throughUnread: 'app/src/vendor/bundle.min.js',
-          },
-        ],
-        subjects: {},
-      }),
-    );
-
-    expect(map?.edits[0]?.arrivals.map((arrival) => arrival.component)).toEqual(['Button']);
-    expect(map?.aside.map((arrival) => arrival.component)).toEqual(['Legacy']);
-  });
-
+describe('the map is not drawn where the diff was not attributed', () => {
   it('draws nothing at all when the diff was not attributed', () => {
     // `whole` is the store's refusal. A left column of files with no edges under
     // them reads as *this commit reaches none of your subjects*, which is a

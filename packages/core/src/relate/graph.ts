@@ -158,10 +158,8 @@ export interface Relations {
    * `1` where this node's outgoing edges could not be enumerated.
    *
    * A parse failure, a specifier that was not a literal, a file in a language
-   * nothing here reads. It is *not* "this file has no dependencies", and the
-   * difference is the whole safety argument: a file whose edges are unknown may
-   * depend on anything that changed, so selection seeds the traversal with every
-   * one of them (ADR-0002 — absent is not empty).
+   * nothing here reads. Kept for whoever reports on the scan. No walk reads it:
+   * the edge a reader could not see is one a recorded run sees load.
    */
   readonly unknown: Uint8Array;
 

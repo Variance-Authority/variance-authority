@@ -333,7 +333,7 @@ describe('a scan that remembers the last one', () => {
     const reuse = memoryRecordCache();
 
     const before = await scanRelations({ root, dirs: ['src'], reuse });
-    // `./later.js` resolves to nothing, so `Button.tsx` is opaque and widens.
+    // `./later.js` resolves to nothing, so `Button.tsx` is recorded unknown.
     expect(before.find((record) => record.file === 'src/Button.tsx')?.unknown).toContain('./later');
 
     await write(root, 'src/later.ts', 'export const later = 1;\n');
@@ -341,7 +341,7 @@ describe('a scan that remembers the last one', () => {
 
     // The whole soundness argument in one assertion. Not one byte of
     // `Button.tsx` changed; its edges did. A cache keyed on content alone would
-    // hand back the opaque record forever, and the file that appeared would have
+    // hand back the unknown record forever, and the file that appeared would have
     // no dependents in any run after this one.
     const button = after.find((record) => record.file === 'src/Button.tsx');
     expect(button?.unknown).toBeUndefined();

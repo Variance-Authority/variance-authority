@@ -296,9 +296,6 @@ function Trails({ reach }: { readonly reach: ReachView }): ReactElement | null {
                 {index === entry.trail.length - 1 ? <strong>{step}</strong> : <code>{step}</code>}
               </span>
             ))}
-            {entry.throughUnread === undefined ? null : (
-              <span className="va-axis va-unread">begins at a file the scan could not read</span>
-            )}
           </li>
         ))}
       </ul>
@@ -345,27 +342,17 @@ function Unplaced({ crossing }: { readonly crossing: Crossing }): ReactElement |
 /**
  * Where the attribution is knowingly wider than the diff.
  *
- * Both lists name their files rather than counting them, because both are things
+ * The list names its files rather than counting them, because each is something
  * an operator can go and fix, and a bare count tells them there is nothing to do.
  */
 function Holes({ reach }: { readonly reach: ReachView }): ReactElement | null {
-  if (reach.unscanned === undefined && reach.opaque === undefined) return null;
+  if (reach.unscanned === undefined) return null;
 
   return (
     <p className="va-note va-reach-note">
-      {reach.unscanned === undefined ? null : (
-        <>
-          {count(reach.unscanned.length, 'changed file')} under the scanned roots{' '}
-          {reach.unscanned.length === 1 ? 'is' : 'are'} not in the graph:{' '}
-          <Files names={reach.unscanned} />.{' '}
-        </>
-      )}
-      {reach.opaque === undefined ? null : (
-        <>
-          {count(reach.opaque.length, 'file')} was walked as changed because its own imports could
-          not be read: <Files names={reach.opaque.map((hole) => hole.file)} />.
-        </>
-      )}
+      {count(reach.unscanned.length, 'changed file')} under the scanned roots{' '}
+      {reach.unscanned.length === 1 ? 'is' : 'are'} not in the graph:{' '}
+      <Files names={reach.unscanned} />.
     </p>
   );
 }

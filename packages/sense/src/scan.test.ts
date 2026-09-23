@@ -50,13 +50,13 @@ describe('a file too large to be worth parsing', () => {
     expect(huge).not.toHaveProperty('digest');
   });
 
-  it('is unknown rather than empty, so what imports it widens instead of narrowing on a blank', async () => {
+  it('is unknown rather than empty, so a declined file is never read as one that imports nothing', async () => {
     const records = await scanRelations({ root, dirs: ['src'], largestFile: 1024 });
     const huge = records.find((record) => record.file === 'src/huge.ts');
 
     // The distinction the record type exists for. An empty edge list is a file
     // that imports nothing; `unknown` is a file whose edges are unavailable, and
-    // only one of those is safe to narrow on.
+    // a report on the scan has to be able to tell the two apart.
     expect(huge).toHaveProperty('unknown');
     expect(huge).not.toHaveProperty('edges');
   });

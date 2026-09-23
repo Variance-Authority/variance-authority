@@ -126,8 +126,8 @@ describe('a walk that could not attribute the diff', () => {
   });
 });
 
-describe('a component reached through a file the scan could not read', () => {
-  const OPAQUE = relationsOfFiles([
+describe('a component behind a file the scan could not read', () => {
+  const UNREADABLE = relationsOfFiles([
     { file: 'src/ds/Button.tsx', declares: ['Button'] },
     {
       file: 'src/ds/legacy.js',
@@ -140,42 +140,19 @@ describe('a component reached through a file the scan could not read', () => {
     },
   ]);
 
-  it('marks the trail that does not begin at a changed file', () => {
+  it('is not attributed to a change it has no written edge to', () => {
     const reach = reachOf({
       against: 'main',
       changed: ['src/ds/Button.tsx'],
-      relations: OPAQUE,
+      relations: UNREADABLE,
       roots: ROOTS,
       baselines: baselines([['story:clock', ['Clock']]]),
     });
 
-    const clock = reach.components.find((entry) => entry.component === 'Clock');
-
-    // `Clock` is in the answer because an unreadable file might import what
-    // changed — sound for deciding what to observe, and a false attribution if
-    // printed as though the commit reached it. The trail opens with a path the
-    // diff never named, so it is labelled rather than shown bare.
-    expect(clock?.trail[0]).toBe('src/ds/legacy.js');
-    expect(clock?.throughUnread).toBe('src/ds/legacy.js');
-    expect(reach.components.find((entry) => entry.component === 'Button')?.throughUnread)
-      .toBeUndefined();
-  });
-
-  it('names the file to fix, with the reason, rather than counting it', () => {
-    const reach = reachOf({
-      against: 'main',
-      changed: ['src/ds/Button.tsx'],
-      relations: OPAQUE,
-      roots: ROOTS,
-      baselines: baselines([['story:clock', ['Clock']]]),
-    });
-
-    expect(reach.opaque).toEqual([
-      {
-        file: 'src/ds/legacy.js',
-        because: 'a require() call with a specifier that is not a literal',
-      },
-    ]);
+    // `legacy.js` may `require` `Button.tsx` by a name built at runtime. The
+    // report does not guess: a recorded run sees that module load.
+    expect(reach.components.map((entry) => entry.component)).toEqual(['Button']);
+    expect(reach.subjects?.['story:clock']?.reached).toBe(false);
   });
 });
 
@@ -222,9 +199,6 @@ describe('the chain from a bumped package to a component', () => {
         trail: ['@emotion/react', '@mui/material', 'src/ds/Button.tsx', 'Button'],
       },
     ]);
-    // Named, not `throughUnread`: the install said this package moved, so the
-    // seed is one the run can stand behind.
-    expect(reach.components[0]?.throughUnread).toBeUndefined();
   });
 
   it('does not reach a component that only imports the package as a type', () => {
