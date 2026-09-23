@@ -1009,11 +1009,14 @@ one module are both credited, so a test left out of a selection can be traced to
 a hand-written table or to the mock reader.
 
 `mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls off test, spec,
-story and setup files and shadows the mocked module. Nothing is shadowed when
-the factory loads the real module through `importActual`, `requireActual` or
-`importOriginal`, when the factory is written somewhere this cannot read,
-when the mock is a `doMock` the static imports above it have already evaluated
-past, and when the specifier is not a string literal. Pass `callers` to name
+story and setup files and shadows the mocked module. A `requireActual` or
+`importActual` of a module, anywhere in the file, is an import of it, so a mock
+of that module in the same file shadows nothing: a factory forwarding to the
+original and a `beforeEach` restoring its implementation both run the real
+code. Nothing is shadowed either when the factory takes `importOriginal`, when
+the factory is written somewhere this cannot read, when the mock is a `doMock`
+the static imports above it have already evaluated past, and when the
+specifier is not a string literal. Pass `callers` to name
 other mocking objects and `files` to widen which files are read.
 
 `taintFile` reads a JSON table you keep beside the repository, keyed by file

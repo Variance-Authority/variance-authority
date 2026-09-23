@@ -52,6 +52,21 @@ beforeAll(async () => {
   );
   await write(
     root,
+    'src/forward.test.ts',
+    "import { api } from './api';\njest.mock('./api', () => ({ api: jest.fn(jest.requireActual('./api').api) }));\nexport const t = api;",
+  );
+  await write(
+    root,
+    'src/restore.test.ts',
+    "import { api } from './api';\njest.mock('./api', () => ({ api: jest.fn() }));\nbeforeEach(() => { jest.mocked(api).mockImplementation(jest.requireActual('./api').api); });\nexport const t = api;",
+  );
+  await write(
+    root,
+    'src/swap.test.ts',
+    "import { api } from './api';\njest.mock('./api', () => jest.requireActual('./panel'));\nexport const t = api;",
+  );
+  await write(
+    root,
     'src/named.test.ts',
     "import { vi } from 'vitest';\nimport { api } from './api';\nimport { factory } from './factory';\nvi.mock('./api', factory);\nexport const t = api;",
   );
@@ -316,6 +331,18 @@ describe('the mock taint', () => {
     }
   });
 
+  it('reads an original loaded by name as an import, which no mock of it in the file can cut', async () => {
+    const { shadows } = await under([mockTaint()]);
+
+    expect(shadows.has('src/forward.test.ts')).toBe(false);
+    expect(shadows.has('src/restore.test.ts')).toBe(false);
+    expect(shadows.get('src/swap.test.ts')).toEqual(['src/api.ts']);
+    expect((await affectedUnder([mockTaint()], ['src/api.ts'])).files).toEqual(
+      expect.arrayContaining(['src/forward.test.ts', 'src/restore.test.ts']),
+    );
+    expect((await affectedUnder([mockTaint()], ['src/panel.ts'])).files).toContain('src/swap.test.ts');
+  });
+
   it('does not read a doMock: the static imports above it ran the real module', async () => {
     expect((await under([mockTaint()])).shadows.has('src/late.test.ts')).toBe(false);
   });
@@ -327,7 +354,7 @@ describe('the mock taint', () => {
     expect(affected.files).toContain('src/card.ts');
     expect(affected.files).not.toContain('src/card.test.ts');
     expect(affected.files).not.toContain('src/card.stories.ts');
-    expect(affected.shadowed).toEqual(['src/card.stories.ts', 'src/card.test.ts', 'src/panel.jest.test.ts']);
+    expect(affected.shadowed).toEqual(['src/card.stories.ts', 'src/card.test.ts', 'src/panel.jest.test.ts', 'src/swap.test.ts']);
     expect(affected.files).toContain('src/actual.test.ts');
   });
 
@@ -361,10 +388,13 @@ describe('the mock taint', () => {
     expect(opened).toEqual([
       'src/actual.test.ts',
       'src/card.test.ts',
+      'src/forward.test.ts',
       'src/late.test.ts',
       'src/named.test.ts',
       'src/original.test.ts',
       'src/panel.jest.test.ts',
+      'src/restore.test.ts',
+      'src/swap.test.ts',
     ]);
   });
 });
