@@ -1,5 +1,113 @@
 # @variance-authority/sense
 
+## 0.7.0
+
+### Minor Changes
+
+- c6543c7: A head's account that lands after the last spec is recorded
+
+  A head reports a request when what its handler returned settles, which can be
+  well after the response went out: a streamed body, a write behind, a log flushed
+  after `end()`. When that happened in the last spec a worker ran, the account
+  reached a worker that had already stopped listening, and it was dropped without
+  a word. If every account from a head went that way, the run blamed the head for
+  reporting nothing.
+
+  A head now says a request opened before the handler runs, and every account
+  says it settled. At teardown the worker waits up to five seconds for every
+  opened request to settle before it records. One still open after that retires
+  the run with a reason that names the head, as a silent head does.
+  `unsettledScopes`, exported from `@variance-authority/sense/journey`, gives a
+  driver of its own the same count to wait on.
+- 6261ebe: `variance select --execution` traces a changed lockfile to the tests it reaches, and refuses a list of paths.
+
+  A lockfile in the patch is compared as an install: the patch's `index` line names both blobs, git produces them, and every package that resolved differently is walked back through the packages resting on it to the files that import them. Those files' test files run, and so does every case the journey saw enter one of them. A lockfile the patch changes without naming its blobs keeps every test. `narrowByJourneys` and `selectJourneyFile` take the moved names as `packages`.
+
+  A journey file selects by changed lines, so `git diff --name-only` handed to `--execution` is refused with a pointer to `variance reach`, which answers a list of paths from the import graph.
+- dfab8cd: `variance select` reads a journey file against a change you hand in
+
+  `variance select --execution journeys.bin` names the test files a change can
+  skip, read off the journey file `journeys finalize` or `journeys stitch` wrote.
+  The change comes from `--diff <patch>`, from `--diff -` on stdin, or from
+  `git diff` against `--since`. A patch with hunks selects the cases that entered
+  the innermost function holding each changed line. A case's crossings into a
+  module it mocks do not select it.
+
+  The reading happens in the native addon: `selectJourneyFile` answers a stitched
+  file of hundreds of millions of crossings in milliseconds, where decoding it in
+  JavaScript ran out of heap. `projectJourneyFile` returns only the regions a
+  change lands on, and `variance covering --execution` reads through it.
+
+  `variance covering --since <ref> --execution <journey-file>` diffs from the ref
+  you give. It used to diff from the commit of the recorded snapshot, which a
+  journey file does not have.
+- 03d5589: `withTestSelection` records a browser-mode suite, under Vitest and under Rstest
+
+  A test file that ran in a page recorded nothing. The setup module wrote its
+  journal with `node:fs`, which a page does not have: Vitest stopped at the first
+  import, and Rstest refused to build the suite.
+
+  In a page, the setup module now installs the collector a Storybook preview
+  uses. It attaches what the file ran to the file's own task in Vitest, or to the
+  file's context in Rstest, and the runner carries it back to the reporter. The
+  snapshot is the one a jsdom run writes, per test file, whether browser mode is
+  set in the configuration or with `--browser.enabled`. Measured on Vitest 2, 3
+  and 4, with and without isolation, and on Rstest 0.12.
+
+  `cases` is not recorded in a page. A run that asks for it gets the file-level
+  snapshot and a warning, rather than an empty case index.
+
+### Patch Changes
+
+- cb58788: A case index is replaced whole, never written in place
+
+  `recordExecution` and the case fold wrote `.cases.bin` over the previous file.
+  A worker killed during the write left an index the next `--since` could not
+  decode. The index is now written beside the old one and renamed over it, as the
+  snapshot already was.
+- 3dc39cc: A mock no longer disowns what a case crossed. The runner installs a mock before the file's first case, so every crossing recorded inside a case or a hook ran the real module and selects that case, even in a module its file mocks. A mock still cuts what ran only while the module was evaluated, which is how a runner shapes an automock.
+- 46f513e: A changed `package.json` is set aside only when the install comparison reads all of its change. A diff that moves `exports`, `imports`, `main`, `module`, `browser`, `type`, `sideEffects`, `name` or any field outside the dependency and publishing fields selected nothing and printed that the diff changed only manifests, while every importer of that package now loaded a different file. Each changed manifest is now read at both revisions, and one that moved a field the lockfile does not hold makes its package a changed directory: the walk reaches every importer, and a journal read charges every file of the package whole. `manifestMoved` in `@variance-authority/sense/lock` owns which fields the install speaks for.
+- 66371ac: An update where nothing moved took about 2.8 s and 1.19 GB on 288,197 paths. It now takes about 1.5 s and 0.95 GB. Three things caused the extra cost. `updateSourceIndex` decoded the published chain twice, and now opens it once. At the top of a checkout the tree snapshot asked `git status --untracked-files=all -- .`, which git's untracked cache cannot answer. It now asks `--untracked-files=normal` with no pathspec, and lists each directory that `status` collapses with `git ls-files --others --exclude-standard`. With `core.fsmonitor` and `core.untrackedCache` set, that call costs 17 ms on a 41,171-path clone, down from 55 ms. The native snapshot no longer sorts a listing that git has already printed in order.
+
+  This also fixes a defect in the native snapshot. A new directory in the working tree made `git hash-object` fail, and every path in the same batch was dropped, so files that existed were missing from the index. The directory is now expanded into its files before hashing.
+- 846ab0d: A source index written before package names joined its dictionary could name a package after the file's first relative specifier. A package imported only by subpath, such as `@variance-authority/core/segment`, had no string of its own in the segment, and its id became row 0: whatever sorted first, which is usually a `../` request. The graph then held a package node called `../exit.js` whose importer never wrote `exit`. A cold cache showed nothing, because it encoded again with the fixed build. The index is now format 9, so every older segment is rebuilt rather than trusted. A decode refuses a stored package name that `packageOf` would not produce, and reads the segment as damaged. The source index, the execution indexes and the MCP source tree now intern through `intern` in `@variance-authority/core/segment`, which throws on a string the dictionary never collected rather than writing row 0.
+- 6bb7386: What a handler's unreturned promise runs is recorded against its request
+
+  A handler can start work it does not return: a write behind, an analytics
+  call, a cache warmed after the response. That work still runs as the request,
+  but once the request's scope had reported, the head forgot where the request's
+  reports went. So everything the promise ran was dropped, with nothing counted
+  and nothing said, and the next `--since` could skip the spec that caused it.
+
+  The head now remembers where each journey reports after its scope closes, for
+  the last 4096 journeys. What such a promise runs goes back as a scope of its
+  own, which the driver waits for like any other. If a journey is too old to be
+  remembered, the account is counted as lost, which retires the run.
+- cf11776: The mock reader reads `jest.requireActual` and `vi.importActual` anywhere in a test file as an import of that module, and a mock of the same module no longer shadows it. A test that hands its mock the original implementation — `jest.fn(jest.requireActual('./x').X)`, or a `beforeEach` that restores it — is selected again when that module or anything under it changes. Cached mock readings from earlier versions are read again once.
+- 23123e6: A driver a head first hears from late still gets every subject's initialization
+
+  A head reported what ran outside any request, and what a module ran while it
+  initialized, to whichever driver's request happened to be open. Under two
+  workers the second never heard it, so its subjects missed the lines every
+  request depends on, and a change to a module's top level could skip them.
+
+  A head now keeps that account and sends each driver the part it has not been
+  told, the first time that driver's request settles. `Channel.home` names the
+  driver a channel reaches, which is what the head keys on.
+- 2747428: A page with two instrumented bundles reports what it ran
+
+  Every bundle built with `testSelectionProbes()` brings its own copy of the page
+  collector. When a page loaded two of them, such as an application and a widget
+  built separately, or a collector module that was evaluated a second time, the
+  second copy wrote its crossings to the first copy's log. It then replaced the
+  first copy's drain with its own, which reads a log nothing writes to. The driver
+  then drained an empty journal, recorded that the page ran nothing, and the next
+  `--since` skipped the subject over lines it had run.
+
+  The drain now belongs to the collector that installed the log. A later copy
+  adds its crossings to that log and leaves the drain in place.
+- a2dac26: The scan now records what each file mocks in its parse, in both the JavaScript and the native reader. It does not apply the result: records keep every edge, including type-only and mocked ones, so a question such as which files a test imports gets the whole graph. `mockTaint()` gets its answer from the cached parse and no longer opens or re-parses test files, which matters in a repository with tens of thousands of them. A `mockTaint` given its own `callers` asks something the scan did not, so it still reads the file. `files`, `taintFile` and `taintTable` work as before. `updateSourceIndex` no longer runs a separate taint pass. The source index is now format 10, so an older segment is rebuilt rather than read without its mock columns. The module reader no longer treats a computed member (`vi[mock]`) as a mock, or a computed `['spy']` key as `{ spy: true }`.
+
 ## 0.6.0
 
 ### Minor Changes

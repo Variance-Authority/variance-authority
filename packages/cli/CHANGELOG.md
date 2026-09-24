@@ -1,5 +1,50 @@
 # @variance-authority/cli
 
+## 0.7.0
+
+### Minor Changes
+
+- 6261ebe: `variance select --execution` traces a changed lockfile to the tests it reaches, and refuses a list of paths.
+
+  A lockfile in the patch is compared as an install: the patch's `index` line names both blobs, git produces them, and every package that resolved differently is walked back through the packages resting on it to the files that import them. Those files' test files run, and so does every case the journey saw enter one of them. A lockfile the patch changes without naming its blobs keeps every test. `narrowByJourneys` and `selectJourneyFile` take the moved names as `packages`.
+
+  A journey file selects by changed lines, so `git diff --name-only` handed to `--execution` is refused with a pointer to `variance reach`, which answers a list of paths from the import graph.
+- dfab8cd: `variance select` reads a journey file against a change you hand in
+
+  `variance select --execution journeys.bin` names the test files a change can
+  skip, read off the journey file `journeys finalize` or `journeys stitch` wrote.
+  The change comes from `--diff <patch>`, from `--diff -` on stdin, or from
+  `git diff` against `--since`. A patch with hunks selects the cases that entered
+  the innermost function holding each changed line. A case's crossings into a
+  module it mocks do not select it.
+
+  The reading happens in the native addon: `selectJourneyFile` answers a stitched
+  file of hundreds of millions of crossings in milliseconds, where decoding it in
+  JavaScript ran out of heap. `projectJourneyFile` returns only the regions a
+  change lands on, and `variance covering --execution` reads through it.
+
+  `variance covering --since <ref> --execution <journey-file>` diffs from the ref
+  you give. It used to diff from the commit of the recorded snapshot, which a
+  journey file does not have.
+
+### Patch Changes
+
+- 3dc39cc: A mock no longer disowns what a case crossed. The runner installs a mock before the file's first case, so every crossing recorded inside a case or a hook ran the real module and selects that case, even in a module its file mocks. A mock still cuts what ran only while the module was evaluated, which is how a runner shapes an automock.
+- 46f513e: A changed `package.json` is set aside only when the install comparison reads all of its change. A diff that moves `exports`, `imports`, `main`, `module`, `browser`, `type`, `sideEffects`, `name` or any field outside the dependency and publishing fields selected nothing and printed that the diff changed only manifests, while every importer of that package now loaded a different file. Each changed manifest is now read at both revisions, and one that moved a field the lockfile does not hold makes its package a changed directory: the walk reaches every importer, and a journal read charges every file of the package whole. `manifestMoved` in `@variance-authority/sense/lock` owns which fields the install speaks for.
+- a006512: `run --since` observes a subject the recording saw enter the change
+
+  A subject could be skipped by what its baseline names and the imports the file
+  graph could read, even when the execution record showed that it entered the
+  changed lines. That happened in two cases: the chain to the change ran through
+  an import the scan could not read, or the baseline did not record the component,
+  which is always true of a server component. The recording was consulted only
+  about the subjects that survived the first check, so it could not keep this one.
+
+  A subject that the recording saw enter the changed lines is now observed,
+  whatever its baseline names, and the run names every subject it kept this way.
+  The recording still rules out only subjects that passed the first check.
+- a2dac26: The scan now records what each file mocks in its parse, in both the JavaScript and the native reader. It does not apply the result: records keep every edge, including type-only and mocked ones, so a question such as which files a test imports gets the whole graph. `mockTaint()` gets its answer from the cached parse and no longer opens or re-parses test files, which matters in a repository with tens of thousands of them. A `mockTaint` given its own `callers` asks something the scan did not, so it still reads the file. `files`, `taintFile` and `taintTable` work as before. `updateSourceIndex` no longer runs a separate taint pass. The source index is now format 10, so an older segment is rebuilt rather than read without its mock columns. The module reader no longer treats a computed member (`vi[mock]`) as a mock, or a computed `['spy']` key as `{ spy: true }`.
+
 ## 0.6.0
 
 ### Minor Changes

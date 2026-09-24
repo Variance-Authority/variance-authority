@@ -1,5 +1,67 @@
 # @variance-authority/playwright-test
 
+## 0.7.0
+
+### Minor Changes
+
+- bc441d3: A spec is recorded whether or not it asks for `variance`
+
+  Under `varianceExecution`, recording used to read the page only when a spec
+  destructured `variance`: at each observation, and once more when that fixture
+  was torn down. A spec that took only `page`, which is how most Playwright specs
+  are written, was recorded as having executed nothing. The next `--since` then
+  skipped it over lines it had run.
+
+  Recording now reads the test's browser context. It reads after every `afterEach`
+  and before the context closes, from every frame of every page the test opened.
+  That covers a story running in Storybook's `#storybook-preview-iframe`, a second
+  tab opened with `context.newPage()`, and whatever an `afterEach` clicked.
+
+  A spec that replaced a document it ran in is recorded as incomplete: a second
+  `goto`, a `reload()`, a frame the application removed, or a page that closed or
+  crashed before the end. Whatever that document executed since the last read went
+  with it. The spec keeps the crossings that were read, and the next selection runs
+  it rather than skipping it. `pushState` and hash changes keep the same document
+  and lose nothing.
+
+### Patch Changes
+
+- 24da1c4: The case index names the test behind a head's crossings
+
+  With `cases` on, a run whose code executed in a declared head wrote no case
+  index at all: the page had nothing to drain, and the head's accounts joined the
+  spec file only. The journey a test mints now remembers the test, and the head's
+  crossings join it, including what every subject depends on.
+- c6543c7: A head's account that lands after the last spec is recorded
+
+  A head reports a request when what its handler returned settles, which can be
+  well after the response went out: a streamed body, a write behind, a log flushed
+  after `end()`. When that happened in the last spec a worker ran, the account
+  reached a worker that had already stopped listening, and it was dropped without
+  a word. If every account from a head went that way, the run blamed the head for
+  reporting nothing.
+
+  A head now says a request opened before the handler runs, and every account
+  says it settled. At teardown the worker waits up to five seconds for every
+  opened request to settle before it records. One still open after that retires
+  the run with a reason that names the head, as a silent head does.
+  `unsettledScopes`, exported from `@variance-authority/sense/journey`, gives a
+  driver of its own the same count to wait on.
+- 8ae7195: A relative `coverageFile` or `executionFile` is read from `root`
+
+  The Vitest, Rstest and Jest integrations resolve these two paths from their own
+  root. The Playwright reporter and the Storybook recorder resolved them from the
+  root of the repository instead. In a workspace, where `root` is a package
+  directory, that caused two problems:
+
+  - The Playwright workers staged their results beside one coverage index, and the
+    reporter merged them into a different one.
+  - A run where the fixture merged for itself, without the reporter, wrote its
+    execution index to a third place.
+
+  Both paths are now read from `root`, as the fixture already read `coverageFile`.
+  An absolute path is unchanged.
+
 ## 0.6.0
 
 ### Minor Changes

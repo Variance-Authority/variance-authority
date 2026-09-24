@@ -1,5 +1,36 @@
 # @variance-authority/storybook-collector
 
+## 0.7.0
+
+### Patch Changes
+
+- 8ae7195: A relative `coverageFile` or `executionFile` is read from `root`
+
+  The Vitest, Rstest and Jest integrations resolve these two paths from their own
+  root. The Playwright reporter and the Storybook recorder resolved them from the
+  root of the repository instead. In a workspace, where `root` is a package
+  directory, that caused two problems:
+
+  - The Playwright workers staged their results beside one coverage index, and the
+    reporter merged them into a different one.
+  - A run where the fixture merged for itself, without the reporter, wrote its
+    execution index to a third place.
+
+  Both paths are now read from `root`, as the fixture already read `coverageFile`.
+  An absolute path is unchanged.
+- 17d7f7e: A story file is recorded under its path in the repository
+
+  Storybook writes each story's `importPath` relative to the directory it ran
+  in, with a `./` in front. The recorder resolved that path against the
+  repository root. In a workspace, where Storybook runs in a package directory,
+  this had two effects: the story file's precondition read a file that does not
+  exist and was dropped without a message, and the per-story index named a path
+  no diff contains. So a commit that edited only a `.stories` file selected none
+  of its stories.
+
+  The recorder now resolves `importPath` from `tests.root`, which defaults to the
+  current directory, and records the path relative to the repository root.
+
 ## 0.6.0
 
 ### Minor Changes

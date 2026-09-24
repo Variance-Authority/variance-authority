@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/tribunal",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A self-hosted review service for Variance Authority baselines, history and per-subject decisions.",
   "keywords": [
     "variance-authority",

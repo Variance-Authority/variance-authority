@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/mcp",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Expose independently supplied observability evidence to an MCP client.",
   "keywords": [
     "variance-authority",

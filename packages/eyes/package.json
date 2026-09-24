@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/eyes",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Record which DOM elements a test addresses and preserve their React attribution before the rendered tree moves.",
   "keywords": [
     "variance-authority",
