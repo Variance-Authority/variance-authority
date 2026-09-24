@@ -237,6 +237,33 @@ describe('the binary source index', () => {
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
   });
 
+  it('keeps a package name that nothing else in the segment names', () => {
+    // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
+    // other column. A dictionary that missed it wrote row 0 — whatever sorted
+    // first — and a relative specifier sorts before every package.
+    const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, unresolved: ['../exit.js'], packages: [{ to: '@scope/only-here', kind: 'type' }] };
+    const decoded = decodeSourceIndex(encodeSourceIndex({
+      parses: new Map(),
+      directories: new Map(),
+      records: new Map([[record.file, { record, witnesses: WITNESSES }]]),
+    }));
+
+    expect(decoded.records.get(record.file)?.record.packages).toEqual([{ to: '@scope/only-here', kind: 'type' }]);
+  });
+
+  it('refuses a package column that names a relative specifier', () => {
+    const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, packages: [{ to: 'zzzzzzzzzz', kind: 'imports' }] };
+    const encoded = encodeSourceIndex({
+      parses: new Map(),
+      directories: new Map(),
+      records: new Map([[record.file, { record, witnesses: WITNESSES }]]),
+    });
+    const at = encoded.indexOf('zzzzzzzzzz');
+    encoded.write('../exit.js', at);
+
+    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
   it('rejects a key that one segment both writes and deletes', () => {
     const encoded = encodeSourceIndex({
       parses: new Map([[DIGEST, PARSED]]),

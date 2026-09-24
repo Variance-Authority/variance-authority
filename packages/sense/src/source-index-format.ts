@@ -2,6 +2,7 @@ import {
   codeUnitOrder as order,
   encodeSegment,
   flagOf,
+  intern,
   NONE,
   openSegment,
   rangeOf,
@@ -17,6 +18,7 @@ import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
 import { dictionary, joinedKey, partsOf } from './source-index-codec.js';
 import { encodeHarvest, openHarvest } from './source-index-harvest.js';
+import { packageOf } from './specifier.js';
 
 /**
  * One durable generation of source facts, as bytes.
@@ -32,7 +34,7 @@ import { encodeHarvest, openHarvest } from './source-index-harvest.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 8;
+const VERSION = 9;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -61,16 +63,11 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
   const parses = [...stored.parses].sort(([left], [right]) => order(left, right));
   const records = [...stored.records].sort(([left], [right]) => order(left, right));
   const directories = [...stored.directories].sort(([left], [right]) => order(left, right));
-  const strings = dictionary(stored, parses, records);
-  const ids = new Map(strings.map((value, index) => [value, index]));
-  // A string the dictionary never collected is a defect in `dictionary`, and
-  // as `undefined` in a typed column it would be written as row 0 — a real
-  // string, and the wrong one, with nothing to say so until a reader used it.
-  const id = (value: string): number => {
-    const found = ids.get(value);
-    if (found === undefined) throw new Error(`source index dictionary is missing ${JSON.stringify(value)}`);
-    return found;
-  };
+  // `intern` refuses a string `dictionary` never collected. Looked up in a bare
+  // map it was `undefined`, which a typed column writes as row 0 — a real
+  // string, and the wrong one: package names were not collected, and a row
+  // named `@variance-authority/core` read back as the `../exit.js` that sorted first.
+  const { strings, id } = intern(dictionary(stored, parses, records));
 
   const { blob: stringBlob, off: stringOff } = stringColumns(strings);
 
@@ -405,7 +402,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     }));
     const declares = range(recordDeclares, row).map((entry) => text(recordDeclareName[entry]!));
     const packages = range(recordPackages, row).map((edge) => ({
-      to: text(packageTo[edge]!),
+      to: packageName(text(packageTo[edge]!)),
       kind: text(packageKind[edge]!) as NonNullable<FileRecord['edges']>[number]['kind'],
     }));
     const unresolved = range(recordUnresolved, row).map((entry) => text(unresolvedValue[entry]!));
@@ -475,6 +472,12 @@ function range(offsets: Uint32Array, row: number): number[] {
 
 function optionalId(value: string | undefined, id: (value: string) => number): number {
   return value === undefined ? NONE : id(value);
+}
+
+/** A stored package name is one `packageOf` produces; anything else is a column read through the wrong dictionary. */
+function packageName(name: string): string {
+  if (packageOf(name) !== name) throw invalid();
+  return name;
 }
 
 function flag(value: number | undefined): boolean {

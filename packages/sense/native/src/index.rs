@@ -331,7 +331,9 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         .collect();
     let header = serde_json::to_vec(&Header {
         format: "variance-authority-source-index",
-        version: 8,
+        // `VERSION` in `source-index-format.ts`: a layer the reader refuses is
+        // a layer thrown away, which `native-read.test.ts` catches.
+        version: 9,
         sections,
     })
     .unwrap_or_default();

@@ -2,7 +2,7 @@ import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.
 import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets } from './crossing-sets-read.js';
 import type { CrossingSetsPool, SetId } from './crossing-sets.js';
-import { codeUnitOrder } from './instrumented-modules.js';
+import { intern } from '@variance-authority/core/segment';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 
 /**
@@ -40,9 +40,7 @@ export interface SetExecutionIndex {
  * parent-process heap.
  */
 export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
-  const strings = dictionary(index);
-  const ids = new Map(strings.map((value, at) => [value, at]));
-  const id = (value: string): number => ids.get(value)!;
+  const { strings, id } = intern(dictionary(index));
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
   const stringOffsets = new Uint32Array(strings.length + 1);
   let byteOffset = 0;
@@ -181,7 +179,7 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   return { tests, modules };
 }
 
-function dictionary(index: SetExecutionIndex): readonly string[] {
+function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
   const held = new Set<string>();
   for (const test of index.tests) {
     held.add(test.id);
@@ -196,7 +194,7 @@ function dictionary(index: SetExecutionIndex): readonly string[] {
       held.add(block.path);
     }
   }
-  return [...held].sort(codeUnitOrder);
+  return held;
 }
 
 function members(

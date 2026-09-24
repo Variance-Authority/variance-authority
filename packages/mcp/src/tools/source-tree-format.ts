@@ -10,6 +10,7 @@ import {
 import {
   NONE,
   encodeSegment,
+  intern,
   openSegment,
   stringColumns,
   stringReader,
@@ -31,11 +32,10 @@ export function encodeSourceTree(records: readonly FileRecord[]): Uint8Array {
   const paths = [...files].sort(codeUnit);
   const at = new Map(paths.map((path, index) => [path, index]));
   const byFile = new Map(records.map((record) => [record.file, record]));
-  const strings = [...new Set([
+  const { strings, id } = intern([
     ...paths,
     ...records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]),
-  ])].sort(codeUnit);
-  const ids = new Map(strings.map((value, index) => [value, index]));
+  ]);
   const { blob, off } = stringColumns(strings);
   const offsets = new Uint32Array(paths.length + 1);
   const targets: number[] = [];
@@ -58,14 +58,14 @@ export function encodeSourceTree(records: readonly FileRecord[]): Uint8Array {
       targets.push(edge.target);
       kinds.push(edge.kind);
     }
-    if (record?.unknown !== undefined) unknown[row] = ids.get(record.unknown)!;
+    if (record?.unknown !== undefined) unknown[row] = id(record.unknown);
   }
   offsets[paths.length] = targets.length;
 
   return encodeSegment(FORMAT, VERSION, {
     'strings.blob': blob,
     'strings.off': off,
-    'files.path': Uint32Array.from(paths, (path) => ids.get(path)!),
+    'files.path': Uint32Array.from(paths, id),
     'files.unknown': unknown,
     'edges.offset': offsets,
     'edges.target': Uint32Array.from(targets),

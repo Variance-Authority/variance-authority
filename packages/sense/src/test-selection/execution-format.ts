@@ -1,4 +1,4 @@
-import { codeUnitOrder } from './instrumented-modules.js';
+import { intern } from '@variance-authority/core/segment';
 import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import type {
@@ -81,9 +81,7 @@ const LOADED = 2;
  * the same bytes.
  */
 export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
-  const strings = dictionary(index);
-  const ids = new Map(strings.map((value, at) => [value, at]));
-  const id = (value: string): number => ids.get(value)!;
+  const { strings, id } = intern(dictionary(index));
 
   const encoded = strings.map((value) => Buffer.from(value, 'utf8'));
   const stringOffsets = new Uint32Array(strings.length + 1);
@@ -313,13 +311,13 @@ function invalid(): Error {
 }
 
 /**
- * Every string the index names, once, in the order the blob holds them.
+ * Every string the index names, once. `intern` sorts them and numbers them.
  *
  * Sorted because an ordered blob compresses as runs of shared prefixes — the
  * paths of one directory land together — and because a sorted dictionary makes
  * the id itself a sort key for anything that later wants one.
  */
-function dictionary(index: ExecutionIndex): readonly string[] {
+function dictionary(index: ExecutionIndex): ReadonlySet<string> {
   const held = new Set<string>();
   for (const test of index.tests) {
     held.add(test.id);
@@ -334,7 +332,7 @@ function dictionary(index: ExecutionIndex): readonly string[] {
       held.add(block.path);
     }
   }
-  return [...held].sort(codeUnitOrder);
+  return held;
 }
 
 /**
