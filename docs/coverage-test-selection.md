@@ -15,11 +15,25 @@ where each one widens, and what each one costs to run on every change.
 ## The idea is old
 
 Running only the tests that executed the changed code is regression test
-selection, and research has studied it for decades.
+selection. It was envisioned by research long before products shipped it:
+
+| Paper | What it records or analyzes per test |
+|---|---|
+| [TestTube](https://dl.acm.org/doi/10.5555/257734.257769), Chen, Rosenblum and Vo, ICSE 1994 | The functions, types, variables and macros of a C program each test covered |
+| [A safe, efficient regression test selection technique](https://doi.org/10.1145/248233.248262), Rothermel and Harrold, TOSEM 1997 | The control-flow edges each test ran |
+| [Scaling regression testing to large software systems](https://dl.acm.org/doi/10.1145/1029894.1029928), Orso, Shi and Harrold, FSE 2004 | A first pass over classes, then control-flow edges only where that pass found a change, on Java programs up to 500 KLOC |
+| [Ekstazi](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf), Gligoric, Eloussi and Marinov, ISSTA 2015 | The class and resource files each test loaded |
+| [Hybrid regression test selection](https://doi.org/10.1145/3180155.3180198), Zhang, ICSE 2018 | Files and methods together, choosing the grain per change |
+| [Towards refactoring-aware regression test selection](https://dl.acm.org/doi/10.1145/3180155.3180254), Wang and others, ICSE 2018 | Loaded files, with refactorings recognized as edits no test can observe |
+| [More precise regression test selection via reasoning about semantics-modifying changes](https://dl.acm.org/doi/10.1145/3597926.3598086), Liu and others, ISSTA 2023 | Loaded files, with kinds of change that cannot alter a test's result skipped |
+| [Names are all you need](https://arxiv.org/abs/2605.25356), Wang, Pradel and Liu, ISSTA 2026 | Names each Python test depends on, found statically |
+
+[Yoo and Harman's survey](https://onlinelibrary.wiley.com/doi/abs/10.1002/stvr.430) covers the field up
+to 2012, and
 [On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
-covers that research. Most research tools, such as
-[Ekstazi](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf)
-for Java, record which files each test loaded rather than what it executed.
+covers what it means for a suite. Ekstazi argued that loaded files cost less to
+collect than executed code and lose little precision, and most research since
+then wins precision back by reasoning about the change rather than the run.
 
 Products that select tests fall into two groups. The first records a file list
 per test, either the files a test depends on or the files its coverage touched,
