@@ -8,7 +8,9 @@
 [`packages/sense/native/src/module_verdict.rs`](../../../packages/sense/native/src/module_verdict.rs),
 [`packages/sense/native/src/module_readers.rs`](../../../packages/sense/native/src/module_readers.rs),
 [`packages/sense/src/test-selection/reading.ts`](../../../packages/sense/src/test-selection/reading.ts),
-[`packages/sense/src/test-selection/values.integration.test.ts`](../../../packages/sense/src/test-selection/values.integration.test.ts)
+[`packages/sense/src/test-selection/values.integration.test.ts`](../../../packages/sense/src/test-selection/values.integration.test.ts),
+[`packages/sense/src/test-selection/usage.integration.test.ts`](../../../packages/sense/src/test-selection/usage.integration.test.ts),
+[`packages/sense/native/src/side_effects.rs`](../../../packages/sense/native/src/side_effects.rs)
 
 ## Context
 
@@ -45,8 +47,30 @@ JavaScript, and none is converted to ESTree.
 | `load` | What the module does as it loads moved. | the module |
 
 The load sequence is every top-level statement that runs something as the module
-evaluates. An import counts by what it loads, never by the names it binds. So
-adding a name to an import is a change to the functions that use the name.
+evaluates, in order: moving a declaration above or below its first use at load
+is `load`, because the order decides whether that use throws. An import is a
+step of the sequence only when it binds nothing. An import that binds a name is
+a use by whatever reads the name, so adding a name, or adding an import of a new
+module, is a change to the functions that use it. A class is compared with all
+its members. An enum runs as the module loads, `const` or not, and a `declare`
+one is a type.
+
+**A change travels by use, and stops where nothing uses it.** A new module is
+read against no text. Declarations alone give `values` with nothing to charge,
+because nothing ran it. An importer that starts using it gets `bodies` and
+charges the functions that call it; every other test that loads the importer is
+charged nothing. The walk assumes that loading a module only declares what it
+exports. A module that runs something as it loads says so in its own text and
+gets `load`, which charges its importers' loaders.
+
+**A package declares the rest, and its word is taken over the text's.** The
+`sideEffects` field of the manifest the resolver lands in is the answer every
+bundler already reads to the same question. When it is `true`, or holds a
+pattern matching the changed file, the file is `load`. When it matches the
+target of an import added or removed, the importer is `load`. Either reading
+carries `effects`, the names the declaration covered. `false`, or no field,
+leaves the assumption standing. The manifest is asked only when the caller
+passes `root`, the directory the diff's names are relative to.
 
 **A moved value is charged where it is read.** The reads are lexical, and a
 parameter with the same name counts as a read. A read inside a function charges
@@ -81,10 +105,15 @@ from `LIMIT`, the change reaches `clamp`'s callers through `clamp`'s region,
 which is already charged. Following the value further would charge more on the
 strength of a read the recording already answers.
 
-**Charge only the importers the graph names.** An importer the scan did not see
-would lose the charge silently. Instead, a test that crossed the declaring
-module's top level and was not reached through any importer the reading
-examined is still charged.
+**Charge every loader the graph cannot explain.** A test that crossed the
+declaring module's top level through no importer the graph holds was charged,
+as a safety net. It made the selection depend on how complete the scan was,
+and hid the gap it came from. Such a test is now named in the reading's
+`unseen` and charged nothing: the graph is fixed, the selection is not padded.
+
+**Treat every import of a new module as a load.** It would charge every test
+that loads the importer for a module nobody calls at load. The module's text
+and its package say whether loading it does something, and both are read.
 
 ## Cost
 
@@ -96,6 +125,11 @@ examined is still charged.
 - **What the file's text cannot show is not seen.** A getter on an imported
   object is a property read and counts as load. `Object.prototype` patched from
   another module does not appear in this file's text.
+- **An undeclared module that runs something is trusted to be quiet when it did
+  not change.** A new import of a module whose text is unchanged, whose package
+  declares no `sideEffects`, and which runs something at load, charges only the
+  functions that use its names. The package is the owner of that answer, and
+  the fix is its declaration.
 - **The reading is only as good as the recording's lines.** A recording made
   before `sense:instrument/presence-v5` placed parameters and injected helpers on
   the wrong lines. It is read as stale and recorded again.

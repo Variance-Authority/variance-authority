@@ -21,18 +21,36 @@
  *   one file further for every direct importer of an exported one.
  * - `load`: the load sequence moved, and the module is charged as it always was.
  *
+ * A change travels by use and by nothing else. Loading a module is assumed to
+ * do nothing but declare what it exports, so an importer that never reads a
+ * moved name is not reached by it, and neither is anything behind that
+ * importer. A test that loaded the declaring file through no importer the
+ * reading followed is not charged either: it is reported as `unseen`, because
+ * an edge the graph does not hold is a defect to fix where it is, not a reason
+ * to charge every test that loaded the file.
+ *
+ * A package can say otherwise, in the field every bundler reads for it:
+ * `sideEffects`. A changed file its package declares, or an import added or
+ * removed whose target's package declares it, makes the verdict `load`, and the
+ * reading names the modules that made it so (`effects`). The manifest answers
+ * through the resolver the scan uses, from `root`.
+ *
+ * A file the recording holds no row for — new, or never instrumented — has no
+ * regions to charge, so every name it exports counts as moved and its readers
+ * answer for it (`readRowless`).
+ *
  * A file that could not be read is charged as it always was, and the reading
  * says why.
  */
 
 import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
-import { digestString } from '../digest.js';
 import type { NativeModuleReaders } from '../native.js';
 import { blocksAround, gapInside, moduleRegion, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
+import { frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
-import type { ExecutionNarrowingOptions } from './importers.js';
+import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksOf } from './patch.js';
 import type { SelectionReason } from './select.js';
@@ -44,6 +62,18 @@ export type FileReading =
       readonly verdict: 'none' | 'bodies' | 'values' | 'load';
       /** The bindings whose values moved, for `values`. */
       readonly names: readonly string[];
+      /**
+       * The tests that loaded the file and reached it through no importer the
+       * reading followed. Present when importers were followed: a moved export
+       * of a file with a row.
+       */
+      readonly unseen?: readonly string[];
+      /**
+       * What turned the verdict to `load`: the file itself, or a source an
+       * import started or stopped binding from, whose package declares that
+       * loading it does something.
+       */
+      readonly effects?: readonly string[];
     }
   | {
       readonly file: string;
@@ -56,56 +86,6 @@ export type FileReading =
        */
       readonly unread: 'source' | 'hunk' | 'parse' | 'addon';
     };
-
-/** The text a module's rows were recorded from, under the name that proved it. */
-export interface Frame {
-  readonly name: string;
-  readonly text: string;
-}
-
-/**
- * Whether a file's line ranges are coordinates in the text the diff is written
- * against, and that text when they are.
- *
- * `modules.source` is a digest of the text the recorder cut the ranges from, so
- * the check is that digest against the text at the position the snapshot names.
- * It is asked once per file, under every name it may be held by. A name the
- * position does not hold says nothing: a built twin's rows carry the source's
- * line numbers and a digest of built output git never had, so they are in frame
- * exactly when the source is.
- *
- * - A name whose text disagrees with any of its rows: `stale`.
- * - A name whose text agrees with every row of it: the frame.
- * - Texts, but none under a name with a row — a built twin whose source no test
- *   loaded: `unchecked`. There is no digest of that text to compare against, so
- *   its lines are read as they are, and nothing is parsed from it.
- * - No text under any name: `stale`. The recording saw a text nothing at that
- *   commit can be.
- * - No `sourceAt`: `unchecked`, because nothing was asked.
- */
-export function frameOf(
-  coverage: TestCoverageView,
-  names: readonly string[],
-  rowsOf: ReadonlyMap<string, readonly number[]>,
-  sourceAt: ExecutionNarrowingOptions['sourceAt'],
-): Frame | 'stale' | 'unchecked' {
-  if (sourceAt === undefined) return 'unchecked';
-
-  let frame: Frame | undefined;
-  let answered = false;
-  for (const name of names) {
-    const text = sourceAt(name, coverage.commit);
-    if (text === undefined) continue;
-    answered = true;
-    const rows = rowsOf.get(name);
-    if (rows === undefined) continue;
-    const digest = digestString(text);
-    if (rows.some((module) => coverage.string(coverage.moduleSource.at(module)) !== digest)) return 'stale';
-    frame ??= { name, text };
-  }
-
-  return frame ?? (answered ? 'unchecked' : 'stale');
-}
 
 /** What the reading needs from the query it runs inside. */
 export interface ReadingContext {
@@ -143,9 +123,16 @@ export function readChange(
   const verdict = scanner.moduleVerdict(frame.name, frame.text, patched.after);
   if (verdict === null) return { reading: { file, unread: 'parse' }, charged: false };
 
-  const reading: FileReading = { file, verdict: verdict.kind, names: verdict.names };
+  const reading = { file, verdict: verdict.kind, names: verdict.names };
   if (verdict.kind === 'load') return { reading, charged: false };
   if (verdict.kind === 'none') return { reading, charged: true };
+  const effects = declaredEffects(context, file, verdict.imported);
+  if (effects.length > 0) {
+    // The lines of a body edit map to the body alone; a declared load is every
+    // test that loaded the file.
+    chargeModule(context, file, rowsOf, (at, block) => regionOf(context.coverage, at, block));
+    return { reading: { file, verdict: 'load', names: [], effects }, charged: true };
+  }
 
   // The regions the lines map to, as 0030 reads them, without the module's own:
   // the verdict proved that what the module does as it loads did not move.
@@ -170,16 +157,69 @@ export function readChange(
     // The same text parsed a moment ago, so a null is the addon disagreeing
     // with itself, and the module is what is left to say.
     if (own === null) chargeModule(context, file, rowsOf, (at, block) => regionOf(coverage, at, block));
-    else readValues(context, file, frame, rowsOf, verdict, own);
+    else {
+      const unseen = readValues(context, file, frame, rowsOf, verdict, own);
+      if (unseen !== undefined) return { reading: { ...reading, unseen }, charged: true };
+    }
   }
 
   return { reading, charged: true };
 }
 
 /**
+ * Read a changed module the recording holds no row for, against the text it
+ * had at the recorded commit or against nothing when it is new. Nothing ran
+ * it that the recording can place, so the question is only who reads what it
+ * exports: every export counts as moved, and each importer's readers are
+ * charged as they are for a moved value. `undefined` for a file this reading
+ * does not apply to — not in the graph, or loaded as an asset, where the
+ * import itself is the use — and `charged: false` for a `load` verdict or no
+ * reading, which leaves the file to the walk over its importers.
+ */
+export function readRowless(
+  context: ReadingContext,
+  file: string,
+): { readonly reading: FileReading; readonly charged: boolean } | undefined {
+  const { coverage, options, knownAs } = context;
+  const { relations, sourceAt } = options;
+  if (relations === undefined || sourceAt === undefined) return undefined;
+  const names = knownAs(file);
+  const id = firstId(relations, [...names, file]);
+  if (id === undefined || importedAsAsset(relations, id)) return undefined;
+  const scanner = native();
+  if (scanner?.moduleVerdict === undefined || scanner.moduleReaders === undefined) {
+    return { reading: { file, unread: 'addon' }, charged: false };
+  }
+
+  let frame: Frame = { name: relations.names[id]!, text: '' };
+  for (const name of names) {
+    const text = sourceAt(name, coverage.commit);
+    if (text !== undefined) {
+      frame = { name, text };
+      break;
+    }
+  }
+  const patched = applied(frame.text, context.hunks.get(file) ?? []);
+  if (patched === undefined) return { reading: { file, unread: 'hunk' }, charged: false };
+  const verdict = scanner.moduleVerdict(frame.name, frame.text, patched.after);
+  const now = scanner.moduleReaders(frame.name, patched.after, [], false);
+  if (verdict === null || now === null) return { reading: { file, unread: 'parse' }, charged: false };
+  const reading = { file, verdict: verdict.kind, names: verdict.names };
+  if (verdict.kind === 'load') return { reading, charged: false };
+  if (verdict.kind === 'none') return { reading, charged: true };
+  const effects = declaredEffects(context, file, verdict.imported);
+  if (effects.length > 0) return { reading: { file, verdict: 'load', names: [], effects }, charged: false };
+
+  const exports = [...new Set([...now.interface, ...verdict.gone])];
+  readValues(context, file, frame, new Map(), { ...verdict, exports }, now);
+  return { reading, charged: true };
+}
+
+/**
  * Charge a changed value to its readers: in the declaring file, and one file
  * deep through every direct importer — further only where an importer hands
- * the value on.
+ * the value on. Returns the tests that loaded the declaring file through no
+ * importer followed, when importers were followed from a file with a row.
  */
 function readValues(
   context: ReadingContext,
@@ -188,7 +228,7 @@ function readValues(
   rowsOf: ReadonlyMap<string, readonly number[]>,
   verdict: { readonly names: readonly string[]; readonly exports: readonly string[]; readonly gone: readonly string[] },
   own: NativeModuleReaders,
-): void {
+): readonly string[] | undefined {
   const { coverage, options } = context;
   const reader: Reader = (name, at, block) => ({
     kind: 'reader',
@@ -204,7 +244,7 @@ function readValues(
   const moved = new Map<string, string>();
   for (const name of verdict.exports) if (!name.startsWith('* ')) moved.set(name, name);
   for (const { name, origin } of own.exported) if (!moved.has(name)) moved.set(name, origin);
-  if (moved.size === 0) return;
+  if (moved.size === 0) return undefined;
   const [first] = moved.values();
 
   const { relations } = options;
@@ -213,7 +253,7 @@ function readValues(
     // Nobody to ask who imports it, so every test that loaded it is an
     // audience the reading cannot rule out.
     chargeModule(context, file, rowsOf, (at, block) => reader(first!, at, block));
-    return;
+    return undefined;
   }
 
   const covered = new Set<number>();
@@ -234,9 +274,21 @@ function readValues(
   }
 
   // A test that loaded the declaring file through no importer the reading
-  // could see — an edge the graph does not hold, a module with no row — is an
-  // audience nobody ruled out, and it keeps the module's charge.
-  chargeModule(context, file, rowsOf, (at, block) => reader(first!, at, block), (test) => !covered.has(test));
+  // followed reached it by an edge the graph does not hold. It is named, not
+  // charged: charging it would select every such test for every change.
+  if (rowsOf.size === 0) return undefined;
+  const unseen = new Set<string>();
+  for (const rows of rowsOf.values()) {
+    for (const module of rows) {
+      for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
+        if (!moduleRegion(coverage, block)) continue;
+        for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
+          if (!covered.has(test)) unseen.add(coverage.string(coverage.testPath.at(test)));
+        }
+      }
+    }
+  }
+  return [...unseen].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 }
 
 /**
@@ -260,9 +312,7 @@ function readImporter(
     const rows = findModules(coverage, name).filter((module) => coverage.moduleInstrumented.at(module) === 1);
     if (rows.length > 0) rowsOf.set(name, rows);
   }
-  // A module with no row and no test of its own is left uncovered, so the
-  // declaring file's charge answers for every test behind it.
-  if (rowsOf.size === 0 && test === undefined) return new Map();
+  if (rowsOf.size === 0 && test === undefined) return readUnmeasured(importer, moved, options, coverage.commit);
   if (test !== undefined) covered.add(test);
   for (const rows of rowsOf.values()) {
     for (const module of rows) {
@@ -309,6 +359,32 @@ function readImporter(
   return passed;
 }
 
+/**
+ * An importer with no row and no test: nothing it runs can be charged, so a
+ * read of a moved name anywhere in it moves every name it exports, and its
+ * own importers are asked in turn. One that reads none of them hands on only
+ * what it re-exports. A text that cannot be had or parsed hands on nothing, and
+ * the tests behind it are left to `unseen`.
+ */
+function readUnmeasured(
+  importer: string,
+  moved: ReadonlyMap<string, string>,
+  options: ExecutionNarrowingOptions,
+  commit: TestCoverageView['commit'],
+): ReadonlyMap<string, string> {
+  const text = options.sourceAt?.(importer, commit);
+  const found = text === undefined ? null : native()!.moduleReaders!(importer, text, [...moved.keys()], true);
+  const passed = new Map<string, string>();
+  if (found === null) return passed;
+  const origin = (name: string): string => moved.get(name) ?? name;
+  const read = found.reads[0]?.name ?? found.load[0] ?? (found.untraced ? [...moved.keys()][0] : undefined);
+  if (read !== undefined) for (const name of found.interface) passed.set(name, origin(read));
+  for (const { name, origin: from } of [...found.exported, ...found.passed]) {
+    if (!passed.has(name)) passed.set(name, origin(from));
+  }
+  return passed;
+}
+
 /** Each read inside a function, charged to the regions around its line without the module's own. */
 function chargeReads(
   context: ReadingContext,
@@ -332,31 +408,34 @@ function chargeReads(
   if (found.load.length > 0) chargeModule(context, file, rowsOf, (at, block) => reason(found.load[0]!, at, block));
 }
 
-/**
- * The module's own region, under every name: every test that loaded the file,
- * or those of them `keep` allows.
- */
+/** The module's own region, under every name: every test that loaded the file. */
 function chargeModule(
   context: ReadingContext,
   file: string,
   rowsOf: ReadonlyMap<string, readonly number[]>,
   reason: (at: string, block: number) => SelectionReason,
-  keep?: (test: number) => boolean,
 ): void {
   const { coverage } = context;
   for (const [name, rows] of rowsOf) {
     for (const module of rows) {
       for (let block = coverage.moduleBlocks.at(module); block < coverage.moduleBlocks.at(module + 1); block += 1) {
-        if (!moduleRegion(coverage, block)) continue;
-        if (keep === undefined) context.charge(file, block, reason(name, block));
-        else {
-          for (const test of coverage.crossings.members(coverage.blockSet.at(block))) {
-            if (keep(test)) context.pick(test, reason(name, block));
-          }
-        }
+        if (moduleRegion(coverage, block)) context.charge(file, block, reason(name, block));
       }
     }
   }
+}
+
+/**
+ * Of a changed file and the sources it started or stopped importing from,
+ * those whose package declares that loading them does something. Nothing is
+ * asked without a `root`, which leaves the assumption that loading a module
+ * only declares what it exports.
+ */
+function declaredEffects(context: ReadingContext, file: string, imported: readonly string[]): readonly string[] {
+  const { root } = context.options;
+  const scanner = native();
+  if (root === undefined || scanner?.declaredEffects === undefined) return [];
+  return scanner.declaredEffects(root, file, [...imported]);
 }
 
 /** The first of these names the graph holds as a file. */

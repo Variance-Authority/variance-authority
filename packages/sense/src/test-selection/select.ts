@@ -4,7 +4,8 @@ import { answerByImporters, type ExecutionNarrowingOptions, type ImporterReason 
 import { findModules } from './lookup.js';
 import { changedLines } from './diff-lines.js';
 import { hunksOf } from './patch.js';
-import { frameOf, readChange, type FileReading } from './reading.js';
+import { frameOf } from './frame.js';
+import { readChange, readRowless, type FileReading } from './reading.js';
 import { bindsOnly } from './inert.js';
 import { disownedIn } from './shadowed.js';
 
@@ -221,7 +222,15 @@ function readDiff(
       rowed.add(name);
       rowsOf.set(name, rows);
     }
-    if (rowsOf.size === 0) continue;
+    if (rowsOf.size === 0) {
+      // No row to charge, so its readers answer for it where a reading can be
+      // made. A file read that way is answered, and the walk over its importers
+      // below — which charges them whole — is for what the reading left.
+      const read = ranges.length === 0 ? undefined : readRowless(context, file);
+      if (read !== undefined) readings.push(read.reading);
+      if (read?.charged === true) for (const name of knownAs(file)) rowed.add(name);
+      continue;
+    }
     // A caller that writes one file's hunks under each of its names hands the
     // same change over twice, and every name of it was charged the first time.
     const held = [...rowsOf.keys()].sort(codeUnitOrder).join('\n');

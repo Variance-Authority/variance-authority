@@ -616,7 +616,14 @@ below is one stage of that call.
    that reads a binding whose value moved: in the file, and in each direct
    importer on a runtime edge, further only through a re-export. A read at
    load charges that module, and an importer that hands a namespace on whole
-   charges its module. `load` charges the lines as step 4 does. Under `bodies`
+   charges its module. An import that binds a name is a use by the functions
+   that read it, so an import added to a file charges those functions and not
+   the file's loaders. When you pass `root`, the `package.json` each changed
+   file and each added or removed import resolves into is asked for its
+   `sideEffects`: a declared file, or an importer of one, is `load`, and its
+   reading lists the declared names in `effects`. A test that crossed the
+   changed module through no importer the graph holds is listed in `unseen` and
+   charged nothing. `load` charges the lines as step 4 does. Under `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file
    without `sourceAt`, whose hunks do not apply to the recorded text, whose
    text does not parse, or on a machine without the scanner's native addon is

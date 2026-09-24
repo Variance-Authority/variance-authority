@@ -49,6 +49,7 @@ mod path;
 mod read;
 mod resolve;
 mod seed;
+mod side_effects;
 mod tree;
 
 pub use seed::seed_files;

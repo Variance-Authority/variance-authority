@@ -352,6 +352,7 @@ async function main() {
       enumerated,
       knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named(file)),
       faces,
+      root: ROOT,
       ...(sourceAt === undefined ? {} : { sourceAt }),
       ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
     },

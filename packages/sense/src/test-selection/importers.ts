@@ -137,6 +137,13 @@ export interface ExecutionNarrowingOptions {
    * the snapshot has a row for a file that did not exist there.
    */
   readonly sourceAt?: (file: string, commit: string | undefined) => string | undefined;
+  /**
+   * The checkout every name is relative to, so a package's manifest can say
+   * that loading a module does something (`sideEffects`). Without it, no
+   * manifest is asked, and loading a module is assumed only to declare what it
+   * exports.
+   */
+  readonly root?: string;
 }
 
 /** One chain of imports from a changed file or a moved package to the file whose row selected a test. */
@@ -406,7 +413,7 @@ function importersUntil(
 }
 
 /** Whether anything imports this file as an asset, which is what a file no probe can sit in looks like to the scan. */
-function importedAsAsset(relations: Relations, id: NodeId): boolean {
+export function importedAsAsset(relations: Relations, id: NodeId): boolean {
   const { offset, kind } = relations.dependents;
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) if (kind[edge] === ASSET) return true;
   return false;

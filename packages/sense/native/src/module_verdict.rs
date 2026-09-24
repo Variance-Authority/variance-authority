@@ -2,9 +2,9 @@
 //!
 //! A module block's crossings are every test that loaded the file, so charging
 //! one says *this change reached everything that imported the module*. That is
-//! true of a new import, a top-level call, a class with a new decorator. It is
-//! not true of a comment, a type, a function added beside the others, an import
-//! renamed, or an edit inside a function body; those change what runs when
+//! true of an import kept for its effect, a top-level call, a class with a new
+//! decorator. It is not true of a comment, a type, a function added beside the
+//! others, an import of a name, or an edit inside a function body; those change what runs when
 //! something calls, and the regions the calls enter already answer for them.
 //!
 //! So each text is parsed twice: whole, and with every function emptied
@@ -13,12 +13,22 @@
 //! is loaded — is reduced to two things:
 //!
 //! - the **sequence**: every statement that evaluates something when the module
-//!   runs — an import, keyed by what it loads and never by the names it binds; a
-//!   call; a declaration whose initializer calls, reads a property, spreads or
+//!   runs — an import that binds nothing, which is there for what loading it
+//!   does; a call; a declaration whose initializer calls, reads a property, spreads or
 //!   destructures; a class that extends, decorates or computes; an enum or a
 //!   namespace that is emitted;
 //! - the **bindings**: each name a pure declaration binds, and what it is bound
-//!   to — an import, a function, a value whose evaluation runs nothing.
+//!   to — an import, a function, a value whose evaluation runs nothing;
+//! - the **order**: the sequence and every binding that is not hoisted, as they
+//!   are written. Two declarations that trade places can read each other before
+//!   either is initialized, which throws as the module loads.
+//!
+//! An import that binds names is a binding and nothing else. Loading a module
+//! is assumed to do nothing but declare what it exports, so the module it loads
+//! reaches this one only through the names read from it, and a name nothing
+//! reads yet has no audience: importing a new module and calling it in one
+//! function is a change to that function. A module whose loading does
+//! something is charged for that in its own reading.
 //!
 //! A different sequence is a load-time change, and the module is charged. An
 //! equal sequence with a binding whose value changed is a changed value, and
@@ -44,24 +54,25 @@ use oxc_span::ContentEq;
 use napi_derive::napi;
 
 use crate::module_readers::{bound, declared, interface_of};
-use crate::module_shape::{fields, parse, plain_class, pure, Lines};
+use crate::module_shape::{parse, plain_class, pure, Lines};
 
 pub enum Verdict {
     /// No text that runs differs: comments, types, spelling, formatting.
     None,
     /// The load is the same but for these bindings' values and these exports;
     /// with both empty, what differs runs only when something calls. `gone` is
-    /// the exports the new text no longer has.
-    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String> },
+    /// the exports the new text no longer has. `imported` is every source an
+    /// import binds from on one side only: loading it is a use only when its
+    /// package declares so, which is the manifest's to answer, not the text's.
+    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String>, imported: Vec<String> },
     /// What the module does when it is loaded is different.
     Load,
 }
 
 /// One step of the module's evaluation, compared by the parser's own equality.
 enum Step<'s, 'a> {
-    /// What is loaded, and whether anything of it is bound at all: `import './x'`
-    /// and `import { type T } from './x'` load it; the names never do.
-    Import(&'s str, bool),
+    /// An import that binds nothing: `import './x'`, `import {} from './x'`.
+    Import(&'s str),
     /// A re-export loads its source.
     From(&'s str),
     Declaration(&'s Declaration<'a>),
@@ -73,7 +84,7 @@ enum Step<'s, 'a> {
 impl PartialEq for Step<'_, '_> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Step::Import(a, x), Step::Import(b, y)) => a == b && x == y,
+            (Step::Import(a), Step::Import(b)) => a == b,
             (Step::From(a), Step::From(b)) => a == b,
             (Step::Declaration(a), Step::Declaration(b)) => a.content_eq(b),
             (Step::Statement(a), Step::Statement(b)) => a.content_eq(b),
@@ -91,8 +102,8 @@ enum Bound<'s, 'a> {
     /// The kind is part of the value: `let` to `const` makes every function
     /// that assigns it throw.
     Value(Option<VariableDeclarationKind>, Option<&'s Expression<'a>>),
-    /// A plain class is its instance fields, which are what a `new` reads; its
-    /// methods are regions of their own and answer for their bodies.
+    /// A plain class is its members with every function emptied: what a `new`
+    /// makes, and which methods it has. A method's body is a region of its own.
     Class(&'s Class<'a>),
     /// Computed at load: the sequence is the one to compare.
     Evaluated,
@@ -104,7 +115,7 @@ impl Bound<'_, '_> {
             (Bound::Import(a), Bound::Import(b)) => a == b,
             (Bound::Function, Bound::Function) | (Bound::Evaluated, Bound::Evaluated) => true,
             (Bound::Value(k, a), Bound::Value(l, b)) => k == l && same_value(*a, *b),
-            (Bound::Class(a), Bound::Class(b)) => same_fields(a, b),
+            (Bound::Class(a), Bound::Class(b)) => a.content_eq(b),
             _ => false,
         }
     }
@@ -112,20 +123,40 @@ impl Bound<'_, '_> {
 
 fn same_value(a: Option<&Expression>, b: Option<&Expression>) -> bool {
     match (a, b) {
-        (Some(Expression::ClassExpression(a)), Some(Expression::ClassExpression(b))) => same_fields(a, b),
         (Some(a), Some(b)) => a.content_eq(b),
         (a, b) => a.is_none() && b.is_none(),
     }
 }
 
-fn same_fields(a: &Class, b: &Class) -> bool {
-    let (a, b): (Vec<_>, Vec<_>) = (fields(a).collect(), fields(b).collect());
-    a.len() == b.len() && a.iter().zip(&b).all(|(a, b)| a.content_eq(b))
-}
-
 struct View<'s, 'a> {
     sequence: Vec<Step<'s, 'a>>,
     bindings: BTreeMap<String, Bound<'s, 'a>>,
+    /// Each non-hoisted binding and each step, as written: `None` is a step.
+    order: Vec<Option<String>>,
+    /// The sources an import binds names from.
+    imports: BTreeSet<&'s str>,
+}
+
+impl<'s, 'a> View<'s, 'a> {
+    fn step(&mut self, step: Step<'s, 'a>) {
+        self.sequence.push(step);
+        self.order.push(None);
+    }
+
+    fn bind(&mut self, name: String, bound: Bound<'s, 'a>) {
+        // A function and an import exist before the first statement runs.
+        if !matches!(bound, Bound::Function | Bound::Import(_)) {
+            self.order.push(Some(name.clone()));
+        }
+        self.bindings.insert(name, bound);
+    }
+
+    /// The order, over the bindings both texts make: a name added or removed is
+    /// not a move.
+    fn order_over(&self, other: &View) -> Vec<Option<&String>> {
+        let kept = |name: &String| other.bindings.contains_key(name);
+        self.order.iter().filter(|at| at.as_ref().is_none_or(kept)).map(Option::as_ref).collect()
+    }
 }
 
 pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
@@ -143,7 +174,7 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
         return Some(Verdict::Load);
     }
     let (was, is) = (view_of(&old), view_of(&now));
-    if was.sequence != is.sequence {
+    if was.sequence != is.sequence || was.order_over(&is) != is.order_over(&was) {
         return Some(Verdict::Load);
     }
 
@@ -169,30 +200,37 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
         }
     }
 
-    let exports = old_interface.iter().filter(|(name, bound)| now_interface.get(*name) != Some(bound));
-    let exports = exports.map(|(name, _)| name.clone()).collect();
+    // A name exported for the first time moves too: a namespace handed on whole
+    // is read for every name it holds, the new one included.
+    let moved = old_interface.iter().filter(|(name, bound)| now_interface.get(*name) != Some(bound));
+    let added = now_interface.keys().filter(|name| !old_interface.contains_key(*name));
+    let exports = moved.map(|(name, _)| name).chain(added).cloned().collect();
     let gone = old_interface.keys().filter(|name| !now_interface.contains_key(*name)).cloned().collect();
-    Some(Verdict::Values { names, exports, gone })
+    let imported = was.imports.symmetric_difference(&is.imports).map(|source| source.to_string()).collect();
+    Some(Verdict::Values { names, exports, gone, imported })
 }
 
 fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
-    let mut view = View { sequence: Vec::new(), bindings: BTreeMap::new() };
+    let mut view = View { sequence: Vec::new(), bindings: BTreeMap::new(), order: Vec::new(), imports: BTreeSet::new() };
     for statement in &program.body {
         match statement {
             Statement::ImportDeclaration(it) => {
-                let loads = it.specifiers.as_ref().is_none_or(|specifiers| !specifiers.is_empty());
-                view.sequence.push(Step::Import(it.source.value.as_str(), loads));
+                if it.specifiers.as_ref().is_none_or(|specifiers| specifiers.is_empty()) {
+                    view.step(Step::Import(it.source.value.as_str()));
+                } else if !it.import_kind.is_type() {
+                    view.imports.insert(it.source.value.as_str());
+                }
                 for specifier in it.specifiers.iter().flatten() {
                     let (local, imported) = match specifier {
                         ImportDeclarationSpecifier::ImportSpecifier(it) => (&it.local, it.imported.name().to_string()),
                         ImportDeclarationSpecifier::ImportDefaultSpecifier(it) => (&it.local, "default".to_string()),
                         ImportDeclarationSpecifier::ImportNamespaceSpecifier(it) => (&it.local, "*".to_string()),
                     };
-                    view.bindings.insert(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value)));
+                    view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value)));
                 }
             }
-            Statement::ExportFromDeclaration(it) => view.sequence.push(Step::From(it.source.value.as_str())),
-            Statement::ExportAllDeclaration(it) => view.sequence.push(Step::From(it.source.value.as_str())),
+            Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
+            Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
             // An export list without a source runs nothing.
             Statement::ExportNamedDeclaration(_) => {}
             Statement::ExportDeclaration(it) => declaration(&mut view, &it.declaration),
@@ -210,7 +248,7 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
                     _ => (None, Bound::Evaluated),
                 };
                 if matches!(bound, Bound::Evaluated) {
-                    view.sequence.push(Step::Default(it));
+                    view.step(Step::Default(it));
                 }
                 if let Some(id) = id {
                     let named = match &bound {
@@ -218,13 +256,13 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
                         Bound::Function => Bound::Function,
                         _ => Bound::Evaluated,
                     };
-                    view.bindings.insert(id.name.to_string(), named);
+                    view.bind(id.name.to_string(), named);
                 }
-                view.bindings.insert("default".to_string(), bound);
+                view.bind("default".to_string(), bound);
             }
             statement => match statement.as_declaration() {
                 Some(it) => declaration(&mut view, it),
-                None => view.sequence.push(Step::Statement(statement)),
+                None => view.step(Step::Statement(statement)),
             },
         }
     }
@@ -234,33 +272,37 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
 fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
     match it {
         Declaration::FunctionDeclaration(function) => {
-            view.bindings.extend(function.id.as_ref().map(|id| (id.name.to_string(), Bound::Function)));
+            if let Some(id) = &function.id {
+                view.bind(id.name.to_string(), Bound::Function);
+            }
         }
         Declaration::ClassDeclaration(class) if plain_class(class) => {
-            view.bindings.extend(class.id.as_ref().map(|id| (id.name.to_string(), Bound::Class(class))));
+            if let Some(id) = &class.id {
+                view.bind(id.name.to_string(), Bound::Class(class));
+            }
         }
         Declaration::VariableDeclaration(variables) => {
             for declarator in &variables.declarations {
                 match &declarator.id {
                     BindingPattern::BindingIdentifier(id) if declarator.init.as_ref().is_none_or(pure) => {
                         let bound = Bound::Value(Some(variables.kind), declarator.init.as_ref());
-                        view.bindings.insert(id.name.to_string(), bound);
+                        view.bind(id.name.to_string(), bound);
                     }
                     _ => {
-                        view.sequence.push(Step::Declarator(variables.kind, declarator));
+                        view.step(Step::Declarator(variables.kind, declarator));
                         let mut names = Vec::new();
                         bound(&declarator.id, &mut names);
                         for name in names {
-                            view.bindings.insert(name, Bound::Evaluated);
+                            view.bind(name, Bound::Evaluated);
                         }
                     }
                 }
             }
         }
         it => {
-            view.sequence.push(Step::Declaration(it));
+            view.step(Step::Declaration(it));
             for name in declared(it) {
-                view.bindings.insert(name, Bound::Evaluated);
+                view.bind(name, Bound::Evaluated);
             }
         }
     }
@@ -291,17 +333,20 @@ pub struct ModuleVerdict {
     pub exports: Vec<String>,
     /// Exports the new text no longer has.
     pub gone: Vec<String>,
+    /// Sources an import binds names from on one side only.
+    pub imported: Vec<String>,
 }
 
 /// The verdict on one file's change, or nothing when either text does not parse.
 #[napi]
 pub fn module_verdict(file: String, before: String, after: String) -> Option<ModuleVerdict> {
-    let empty = || (Vec::new(), Vec::new(), Vec::new());
-    let (kind, (names, exports, gone)) = match verdict(&file, &before, &after)? {
-        Verdict::None => ("none", empty()),
-        Verdict::Load => ("load", empty()),
-        Verdict::Values { names, exports, gone } if names.is_empty() && exports.is_empty() => ("bodies", (names, exports, gone)),
-        Verdict::Values { names, exports, gone } => ("values", (names, exports, gone)),
+    let (kind, names, exports, gone, imported) = match verdict(&file, &before, &after)? {
+        Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+        Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
+        Verdict::Values { names, exports, gone, imported } => {
+            let kind = if names.is_empty() && exports.is_empty() { "bodies" } else { "values" };
+            (kind, names, exports, gone, imported)
+        }
     };
-    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone })
+    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone, imported })
 }

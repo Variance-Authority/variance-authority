@@ -102,6 +102,13 @@ impl Resolvers {
         None
     }
 
+    /// What the resolver found for a request, manifest included: the answer
+    /// `resolve` reduces to a repository path.
+    pub fn resolution(&self, from: &Path, request: &str) -> Option<oxc_resolver::Resolution> {
+        let request = request_of(request)?;
+        [&self.modules, &self.exact].into_iter().find_map(|resolver| resolver.resolve_file(from, request).ok())
+    }
+
     fn canonical(&self, path: &Path) -> PathBuf {
         if let Ok(held) = self.canonical.lock() {
             if let Some(known) = held.get(path) {

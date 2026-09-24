@@ -479,6 +479,8 @@ pub struct ModuleReaders {
     pub imports: Vec<String>,
     /// Names this file re-exports from a source, among those that moved.
     pub passed: Vec<ModuleExport>,
+    /// Every name this file exports.
+    pub interface: Vec<String>,
 }
 
 /// The readers of `names` in one file: bindings of its own when `imported` is
@@ -488,7 +490,9 @@ pub struct ModuleReaders {
 pub fn module_readers(file: String, text: String, names: Vec<String>, imported: bool) -> Option<ModuleReaders> {
     let allocator = oxc_allocator::Allocator::default();
     let program = crate::module_shape::parse(&allocator, &file, &text, true)?;
-    let reading = reading_of(&program, &Lines::new(&text));
+    let lines = Lines::new(&text);
+    let interface = interface_of(&program, &lines).into_keys().filter(|name| !name.starts_with("* ")).collect();
+    let reading = reading_of(&program, &lines);
     let seeds = if imported {
         imported_as(&reading, &names)
     } else {
@@ -527,5 +531,6 @@ pub fn module_readers(file: String, text: String, names: Vec<String>, imported: 
         untraced: reading.untraced,
         imports: imports.collect::<BTreeSet<_>>().into_iter().collect(),
         passed: pairs(passed),
+        interface,
     })
 }

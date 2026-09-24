@@ -91,7 +91,18 @@ one your diff makes of it, and charged by what the edit does:
 A read is followed one file deep, through each file that imports the value, and
 further only through a re-export. A file that imports the module as a namespace
 and hands it on whole is charged whole, because no name follows the value from
-there. The run prints a line per changed file saying how it was read, or why it
+there.
+
+A change travels by use. A new module selects nothing until something calls it,
+and an import you add to a file charges the functions in that file that use the
+imported names, not every subject that loads the file. This assumes that loading
+a module only declares what it exports. When loading it does more, say so where
+your bundler already looks: the `sideEffects` field of the module's
+`package.json`. A file that field declares, by `true` or by a matching pattern,
+is charged to every subject that loaded it, and an import of it added or removed
+is charged to every subject that loaded the importer. A test that loaded a
+changed file through no import the file graph holds is named, not selected: the
+edge the graph is missing is the thing to fix. The run prints a line per changed file saying how it was read, or why it
 could not be — a diff that does not apply to the recorded text, a text that does
 not parse — and a file that could not be read is charged by its lines.
 

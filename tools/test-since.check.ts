@@ -164,12 +164,15 @@ describe('a reader and a reading are printed where the reader looks', () => {
   it('prints one line per changed file: the verdict, or why there was none', () => {
     expect(
       readingLines([
-        { file: 'src/limits.ts', verdict: 'values', names: ['LIMIT'] },
+        { file: 'src/limits.ts', verdict: 'values', names: ['LIMIT'], unseen: ['test/fill.test.js'] },
+        { file: 'src/wrap.ts', verdict: 'load', names: [], effects: ['src/wrap.ts'] },
         { file: 'src/a.ts', unread: 'hunk' },
       ]),
     ).toEqual([
       '',
       '  read     src/limits.ts  values LIMIT',
+      '  unseen   test/fill.test.js  loaded it through no import the graph holds',
+      '  read     src/wrap.ts    load — its package declares that loading src/wrap.ts does something',
       '  read     src/a.ts       unread (the diff does not apply to the recorded text)',
     ]);
     expect(readingLines([])).toEqual([]);

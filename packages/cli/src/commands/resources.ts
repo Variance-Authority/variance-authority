@@ -151,6 +151,7 @@ export async function journeyAgainst(
   try {
     return await selection.narrowByExecution(file, diff, {
       sourceAt,
+      root,
       ...(relations === undefined ? {} : { relations }),
       ...(packages.length === 0 ? {} : { packages }),
     });

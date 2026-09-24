@@ -21,3 +21,12 @@ the names whose values moved, or why the file could not be read (`source`,
 `hunk`, `parse` or `addon`). A test selected through a read carries a `reader`
 reason naming the value, the file that declares it and the file that reads it.
 `test:since` prints a line per reading.
+
+A change travels by use. A new module selects nothing until something calls it,
+and an import added to a file charges the functions that use its names, not
+every test that loads the file. With `root`, the `package.json` a changed file
+or an added or removed import resolves into is asked for `sideEffects`: a
+declared file, or an importer of one, is read as `load`, and its reading lists
+the declared names in `effects`. A test that loaded a changed module through no
+importer the graph holds is listed in the reading's `unseen` and no longer
+selected.

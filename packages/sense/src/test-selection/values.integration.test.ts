@@ -101,8 +101,18 @@ describe('a change read from both of its texts', () => {
     expect(narrowing.entered).toEqual(tests('clamp'));
   });
 
-  it('selects nothing for a new exported function', async () => {
+  it('charges a new export only where the namespace is handed on whole', async () => {
+    // Nothing names `wrap` yet. `registry.ts` hands every name `limits.ts`
+    // exports to whoever reads `known`, the new one included, so `count` is
+    // the one reader of it.
     const added = 'export function wrap(value: number): number {\n  return value % LIMIT;\n}\n\nexport function clamp';
+    const narrowing = await select(await edit(limits, 'export function clamp', added));
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: [], unseen: [] }]);
+    expect(narrowing.entered).toEqual(tests('count'));
+  });
+
+  it('selects nothing for a new function nothing exports', async () => {
+    const added = 'function wrap(value: number): number {\n  return value % LIMIT;\n}\n\nexport function clamp';
     const narrowing = await select(await edit(limits, 'export function clamp', added));
     expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
     expect(narrowing.entered).toEqual([]);
@@ -125,7 +135,7 @@ describe('a change read from both of its texts', () => {
 
   it('charges a moved value to every place that reads it, and to nothing that only loaded it', async () => {
     const narrowing = await select(await edit(limits, 'LIMIT = 10', 'LIMIT = 20'));
-    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: ['LIMIT'] }]);
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: ['LIMIT'], unseen: [] }]);
     // `clamp` reads it; `render` reads `DEFAULTS`, which holds it; `slide` reads
     // it as `max`; `fill` reads `limits.LIMIT`; `count` loads a module that
     // hands the whole namespace on, where no name can follow it. `label` and
@@ -147,7 +157,7 @@ describe('a change read from both of its texts', () => {
 
   it('selects the test file that reads a moved value as it loads', async () => {
     const narrowing = await select(await edit(limits, 'STEP = 2', 'STEP = 3'));
-    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: ['STEP'] }]);
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: ['STEP'], unseen: [] }]);
     expect(narrowing.entered).toEqual(tests('count', 'step'));
   });
 
@@ -155,15 +165,18 @@ describe('a change read from both of its texts', () => {
     // `attempts` reads nothing, and its test is selected because the module
     // it loaded passed the value to `configure` as it loaded.
     const narrowing = await select(await edit(retries, 'RETRIES = 3', 'RETRIES = 4'));
-    expect(narrowing.readings).toEqual([{ file: retries, verdict: 'values', names: ['RETRIES'] }]);
+    expect(narrowing.readings).toEqual([{ file: retries, verdict: 'values', names: ['RETRIES'], unseen: [] }]);
     expect(narrowing.entered).toEqual(tests('attempts'));
   });
 
   it('charges every test that loads an importer of a name the file stopped exporting', async () => {
-    // `slider.ts` no longer links, so `label` fails before it calls anything.
-    // `meter.ts` still links, and only `fill` reads the missing member.
+    // An import of a name the module does not export is a link error in an ES
+    // module, so `label` is charged although it calls nothing that reads it; a
+    // runner that binds lazily lets it pass, and the charge follows the
+    // language rather than the runner. `meter.ts` imports the namespace, which
+    // still links, and only `fill` reads the missing member.
     const narrowing = await select(await edit(limits, 'export const LIMIT = 10;', 'const LIMIT = 10;'));
-    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: [] }]);
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'values', names: [], unseen: [] }]);
     expect(narrowing.entered).toEqual(tests('count', 'fill', 'label', 'slide'));
   });
 
@@ -183,3 +196,7 @@ describe('a change read from both of its texts', () => {
     expect(narrowing.entered).toEqual(tests('slide'));
   });
 });
+
+it.todo(
+  'a call that throws while binding a destructured first parameter is charged when a default is added to it — needs the probe in front of an object pattern, which runners that read fixture names from the source refuse',
+);

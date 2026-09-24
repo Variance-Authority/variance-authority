@@ -164,9 +164,15 @@ export function readingLines(readings) {
           ? `unread (${UNREAD[reading.unread]})`
           : reading.verdict === 'values'
             ? `values ${reading.names.join(', ')}`
-            : VERDICT[reading.verdict];
-      return `  read     ${reading.file.padEnd(width)}  ${said}`;
-    }),
+            : reading.effects === undefined
+              ? VERDICT[reading.verdict]
+              : `load — its package declares that loading ${reading.effects.join(', ')} does something`;
+      const line = `  read     ${reading.file.padEnd(width)}  ${said}`;
+      // A test that loaded the file by an edge the graph does not hold: named,
+      // not run, so the edge can be fixed where it is missing.
+      const unseen = (reading.unseen ?? []).map((test) => `  unseen   ${test}  loaded it through no import the graph holds`);
+      return [line, ...unseen];
+    }).flat(),
   ];
 }
 

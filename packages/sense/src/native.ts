@@ -144,6 +144,8 @@ export interface NativeScanner {
    * `imported`, the exports of a module it imports. `null` when it does not parse.
    */
   moduleReaders?(file: string, text: string, names: string[], imported: boolean): NativeModuleReaders | null;
+  /** Of `file` and the sources it imports from, those whose package declares that loading them does something. */
+  declaredEffects?(root: string, file: string, sources: string[]): string[];
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */
   foldJourney?(
     caseDirectory: string,
@@ -185,6 +187,8 @@ export interface NativeModuleVerdict {
   readonly exports: string[];
   /** Exported names the new text no longer has. */
   readonly gone: string[];
+  /** Sources an import binds names from on one side only. */
+  readonly imported: string[];
 }
 
 export interface NativeModuleReaders {
@@ -200,6 +204,8 @@ export interface NativeModuleReaders {
   readonly imports: string[];
   /** Names this file re-exports from a source, among those that moved. */
   readonly passed: Array<{ readonly name: string; readonly origin: string }>;
+  /** Every name this file exports. */
+  readonly interface: string[];
 }
 
 export interface NativeJourneyGraph {

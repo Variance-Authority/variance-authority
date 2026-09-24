@@ -1168,6 +1168,7 @@ checksum = "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
 name = "sense-native"
 version = "0.0.0"
 dependencies = [
+ "fast-glob",
  "napi",
  "napi-build",
  "napi-derive",

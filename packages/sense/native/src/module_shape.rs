@@ -5,7 +5,7 @@
 //!
 //! What is taken out is exactly what TypeScript erases. What is kept runs, even
 //! where it is written in TypeScript's syntax: a parameter property, a
-//! non-`const` enum, a namespace with values, a class field with no initializer
+//! enum, `const` or not, a namespace with values, a class field with no initializer
 //! (a define under `useDefineForClassFields`). Keeping one that turns out to
 //! emit nothing selects more; erasing one that runs would select less, so every
 //! doubt is kept.
@@ -80,8 +80,10 @@ fn erased_declaration(declaration: &Declaration) -> bool {
         Declaration::FunctionDeclaration(it) => it.declare || it.body.is_none(),
         Declaration::ClassDeclaration(it) => it.declare,
         Declaration::TSTypeAliasDeclaration(_) | Declaration::TSInterfaceDeclaration(_) => true,
-        // A non-const enum is emitted as a function that runs when the module does.
-        Declaration::TSEnumDeclaration(it) => it.declare || it.r#const,
+        // An enum is emitted as a function that runs when the module does, a
+        // `const` one too: a transform that sees one file at a time cannot
+        // inline it into the files that read it.
+        Declaration::TSEnumDeclaration(it) => it.declare,
         Declaration::TSExternalModuleDeclaration(_) | Declaration::TSGlobalDeclaration(_) => true,
         Declaration::TSNamespaceDeclaration(it) => it.declare,
         Declaration::TSImportEqualsDeclaration(it) => it.import_kind.is_type(),
@@ -313,10 +315,4 @@ pub fn plain_class(class: &Class) -> bool {
             ClassElement::PropertyDefinition(it) => !it.computed && !it.r#static && it.decorators.is_empty(),
             ClassElement::AccessorProperty(it) => !it.computed && !it.r#static && it.decorators.is_empty(),
         })
-}
-
-/// The instance fields of a class, which are what a `new` reads; its methods
-/// are regions of their own and answer for their bodies.
-pub fn fields<'s, 'a>(class: &'s Class<'a>) -> impl Iterator<Item = &'s ClassElement<'a>> {
-    class.body.body.iter().filter(|member| !matches!(member, ClassElement::MethodDefinition(_)))
 }
