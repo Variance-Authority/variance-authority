@@ -333,6 +333,13 @@ jobs:
           # accepted — verified one line above — and it is idempotent, so this
           # cannot invent a tag for a release that did not happen and cannot
           # fail on one that was already tagged.
+          #
+          # It writes annotated tags, and an annotated tag needs a tagger. With
+          # no identity `git tag` refuses each one, `changeset tag` ignores the
+          # refusal and prints "Created git tags", and the push finds nothing to
+          # send: 0.8.0 reached the registry whole and origin with no tag.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           yarn changeset tag
           git push origin --tags
 
