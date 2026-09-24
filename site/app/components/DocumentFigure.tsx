@@ -12,6 +12,7 @@ import ReasoningLoop from "./ReasoningLoop";
 import ReviewLoop from "./ReviewLoop";
 import RuntimeEvidence from "./RuntimeEvidence";
 import Since from "./Since";
+import StoriesNotImports from "./StoriesNotImports";
 import Subjects from "./Subjects";
 import TestPurpose from "./TestPurpose";
 import Variations from "./Variations";
@@ -45,6 +46,8 @@ const CAPTIONS: Record<string, string> = {
     "Independent readings stay independent, so an absent signal cannot be mistaken for an observed empty result.",
   presentation:
     "A focused report paints the repeated records and the relationship finding it measured. The overlay identifies evidence; it does not prescribe a design change.",
+  "coverage-test-selection":
+    "Five tests load the module and one ran the changed branch. The import graph selects all five; the execution record selects the one. The dashed test loaded the module and ran none of it.",
   journeys:
     "One decision is one mark, however many regions the run records for it. An arm that entered is lit, and the line that fell through is dashed.",
 };
@@ -151,6 +154,12 @@ export default function DocumentFigure({ slug }: { slug: string }) {
       return (
         <Figure caption={CAPTIONS.journeys!}>
           <Journeys />
+        </Figure>
+      );
+    case "coverage-test-selection":
+      return (
+        <Figure caption={CAPTIONS["coverage-test-selection"]!}>
+          <StoriesNotImports />
         </Figure>
       );
     default:

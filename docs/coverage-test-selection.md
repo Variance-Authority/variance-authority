@@ -121,7 +121,9 @@ statically analyzable, which is what lets a graph-based selector read them, but
 a static `import` says only that the module loads, not that any of its code
 runs. CommonJS never made that promise: a `require` can sit inside a function,
 and React Native's
-[inline requires](https://reactnative.dev/docs/optimizing-javascript-loading)
+[inline requires](https://archive.reactnative.dev/docs/next/ram-bundles-inline-requires),
+introduced with RAM bundles and
+[still part of its loading guide](https://reactnative.dev/docs/optimizing-javascript-loading),
 move each `require` to the point of first use, so a module loads only when the
 branch that needs it runs. The graph reads both as the same edge. Execution
 records the same thing in both systems: the code that ran.
@@ -194,15 +196,6 @@ not to every test that loaded the file.
 [What a change to a module's top level runs](selecting.md#what-a-change-to-a-modules-top-level-runs)
 lists each verdict and what it selects.
 
-```mermaid
-flowchart LR
-  accTitle: How far each grain narrows one edit to Zod
-  pkg["package graph<br/>201 of 202 files"]
-  file["import graph<br/>131 files load ru.ts"]
-  rec["execution record<br/>6 files in 8 runs: 2 selected,<br/>4 that always run"]
-  pkg --> file --> rec
-```
-
 **What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
 parsed the same way; if parsing cannot decide, the tests of the recorded files
@@ -235,6 +228,22 @@ unmodified fork with one commit of setup:
 | One-line edit, the record | 6 files in 8 runs, 1.6 s instead of 8.1 s | 10 files, 4.4 s instead of 12.7 s |
 | Test file runs skipped over sixty commits | at least 51% | at least 79% |
 | Recording cost, at most | 1.02× | 1.08× |
+
+```mermaid
+---
+config:
+  xyChart:
+    height: 250
+---
+xychart-beta horizontal
+  accTitle: Test files one one-line edit selects, by what reads the change
+  x-axis ["Zod, package graph", "Zod, import graph", "Zod, record", "Query, nx affected", "Query, import graph", "Query, record"]
+  y-axis "test files selected" 0 --> 210
+  bar [0, 0, 6, 0, 0, 10]
+  bar [201, 131, 0, 168, 149, 0]
+  bar [0, 0, 0, 0, 0, 0]
+  bar [0, 0, 0, 0, 0, 0]
+```
 
 [Zod](selection-zod.md) and [TanStack Query](selection-tanstack-query.md) have
 the scripts every figure came from.

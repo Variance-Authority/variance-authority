@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ChangePath, EvidencePath } from "../../../components/ChangePaths";
+import ConditionsOnTheWay from "../../../components/ConditionsOnTheWay";
 import DocsPage from "../../../components/DocsPage";
 import DocumentFigure from "../../../components/DocumentFigure";
 import MarkdownDocument from "../../../components/MarkdownDocument";
@@ -88,7 +89,19 @@ export default async function Page({ params }: PageProps) {
               </figure>
             ),
           }
-      : undefined;
+        : slug === "coverage-test-selection"
+          ? {
+              "why-execution-narrows-further-than-imports": (
+                <figure className="doc-figure doc-figure-panel">
+                  <ConditionsOnTheWay />
+                  <figcaption>
+                    All three tests load the changed module. Each import on the
+                    way adds a condition, and only the nearest test runs it.
+                  </figcaption>
+                </figure>
+              ),
+            }
+          : undefined;
   return (
     <DocsPage
       current={current}

@@ -84,11 +84,6 @@ export const NAVIGATION = [
         clusterOverview: true,
       },
       {
-        href: "/docs/coverage-test-selection",
-        label: "Coverage-based test selection",
-        cluster: "Run less of the suite",
-      },
-      {
         href: "/docs/selecting",
         label: "Select the tests that matter",
         cluster: "Run less of the suite",
@@ -385,6 +380,10 @@ export const NAVIGATION = [
       { href: "/reference/packages", label: "Package reference" },
       { href: "/reference/comparison", label: "Compare operating models" },
       { href: "/docs/on-testing", label: "On testing: decide what each test adds" },
+      {
+        href: "/docs/coverage-test-selection",
+        label: "Coverage-based test selection",
+      },
     ],
   },
 ] as const satisfies readonly NavigationSection[];
