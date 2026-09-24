@@ -95,8 +95,10 @@ export default async function Page({ params }: PageProps) {
                 <figure className="doc-figure doc-figure-panel">
                   <ConditionsOnTheWay />
                   <figcaption>
-                    All three tests load the changed module. Each import on the
-                    way adds a condition, and only the nearest test runs it.
+                    The editor from the double-click example changes, and all
+                    three tests load it. Only its own test runs it. The comment
+                    field's test never double-clicks, and the checkout test
+                    never reaches the step with the comment field.
                   </figcaption>
                 </figure>
               ),
