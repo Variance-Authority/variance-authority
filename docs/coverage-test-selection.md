@@ -157,8 +157,29 @@ runs. The graph draws the same edge from `exportReport` to `./pdf` in both
 versions. The JSON test runs no code in `./pdf` in either version, and a record
 of what it ran says so in both.
 
-In one file the gap between loading and running is one button or one branch.
-Across a suite it grows, for two reasons.
+A dynamic `import()` loads on demand, and the graph still counts it as loaded.
+Take a comment field that turns into a rich text editor when you double-click
+it:
+
+```jsx
+export function CommentField({ value, onChange }) {
+  const [Editor, setEditor] = useState(null);
+  const open = () =>
+    import("./editor").then((module) => setEditor(() => module.Editor));
+  if (Editor) return <Editor value={value} onChange={onChange} />;
+  return <textarea value={value} onChange={onChange} onDoubleClick={open} />;
+}
+```
+
+Every form in the product renders a comment field, and one team owns the
+editor. A graph read from source draws an edge from `CommentField` to
+`./editor`, because it cannot know whether anybody double-clicks. So when that
+team changes one toolbar button, every test that renders a form is selected.
+Almost none of them double-click. The record lists the tests that opened the
+editor, and a change to its toolbar selects those tests only.
+
+In one file the gap between loading and running is one button, one branch or
+one double click. Across a suite it grows, for two reasons.
 
 ### Good tests divide the work
 
