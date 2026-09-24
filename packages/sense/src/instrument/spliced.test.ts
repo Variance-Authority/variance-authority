@@ -1,44 +1,23 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { parseSync } from 'oxc-parser';
 import { describe, expect, it } from 'vitest';
-import { nativeAvailable } from '../addon.js';
-import type { InstrumentMode } from './blocks.js';
+import { GOLDEN } from './__fixtures__/spliced-golden.js';
 import { instrument } from './index.js';
-import { splicedInJs, splicedNatively, type Spliced } from './spliced.js';
+import { spliced, type InstrumentMode } from './spliced.js';
 
 /**
- * The addon's walk against the JavaScript one, over every source there is.
+ * The walk against what it answered when the JavaScript walk still held it.
  *
- * The native walk is allowed to be a different program and not a different
- * answer: a block numbered differently under the same instrumentation id is a
- * recording that attributes one region's arrivals to another, and nothing
- * downstream could tell. So this compares whole results — code, header offset,
- * every block field — rather than asserting what either should have produced.
+ * A block numbered differently under the same instrumentation id is a recording
+ * that attributes one region's arrivals to another, and nothing downstream could
+ * tell. So this compares whole results — code, header offset, every block
+ * field — against [`spliced-golden.ts`](./__fixtures__/spliced-golden.ts). A
+ * change there is a change to every recording's identity, and wants a new
+ * instrumentation id beside it.
  */
 
-const available = nativeAvailable();
 const MODES: readonly InstrumentMode[] = ['presence', 'entries'];
 
-const root = execFileSync('git', ['rev-parse', '--show-toplevel'], {
-  encoding: 'utf8',
-}).trim();
-const corpus = execFileSync(
-  'git',
-  ['ls-files', '-z', '--', '*.ts', '*.tsx', '*.js', '*.jsx', '*.mjs', '*.cjs', '*.mts', '*.cts'],
-  {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 1 << 28,
-  },
-)
-  .split('\0')
-  .filter((file) => file !== '' && !file.endsWith('.d.ts'))
-  // Tracked but removed from the working tree: a deletion not yet committed.
-  .filter((file) => existsSync(join(root, file)));
-
-/** What a hand-written corpus has that this repository's sources may not. */
+/** What a hand-written corpus has that a repository's sources may not. */
 const FIXTURES: Readonly<Record<string, string>> = {
   'unicode.ts':
     'const é = "ü😀";\nfunction naïve(x: string) { if (x) { return "日本" } return x }\nnaïve(é);\n',
@@ -73,89 +52,32 @@ const FIXTURES: Readonly<Record<string, string>> = {
   'unknown.vue': 'export default { data() { return 1 } }\n',
   'broken.ts': 'if (',
   'regexp-key.js': 'const o = { [/x/]: () => 1 };\n',
+  'lone-key.js': 'const o = { ["\\uD800x"]: () => 1, "\\uFFFD": () => 2 };\n',
 };
 
-function compare(sources: Iterable<readonly [string, string]>): {
-  readonly differing: string[];
-  readonly declined: string[];
-  readonly compared: number;
-} {
-  const differing: string[] = [];
-  const declined: string[] = [];
-  let compared = 0;
-  for (const [file, source] of sources) {
-    for (const mode of MODES) {
-      const oracle = splicedInJs(source, file, mode);
-      const answered = splicedNatively(source, file, mode);
-      if (answered === undefined) {
-        if (oracle !== undefined) declined.push(`${file} (${mode})`);
-        continue;
-      }
-      compared++;
-      const difference = firstDifference(oracle, answered);
-      if (difference !== undefined) differing.push(`${file} (${mode}): ${difference}`);
-    }
-  }
-  return { differing, declined, compared };
-}
+describe('the walk', () => {
+  it.each(Object.keys(FIXTURES).flatMap((file) => MODES.map((mode) => [file, mode] as const)))(
+    'answers %s (%s) as it always has',
+    (file, mode) => {
+      const answered = spliced(FIXTURES[file]!, file, mode);
 
-function firstDifference(oracle: Spliced | undefined, answered: Spliced): string | undefined {
-  if (oracle === undefined) return 'the addon answered a source the JavaScript walk refused';
-  if (oracle.code !== answered.code) {
-    let at = 0;
-    while (oracle.code[at] === answered.code[at]) at++;
-    return `code at ${at}: ${JSON.stringify(oracle.code.slice(at, at + 60))} vs ${JSON.stringify(answered.code.slice(at, at + 60))}`;
-  }
-  if (oracle.headerAt !== answered.headerAt)
-    return `headerAt ${oracle.headerAt} vs ${answered.headerAt}`;
-  if (oracle.sourceDigest !== answered.sourceDigest) return 'sourceDigest';
-  if (oracle.blocks.length !== answered.blocks.length) {
-    return `${oracle.blocks.length} blocks vs ${answered.blocks.length}`;
-  }
-  for (let ordinal = 0; ordinal < oracle.blocks.length; ordinal++) {
-    const [left, right] = [oracle.blocks[ordinal]!, answered.blocks[ordinal]!];
-    for (const key of [
-      'ordinal',
-      'kind',
-      'owner',
-      'digest',
-      'name',
-      'path',
-      'start',
-      'end',
-    ] as const) {
-      if (left[key] !== right[key]) {
-        return `block ${ordinal} ${key}: ${JSON.stringify(left[key])} vs ${JSON.stringify(right[key])}`;
-      }
-    }
-  }
-  return undefined;
-}
+      expect(answered === undefined ? null : { ...answered, blocks: answered.blocks.map((block) => ({ ...block })) })
+        .toEqual(GOLDEN[`${file} (${mode})`]);
+    },
+  );
 
-describe('the native instrument against the JavaScript one', () => {
-  it.runIf(available)('agrees on every source this repository tracks', () => {
-    const { differing, declined, compared } = compare(
-      corpus.map((file) => [file, readFileSync(join(root, file), 'utf8')] as const),
-    );
-
-    expect(differing).toEqual([]);
-    expect(declined).toEqual([]);
-    expect(compared).toBeGreaterThan(corpus.length);
+  it('spells a regular expression as `String(value)` does', () => {
+    expect(spliced(FIXTURES['regexp-key.js']!, 'regexp-key.js', 'presence')!.blocks[1]!.name).toBe('/x/');
   });
 
-  it.runIf(available)('agrees on what a repository of its own would not hold', () => {
-    const { differing, declined } = compare(Object.entries(FIXTURES));
+  it('escapes a lone surrogate in a name, and keeps a replacement character', () => {
+    const names = spliced(FIXTURES['lone-key.js']!, 'lone-key.js', 'presence')!.blocks.map((block) => block.name);
 
-    expect(differing).toEqual([]);
-    // A name only JavaScript can spell is declined rather than guessed.
-    expect(declined).toEqual(['regexp-key.js (presence)', 'regexp-key.js (entries)']);
+    expect(names).toEqual(['', '\\uD800x', '\uFFFD']);
   });
 
-  it.runIf(available)('leaves a source with a lone surrogate to the JavaScript walk', () => {
-    const source = 'const a = "\uD800";\nif (a) b();\n';
-
-    expect(splicedNatively(source, 'lone.js', 'presence')).toBeUndefined();
-    expect(splicedInJs(source, 'lone.js', 'presence')).toBeDefined();
+  it('leaves a source holding a lone surrogate uninstrumented', () => {
+    expect(spliced('const a = "\uD800";\nif (a) b();\n', 'lone.js', 'presence')).toBeUndefined();
   });
 });
 

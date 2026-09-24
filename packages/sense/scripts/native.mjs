@@ -39,10 +39,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Session } from 'node:inspector/promises';
-import { parseSync, rawTransferSupported } from 'oxc-parser';
 import { digestString as portableDigest } from '@variance-authority/core/format';
 import { instrument } from '../dist/instrument/index.js';
-import { walkBlocks } from '../dist/instrument/blocks.js';
 import { digestString } from '../dist/digest.js';
 import { decodeTestCoverage, encodeTestCoverage } from '../dist/test-selection/format.js';
 import { mergeCoverage } from '../dist/test-selection/merge.js';
@@ -84,7 +82,7 @@ async function profile(run) {
 }
 
 /** What each bucket is, in the order a reader should meet them. */
-const NATIVE = new Set(['zstd', 'SHA-256', 'the parser', 'V8 and the collector']);
+const NATIVE = new Set(['zstd', 'SHA-256', 'the addon', 'V8 and the collector']);
 
 function split(profile) {
   const self = new Map();
@@ -114,10 +112,9 @@ function split(profile) {
     else if (under('node:internal/crypto')) where = 'SHA-256';
     else if (name === '(garbage collector)') where = 'V8 and the collector';
     else if (name === '(program)' || name === '(idle)' || name === '(root)') where = 'V8 and the collector';
-    else if (url.includes('/node_modules/oxc-parser/')) where = "the parser's JavaScript";
     else if (url.includes('/packages/') && !url.includes('/node_modules/')) where = 'ours';
     else if (url.startsWith('node:')) where = 'the Node runtime';
-    else if (url === '' && under('/node_modules/oxc-parser/')) where = 'the parser';
+    else if (url === '' && under('/dist/instrument/spliced.js')) where = 'the addon';
     else if (url === '') where = 'V8 and the collector';
     else where = 'ours';
     buckets.set(where, (buckets.get(where) ?? 0) + spent);
@@ -181,11 +178,9 @@ function median(run) {
 }
 
 /**
- * The two places this stage stopped being JavaScript, each still measurable
- * because the path it replaced is still in the tree and still runs.
- *
- * Neither was a rewrite. One is a call to an algorithm the platform already
- * compiled in; the other is an option on a parser this package already had.
+ * The digest, still measurable against the path it replaced because that path
+ * still ships in `@variance-authority/core`. It was not a rewrite: it is a call
+ * to an algorithm the platform already compiled in.
  */
 const hashed = median(() => {
   for (const [, code] of sources) digestString(code);
@@ -193,20 +188,12 @@ const hashed = median(() => {
 const portable = median(() => {
   for (const [, code] of sources) portableDigest(code);
 });
-const probes = { hit: (at) => `__va(${at})`, around: (at) => [`__vaA(${at},`, ')'] };
-const walking = (options) => () => {
-  for (const [file, code] of sources) walkBlocks(parseSync(file, code, options).program, code, probes);
-};
-const raw = median(walking({ experimentalRawTransfer: rawTransferSupported() }));
-const json = median(walking(undefined));
 
 console.log(
-  `\nthe two decisions, over the same ${(bytes / 1_048_576).toFixed(1)} MB\n` +
+  `\nthe digest, over the same ${(bytes / 1_048_576).toFixed(1)} MB\n` +
     `  SHA-256   ${(bytes / 1_048_576 / (portable / 1000)).toFixed(0).padStart(4)} MB/s portable` +
     `   ->  ${(bytes / 1_048_576 / (hashed / 1000)).toFixed(0)} MB/s from node:crypto` +
-    `  (${(portable / hashed).toFixed(1)}x)\n` +
-    `  transfer  ${json.toFixed(0).padStart(4)} ms serialized   ->  ${raw.toFixed(0)} ms raw` +
-    `  (${(json / raw).toFixed(1)}x)`,
+    `  (${(portable / hashed).toFixed(1)}x)`,
 );
 
 const built = await instrumentedSources();

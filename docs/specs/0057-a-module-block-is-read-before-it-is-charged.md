@@ -6,7 +6,7 @@ test that loaded the file. A comment above an import, a type alias, a new
 function beside the others and a changed top-level call are all charged the
 same way: every test that loaded the file runs.
 **Built on:** [0030](0030-a-diff-lands-on-blocks.md) (the line-to-region
-mapping this does not replace), [0060](0060-one-block-walk.md) (the walk and
+mapping this does not replace), [ADR-0071](../context/adr/0071-the-block-walk-is-the-addons.md) (the walk and
 the parse this reuses), `select.ts` `recorded()` (the frame check that proves
 the old text is the recorded text).
 
@@ -47,7 +47,7 @@ diff made against something else. That file gets no reading and is charged as
 it is today. No working tree and no second commit is read.
 
 **2. One parse per side, in the addon.** The verdict comes from the same native
-parse the block walk makes ([0060](0060-one-block-walk.md)). No AST is sent to
+parse the block walk makes ([ADR-0071](../context/adr/0071-the-block-walk-is-the-addons.md)). No AST is sent to
 JavaScript. The addon answers with one of four verdicts:
 
 | Verdict | Meaning | Charged |

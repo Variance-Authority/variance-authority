@@ -2396,7 +2396,6 @@
         "Block": "interface",
         "BlockKind": "type",
         "EVALUATING": "const",
-        "Edit": "interface",
         "INSTRUMENTATION_ID": "const",
         "InstrumentMode": "type",
         "InstrumentOptions": "interface",

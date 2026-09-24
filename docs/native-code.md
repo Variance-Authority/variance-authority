@@ -16,7 +16,7 @@ install.
 | Piece | What it does | How it arrives |
 |---|---|---|
 | [oxc](https://oxc.rs) — `oxc-parser`, `oxc-resolver` | parses and resolves every module in the [source index](source-index.md) | prebuilt `.node` addon, chosen by a per-platform optional dependency of each package |
-| the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript | the same way: one optional dependency per platform, named for the platform it serves |
+| the scanner in [`@variance-authority/sense`](../packages/sense) | reads, parses, resolves and records a whole cold checkout without returning a syntax tree to JavaScript, and places the probes in every module a test run records | the same way: one optional dependency per platform, named for the platform it serves |
 | `sharp`, through [`@variance-authority/png-sharp`](../packages/png-sharp) | decodes screenshots for the raster comparison | the same way: `sharp` resolves one prebuilt libvips addon for your platform |
 | zstd, SHA-256 | compresses the selection index, digests documents | already in Node, as `node:zlib` and `node:crypto` |
 | Chromium | paints the pages you compare | `npx playwright install chromium`, a separate step you already run |
@@ -45,10 +45,11 @@ The third-party addons ship binaries for macOS on arm64 and x64, Linux on x64
 and arm64 against both glibc and musl, and Windows on x64 and arm64. oxc also
 publishes FreeBSD x64, 32-bit Windows, and Linux on ppc64, riscv64 and s390x.
 
-The scanner ships three: **macOS arm64**, **Linux x64 against glibc**, and
-**Windows x64**. That covers an Apple Silicon laptop, a GitHub or Bitbucket
-Linux runner, and a Windows desktop, and it is a short list because it can
-afford to be — see *When a binary does not arrive* below.
+The scanner ships four: **macOS arm64**, **Linux x64 and arm64 against glibc**,
+and **Windows x64**. That covers an Apple Silicon laptop, a GitHub or Bitbucket
+Linux runner, a Linux container on an Apple Silicon host, and a Windows
+desktop. *When a binary does not arrive* below says what a platform outside
+the four can and cannot do.
 
 The Linux scanner needs glibc 2.17 or newer. Node 22 itself needs 2.28 and oxc
 needs 2.14, so an image that runs Node already meets it: the scanner adds no
@@ -93,9 +94,14 @@ platform's entries in it. Both leave the JavaScript wrappers in place and the
   the source index fails rather than building a smaller one.
 - **Scanning degrades.** The TypeScript scanner is the implementation of record
   and the addon is an acceleration of it, checked against the same answers by
-  differential tests. A machine outside the three platforms — a Linux arm64
-  runner, an Alpine image, an Intel Mac — builds the same source index from the
-  same checkout, and pays what the TypeScript scan costs to build it.
+  differential tests. A machine outside the four platforms — an Alpine image,
+  an Intel Mac — builds the same source index from the same checkout, and pays
+  what the TypeScript scan costs to build it.
+- **Recording does not degrade.** The probes a test run records through are
+  placed by the addon and by nothing else, so a run on a machine without it
+  fails at its first module and names the package that did not load. A
+  platform outside the four records once you build the addon from the
+  checkout with `cargo`.
 
 If you want the binaries, install without `--omit=optional` and resolve your
 lockfile so it lists entries for every platform you install on. If you want

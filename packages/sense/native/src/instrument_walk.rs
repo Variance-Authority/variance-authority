@@ -1,13 +1,49 @@
 //! The walk that decides where a probe goes, and what the region behind it is called.
 //!
-//! A port of `src/instrument/walk.ts`, which stays the implementation of record:
-//! every choice here — which children a region visits, in which order, what a
-//! function is named from — is that file's, and `instrument.test.ts` holds the two
-//! to byte equality over real source. Order is the whole contract. A block's
-//! ordinal is the order it was opened in, an anonymous function's number is the
-//! order its scope saw it, and two insertions at one offset land in the order they
-//! were pushed, so a traversal that visits the same nodes in another order is a
-//! different recording, not a faster one.
+//! Two questions, one descent, because neither can be answered without the other's
+//! state: `if#1/then` is numbered within the path that contains it and against the
+//! scope that opened it, and both are only known while standing in them. The rule
+//! this applies — one arrival condition per region — and the vocabulary it produces
+//! are in `src/instrument/spliced.ts`. This is the only walk: every recording's
+//! block identities are what it answers, and `spliced.test.ts` holds it to the
+//! answers committed in `src/instrument/__fixtures__/spliced-golden.ts`.
+//!
+//! Order is the whole contract. A block's ordinal is the order it was opened in,
+//! an anonymous function's number is the order its scope saw it, and two
+//! insertions at one offset land in the order they were pushed, so a traversal
+//! that visits the same nodes in another order is a different recording, not a
+//! faster one.
+//!
+//! ## Nothing is re-printed
+//!
+//! Every emission is an insertion at an offset in the original source. A region
+//! whose body is already a block gets one splice after its `{`; a bare statement
+//! body is wrapped in `{`…`}`, which is also what removes the dangling-`else`
+//! hazard — a synthesized `else` can never rebind, because by the time it is
+//! appended the `if` it follows always has a braced consequent.
+//!
+//! Closing insertions are pushed **after** the subtree is walked, so a stable sort
+//! by offset puts an inner `}` in front of an outer one. `if (a) if (b) x();` grows
+//! two synthesized `else` clauses at the same offset and they nest correctly for
+//! that reason alone.
+//!
+//! ## The entries walk
+//!
+//! The same descent with every decision declined: an `if`, a `switch`, a `try`,
+//! a loop and an `await` are stepped through as the plain statements around them
+//! are, and only a module and a function open a region. What remains is the set
+//! of places control can *arrive from outside* — a module evaluating, a function
+//! being called — which is the whole of what a run needs to say which functions
+//! ran and whether any of them ran before its first test did. Numbering, naming,
+//! ownership and digests are the ordinary walk's, computed over the regions that
+//! are left, so a function keeps the address it has under the full walk.
+//!
+//! ## Names
+//!
+//! A name is spelled as JavaScript would print the key: a regular expression as
+//! `String(regex)`, a string as its value. A string holding a lone surrogate has
+//! no UTF-8 spelling, so each one is written as `\uXXXX`; a real U+FFFD stays
+//! itself.
 //!
 //! Offsets are UTF-8 bytes throughout. Every offset is a node boundary, so the
 //! mapping to the JavaScript side's UTF-16 offsets is monotone and every
@@ -79,10 +115,6 @@ pub struct Walker {
     path: String,
     owner: u32,
     hint: Option<String>,
-    /// A name this walk cannot spell the way `String(value)` does: a regular
-    /// expression, a string holding a lone surrogate. The caller declines the
-    /// module and the JavaScript walk answers it.
-    pub bail: bool,
 }
 
 impl Walker {
@@ -96,7 +128,6 @@ impl Walker {
             path: String::new(),
             owner: 0,
             hint: None,
-            bail: false,
         }
     }
 
@@ -381,18 +412,18 @@ impl Walker {
     fn name_of(&mut self, expression: &Expression) -> Option<String> {
         match expression {
             Expression::Identifier(it) => Some(it.name.to_string()),
-            Expression::StringLiteral(it) => {
-                self.bail |= it.lone_surrogates;
-                Some(it.value.to_string())
-            }
+            Expression::StringLiteral(it) => Some(if it.lone_surrogates {
+                spelled(&it.value)
+            } else {
+                it.value.to_string()
+            }),
             Expression::NumericLiteral(it) => Some(it.value.to_js_string()),
             Expression::BigIntLiteral(it) => Some(it.value.to_string()),
             Expression::BooleanLiteral(it) => Some(it.value.to_string()),
             Expression::NullLiteral(_) => Some("null".to_string()),
-            Expression::RegExpLiteral(_) => {
-                self.bail = true;
-                None
-            }
+            // `String(regex)`: the pattern as written and the flags in alphabetical
+            // order, which is the order oxc prints them in.
+            Expression::RegExpLiteral(it) => Some(it.regex.to_string()),
             Expression::StaticMemberExpression(it) => Some(it.property.name.to_string()),
             Expression::ComputedMemberExpression(it) => self.name_of(&it.expression),
             Expression::PrivateFieldExpression(it) => Some(it.field.name.to_string()),
@@ -550,4 +581,29 @@ impl<'a> Visit<'a> for Walker {
     fn visit_ts_type_alias_declaration(&mut self, _: &TSTypeAliasDeclaration<'a>) {}
     fn visit_ts_interface_declaration(&mut self, _: &TSInterfaceDeclaration<'a>) {}
     fn visit_ts_this_parameter(&mut self, _: &TSThisParameter<'a>) {}
+}
+
+/// A string holding a lone surrogate, with each one written `\uXXXX`.
+///
+/// No JavaScript string can come back from Rust holding a lone surrogate, so
+/// `String(value)` cannot be matched and the name is spelled as it would be
+/// escaped instead. oxc encodes a lone surrogate as U+FFFD followed by its code
+/// unit in hex, and U+FFFD itself as U+FFFD followed by `fffd`.
+fn spelled(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    let mut chars = value.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\u{FFFD}' {
+            out.push(ch);
+            continue;
+        }
+        let unit: String = chars.by_ref().take(4).collect();
+        if unit == "fffd" {
+            out.push('\u{FFFD}');
+        } else {
+            out.push_str("\\u");
+            out.push_str(&unit.to_ascii_uppercase());
+        }
+    }
+    out
 }

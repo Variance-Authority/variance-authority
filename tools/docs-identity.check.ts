@@ -62,7 +62,7 @@ describe('only the overview says what the product is', () => {
 const SHARED_BY_DESIGN = [
   /^a subject is one named ui state you asked for/,
   /^(?:src\/a\/file\.ts|key what it decides|viewport width and height|retention durable|the hash is of the font|required even with no history|the project-relative test file)/,
-  /^it names one of these packages per platform|^the scanner it carries is an acceleration|^a machine that does not get a binary/,
+  /^it names one of these packages per platform|^the scanner it carries is an acceleration|^a machine that does not get a binary|^it places the probes, and without it/,
 ];
 
 /** How many pages may carry one sentence before it was written for none of them. */

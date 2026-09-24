@@ -67,9 +67,10 @@ silently dropping evidence.
 - `packages/sense/src/instrument/index.ts` — `instrument`, the probe recipe
   identity, and the emitted runtime that re-resolves its counter array whenever
   the factory's identity moves
-- `packages/sense/src/instrument/blocks.ts` — the region vocabulary, region
-  identity, and where a module header may be inserted
-- `packages/sense/src/instrument/walk.ts` — the descent that applies the arrival rule
+- `packages/sense/src/instrument/spliced.ts` — the region vocabulary, and the
+  addon's columns read back as regions
+- `packages/sense/native/src/instrument_walk.rs` — the descent that applies the
+  arrival rule, region identity, and where a module header may be inserted
 - `packages/sense/src/test-selection/probes.ts` — the build-side plugin: probes in, inventory out
 - `packages/sense/src/test-selection/source-lines.ts` — transformed offsets back to authored lines
 - `packages/sense/src/test-selection/instrumented-modules.ts` — the inventory as

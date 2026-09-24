@@ -123,7 +123,7 @@ was never the parse. By default it serializes the tree to JSON and the package's
 own wrapper parses that JSON back into objects — work the tree has already had
 done to it once. Raw transfer deserializes the same tree directly out of the
 parser's buffer into the same plain objects, and
-[`blocks.ts`](../../../packages/sense/src/instrument/blocks.ts) cannot tell which
+`blocks.ts` cannot tell which
 one it was handed. The canary in `instrument.test.ts` compares the two trees
 node for node and the two block sets region for region, because the option is
 experimental upstream.

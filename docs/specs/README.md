@@ -68,7 +68,6 @@ hiding it.
 | [A module block is read before it is charged](0057-a-module-block-is-read-before-it-is-charged.md) | `changedLines` and the narrowest region per line; the frame check proving the old text is the recorded one. | **The reading.** A change at top level charges the module whatever it did, so a comment above the imports selects every test that loaded the file. |
 | [A changed value is charged to its readers](0058-a-changed-value-is-charged-to-its-readers.md) | The regions of every function that reads a value, recorded; the import graph naming each file's direct importers. | **The detective.** Nothing finds who reads a changed binding, so a changed constant charges its module. |
 | [A change runs the cases that ran it](0059-a-change-runs-the-cases-that-ran-it.md) | The per-case record from every seam, and `narrowByJourneys` joining regions to cases. | **The case as the unit.** Every selection answers test files, and no runner is handed the cases it selected. |
-| [One block walk](0060-one-block-walk.md) | The walk twice — JavaScript of record, Rust in the addon — held equal by `spliced.test.ts`. | **One walk.** The addon declines two spellings, and the JavaScript walk is kept to answer them. |
 
 ## Discharged
 
@@ -89,6 +88,7 @@ lifecycle, not that one was skipped.
 | Storybook adapter | [ADR-0020 — read the artifact, not the configuration](../context/adr/0020-read-the-artifact-not-the-configuration.md) |
 | Inspection rules, and where they stop | [ADR-0015 — a rule belongs here if a stored snapshot can decide it](../context/adr/0015-a-rule-is-what-a-stored-snapshot-can-decide.md) |
 | Self-hosted review backend | [ADR-0021 — approval promotes an image that already exists](../context/adr/0021-approval-promotes-an-image-that-already-exists.md), [ADR-0022 — deciding is not writing](../context/adr/0022-deciding-is-not-writing.md), [ADR-0023 — a service is named for what it is](../context/adr/0023-a-service-is-named-for-what-it-is.md) |
+| One block walk | [ADR-0071 — the block walk is the addon's, and there is no other](../context/adr/0071-the-block-walk-is-the-addons.md) |
 | The first published release | [ADR-0060 — a release is one version across every package, and a person presses it](../context/adr/0060-a-release-is-one-version-and-a-pressed-button.md) |
 
 **Linux verification has no ADR of its own**, and that is the honest outcome: it

@@ -29,11 +29,14 @@
  * `SENSE_TARGET_CPU` appends a `-C target-cpu`, which is the knob that says so
  * again when a generation lands; `scripts/tuned-cost.mjs` is what drives it.
  *
- * A missing toolchain is not a failure. The JavaScript scanner is the
- * implementation of record and the native one is an acceleration of it, so a
- * checkout without `cargo` builds, tests and scans — it scans slower, and
- * `native.test.ts` says which half ran. A missing toolchain for a target that
- * was *asked for* is a failure, because somebody asking for one wanted it.
+ * A missing toolchain is not a failure of the build. The JavaScript scanner is
+ * the implementation of record and the native one is an acceleration of it, so a
+ * checkout without `cargo` builds and scans — it scans slower, and
+ * `native.test.ts` says which half ran. What it cannot do is record: the probes
+ * are placed by this addon alone, so the suite's own recording and every test of
+ * instrumentation fail by name until a toolchain or a prebuilt package provides
+ * it. A missing toolchain for a target that was *asked for* is a failure,
+ * because somebody asking for one wanted it.
  *
  * The same argument, one level in: a build that fails on the tree-sitter
  * grammars is retried without them rather than given up on. They are five C

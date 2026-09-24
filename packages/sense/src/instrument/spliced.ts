@@ -1,30 +1,84 @@
 /**
- * The probes spliced into one module, by either of two implementations.
+ * What a block is, and the addon's answer for one module.
  *
- * Both answer the same thing: the source with every probe in place, the
- * regions it records, and the offset the module header goes at. The header
- * itself is [`index.ts`](./index.ts)'s, written once for both, because its text
- * is the runtime's contract and one author is how it stays one contract.
+ * One rule generates the whole set: **a block is a region with exactly one arrival
+ * condition**, and a probe is placed only where control can diverge. Entering a
+ * `try` block is implied by entering the region around it, so it gets nothing;
+ * entering its `catch` is not, so it gets a probe. A loop body may run zero times.
+ * The code after an `if` is not implied by the code before it, because a branch may
+ * have left. That test — *does reaching here follow from reaching the enclosing
+ * region* — is the whole of the design, and it is why this is not statement
+ * coverage under another name.
  *
- * The JavaScript walk is the implementation of record. The native one is the
- * same walk in the addon, over the same oxc, and exists because the tree it
- * reads never has to cross into JavaScript: that crossing is most of what a
- * module costs to instrument, and a suite pays it once per module per worker.
- * It declines what it cannot answer identically — a source that does not
- * parse, a name it cannot spell the way JavaScript does — and `spliced.test.ts`
- * holds the two to byte equality over every source in the repository.
+ * The descent that applies the rule is the addon's,
+ * [`instrument_walk.rs`](../../native/src/instrument_walk.rs), and there is no
+ * other. What stays here is what a caller has to understand: the vocabulary a
+ * report is written in, and the columns the addon answers in. The tree never
+ * crosses into JavaScript, which is most of what a module used to cost to
+ * instrument; what crosses is the instrumented text and one column per block
+ * field.
+ *
+ * ## What is deliberately not a decision
+ *
+ * Ternaries, `&&`, `||`, `??` and `?.` belong to the region that contains them
+ * ([spec 0028](../../../../docs/specs/0028-the-instrument.md)). For
+ * `if (order.isPremium && order.total > 100)` the fact worth recording is which
+ * branch ran, not which operand short-circuited, and a change to either operand
+ * still reaches every test that evaluated the condition — through the region the
+ * condition sits in. They are deliberately not taken first.
  */
 
-import { native } from '../addon.js';
-import { digestString } from '../digest.js';
-import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
-import {
-  walkBlocks,
-  type Block,
-  type BlockKind,
-  type Edit,
-  type InstrumentMode,
-} from './blocks.js';
+import { native, nativeRefusal } from '../addon.js';
+
+/**
+ * How much of the rule is applied.
+ *
+ * `presence` is the rule as stated above: every region with its own arrival
+ * condition. `entries` keeps only the regions control arrives at from outside
+ * the text — the module and each function — and lets every decision inside a
+ * function belong to the function. Both walks number, name and digest the
+ * regions they keep the same way, so a function has the same address under
+ * either; what differs is how many regions there are and how much a probe set
+ * costs to carry.
+ */
+export type InstrumentMode = 'presence' | 'entries';
+
+/** What kind of region a probe stands in front of. */
+export type BlockKind =
+  | 'module'
+  | 'function'
+  | 'branch'
+  | 'continuation'
+  | 'resume'
+  | 'loop'
+  | 'case'
+  | 'handler';
+
+/**
+ * One observed region.
+ *
+ * `name` and `path` are the two halves of identity that survive an edit above them;
+ * `start` and `end` are offsets into the *original* source, which is what a diff
+ * hunk lands on. A synthesized region — the `else` of a bare `if`, a `default`
+ * nobody wrote — has no source, so its two offsets are equal. `owner` is the
+ * nearest arrival region containing this one. It is absent only for the module
+ * root, so widening from a changed decision to the precondition that governed it
+ * never has to reconstruct containment from overlapping source spans.
+ */
+export interface Block {
+  readonly ordinal: number;
+  readonly kind: BlockKind;
+  /** Ordinal of the enclosing arrival region; absent only on the module root. */
+  readonly owner?: number;
+  /** Identity of this region's own source, excluding the bodies its child regions own. */
+  readonly digest: string;
+  /** Declaration name path: `Cart/render/anon#0`, `applyTier/reduce.arg0`. */
+  readonly name: string;
+  /** Structural path inside that declaration: `if#0/else`, `switch#1/case#2`. */
+  readonly path: string;
+  readonly start: number;
+  readonly end: number;
+}
 
 export interface Spliced {
   /** The source with every probe in place, and no header. */
@@ -70,18 +124,23 @@ const NONE = 0xffffffff;
 type WellFormed = string & { isWellFormed(): boolean };
 
 /**
- * The addon's walk, or nothing when there is no addon or it declined.
+ * The addon's walk, or nothing when the source cannot be instrumented.
  *
- * A source with a lone surrogate never crosses: the boundary would replace it,
- * and every offset after it would describe a different string.
+ * Two sources cannot: one that does not parse, and one holding a lone
+ * surrogate. The second never crosses, because the boundary would replace it
+ * and every offset after it would describe a different string. Neither is a
+ * guess, and both leave the module uninstrumented.
+ *
+ * No addon is an error rather than an uninstrumented module: every module would
+ * be one, and a run that records nothing would look like a run in which nothing
+ * ran. The refusal the loader kept names the package or the `dlopen` message.
  */
-export function splicedNatively(
-  source: string,
-  file: string,
-  mode: InstrumentMode,
-): Spliced | undefined {
+export function spliced(source: string, file: string, mode: InstrumentMode): Spliced | undefined {
   const addon = native();
-  if (addon === undefined || !(source as WellFormed).isWellFormed()) return undefined;
+  if (addon === undefined) {
+    throw new Error(`instrument: the native addon is required and did not load: ${nativeRefusal()}`);
+  }
+  if (!(source as WellFormed).isWellFormed()) return undefined;
 
   const answer = addon.instrument(source, file, mode === 'entries');
   if (answer === null) return undefined;
@@ -107,87 +166,4 @@ export function splicedNatively(
     sourceDigest: answer.sourceDigest,
     blocks,
   };
-}
-
-/**
- * How the parsed tree crosses out of the parser.
- *
- * oxc parses in Rust and then has to hand a tree back to JavaScript. By default
- * it serializes one to JSON and the package's own wrapper parses that JSON back
- * into objects, which over this repository's sources is a third of everything
- * instrumentation spends — work the tree has already had done to it once. Raw
- * transfer deserializes the same tree directly out of the parser's buffer into
- * the same plain objects: 63 ms becomes 19 ms over 251 modules, and the two
- * trees compare equal node for node across every source in the repository.
- *
- * It wants a 64-bit little-endian platform and says so through
- * `rawTransferSupported`. Where the answer is no, the default path returns the
- * same tree more slowly — a difference in speed, never in result, which is why
- * this is decided once here and nothing downstream is told which one it got.
- */
-const TRANSFER = {
-  experimentalRawTransfer: rawTransferSupported(),
-} as ParserOptions;
-
-/** Every call site invokes the generated runtime directly. */
-const PROBES = {
-  hit: (ordinal: number) => `__va(${ordinal})`,
-  around: (ordinal: number) => [`__vaR(`, `,${ordinal})`] as const,
-};
-
-/** The JavaScript walk, or nothing when the source does not parse. */
-export function splicedInJs(
-  source: string,
-  file: string,
-  mode: InstrumentMode,
-): Spliced | undefined {
-  // The parser's name, never the id: oxc reads the extension to decide whether
-  // it is looking at TypeScript, JSX, or neither. A module must parse the same
-  // way whether or not the repository has a number for it yet.
-  const parsed = parseSync(file, source, TRANSFER);
-
-  // A recovered tree has holes in it, and a probe spliced against a hole produces
-  // a file that no longer compiles. Refusing costs one uninstrumented module.
-  if (parsed.errors.length > 0) return undefined;
-
-  const walked = walkBlocks(parsed.program, source, PROBES, mode);
-
-  // The window closes after the last top-level statement, never at the end of
-  // the text: a trailing comment would swallow the call.
-  const body = parsed.program.body as readonly { readonly end: number }[];
-  const last = body.length === 0 ? walked.prologue : body[body.length - 1]!.end;
-  const edits = [...walked.edits, { at: Math.max(walked.prologue, last), text: ';__vaE();' }];
-  // Stable by construction: `Array.prototype.sort` keeps insertion order for equal
-  // keys, and closing braces are emitted after the subtree that opened them, so an
-  // inner `}` lands in front of an outer one at the same offset.
-  const ordered = edits.sort((left, right) => left.at - right.at);
-
-  // The header goes in front of every probe at the prologue itself: the first
-  // statement after it may open with one, and `__vaR(` in front of the header
-  // would wrap a function declaration in a call.
-  let headerAt = walked.prologue;
-  for (const edit of ordered) {
-    if (edit.at >= walked.prologue) break;
-    headerAt += edit.text.length;
-  }
-
-  return {
-    code: splice(source, ordered),
-    headerAt,
-    sourceDigest: digestString(source),
-    blocks: walked.blocks,
-  };
-}
-
-function splice(source: string, edits: readonly Edit[]): string {
-  const parts: string[] = [];
-  let read = 0;
-
-  for (const edit of edits) {
-    parts.push(source.slice(read, edit.at), edit.text);
-    read = edit.at;
-  }
-  parts.push(source.slice(read));
-
-  return parts.join('');
 }

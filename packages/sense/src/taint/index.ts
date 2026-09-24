@@ -88,13 +88,19 @@ import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser'
 import type { ParseCache, Parsed } from '../cache.js';
 import type { Digest } from '../digest.js';
 import { keyFor, parseWay } from '../files.js';
-import type { Node } from '../instrument/blocks.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
 import { rememberDiff, rememberedDiff } from './cache.js';
 import { applied, byCodeUnit, reach, targetFrom, type Said } from './join.js';
 
-export type { Node };
+/** The tree as it is actually read — by name, one level at a time. */
+export interface Node {
+  readonly type: string;
+  readonly start: number;
+  readonly end: number;
+  readonly [key: string]: unknown;
+}
+
 export { moduleCallsTaint, type ModuleCallsTaintOptions } from './calls.js';
 
 /** What one file imports beyond, or short of, what its text says. */

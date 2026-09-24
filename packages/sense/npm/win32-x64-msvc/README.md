@@ -10,3 +10,6 @@ unpacks the one your machine matches. Nothing imports this package by name.
 The scanner it carries is an acceleration, not the implementation of record: a
 machine that does not get a binary builds the same source index in TypeScript,
 more slowly.
+
+Recording a test run needs this binary: it places the probes, and without it
+the run stops at its first module.

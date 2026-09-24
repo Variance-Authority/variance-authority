@@ -2,7 +2,7 @@
  * `@variance-authority/sense/instrument` — the transform that records the path.
  *
  * A pure function of a string: `instrument(source, file)` parses, decides where
- * the execution boundaries are ([`blocks.ts`](./blocks.ts)), and splices a
+ * the execution boundaries are ([`spliced.ts`](./spliced.ts)), and splices a
  * recording call in front of each one. No disk, no runner, no index. That is
  * deliberate — this is the only part of
  * [spec 0027](../../../../docs/specs/0027-a-test-is-selected-by-what-it-executed.md)
@@ -117,10 +117,9 @@
  * declarations and throws, exposing that configuration error at its first probe.
  */
 
-import type { Block, BlockKind, Edit, InstrumentMode } from './blocks.js';
-import { splicedInJs, splicedNatively } from './spliced.js';
+import { spliced as splice, type Block, type BlockKind, type InstrumentMode } from './spliced.js';
 
-export type { Block, BlockKind, Edit, InstrumentMode };
+export type { Block, BlockKind, InstrumentMode };
 
 /** Changes whenever two instrumented block universes must not share observations. */
 export const INSTRUMENTATION_ID = 'sense:instrument/presence-v4';
@@ -199,11 +198,12 @@ export interface Instrumented {
 /**
  * Instrument one module.
  *
- * `undefined` when the source could not be parsed, and that is the whole reason it
- * is not an exception: a file this cannot read is a file whose blocks are unknown,
- * and [ADR-0008](../../../../docs/context/adr/0008-per-profile-expectations.md)
+ * `undefined` when the source could not be parsed or holds a lone surrogate, and
+ * that is the whole reason it is not an exception: a file this cannot read is a
+ * file whose blocks are unknown, and [ADR-0008](../../../../docs/context/adr/0008-per-profile-expectations.md)
  * says the honest report is *not instrumented*, never *not executed*. A caller
- * that swallowed a throw here would produce the second.
+ * that swallowed a throw here would produce the second. The one throw is a
+ * missing addon, which would leave every module uninstrumented.
  */
 export function instrument(
   source: string,
@@ -212,7 +212,7 @@ export function instrument(
   options: InstrumentOptions = {},
 ): Instrumented | undefined {
   const mode = options.mode ?? 'presence';
-  const spliced = splicedNatively(source, file, mode) ?? splicedInJs(source, file, mode);
+  const spliced = splice(source, file, mode);
   if (spliced === undefined) return undefined;
 
   const { code, headerAt, sourceDigest, blocks } = spliced;

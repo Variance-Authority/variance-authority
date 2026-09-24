@@ -1,13 +1,9 @@
-//! `instrument`, natively: parse, walk, digest and splice without the tree crossing.
+//! `instrument`: parse, walk, digest and splice without the tree crossing.
 //!
-//! The JavaScript transform in `src/instrument/` parses with this same oxc and
-//! then reads the tree back out of the parser's buffer into objects, one per
-//! node, only to walk them once and throw them away. Here the tree never leaves
-//! the arena: what crosses is the instrumented text and one column per block
-//! field. The JavaScript path stays the implementation of record — it answers
-//! every module this one declines, and `instrument.test.ts` holds the two to
-//! byte equality — so every rule below is a port of `blocks.ts` and `index.ts`,
-//! not a second opinion about them.
+//! The tree never leaves the arena: what crosses is the instrumented text and one
+//! column per block field, which `src/instrument/spliced.ts` turns back into
+//! blocks. There is no JavaScript walk to fall back to, so a platform without this
+//! addon does not record.
 //!
 //! The module header is not written here. Its text is the runtime's contract and
 //! has one author, `runtime()` in `index.ts`; this returns the offset it goes at.
@@ -92,8 +88,7 @@ thread_local! {
     static ARENA: RefCell<Allocator> = RefCell::new(Allocator::new());
 }
 
-/// Instrument one module, or decline it: a source that does not parse, or a
-/// name this walk cannot spell the way JavaScript does.
+/// Instrument one module, or nothing when the source does not parse.
 pub fn instrument(source: &str, file: &str, entries: bool) -> Option<Output> {
     ARENA.with(|arena| {
         let mut arena = arena.borrow_mut();
@@ -116,9 +111,6 @@ fn instrument_in(allocator: &Allocator, source: &str, file: &str, entries: bool)
     let start = if source_type.is_typescript() { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
     walker.list(&program.body, "", 0);
-    if walker.bail {
-        return None;
-    }
 
     let prologue = prologue_end(program);
     // The window closes after the last top-level statement, never at the end of the text.
@@ -197,9 +189,9 @@ impl Utf16 {
     }
 }
 
-/// Where TypeScript-ESTree says a program starts, which is where the tree the
-/// JavaScript walk reads says it does: the first directive or statement, or a
-/// decorator in front of an exported class.
+/// Where TypeScript-ESTree says a program starts: the first directive or
+/// statement, or a decorator in front of an exported class. Recordings made
+/// when the walk read that tree carry this offset, so it stays.
 fn typescript_start(program: &Program) -> u32 {
     if let Some(directive) = program.directives.first() {
         return directive.span.start;

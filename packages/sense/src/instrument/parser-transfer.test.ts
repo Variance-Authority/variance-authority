@@ -14,7 +14,6 @@
 
 import { describe, expect, it } from 'vitest';
 import { parseSync } from 'oxc-parser';
-import { walkBlocks } from './blocks.js';
 
 describe('the tree the parser hands over', () => {
   const fixture = `
@@ -43,21 +42,5 @@ describe('the tree the parser hands over', () => {
     expect(raw.errors).toEqual(json.errors);
     expect(raw.comments).toEqual(json.comments);
     expect(raw.program).toEqual(json.program);
-  });
-
-  it('finds the same regions in it either way', () => {
-    // The tree comparison above is the general statement; this is the one that
-    // matters. A platform with no buffer to read takes the slow path, and a
-    // block whose extent moved between the two would be a digest that reports a
-    // region changed on a machine that merely parsed it differently.
-    const probes = {
-      hit: (ordinal: number) => `__va(${ordinal})`,
-      around: (ordinal: number) => [`__vaA(${ordinal},`, ')'] as const,
-    };
-    const walked = (options: object | undefined) =>
-      walkBlocks(parseSync('fixture.tsx', fixture, options as never).program, fixture, probes);
-
-    expect(walked({ experimentalRawTransfer: true }).blocks).toEqual(walked(undefined).blocks);
-    expect(walked({ experimentalRawTransfer: true }).edits).toEqual(walked(undefined).edits);
   });
 });

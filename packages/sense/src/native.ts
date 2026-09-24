@@ -91,7 +91,7 @@ export interface NativeScanBatch extends NativeReadBatch {
 }
 
 export interface NativeScanner {
-  /** `instrument()`'s walk and splice, or `null` where the JavaScript one must answer. */
+  /** `instrument()`'s walk and splice, or `null` for a source that does not parse. */
   instrument(source: string, file: string, entries: boolean): NativeInstrumented | null;
   gitTree(root: string): NativeGitTree | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
