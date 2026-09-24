@@ -1,4 +1,4 @@
-import type { CoveringChange, CoveringTest } from './reverse.js';
+import type { CoveringChange, CoveringTest, ExecutionTest } from './reverse.js';
 
 /**
  * The review reading, in words, for whichever surface is asking.
@@ -56,15 +56,16 @@ export function formatCoveringChange(
 ): string {
   const regions = changed.flatMap((file) => file.regions);
   const blind = regions.filter((region) => region.tests.length === 0);
+  const holes = blind.filter((region) => (region.stopped?.length ?? 0) > 0);
   const alone = regions.filter((region) => region.tests.length === 1);
   const silent = changed.filter((file) => !file.recorded && file.cases.length === 0);
 
   const lines = [
     `${count(changed.length, 'changed file')}${
       heading.since === undefined ? '' : ` since ${heading.since}`
-    }, ${count(regions.length, 'changed region')}: ${blind.length} nothing covered, ${
-      alone.length
-    } covered by one case.`,
+    }, ${count(regions.length, 'changed region')}: ${blind.length} nothing covered${
+      holes.length === 0 ? '' : ` (${holes.length} of them ${holes.length === 1 ? 'a hole' : 'holes'})`
+    }, ${alone.length} covered by one case.`,
     ...source(heading),
   ];
 
@@ -90,8 +91,9 @@ export function formatCoveringChange(
       continue;
     }
     for (const region of file.regions) {
-      lines.push(`  ${extent(region)} — ${claim(region.tests.length)}${carried(region.passengers)}`);
+      lines.push(`  ${extent(region)} — ${claim(region)}${carried(region.passengers)}`);
       lines.push(...region.tests.map((test) => `    ${describe(test)}`));
+      lines.push(...(region.stopped ?? []).map((test) => `    stopped first: ${describe(test)}`));
     }
   }
 
@@ -128,10 +130,25 @@ function extent(region: CoveringChange['regions'][number]): string {
   }`;
 }
 
-function claim(tests: number): string {
-  if (tests === 0) return 'no case covered this region';
-  if (tests === 1) return '1 case, and it is the only witness';
-  return `${tests} cases`;
+/**
+ * What the witnesses amount to, with the cases that stopped before arriving.
+ *
+ * A stopped case recorded where it went and nothing past that, so a region it
+ * could have reached and did not is a hole, not a region nobody walked, and a
+ * single witness beside it is not known to be alone.
+ */
+function claim(region: CoveringChange['regions'][number]): string {
+  const tests = region.tests.length;
+  const stopped = region.stopped?.length ?? 0;
+  if (tests === 0) {
+    if (stopped > 0) return `a hole: no case covered this region, and ${count(stopped, 'case')} that could have reached it stopped first`;
+    return region.stopped === undefined
+      ? 'no case covered this region'
+      : 'no case covered this region, and every case that could have reached it finished';
+  }
+  const also = stopped === 0 ? '' : `, and ${count(stopped, 'case')} that could have reached it stopped first`;
+  if (tests === 1) return stopped === 0 ? '1 case, and it is the only witness' : `1 case${also}`;
+  return `${tests} cases${also}`;
 }
 
 /**
@@ -157,6 +174,6 @@ function carried(passengers: CoveringChange['regions'][number]['passengers']): s
  * the question a reader actually had, and the CLI measures it on demand behind
  * `--at-distance`.
  */
-function describe(test: CoveringTest): string {
+function describe(test: CoveringTest | ExecutionTest): string {
   return `${test.name} — ${test.file} [${test.id}]`;
 }

@@ -538,6 +538,29 @@ list read the same and lead to opposite decisions, and a test the walk could
 not place is left out and counted rather than carried in. Both measure from one
 origin, so neither composes with `--since`.
 
+Every range, and the answer about one line, carries a `state`: `walked` (two
+or more cases called in), `alone` (one case did, and every case that could have
+reached it finished, so that case is the only one that fails for it),
+`loaded` (it ran only while its module evaluated), `hole` (nobody entered it,
+and a case that could have reached it stopped first, so the record cannot say
+whether it would have), or `unwalked` (nobody entered it, and every such case
+finished). Read `hole` as unknown, never as untested. A range with no state is
+one the record cannot rank.
+
+When the file you are asking about differs from the text the suite ran over,
+which it does the moment you edit it, hand the text you hold to the question:
+
+```bash
+npx variance covering --file src/checkout/total.ts --text - --format json < edited.ts
+npx variance covering --file src/checkout/total.ts --text edited.ts --line 52
+```
+
+The answer's `frame` says where its numbers stand. `recorded`: they are the
+recording's, and the text matches it. `mapped`: every range was carried into
+your text, and ones an edit touched carry `moved`. `stale`: the recorded text
+could not be found, so no ranges are given; run the suite. A `--line` your edit
+wrote is refused, because no case has run it; do not read that as a gap.
+
 No call-stack depth is printed beside a test. Our recorder writes zero into
 every crossing, so the column was a constant dressed as a measurement; *how far
 away is this test* is an import count, and it is the two flags above.
@@ -556,6 +579,13 @@ holds nothing for says so, since *no row* and *no test* are opposite facts. The
 diff is measured from the commit the record was written at, so record before
 you read. `variance_changed_tests` is the same answer over MCP, taking the
 unified diff as an argument.
+
+In CI, the same answer can be put on the pull request itself.
+`--format github` prints workflow commands. `--format bitbucket-report` and
+`--format bitbucket-annotations` print the two Code Insights bodies, the
+annotations as one request body per line, at most 100 to a line. Holes
+come first and walked regions are left out. These formats refuse any record not
+written at `HEAD`, so run the suite in the same job first.
 
 ## Distill, then verify
 

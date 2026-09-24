@@ -36,27 +36,53 @@ import {
   changedLines,
   coveringChange,
   coveringTests,
+  anyStopped,
   coveringTestsInFile,
-  formatCoveringChange,
   ranWhileLoading,
+  stoppedBefore,
+  stateOf,
   recordedCommit,
   testCoverageFile,
   type CoveringChange,
+  type CoveringRegion,
   type CoveringTest,
+  type ExecutionTest,
   type LineRange,
   type ExecutionIndex,
+  type RangeState,
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
-import { diffSince } from './since.js';
+import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
+import { diffAtTip, diffSince, headCommit, repositoryDirectory } from './since.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
-/** How the answer is written. `text` reads; `json` is for whatever asks next. */
-export type CoveringFormat = 'text' | 'json';
+/**
+ * How the answer is written. `text` reads; `json` is for whatever asks next.
+ * The other three are one host's own shape for a review of a diff: `github`
+ * prints workflow commands a pull request shows beside the lines, and the two
+ * `bitbucket-` formats print one Code Insights request body each.
+ */
+export type CoveringFormat = 'text' | 'json' | ReviewFormat;
+
+/** The formats a code host reads, each answering `--since` on the commit it reviews. */
+export type ReviewFormat = 'github' | 'bitbucket-report' | 'bitbucket-annotations';
+
+export { formatCovering } from './covering-text.js';
+
+/** A changed region, and the one state it is painted as. */
+export interface StatedRegion extends CoveringRegion {
+  readonly state?: RangeState;
+}
+
+/** A changed file, its regions stated. */
+export interface StatedChange extends Omit<CoveringChange, 'regions'> {
+  readonly regions: readonly StatedRegion[];
+}
 
 /** What was asked, and what the record said about it. */
 export interface Covering {
@@ -65,13 +91,35 @@ export interface Covering {
   /** The ref a diff was taken against, present only under `--since`. */
   readonly since?: string;
   /** Present when the question named a diff: one entry per changed file. */
-  readonly changed?: readonly CoveringChange[];
+  readonly changed?: readonly StatedChange[];
+  /**
+   * Where the run's directory sits under the repository's top, present with
+   * `changed`. Paths here are the run's; a code host names them from the top.
+   */
+  readonly directory?: string;
   /** The line or function the question named, absent when it named neither. */
   readonly target?: { readonly line: number } | { readonly function: string };
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
+  /**
+   * Present with `tests`, when it could be told: the cases that could have
+   * reached the line or function and stopped before entering it. With no
+   * `tests`, a non-empty list is a hole and an empty one is unwalked.
+   */
+  readonly stopped?: readonly ExecutionTest[];
+  /** With `tests`: the one state the line or function is painted as, when it can be told. */
+  readonly state?: RangeState;
   /** Present when the question named a file and nothing narrower. */
-  readonly ranges?: readonly SourceTestRange[];
+  readonly ranges?: readonly CoveringRange[];
+  /**
+   * Where the line numbers stand, when the file could be framed against the
+   * snapshot: `recorded` when the held text is the one the suite ran over,
+   * `mapped` when it differs and the recorded text was found, so every range is
+   * carried to where it stands now, and `stale` when it differs and the
+   * recorded text was not found — then no range is given, because none of them
+   * is a place in anything held. Absent when nothing held a digest to check.
+   */
+  readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
   /** The commit the record stands at, when it says. The diff is measured from it. */
@@ -108,13 +156,17 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
     const at = from.startsWith(testCoverageFile(request.root))
       ? await recordedCommit(testCoverageFile(request.root))
       : undefined;
-    const changed = await changeSince(request.since, request.root, at);
+    const review = request.format !== 'text' && request.format !== 'json';
+    if (review) await onTip(request.format, at);
+    const changed = await changeSince(request.since, request.root, at, review);
     const { index } = await readIndex(from, changed);
+    // The graph carries the mocks: a case whose file mocked the changed module
+    // is not listed under it, whatever it crossed there.
+    const answer = coveringChange(index, changed, { relations: await fileGraph(request.root) });
     return {
       since: request.since,
-      // The graph carries the mocks: a case whose file mocked the changed module
-      // is not listed under it, whatever it crossed there.
-      changed: coveringChange(index, changed, { relations: await fileGraph(request.root) }),
+      changed: answer.map((file) => ({ ...file, regions: file.regions.map(stated) })),
+      directory: await repositoryDirectory(await realpath(request.root)),
       ...(at === undefined ? {} : { at }),
       from,
     };
@@ -135,9 +187,23 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   }
 
   const near = await nearbyWitnesses(request as CoveringAt);
+  const placement = await placementFor(request, from);
+  const frame = placement === undefined ? {} : { frame: placement.frame };
+  if (placement?.frame === 'stale' && request.function === undefined) {
+    // No range is a place in the held text, so none is given: painted at its
+    // recorded numbers it would land on whatever code holds them now.
+    return { file, ...frame, from, ...(placement.at === undefined ? {} : { at: placement.at }) };
+  }
 
   if (request.line !== undefined) {
-    const line = request.line;
+    const held = request.line;
+    const line = placement === undefined ? held : placement.recordedLine(held);
+    if (line === undefined) {
+      throw new OperatorError(
+        `line ${held} of \`${file}\` was written since the recording, so the record has nothing to say ` +
+          'about it yet: no case has run it. Run the suite to record it.',
+      );
+    }
     if (!module.blocks.some((block) => block.source && block.startLine <= line && line <= block.endLine)) {
       throw new OperatorError(
         `line ${line} of \`${file}\` is outside every recorded region. A blank line, an ` +
@@ -146,12 +212,17 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       );
     }
     const target = { file, line };
-    const found = coveringTests(index, target, await loadersFor(index, target, request.root));
+    const graph = await loadersFor(index, target, request.root);
+    const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
+    const stopped = stoppedBefore(index, target, graph);
     return {
       file: file,
-      target: { line },
+      target: { line: held },
       tests: kept,
+      ...(stopped === undefined ? {} : { stopped }),
+      ...stateFor(kept, stopped),
+      ...frame,
       from,
       ...countOf(near, kept.length, found.length),
     };
@@ -173,12 +244,16 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
       );
     }
     const target = { file, function: named };
-    const found = coveringTests(index, target, await loadersFor(index, target, request.root));
+    const graph = await loadersFor(index, target, request.root);
+    const found = coveringTests(index, target, graph);
     const kept = near.whole ? found : found.filter(near.keep);
+    const stopped = stoppedBefore(index, target, graph);
     return {
       file: file,
       target: { function: named },
       tests: kept,
+      ...(stopped === undefined ? {} : { stopped }),
+      ...stateFor(kept, stopped),
       from,
       ...countOf(near, kept.length, found.length),
     };
@@ -187,16 +262,49 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
   const found = coveringTestsInFile(
     index,
     file,
-    module.blocks.some((block) => block.loaded === true) ? { relations: await fileGraph(request.root) } : {},
+    module.blocks.some((block) => block.loaded === true) || anyStopped(index)
+      ? { relations: await fileGraph(request.root) }
+      : {},
   );
-  if (near.whole) return { file: file, ranges: found, from };
+  if (near.whole) return { file: file, ranges: placeRanges(found, placement), ...frame, from };
   const narrowed = refold(found.map((range) => ({ ...range, tests: range.tests.filter(near.keep) })));
   return {
     file: file,
-    ranges: narrowed,
+    ranges: placeRanges(narrowed, placement),
+    ...frame,
     from,
     ...countOf(near, identities(narrowed), identities(found)),
   };
+}
+
+/** The state of one line or function, from the cases that entered it and those that stopped. */
+function stateFor(tests: readonly CoveringTest[], stopped: readonly ExecutionTest[] | undefined): Pick<Covering, 'state'> {
+  const state = stateOf({ startLine: 0, endLine: 0, tests, ...(stopped === undefined ? {} : { stopped }) });
+  return state === undefined ? {} : { state };
+}
+
+function stated(region: CoveringRegion): StatedRegion {
+  const state = regionState(region);
+  return state === undefined ? region : { ...region, state };
+}
+
+/**
+ * Refuse a review whose record is not of the commit under review.
+ *
+ * A host paints each region on the lines of the commit it shows, and the record
+ * numbers them in the text the suite ran over. The two are the same text only
+ * when the suite ran on that commit, and a region placed from another one lands
+ * on whatever code holds its numbers there.
+ */
+async function onTip(format: ReviewFormat, at: string | undefined): Promise<void> {
+  const head = await headCommit();
+  if (at !== undefined && at === head) return;
+  throw new OperatorError(
+    `\`--format ${format}\` places each region on the lines of the commit under review, ` +
+      `and the record ${at === undefined ? 'names no commit' : `stands at ${at.slice(0, 12)}`} while ` +
+      `the checkout is at ${head === undefined ? 'no commit' : head.slice(0, 12)}. Run the suite on this ` +
+      'commit, then ask again.',
+  );
 }
 
 /**
@@ -216,7 +324,8 @@ function refold(ranges: readonly SourceTestRange[]): readonly SourceTestRange[] 
       previous !== undefined &&
       previous.endLine + 1 === range.startLine &&
       previous.tests.length === range.tests.length &&
-      previous.tests.every((test, at) => test.id === range.tests[at]?.id)
+      previous.tests.every((test, at) => test.id === range.tests[at]?.id) &&
+      sameStopped(previous.stopped, range.stopped)
     ) {
       folded[folded.length - 1] = { ...previous, endLine: range.endLine };
       continue;
@@ -224,6 +333,14 @@ function refold(ranges: readonly SourceTestRange[]): readonly SourceTestRange[] 
     folded.push(range);
   }
   return folded;
+}
+
+function sameStopped(
+  left: readonly ExecutionTest[] | undefined,
+  right: readonly ExecutionTest[] | undefined,
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  return left.length === right.length && left.every((test, at) => test.id === right[at]?.id);
 }
 
 /** How many distinct named tests a set of ranges names. */
@@ -261,8 +378,9 @@ async function changeSince(
   since: string,
   root: string,
   at: string | undefined,
+  review: boolean,
 ): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const diff = await diffSince(since, [], at);
+  const diff = review ? await diffAtTip(since) : await diffSince(since, [], at);
   if (diff === undefined) {
     throw new OperatorError(
       `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +
@@ -311,7 +429,8 @@ async function readIndex(
 
 /**
  * The file graph, read only when a region the question landed on ran while its
- * module evaluated.
+ * module evaluated, or when a recorded case stopped and a hole has to be told
+ * from a region nobody walked.
  *
  * The record credits no case with that: a module evaluates once per realm, for
  * whichever case imported it first. The graph names every case whose file
@@ -323,7 +442,7 @@ async function loadersFor(
   target: Parameters<typeof ranWhileLoading>[1],
   root: string,
 ): Promise<{ readonly relations?: Relations }> {
-  return ranWhileLoading(index, target) ? { relations: await fileGraph(root) } : {};
+  return ranWhileLoading(index, target) || anyStopped(index) ? { relations: await fileGraph(root) } : {};
 }
 
 function fileGraph(root: string): Promise<Relations> {
@@ -333,94 +452,6 @@ function fileGraph(root: string): Promise<Relations> {
   });
 }
 
-/** Say the answer in the shape the caller asked for. */
-export function formatCovering(answer: Covering, format: CoveringFormat): string {
-  return format === 'json' ? `${JSON.stringify(answer, undefined, 2)}\n` : `${text(answer)}\n`;
-}
-
-function text(answer: Covering): string {
-  if (answer.changed !== undefined) return sinceText(answer, answer.changed);
-  if (answer.ranges !== undefined) return wholeFile(answer, answer.ranges);
-
-  const tests = answer.tests ?? [];
-  const target = answer.target ?? { function: '' };
-  const where = 'line' in target ? `line ${target.line}` : `function ${target.function}`;
-  if (tests.length === 0) {
-    return [`No named test covered ${where} of ${answer.file}.`, ...narrowedText(answer)].join('\n');
-  }
-  return [
-    `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}:`,
-    ...tests.map((test) => `  ${describe(test)}`),
-    ...narrowedText(answer),
-  ].join('\n');
-}
-
-function wholeFile(answer: Covering, ranges: readonly SourceTestRange[]): string {
-  const file = answer.file ?? '';
-  if (ranges.length === 0) return `No line of ${file} is recorded in ${answer.from}.`;
-  const named = new Set(ranges.flatMap((range) => range.tests.map((test) => test.id)));
-  const lines = [
-    `${file} — ${ranges.length} recorded range${ranges.length === 1 ? '' : 's'}, ${
-      named.size
-    } named test${named.size === 1 ? '' : 's'}`,
-  ];
-  for (const range of ranges) {
-    lines.push(range.startLine === range.endLine
-      ? `line ${range.startLine}`
-      : `lines ${range.startLine}-${range.endLine}`);
-    lines.push(...(range.tests.length === 0
-      ? ['  no named test covered this range']
-      : range.tests.map((test) => `  ${describe(test)}`)));
-  }
-  lines.push(...narrowedText(answer));
-  return lines.join('\n');
-}
-
-/**
- * What the narrowing removed, said out loud under every answer it shaped.
- *
- * A filtered list is indistinguishable from a short one, and the two lead to
- * opposite decisions: *one test covers this line* is an argument for writing
- * another, and *one test covers it within three hops, of eleven that cover it*
- * is an argument about where the eleven live. So the counts are printed even
- * when nothing was removed — a band that filtered nothing is a fact about the
- * code, not an absent feature.
- *
- * The sentence says how many survived and stops there. *The rest are further
- * out* would be a second claim, and a false one whenever the rest are tests the
- * walk could not place at all — which on a recording made against built output
- * is most of them. Why each one left is the notes' job, and the notes say it.
- */
-function narrowedText(answer: Covering): readonly string[] {
-  const narrowed = answer.narrowed;
-  if (narrowed === undefined) return [];
-  return [
-    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} that covered ` +
-      'it are inside the narrowing.',
-    ...narrowed.notes.map((note) => `  ${note}`),
-  ];
-}
-
-/**
- * The review reading, which `variance_changed_tests` also prints.
- *
- * The words live in `@variance-authority/sense/test-selection` beside
- * `coveringChange`, because two surfaces ask for them and a reading with two
- * renderers has two answers. All this adds is the provenance the CLI is the
- * only one able to state: the ref the diff was taken against, the file the
- * index was read from, and the commit it stands at.
- */
-function sinceText(answer: Covering, changed: readonly CoveringChange[]): string {
-  return formatCoveringChange(changed, {
-    ...(answer.since === undefined ? {} : { since: answer.since }),
-    from: answer.from,
-    ...(answer.at === undefined ? {} : { at: answer.at }),
-  });
-}
-
-function describe(test: CoveringTest): string {
-  return `${test.name} — ${test.file} [${test.id}]${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`;
-}
 
 /**
  * Point at the closest spelling rather than printing the whole index.

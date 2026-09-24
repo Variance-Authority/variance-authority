@@ -6,7 +6,7 @@ use napi_derive::napi;
 
 use crate::journey_columns;
 use crate::journey_format::{self, EncodedModule, SetPool};
-use crate::journey_journal::{ModuleId, Test};
+use crate::journey_journal::{self, ModuleId, Test};
 use crate::journey_output;
 use crate::journey_record::{self, Block, Module};
 use crate::order;
@@ -69,13 +69,14 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
         let shard = read_shard(&bytes, &mut inventories)
             .map_err(|error| format!("cannot read journey artifact {file}: {error}"))?;
         for test in &shard.tests {
-            if let Some(before) = tests_by_id.get(&test.id) {
+            if let Some(before) = tests_by_id.get_mut(&test.id) {
                 if before.file != test.file || before.name != test.name {
                     return Err(format!(
                         "cannot stitch journey artifacts: test id {:?} names two tests",
                         test.id
                     ));
                 }
+                before.settled = journey_journal::settled_across(before.settled, test.settled);
             } else {
                 tests_by_id.insert(test.id.clone(), test.clone());
             }
@@ -210,7 +211,12 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
     let ids = decoded.words("tests.id")?;
     let files = decoded.words("tests.file")?;
     let names = decoded.words("tests.name")?;
-    if files.len() != ids.len() || names.len() != ids.len() {
+    // A shard written before cases carried how they settled says nothing.
+    let settled = decoded.bytes("tests.stopped").ok();
+    if files.len() != ids.len()
+        || names.len() != ids.len()
+        || settled.as_ref().is_some_and(|column| column.len() != ids.len())
+    {
         return Err("test columns disagree".to_owned());
     }
     let tests = (0..ids.len())
@@ -218,6 +224,7 @@ fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Vec<Block>>>) 
             id: string(&strings, ids[at])?.to_owned(),
             file: string(&strings, files[at])?.to_owned(),
             name: string(&strings, names[at])?.to_owned(),
+            settled: settled.as_ref().map_or(journey_journal::UNSETTLED, |column| column[at]),
         }))
         .collect::<Result<_, String>>()?;
     let module_files = decoded.words("modules.file")?;

@@ -32,6 +32,12 @@ export interface CoveringAt extends CoveringSource {
   readonly atDistance?: { readonly from: number; readonly to: number };
   /** `--in-package`: keep only witnesses whose test file shares the subject's package. */
   readonly inPackage?: true;
+  /**
+   * `--text <path>`: the text the file holds now, when it is not the file on
+   * disk — `-` reads it from standard input, which is how an editor asks about
+   * a buffer it has not saved. Line numbers are asked and answered in it.
+   */
+  readonly text?: string;
   readonly since?: undefined;
 }
 
@@ -75,7 +81,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   const since = flags.values.get('--since');
   const file = flags.values.get('--file');
   if (since !== undefined) {
-    for (const other of ['--file', '--line', '--function'] as const) {
+    for (const other of ['--file', '--line', '--function', '--text'] as const) {
       if (flags.values.get(other) === undefined) continue;
       throw new OperatorError(
         `\`--since\` and \`${other}\` are alternatives. A diff names the files it changed, so ` +
@@ -91,6 +97,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
       );
     }
     return { ...executionAnd(flags), since };
+  }
+
+  const review = flags.values.get('--format');
+  if (review !== undefined && REVIEW.has(review)) {
+    throw new OperatorError(
+      `\`--format ${review}\` is a code host's review of a diff, so it answers \`--since <ref>\` and nothing narrower.`,
+    );
   }
 
   if (file === undefined || file === '') {
@@ -118,6 +131,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
   }
 
   const atDistance = parseAtDistance(flags);
+  const text = flags.values.get('--text');
 
   return {
     ...executionAnd(flags),
@@ -126,6 +140,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
     ...(flags.present.has('--in-package') ? { inPackage: true as const } : {}),
+    ...(text === undefined ? {} : { text }),
   };
 }
 
@@ -155,14 +170,18 @@ function parseAtDistance(
 /** Where to read the index, where the run was rooted, and how to write the answer. */
 function executionAnd(flags: Flags): CoveringSource {
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'json') {
-    throw new OperatorError(`--format must be text or json, not \`${format}\``);
+  if (format !== 'text' && format !== 'json' && !REVIEW.has(format)) {
+    throw new OperatorError(
+      `--format must be text, json, github, bitbucket-report or bitbucket-annotations, not \`${format}\``,
+    );
   }
   const execution = flags.values.get('--execution');
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
-    format,
+    format: format as CoveringFormat,
   };
 }
+
+const REVIEW: ReadonlySet<string> = new Set(['github', 'bitbucket-report', 'bitbucket-annotations']);

@@ -11,7 +11,7 @@ import {
   projectPath,
   type CapturedModule,
 } from './instrumented-modules.js';
-import { AMBIENT, executionIndexFrom, readCaseJournals, unpackCase, unpackFrames } from './cases.js';
+import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
 import { writeCoverageBytes } from './index.js';
 import type { ExecutionTest } from './reverse.js';
@@ -42,6 +42,8 @@ interface Coordinate {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** How the case settled across its frames, by `settledAcross`. */
+  stopped?: boolean;
   /** Every frame written under this coordinate, in replay order. */
   readonly frames: number[];
 }
@@ -76,8 +78,19 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
             const file = projectPath(root, coordinate.file);
             const key = `${file}\0${coordinate.name}\0${coordinate.id}`;
             const held = coordinates.get(key);
-            if (held === undefined) coordinates.set(key, { file, name: coordinate.name, id: coordinate.id, frames: [frame] });
-            else held.frames.push(frame);
+            if (held === undefined) {
+              coordinates.set(key, {
+                file,
+                name: coordinate.name,
+                id: coordinate.id,
+                ...settledAcross(coordinate.stopped, undefined),
+                frames: [frame],
+              });
+            } else {
+              held.frames.push(frame);
+              const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
+              if (settled !== undefined) held.stopped = settled;
+            }
             frame += 1;
           }
         },
@@ -106,6 +119,7 @@ export async function inspectCaseRun(directory: string, root: string): Promise<C
       id: repeat === 0 ? name : `${name}#${repeat}`,
       file: coordinate.file,
       name: coordinate.name,
+      ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
     };
   });
   const testsByFile = new Map<string, readonly [number, number]>();

@@ -70,7 +70,8 @@ function report(collector: ReturnType<typeof collectors.scoped>): Record<string,
     const { testFile, modules } = journals.decodeJournal(frame);
     const row = modules.find((module) => module.id === 'm');
     if (row === undefined) continue;
-    const name = testFile === ambient ? 'ambient' : testFile;
+    // These keys are bare, so a frame named `A\0finished` holds the key in its first field.
+    const name = testFile === ambient ? 'ambient' : journals.unpackCase(testFile).file;
     // Ordinal 0 is the module itself, which every bucket it was touched in
     // holds: the ambient bucket has it from the module's evaluation alone.
     const ordinals = row.hits.filter((ordinal) => ordinal > 0);

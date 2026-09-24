@@ -102,4 +102,27 @@ describe('formatCoveringChange', () => {
 
     expect(text).toContain('1 changed path has no row here at all.');
   });
+
+  it('tells a hole from a region every case finished without reaching', () => {
+    const stopped = { id: 'refund', file: 'test/cart.test.ts', name: 'refunds' };
+    const text = formatCoveringChange([file({
+      regions: [
+        region({ stopped: [stopped] }),
+        region({ startLine: 8, endLine: 10, stopped: [] }),
+        region({ startLine: 12, endLine: 14, tests: [witness('guest')], stopped: [stopped] }),
+      ],
+    })]);
+
+    expect(text.split('\n')[0]).toBe(
+      '1 changed file, 3 changed regions: 2 nothing covered (1 of them a hole), 1 covered by one case.',
+    );
+    expect(text).toContain(
+      '1-6 function priceOf — a hole: no case covered this region, and 1 case that could have reached it stopped first',
+    );
+    expect(text).toContain('    stopped first: refunds — test/cart.test.ts [refund]');
+    expect(text).toContain(
+      '8-10 function priceOf — no case covered this region, and every case that could have reached it finished',
+    );
+    expect(text).toContain('12-14 function priceOf — 1 case, and 1 case that could have reached it stopped first');
+  });
 });

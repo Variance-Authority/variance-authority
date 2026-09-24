@@ -33,7 +33,12 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      # Two commits deep, because a pull request is checked out as the merge of
+      # its head into the base, and the merge's first parent is the base tip the
+      # review below is asked against. Nothing needs more history than that.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
       # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
       #
@@ -95,12 +100,61 @@ jobs:
         shell: bash
         run: yarn measure
 
+      # Where the suite keeps its recording, asked of `sense` rather than spelled
+      # here: the directory is a digest of the checkout's path under whatever
+      # `cacheRoot` resolves to, and the package is the one that knows both.
+      - name: locate the recording
+        id: recording
+        shell: bash
+        run: |
+          node --input-type=module -e "import { repositoryLayers } from '@variance-authority/sense/test-selection'; console.log('dir=' + repositoryLayers(process.cwd()).top)" >> "$GITHUB_OUTPUT"
+
+      # The recording is shared the way the runner cache is scoped: a push to
+      # `main` saves it under its commit, and a pull request restores the newest
+      # one `main` saved, folds its own run in, and saves that under its own ref,
+      # where no other branch reads it. Every runner checks out to the same path,
+      # so the digest in the directory name agrees across runs.
+      #
+      # `.run-*` is one run's scratch, which a finished run removes and a killed
+      # one leaves behind. It is excluded rather than carried forward.
+      - name: restore the recording
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ steps.recording.outputs.dir }}
+            !${{ steps.recording.outputs.dir }}/.run-*
+          key: sense-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
+          restore-keys: |
+            sense-${{ runner.os }}-${{ runner.arch }}-
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
-      # 2026-08-04 and now run in the step above.
+      # 2026-08-04 and now run in the step above. It records which case entered
+      # which region, at this commit, which is what the review below reads.
       - name: test
         shell: bash
         run: yarn test
+
+      # What the suite walked of this change, on the lines a reviewer reads. A
+      # hole is a warning and every other finding a notice; walked regions are
+      # left out. GitHub draws at most ten of each level from one step, and holes
+      # come first so that the cut falls on the least useful ones. The step
+      # summary carries the whole answer, uncut.
+      #
+      # `HEAD^1` is the base tip the merge was made against, so the change is the
+      # pull request's own and not whatever `main` gained since it branched.
+      - name: review what the suite walked
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          node packages/cli/dist/bin.js covering --since HEAD^1 --format github
+          {
+            echo '### What the suite walked of this change'
+            echo
+            echo '```text'
+            node packages/cli/dist/bin.js covering --since HEAD^1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # ## What this job does not do, stated rather than discovered
       #

@@ -184,6 +184,7 @@ pub fn encode(
         Column::Words("tests.id", tests.iter().map(|test| id(&test.id)).collect()),
         Column::Words("tests.file", tests.iter().map(|test| id(&test.file)).collect()),
         Column::Words("tests.name", tests.iter().map(|test| id(&test.name)).collect()),
+        Column::Bytes("tests.stopped", tests.iter().map(|test| test.settled).collect()),
         Column::Words("modules.file", module_file),
         Column::Words("modules.blocks", module_blocks),
         Column::Words("blocks.kind", block_kind),

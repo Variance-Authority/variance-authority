@@ -158,6 +158,8 @@ export interface UnpackedCase {
   readonly name: string;
   /** Unique within the worker; empty for the ambient bucket. */
   readonly id: string;
+  /** Whether the case's body threw, rejected or never settled; absent when the frame does not say. */
+  readonly stopped?: boolean;
 }
 
 export const unpackCase: (packed: string) => UnpackedCase = journalFormat.unpackCase;
@@ -179,6 +181,8 @@ export interface CaseJournal {
   readonly file: string;
   readonly name: string;
   readonly id: string;
+  /** How this frame's case settled; see {@link ExecutionTest.stopped}. */
+  readonly stopped?: boolean;
   readonly modules: readonly {
     readonly id: ModuleId;
     readonly hits: readonly number[];
@@ -213,7 +217,11 @@ export function executionIndexFrom(
     }
     const key = `${journal.file}\0${journal.name}\0${journal.id}`;
     const first = byCase.get(key);
-    byCase.set(key, first === undefined ? journal : { ...first, modules: [...first.modules, ...journal.modules] });
+    byCase.set(key, first === undefined ? journal : {
+      ...first,
+      modules: [...first.modules, ...journal.modules],
+      ...settledAcross(first.stopped, journal.stopped),
+    });
   }
   const cases = [...byCase.values()];
 
@@ -238,6 +246,7 @@ export function executionIndexFrom(
       id: repeat === 0 ? coordinate : `${coordinate}#${repeat}`,
       file: journal.file,
       name: journal.name,
+      ...(journal.stopped === undefined ? {} : { stopped: journal.stopped }),
     };
   });
 
@@ -295,6 +304,23 @@ export function executionIndexFrom(
   };
 }
 
+/**
+ * How one case settled across the frames written under its coordinate.
+ *
+ * Work that outlived a case, and a retry of it, arrive as more frames. One
+ * attempt that finished is a whole journey, so the case finished: a retry that
+ * passes closes the hole its first attempt left. It stopped only when every
+ * attempt that said anything stopped.
+ */
+export function settledAcross(
+  first: boolean | undefined,
+  second: boolean | undefined,
+): { readonly stopped?: boolean } {
+  if (first === false || second === false) return { stopped: false };
+  if (first === true || second === true) return { stopped: true };
+  return {};
+}
+
 /** How many test-to-region crossings an index holds: the number that grows. */
 export function countCrossings(index: ExecutionIndex): number {
   let total = 0;
@@ -324,8 +350,14 @@ export async function readCaseJournals(
   for (const name of names) {
     for (const frame of unpackFrames(await readFile(resolve(directory, name)))) {
       const read = journalFormat.decodeJournal(frame);
-      const { file, name: caseName, id } = unpackCase(read.testFile);
-      journals.push({ file: projectPath(root, file), name: caseName, id, modules: read.modules });
+      const { file, name: caseName, id, stopped } = unpackCase(read.testFile);
+      journals.push({
+        file: projectPath(root, file),
+        name: caseName,
+        id,
+        ...(stopped === undefined ? {} : { stopped }),
+        modules: read.modules,
+      });
     }
   }
   return journals;

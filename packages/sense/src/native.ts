@@ -237,7 +237,12 @@ export interface NativeJourneyChange {
 }
 
 export interface NativeJourneyProjection {
-  readonly tests: readonly { readonly id: string; readonly file: string; readonly name: string }[];
+  readonly tests: readonly {
+    readonly id: string;
+    readonly file: string;
+    readonly name: string;
+    readonly stopped?: boolean | null;
+  }[];
   readonly modules: readonly {
     readonly file: string;
     readonly blocks: readonly {

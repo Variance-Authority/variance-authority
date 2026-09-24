@@ -18,6 +18,8 @@ pub(crate) struct Journey {
     pub test_ids: Vec<u32>,
     pub test_files: Vec<u32>,
     pub test_names: Vec<u32>,
+    /// `tests.stopped`, absent in a file written before cases carried it.
+    pub test_settled: Option<Vec<u8>>,
     pub module_files: Vec<u32>,
     module_blocks: Vec<u32>,
     pub kinds: Vec<u32>,
@@ -42,6 +44,7 @@ impl Journey {
             test_ids: decoded.words("tests.id")?,
             test_files: decoded.words("tests.file")?,
             test_names: decoded.words("tests.name")?,
+            test_settled: decoded.bytes("tests.stopped").ok(),
             module_files: decoded.words("modules.file")?,
             module_blocks: decoded.words("modules.blocks")?,
             kinds: decoded.words("blocks.kind")?,
@@ -61,7 +64,10 @@ impl Journey {
 
     fn check(&self) -> Result<(), String> {
         let tests = self.test_ids.len();
-        if self.test_files.len() != tests || self.test_names.len() != tests {
+        if self.test_files.len() != tests
+            || self.test_names.len() != tests
+            || self.test_settled.as_ref().is_some_and(|column| column.len() != tests)
+        {
             return Err("test columns disagree".to_owned());
         }
         if self.module_blocks.len() != self.module_files.len() + 1 {

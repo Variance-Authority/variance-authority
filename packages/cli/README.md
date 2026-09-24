@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -381,6 +381,45 @@ Given `--file` alone the answer is per range rather than per test: the recorded
 regions of the file, each with the tests shared by every line in it, which is
 where an unclaimed region shows up as one.
 
+Each range, and the answer about one line, also carries the one word an editor
+paints it with:
+
+- `walked`: two or more cases called into it.
+- `alone`: exactly one case did, and every case that could have reached it
+  finished. That case is the only one that fails if this code breaks.
+- `loaded`: it ran only while its module evaluated.
+- `hole`: nobody entered it, and a case that could have reached it stopped
+  first. A failed case, or a flake your CI suppressed, never finished its trip,
+  so the record cannot tell whether it would have come here.
+- `unwalked`: nobody entered it, and every case that could have reached it
+  finished.
+
+A range with no word is one the record cannot rank, because a case's stop was
+never recorded.
+
+#### Asking about the text you hold
+
+The recorded line numbers are the ones the suite ran over. Edit the file and
+they point at whatever code sits there now. So the answer about a file checks
+the text against the recording first, and says which `frame` its numbers
+stand in:
+
+- `recorded`: the file is the text the suite ran over.
+- `mapped`: the text changed, and every range was carried to where its lines
+  stand now. A range an edit touched is marked `moved`.
+- `stale`: the text changed, and the text the suite ran over could not be found.
+  No ranges are printed, because ranges at the wrong numbers would be read as
+  real.
+
+```bash
+variance covering --file src/checkout/total.ts --text - --format json < buffer.ts
+```
+
+`--text <path>` reads the held text from a file, and `--text -` reads it from
+standard input, which is how an editor asks about a buffer you have not saved.
+`--line` then names a line in that text. A line the edit wrote is refused
+rather than answered, because no case has run it yet.
+
 The index comes from any run wrapped in `withTestSelection(config)` and is read
 from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
@@ -431,6 +470,56 @@ The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
+
+#### On the pull request itself
+
+A reviewer reads the diff on the code host, not in a terminal. GitHub and
+Bitbucket Cloud both already draw annotations beside a changed line, so the
+same answer can be printed in the shape each host reads, with no extension to
+install:
+
+```bash
+variance covering --since origin/main --format github
+variance covering --since origin/main --format bitbucket-report
+variance covering --since origin/main --format bitbucket-annotations
+```
+
+Every host gets the same regions in the same order. Holes come first, then
+regions nothing entered, then regions one case entered alone. A hole is the one
+finding the diff cannot show you, and a host that caps its annotations drops
+the tail, not the head. A walked region is not annotated: a pull request
+painted over all of its tested code hides the lines that need a reader.
+
+These formats answer `--since` and nothing narrower. The record must have been
+written at the commit under review, which is what a CI step that runs the suite
+first gives you; any other record is refused, because its line numbers are not
+the ones the host draws.
+
+On GitHub, the step prints workflow commands and the host draws them:
+
+```yaml
+- run: yarn test
+- run: npx variance covering --since origin/${{ github.base_ref }} --format github
+```
+
+On Bitbucket Cloud, the report and its annotations are two requests to the Code
+Insights API, through the proxy a pipeline already has:
+
+```bash
+api="http://api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_FULL_NAME/commit/$BITBUCKET_COMMIT/reports/variance"
+npx variance covering --since origin/main --format bitbucket-report > report.json
+npx variance covering --since origin/main --format bitbucket-annotations > annotations.jsonl
+curl --proxy http://localhost:29418 -X PUT "$api" -H 'Content-Type: application/json' -d @report.json
+while read -r batch; do
+  curl --proxy http://localhost:29418 -X POST "$api/annotations" -H 'Content-Type: application/json' -d "$batch"
+done < annotations.jsonl
+```
+
+Bitbucket takes 100 annotations per request and keeps 1000 per report. Each
+line of `annotations.jsonl` is one request, holes first, and the lines stop at
+1000. When a change has more, the report's details say how many were left off,
+so a pull request with 1400 findings never reads as one with 1000. The proxy
+authenticates the requests, so you create and store no token.
 
 ### Watch: ask about a suite that has not finished
 

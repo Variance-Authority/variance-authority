@@ -141,8 +141,11 @@ export interface ExecutionRecorder {
    * the index — not only for the ones the closing fold happens to compute.
    */
   readonly owner: (testInfo: TestInfo) => string;
-  /** Say whether this owner's tests finished; an incomplete owner never excludes. */
-  readonly mark: (owner: string, complete: boolean) => void;
+  /**
+   * Say whether this owner's tests finished; an incomplete owner never excludes.
+   * With the test, the case carries it too, as whether its journey stopped.
+   */
+  readonly mark: (owner: string, complete: boolean, subject?: ObservedTest) => void;
   /** Merge this worker's contribution into the index, or explain the silence. */
   readonly close: () => Promise<void>;
 }
@@ -210,6 +213,9 @@ export function createExecutionRecorder(
   // knows only the journey, so this is the one place its crossings meet a test.
   const mintedFor = new Map<string, { readonly owner: string; readonly subject: ObservedTest }>();
   const failed = new Set<string>();
+  // How each case settled, by the key `cases` uses. A retry in the same worker
+  // settles the case again, and one attempt that finished is a whole journey.
+  const stopped = new Map<string, boolean>();
   const reports: JourneyReport[] = [];
   let seen = false;
   let announced = false;
@@ -275,7 +281,14 @@ export function createExecutionRecorder(
       return journey;
     },
 
-    mark: (owner, complete) => {
+    mark: (owner, complete, subject) => {
+      if (subject !== undefined) {
+        const key = `${owner}\u0000${subject.id}`;
+        stopped.set(key, stopped.get(key) === false ? false : !complete);
+        // A case that stopped before the page had anything to drain is still a
+        // case, and the one a reader most needs to hear about.
+        if (!complete) caseOf(owner, subject);
+      }
       // Conservative on purpose: one failed test in a file retires the whole
       // file's claim, because the crossings it did not reach are unknowable and
       // an exclusion built on them would be a skip nobody asked for.
@@ -354,7 +367,10 @@ export function createExecutionRecorder(
 
   /** Every case this worker could name, as the index reads them. */
   function observedCases(): readonly ObservedCase[] {
-    return [...cases.values()].map((held) => ({ ...held.of, journal: journalOf(held.hits) }));
+    return [...cases].map(([key, held]) => {
+      const settled = stopped.get(key);
+      return { ...held.of, ...(settled === undefined ? {} : { stopped: settled }), journal: journalOf(held.hits) };
+    });
   }
 
   async function contribute(): Promise<void> {

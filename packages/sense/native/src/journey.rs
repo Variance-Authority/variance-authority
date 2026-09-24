@@ -261,7 +261,7 @@ struct FoldVisitor<'a> {
 
 impl Visitor for FoldVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
-        let (file, name, id) = journey_journal::unpack_case(packed);
+        let (file, name, id, _) = journey_journal::unpack_case(packed);
         if name.is_empty() && id.is_empty() {
             let normalized = journey_journal::project_path(&self.run.root, file);
             let range = self.run.tests_by_file.get(&normalized).copied().unwrap_or((0, 0));

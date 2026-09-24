@@ -37,6 +37,7 @@ export {
   coveringTests,
   coveringTestsInFile,
   ranWhileLoading,
+  stoppedBefore,
   type CoveringChange,
   type CoveringChangeOptions,
   type CoveringOptions,
@@ -50,12 +51,12 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export { anyStopped } from './stopped.js';
+export { placeInText, type HeldLines, type Placement } from './placed.js';
+export { stateOf, type RangeState } from './range-state.js';
 export { narrowByJourneys, type JourneySelectionOptions } from './execution-select.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export {
-  formatCoveringChange,
-  type CoveringChangeHeading,
-} from './covering-change-text.js';
+export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
 export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,
@@ -64,12 +65,7 @@ export {
   isEncodedExecutionIndex,
 } from './execution-format.js';
 export { mergeExecutionIndexes } from './execution-merge.js';
-export {
-  finalizeJestJourneys,
-  pendingJourneyDirectory,
-  stitchJourneyArtifacts,
-  type JourneyArtifactResult,
-} from './jest-journey-artifact.js';
+export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
 export { journeyDivergences };

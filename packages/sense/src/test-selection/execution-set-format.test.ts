@@ -30,6 +30,17 @@ describe('the journey set spelling', () => {
     ]);
   });
 
+  it('keeps whether each case finished, stopped, or could not be told', () => {
+    const settled = [
+      { id: 'a > one', file: 'a.test.ts', name: 'one', stopped: true },
+      { id: 'a > two', file: 'a.test.ts', name: 'two', stopped: false },
+      { id: 'a > three', file: 'a.test.ts', name: 'three' },
+    ];
+    const bytes = encodeSetExecutionIndex({ tests: settled, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(decodeExecutionIndex(bytes).tests).toEqual(settled);
+  });
+
   it('reads an artifact that recorded who loaded a region as the flag its set implies', () => {
     // Version 2 held a set of loaders per region. `two` loaded the first region
     // and never called it: it is no longer credited there, and the region is

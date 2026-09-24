@@ -1,3 +1,4 @@
+import { settledAcross } from './cases.js';
 import type {
   ExecutionBlock,
   ExecutionCrossing,
@@ -191,7 +192,9 @@ function collectTests(indexes: readonly ExecutionIndex[]): readonly ExecutionTes
       if (before !== undefined && (before.file !== test.file || before.name !== test.name)) {
         throw new Error(`cannot assemble journey artifacts: test id ${JSON.stringify(test.id)} names two tests`);
       }
-      tests.set(test.id, test);
+      const stopped = settledAcross(before?.stopped, test.stopped);
+      const { stopped: _stopped, ...coordinate } = test;
+      tests.set(test.id, { ...coordinate, ...stopped });
     }
   }
   return [...tests.values()].sort((left, right) =>

@@ -1,11 +1,21 @@
 import { affectedBy, type Relations } from '@variance-authority/core/relate';
 import { shadowedFor, type ShadowedFor } from './shadowed.js';
+import { outside, sameCases, stoppedIn } from './stopped.js';
 
+/** One recorded case: who it is, where it is declared, and whether its journey ended. */
 export interface ExecutionTest {
   /** Stable producer identity; names are not required to be unique. */
   readonly id: string;
   readonly file: string;
   readonly name: string;
+  /**
+   * Whether the case's journey was cut short: its body threw, rejected or never
+   * settled. A stopped case recorded the places it reached and nothing past
+   * them, so no reader may take its absence from a region as proof it would not
+   * go there. `false` is a case seen to finish. Absent when the producer could
+   * not see how its cases settled, which is neither.
+   */
+  readonly stopped?: boolean;
 }
 
 export interface ExecutionCrossing {
@@ -108,6 +118,8 @@ export interface SourceTestRange {
   readonly tests: readonly CoveringTest[];
   /** The range ran while its module evaluated; see {@link ExecutionBlock.loaded}. */
   readonly loaded?: true;
+  /** Cases that could have reached the range and stopped first; see {@link stoppedBefore}. */
+  readonly stopped?: readonly ExecutionTest[];
 }
 
 /** Find named tests that reached a source line or function, nearest first. */
@@ -135,6 +147,25 @@ export function ranWhileLoading(index: ExecutionIndex, target: SourceTestTarget)
   return module !== undefined && blocksAt(module, target).some((block) => block.loaded === true);
 }
 
+/**
+ * The cases that could have reached a target and stopped before entering it.
+ *
+ * A case that threw, rejected or timed out recorded the places it reached and
+ * nothing past them, so its absence from a region is not evidence. Where no
+ * case entered the target, a non-empty answer makes it a hole, a place the
+ * record cannot see, and an empty one makes it unwalked. Absent when that
+ * cannot be told: see `stoppedIn` in `stopped.ts`.
+ */
+export function stoppedBefore(
+  index: ExecutionIndex,
+  target: SourceTestTarget,
+  options: CoveringOptions = {},
+): readonly ExecutionTest[] | undefined {
+  const module = index.modules.find((candidate) => candidate.file === target.file);
+  if (module === undefined) return undefined;
+  return outside(index, stoppedIn(index, module, options.relations), blocksAt(module, target));
+}
+
 function blocksAt(module: ExecutionModule, target: SourceTestTarget): readonly ExecutionBlock[] {
   return 'line' in target
     ? innermostAt(module.blocks, target.line)
@@ -152,6 +183,7 @@ export function coveringTestsInFile(
   const module = index.modules.find((candidate) => candidate.file === file);
   if (module === undefined) return [];
   const loaders = loadersOf(index, file, options.relations);
+  const stopped = stoppedIn(index, module, options.relations);
 
   const boundaries = new Set<number>();
   for (const block of module.blocks) {
@@ -169,16 +201,24 @@ export function coveringTestsInFile(
     if (blocks.length === 0) continue;
     const tests = withLoaders(testsForBlocks(index, blocks), blocks, loaders);
     const loaded = blocks.some((block) => block.loaded === true);
+    const short = outside(index, stopped, blocks);
     const previous = ranges.at(-1);
     if (
       previous !== undefined &&
       previous.endLine + 1 === startLine &&
       (previous.loaded === true) === loaded &&
-      sameTests(previous.tests, tests)
+      sameTests(previous.tests, tests) &&
+      sameCases(previous.stopped, short)
     ) {
       ranges[ranges.length - 1] = { ...previous, endLine };
     } else {
-      ranges.push({ startLine, endLine, tests, ...(loaded ? { loaded: true as const } : {}) });
+      ranges.push({
+        startLine,
+        endLine,
+        tests,
+        ...(loaded ? { loaded: true as const } : {}),
+        ...(short === undefined ? {} : { stopped: short }),
+      });
     }
   }
   return ranges;
@@ -317,6 +357,12 @@ export interface CoveringRegion {
    * is a question this reading could not answer.
    */
   readonly passengers?: readonly CoveringTest[];
+  /**
+   * Cases that could have reached the region and stopped before entering it.
+   * With no `tests`, a non-empty list makes the region a hole and an empty one
+   * makes it unwalked. Absent when that cannot be told; see {@link stoppedBefore}.
+   */
+  readonly stopped?: readonly ExecutionTest[];
 }
 
 /**
@@ -393,6 +439,7 @@ export function coveringChange(
     }
 
     const owned = ownedIn(index, module, shadowed);
+    const stopped = stoppedIn(index, module, options.relations);
     let loaders: readonly CoveringTest[] | undefined;
     const regions = module.blocks
       .filter((block) =>
@@ -401,7 +448,11 @@ export function coveringChange(
       .map((block): CoveringRegion => {
         const tests = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded !== true) }]);
         const carried = testsForBlocks(index, [{ ...block, crossings: block.crossings.filter((crossing) => owned(crossing) && crossing.loaded === true) }]);
-        const region = { kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine, tests };
+        const short = outside(index, stopped, [block]);
+        const region = {
+          kind: block.kind, name: block.name, startLine: block.startLine, endLine: block.endLine, tests,
+          ...(short === undefined ? {} : { stopped: short }),
+        };
         if (block.loaded !== true) return { ...region, passengers: carried };
         loaders ??= loadersOf(index, file, options.relations);
         if (loaders === undefined) return region;

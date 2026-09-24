@@ -77,6 +77,19 @@ describe('asking which tests entered a line', () => {
     expect(formatCovering(answer, 'text')).toContain('2 recorded ranges, 2 named tests');
   });
 
+  it('calls a region no case entered unwalked only when every case finished', () => {
+    const answer = { file: 'src/total.ts', from: 'cases.bin', target: { line: 40 }, tests: [] };
+    const stopped = [{ id: 'far', file: 'flow.test.tsx', name: 'checks out', stopped: true }];
+
+    expect(formatCovering({ ...answer, stopped: [] }, 'text'))
+      .toContain('every case that could have reached it finished: unwalked.');
+    expect(formatCovering({ ...answer, stopped }, 'text')).toContain(
+      'a hole: a case that could have reached it stopped first, so the record cannot see it.\n' +
+        '  stopped: checks out — flow.test.tsx [far]',
+    );
+    expect(formatCovering(answer, 'text')).toBe('No named test covered line 40 of src/total.ts.\n');
+  });
+
   it('reads a recorded index as columns and a foreign one as JSON', async () => {
     const columns = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', await columnIndexFile()]));
     const json = await covering(parse(['--file', 'src/total.ts', '--line', '12', '--execution', await indexFile()]));

@@ -7,6 +7,7 @@ import {
   executionIndexFrom,
   packCase,
   packFrames,
+  settledAcross,
   unpackCase,
   unpackFrames,
 } from './cases.js';
@@ -147,6 +148,25 @@ describe('folding case frames into an execution index', () => {
       .toEqual(['takes alpha']);
   });
 
+  it('carries whether each journey ended, and a finished attempt closes a stopped one', () => {
+    const settled = (name: string, stopped: boolean | undefined, hits: number[]): CaseJournal => ({
+      ...journal('test/branch.case.ts', name, name, hits),
+      ...(stopped === undefined ? {} : { stopped }),
+    });
+    const index = executionIndexFrom([
+      settled('threw', true, [1]),
+      settled('retried', true, [1]),
+      settled('retried', false, [1, 2]),
+      settled('unsaid', undefined, [2]),
+    ], inventory);
+
+    expect(index.tests.map((test) => [test.name, test.stopped])).toEqual([
+      ['retried', false],
+      ['threw', true],
+      ['unsaid', undefined],
+    ]);
+  });
+
   it('reads the same however the frames landed on disk', () => {
     const frames = [
       journal('b/two.case.ts', 'beta', '2', [2]),
@@ -168,5 +188,14 @@ describe('folding case frames into an execution index', () => {
 
   it('leaves out a module no case entered', () => {
     expect(executionIndexFrom([], inventory).modules).toEqual([]);
+  });
+});
+
+describe('settling two attempts of one case', () => {
+  it('is finished when either finished, stopped when one stopped and none finished, and unsaid otherwise', () => {
+    expect(settledAcross(true, false)).toEqual({ stopped: false });
+    expect(settledAcross(false, true)).toEqual({ stopped: false });
+    expect(settledAcross(true, undefined)).toEqual({ stopped: true });
+    expect(settledAcross(undefined, undefined)).toEqual({});
   });
 });

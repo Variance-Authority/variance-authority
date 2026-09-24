@@ -89,6 +89,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     'tests.id': column(Uint32Array.from(index.tests, (test) => id(test.id))),
     'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
     'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
+    'tests.stopped': column(stoppedColumn(index.tests)),
     'modules.file': column(moduleFile),
     'modules.blocks': column(moduleBlocks),
     'blocks.kind': column(blockKind),
@@ -128,10 +129,17 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testId = words('tests.id');
   const testFile = words('tests.file');
   const testName = words('tests.name');
+  // Written since a case carries how it settled; a file without it says nothing.
+  const testStopped = opened.found.has('tests.stopped') ? flags('tests.stopped') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
-    tests.push({ id: string(testId[at]!), file: string(testFile[at]!), name: string(testName[at]!) });
+    tests.push({
+      id: string(testId[at]!),
+      file: string(testFile[at]!),
+      name: string(testName[at]!),
+      ...stoppedFrom(testStopped, at),
+    });
   }
 
   const moduleFile = words('modules.file');
@@ -268,6 +276,29 @@ function columnBlob(opened: OpenedSections, name: string, offsets: Uint32Array):
   return section.rows === undefined
     ? whole(opened, name)
     : openBlob(stored(opened, name), () => offsets).all();
+}
+
+/**
+ * How each case settled, one byte per test: nothing said, finished, stopped.
+ *
+ * Three states, as `crossings.loaded` has, because a producer that cannot see
+ * a case settle must not be read as one that saw it finish.
+ */
+const UNSETTLED = 0;
+const FINISHED = 1;
+const STOPPED = 2;
+
+export function stoppedColumn(tests: readonly ExecutionTest[]): Uint8Array {
+  return Uint8Array.from(tests, (test) =>
+    test.stopped === undefined ? UNSETTLED : test.stopped ? STOPPED : FINISHED);
+}
+
+export function stoppedFrom(column: Uint8Array | undefined, at: number): { readonly stopped?: boolean } {
+  const held = column?.[at];
+  if (held === undefined || held === UNSETTLED) return {};
+  if (held === FINISHED) return { stopped: false };
+  if (held === STOPPED) return { stopped: true };
+  throw invalid();
 }
 
 function fail(): never {

@@ -1,0 +1,21 @@
+<idea-plugin>
+  <id>dev.variance-authority.webstorm</id>
+  <name>Variance Authority</name>
+  <version>0.8.1</version>
+  <vendor url="https://variance-authority.dev">Machine Garden</vendor>
+  <description><![CDATA[
+    Which test cases went through each line, painted in the gutter from the last run's recording.
+    A hover names the cases, and the cases that stopped before reaching the line.
+  ]]></description>
+  <idea-version since-build="251"/>
+  <depends>com.intellij.modules.platform</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <editorFactoryListener implementation="dev.varianceauthority.webstorm.Editors"/>
+  </extensions>
+
+  <applicationListeners>
+    <listener class="dev.varianceauthority.webstorm.Editors"
+              topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+  </applicationListeners>
+</idea-plugin>

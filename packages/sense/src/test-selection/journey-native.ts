@@ -87,7 +87,12 @@ export async function projectJourneyFile(
   if (project === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const projected = project(file, nativeChange(changed));
   const index: ExecutionIndex = {
-    tests: projected.tests.map((test) => ({ id: test.id, file: test.file, name: test.name })),
+    tests: projected.tests.map((test) => ({
+      id: test.id,
+      file: test.file,
+      name: test.name,
+      ...(test.stopped == null ? {} : { stopped: test.stopped }),
+    })),
     modules: projected.modules.map((module) => ({
       file: module.file,
       blocks: module.blocks.map((block) => ({

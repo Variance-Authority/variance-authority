@@ -8,7 +8,7 @@ import type {
   ExecutionModule,
   ExecutionTest,
 } from './reverse.js';
-import { decodeSetExecutionIndex } from './execution-set-format.js';
+import { decodeSetExecutionIndex, stoppedColumn, stoppedFrom } from './execution-set-format.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -146,6 +146,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.id': column(Uint32Array.from(index.tests, (test) => id(test.id))),
       'tests.file': column(Uint32Array.from(index.tests, (test) => id(test.file))),
       'tests.name': column(Uint32Array.from(index.tests, (test) => id(test.name))),
+      'tests.stopped': column(stoppedColumn(index.tests)),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -248,10 +249,17 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testId = words('tests.id');
   const testFile = words('tests.file');
   const testName = words('tests.name');
+  // Written since a case carries how it settled; a file without it says nothing.
+  const testStopped = found.has('tests.stopped') ? flags('tests.stopped') : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
   for (let at = 0; at < testId.length; at += 1) {
-    tests.push({ id: string(testId[at]!), file: string(testFile[at]!), name: string(testName[at]!) });
+    tests.push({
+      id: string(testId[at]!),
+      file: string(testFile[at]!),
+      name: string(testName[at]!),
+      ...stoppedFrom(testStopped, at),
+    });
   }
 
   const moduleFile = words('modules.file');

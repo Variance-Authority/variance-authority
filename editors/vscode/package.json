@@ -1,0 +1,42 @@
+{
+  "name": "variance-authority",
+  "displayName": "Variance Authority",
+  "description": "Which test cases went through each line, painted in the gutter from the last run's recording.",
+  "version": "0.8.1",
+  "publisher": "machine-garden",
+  "license": "MIT",
+  "private": true,
+  "homepage": "https://variance-authority.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Testing", "Visualization"],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "variance.refresh", "title": "Variance: Read the recording again" },
+      { "command": "variance.casesAtLine", "title": "Variance: Cases through this line" }
+    ],
+    "configuration": {
+      "title": "Variance Authority",
+      "properties": {
+        "variance.command": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The `variance` CLI to ask. Empty asks the workspace's own `node_modules/.bin/variance`, then the one on `PATH`."
+        }
+      }
+    }
+  }
+}

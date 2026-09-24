@@ -408,9 +408,27 @@ function packCase(file: string, name: string, id: string): string {
   return `${file}\u0000${name}\u0000${id}`;
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string } {
+/**
+ * How a frame says whether its case's journey ended.
+ *
+ * A fourth field rather than a second coordinate: the case is the same case
+ * whichever way it settled, so the three fields a reader joins frames on are
+ * untouched. A frame written before the case settled, or by a writer that
+ * cannot see settling, has no fourth field, and says nothing.
+ */
+const FINISHED = 'finished';
+const STOPPED = 'stopped';
+
+function settledCase(packed: string, stopped: boolean): string {
+  return `${packed}\u0000${stopped ? STOPPED : FINISHED}`;
+}
+
+function unpackCase(packed: string): { file: string; name: string; id: string; stopped?: boolean } {
   const parts = packed.split('\u0000');
-  return { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
+  const coordinate = { file: parts[0] ?? packed, name: parts[1] ?? AMBIENT, id: parts[2] ?? AMBIENT };
+  if (parts[3] === STOPPED) return { ...coordinate, stopped: true };
+  if (parts[3] === FINISHED) return { ...coordinate, stopped: false };
+  return coordinate;
 }
 
 /**
@@ -449,4 +467,6 @@ function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
   return frames;
 }
 
-export = { encodeJournal, encodeLog, decodeJournal, scanJournal, packCase, unpackCase, packFrames, unpackFrames };
+export = {
+  encodeJournal, encodeLog, decodeJournal, scanJournal, packCase, settledCase, unpackCase, packFrames, unpackFrames,
+};

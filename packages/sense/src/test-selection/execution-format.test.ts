@@ -13,6 +13,18 @@ describe('the execution index as columns', () => {
     expect(decodeExecutionIndex(encodeExecutionIndex(index))).toEqual(index);
   });
 
+  it('keeps whether each case finished, stopped, or could not be told', () => {
+    const index: ExecutionIndex = {
+      tests: [
+        { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', stopped: true },
+        { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', stopped: false },
+        { id: 'a.test.ts > three', file: 'a.test.ts', name: 'three' },
+      ],
+      modules: [],
+    };
+    expect(decodeExecutionIndex(encodeExecutionIndex(index)).tests).toEqual(index.tests);
+  });
+
   it('keeps the difference between an unsaid loading and a denied one', () => {
     const index: ExecutionIndex = {
       tests: [{ id: 'a.test.ts > one', file: 'a.test.ts', name: 'one' }],

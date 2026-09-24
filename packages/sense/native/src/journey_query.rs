@@ -18,6 +18,7 @@
 
 use napi_derive::napi;
 
+use crate::journey_journal;
 use crate::journey_read::{pairs, Journey};
 
 /// One changed file and the lines that changed, as `[start, end]` pairs.
@@ -33,6 +34,8 @@ pub struct JourneyTest {
     pub id: String,
     pub file: String,
     pub name: String,
+    /// `ExecutionTest.stopped`: absent when the file does not say how the case settled.
+    pub stopped: Option<bool>,
 }
 
 #[napi(object)]
@@ -70,6 +73,11 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
             id: journey.text(journey.test_ids[at])?.to_owned(),
             file: journey.text(journey.test_files[at])?.to_owned(),
             name: journey.text(journey.test_names[at])?.to_owned(),
+            stopped: match journey.test_settled.as_ref().map(|column| column[at]) {
+                Some(journey_journal::STOPPED) => Some(true),
+                Some(journey_journal::FINISHED) => Some(false),
+                _ => None,
+            },
         }))
         .collect::<Result<Vec<_>, String>>()?;
     let by_file = journey.by_file()?;

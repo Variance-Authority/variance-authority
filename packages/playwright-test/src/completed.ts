@@ -14,7 +14,7 @@ import type {
   PlaywrightWorkerArgs,
   TestInfo,
 } from '@playwright/test';
-import type { ExecutionRecorder } from './execution.js';
+import { testOf, type ExecutionRecorder } from './execution.js';
 
 /** The worker fixture the recorder lives on, for the halves that report to it. */
 export interface RecorderFixture {
@@ -65,7 +65,7 @@ export const varianceCompletedFixtures: Fixtures<
       // Automatic fixtures are set up before the ones a test asked for, so this
       // is torn down after them and reads the status they have already settled.
       if (varianceRecorder === undefined) return;
-      varianceRecorder.mark(varianceRecorder.owner(testInfo), usableOutcome(testInfo.status));
+      varianceRecorder.mark(varianceRecorder.owner(testInfo), usableOutcome(testInfo.status), testOf(testInfo));
     },
     { auto: true },
   ],

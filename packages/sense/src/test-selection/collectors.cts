@@ -168,11 +168,17 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   // `afterAll`.
   const union: Presence = new Map();
   const frames: Uint8Array[] = [];
+  // How each case's body settled, by key: `true` when it threw or rejected. A
+  // retry settles the same key again, and its answer replaces the first.
+  const stopped = new Map<string, boolean>();
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
-    if (view.rows.length === 0) return undefined;
-    frames.push(journals.encodeLog(name, view));
+    const settled = stopped.get(bucket.key);
+    // A case that stopped before it crossed anything is still a case that
+    // stopped: its frame is what tells a reader the journey was cut short.
+    if (view.rows.length === 0 && settled !== true) return undefined;
+    frames.push(journals.encodeLog(settled === undefined ? name : journals.settledCase(name, settled), view));
     foldInto(union, view);
     return view;
   };
@@ -230,17 +236,19 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     try {
       answered = body();
     } catch (thrown) {
+      stopped.set(bucket.key, true);
       release(bucket);
       throw thrown;
     }
     const thenable = answered as { then?: unknown } | null | undefined;
     if (thenable == null || typeof thenable.then !== 'function') {
+      stopped.set(bucket.key, false);
       release(bucket);
       return answered;
     }
     return (answered as unknown as Promise<unknown>).then(
-      (value) => { release(bucket); return value; },
-      (thrown: unknown) => { release(bucket); throw thrown; },
+      (value) => { stopped.set(bucket.key, false); release(bucket); return value; },
+      (thrown: unknown) => { stopped.set(bucket.key, true); release(bucket); throw thrown; },
     ) as unknown as Result;
   };
   const enter = <Result,>(key: string, body: () => Result): Result => {
@@ -277,7 +285,13 @@ function scoped(holder: Holder, continuations: boolean): Collector {
       return view === undefined ? new Map() : presenceOf(view);
     },
     finish(testFile) {
-      for (const [key, bucket] of buckets) close(bucket, key === AMBIENT ? ambientKey(testFile) : key);
+      for (const [key, bucket] of buckets) {
+        // A body still running when its file ends never settled: the runner
+        // timed it out and moved on, and its journey stopped where it stood.
+        // The file's own bucket is no case, and has nothing to settle.
+        if (bucket.open && key !== AMBIENT) stopped.set(key, true);
+        close(bucket, key === AMBIENT ? ambientKey(testFile) : key);
+      }
       return { modules: union, frames: tangled ? undefined : frames };
     },
     runaways: () => [...late].map(nameOf),

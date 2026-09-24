@@ -77,7 +77,10 @@ async function ended(
   await declared[0]({ varianceRecorder: recorder }, async () => {}, {
     file: resolve(root, owner),
     status,
-  } as TestInfo);
+    project: { name: 'chromium' },
+    titlePath: ['chromium', owner, 'the one test'],
+    testId: `${owner}-1`,
+  } as unknown as TestInfo);
 }
 
 describe('a Playwright worker records what its specs executed', () => {

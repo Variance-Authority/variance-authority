@@ -128,7 +128,7 @@ export async function createStoryRecorder(
       // the command line, a preview rebuilt since — has no file to be a case
       // in, and contributes to the file-level record only.
       if (story !== undefined) {
-        cases.push({ file: story.file, name: `${story.title}/${story.name}`, id: storyId, journal });
+        cases.push({ file: story.file, name: `${story.title}/${story.name}`, id: storyId, stopped: !complete, journal });
       }
     },
 

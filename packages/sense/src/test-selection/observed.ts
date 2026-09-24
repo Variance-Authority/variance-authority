@@ -64,6 +64,8 @@ export interface ObservedCase {
   readonly name: string;
   /** Unique within the run. Two drains under one id are one case read twice. */
   readonly id: string;
+  /** {@link ExecutionTest.stopped}: absent when the driver cannot say how the case settled. */
+  readonly stopped?: boolean;
   readonly journal: ExecutionJournal;
 }
 
@@ -179,6 +181,7 @@ export function caseJournals(cases: readonly ObservedCase[]): readonly CaseJourn
       file: observed.file,
       name: observed.name,
       id: observed.id,
+      ...(observed.stopped === undefined ? {} : { stopped: observed.stopped }),
       modules: observed.journal.modules,
     })),
     ...files.map((file) => ({ file, name: AMBIENT, id: AMBIENT, modules: shared })),

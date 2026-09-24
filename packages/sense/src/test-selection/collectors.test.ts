@@ -144,7 +144,8 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number) {
       work(next(300), 0);
     });
     model.current = ambient;
-    fold(key, presence);
+    // The case returned, so its frame is named as one that finished.
+    fold(journals.settledCase(key, false), presence);
   }
   work(next(20), 0);
   fold(journals.packCase(FILE, '', ''), ambient);
@@ -195,3 +196,27 @@ describe('the recording a file writes', () => {
     });
   });
 });
+
+describe('how a case settles', () => {
+  it('names each frame by whether its body returned, threw, rejected or never settled', async () => {
+    const holder: Record<PropertyKey, unknown> = {};
+    const collector = collectors.scoped(holder, true);
+    const scope = holder[CASE_SCOPE] as Scope;
+    const key = (name: string) => journals.packCase(FILE, name, name);
+    scope.enter(key('returned'), () => {});
+    expect(() => scope.enter(key('threw'), () => { throw new Error('no'); })).toThrow('no');
+    await expect(scope.enter(key('rejected'), () => Promise.reject(new Error('no')))).rejects.toThrow('no');
+    // A timeout: the runner moved on and the body is still pending at `finish`.
+    void scope.enter(key('abandoned'), () => new Promise(() => {}));
+
+    const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
+    const settled = frames.map((frame) => journals.unpackCase(journals.decodeJournal(frame).testFile))
+      .filter((unpacked) => unpacked.name !== '')
+      .map((unpacked) => [unpacked.name, unpacked.stopped]);
+
+    // No case crossed anything, so only the ones that stopped wrote a frame:
+    // a frame is how a reader learns the journey was cut short.
+    expect(settled).toEqual([['threw', true], ['rejected', true], ['abandoned', true]]);
+  });
+});
+

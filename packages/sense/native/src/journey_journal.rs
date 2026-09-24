@@ -19,6 +19,26 @@ pub struct Test {
     pub id: String,
     pub file: String,
     pub name: String,
+    /// How the case settled: [`UNSETTLED`], [`FINISHED`] or [`STOPPED`].
+    pub settled: u8,
+}
+
+/// The `tests.stopped` column's three states, as `execution-set-format.ts`
+/// spells them: a producer that cannot see a case settle says nothing.
+pub const UNSETTLED: u8 = 0;
+pub const FINISHED: u8 = 1;
+pub const STOPPED: u8 = 2;
+
+/// One case's settling across two frames or shards: one attempt that finished
+/// is a whole journey, so it stopped only when every attempt that spoke stopped.
+pub fn settled_across(first: u8, second: u8) -> u8 {
+    if first == FINISHED || second == FINISHED {
+        FINISHED
+    } else if first == STOPPED || second == STOPPED {
+        STOPPED
+    } else {
+        UNSETTLED
+    }
 }
 
 pub struct CaseRun {
@@ -34,6 +54,7 @@ struct Coordinate {
     file: String,
     name: String,
     id: String,
+    settled: u8,
     frame: usize,
 }
 
@@ -80,6 +101,7 @@ pub fn inspect(directory: &Path, root: &Path) -> Result<CaseRun, String> {
             id,
             file: coordinate.file,
             name: coordinate.name,
+            settled: coordinate.settled,
         });
     }
     let mut tests_by_file = HashMap::new();
@@ -111,12 +133,13 @@ struct InspectVisitor<'a> {
 
 impl Visitor for InspectVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
-        let (file, name, id) = unpack_case(packed);
+        let (file, name, id, settled) = unpack_case(packed);
         if !name.is_empty() || !id.is_empty() {
             self.coordinates.push(Coordinate {
                 file: project_path(self.root, file),
                 name: name.to_owned(),
                 id: id.to_owned(),
+                settled,
                 frame: self.frame,
             });
             self.frame += 1;
@@ -267,12 +290,18 @@ impl<'a> Reader<'a> {
     }
 }
 
-pub fn unpack_case(packed: &str) -> (&str, &str, &str) {
+/// A case frame's name: `packCase` and `settledCase` in `journal-format.cts`.
+pub fn unpack_case(packed: &str) -> (&str, &str, &str, u8) {
     let mut parts = packed.split('\0');
     (
         parts.next().unwrap_or(packed),
         parts.next().unwrap_or(""),
         parts.next().unwrap_or(""),
+        match parts.next() {
+            Some("stopped") => STOPPED,
+            Some("finished") => FINISHED,
+            _ => UNSETTLED,
+        },
     )
 }
 
