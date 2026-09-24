@@ -9,8 +9,12 @@
 //!
 //! So each text is parsed twice: whole, and with every function emptied
 //! (`module_shape.rs`). The whole programs equal under `ContentEq` is a change
-//! nothing runs. Otherwise the emptied program — what the module does when it
-//! is loaded — is reduced to two things:
+//! nothing runs — unless a JSX pragma moved. `ContentEq` never sees a comment,
+//! and a pragma is the one comment the compiler reads: it decides what every
+//! element is emitted as and which runtime the module imports, so a pragma
+//! added, removed or given another argument is a load-time change. Otherwise
+//! the emptied program — what the module does when it is loaded — is reduced
+//! to two things:
 //!
 //! - the **sequence**: every statement that evaluates something when the module
 //!   runs — an import that binds nothing, which is there for what loading it
@@ -57,7 +61,8 @@ use crate::module_readers::{bound, declared, interface_of};
 use crate::module_shape::{parse, plain_class, pure, Lines};
 
 pub enum Verdict {
-    /// No text that runs differs: comments, types, spelling, formatting.
+    /// No text that runs differs: comments that set no pragma, types, spelling,
+    /// formatting.
     None,
     /// The load is the same but for these bindings' values and these exports;
     /// with both empty, what differs runs only when something calls. `gone` is
@@ -162,6 +167,9 @@ impl<'s, 'a> View<'s, 'a> {
 pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     let allocator = Allocator::default();
     let (old, now) = (parse(&allocator, file, before, true)?, parse(&allocator, file, after, true)?);
+    if pragmas(&old) != pragmas(&now) {
+        return Some(Verdict::Load);
+    }
     if old.directives.content_eq(&now.directives) && old.body.content_eq(&now.body) {
         return Some(Verdict::None);
     }
@@ -309,6 +317,29 @@ fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
             }
         }
     }
+}
+
+/// The JSX pragmas a text's comments set, each with its argument, in the order
+/// they are written. A pragma is a comment the compiler reads: `@jsx` and
+/// `@jsxFrag` name what every element is emitted as a call to, and
+/// `@jsxImportSource` and `@jsxRuntime` decide the import the compiler adds.
+/// Every comment is read, not only the leading ones, because Babel and esbuild
+/// honour a pragma anywhere in the file.
+fn pragmas<'a>(program: &Program<'a>) -> Vec<(&'a str, &'a str)> {
+    const NAMES: [&str; 4] = ["jsx", "jsxFrag", "jsxImportSource", "jsxRuntime"];
+    let mut found = Vec::new();
+    for comment in &program.comments {
+        let text = comment.content_span().source_text(program.source_text);
+        for (at, _) in text.match_indices('@') {
+            let rest = &text[at + 1..];
+            let name = &rest[..rest.find(|c: char| !c.is_ascii_alphanumeric()).unwrap_or(rest.len())];
+            if NAMES.contains(&name) {
+                let argument = rest[name.len()..].split_whitespace().next().unwrap_or("");
+                found.push((name, argument));
+            }
+        }
+    }
+    found
 }
 
 /// Every name the text reads, in function bodies too: a global a body reads

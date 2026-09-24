@@ -68,4 +68,28 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
     const after = `${before}export function wrap(value: number): number {\n  return value % 7;\n}\n`;
     expect(verdictOf(before, after)).toMatchObject({ kind: 'values', exports: ['wrap'] });
   });
+
+  describe('a comment that sets a JSX pragma', () => {
+    const view = (before: string, after: string) => native()!.moduleVerdict!('src/view.tsx', before, after);
+    const body = 'export const View = () => <div />;\n';
+
+    it('reads a changed import source as load, because the compiler imports the runtime from it', () => {
+      const before = `/** @jsxImportSource react */\n${body}`;
+      expect(view(before, before.replace('react', 'preact'))?.kind).toBe('load');
+    });
+
+    it('reads a pragma added in a line comment as load', () => {
+      expect(view(body, `// @jsxRuntime classic\n${body}`)?.kind).toBe('load');
+    });
+
+    it('reads a changed factory as load, because every element is emitted as a call to it', () => {
+      const before = `/* @jsx h */\nimport { h } from 'preact';\n${body}`;
+      expect(view(before, before.replace('@jsx h', '@jsx createElement'))?.kind).toBe('load');
+    });
+
+    it('reads a comment edited around an unchanged pragma as nothing', () => {
+      const before = `/** @jsxImportSource preact */\n${body}`;
+      expect(view(before, `/**\n * The view.\n * @jsxImportSource preact\n */\n${body}`)?.kind).toBe('none');
+    });
+  });
 });
