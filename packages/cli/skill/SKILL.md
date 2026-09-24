@@ -456,7 +456,8 @@ none of it:
 
 - **Eyes attention:** with Playwright, compose `eyesFixtures` from
   `@variance-authority/eyes/playwright` into the suite's existing extension and
-  retain each test's journal under `testInfo.testId`. With RTL, start `watchTest`
+  add `@variance-authority/eyes/reporter` with an `archive` path to the config's
+  reporters; it folds every worker's journals into that archive. With RTL, start `watchTest`
   from `@variance-authority/eyes/rtl` in per-test setup, publish its closed
   journal with `recordEyesTest` from `@variance-authority/eyes/collect`, and fold
   the run directory once in global teardown with `gatherEyesArchive` +

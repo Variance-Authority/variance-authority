@@ -136,6 +136,8 @@ export interface EyesLog {
 interface EyesTestBase {
   /** Stable producer identity. Titles are not required to be unique. */
   readonly id: string;
+  /** Which run of `id` this is, counted from 0. Absent for a runner that does not retry. */
+  readonly attempt?: number;
   readonly title: string;
   readonly file?: string;
   readonly attention: readonly Attention[];
@@ -181,8 +183,11 @@ export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArch
   const ids = new Set<string>();
   const copied = tests.map((test) => {
     if (test.id === '' || test.title === '') throw new Error('eyes test id and title are required');
-    if (ids.has(test.id)) throw new Error(`duplicate eyes test id: ${test.id}`);
-    ids.add(test.id);
+    // A retry is a second journal under the same id, and a different one: the
+    // attempt is part of the identity, so neither overwrites the other.
+    const identity = eyesJournalName(test);
+    if (ids.has(identity)) throw new Error(`duplicate eyes test id: ${identity}`);
+    ids.add(identity);
     if (!test.complete && test.because.trim() === '') {
       throw new Error(`partial eyes test ${test.id} requires a reason`);
     }
@@ -199,10 +204,17 @@ export function createEyesArchive(tests: readonly EyesTestAttention[]): EyesArch
   return { eyesVersion: 1, tests: copied };
 }
 
+/** One journal's identity: the test id, and the attempt when there is one. */
+export function eyesJournalName(test: { readonly id: string; readonly attempt?: number }): string {
+  return test.attempt === undefined ? test.id : `${test.id} #${test.attempt}`;
+}
+
 /** How a runner names the test whose journal this is. */
 export interface EyesTestIdentity {
   /** Stable producer identity. Titles are not required to be unique. */
   readonly id: string;
+  /** Which run of `id` this is, counted from 0, for a runner that retries. */
+  readonly attempt?: number;
   readonly title: string;
   readonly file?: string;
 }
@@ -229,6 +241,7 @@ export function eyesTestAttention(
 ): EyesTestAttention {
   const base = {
     id: identity.id,
+    ...(identity.attempt === undefined ? {} : { attempt: identity.attempt }),
     title: identity.title,
     ...(identity.file === undefined ? {} : { file: identity.file }),
     attention: attention.map((entry) => ({ ...entry })) as readonly Attention[],

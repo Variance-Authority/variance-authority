@@ -258,51 +258,38 @@ npm install --save-dev @variance-authority/eyes @playwright/test
 npx playwright install chromium
 ```
 
-**2. Compose `eyesFixtures` into the extension module your suite already owns,
-and publish each test's journal.** The `eyes` fixture opens a journal; closing
-and publishing it is yours to do, and the `afterEach` below is what does it.
+**2. Compose `eyesFixtures` into the extension module your suite already owns.**
+The `eyes` fixture opens a journal for each test and publishes it when the test
+is over.
 
 ```ts
 // tests/fixtures.ts
 import { test as base, expect } from '@playwright/test';
-import { eyesTestAttention } from '@variance-authority/eyes';
-import { recordEyesTest } from '@variance-authority/eyes/collect';
 import { eyesFixtures } from '@variance-authority/eyes/playwright';
 
 export const test = base.extend(eyesFixtures);
 export { expect };
+```
 
-test.afterEach(async ({ eyes }, testInfo) => {
-  await recordEyesTest(
-    '.variance/eyes',
-    eyesTestAttention(
-      { id: testInfo.testId, title: testInfo.title, file: testInfo.file },
-      eyes.drain(),
-    ),
-  );
+**3. Add the reporter** to `playwright.config.ts`. It names a fresh directory
+before the first worker starts, and folds every worker's journals into one
+archive when the run ends:
+
+```ts
+export default defineConfig({
+  reporter: [['list'], ['@variance-authority/eyes/reporter', { archive: '.variance/eyes.json' }]],
 });
 ```
 
-**3. Clear and fold once per run**, exactly as in step 4 above, from
-`globalSetup` and `globalTeardown` in `playwright.config.ts`:
+`archive` resolves against the config's `testDir`. A run in which no test
+published a journal writes no archive, removes the previous one, and says so on
+stderr, because no journal is not the same answer as an empty one. Without the
+reporter the fixture publishes nothing, and the journal is still yours to read
+from `eyes` in your own teardown.
 
-```ts
-// playwright.eyes-setup.ts
-import { resetEyesJournals } from '@variance-authority/eyes/collect';
-
-export default async function globalSetup(): Promise<void> {
-  await resetEyesJournals('.variance/eyes');
-}
-```
-
-```ts
-// playwright.eyes-teardown.ts
-import { gatherEyesArchive, writeEyesArchive } from '@variance-authority/eyes/collect';
-
-export default async function globalTeardown(): Promise<void> {
-  await writeEyesArchive('.variance/eyes.json', await gatherEyesArchive('.variance/eyes'));
-}
-```
+Each journal names its test by `testInfo.testId`, which is the id Sense keys the
+same test by, and its file relative to the repository root, which is how Sense
+names it too.
 
 The fixture overrides `page` with an API-compatible proxy that preserves Locator
 chaining and records action, read and assertion consumption, and it installs the
@@ -319,20 +306,17 @@ a reader would refuse fails where it was written.
 `bundleEyesAgent` is exported for custom fixture authors; the standard fixture
 reads and installs that same bundle.
 
-## One journal per test id, enforced
+## One journal per test attempt, enforced
 
-`recordEyesTest` publishes with `link`, so a second journal under a test id
-throws rather than replacing the first — a duplicate id makes the earlier test
-invisible to the archive while every process reports success.
+`recordEyesTest` publishes with `link`, so a second journal under the same test
+and attempt throws rather than replacing the first — a duplicate makes the
+earlier test invisible to the archive while every process reports success.
 
-The consequence to plan for: a test id is stable across retries, so a retried
-test throws in its own teardown when it tries to publish a second time. Run with
-retries disabled, or give `recordEyesTest` an id that includes the attempt.
-
-An id has two jobs, and the second is easy to miss: it must be unique within one
-run, and — where the journal will be read beside a Sense execution index — it
-must be the coordinate Sense keys the same case by. Adding an attempt number
-satisfies the first and breaks the second.
+A retry is a second attempt, not a second test. The Playwright fixture records
+`testInfo.retry` as `attempt`, so a retried test publishes one journal per
+attempt under one id, and the archive holds both. Keep `id` as the coordinate
+Sense keys the test by, and put the attempt in `attempt`: an id with the attempt
+spelled into it no longer joins to anything.
 
 `EYES_JOURNAL_SUFFIX` (`.va-eyes.json`) is what tells a journal apart from
 anything else in the directory; `resetEyesJournals` deletes only files whose

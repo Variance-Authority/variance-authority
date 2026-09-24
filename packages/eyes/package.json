@@ -44,6 +44,10 @@
     "./collect": {
       "types": "./dist/collect.d.ts",
       "default": "./dist/collect.js"
+    },
+    "./reporter": {
+      "types": "./dist/reporter.d.ts",
+      "default": "./dist/reporter.js"
     }
   },
   "main": "./dist/index.js",

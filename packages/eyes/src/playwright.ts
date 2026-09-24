@@ -4,7 +4,16 @@ import type {
   PlaywrightTestArgs,
   PlaywrightWorkerArgs,
 } from '@playwright/test';
-import { createEyesLog, type AttentionDraft, type EyesLog, type TargetSnapshot } from './access.js';
+import { relative, sep } from 'node:path';
+import {
+  createEyesLog,
+  eyesTestAttention,
+  type AttentionDraft,
+  type EyesLog,
+  type TargetSnapshot,
+} from './access.js';
+import { recordEyesTest } from './collect.js';
+import { eyesStage } from './stage.js';
 import { bundleEyesAgent } from './bundle.js';
 import {
   EYES_AGENT,
@@ -15,7 +24,10 @@ import {
 import { instrumentPage } from './playwright-proxy.js';
 
 export interface EyesFixtures {
-  /** Attention collected for this test. The page fixture writes it automatically. */
+  /**
+   * Attention collected for this test. The page fixture writes it, and teardown
+   * publishes it when `@variance-authority/eyes/reporter` is installed.
+   */
   readonly eyes: EyesLog;
 }
 
@@ -58,16 +70,28 @@ export const eyesFixtures: Fixtures<
     { scope: 'worker' },
   ],
 
-  // TODO: this fixture opens a journal and nothing closes it, so a Playwright run
-  // records attention and publishes none of it. Closing it needs `eyesTestAttention`
-  // over `eyes.drain()` under `testInfo`'s identity and `recordEyesTest` into a
-  // directory the run resets once — which the README spells out by hand because a
-  // fixture cannot do it here: `@variance-authority/eyes/collect` is `node:fs`, and
-  // this module is loaded by the same config a browser bundle is built from.
-
+  // Closed at teardown, after `page` — which depends on it and is therefore torn
+  // down first — so every entry the page reported is in before the journal is.
+  // Published only when a run named a stage: without the reporter there is no
+  // process to fold into, and the journal stays the test's own to drain.
   // eslint-disable-next-line no-empty-pattern
-  eyes: async ({}, use) => {
-    await use(createEyesLog());
+  eyes: async ({}, use, testInfo) => {
+    const log = createEyesLog();
+    await use(log);
+    const stage = eyesStage();
+    if (stage === undefined) return;
+    await recordEyesTest(
+      stage.directory,
+      eyesTestAttention(
+        {
+          id: testInfo.testId,
+          attempt: testInfo.retry,
+          title: testInfo.title,
+          file: relative(stage.root, testInfo.file).split(sep).join('/'),
+        },
+        log.drain(),
+      ),
+    );
   },
 
   page: async ({ page, eyes, eyesBundle }, use) => {

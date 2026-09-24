@@ -798,6 +798,10 @@
         "./collect": {
           "types": "./dist/collect.d.ts",
           "default": "./dist/collect.js"
+        },
+        "./reporter": {
+          "types": "./dist/reporter.d.ts",
+          "default": "./dist/reporter.js"
         }
       },
       "files": [
@@ -860,6 +864,10 @@
         "recordEyesTest": "function",
         "resetEyesJournals": "function",
         "writeEyesArchive": "function"
+      },
+      "./reporter": {
+        "EyesReporterOptions": "interface",
+        "default": "class"
       }
     }
   },

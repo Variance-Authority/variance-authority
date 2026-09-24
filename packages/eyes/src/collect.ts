@@ -1,7 +1,12 @@
 import { link, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileNameFor } from '@variance-authority/core/format';
-import { createEyesArchive, type EyesArchive, type EyesTestAttention } from './access.js';
+import {
+  createEyesArchive,
+  eyesJournalName,
+  type EyesArchive,
+  type EyesTestAttention,
+} from './access.js';
 import { parseEyesArchive } from './archive.js';
 
 /**
@@ -50,7 +55,8 @@ export async function recordEyesTest(
   const archive = createEyesArchive([test]);
   await mkdir(directory, { recursive: true });
 
-  const path = join(directory, `${fileNameFor(test.id)}${EYES_JOURNAL_SUFFIX}`);
+  const name = eyesJournalName(test);
+  const path = join(directory, `${fileNameFor(name)}${EYES_JOURNAL_SUFFIX}`);
   const temporary = `${path}.${process.pid}.${crypto.randomUUID()}.tmp`;
   await writeFile(temporary, `${JSON.stringify(archive, null, 2)}\n`, 'utf8');
   try {
@@ -58,11 +64,12 @@ export async function recordEyesTest(
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
     throw new Error(
-      `eyes test ${test.id} already has a journal at ${path}. Two tests under one id makes ` +
+      `eyes test ${name} already has a journal at ${path}. Two tests under one id makes ` +
         'the earlier one invisible to the archive; give each test an id that is stable across ' +
         'runs and unique within one — and, where the journal will be joined against a Sense ' +
         'ExecutionIndex, the coordinate Sense keys a case by, ' +
-        '`<project-relative file> > <describe path and name>`. If this is a second run over ' +
+        '`<project-relative file> > <describe path and name>`. A retry is told apart by ' +
+        '`attempt`, not by the id. If this is a second run over ' +
         'the same directory, call `resetEyesJournals` once when the run starts.',
       { cause: error },
     );

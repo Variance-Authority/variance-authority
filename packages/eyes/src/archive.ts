@@ -31,6 +31,9 @@ export function parseEyesArchive(value: unknown): EyesArchive {
     const id = requiredString(test['id'], `eyes test ${at} id`);
     const title = requiredString(test['title'], `eyes test ${id} title`);
     const file = optionalString(test['file'], `eyes test ${id} file`);
+    const attempt = test['attempt'] === undefined
+      ? undefined
+      : nonNegativeInteger(test['attempt'], `eyes test ${id} attempt`);
     if (typeof test['complete'] !== 'boolean') {
       throw new Error(`eyes test ${id} complete must be boolean`);
     }
@@ -40,10 +43,18 @@ export function parseEyesArchive(value: unknown): EyesArchive {
     const attention = test['attention'].map((entry, index) =>
       checkedAttention(entry, `eyes test ${id} attention ${index}`));
     if (test['complete']) {
-      return { id, title, ...(file === undefined ? {} : { file }), complete: true, attention };
+      return {
+        id,
+        ...(attempt === undefined ? {} : { attempt }),
+        title,
+        ...(file === undefined ? {} : { file }),
+        complete: true,
+        attention,
+      };
     }
     return {
       id,
+      ...(attempt === undefined ? {} : { attempt }),
       title,
       ...(file === undefined ? {} : { file }),
       complete: false,
