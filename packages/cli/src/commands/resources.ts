@@ -1,11 +1,10 @@
 import { said } from '../here.js';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, isAbsolute, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { HistoryStore } from '@variance-authority/history';
 import { createHttpHistoryStore } from '@variance-authority/history/client';
 import type { PngDecoder } from '@variance-authority/png';
-import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import { createEphemeralStore, type RasterStore } from '@variance-authority/raster';
 import { createRemoteStore } from '@variance-authority/remote/store';
 import { createDurableStore } from '@variance-authority/store/durable';
@@ -69,7 +68,7 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
 }
 
 /**
- * Where the render cache goes: outside the work tree, always.
+ * Where the render cache goes: in the cache, never beside the baselines.
  *
  * A durable store is also a render cache, keyed by document digest. Left where
  * the baselines are, the cache of an LFS store lands inside a tracked, LFS-routed
@@ -78,51 +77,42 @@ export async function decoderFor(config: Config): Promise<PngDecoder | undefined
  * The repository then grows without bound with images nobody will ever look at,
  * and the quota that was bought for baselines pays for them.
  *
- * **Why the environment is allowed to decide this, when nothing else is.** The
- * config file refuses inferred values because they change what is observed. This
- * one cannot: the cache is content-addressed by document digest under an identity
- * digest, so a lookup either finds an image painted from this exact document by
- * this exact machine or finds nothing. A wrong location, a stale entry, or a
- * cache shared between projects can therefore cost a re-render and can never
- * produce a wrong image. Cost, not correctness, is a thing `XDG_CACHE_HOME` is
- * entitled to decide.
+ * **Why the location is allowed to fall back to the environment, when nothing
+ * else is.** The config file refuses inferred values because they change what is
+ * observed. This one cannot: the cache is content-addressed by document digest
+ * under an identity digest, so a lookup either finds an image painted from this
+ * exact document by this exact machine or finds nothing. A wrong location, a
+ * stale entry, or a cache shared between projects can therefore cost a re-render
+ * and can never produce a wrong image, so `cacheRootFor` may answer from
+ * `XDG_CACHE_HOME` when the repository names no `cacheRoot`.
  *
- * *What it costs.* A directory nothing in the repository can reach, which is
- * why it prunes itself rather than waiting to be found: `git clean` does not
- * come here, and a path under a dot-directory is not one anybody browses. See
- * {@link sweepRenderCache}, which every run applies.
+ * *What it costs.* A directory the baselines do not reach, which is why it
+ * prunes itself rather than waiting to be found. See {@link sweepRenderCache},
+ * which every run applies.
  */
-export function renderCacheRoot(): string {
-  return cacheRoot('renders');
+export function renderCacheRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'renders');
 }
 
 /**
  * Where suite indexes are kept: this run's, and any a share handed over.
  *
- * Outside the work tree, on the same argument as the render cache above and with
- * one more. An index is addressed by the commit it was written at, so a wrong
+ * In the cache, on the same argument as the render cache above and with one
+ * more. An index is addressed by the commit it was written at, so a wrong
  * location costs a fetch and never an answer; and because the address is a
  * commit rather than a branch, a checkout that moves between branches
  * accumulates both evaluations instead of overwriting one with the other.
- *
- * It is also the directory a CI job is expected to point `actions/cache` at,
- * which is why it is a stable path and not a temporary one.
  */
-export function suiteIndexRoot(): string {
-  return cacheRoot('suite');
+export function suiteIndexRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'suite');
 }
 
-function cacheRoot(kind: string): string {
-  const configured = process.env['XDG_CACHE_HOME'];
-  // A relative `XDG_CACHE_HOME` is meaningless (the spec requires absolute) and
-  // would resolve against whatever directory the run was invoked from, which is
-  // how a cache ends up back inside the work tree it was moved out of.
-  const base =
-    configured !== undefined && configured !== '' && isAbsolute(configured)
-      ? configured
-      : join(homedir(), '.cache');
-
-  return join(base, 'variance-authority', kind);
+/**
+ * The cache `loadConfig` resolved, or the one this directory's repository
+ * names when the config was built in code and never read from a file.
+ */
+function cacheOf(config: Pick<Config, 'cacheRoot'>): string {
+  return config.cacheRoot ?? cacheRootFor(process.cwd());
 }
 
 /**
@@ -312,7 +302,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
       // the tracked root holds baselines and nothing else. See
       // {@link renderCacheRoot}.
       return createDurableStore(baselines.root, {
-        cacheRoot: renderCacheRoot(),
+        cacheRoot: renderCacheRoot(config),
         ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
         // The operator's, unlike the cache root above. A record that is not
         // there costs the run evidence a verdict may turn on, so where it goes
@@ -325,7 +315,7 @@ export async function storeFor(config: Config): Promise<RasterStore> {
         // The tracked root holds baselines and nothing else. See
         // {@link renderCacheRoot} for why this is not the operator's decision to
         // make in the config file and why it is safe for it not to be.
-        cacheRoot: renderCacheRoot(),
+        cacheRoot: renderCacheRoot(config),
         ...(baselines.pattern !== undefined ? { pattern: baselines.pattern } : {}),
         ...(baselines.layout !== undefined ? { layout: baselines.layout } : {}),
         ...(baselines.records !== undefined ? { recordRoot: baselines.records } : {}),

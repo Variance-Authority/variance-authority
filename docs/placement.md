@@ -212,17 +212,17 @@ baselines/v1:6c1f…/by-document/v1:a04e….png
 ```
 
 Commit that cache and the repository grows by a render on every edit, so `npx
-variance run` points it at `$XDG_CACHE_HOME/variance-authority/renders` and
-leaves the configured root with baselines and nothing else. There is no
-config field for the location.
+variance run` points it at `<cache>/renders` in [your cache](cache.md) and
+leaves the configured root with baselines and nothing else. `cacheRoot` in the
+root `variance.config.json` moves it with the rest of the cache.
 Building a store yourself, `createDurableStore` and `createLfsStore` both take
 `cacheRoot`, and both default it to the baseline root — pass a path outside the
 work tree.
 
 ### The cache prunes itself
 
-That directory is outside the work tree, so `git clean` never touches it, and it
-is under a dot-directory nobody browses. Every edit to a document mints a new
+By default that directory is outside the work tree, so `git clean` never
+touches it, and it is under a dot-directory nobody browses. Every edit to a document mints a new
 key and kills the old one — a run against a changed file never asks for the
 previous document's image again — so left alone it is a directory that only
 grows, in a place you have no reason to look.
@@ -230,7 +230,7 @@ grows, in a place you have no reason to look.
 Every run sweeps it, and prints what is left:
 
 ```
-renders: 214.6 MiB cached in /home/you/.cache/variance-authority/renders, freed 91.2 MiB
+renders: 214.6 MiB cached in <cache>/renders, freed 91.2 MiB
 ```
 
 An entry survives on two conditions. It must have been asked for in the last

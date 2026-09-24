@@ -537,8 +537,8 @@ to an array of one.
 | --- | --- | --- |
 | `root` | A directory in the repository. Recorded paths are relative to the checkout that contains it. | The cwd. |
 | `label` | Matches the `label` given to `testSelectionProbes()`. | `build` |
-| `cacheRoot` | Where that build wrote its block records. | The user cache. |
-| `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed user cache. |
+| `cacheRoot` | Where that build wrote its block records. | [The cache](https://variance-authority.dev/docs/cache). |
+| `coverageFile` | The coverage index this run merges into. A relative path is read from `root`. | The repository-keyed file in the cache. |
 | `mode` | The probe recipe, matching the `mode` given to `testSelectionProbes()`. | `presence` |
 | `preconditions` | Files whose contents are a precondition of every observation this run records. | None. |
 | `cases` | Also write the execution index: which individual test covered which region. | `false` |

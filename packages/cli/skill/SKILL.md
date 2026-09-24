@@ -68,14 +68,14 @@ installed — a start point is a path in the source tree, and that is the packag
 that reads the tree. Without it the question is refused in that sentence; asking
 without a start point is unaffected.
 
-**On the caches.** `~/.cache/variance-authority/renders` and
-`~/.cache/variance-authority/scans` hold rendered images and the scan's memory of
-the repository. Nothing has to be invalidated by hand: both are
+**On the caches.** In the cache (https://variance-authority.dev/docs/cache),
+`<cache>/renders` holds rendered images and `<cache>/test-selection` holds the
+source index, the scan's memory of the repository. Nothing has to be invalidated by hand: both are
 content-addressed — a parse under the digest of the bytes it came from, a record
 under that digest and a digest of the tree shape — so a stale entry, a cache from
 another branch, or no cache at all costs a slower run and can never produce a
 different graph or a different image. Runs prune the render cache themselves. To
-force a cold read anyway, delete the directory; `git clean` does not reach it.
+force a cold read anyway, delete the directory.
 
 ## Ask the run, from the shell
 

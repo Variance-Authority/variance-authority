@@ -290,6 +290,11 @@ export const NAVIGATION = [
         cluster: "Decide and retain",
       },
       {
+        href: "/docs/cache",
+        label: "Choose where the cache lives",
+        cluster: "Decide and retain",
+      },
+      {
         href: "/docs/replacing",
         label: "Fit into a screenshot suite",
         cluster: "Adopt it",

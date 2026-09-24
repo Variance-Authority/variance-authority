@@ -70,8 +70,8 @@ export function shareFor(config: Config): SharedCache | undefined {
 }
 
 /** Where this machine keeps the index for one commit of one project. */
-export function suiteIndexPath(project: string, commit: string): string {
-  return join(suiteIndexRoot(), project, `${commit}.bin`);
+export function suiteIndexPath(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): string {
+  return join(suiteIndexRoot(config), config.project, `${commit}.bin`);
 }
 
 /**
@@ -95,7 +95,7 @@ export async function publishSuiteIndex(
   if (index?.commit === undefined) return undefined;
 
   try {
-    await writeSuiteIndex(suiteIndexPath(config.project, index.commit), index);
+    await writeSuiteIndex(suiteIndexPath(config, index.commit), index);
   } catch {
     // A cache this machine could not write is a cache this machine does without.
   }
@@ -120,7 +120,7 @@ export async function publishSuiteIndex(
 export async function publishedLine(config: Config, report: RunReport): Promise<string> {
   const published = await publishSuiteIndex(config, report);
   if (published === undefined) return '';
-  const where = suiteIndexPath(config.project, published.commit);
+  const where = suiteIndexPath(config, published.commit);
   return `suite index: ${where}${published.shared ? ' (published)' : ''}\n`;
 }
 
@@ -158,7 +158,7 @@ export async function mainlineIndex(
 
   for (let behind = 0; behind < lineage.length; behind += 1) {
     const commit = lineage[behind]!;
-    const held = await readLocal(config.project, commit);
+    const held = await readLocal(config, commit);
     if (held !== null) return { commit, behind, from: 'local', index: held };
   }
 
@@ -181,7 +181,7 @@ export async function mainlineIndex(
   try {
     // Kept, so the next command on this machine does not ask again. Under the
     // commit it was published at, which is the commit it describes.
-    await writeSuiteIndex(suiteIndexPath(config.project, hit.commit), index);
+    await writeSuiteIndex(suiteIndexPath(config, hit.commit), index);
   } catch {
     // A read-only cache directory costs one fetch per command and nothing else.
   }
@@ -220,9 +220,9 @@ async function git(args: readonly string[], cwd: string): Promise<string | undef
   }
 }
 
-async function readLocal(project: string, commit: string): Promise<SuiteIndex | null> {
+async function readLocal(config: Pick<Config, 'project' | 'cacheRoot'>, commit: string): Promise<SuiteIndex | null> {
   try {
-    return await readSuiteIndex(suiteIndexPath(project, commit));
+    return await readSuiteIndex(suiteIndexPath(config, commit));
   } catch {
     return null;
   }
@@ -262,7 +262,7 @@ export async function shareLines(
       ];
     }
     return [
-      `suite index at ${published.commit}: ${suiteIndexPath(config.project, published.commit)}`,
+      `suite index at ${published.commit}: ${suiteIndexPath(config, published.commit)}`,
       published.shared ? `offered to ${where}` : 'kept locally; no `share` is configured',
     ];
   }
@@ -285,7 +285,7 @@ export async function shareLines(
       (lexicon === undefined
         ? ', no lexicon'
         : `, lexicon over ${lexicon.fields.length} field(s) of ${lexicon.subjects.length} subject(s)`),
-    `at ${suiteIndexPath(config.project, found.commit)}`,
+    `at ${suiteIndexPath(config, found.commit)}`,
   ];
 }
 

@@ -136,9 +136,10 @@ second half some other way.
 a run records is operational state rather than source.
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/coverage.bin
+<cache>/test-selection/<digest>/coverage.bin
 ```
 
+`<cache>` is [your cache](https://variance-authority.dev/docs/cache).
 `<digest>` is taken from the checkout's absolute path, so two checkouts never
 share bytes. `testCoverageFile(root)` returns that path, and
 `sourceIndexPath(root)` the source index beside it. A git worktree gets
@@ -156,7 +157,7 @@ whatever was there before. There is no separate build step and no `test:since`
 command — this package records evidence and answers questions about it; the
 caller owns the inventory of current test files and the dispatch.
 
-**Cached in CI** by caching `~/.cache/variance-authority` whole and restoring it
+**Cached in CI** by caching `<cache>` whole and restoring it
 to the same absolute checkout path it was written from. Nothing about the branch
 or the commit belongs in the key for correctness, but vary the key anyway so
 each job writes a new entry and starts from the newest one that exists.

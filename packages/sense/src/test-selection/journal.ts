@@ -146,7 +146,7 @@ export interface RecordExecutionOptions {
   readonly root: string;
   readonly subjects: readonly ObservedSubject[];
   /**
-   * Where the record stores live. Defaults to the user cache.
+   * Where the record stores live. Defaults to the repository's cache, `cacheRootFor(root)`.
    *
    * Matches {@link testSelectionProbes}'s `cacheRoot`, and is worth setting only
    * to keep one run's records out of the cache another run reads.
@@ -154,7 +154,7 @@ export interface RecordExecutionOptions {
   readonly cacheRoot?: string;
   /** Matches {@link testSelectionProbes}'s `label`. Defaults to `build`. */
   readonly label?: string;
-  /** Persisted coverage index. Defaults to the repository-keyed user cache. */
+  /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
    * Other builds this same run drove, by the label each instrumented under.

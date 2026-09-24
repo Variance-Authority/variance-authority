@@ -57,8 +57,9 @@ function playwright(work, env = {}) {
         VA_RESULTS: join(work, 'playwright-results'),
         VA_COVERAGE: join(work, 'coverage.bin'),
         // The inventory the service's build writes and the driver reads back.
-        // Keyed by repository, so pointing both at one directory is the whole of
-        // what keeps this run out of a developer's own cache.
+        // Keyed by repository in the cache (docs/cache.md), and this repository
+        // names no `cacheRoot`, so pointing both at one directory is the whole
+        // of what keeps this run out of a developer's own cache.
         XDG_CACHE_HOME: join(work, 'cache'),
         ...env,
       },

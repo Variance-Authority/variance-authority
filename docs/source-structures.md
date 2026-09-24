@@ -34,11 +34,11 @@ source. A cold scan of it rebuilds 24,908 records.
 
 The first row happens once per machine. The rest is what you pay per run.
 
-The index lives under your cache root, in a directory named for a digest of the
-checkout path:
+The index lives in [your cache](cache.md), in a directory named for a digest of
+the checkout path:
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<checkout>/source-index.bin
+<cache>/test-selection/<checkout>/source-index.bin
 ```
 
 Deleting the index and its `source-index.bin.segments/` directory, then running

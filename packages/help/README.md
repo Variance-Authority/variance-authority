@@ -300,8 +300,8 @@ npx @variance-authority/help search session --root ../shadow
 Install it where you will ask more than once, and use `npx` where you will
 not: a checkout you are passing through, a colleague's repository, a tree you
 are reading to decide whether to work in it. The index survives either way — it
-is kept per checkout under `~/.cache/variance-authority/`, honouring
-`XDG_CACHE_HOME`, not inside the tree being read — so a second `npx` run answers
+is kept per checkout in [your cache](../../docs/cache.md), not inside the tree
+being read — so a second `npx` run answers
 out of what the first one learned.
 
 Ask `npx` for the package, not for the binary. `@variance-authority/help` is the

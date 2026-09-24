@@ -64,9 +64,9 @@ export interface Diagnosis {
  *
  * A finding about a directory rather than about a fault, and it is here for the
  * one property the other findings do not have: nobody chose this path. The
- * baseline root is in a config file the operator wrote; the cache is under
- * `XDG_CACHE_HOME` because `run` put it there, and an operator looking at a full
- * disk has no name to search for. A run prunes it and prints its size, and this
+ * baseline root is in a config file the operator wrote; the cache is wherever
+ * `cacheRootFor` answered, usually a default nobody wrote down, and an operator
+ * looking at a full disk has no name to search for. A run prunes it and prints its size, and this
  * is the same answer on demand — including on the machine where the last run
  * was a fortnight ago and the output has scrolled away.
  *

@@ -9,6 +9,7 @@ import agents from "../../../docs/agent-workflows.md?raw";
 import agentWorkspaceApi from "../../../docs/agent-workspace-api.md?raw";
 import attribution from "../../../docs/attribution.md?raw";
 import betterTests from "../../../docs/better-tests.md?raw";
+import cache from "../../../docs/cache.md?raw";
 import cases from "../../../docs/cases.md?raw";
 import changelog from "../../../docs/changelog.md?raw";
 import comparison from "../../../docs/comparison.md?raw";
@@ -177,6 +178,7 @@ const documents = [
   ["native-code", nativeCode, "docs/native-code.md"],
   ["performance", performance, "docs/performance.md"],
   ["sharing", sharing, "docs/sharing.md"],
+  ["cache", cache, "docs/cache.md"],
   ["on-testing", onTesting, "docs/on-testing.md"],
 ] as const;
 

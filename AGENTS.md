@@ -291,9 +291,8 @@ test:since: running the whole suite — the install could not be compared agains
 So a green `test:since` is a smaller claim than a green `verify`: use it in the
 loop, and report against the gate.
 
-The recording is not in the checkout and is not in git. It sits under
-`$XDG_CACHE_HOME`, or `~/.cache` when that is unset, in
-`variance-authority/test-selection/`, in a directory keyed by a digest of this
+The recording is not in git. It sits in [the cache](docs/cache.md), under
+`<cache>/test-selection/`, in a directory keyed by a digest of this
 checkout's absolute path — a worktree's own under `.work/`, layered over the
 primary checkout's, which it reads and never writes. Every `yarn test` folds its
 run into it; that is the whole of the invalidation. Nothing expires and nothing

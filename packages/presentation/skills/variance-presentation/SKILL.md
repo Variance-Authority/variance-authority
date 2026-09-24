@@ -37,7 +37,8 @@ npx playwright install chromium
   this package, but an undeclared import of it is a resolution accident.
 - No configuration file is read. No run must have happened first. The working
   directory does not matter. Nothing is cached: this package writes nothing to
-  `~/.cache/variance-authority/` and has no freshness to invalidate.
+  the cache (https://variance-authority.dev/docs/cache) and has no freshness to
+  invalidate.
 
 ### The page agent bundle
 

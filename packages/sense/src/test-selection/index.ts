@@ -3,7 +3,7 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { BlockKind } from '../instrument/index.js';
-import { defaultCacheRoot, layeredFiles, repositoryLayers } from './cache-layers.js';
+import { layeredFiles, repositoryLayers } from './cache-layers.js';
 import { deviationFromView } from './deviation.js';
 import {
   journeyDivergences,
@@ -104,8 +104,9 @@ export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
 export { foldTestCoverage, mergeCoverage };
 export {
+  CACHE_CONFIG,
   cacheLayers,
-  defaultCacheRoot,
+  cacheRootFor,
   layeredFiles,
   repositoryLayers,
   type CacheLayers,
@@ -244,7 +245,7 @@ export interface DeviationOptions {
  *
  * A worktree's is empty until {@link seedTestCoverage} fills it.
  */
-export function testCoverageFile(root: string, cacheRoot = defaultCacheRoot()): string {
+export function testCoverageFile(root: string, cacheRoot?: string): string {
   return resolve(repositoryLayers(root, cacheRoot).top, 'coverage.bin');
 }
 
@@ -277,7 +278,7 @@ export function testCoverageFile(root: string, cacheRoot = defaultCacheRoot()): 
 export async function seedTestCoverage(
   file: string,
   root: string,
-  cacheRoot = defaultCacheRoot(),
+  cacheRoot?: string,
 ): Promise<void> {
   const layers = repositoryLayers(root, cacheRoot);
   // A caller that named its own file owns it, and it is not a layer of
@@ -315,7 +316,7 @@ export async function seedTestCoverage(
  */
 export async function readableTestCoverage(
   root: string,
-  cacheRoot = defaultCacheRoot(),
+  cacheRoot?: string,
 ): Promise<string> {
   const files = layeredFiles(repositoryLayers(root, cacheRoot), 'coverage.bin');
   for (const file of files) {

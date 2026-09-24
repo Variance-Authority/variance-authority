@@ -14,7 +14,7 @@ export type { RenderCacheSwept };
  * prune` would be documentation of a path, and an operator who has read the
  * documentation was never the one whose disk filled up.
  *
- * **Unconditional, and the config is deliberately not read.** Only a `directory`
+ * **Unconditional: the config says where the cache is and nothing about whether to sweep it.** Only a `directory`
  * or `lfs` store writes here — an `ephemeral` run keeps its renders in a `Map`
  * and a `remote` one leaves them at the far end — so the obvious gate is to
  * sweep only on the two modes that fill the directory. That gate is backwards.
@@ -30,11 +30,7 @@ export type { RenderCacheSwept };
  * The cost on a run with no cache is one failed `readdir`.
  */
 export async function sweepRenders(config: Config): Promise<RenderCacheSwept> {
-  // Named for the signature every other command in this directory takes, and
-  // unused on purpose: see above. A parameter removed here is a parameter the
-  // next reader adds back as a gate.
-  void config;
-  return await sweepRenderCache(renderCacheRoot());
+  return await sweepRenderCache(renderCacheRoot(config));
 }
 
 /**

@@ -54,9 +54,9 @@ export interface ExecutionReporterOptions {
   readonly root?: string;
   /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
   readonly label?: string;
-  /** Where that build wrote its records. Defaults to the user cache. */
+  /** Where that build wrote its records. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
-  /** The coverage index. Defaults to the repository-keyed user cache. */
+  /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
    * The probe recipe the build placed, matching `testSelectionProbes()`'s

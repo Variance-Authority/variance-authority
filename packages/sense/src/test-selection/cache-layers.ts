@@ -19,7 +19,7 @@
  * checkout of it gets a directory of its own beneath that base:
  *
  * ```
- * <cacheRoot>/variance-authority/test-selection/<repository>/
+ * <cache>/test-selection/<repository>/
  *   coverage.bin, names.bin, <label>/     the base: the primary checkout's own
  *   .work/<workspace>/                    one per worktree
  *     coverage.bin, names.bin, <label>/
@@ -52,9 +52,60 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { digestString } from '../digest.js';
 import { repositoryRoot } from './repository-root.js';
 
-/** The default cache root, honouring the XDG variable the rest of the tree honours. */
-export function defaultCacheRoot(): string {
-  return process.env['XDG_CACHE_HOME'] ?? resolve(homedir(), '.cache');
+/** The file a repository names its cache directory in, at its root. */
+export const CACHE_CONFIG = 'variance.config.json';
+
+const configured = new Map<string, string | undefined>();
+
+/**
+ * The directory everything variance-authority caches for `root` lives in.
+ *
+ * The repository owns the answer, in `cacheRoot` of the {@link CACHE_CONFIG}
+ * at its root, resolved against that root. It beats the environment on
+ * purpose: a sandboxed agent that may not write `~/.cache` sets
+ * `XDG_CACHE_HOME` to a temporary directory, and a project that named a
+ * directory inside its checkout must not have its recording split by that.
+ * Without the key it is `variance-authority` under `XDG_CACHE_HOME`, or under
+ * `~/.cache` when that is unset, empty or relative — the XDG specification
+ * requires an absolute path, and a relative one would resolve against
+ * whichever directory the run started in.
+ *
+ * Only `cacheRoot` is read here. The rest of the file is the CLI's, and the
+ * CLI refuses what it does not know; a file this cannot parse, or a
+ * `cacheRoot` that is not a path, is an error rather than a default, because
+ * the cache a run would fall back to is one the reader never sees.
+ */
+export function cacheRootFor(root: string): string {
+  const repository = repositoryRoot(root);
+  if (!configured.has(repository)) configured.set(repository, readCacheRoot(repository));
+  const named = configured.get(repository);
+  if (named !== undefined) return named;
+  const xdg = process.env['XDG_CACHE_HOME'];
+
+  return resolve(xdg !== undefined && isAbsolute(xdg) ? xdg : resolve(homedir(), '.cache'), 'variance-authority');
+}
+
+function readCacheRoot(repository: string): string | undefined {
+  const file = resolve(repository, CACHE_CONFIG);
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+  let value: unknown;
+  try {
+    value = (JSON.parse(text) as { cacheRoot?: unknown } | null)?.cacheRoot;
+  } catch (error) {
+    throw new Error(`${file} is not JSON, so the cache directory it names cannot be read: ${(error as Error).message}`);
+  }
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value === '') {
+    throw new Error(`${file}: "cacheRoot" must be a directory path, not ${JSON.stringify(value)}`);
+  }
+
+  return resolve(repository, value);
 }
 
 /**
@@ -79,12 +130,16 @@ export interface CacheLayers {
  * a checkout does not become a different checkout while a process runs, and the
  * cost is one small read for the first module of a build.
  */
-export function cacheLayers(root: string, cacheRoot = defaultCacheRoot()): CacheLayers {
+export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
   const here = resolve(root);
   const primary = primaryCheckout(here);
-  const base = resolve(cacheRoot, 'variance-authority', 'test-selection', keyOf(primary));
+  const base = resolve(cacheRoot ?? cacheRootFor(primary), 'test-selection', keyOf(primary));
+  if (primary === here) return { top: base, base };
+  // Each checkout reads its own `cacheRoot`: a relative one names a directory
+  // inside the worktree, which is the one directory a sandboxed agent may write.
+  const own = resolve(cacheRoot ?? cacheRootFor(here), 'test-selection', keyOf(primary));
 
-  return primary === here ? { top: base, base } : { top: resolve(base, '.work', keyOf(here)), base };
+  return { top: resolve(own, '.work', keyOf(here)), base };
 }
 
 /**
@@ -99,7 +154,7 @@ export function cacheLayers(root: string, cacheRoot = defaultCacheRoot()): Cache
  * question asked on the read side. The source index is not one of these — its
  * records are a scan root's, and two roots in one repository keep two.
  */
-export function repositoryLayers(root: string, cacheRoot = defaultCacheRoot()): CacheLayers {
+export function repositoryLayers(root: string, cacheRoot?: string): CacheLayers {
   return cacheLayers(repositoryRoot(root), cacheRoot);
 }
 

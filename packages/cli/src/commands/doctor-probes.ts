@@ -40,9 +40,9 @@ export interface DoctorProbes {
   /**
    * This machine's render cache: where it is, and what each identity holds.
    *
-   * A probe with no argument, because unlike a baseline root the operator never
-   * chose this path — `variance run` puts the cache under `XDG_CACHE_HOME` and
-   * nothing in a config can move it. Reporting it is therefore the only way an
+   * A probe with no argument, because unlike a baseline root the operator
+   * usually never chose this path — `cacheRoot` is optional, and without it the
+   * cache is a default under the home directory. Reporting it is therefore how an
    * operator learns the directory exists at all, which is the condition it is
    * reported for: a cache that prunes itself and a cache nobody can find are
    * still two different problems.
@@ -93,7 +93,7 @@ export function machineProbes(config: Config): DoctorProbes {
         return false;
       }
     },
-    renderCache: async () => readRenderCache(renderCacheRoot()),
+    renderCache: async () => readRenderCache(renderCacheRoot(config)),
     partitions: async (root) => {
       const found = new Map<string, number>();
       // A root that cannot be listed is reported by `exists` in the same finding.

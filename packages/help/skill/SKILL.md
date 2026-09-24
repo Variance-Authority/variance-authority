@@ -398,8 +398,9 @@ file as it is, rather than a copy taken when the reading was.
 
 ## Read freshness literally
 
-The index is kept per checkout under `~/.cache/variance-authority/` — or under
-`$XDG_CACHE_HOME` when that is set — outside the tree being read, so it survives
+The index is kept per checkout in the cache
+(https://variance-authority.dev/docs/cache), outside the tree being read unless
+that repository's `cacheRoot` names a place inside it, so it survives
 a throwaway install and nothing is written into somebody else's repository.
 
 The source index is content-keyed. The answerable workspace generation has a

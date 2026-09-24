@@ -234,7 +234,7 @@ describe('a store of module records', () => {
 
   it('names one directory per build, under the repository it is a build of', () => {
     expect(storeOf('app')).not.toBe(storeOf('preview'));
-    expect(storeOf()).toContain('variance-authority');
+    expect(storeOf().startsWith(resolve(cacheRoot, 'test-selection'))).toBe(true);
     expect(recordStore('/repo', 'build', cacheRoot)).not.toBe(
       recordStore('/other', 'build', cacheRoot),
     );

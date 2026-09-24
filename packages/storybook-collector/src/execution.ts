@@ -37,7 +37,7 @@ export interface StoryExecutionOptions {
   readonly root?: string;
   /** Matches the `label` the build's `testSelectionProbes()` used. Defaults to `build`. */
   readonly label?: string;
-  /** Where the build wrote its block records. Defaults to the user cache. */
+  /** Where the build wrote its block records. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;

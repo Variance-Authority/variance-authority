@@ -82,12 +82,12 @@ a baseline loses the comparison; losing a share costs a rebuild.
 
 ## Publishing
 
-Every `npx variance run` writes its suite index to this machine, under the
-commit the report names, and offers it to the share when one is configured:
+Every `npx variance run` writes its suite index to [your cache](cache.md) on
+this machine, under the commit the report names, and offers it to the share when one is configured:
 
 ```text
 report: .variance/report.json
-suite index: ~/.cache/variance-authority/suite/web/3f1c…bd.bin (published)
+suite index: <cache>/suite/web/3f1c…bd.bin (published)
 ```
 
 A run whose report names no commit publishes nothing — a laptop mid-edit is such
@@ -114,7 +114,7 @@ asks the share, since a commit's index is the same bytes wherever it is read.
 ```text
 mainline evaluation at 3f1c9a2…, 2 commit(s) behind the newest this tree descends from, from the share.
 412 subject(s), 168 component(s), lexicon over 9 field(s) of 412 subject(s)
-at ~/.cache/variance-authority/suite/web/3f1c9a2….bin
+at <cache>/suite/web/3f1c9a2….bin
 ```
 
 What it found is kept on disk under that commit, so nothing on this machine asks
@@ -198,7 +198,9 @@ command with `npx variance share --ref <ref>`.
 ## GitHub Actions
 
 The expected arrangement, and the one to use first: a cache step around the
-directory the index is kept in, before the run.
+directory the index is kept in, before the run. That directory is
+`<cache>/suite`, which is `~/.cache/variance-authority/suite` unless your
+repository names another [cache](cache.md):
 
 ```yaml
       - name: Restore the mainline evaluation
@@ -234,7 +236,7 @@ free.
 Either kind works, and they differ in who does the talking.
 
 With the CLI, which is the arrangement to prefer when the runner already has
-credentials: sync a directory before and after the run.
+credentials: sync `<cache>/suite` before and after the run.
 
 ```yaml
       - run: aws s3 sync s3://example-variance/suite ~/.cache/variance-authority/suite

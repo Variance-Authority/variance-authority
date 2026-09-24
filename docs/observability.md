@@ -136,7 +136,7 @@ fields: `root` (a directory in the repository, defaults to the current directory
 recorded paths are relative to the checkout that contains it), `include`
 (which transformed modules count as product source), `label` (defaults to
 `build`, and separates two bundlers over one repository), `cacheRoot` (where
-the module records go, defaulting to the user cache), and `mode` (`presence`,
+the module records go, defaulting to [the cache](cache.md)), and `mode` (`presence`,
 the default, probes every arrival region; `entries` probes modules and functions
 only). Every seam that shares a coverage file needs the same `mode`: a record
 cut by one mode is discarded when the other merges over it. Give a Storybook preview
@@ -361,13 +361,13 @@ seen, and it is what `--since` reads. It is a binary snapshot outside your work
 tree:
 
 ```
-<cache>/variance-authority/test-selection/<repository-digest>/coverage.bin
+<cache>/test-selection/<repository-digest>/coverage.bin
 ```
 
-`<cache>` is `XDG_CACHE_HOME`, or `~/.cache` when that is unset, and
+`<cache>` is [your cache](cache.md), and
 `<repository-digest>` is a digest of the checkout's absolute path, so two
-checkouts never write one another's bytes. `git status` never sees it and it
-can never land in a pull request. Nothing in a head or a page writes a file; the
+checkouts never write one another's bytes. At the default location `git status`
+never sees it and it can never land in a pull request. Nothing in a head or a page writes a file; the
 driver merges into this one snapshot at teardown. [The execution
 record](execution-record.md) gives the reader to import and the cost of a
 lookup, a merge and a fold across shards.

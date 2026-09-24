@@ -90,9 +90,9 @@ live('a Playwright suite over a Storybook it opens itself', () => {
   it('records every spec by the documents it held, and never a replaced one as whole', async () => {
     await inFreshWork(async (work) => {
       // The records the probes write while Storybook builds, and the ones the
-      // run reads back, are keyed by repository under the user cache, so one
-      // `XDG_CACHE_HOME` for both is the whole of what keeps this run out of a
-      // developer's own.
+      // run reads back, are keyed by repository in the cache (docs/cache.md).
+      // This repository names no `cacheRoot`, so one `XDG_CACHE_HOME` for both
+      // is the whole of what keeps this run out of a developer's own.
       const cache = { XDG_CACHE_HOME: join(work, 'cache') };
       const built = await run(
         [join(modules, 'storybook/bin/index.cjs'), 'build', '-o', join(work, 'static'), '--quiet'],

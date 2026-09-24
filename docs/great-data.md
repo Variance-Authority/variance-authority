@@ -138,9 +138,9 @@ of one subject, and a suite of any size pays it once per run. The three files
 the record lives in — the source index, the [execution record](execution-record.md)
 and the [lexicon](lexicon.md) — are sized in [addressing scale](scale.md), each
 against a different count of your own: the modules in your checkout, the modules
-your suite covers, and the subjects it captures. The scan's caches sit under
-`XDG_CACHE_HOME`, outside the work tree, so nothing about them is committed and
-`git clean` will not take them. Instruments you have not installed cost nothing:
+your suite covers, and the subjects it captures. The scan's caches sit in
+[your cache](cache.md), outside the work tree unless you name a place inside it,
+so nothing about them is committed. Instruments you have not installed cost nothing:
 journeys need a build that includes the selection probes, and `openVantage()`
 reads one environment variable per worker and returns nothing when it is
 unset. What accumulates across runs lives in a service you run in your own

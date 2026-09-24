@@ -86,7 +86,7 @@ export interface TestSelectionProbeOptions {
    * block ordinal with whichever build wrote its inventory last.
    */
   readonly label?: string;
-  /** Where the module records go. Defaults to the user cache. */
+  /** Where the module records go. Defaults to the repository's cache, `cacheRootFor(root)`. */
   readonly cacheRoot?: string;
   /**
    * `presence` probes every arrival region; `entries` probes modules and

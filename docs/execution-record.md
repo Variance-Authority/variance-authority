@@ -23,22 +23,23 @@ Find it with `testCoverageFile(root)`, or with `readableTestCoverage(root)` when
 you want the nearest snapshot a worktree can actually read:
 
 ```
-<cache>/variance-authority/test-selection/<repository-digest>/coverage.bin
+<cache>/test-selection/<repository-digest>/coverage.bin
 ```
 
-`<cache>` is `XDG_CACHE_HOME`, or `~/.cache` when that is unset.
+`<cache>` is [your cache](cache.md).
 `<repository-digest>` is a digest of the checkout's absolute path, so two
 checkouts never write one another's bytes. A worktree writes its own layer under
 `.work/<workspace-digest>/` beneath that directory and reads the primary
 checkout's as a fallback, so a worktree cut this morning inherits what the
 repository already recorded instead of re-transforming it.
 
-**Do not commit it, and add nothing to `.gitignore` for it.** The default path
-is outside your work tree: `git status` never sees it, `git clean` never takes
-it, and it never lands in a pull request. The one case that needs an ignore
-entry is one you create — pass `coverageFile` to a runner integration to put
-the snapshot at a path you name, typically inside the repository so CI
-can upload it as an artifact, and then ignore that path. Turning on `cases`
+**Do not commit it.** The default path is outside your work tree: `git status`
+never sees it, `git clean` never takes it, and it never lands in a pull request.
+Two cases need an ignore entry, and you create both. Set `cacheRoot` to a path
+inside the checkout, and ignore that directory as [the cache](cache.md) page
+shows. Or pass `coverageFile` to a runner integration to put the snapshot at a
+path you name, typically inside the repository so CI can upload it as an
+artifact, and ignore that path. Turning on `cases`
 writes a second file at `<coverageFile>.cases.bin`, under the same rule.
 
 Three more things live under that directory. Each instrumenting build keeps a
@@ -131,7 +132,7 @@ they return are the ones this page describes.
 | Import from | Names |
 |---|---|
 | `@variance-authority/sense/instrument` | `instrument`, `instrumentationId`, `instrumentModeOf`, `INSTRUMENTATION_ID`, `EVALUATING`; types `Block`, `BlockKind`, `Instrumented`, `InstrumentOptions`, `ModuleId` |
-| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `defaultCacheRoot`, `layeredFiles`; types `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex` |
+| `@variance-authority/sense/test-selection` | `testCoverageFile`, `readableTestCoverage`, `seedTestCoverage`, `readTestCoverage`, `writeTestCoverage`, `writeCoverageBytes`, `openCoverageFile`, `askCoverageFile`, `selectTestFiles`, `narrowByExecution`, `mergeCoverage`, `foldTestCoverage`, `changedLines`, `coveringTests`, `coveringTestsInFile`, `recordedCommit`, `cacheLayers`, `cacheRootFor`, `CACHE_CONFIG`, `repositoryLayers`, `layeredFiles`; types `CacheLayers`, `TestCoverage`, `CoverageModule`, `CoverageBlock`, `CoverageTest`, `CoveragePrecondition`, `CoverageFile`, `CoverageShard`, `ExecutionIndex` |
 | `@variance-authority/sense/journal` | `testSelectionProbes`, `drainExecution`, `recordExecution`, `joinObservations`, `EXECUTION_GLOBAL`; types `ExecutedModule`, `ExecutionJournal`, `EvaluatingPage`, `ObservedSubject` |
 | `@variance-authority/sense/journey` | `collectJourneys`, `stitchJourneys`, `mintJourney`, `journeyOf`, `JOURNEY_COOKIE`, `JOURNEY_VARIABLE`, `JOURNEY_HEAD_VARIABLE`; types `JourneyAccount`, `JourneyReport`, `StitchedJourneys` |
 

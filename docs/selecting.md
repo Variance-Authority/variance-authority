@@ -339,9 +339,8 @@ xychart-beta horizontal
   bar [0, 0, 0, 0]
 ```
 
-Both caches live under `XDG_CACHE_HOME` (or `~/.cache`), keyed by repository
-root, outside the work tree — so nothing here is committed and `git clean` will
-not take it. Both halves are content-addressed, which is what makes their
+Both caches live in [your cache](cache.md), keyed by repository root, outside
+the work tree unless you name a place inside it — so nothing here is committed. Both halves are content-addressed, which is what makes their
 location a cost decision, not a correctness one: a stale entry, a cache
 from another branch, or no cache at all costs a slower scan and does not produce
 a different graph for the tracked tree. Deleting them costs one cold scan and

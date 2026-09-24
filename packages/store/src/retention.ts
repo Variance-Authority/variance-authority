@@ -6,9 +6,9 @@ import { join } from 'node:path';
 /**
  * The bound on the render cache, applied by whoever owns the directory.
  *
- * The cache under `$XDG_CACHE_HOME/variance-authority/renders` is the one thing
- * this project writes that nothing was ever going to delete. It is outside the
- * work tree, so `git clean` does not reach it; it is under a dot-directory, so
+ * The cache's `renders` directory is the one thing
+ * this project writes that nothing was ever going to delete. By default it is outside
+ * the work tree, so `git clean` does not reach it; it is under a dot-directory, so
  * nobody browses it; and every edit to a document mints a new key, so the old
  * one is dead the moment it is written — a run against a changed file never asks
  * for the previous document's image again. Left alone it is a directory that

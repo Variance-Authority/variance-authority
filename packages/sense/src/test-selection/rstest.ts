@@ -39,7 +39,7 @@ export interface RstestTestSelectionOptions {
    * to it, and relative option paths resolve against it.
    */
   readonly root?: string;
-  /** Persisted coverage index. Defaults to the repository-keyed user cache. */
+  /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /** Decide which bundled modules are product source. */
   readonly include?: (file: string) => boolean;

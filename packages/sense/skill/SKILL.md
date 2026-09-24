@@ -38,7 +38,8 @@ first that fails is the whole answer.
    `tools/test-since.mjs` imports the built `dist`, not `src`.
 
 The snapshot lands at
-`${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest of the checkout's absolute path>/coverage.bin`.
+`<cache>/test-selection/<digest of the checkout's absolute path>/coverage.bin`,
+where `<cache>` is the cache (https://variance-authority.dev/docs/cache).
 `testCoverageFile(root)` returns that path — ask it rather than composing it. A
 git worktree writes to `.work/<its own digest>/` beneath the primary checkout's
 directory and reads both layers.

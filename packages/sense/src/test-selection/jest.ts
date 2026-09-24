@@ -35,7 +35,7 @@ export interface JestTestSelectionOptions {
    * relative option paths resolve against it.
    */
   readonly root?: string;
-  /** Persisted coverage index. Defaults to the repository-keyed user cache. */
+  /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
    * Additional files whose contents are preconditions of every test observation.

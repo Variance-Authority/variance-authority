@@ -2,8 +2,7 @@
 
 Run `variance run` once and look at what it leaves on disk: a report at
 `.variance/report.json`, PNGs beside it, an approved baseline directory it only
-updates when you accept a change, and cache entries under
-`$XDG_CACHE_HOME/variance-authority`.
+updates when you accept a change, and entries in [your cache](cache.md).
 
 A **subject** is one named UI state you asked for and can ask for again — a
 story, a route, a fixture, or a value — under an id that survives a rename. A
@@ -304,9 +303,8 @@ executions can refer to the same state.
 Pixel bytes have three distinct homes:
 
 - **Render cache:** a disposable raster keyed by document digest and painter
-  identity. The CLI places its local cache under
-  `$XDG_CACHE_HOME/variance-authority/renders`, falling back to
-  `~/.cache/variance-authority/renders`. A miss or cache failure costs a paint.
+  identity. The CLI places its local cache at `<cache>/renders`, in
+  [your cache](cache.md). A miss or cache failure costs a paint.
 - **Run images:** candidate, baseline, and diff PNGs retained for review. They
   default beside `.variance/report.json`, under `.variance/images`, and the
   report references them by relative path. A CI job must upload the report and
@@ -347,8 +345,7 @@ reader opens only the sections its query needs. Reach trails and query results
 are computed per run and are not stored.
 
 The index lives in the configured source-index root. The CLI's local namespace
-is `$XDG_CACHE_HOME/variance-authority/test-selection/<checkout-digest>`, falling
-back to `~/.cache/variance-authority/test-selection/<checkout-digest>`.
+is `<cache>/test-selection/<checkout-digest>`, in [your cache](cache.md).
 `variance index` writes it, and the commands that use the file graph read it. A
 generation names its format, source contents, directory membership, and
 resolution and toolchain basis. Readers reject an incompatible, foreign,
@@ -366,8 +363,8 @@ index costs a source scan and cannot change the selected answer.
 
 The Vitest integration consolidates temporary worker journals into a versioned
 `TestCoverage` binary. Its default location is
-`$XDG_CACHE_HOME/variance-authority/test-selection/<repository-digest>/coverage.bin`,
-falling back to `~/.cache`. `coverageFile` gives it an explicit path when CI must
+`<cache>/test-selection/<repository-digest>/coverage.bin`, in
+[your cache](cache.md). `coverageFile` gives it an explicit path when CI must
 publish, restore, or share the artifact. Temporary journals are removed after
 consolidation.
 

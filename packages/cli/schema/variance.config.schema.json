@@ -90,6 +90,11 @@
       "minimum": 1,
       "default": 1,
       "description": "How many subjects may be in the raster tier at once. Collection stays strictly serial however high this is set. Each lane holds a browser page and the decoded pixels of two images, so this is a memory decision as much as a speed one. Observations are written in plan order, so raising it changes what a run costs and never what it says."
+    },
+    "cacheRoot": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The directory variance-authority caches in, relative to this file. Read only from the variance.config.json at the repository root, by the CLI and every test runner alike. Without it the cache is the default described at https://variance-authority.dev/docs/cache."
     }
   },
   "$defs": {

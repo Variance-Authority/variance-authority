@@ -52,9 +52,9 @@ export interface ExecutionRecording {
   readonly root?: string;
   /** Matches the `label` given to `testSelectionProbes()`. Defaults to `build`. */
   readonly label?: string;
-  /** Where that build wrote its records. Defaults to the user cache. */
+  /** Where that build wrote its records. Defaults to the repository's cache. */
   readonly cacheRoot?: string;
-  /** The coverage index. Defaults to the repository-keyed user cache. */
+  /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
   /**
    * Services that report their own crossings, by the name each one collects

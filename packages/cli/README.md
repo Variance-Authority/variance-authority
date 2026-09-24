@@ -400,7 +400,7 @@ variance covering --since main
 
 ```text
 2 changed files since main, 5 changed regions: 1 nothing covered, 2 covered by one case.
-Read from ~/.cache/variance-authority/test-selection/<digest>/coverage.bin.cases.bin, recorded at 8a72c74.
+Read from <cache>/test-selection/<digest>/coverage.bin.cases.bin, recorded at 8a72c74.
 
 src/checkout/total.ts
   41-60 function applyDiscount — 3 cases
@@ -803,7 +803,7 @@ variance journeys shard-1/coverage.bin shard-2/coverage.bin shard-3/coverage.bin
 ```
 
 ```
-folded 3 snapshots into /home/ci/.cache/variance-authority/test-selection/1f3a…/coverage.bin
+folded 3 snapshots into <cache>/test-selection/1f3a…/coverage.bin
   342 observations over 1204 modules, recorded at 4f2a1c9d0b73
 
 app/src/components/CartCard.tsx  3 observers
@@ -850,7 +850,7 @@ variance select --format vitest
 ```
 
 ```
-source index updated: 1236 files, 3 read again, at /home/you/.cache/variance-authority/test-selection/<digest>/source-index.bin
+source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
 ```
 
 It scans the whole checkout, rebuilds only the records of files whose bytes

@@ -25,7 +25,7 @@ import { mkdirSync, openSync, writeSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
-import { defaultCacheRoot, repositoryLayers, seedFromBase } from './cache-layers.js';
+import { repositoryLayers, seedFromBase } from './cache-layers.js';
 import type { CoverageBlock } from './index.js';
 import {
   UNNUMBERED,
@@ -53,7 +53,7 @@ export interface CapturedModule {
 }
 
 /** Where a repository keeps the numbers it calls its modules by. */
-export function moduleNamesFile(root: string, cacheRoot = defaultCacheRoot()): string {
+export function moduleNamesFile(root: string, cacheRoot?: string): string {
   return resolve(repositoryLayers(root, cacheRoot).top, 'names.bin');
 }
 
@@ -63,7 +63,7 @@ export function moduleNamesFile(root: string, cacheRoot = defaultCacheRoot()): s
  * The read path for the numbering: see {@link seedFromBase} for why a worktree
  * must own the table rather than read across it.
  */
-export function openModuleNames(root: string, cacheRoot = defaultCacheRoot()): string {
+export function openModuleNames(root: string, cacheRoot?: string): string {
   const layers = repositoryLayers(root, cacheRoot);
   seedFromBase(layers, ['names.bin', 'names.bin.segments']);
 
@@ -90,7 +90,7 @@ export function openModuleNames(root: string, cacheRoot = defaultCacheRoot()): s
  * repository's cache and a label, and Jest takes its own cache directory and its
  * project id, which is Jest's own word for the thing a label means here.
  */
-export function recordStore(root: string, label = 'build', cacheRoot = defaultCacheRoot()): string {
+export function recordStore(root: string, label = 'build', cacheRoot?: string): string {
   return resolve(repositoryLayers(root, cacheRoot).top, label);
 }
 
@@ -113,7 +113,7 @@ export function recordStore(root: string, label = 'build', cacheRoot = defaultCa
 export function recordStores(
   root: string,
   label = 'build',
-  cacheRoot = defaultCacheRoot(),
+  cacheRoot?: string,
 ): readonly string[] {
   const layers = repositoryLayers(root, cacheRoot);
 

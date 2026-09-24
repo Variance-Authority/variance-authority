@@ -75,9 +75,10 @@ that line, and asks `narrowByExecution` about it:
 
 ## Scope
 
-The build writes its head inventory to your cache, keyed by repository. The
-outer file points `XDG_CACHE_HOME` at its own temporary directory, which keeps
-the run out of your cache. The coverage file and Playwright's results go to the
+The build writes its head inventory to [your cache](../../docs/cache.md), keyed
+by repository. This repository names no `cacheRoot`, so the outer file points
+`XDG_CACHE_HOME` at its own temporary directory, which keeps the run out of your
+cache. The coverage file and Playwright's results go to the
 same temporary directory, and it is removed when the run ends.
 
 A document the spec replaced is not read after it goes, so that spec runs again

@@ -9,6 +9,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { cacheRootFor } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
@@ -48,7 +49,21 @@ export async function loadConfig(path: string): Promise<Config> {
     throw new ConfigError(source, '(file)', `is not valid JSON: ${messageOf(error)}`);
   }
 
-  return parseConfig(value, { source, baseDir: dirname(resolve(path)) });
+  const baseDir = dirname(resolve(path));
+  const config = parseConfig(value, { source, baseDir });
+  // The test runners find the cache from the repository alone, so a
+  // `cacheRoot` in any other file would be a second answer only this command
+  // reads: the recording would go one place and the question another.
+  const cacheRoot = cacheRootFor(baseDir);
+  if (config.cacheRoot !== undefined && config.cacheRoot !== cacheRoot) {
+    throw new ConfigError(
+      source,
+      'cacheRoot',
+      'is read from the variance.config.json at the repository root, where every test runner ' +
+        'looks for it; this file is not that one, so set it there',
+    );
+  }
+  return { ...config, cacheRoot };
 }
 
 /** Whether a failed read is the file simply not being there. */

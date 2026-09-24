@@ -33,7 +33,7 @@ unchanged, and appends what changed as a new layer. It prints one line — how
 many files the index holds, and how many it read again:
 
 ```text
-source index updated: 1236 files, 3 read again, at /home/you/.cache/variance-authority/test-selection/<digest>/source-index.bin
+source index updated: 1236 files, 3 read again, at <cache>/test-selection/<digest>/source-index.bin
 ```
 
 These commands read what `variance index` published, and do not scan:
@@ -116,12 +116,12 @@ published records to the directories one question is about.
 
 ## Where it goes
 
-Under your cache root, in a directory named for a digest of the checkout's
+In [your cache](cache.md), in a directory named for a digest of the checkout's
 absolute path with links resolved:
 
 ```text
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/source-index.bin
-${XDG_CACHE_HOME:-~/.cache}/variance-authority/test-selection/<digest>/source-index.bin.segments/
+<cache>/test-selection/<digest>/source-index.bin
+<cache>/test-selection/<digest>/source-index.bin.segments/
 ```
 
 `<digest>` is the first 32 hexadecimal characters of the SHA-256 of that path,
@@ -135,9 +135,8 @@ A git worktree keeps its own index under
 `test-selection/<primary digest>/.work/<digest>/`, beneath the checkout it was
 cut from. Its first `variance index` starts from a copy of that checkout's
 index and reads only the files that differ between the two.
-`sourceIndexPath(root)` returns the path for a checkout. Cache
-`${XDG_CACHE_HOME:-~/.cache}/variance-authority` whole and you do not need to
-compute either.
+`sourceIndexPath(root)` returns the path for a checkout. Cache the whole
+`<cache>` directory and you do not need to compute either.
 
 **The index is two things on disk.** Beside `source-index.bin` is a directory
 `source-index.bin.segments/` that contains the data; the file itself is only
@@ -151,7 +150,8 @@ checkout's index again, so delete that one as well if you want nothing reused. T
 so delete the index and not the directory:
 
 ```bash
-dir="${XDG_CACHE_HOME:-$HOME/.cache}/variance-authority/test-selection/$(printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32)"
+# <cache> is your cache directory: see cache.md
+dir="<cache>/test-selection/$(printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32)"
 rm -rf "$dir/source-index.bin" "$dir/source-index.bin.segments"
 variance index
 ```
@@ -178,7 +178,9 @@ changes is saved once and restored forever: every later job restores the index
 as it was on the day it was first written and re-scans everything that has
 changed since, which looks like a warm cache and costs a cold one. Put the
 commit in the key and the stable part in the restore prefix, so each job saves
-its own entry and starts from the newest one that exists:
+its own entry and starts from the newest one that exists. `path` is your cache
+directory, `~/.cache/variance-authority` unless your repository names another
+(see [the cache](cache.md#in-ci)):
 
 ```yaml
 - uses: actions/cache@v4

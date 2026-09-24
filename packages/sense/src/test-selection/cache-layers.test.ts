@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { nameModules, readModuleNames, type ModuleNames } from '../module-names.js';
 import { withIndexLock } from './index-lock.js';
-import { cacheLayers, layeredFiles, repositoryLayers } from './cache-layers.js';
+import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
 import { openModuleNames, recordStore, recordStores } from './instrumented-modules.js';
 import {
   readTestCoverage,
@@ -45,6 +45,56 @@ async function worktree(at: string, gitdir: string): Promise<string> {
 
   return path;
 }
+
+describe('where the repository says the cache is', () => {
+  async function repository(config?: unknown): Promise<string> {
+    const at = await mkdtemp(resolve(tmpdir(), 'va-cache-root-'));
+    execFileSync('git', ['init', '--quiet', at]);
+    if (config !== undefined) await writeFile(resolve(at, 'variance.config.json'), JSON.stringify(config));
+
+    return at;
+  }
+
+  test('`cacheRoot` at the repository root answers for every directory in it, over XDG_CACHE_HOME', async () => {
+    const at = await repository({ project: 'p', cacheRoot: '.variance/cache' });
+    const member = resolve(at, 'packages', 'member');
+    await mkdir(member, { recursive: true });
+    vi.stubEnv('XDG_CACHE_HOME', '/tmp/elsewhere');
+
+    expect(cacheRootFor(at)).toBe(resolve(at, '.variance/cache'));
+    expect(cacheRootFor(member)).toBe(resolve(at, '.variance/cache'));
+    vi.unstubAllEnvs();
+  });
+
+  test('without the key it is the user cache, and XDG_CACHE_HOME counts only when absolute', async () => {
+    const at = await repository({ project: 'p' });
+    vi.stubEnv('XDG_CACHE_HOME', '/xdg');
+    expect(cacheRootFor(at)).toBe(resolve('/xdg', 'variance-authority'));
+    vi.stubEnv('XDG_CACHE_HOME', '');
+    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
+    vi.stubEnv('XDG_CACHE_HOME', 'relative');
+    expect(cacheRootFor(at)).toBe(resolve(homedir(), '.cache', 'variance-authority'));
+    vi.unstubAllEnvs();
+  });
+
+  test('a `cacheRoot` that is not a path is refused, naming the file', async () => {
+    const at = await repository({ cacheRoot: 7 });
+
+    expect(() => cacheRootFor(at)).toThrow(`${resolve(at, 'variance.config.json')}: "cacheRoot" must be a directory path, not 7`);
+  });
+
+  test('with a relative `cacheRoot`, a worktree writes inside itself and reads the primary checkout', async () => {
+    const at = await checkout();
+    const path = await worktree(at, resolve(at, 'primary', '.git', 'worktrees', 'feature'));
+    for (const where of [resolve(at, 'primary'), path]) {
+      await writeFile(resolve(where, 'variance.config.json'), JSON.stringify({ cacheRoot: '.cache' }));
+    }
+    const layers = cacheLayers(path);
+
+    expect(layers.base.startsWith(resolve(at, 'primary', '.cache', 'test-selection'))).toBe(true);
+    expect(layers.top.startsWith(resolve(path, '.cache', 'test-selection'))).toBe(true);
+  });
+});
 
 describe('where a checkout keeps its cache', () => {
   test('the primary checkout reads and writes one directory', async () => {

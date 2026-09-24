@@ -150,9 +150,9 @@ describe('narrowByExecution', () => {
 });
 
 describe('selectTestFiles', () => {
-  it('keeps the default snapshot outside the repository and keys it by root', () => {
+  it('keeps the snapshot in the cache it is given and keys it by root', () => {
     expect(testCoverageFile('/work/one', '/cache')).toMatch(
-      /^\/cache\/variance-authority\/test-selection\/[a-f0-9]+\/coverage\.bin$/,
+      /^\/cache\/test-selection\/[a-f0-9]+\/coverage\.bin$/,
     );
     expect(testCoverageFile('/work/one', '/cache')).not.toBe(
       testCoverageFile('/work/two', '/cache'),
