@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/store",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Variance Authority baselines on a filesystem, in a plain directory or through git-LFS.",
   "keywords": [
     "variance-authority",
