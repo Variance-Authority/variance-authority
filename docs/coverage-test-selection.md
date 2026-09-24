@@ -1,0 +1,229 @@
+# Coverage-based test selection
+
+Coverage-based test selection runs, after a change, only the tests that
+executed the code you changed, according to a recording of an earlier run.
+[Variance Authority](README.md) records that relation on the suite you already
+run, for no more than 8% of its run time, and parses each changed file as it was
+recorded and as your diff leaves it before it selects a test. On an unmodified
+Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where the
+import graph selects 131.
+
+This page compares that approach with other selectors: what each one records,
+where each one widens, and what each one costs to run on every change.
+[Running less of the suite](selecting.md) is the exact contract.
+
+## The idea is old
+
+Running only the tests that executed the changed code is regression test
+selection, and research has studied it for decades.
+[On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
+covers that research. Tools have shipped it for years:
+
+| Tool | What it records per test | What a change is charged at |
+|---|---|---|
+| [Ekstazi](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf), Java research | The class and resource files the test loaded | File |
+| [Microsoft Test Impact Analysis](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis), .NET | The files the test depends on | File |
+| [pytest-testmon](https://testmon.org/), Python | Coverage, split into function bodies and one module body, each checksummed from its syntax tree | Block |
+| [Wallaby.js](https://wallabyjs.com/docs/), JavaScript in the editor | The code each test ran | Test |
+| [Datadog Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis/how_it_works/), JavaScript and others | The code files the test covered | File |
+| [CircleCI Smarter Testing](https://circleci.com/docs/guides/test/set-up-test-impact-analysis/) | The files the test covered | File |
+| [Teamscale](https://docs.teamscale.com/tutorial/tia-java/) and [Sealights](https://docs.sealights.io/knowledgebase/test-optimization/how-it-works) | The methods the test ran | Method |
+
+Several of them already ignore edits a test cannot observe. pytest-testmon
+compares syntax trees, so a comment or whitespace change selects nothing.
+Teamscale documents the same for comments, whitespace and renames. Ekstazi
+ignores the debug information that changes when line numbers change.
+
+The selectors built into your tools work from the import graph instead:
+`jest --changedSince` and `vitest --changed` decide by file, and `nx affected`
+and `turbo --affected` decide by project. Google's TAP and Meta's predictive
+test selection both considered per-test coverage for their monorepos and
+decided against it. The [TAP
+paper](https://huang.isis.vanderbilt.edu/cs8395/paper/google-testing-icse-seip-17.pdf)
+names the overhead of instrumentation and how quickly churn makes a coverage
+report obsolete. The [Meta paper](https://arxiv.org/abs/1810.05286) calls
+accurate per-test coverage impractical in a large monolithic repository and
+learns from past failures instead.
+
+Most of them share two limits. Recording costs real time: [Ekstazi's
+first collection run](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf) costs about 8× on one subject, and Datadog [reports a 25%
+median](https://www.datadoghq.com/blog/engineering/ruby-test-impact-analysis/)
+for its own Ruby extension against 200% to 400% for the stock tracers. And a
+change to a module's top level is charged to every test that loaded the module.
+Wallaby says so for its default, and has a
+[project-wide option](https://wallabyjs.com/docs/config/overview/) that stops
+charging a module's loading at all. No tool here documents what sits between
+the two: charging a changed top-level value to the tests that ran code reading
+it.
+
+## Why execution narrows further than imports
+
+[Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) calls the code
+one test executed, shown in one view, its **test story**. A
+[journey](journeys.md) is the same list of code one test ran, stored after the
+run. Selection reads journeys. A change to code in some test's journey selects
+that test. A change to code in no journey selects nothing, because no test ran
+it. Past a module's top level, a test rarely runs all of a module: it runs the
+functions and branches its own behaviour needs.
+
+An import graph tells you which tests load the changed module. The stories tell
+you which tests ran the changed code. In a well-tested codebase those two answers are far apart,
+for two reasons.
+
+**Good tests divide the work.** Each test in a well-composed suite checks one
+behaviour, so the tests of a module cover different, overlapping branches of
+it, and none of them runs all of it. A change to one branch is charged only to
+the tests that took that branch. Seen from one test file, the same rule applies:
+the file is charged with changes to the branches it ran, not with every change
+to every module it loads. In Zod, 131 test files load `locales/ru.ts`, 2 of
+them call `getRussianPlural`, and 1 runs the branch the example edit
+changes.
+
+**Distance puts conditions between a test and a module.** Most imports
+between a test and a module add code that decides whether the module is called
+at all. The further
+a test is from a module, the more often it loads the module and never calls it,
+because execution took another branch before it got there. In TanStack Query,
+149 of 188 test files load `query.ts`, and the median region in it is run by
+29 of them. The import graph counts all 149. The [execution record](execution-record.md) counts the tests
+that ran the changed region: the function, branch arm or loop body the edit is
+in.
+
+In the record, a shared module is charged to the tests that ran the changed
+code. In the graph, it is charged to every test that imports it, and most of a
+graph-based selector's extra runs come from those modules.
+
+## Four questions that decide whether it works on every change
+
+Every coverage-based tool above records some version of the same relation:
+this test executed that code. What decides whether you can run one on every
+change is how it answers four questions.
+
+**What does the recording cost?** The coverage your runner already offers
+reads the engine's counters, and those counters cover every script the worker
+loaded, whether a test used it or not. On three public suites, `--coverage`
+adds 26% to 30% to every run and produces a union with no record of which test
+covered what. Reading those counters once per test costs 2.1× to 2.7× on a
+jsdom suite. At that cost the per-test relation is not
+recorded on every run, so it describes an older commit.
+
+**What grain does a change charge?** A selector that decides by package or by
+file inherits the way modules load. Zod has 202 test files, and 196 of them
+import the code they test through one barrel. Change one line in
+`locales/ru.ts` and the package graph selects 201 files. The import graph
+selects 131, the files that load `ru.ts`. A record of which functions or regions
+ran shows that 2 of those 131 ran the function you changed.
+
+**What does an edit to a module's top level mean?** A line outside any function
+runs as the module loads, so by its lines alone it is charged to every test
+that loaded the file. Most edits there change nothing a test can observe: a
+comment, a type, a new function nobody calls yet. A changed constant matters
+only to the code that reads it. A selector that charges by line either runs
+every test that loaded the module for these edits, or skips tests it should
+run.
+
+**What happens to a dependency the record does not list?** A test can depend on a
+file it never imports: a schema read from disk, a fixture, an image. It can
+also depend on a module loaded by a path the import graph does not list. A
+selector that treats "not recorded" as "not affected" skips those tests
+without telling you.
+
+## What Variance Authority does about each
+
+**It records with a probe, not the profiler.** The recorder writes a counter at
+each region as your code is transformed, so the cost depends on what your tests
+ran. On Zod, TanStack Query and Material UI, recording costs at most 1.02×,
+1.08× and 1.03× the plain run, against 1.26× to 1.30× for `--coverage` on the
+same suites. At that
+cost you can record on every run, which keeps the record current.
+[Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
+has the measurements and how they were made.
+
+**It records blocks, and names them by position in the tree.** A region is a
+function, a branch arm, a loop body or a handler, and its identity is its
+address in the module's syntax tree rather than its line numbers. Inserting a
+function above a region does not change the region's identity. The
+[execution record](execution-record.md#identity-under-an-edit) shows how an
+identity survives an edit.
+
+**It reads each changed file from both of its texts.** The recorded text and
+the text your diff produces are parsed, and the edit gets one verdict: nothing
+a test can observe, changed function bodies, changed top-level values, or
+changed load-time behaviour. As in pytest-testmon and Teamscale, a comment or a
+formatting change selects nothing. A TypeScript type selects nothing either,
+because no test runs it. A changed value is charged to the tests that
+ran a function that reads it, in the same file or in a file that imports it,
+not to every test that loaded the file.
+[What a change to a module's top level runs](selecting.md#what-a-change-to-a-modules-top-level-runs)
+lists each verdict and what it selects.
+
+```mermaid
+flowchart LR
+  accTitle: How far each grain narrows one edit to Zod
+  pkg["package graph<br/>201 of 202 files"]
+  file["import graph<br/>131 files load ru.ts"]
+  rec["execution record<br/>6 files in 8 runs: 2 selected,<br/>4 that always run"]
+  pkg --> file --> rec
+```
+
+**What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
+record did not observe whole always runs. A changed file the record has no data for is
+parsed the same way; if parsing cannot decide, the tests of the recorded files
+that import it are selected. A file
+your code reads from disk is an edge when you declare it with
+`/// <depends path="…" />`, and a changed image or stylesheet selects the tests of the
+modules that import it. A test that loaded a changed file through an edge the
+graph does not list is printed by name and is not selected: the missing edge is
+the thing to fix. Every run prints one line per changed file saying how it was
+read, or why it could not be.
+[Where selection widens](selecting.md#where-selection-widens) lists each case.
+
+The record is columnar and shares repeated
+test sets, so the record of a 300,000-module repository is 42 MB, and one edit
+reads a small part of that file.
+[How the test-to-code map stays small](how-selection-scales.md) explains the
+format.
+
+## What it saves on real suites
+
+Both case studies replay the sixty commits before the setup commit, on an
+unmodified fork with one commit of setup:
+
+| | Zod | TanStack Query |
+|---|---|---|
+| Test files | 202 | 188 |
+| One-line edit, package graph | 201 files | 168 files, from `nx affected` |
+| One-line edit, test files that load the changed module | 131 files | 149 files |
+| One-line edit, the record | 6 files in 8 runs, 1.6 s instead of 8.1 s | 10 files, 4.4 s instead of 12.7 s |
+| Test file runs skipped over sixty commits | at least 51% | at least 79% |
+| Recording cost, at most | 1.02× | 1.08× |
+
+[Zod](selection-zod.md) and [TanStack Query](selection-tanstack-query.md) have
+the scripts every figure came from.
+
+## What it does not do
+
+It selects whole test files, as Datadog and CircleCI do. What differs is what
+a file is charged with: the regions it ran, not every file it covered. The same
+run records which test case covered which region, and [test-level coverage](test-level-coverage.md) reads that to
+explain a line, but a skip list stays at file grain.
+
+It does not rank, predict or learn from history. A test runs because the
+record saw it execute changed code, or because the record cannot rule it out.
+A selector that learns from past failures can skip more, and it can also skip
+a test that would have failed; this one does not make that trade.
+
+A record describes the commit it was recorded at. A change is measured from
+that commit rather than from your branch point, so a record several commits old
+selects for every change made since. Record on every run and the record is
+never more than one commit old.
+
+## Start
+
+- [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
+  `@variance-authority/sense`, then pass `$(variance select --format vitest)`
+  to your runner.
+- [Measure test distance](distance.md) to run the tests nearest to a change
+  first.
+- [Run relevant work](run-relevant-work.md) when the tests are visual subjects
+  rather than unit tests.

@@ -28,6 +28,7 @@ import gates from "../../../docs/gates.md?raw";
 import greatData from "../../../docs/great-data.md?raw";
 import history from "../../../docs/history.md?raw";
 import howSelectionScales from "../../../docs/how-selection-scales.md?raw";
+import coverageTestSelection from "../../../docs/coverage-test-selection.md?raw";
 import ignores from "../../../docs/ignores.md?raw";
 import index from "../../../docs/README.md?raw";
 import information from "../../../docs/information.md?raw";
@@ -143,6 +144,7 @@ const documents = [
   ["source", source, "docs/source.md"],
   ["changes-before-and-beyond", changesBeforeAndBeyond, "docs/changes-before-and-beyond.md"],
   ["selecting", selecting, "docs/selecting.md"],
+  ["coverage-test-selection", coverageTestSelection, "docs/coverage-test-selection.md"],
   ["how-selection-scales", howSelectionScales, "docs/how-selection-scales.md"],
   ["selection-zod", selectionZod, "docs/selection-zod.md"],
   [

@@ -168,8 +168,9 @@ The systems differ, but each treats execution as a decision under limited time
 rather than a sacred requirement to run everything on every change.
 
 Variance Authority takes a narrower position on the evidence used for that
-decision. It joins source relationships with recorded execution and gives a
-reason for each selected or excluded test. A test with no complete recording
+decision. It joins source relationships with [recorded
+execution](coverage-test-selection.md) and gives a reason for each selected or
+excluded test. A test with no complete recording
 runs, so missing evidence never becomes a skip. [Run relevant work](run-relevant-work.md) is the
 task-level route, and [select the tests that matter](selecting.md) is the exact
 selection contract.

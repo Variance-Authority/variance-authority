@@ -84,6 +84,11 @@ export const NAVIGATION = [
         clusterOverview: true,
       },
       {
+        href: "/docs/coverage-test-selection",
+        label: "Coverage-based test selection",
+        cluster: "Run less of the suite",
+      },
+      {
         href: "/docs/selecting",
         label: "Select the tests that matter",
         cluster: "Run less of the suite",
