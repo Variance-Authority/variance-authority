@@ -48,6 +48,7 @@ import { native } from '../addon.js';
 import type { NativeModuleReaders } from '../native.js';
 import { blocksAround, gapInside, moduleRegion, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
+import { declaredEffects } from './effects.js';
 import { frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { importedAsAsset, type ExecutionNarrowingOptions } from './importers.js';
@@ -69,9 +70,9 @@ export type FileReading =
        */
       readonly unseen?: readonly string[];
       /**
-       * What turned the verdict to `load`: the file itself, or a source an
-       * import started or stopped binding from, whose package declares that
-       * loading it does something.
+       * The files whose package declares that loading them does something, and
+       * which turned the verdict to `load`: the file itself, or a file an import
+       * it started or stopped binding loads, directly or through what it imports.
        */
       readonly effects?: readonly string[];
     }
@@ -126,7 +127,7 @@ export function readChange(
   const reading = { file, verdict: verdict.kind, names: verdict.names };
   if (verdict.kind === 'load') return { reading, charged: false };
   if (verdict.kind === 'none') return { reading, charged: true };
-  const effects = declaredEffects(context, file, verdict.imported);
+  const effects = declaredEffects(context.options.root, context.options.relations, file, verdict.imported);
   if (effects.length > 0) {
     // The lines of a body edit map to the body alone; a declared load is every
     // test that loaded the file.
@@ -207,7 +208,7 @@ export function readRowless(
   const reading = { file, verdict: verdict.kind, names: verdict.names };
   if (verdict.kind === 'load') return { reading, charged: false };
   if (verdict.kind === 'none') return { reading, charged: true };
-  const effects = declaredEffects(context, file, verdict.imported);
+  const effects = declaredEffects(context.options.root, context.options.relations, file, verdict.imported);
   if (effects.length > 0) return { reading: { file, verdict: 'load', names: [], effects }, charged: false };
 
   const exports = [...new Set([...now.interface, ...verdict.gone])];
@@ -423,19 +424,6 @@ function chargeModule(
       }
     }
   }
-}
-
-/**
- * Of a changed file and the sources it started or stopped importing from,
- * those whose package declares that loading them does something. Nothing is
- * asked without a `root`, which leaves the assumption that loading a module
- * only declares what it exports.
- */
-function declaredEffects(context: ReadingContext, file: string, imported: readonly string[]): readonly string[] {
-  const { root } = context.options;
-  const scanner = native();
-  if (root === undefined || scanner?.declaredEffects === undefined) return [];
-  return scanner.declaredEffects(root, file, [...imported]);
 }
 
 /** The first of these names the graph holds as a file. */

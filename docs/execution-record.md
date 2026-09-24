@@ -619,9 +619,10 @@ below is one stage of that call.
    charges its module. An import that binds a name is a use by the functions
    that read it, so an import added to a file charges those functions and not
    the file's loaders. When you pass `root`, the `package.json` each changed
-   file and each added or removed import resolves into is asked for its
-   `sideEffects`: a declared file, or an importer of one, is `load`, and its
-   reading lists the declared names in `effects`. A test that crossed the
+   file sits under, and of every file an added or removed import loads at any
+   depth that the file did not already load, is asked for its `sideEffects`: a
+   declared file, or an importer that starts or stops loading one, is `load`,
+   and its reading lists the declared files in `effects`. A test that crossed the
    changed module through no importer the graph holds is listed in `unseen` and
    charged nothing. `load` charges the lines as step 4 does. Under `bodies`
    or `values`, text inserted in a gap no region spans charges nothing. A file

@@ -32,6 +32,8 @@ const tests = (...names: string[]): string[] => names.map((name) => named(`test/
 const limits = named('src/limits.ts');
 const slider = named('src/slider.ts');
 const wrap = named('src/wrap.ts');
+const retries = named('src/retries.ts');
+const retrying = named('src/retrying.ts');
 const everyLoader = tests('clamp', 'count', 'fill', 'label', 'render', 'slide', 'step', 'unit');
 
 let directory: string;
@@ -104,6 +106,13 @@ const using = (text: string): string =>
     .replace("import { LIMIT as max } from './limits';", "import { LIMIT as max } from './limits';\nimport { wrap } from './wrap';")
     .replace('return value > max ? max : value;', 'return value > max ? max : wrap(value);');
 
+const retryingText = "import { attempts } from './retries';\n\nexport function retrying(): number {\n  return attempts();\n}\n";
+/** `slider.ts` with `slide` calling `name`, imported from `source`. */
+const slidingThrough = (text: string, name: string, source: string): string =>
+  text
+    .replace("import { LIMIT as max } from './limits';", `import { LIMIT as max } from './limits';\nimport { ${name} } from '${source}';`)
+    .replace('return value > max ? max : value;', `return value > max ? max : value * ${name}();`);
+
 describe('a change travels by use', () => {
   it('holds the premise: every test the fixture has loaded a file the next cases reach', () => {
     expect(existsSync(resolve(repository, wrap))).toBe(false);
@@ -157,7 +166,7 @@ describe('a change travels by use', () => {
     const narrowing = await narrowByExecution(coverageFile, diff, { ...tree, sourceAt });
     expect(narrowing.readings).toEqual([
       { file: wrap, verdict: 'load', names: [], effects: [wrap] },
-      { file: slider, verdict: 'load', names: [], effects: ['./wrap'] },
+      { file: slider, verdict: 'load', names: [], effects: [wrap] },
     ]);
     expect(narrowing.entered).toEqual(tests('label', 'slide'));
   });
@@ -169,6 +178,57 @@ describe('a change travels by use', () => {
     const diff = (await diffOf(wrap, undefined, wrapText)) + (await diffOf(slider, recorded.get(slider), now));
     const narrowing = await narrowByExecution(coverageFile, diff, { ...tree, sourceAt });
     expect(narrowing.entered).toEqual(tests('slide'));
+  });
+
+  it('charges an import of a quiet module to every loader when what it loads is declared', async () => {
+    // `retrying.ts` is in the tree and no test ever loaded it, so it is not in
+    // the diff. It is quiet; `retries.ts` behind it is what the package declares.
+    const now = slidingThrough(recorded.get(slider)!, 'retrying', './retrying');
+    const manifest = JSON.stringify({ sideEffects: ['./src/retries.ts'] });
+    const tree = await treeAfter({ [retrying]: retryingText, [slider]: now, [named('package.json')]: manifest });
+    const narrowing = await narrowByExecution(coverageFile, await diffOf(slider, recorded.get(slider), now), {
+      ...tree,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: slider, verdict: 'load', names: [], effects: [retries] }]);
+    expect(narrowing.entered).toEqual(tests('label', 'slide'));
+  });
+
+  it('charges the same import to its caller alone when nothing it loads is declared', async () => {
+    const now = slidingThrough(recorded.get(slider)!, 'retrying', './retrying');
+    const tree = await treeAfter({ [retrying]: retryingText, [slider]: now });
+    const narrowing = await narrowByExecution(coverageFile, await diffOf(slider, recorded.get(slider), now), {
+      ...tree,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: slider, verdict: 'bodies', names: [] }]);
+    expect(narrowing.entered).toEqual(tests('slide'));
+  });
+
+  it('charges nothing for a declared module the file already loaded', async () => {
+    // `registry.ts` loads `limits.ts`, which `slider.ts` imported before the
+    // change: whatever loading it does ran then too.
+    const now = slidingThrough(recorded.get(slider)!, 'count', './registry');
+    const manifest = JSON.stringify({ sideEffects: ['./src/limits.ts'] });
+    const tree = await treeAfter({ [slider]: now, [named('package.json')]: manifest });
+    const narrowing = await narrowByExecution(coverageFile, await diffOf(slider, recorded.get(slider), now), {
+      ...tree,
+      sourceAt,
+    });
+    expect(narrowing.readings).toEqual([{ file: slider, verdict: 'bodies', names: [] }]);
+    expect(narrowing.entered).toEqual(tests('slide'));
+  });
+
+  it('charges a removed import of a declared module to every test that loads the importer', async () => {
+    const before = recorded.get(slider)!;
+    const now = before
+      .replace("import { LIMIT as max } from './limits';\n\n", '')
+      .replace('return value > max ? max : value;', 'return value > 10 ? 10 : value;');
+    const manifest = JSON.stringify({ sideEffects: ['./src/limits.ts'] });
+    const tree = await treeAfter({ [slider]: now, [named('package.json')]: manifest });
+    const narrowing = await narrowByExecution(coverageFile, await diffOf(slider, before, now), { ...tree, sourceAt });
+    expect(narrowing.readings).toEqual([{ file: slider, verdict: 'load', names: [], effects: [limits] }]);
+    expect(narrowing.entered).toEqual(tests('label', 'slide'));
   });
 
   it('charges an edit inside a function of a declared file to every test that loaded it', async () => {
@@ -206,3 +266,7 @@ describe('a change travels by use', () => {
     );
   });
 });
+
+it.todo(
+  "an edit to a package's `sideEffects` charges every test that loaded a file whose declaration moved — needs a changed manifest read against its recorded text, where selection reads it only as the install it records",
+);

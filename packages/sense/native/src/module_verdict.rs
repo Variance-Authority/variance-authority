@@ -229,6 +229,9 @@ fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
                     view.bind(local.name.to_string(), Bound::Import(format!("{} {imported}", it.source.value)));
                 }
             }
+            // FIXME: a re-export that binds names is a use by whoever imports
+            // them, as an import that binds names is; adding or removing one of
+            // an undeclared module charges every test that loaded this file.
             Statement::ExportFromDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
             Statement::ExportAllDeclaration(it) => view.step(Step::From(it.source.value.as_str())),
             // An export list without a source runs nothing.

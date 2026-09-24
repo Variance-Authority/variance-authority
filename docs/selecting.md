@@ -99,8 +99,10 @@ imported names, not every subject that loads the file. This assumes that loading
 a module only declares what it exports. When loading it does more, say so where
 your bundler already looks: the `sideEffects` field of the module's
 `package.json`. A file that field declares, by `true` or by a matching pattern,
-is charged to every subject that loaded it, and an import of it added or removed
-is charged to every subject that loaded the importer. A test that loaded a
+is charged to every subject that loaded it. An import you add or remove is
+charged to every subject that loaded the importer when it starts or stops
+loading a declared file, directly or through what that file imports, that the
+importer did not already load. A test that loaded a
 changed file through no import the file graph holds is named, not selected: the
 edge the graph is missing is the thing to fix. The run prints a line per changed file saying how it was read, or why it
 could not be — a diff that does not apply to the recorded text, a text that does

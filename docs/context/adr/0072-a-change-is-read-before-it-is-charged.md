@@ -64,13 +64,17 @@ exports. A module that runs something as it loads says so in its own text and
 gets `load`, which charges its importers' loaders.
 
 **A package declares the rest, and its word is taken over the text's.** The
-`sideEffects` field of the manifest the resolver lands in is the answer every
-bundler already reads to the same question. When it is `true`, or holds a
-pattern matching the changed file, the file is `load`. When it matches the
-target of an import added or removed, the importer is `load`. Either reading
-carries `effects`, the names the declaration covered. `false`, or no field,
-leaves the assumption standing. The manifest is asked only when the caller
-passes `root`, the directory the diff's names are relative to.
+`sideEffects` field of the nearest `package.json` above a file is the answer
+every bundler already reads to the same question. When it is `true`, or holds a
+pattern matching the changed file, the file is `load`. An import added or
+removed is asked the same question of everything it loads: only the sources the
+diff moved are resolved, the graph walks each target's runtime closure, and the
+closure of the file's unchanged imports is subtracted, because what the file
+already loaded runs whether or not the new import names it. A declared file
+left over makes the importer `load`. Either reading carries `effects`, the
+declared files, as repository paths. `false`, or no field, leaves the
+assumption standing. The manifest is asked only when the caller passes `root`,
+the directory the diff's names are relative to.
 
 **A moved value is charged where it is read.** The reads are lexical, and a
 parameter with the same name counts as a read. A read inside a function charges
@@ -128,8 +132,16 @@ and its package say whether loading it does something, and both are read.
 - **An undeclared module that runs something is trusted to be quiet when it did
   not change.** A new import of a module whose text is unchanged, whose package
   declares no `sideEffects`, and which runs something at load, charges only the
-  functions that use its names. The package is the owner of that answer, and
-  the fix is its declaration.
+  functions that use its names. A bundler reads the missing field the other
+  way and keeps the module; this reads it as the author's silence. The package
+  is the owner of that answer, and the fix is its declaration.
+- **The declaration is matched against the file the scan resolves to.** A
+  pattern naming `dist/` does not match an import the `source` condition
+  resolved into `src/`. The resolver runs with the scan's default options.
+- **An edit to `sideEffects` itself charges nothing new.** Selection reads a
+  changed manifest only as the install it records.
+- **A re-export is still a load step.** Adding or removing one charges every
+  test that loaded the file, even when the target is undeclared.
 - **The reading is only as good as the recording's lines.** A recording made
   before `sense:instrument/presence-v5` placed parameters and injected helpers on
   the wrong lines. It is read as stale and recorded again.

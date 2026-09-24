@@ -44,7 +44,7 @@ const REPOSITORY = 'variance-authority';
  * workflow step nobody runs is exactly the shape this ledger is for. Markdown is
  * not: prose is the medium this mechanism exists to replace.
  */
-const SCANNED = /\.(ts|tsx|js|jsx|mjs|cjs|sh|yml|yaml)$/;
+const SCANNED = /\.(ts|tsx|js|jsx|mjs|cjs|rs|sh|yml|yaml)$/;
 
 /** This file and its checker spell the markers in order to find them. */
 const SELF = new Set(['tools/unrun.mjs', 'tools/unrun.check.ts']);

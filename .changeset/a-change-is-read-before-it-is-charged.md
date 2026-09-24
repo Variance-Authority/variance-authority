@@ -24,9 +24,10 @@ reason naming the value, the file that declares it and the file that reads it.
 
 A change travels by use. A new module selects nothing until something calls it,
 and an import added to a file charges the functions that use its names, not
-every test that loads the file. With `root`, the `package.json` a changed file
-or an added or removed import resolves into is asked for `sideEffects`: a
-declared file, or an importer of one, is read as `load`, and its reading lists
-the declared names in `effects`. A test that loaded a changed module through no
+every test that loads the file. With `root`, the nearest `package.json` of a
+changed file, and of every file an added or removed import loads that the file
+did not already load, is asked for `sideEffects`: a declared file, or an
+importer that starts or stops loading one, is read as `load`, and its reading
+lists the declared files in `effects`. A test that loaded a changed module through no
 importer the graph holds is listed in the reading's `unseen` and no longer
 selected.

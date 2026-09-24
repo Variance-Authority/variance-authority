@@ -6,52 +6,71 @@
 //! pattern matching the file, is the author saying that loading it runs
 //! something the importer never names, so an import of it is a use by
 //! whatever loads the importer. `false`, or no field, leaves the assumption
-//! standing.
+//! standing — where a bundler would keep the module, this reads the absence as
+//! the author's silence, and the fix for a module that is loud is its
+//! declaration.
 //!
-//! The manifest is found by the resolver that resolves the import, so the
-//! package that answers is the one the import lands in, and a pattern is
-//! matched the way rolldown matches it.
+//! The file graph owns which file an import lands in and what that file
+//! loads; this answers only for files the caller names. A file answers to the
+//! nearest `package.json` above it, which is the one a bundler reads, and a
+//! pattern is matched the way rolldown matches it.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use napi_derive::napi;
-use oxc_resolver::SideEffects;
+use serde_json::Value;
 
 use crate::resolve::Resolvers;
 
-/// Of a changed file and the sources it imports from, those whose package
-/// declares that loading them does something: the file first, under its own
-/// name, then each source as written.
+/// Where each source a file imports from lands: the repository path, the
+/// absolute path of a file outside the checkout, or an empty string when
+/// nothing resolves. The sources a diff added or removed are the ones the
+/// graph cannot name, because it holds edges and not the words that wrote them.
 #[napi]
-pub fn declared_effects(root: String, file: String, sources: Vec<String>) -> Vec<String> {
+pub fn resolve_sources(root: String, file: String, sources: Vec<String>) -> Vec<String> {
     let resolvers = Resolvers::new(None, None);
-    let from = Path::new(&root).join(&file);
-    let mut declared = Vec::new();
-    if effectful(&resolvers, &from, &from.to_string_lossy()) {
-        declared.push(file);
-    }
-    declared.extend(sources.into_iter().filter(|source| effectful(&resolvers, &from, source)));
-    declared
+    // The resolver answers with the path a symlink leads to, and a repository
+    // path is cut from the root that path lies under.
+    let root = std::fs::canonicalize(&root).unwrap_or_else(|_| PathBuf::from(&root));
+    let from = root.join(&file);
+    sources
+        .iter()
+        .map(|source| {
+            resolvers
+                .resolve(&root, &from, source, None)
+                .or_else(|| resolvers.resolution(&from, source).map(|found| found.path().to_string_lossy().into_owned()))
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
-fn effectful(resolvers: &Resolvers, from: &Path, request: &str) -> bool {
-    let Some(resolution) = resolvers.resolution(from, request) else {
-        return false;
-    };
-    let Some(manifest) = resolution.package_json() else {
-        return false;
-    };
-    let within = |pattern: &str| {
-        let relative: PathBuf = resolution.path().strip_prefix(manifest.directory()).unwrap_or(resolution.path()).into();
-        matches(pattern, &relative.to_string_lossy().replace('\\', "/"))
-    };
-    match manifest.side_effects() {
-        Some(SideEffects::Bool(declared)) => declared,
-        Some(SideEffects::String(pattern)) => within(pattern),
-        Some(SideEffects::Array(patterns)) => patterns.into_iter().any(within),
-        None => false,
+/// Of these files, repository-relative or absolute, those whose package
+/// declares that loading them does something, in the order asked.
+#[napi]
+pub fn declared_effects(root: String, files: Vec<String>) -> Vec<String> {
+    let root = Path::new(&root);
+    let mut manifests = HashMap::new();
+    files.into_iter().filter(|file| declared(&mut manifests, &root.join(file))).collect()
+}
+
+fn declared(manifests: &mut HashMap<PathBuf, Option<Value>>, path: &Path) -> bool {
+    for directory in path.ancestors().skip(1) {
+        let manifest = manifests.entry(directory.to_owned()).or_insert_with(|| {
+            let text = std::fs::read_to_string(directory.join("package.json")).ok()?;
+            Some(serde_json::from_str::<Value>(&text).unwrap_or(Value::Null))
+        });
+        let Some(manifest) = manifest else { continue };
+        let relative = path.strip_prefix(directory).unwrap_or(path).to_string_lossy().replace('\\', "/");
+        return match manifest.get("sideEffects") {
+            Some(Value::Bool(declared)) => *declared,
+            Some(Value::String(pattern)) => matches(pattern, &relative),
+            Some(Value::Array(patterns)) => patterns.iter().filter_map(Value::as_str).any(|pattern| matches(pattern, &relative)),
+            _ => false,
+        };
     }
+    false
 }
 
 /// A `sideEffects` pattern against a path relative to its package: a pattern
