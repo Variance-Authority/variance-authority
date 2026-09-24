@@ -119,4 +119,4 @@ describe('a cache filled while a case mocked what the function calls', () => {
   }, 20_000);
 });
 
-it.todo('a region one recording of a case ran and another recording of the same case missed, over unchanged source, names that case as one whose result depends on what ran before it — needs the case index to record each module\'s source digest, and the fold to read the previous case index before it replaces it');
+it.todo('a case recorded in order and again alone is named order-dependent on the price body, with `computes the price` as the candidate that ran before it — needs the case index to record each case\'s predecessors and each module\'s git object name, and the fold to compare the previous reading before it replaces it (spec 0063)');
