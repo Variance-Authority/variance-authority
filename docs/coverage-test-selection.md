@@ -72,16 +72,18 @@ report obsolete. The [Meta paper](https://arxiv.org/abs/1810.05286) calls
 accurate per-test coverage impractical in a large monolithic repository and
 learns from past failures instead.
 
-The tools that record per test share two limits. Recording costs real time: [Ekstazi's
-first collection run](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf) costs about 8× on one subject, and Datadog [reports a 25%
-median](https://www.datadoghq.com/blog/engineering/ruby-test-impact-analysis/)
-for its own Ruby extension against 200% to 400% for the stock tracers. And a
-change to a module's top level is charged to every test that loaded the module.
-Wallaby says so for its default, and has a
-[project-wide option](https://wallabyjs.com/docs/config/overview/) that stops
-charging a module's loading at all. No tool here documents what sits between
-the two: charging a changed top-level value to the tests that ran code reading
-it.
+The tools that record per test share two limits:
+
+- **Recording costs real time.** [Ekstazi's first collection
+  run](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf)
+  costs about 8× on one subject. Datadog [reports a 25%
+  median](https://www.datadoghq.com/blog/engineering/ruby-test-impact-analysis/)
+  for its own Ruby extension, against 200% to 400% for the stock tracers.
+- **A change to a module's top level is charged to every test that loaded the
+  module.** Wallaby does this by default, and has a [project-wide
+  option](https://wallabyjs.com/docs/config/overview/) that stops charging a
+  module's loading at all. No tool here documents a third option: charging a
+  changed top-level value to the tests that ran code that reads it.
 
 ## What recording buys over the import graph
 

@@ -364,6 +364,13 @@ is easy to miss while writing.
   no write` becomes *the parser rejects a bad date, exits with code 2, and
   writes nothing*. A reader translating as they go has to decode the first one
   before they can read it.
+- **A count with its items buried in prose. You should have a point.** When a
+  sentence says there are two limits, three cases or four questions, give each
+  one its own point: a list item, a heading or a bold lead that states it.
+  *The tools share two limits. Recording costs real time: …* leaves the reader
+  to find the second limit somewhere in the paragraph. *The tools share two
+  limits:* followed by one bullet per limit shows both at once, and shows when
+  one is missing.
 - **An adverb holding up a weak verb.** *Runs quickly* is *is fast*, or better,
   the number. *Significantly improves* is the measured difference. If the adverb
   is carrying the sentence, the verb is the wrong verb.
