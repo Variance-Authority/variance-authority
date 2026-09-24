@@ -274,15 +274,14 @@ function above a region does not change the region's identity. The
 identity survives an edit.
 
 **It reads each changed file from both of its texts.** The recorded text and
-the text your diff produces are parsed, and the edit gets one verdict: nothing
-a test can observe, changed function bodies, changed top-level values, or
-changed load-time behaviour. As in pytest-testmon and Teamscale, a comment or a
-formatting change selects nothing. A TypeScript type selects nothing either,
-because no test runs it. A changed value is charged to the tests that
-ran a function that reads it, in the same file or in a file that imports it,
-not to every test that loaded the file.
-[What a change to a module's top level runs](selecting.md#what-a-change-to-a-modules-top-level-runs)
-lists each verdict and what it selects.
+the text your diff produces are parsed and compared, so the edit is charged by
+what it does rather than by where its lines are.
+[From a diff to a list of tests](#from-a-diff-to-a-list-of-tests) shows the
+steps. As in pytest-testmon and Teamscale, a comment or a formatting change
+selects nothing. A TypeScript type selects nothing either, because no test runs
+it. A changed value is charged to the tests that ran a function that reads it,
+in the same file or in a file that imports it, not to every test that loaded
+the file.
 
 **What the record cannot answer runs, and what it cannot resolve is printed.** A test file the
 record did not observe whole always runs. A changed file the record has no data for is
@@ -302,6 +301,66 @@ record of one test runner's roughly 25,000 unit test files is about 30 MB, and
 one edit reads a small part of it.
 [How the test-to-code map stays small](how-selection-scales.md) explains the
 format.
+
+## From a diff to a list of tests
+
+You give selection a diff. By default it is `git diff` against the commit the
+record was made at, so an edit you have not committed counts too. Take the
+one-line Zod edit from the top of this page, inside `getRussianPlural` in
+`locales/ru.ts`:
+
+```diff
+-  if (lastDigit >= 2 && lastDigit <= 4) {
++  if (lastDigit >= 2 && lastDigit < 5) {
+```
+
+**1. The diff gives line numbers in the recorded text.** The record names
+regions by position in the text that ran, so each hunk is read on its old side.
+Here that is line 14. A removed line charges itself. An inserted line charges
+the lines on either side of it, because it has no line of its own in the
+recorded text.
+
+**2. Git gives both texts.** The recorded text is read from git at the record's
+commit. The new text is that text with your hunks applied, so the diff is the
+whole description of the change, and a patch file works as well as `git diff`.
+When a hunk does not apply, the file is charged by its lines, and the run says
+so.
+
+**3. Parsing both texts gives one verdict.** The native addon in
+[Sense](../packages/sense/README.md) parses each text with
+[oxc](https://oxc.rs), once as written and once with every function body
+emptied. It compares the two results side by side:
+
+| When the two texts compare equal | The verdict | What is charged |
+|---|---|---|
+| Whole, with comments, types and formatting removed | `none` | Nothing |
+| With bodies emptied, and every top-level value is the same | `bodies` | The regions around the changed lines |
+| With bodies emptied, but some top-level values differ | `values` | Those regions, and every function that reads a changed value, in this file and in the files that import it directly |
+| In neither form | `load` | Every test that loaded the file |
+
+This edit is inside a function body, so the emptied texts are equal and nothing
+at the top level changed. The run prints one line for the file:
+
+```
+read packages/zod/src/v4/locales/ru.ts: bodies — the changed regions are charged, not the whole module
+```
+
+**4. Lines become regions.** Line 14 is the first line of the `if` arm (lines
+14–16), inside `getRussianPlural` (lines 5–23). The arm is charged. The function
+is charged too, because the condition on line 14 runs in the function before
+the arm starts. The module's own region, lines 1–188, is not charged, because
+the verdict says that loading the module does the same thing as before. That
+region is the one all 131 files ran, just by loading `ru.ts`.
+
+**5. Regions become test files.** The record lists, for each region, the test
+files that ran it. Two ran `getRussianPlural`, and one of them ran the arm, so
+two files are selected. Four files the record did not observe whole also run,
+as they do on every change. That makes the 6 files in the lead.
+
+A file the parser cannot read is charged by its lines, and a file the record has
+no data for is read against the file graph. Either way, the run prints the reason.
+[Tracing a diff to tests](execution-record.md#tracing-a-diff-to-tests) gives
+every step with its cost.
 
 ## What it saves on real suites
 
