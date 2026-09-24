@@ -83,19 +83,49 @@ charging a module's loading at all. No tool here documents what sits between
 the two: charging a changed top-level value to the tests that ran code reading
 it.
 
-## Why execution narrows further than imports
+## What recording buys over the import graph
 
-[Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) calls the code
-one test executed, shown in one view, its **test story**. A
-[journey](journeys.md) is the same list of code one test ran, stored after the
-run. Selection reads journeys. A change to code in some test's journey selects
-that test. A change to code in no journey selects nothing, because no test ran
-it. Past a module's top level, a test rarely runs all of a module: it runs the
-functions and branches its own behaviour needs.
+The refusals above are about cost: the time instrumentation adds, and a record
+that goes stale as the code moves. The import graph costs nothing to keep,
+because it is read from source on every change. A recording has to repay its
+cost by answering differently from the graph, and often enough to matter.
 
-An import graph tells you which tests load the changed module. The stories tell
-you which tests ran the changed code. In a well-tested codebase those two answers are far apart,
-for two reasons.
+Start with what an import says:
+
+```js
+import { renderPdf } from "./pdf";
+
+export function exportReport(report, format) {
+  if (format === "pdf") return renderPdf(report);
+  return JSON.stringify(report);
+}
+```
+
+A test that calls `exportReport(report, "json")` loads `./pdf` and runs none
+of it. An import declares a dependency; it does not use one. ES modules made
+that declaration static, which is what lets a graph-based selector read it
+without running anything, but static means known before the run, not used by
+it. CommonJS never tied the two together. A `require` can sit inside the branch
+that needs it:
+
+```js
+export function exportReport(report, format) {
+  if (format === "pdf") return require("./pdf").renderPdf(report);
+  return JSON.stringify(report);
+}
+```
+
+React Native's
+[inline requires](https://archive.reactnative.dev/docs/next/ram-bundles-inline-requires),
+introduced with RAM bundles and
+[still part of its loading guide](https://reactnative.dev/docs/optimizing-javascript-loading),
+make this rewrite for you, so a module loads only when the branch that needs it
+runs. The graph draws the same edge from `exportReport` to `./pdf` in both
+versions. The JSON test runs no code in `./pdf` in either version, and a record
+of what it ran says so in both.
+
+In one file the gap between loading and running is one branch. Across a suite
+it grows, for two reasons.
 
 **Good tests divide the work.** Each test in a well-composed suite checks one
 behaviour, so the tests of a module cover different, overlapping branches of
@@ -116,21 +146,19 @@ because execution took another branch before it got there. In TanStack Query,
 that ran the changed region: the function, branch arm or loop body the edit is
 in.
 
-An import declares a dependency; it does not use one. ES modules made imports
-statically analyzable, which is what lets a graph-based selector read them, but
-a static `import` says only that the module loads, not that any of its code
-runs. CommonJS never made that promise: a `require` can sit inside a function,
-and React Native's
-[inline requires](https://archive.reactnative.dev/docs/next/ram-bundles-inline-requires),
-introduced with RAM bundles and
-[still part of its loading guide](https://reactnative.dev/docs/optimizing-javascript-loading),
-move each `require` to the point of first use, so a module loads only when the
-branch that needs it runs. The graph reads both as the same edge. Execution
-records the same thing in both systems: the code that ran.
-
-In the record, a shared module is charged to the tests that ran the changed
+So in a well-tested codebase the graph and the run give answers that are far
+apart. [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) calls
+the code one test executed, shown in one view, its **test story**. A
+[journey](journeys.md) is the same list of code one test ran, stored after the
+run. Selection reads journeys. A change to code in some test's journey selects
+that test. A change to code in no journey selects nothing, because no test ran
+it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
 graph-based selector's extra runs come from those modules.
+
+That is what a recording buys. TAP and Meta weighed it against what recording
+costs, and cost is the first of four questions that decide whether it repays
+itself.
 
 ## Four questions that decide whether it works on every change
 
