@@ -28,17 +28,11 @@
  *
  * `.module` is the ES module record the parser computed while it parsed — every
  * static import, every re-export, every `import()`, with the imported, local and
- * exported name of each binding. A change-management scan wants exactly that and
- * nothing from `.program`, which is the whole syntax tree and much the larger
- * half.
+ * exported name of each binding. The tree is walked only for what the record
+ * does not hold: top-level declarations, and the mocks a test writes.
  *
- * Reading only the record does not make the tree cheaper to *produce*: under the
- * transfer this uses ([`transfer.ts`](./transfer.ts)) the parser hands over
- * everything it built in one go, record and tree together. What it makes cheaper is how long
- * any of it is held. Everything this file returns is a plain string or a small
- * object copied out of the record, so the parse result becomes garbage at the end
- * of the file that produced it and a scan's live set is its own findings rather
- * than 200,000 syntax trees.
+ * Everything returned is a string or a small object copied out, so the parse
+ * result is garbage once its file is read: a scan holds findings, not trees.
  *
  * ## What this cannot read
  *
@@ -75,6 +69,8 @@
 import { parseSync } from 'oxc-parser';
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { harvestDocs, harvestSymbols, type SourceSymbol, type TextSpan } from './harvest.js';
+import type { ImportDiff, Node } from './taint/index.js';
+import { mockDiff } from './taint/mocks.js';
 import { optionsFor } from './transfer.js';
 
 /**
@@ -211,6 +207,9 @@ export interface Read {
   /** Top-level declarations reduced while the AST is already resident. */
   readonly symbols?: readonly SourceSymbol[];
 
+  /** What the file mocks and loads for real, read off the same tree. Recorded, never applied. */
+  readonly mocks?: ImportDiff;
+
   /** Why this file's requests are not the whole set, when they are not. */
   readonly unknown?: string;
 }
@@ -274,6 +273,7 @@ export function readModule(file: string, contents: string): Read {
   const lineAt = linesOf(contents);
   const docs = harvestDocs(contents, result.comments);
   const symbols = harvestSymbols(result.program, contents, docs);
+  const mocks = mockDiff(contents, () => result.program as unknown as Node);
   // The record keeps typeness per name only, so each statement's keyword comes off
   // the tree, keyed by the offset the record gives that statement.
   const typed = new Set<number>();
@@ -371,6 +371,7 @@ export function readModule(file: string, contents: string): Read {
     requests,
     ...(published.length > 0 ? { exports: published } : {}),
     ...(symbols.length > 0 ? { symbols } : {}),
+    ...(mocks === undefined ? {} : { mocks }),
     ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
 }

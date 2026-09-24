@@ -75,6 +75,7 @@ describe('the native reader against the JavaScript one', () => {
         ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
         harvested: true,
         ...(declares.length === 0 ? {} : { declares }),
+        ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
         ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
       };
       const answered = JSON.parse(batch.parses[index] ?? 'null');

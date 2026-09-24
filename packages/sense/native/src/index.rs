@@ -88,6 +88,8 @@ pub fn parse_segment(
             values.insert(symbol.kind.to_owned());
         }
         values.extend(read.declares.iter().cloned());
+        values.extend(read.mocks.minus.iter().cloned());
+        values.extend(read.mocks.plus.iter().cloned());
         if let Some(unknown) = &read.unknown {
             values.insert(unknown.clone());
         }
@@ -118,6 +120,10 @@ pub fn parse_segment(
     let mut parse_symbols = Vec::with_capacity(rows.len() + 1);
     let mut parse_unknown = Vec::with_capacity(rows.len());
     let mut parse_harvested = Vec::with_capacity(rows.len());
+    let mut parse_mocks_minus = Vec::with_capacity(rows.len() + 1);
+    let mut parse_mocks_plus = Vec::with_capacity(rows.len() + 1);
+    let mut mocks_minus = Vec::new();
+    let mut mocks_plus = Vec::new();
     let mut request_value = Vec::new();
     let mut request_kind = Vec::new();
     let mut request_line = Vec::new();
@@ -192,11 +198,17 @@ pub fn parse_segment(
         declare_name.extend(read.declares.iter().map(|name| id(name)));
         parse_unknown.push(optional(read.unknown.as_deref(), &id));
         parse_harvested.push(u8::from(read.harvested));
+        parse_mocks_minus.push(mocks_minus.len() as u32);
+        parse_mocks_plus.push(mocks_plus.len() as u32);
+        mocks_minus.extend(read.mocks.minus.iter().map(|value| id(value)));
+        mocks_plus.extend(read.mocks.plus.iter().map(|value| id(value)));
     }
     parse_requests.push(request_value.len() as u32);
     parse_exports.push(export_exported.len() as u32);
     parse_declares.push(declare_name.len() as u32);
     parse_symbols.push(symbol_name.len() as u32);
+    parse_mocks_minus.push(mocks_minus.len() as u32);
+    parse_mocks_plus.push(mocks_plus.len() as u32);
 
     encode(vec![
         u8s("strings.blob", string_blob),
@@ -242,6 +254,10 @@ pub fn parse_segment(
         u32s("exports.signature-end", export_signature_end),
         u32s("exports.doc-start", export_doc_start),
         u32s("exports.doc-end", export_doc_end),
+        u32s("parses.mocks-minus", parse_mocks_minus),
+        u32s("parses.mocks-plus", parse_mocks_plus),
+        u32s("mocks.minus", mocks_minus),
+        u32s("mocks.plus", mocks_plus),
         u32s("declares.name", declare_name),
         u32s("records.file", vec![]),
         u32s("records.deleted", vec![]),
@@ -333,7 +349,7 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         format: "variance-authority-source-index",
         // `VERSION` in `source-index-format.ts`: a layer the reader refuses is
         // a layer thrown away, which `native-read.test.ts` catches.
-        version: 9,
+        version: 10,
         sections,
     })
     .unwrap_or_default();

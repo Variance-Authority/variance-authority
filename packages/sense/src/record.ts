@@ -196,6 +196,7 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
     requests: read.requests,
     ...(read.exports === undefined ? {} : { exports: read.exports }),
     ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
+    ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
     harvested: true,
     ...(declares.length === 0 ? {} : { declares: declares.sort(byCodeUnit) }),
     ...(read.unknown === undefined ? {} : { unknown: read.unknown }),

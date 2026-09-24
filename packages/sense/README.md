@@ -1062,8 +1062,12 @@ shadows is an edge into a node the file's run never covers, and the shadow
 wins, the way the mock wins at runtime.
 
 Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
-opened or parsed a second time — a reader's answer is a fact about the file's
-bytes, kept under a digest over those bytes and the reader's name:
+opened or parsed a second time. The scan records what each file mocks in its
+parse without applying it, so the records keep every edge and `mockTaint()`
+answers from that parse without opening the file. A `mockTaint` given its own
+`callers` asks a question the scan did not, and reads the file once; that
+answer, like any other reader's, is kept under a digest over the file's bytes
+and the reader's name:
 
 ```ts
 const source = await openSourceIndex(sourceIndexPath(process.cwd()));

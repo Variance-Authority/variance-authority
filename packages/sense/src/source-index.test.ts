@@ -59,6 +59,9 @@ const PARSED: Parsed = {
     },
   ],
   declares: ['Card'],
+  // `./api.js` is named nowhere else, so a dictionary that never collected the
+  // mock columns writes some other string here.
+  mocks: { minus: ['./api.js'], plus: ['./button.js'] },
   unknown: 'one dynamic request could not be read',
 };
 const RECORD: FileRecord = {
@@ -273,5 +276,16 @@ describe('the binary source index', () => {
     });
 
     expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+  });
+
+  it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {
+    const decoded = decodeSourceIndex(encodeSourceIndex({
+      parses: new Map([[DIGEST, { requests: [], mocks: { plus: ['./real.js'] } }], [OTHER, { requests: [] }]]),
+      directories: new Map(),
+      records: new Map(),
+    }));
+
+    expect(decoded.parses.get(DIGEST)?.mocks).toEqual({ plus: ['./real.js'] });
+    expect(decoded.parses.get(OTHER)).toEqual({ requests: [] });
   });
 });

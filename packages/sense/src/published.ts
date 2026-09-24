@@ -29,8 +29,6 @@ import type { RecordCache } from './reuse.js';
 import { scanRelations } from './scan.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
-import { taintRecords } from './taint/index.js';
-import { mockTaint } from './taint/mocks.js';
 
 /** One published generation, opened for reading. */
 export interface PublishedSources {
@@ -126,9 +124,6 @@ export interface SourceUpdate {
  * The scope is the whole checkout, whoever asks. A reader's question is narrower
  * than that and is answered by filtering what was published; an index whose
  * scope followed its last caller would be right for one reader at a time.
- *
- * The mock reader's answers are published beside the records, because every
- * selection asks them and a reader that has to compute one opens the file.
  */
 export async function updateSourceIndex(
   root: string,
@@ -172,7 +167,6 @@ export async function updateSourceIndex(
     reuse,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   });
-  await taintRecords(records, [mockTaint()], { root: where, cache: source.cache });
   await source.save();
   return {
     path,

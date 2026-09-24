@@ -31,16 +31,26 @@
  * has it. A mock whose specifier is not a string literal names a module this
  * cannot see, and an edge this cannot see is kept.
  *
- * ## Which files are opened
+ * ## Which files are asked
  *
  * Test, spec and story files, setup files and anything under `.storybook/`.
- * A mock anywhere else is not read, and the edge it would have cut stays — the
- * direction to miss in. Pass `files` to widen it.
+ * A mock anywhere else is not applied, and the edge it would have cut stays —
+ * the direction to miss in. Pass `files` to widen it.
+ *
+ * ## Answered from the scan
+ *
+ * The module reader already holds the tree, so it reads the default callers'
+ * mocks while it is there and the parse carries them ({@link mockDiff}). This
+ * taint answers from that parse and opens nothing. The scan records what the
+ * file writes and never applies it: records keep every edge, and only a caller
+ * that passes this taint sees the cut. A taint with its own `callers` asks a
+ * question the scan did not, and reads the file.
  */
 
 // compass: variance-authority.reach
 
-import type { ImportDiff, Node, Taint, TaintSubject } from './index.js';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { ImportDiff, Node, Taint } from './index.js';
 
 export interface MockTaintOptions {
   /** The objects whose `mock` is a mock. `vi`, `jest` and `sb` by default. */
@@ -50,16 +60,19 @@ export interface MockTaintOptions {
 }
 
 const CALLERS = ['jest', 'sb', 'vi'];
+const DEFAULT_CALLERS: ReadonlySet<string> = new Set(CALLERS);
 const MOCKING = new Set(['mock']);
 const ACTUAL = new Set(['importActual', 'requireActual']);
 
 export function mockTaint(options: MockTaintOptions = {}): Taint {
   const callers = new Set(options.callers ?? CALLERS);
+  const scanned = options.callers === undefined;
 
   return {
     name: 'mocks',
     files: options.files ?? isTestLike,
-    read: (subject) => mocksIn(subject, callers),
+    ...(scanned ? { parsed: (parsed) => parsed.mocks } : {}),
+    read: (subject) => mockDiff(subject.source, subject.program, callers),
   };
 }
 
@@ -72,13 +85,21 @@ export function isTestLike(file: string): boolean {
   );
 }
 
-function mocksIn(subject: TaintSubject, callers: ReadonlySet<string>): ImportDiff | undefined {
+/**
+ * What `source` mocks and loads for real, under `callers` — `vi`, `jest` and
+ * `sb` when absent, which is what the module reader records in every parse.
+ */
+export function mockDiff(
+  source: string,
+  program: () => Node,
+  callers: ReadonlySet<string> = DEFAULT_CALLERS,
+): ImportDiff | undefined {
   // A file that neither mocks nor loads an original has nothing to say. The parse is the cost this skips.
-  if (!/\.(?:mock|requireActual|importActual)\b/u.test(subject.source)) return undefined;
+  if (!/\.(?:mock|requireActual|importActual)\b/u.test(source)) return undefined;
 
   const mocked: string[] = [];
   const actual = new Set<string>();
-  each(subject.program(), (node) => {
+  each(program(), (node) => {
     const method = methodOf(node, callers);
     if (method === undefined) return;
     const [subjectArgument, ...rest] = node.arguments as readonly Node[];
@@ -96,8 +117,10 @@ function mocksIn(subject: TaintSubject, callers: ReadonlySet<string>): ImportDif
     mocked.push(specifier);
   });
 
-  const minus = mocked.filter((specifier) => !actual.has(specifier));
-  const plus = [...actual];
+  // Sets, sorted by code unit: a diff is compared across the two readers that
+  // write it, and neither's walk order is part of the answer.
+  const minus = [...new Set(mocked)].filter((specifier) => !actual.has(specifier)).sort(codeUnitOrder);
+  const plus = [...actual].sort(codeUnitOrder);
   if (minus.length === 0 && plus.length === 0) return undefined;
   return { ...(minus.length === 0 ? {} : { minus }), ...(plus.length === 0 ? {} : { plus }) };
 }
@@ -106,7 +129,8 @@ function mocksIn(subject: TaintSubject, callers: ReadonlySet<string>): ImportDif
 function methodOf(node: Node, callers: ReadonlySet<string>): string | undefined {
   if (node.type !== 'CallExpression') return undefined;
   const callee = node.callee as Node;
-  if (callee.type !== 'MemberExpression') return undefined;
+  // `vi[mock]` names whatever `mock` holds, not a method called `mock`.
+  if (callee.type !== 'MemberExpression' || callee.computed === true) return undefined;
   const object = callee.object as Node;
   const property = callee.property as Node;
   if (object.type !== 'Identifier' || !callers.has(String(object.name))) return undefined;
@@ -123,9 +147,8 @@ function specifierOf(node: Node | undefined): string | undefined {
   if (node.type === 'TemplateLiteral') {
     const quasis = node.quasis as readonly Node[];
     const [only] = quasis;
-    return quasis.length === 1 && only !== undefined
-      ? String((only.value as { cooked?: unknown }).cooked)
-      : undefined;
+    const cooked = quasis.length === 1 ? (only?.value as { cooked?: unknown } | undefined)?.cooked : undefined;
+    return typeof cooked === 'string' ? cooked : undefined;
   }
   if (node.type === 'ImportExpression') return specifierOf(node.source as Node);
 
@@ -158,7 +181,7 @@ function spies(node: Node): boolean {
 
   return (node.properties as readonly Node[]).some((property) => {
     const key = property.key as Node | undefined;
-    return key?.type === 'Identifier' && String(key.name) === 'spy';
+    return property.computed !== true && key?.type === 'Identifier' && String(key.name) === 'spy';
   });
 }
 

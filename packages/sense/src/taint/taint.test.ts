@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { idOf, affectedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { memoryParseCache } from '../cache.js';
+import { keyFor, parseWay } from '../files.js';
+import { readModule } from '../read.js';
 import { scanRelations } from '../scan.js';
 import { moduleCallsTaint } from './calls.js';
 import { taintFile, taintRecords, taintTable, type Taint, type Tainted } from './index.js';
@@ -396,6 +398,39 @@ describe('the mock taint', () => {
       'src/restore.test.ts',
       'src/swap.test.ts',
     ]);
+  });
+});
+
+describe('the mock taint over a scanned parse', () => {
+  // The parse says `./card` is mocked; the file on disk mocks `./api`. Which one
+  // the answer names says which of the two was asked.
+  const scanned = () => {
+    const cache = memoryParseCache();
+    const record = { ...records.find((each) => each.file === 'src/card.test.ts')!, digest: 'a'.repeat(40) };
+    cache.set(keyFor(record.digest, parseWay(record.file)), { requests: [], mocks: { minus: ['./card'] } });
+    return { cache, record };
+  };
+
+  it('answers from the parse the scan recorded, and opens nothing', async () => {
+    const { cache, record } = scanned();
+    const tainted = await taintRecords([record], [mockTaint()], { root, cache });
+
+    expect(tainted.shadows.get('src/card.test.ts')).toEqual(['src/card.ts']);
+  });
+
+  it('reads the file again when the caller named its own callers', async () => {
+    const { cache, record } = scanned();
+    const tainted = await taintRecords([record], [mockTaint({ callers: ['vi'] })], { root, cache });
+
+    expect(tainted.shadows.get('src/card.test.ts')).toEqual(['src/api.ts']);
+  });
+
+  it('is recorded by the module reader, which names only a written member of a known caller', () => {
+    const read = (source: string) => readModule('src/a.test.ts', source).mocks;
+
+    expect(read("vi.mock('./b');\njest.mock('./a', () => jest.requireActual(`./c`));")).toEqual({ minus: ['./a', './b'], plus: ['./c'] });
+    expect(read("vi[mock]('./a');\nother.mock('./b');\nvi.mock(name);\nvi.mock('./c', { ['spy']: true });")).toEqual({ minus: ['./c'] });
+    expect(read("export const a = 1;")).toBeUndefined();
   });
 });
 

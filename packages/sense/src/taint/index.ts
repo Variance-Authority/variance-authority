@@ -74,7 +74,9 @@
  * asking, so {@link TaintOptions.cache} holds it under a digest over both
  * ([`cache.ts`](./cache.ts)). With one, an unchanged file costs two map lookups
  * per reader and is neither opened nor parsed; without one, it is opened once
- * and parsed at most once however many readers ask about it.
+ * and parsed at most once however many readers ask about it. A reader whose
+ * question the scan already answered — the mock reader's — reads the parse the
+ * cache holds, and a cold file costs it nothing more than the scan did.
  */
 
 // compass: variance-authority.reach
@@ -83,8 +85,9 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
-import type { ParseCache } from '../cache.js';
+import type { ParseCache, Parsed } from '../cache.js';
 import type { Digest } from '../digest.js';
+import { keyFor, parseWay } from '../files.js';
 import type { Node } from '../instrument/blocks.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
@@ -128,6 +131,12 @@ export interface Taint {
   readonly files?: (file: string) => boolean;
   /** A diff read off the file itself. */
   readonly read?: (subject: TaintSubject) => ImportDiff | undefined;
+  /**
+   * The same diff, answered from what the scan's parse of these bytes carries.
+   * When the cache holds that parse, the file is not opened and `read` is not
+   * asked; without one, `read` is.
+   */
+  readonly parsed?: (parsed: Parsed) => ImportDiff | undefined;
 }
 
 export interface TaintOptions extends ResolveOptions {
@@ -322,9 +331,10 @@ async function saidOf(
 /**
  * Every reader asked about one file, over one read and at most one parse.
  *
- * A reader whose answer is already in the cache is not asked, and a file whose
- * readers are all answered is not opened — which is the whole saving, because
- * opening is what a scan of ten thousand files was arranged to avoid.
+ * A reader the scan's parse answers is not asked, nor is one whose answer is
+ * already in the cache, and a file whose readers are all answered is not opened
+ * — which is the whole saving, because opening is what a scan of ten thousand
+ * files was arranged to avoid.
  */
 async function readEach(
   asked: readonly Taint[],
@@ -335,8 +345,13 @@ async function readEach(
 ): Promise<void> {
   const digest: Digest | undefined = record.digest;
   const pending: Taint[] = [];
+  const parsed = digest === undefined ? undefined : cache?.get(keyFor(digest, parseWay(record.file)));
 
   for (const taint of asked) {
+    if (parsed !== undefined && taint.parsed !== undefined) {
+      fold(taint.name, taint.parsed(parsed));
+      continue;
+    }
     const remembered = rememberedDiff(cache, digest, taint.name);
     if (remembered === undefined) pending.push(taint);
     else fold(taint.name, remembered);

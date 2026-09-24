@@ -117,9 +117,9 @@ export async function relationsFor(
   // The mocks are read unasked. A graph that believes `vi.mock('./api')`
   // imports `./api` selects that test for every change behind the mock, and
   // an operator who has to know to switch the reader on is one who finds out
-  // from the suite that ran. The update published the mock reader's answers;
-  // a table named in the config is answered here, from the same parses, and
-  // what it adds is never saved.
+  // from the suite that ran. The scan recorded what each file mocks in its
+  // parse, so the mock taint opens nothing; a table named in the config is
+  // answered here too, and what it adds is never saved.
   const tables = await Promise.all(taints.map((file) => scanner.taintFile(join(root, file))));
   const tainted = await scanner.taintRecords(read.records, [scanner.mockTaint(), ...tables], {
     root,

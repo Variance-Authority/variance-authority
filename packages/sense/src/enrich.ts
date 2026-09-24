@@ -42,6 +42,7 @@ export async function enrichSources(
       requests: read.requests,
       ...(read.exports === undefined ? {} : { exports: read.exports }),
       ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
+    ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
       harvested: true,
       ...(declares.length === 0 ? {} : { declares }),
       ...(read.unknown === undefined ? {} : { unknown: read.unknown }),

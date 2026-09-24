@@ -13,6 +13,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
+use crate::mocks::{mocks_in, Mocks};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -85,6 +86,8 @@ pub struct Read {
     pub(crate) harvested: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub(crate) declares: Vec<String>,
+    #[serde(skip_serializing_if = "Mocks::is_empty")]
+    pub(crate) mocks: Mocks,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
 }
@@ -271,16 +274,9 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     if let Some(reason) = required.unknown {
         reasons.push(reason);
     }
-    if !parsed.diagnostics.is_empty() {
-        let first = parsed
-            .diagnostics
-            .first()
-            .map(|e| e.message.to_string())
-            .unwrap_or_default();
-        reasons.push(format!(
-            "{} parse error(s): {first}",
-            parsed.diagnostics.len()
-        ));
+    if let Some(first) = parsed.diagnostics.first() {
+        let count = parsed.diagnostics.len();
+        reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
     Read {
@@ -289,6 +285,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         symbols: harvest.symbols,
         harvested: symbols,
         declares: declarations(file, source),
+        mocks: mocks_in(source, &parsed.program),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
     }
 }

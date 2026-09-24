@@ -33,6 +33,7 @@
 
 import type { SourceSymbol } from './harvest.js';
 import type { Export, Request } from './read.js';
+import type { ImportDiff } from './taint/index.js';
 import { openSourceIndexFile } from './source-index-file.js';
 
 /**
@@ -65,6 +66,8 @@ export interface Parsed {
   /** Declaration facts were requested, including when this file declared none. */
   readonly harvested?: true;
   readonly declares?: readonly string[];
+  /** What the file mocks and loads for real, as `mockTaint` reads it. Absent when it does neither. */
+  readonly mocks?: ImportDiff;
   readonly unknown?: string;
 }
 

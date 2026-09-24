@@ -18,6 +18,7 @@ import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
 import { dictionary, joinedKey, partsOf } from './source-index-codec.js';
 import { encodeHarvest, openHarvest } from './source-index-harvest.js';
+import { encodeMocks, openMocks } from './source-index-mocks.js';
 import { packageOf } from './specifier.js';
 
 /**
@@ -34,7 +35,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 9;
+const VERSION = 10;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -230,6 +231,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'exports.type': Uint8Array.from(exportType),
     'exports.line': Uint32Array.from(exportLine),
     ...encodeHarvest(parses, id),
+    ...encodeMocks(parses, id),
     'declares.name': Uint32Array.from(declareName),
     'records.file': recordFile,
     'records.deleted': Uint32Array.from(
@@ -295,6 +297,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const exportLine = opened.u32('exports.line');
   const declareName = opened.u32('declares.name');
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
+  const mocksOf = openMocks(opened, text, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
@@ -340,6 +343,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
     const symbols = harvest.symbols(row);
     const declares = range(parseDeclares, row).map((entry) => text(declareName[entry]!));
     const unknown = optional(parseUnknown[row]!);
+    const mocks = mocksOf(row);
     const key = joinedKey(text(parseKey[row]!), text(parseWay[row]!));
     if (parses.has(key)) throw invalid();
     parses.set(key, {
@@ -348,6 +352,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(symbols.length === 0 ? {} : { symbols }),
       ...(flag(parseHarvested[row]) ? { harvested: true } : {}),
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
+      ...(mocks === undefined ? {} : { mocks }),
       ...(unknown === undefined ? {} : { unknown }),
     });
   }
