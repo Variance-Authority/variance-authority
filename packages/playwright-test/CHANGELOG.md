@@ -1,5 +1,28 @@
 # @variance-authority/playwright-test
 
+## 0.8.0
+
+### Minor Changes
+
+- 4250eda: Every run records which case entered each region. The `cases` option is removed
+  from `withTestSelection` for Vitest, Jest and Rstest, from the Playwright
+  recorder and reporter, and from the Storybook recorder: each writes
+  `<coverage file>.cases.bin` beside the file-level snapshot, or `executionFile`
+  when you name one. A test file that runs in a page is still recorded per file,
+  and says so.
+
+  Without `continuations: true`, a file whose cases overlap no longer fails the
+  run. It is recorded as a whole, so a change it reaches runs every case in it, and
+  the run names the two cases that were open at once.
+
+### Patch Changes
+
+- e4ee0da: The repository names its cache. Set `cacheRoot` in the `variance.config.json` at the repository root, for example `".variance/cache"`, and every command, every test runner integration and every function that takes a `cacheRoot` option uses that directory. The path resolves against the repository root. Without the key the cache is `$XDG_CACHE_HOME/variance-authority`, or `~/.cache/variance-authority`, as before, so an existing recording stays where it is. The key is read before the environment, so a sandboxed agent that sets `XDG_CACHE_HOME` to a temporary directory no longer splits the recording away from your own runs. [The cache](https://variance-authority.dev/docs/cache) page describes the location, what is in it, worktrees and CI.
+
+  `@variance-authority/sense` exports `cacheRootFor(root)`, which returns that answer, and `CACHE_CONFIG`. `defaultCacheRoot` is removed; call `cacheRootFor(root)`. A `cacheRoot` option now names the variance-authority directory itself, and `test-selection/` is created under it. `testCoverageFile`, `seedTestCoverage`, `readableTestCoverage`, `moduleNamesFile`, `openModuleNames`, `recordStore`, `recordStores` and `repositoryLayers` take an optional `cacheRoot`. An empty or relative `XDG_CACHE_HOME` is ignored rather than resolved against the working directory. A root `variance.config.json` that is not JSON, or whose `cacheRoot` is not a non-empty string, is an error.
+
+  `@variance-authority/cli` accepts `cacheRoot` in the config and in the schema, and refuses it in a `variance.config.json` below the repository root. `variance run`'s render cache and suite indexes are under it. `renderCacheRoot` and `suiteIndexPath` take the config.
+
 ## 0.7.0
 
 ### Minor Changes

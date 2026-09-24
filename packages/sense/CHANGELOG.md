@@ -1,5 +1,96 @@
 # @variance-authority/sense
 
+## 0.8.0
+
+### Minor Changes
+
+- 3cb0ce8: An edit at a module's top level is now charged by what it does, not by the
+  lines it sits on. Before, any such edit selected every test that loaded the
+  module. With `sourceAt`, each changed file is read from the recorded text and
+  the text the diff makes of it, and gets one verdict. A comment, a type or
+  formatting selects nothing. A new function, or an edit inside one, selects the
+  tests that entered the changed regions. A changed top-level value, such as
+  `LIMIT = 10` becoming `20`, also selects the tests that entered a function
+  reading it, in the file or in a file that imports it. An edit that changes what
+  the module runs as it loads still selects every test that loaded it.
+
+  `narrowByExecution` returns `readings`, one per changed file: the verdict and
+  the names whose values moved, or why the file could not be read (`source`,
+  `hunk`, `parse` or `addon`). A test selected through a read carries a `reader`
+  reason naming the value, the file that declares it and the file that reads it.
+  `test:since` prints a line per reading.
+
+  A change travels by use. A new module selects nothing until something calls it,
+  and an import added to a file charges the functions that use its names, not
+  every test that loads the file. With `root`, the nearest `package.json` of a
+  changed file, and of every file an added or removed import loads that the file
+  did not already load, is asked for `sideEffects`: a declared file, or an
+  importer that starts or stops loading one, is read as `load`, and its reading
+  lists the declared files in `effects`. A test that loaded a changed module through no
+  importer the graph holds is listed in the reading's `unseen` and no longer
+  selected.
+- 97e1ce6: A module can name a file it reads without importing it:
+  `/// <depends path="./schema.graphql" />`, anywhere in the file. The scan draws
+  a `depends` edge to that file, so a change to it reaches the tests that load
+  the module. TypeScript and every runtime read the line as a comment. A directive
+  that names no `path` is reported in the file's `unknown`. The source index
+  format moves to version 11, so an existing index is read again once.
+- 956ef8b: A function's region now starts at its parameter list, not at its body. An edit
+  to a parameter selects the tests that called the function. Before, it selected
+  every test that loaded the module around the function. A function in a
+  parameter's default value is now owned by the function whose parameter it is.
+  The instrumentation ids are now `sense:instrument/presence-v5` and
+  `sense:instrument/entries-v2`, so a recording made under the old ids is read as
+  stale and recorded again.
+- 4250eda: Every run records which case entered each region. The `cases` option is removed
+  from `withTestSelection` for Vitest, Jest and Rstest, from the Playwright
+  recorder and reporter, and from the Storybook recorder: each writes
+  `<coverage file>.cases.bin` beside the file-level snapshot, or `executionFile`
+  when you name one. A test file that runs in a page is still recorded per file,
+  and says so.
+
+  Without `continuations: true`, a file whose cases overlap no longer fails the
+  run. It is recorded as a whole, so a change it reaches runs every case in it, and
+  the run names the two cases that were open at once.
+- e3f608d: Instrumentation now runs in the native addon only. `instrument()` without the
+  addon throws and names the package that did not load, rather than recording
+  nothing. The addon now names a regular-expression key as `String(regex)` does,
+  and writes a lone surrogate in a key as `\uXXXX`. A source whose text holds a
+  lone surrogate is left uninstrumented. The `Edit` type is removed from
+  `@variance-authority/sense/instrument`.
+- e4ee0da: The repository names its cache. Set `cacheRoot` in the `variance.config.json` at the repository root, for example `".variance/cache"`, and every command, every test runner integration and every function that takes a `cacheRoot` option uses that directory. The path resolves against the repository root. Without the key the cache is `$XDG_CACHE_HOME/variance-authority`, or `~/.cache/variance-authority`, as before, so an existing recording stays where it is. The key is read before the environment, so a sandboxed agent that sets `XDG_CACHE_HOME` to a temporary directory no longer splits the recording away from your own runs. [The cache](https://variance-authority.dev/docs/cache) page describes the location, what is in it, worktrees and CI.
+
+  `@variance-authority/sense` exports `cacheRootFor(root)`, which returns that answer, and `CACHE_CONFIG`. `defaultCacheRoot` is removed; call `cacheRootFor(root)`. A `cacheRoot` option now names the variance-authority directory itself, and `test-selection/` is created under it. `testCoverageFile`, `seedTestCoverage`, `readableTestCoverage`, `moduleNamesFile`, `openModuleNames`, `recordStore`, `recordStores` and `repositoryLayers` take an optional `cacheRoot`. An empty or relative `XDG_CACHE_HOME` is ignored rather than resolved against the working directory. A root `variance.config.json` that is not JSON, or whose `cacheRoot` is not a non-empty string, is an error.
+
+  `@variance-authority/cli` accepts `cacheRoot` in the config and in the schema, and refuses it in a `variance.config.json` below the repository root. `variance run`'s render cache and suite indexes are under it. `renderCacheRoot` and `suiteIndexPath` take the config.
+
+### Patch Changes
+
+- 3cb0ce8: A call that throws while a function's parameters bind now counts as entering
+  the function. Before, `f('label')` against `function f(label, { required })`
+  threw before the body ran, so the test was never recorded as entering `f`. An
+  edit that gave the parameter a default then selected nobody. The function's
+  `length`, its `arguments` and the order its parameters bind in are unchanged.
+  The one exception is a first parameter that is an object pattern: its text
+  stays as written, because Vitest, Playwright and Rstest read fixture names from
+  it.
+
+  An edit to any line of a multi-line `await` now also selects the tests that
+  entered the function, not only the tests that resumed after it. The awaited
+  expression is evaluated before the await settles, so a test whose promise
+  rejected ran that line too.
+- 3cb0ce8: A region that a transform writes with no source-map origin is now recorded with
+  no lines. Before, it was given the line it had in the generated text. The main
+  case is the helpers esbuild writes above the first line of a module with a
+  decorator, which landed on the lines below them. An edit to a function after a
+  decorated class then selected the test that ran the helpers instead of the test
+  that called the function. Selection, `covering` and journeys skip a region with
+  no lines. A module recorded before this change keeps the old lines until a run
+  records it again.
+- 1ce9a2e: `@variance-authority/sense-linux-arm64-gnu` carries the prebuilt scanner for
+  Linux on arm64 against glibc 2.17 or newer, so Docker on Apple Silicon and arm
+  CI runners load the addon rather than building it.
+
 ## 0.7.0
 
 ### Minor Changes

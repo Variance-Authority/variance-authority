@@ -1,5 +1,9 @@
 # @variance-authority/wire
 
+## 0.8.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
 ## 0.7.0
 
 ### Minor Changes
