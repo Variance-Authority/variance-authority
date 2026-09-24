@@ -88,6 +88,7 @@ pub struct Edit {
 }
 
 /// What a function's region is laid over.
+#[derive(Clone, Copy)]
 enum Body<'b, 'a> {
     None,
     Block(&'b FunctionBody<'a>),
@@ -343,31 +344,48 @@ impl Walker {
         label
     }
 
-    /// A function: a new name scope, a fresh path, and a region over its body.
+    /// A function: a new name scope, a fresh path, and a region from its parameters to its end.
+    ///
+    /// A parameter is the function's, not the scope's that declares it: its
+    /// default is evaluated on every call, and a parameter added to read in the
+    /// body changes what the function does and nothing its declarer does. So the
+    /// region opens before the parameters are walked, and a function in a default
+    /// value is owned by the function whose parameter it is. The probe still
+    /// stands in the body, which is where arrival is observed.
     fn entered(&mut self, own: Option<String>, params: &FormalParameters, body: Body) {
         let hint = self.hint.take();
         self.named(own.or(hint));
         let owner = self.owner;
 
-        self.at("", owner, |w| {
+        let end = match body {
+            // A TypeScript overload signature or an `abstract` method has no body at all.
+            Body::None => None,
+            Body::Block(body) => Some(body.span.end),
+            Body::Expression(expression) => Some(expression.span().end),
+        };
+        let Some(end) = end else {
+            self.at("", owner, |w| w.visit_formal_parameters(params));
+            self.scopes.pop();
+            return;
+        };
+
+        let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
+        self.at("", entry, |w| {
             w.visit_formal_parameters(params);
-            let body = match body {
-                // A TypeScript overload signature or an `abstract` method has no body at all.
-                Body::None => return,
-                Body::Block(body) => body,
+            match body {
+                Body::None => {}
+                Body::Block(body) => {
+                    w.hit(body.span.start + 1, entry);
+                    w.list(&body.statements, "", entry);
+                }
                 Body::Expression(expression) => {
                     // `(n) => n * 2` becomes `(n) => (probe, n * 2)`.
                     let span = expression.span();
-                    let ordinal = w.open(Kind::Function, "entry", span.start, span.end, Some(owner));
-                    w.push(span.start, format_args!("(__va({ordinal}),"));
-                    w.at("", ordinal, |w| w.visit_expression(expression));
+                    w.push(span.start, format_args!("(__va({entry}),"));
+                    w.visit_expression(expression);
                     w.push(span.end, format_args!(")"));
-                    return;
                 }
-            };
-
-            let (entry, _) = w.enter((body.span.start, body.span.end), true, Kind::Function, "entry");
-            w.list(&body.statements, "", entry);
+            }
         });
 
         self.scopes.pop();

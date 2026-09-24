@@ -5,7 +5,7 @@ import { instrument } from './index.js';
 import { spliced, type InstrumentMode } from './spliced.js';
 
 /**
- * The walk against what it answered when the JavaScript walk still held it.
+ * The walk against its committed answers.
  *
  * A block numbered differently under the same instrumentation id is a recording
  * that attributes one region's arrivals to another, and nothing downstream could
@@ -57,7 +57,7 @@ const FIXTURES: Readonly<Record<string, string>> = {
 
 describe('the walk', () => {
   it.each(Object.keys(FIXTURES).flatMap((file) => MODES.map((mode) => [file, mode] as const)))(
-    'answers %s (%s) as it always has',
+    'answers %s (%s) as committed',
     (file, mode) => {
       const answered = spliced(FIXTURES[file]!, file, mode);
 

@@ -14,7 +14,7 @@ import { describe, expect, it } from 'vitest';
 import ExecutionReporter from './reporter.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v4';
+const INSTRUMENTATION = 'sense:instrument/presence-v5';
 const SOURCE = ['export function price(amount) {', '  return amount * 2;', '}'].join('\n');
 
 async function inRoot(run: (root: string) => Promise<void>): Promise<void> {

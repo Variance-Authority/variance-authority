@@ -122,7 +122,7 @@ import { spliced as splice, type Block, type BlockKind, type InstrumentMode } fr
 export type { Block, BlockKind, InstrumentMode };
 
 /** Changes whenever two instrumented block universes must not share observations. */
-export const INSTRUMENTATION_ID = 'sense:instrument/presence-v4';
+export const INSTRUMENTATION_ID = 'sense:instrument/presence-v5';
 
 /**
  * The recipe each mode emits under. One identity per mode, because the two
@@ -132,7 +132,7 @@ export const INSTRUMENTATION_ID = 'sense:instrument/presence-v4';
  */
 const IDS: Readonly<Record<InstrumentMode, string>> = {
   presence: INSTRUMENTATION_ID,
-  entries: 'sense:instrument/entries-v1',
+  entries: 'sense:instrument/entries-v2',
 };
 
 export function instrumentationId(mode: InstrumentMode = 'presence'): string {

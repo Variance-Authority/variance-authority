@@ -175,7 +175,7 @@ describe('the bounded case fold', () => {
     };
     await writeFile(
       resolve(store, 'one.rec'),
-      Buffer.concat([segmentHeader('sense:instrument/presence-v4'), frameRecord(module)]),
+      Buffer.concat([segmentHeader('sense:instrument/presence-v5'), frameRecord(module)]),
     );
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
       journalFormat.encodeJournal(
@@ -194,7 +194,7 @@ describe('the bounded case fold', () => {
       cases,
       '/repo',
       [store],
-      'sense:instrument/presence-v4',
+      'sense:instrument/presence-v5',
       1,
     );
 

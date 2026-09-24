@@ -160,11 +160,11 @@ region whose arrival does not follow from the region above because an arm may
 have returned.
 
 **Identity.** `INSTRUMENTATION_ID` at `packages/sense/src/instrument/index.ts`
-is `sense:instrument/presence-v4`. Every module record, journal, account and
+is `sense:instrument/presence-v5`. Every module record, journal, account and
 coverage file names it, and every reader refuses one that names another. A
 change to where probes go or what a block means mints a new id. The `entries`
 mode — the module and each function, nothing between — is a second recipe
-under `sense:instrument/entries-v1`, and `instrumentationId(mode)` names the
+under `sense:instrument/entries-v2`, and `instrumentationId(mode)` names the
 recipe a seam was asked for.
 
 **Cost.** One parse and one walk, O(module length). Instrumenting is done per

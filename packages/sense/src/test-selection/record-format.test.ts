@@ -93,8 +93,8 @@ describe('a module record as bytes', () => {
   });
 
   it('names the recipe the segment was cut by, and nothing that is not a segment', () => {
-    expect(readSegmentHeader(segmentHeader('sense:instrument/presence-v4'))).toMatchObject({
-      instrumentation: 'sense:instrument/presence-v4',
+    expect(readSegmentHeader(segmentHeader('sense:instrument/presence-v5'))).toMatchObject({
+      instrumentation: 'sense:instrument/presence-v5',
     });
     expect(readSegmentHeader(Buffer.from('{"modules":[]}', 'utf8'))).toBeUndefined();
     expect(readSegmentHeader(Buffer.alloc(0))).toBeUndefined();

@@ -197,7 +197,8 @@ enclosing scope. `Cart/render/anon#0` and `applyTier/reduce.arg0` are names.
 The module root's name is the empty string.
 
 **Path.** The structural position inside that declaration. The module root
-is `module`; a function's own body is `entry`. Decisions are numbered within the path that contains them:
+is `module`; a function's own region, from its parameter list to its end, is
+`entry`. Decisions are numbered within the path that contains them:
 `if#0/then`, `if#0/else`, `if#0/after`, `switch#1/case#2`,
 `switch#1/default`, `try#0/catch`, `try#0/finally`, `for#0/body`,
 `while#0/body`, `await#0`. A nested decision extends the path of the region it
@@ -222,14 +223,9 @@ hunk lands on the file the author edited.
 
 **Cost.** Cutting a module is one parse and one pass — 0.14 ms a module over
 this repository's own source on one Mac, so a build that changed ten files
-spends under two milliseconds carving them — and about two fifths of that is
-already the platform's rather than this project's. `sense` takes SHA-256 from
-`node:crypto` rather than the portable implementation `core` needs to
-run inside a page, and takes the parsed tree straight out of `oxc`'s buffer
-rather than through the JSON it would otherwise serialize and read back. The raw
-transfer wants a 64-bit little-endian host and says so; where the answer is no
-the same tree arrives the slower way, and every structure on this page is
-identical either way.
+spends under two milliseconds carving them. The parse, the walk and the digests
+run in `sense`'s native addon, and no tree crosses into JavaScript: what comes
+back is the instrumented text and one column per block field.
 
 ### A worked example
 
@@ -255,13 +251,17 @@ The eight blocks, with the owner chain that gives each its identity:
 | ordinal | kind | owner | name | path | offsets |
 |---:|---|---:|---|---|---|
 | 0 | `module` | | `` | `module` | 0–256 |
-| 1 | `function` | 0 | `total` | `entry` | 71–194 |
+| 1 | `function` | 0 | `total` | `entry` | 54–194 |
 | 2 | `loop` | 1 | `total` | `for#0/body` | 116–134 |
 | 3 | `continuation` | 1 | `total` | `for#0/after` | 137–192 |
 | 4 | `branch` | 3 | `total` | `if#0/then` | 150–167 |
 | 5 | `branch` | 3 | `total` | `if#0/else` | 167–167 |
 | 6 | `continuation` | 3 | `total` | `if#0/after` | 170–192 |
-| 7 | `function` | 0 | `label` | `entry` | 224–254 |
+| 7 | `function` | 0 | `label` | `entry` | 217–254 |
+
+Block 1 starts at `total`'s parameter list, not at its `{`: a parameter is
+evaluated on every call, so an edit to one is charged to the tests that called
+the function, not to every test that loaded the module declaring it.
 
 Block 5 is the `else` nobody wrote: zero width, and still a place control
 reached. Block 3's text spans from the statement after the loop to the end of
@@ -703,7 +703,7 @@ and `shared` the subset of `hits` whose counter had the `EVALUATING` bit set.
 already above zero in the snapshot the setup file took before the file's first
 test: regions covered as a consequence of loading. Presence only: the counts
 never leave the process. The ordinals index the recipe the build instrumented
-under — `sense:instrument/presence-v4`, or `sense:instrument/entries-v1` when
+under — `sense:instrument/presence-v5`, or `sense:instrument/entries-v2` when
 the seam was asked for `mode: 'entries'`, which numbers the module and each
 function and nothing between — and every reader refuses a journal, record or
 snapshot cut under the other.
@@ -809,7 +809,7 @@ covered under that id. [`journeys.md`](journeys.md) is their page. The type
 ```json
 {
   "version": 1,
-  "instrumentation": "sense:instrument/presence-v4",
+  "instrumentation": "sense:instrument/presence-v5",
   "head": "api",
   "scope": "journey",
   "lost": 0,

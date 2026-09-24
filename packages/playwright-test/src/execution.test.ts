@@ -19,7 +19,7 @@ import {
 } from './execution.js';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 
-const INSTRUMENTATION = 'sense:instrument/presence-v4';
+const INSTRUMENTATION = 'sense:instrument/presence-v5';
 
 /** A page that hands over whatever the test says it entered, once per drain. */
 function pageReporting(...journals: readonly (ExecutionJournal | undefined)[]): Page {
