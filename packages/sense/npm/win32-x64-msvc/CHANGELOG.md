@@ -1,5 +1,12 @@
 # @variance-authority/sense-win32-x64-msvc
 
+## 0.8.1
+
+### Patch Changes
+
+- 96a50bf: A changed file that one module imports as an asset and another declares with `/// <depends path>` selects the tests behind both. The walk from an asset now follows `depends` edges as well as `asset` edges.
+- 96a50bf: `variance run --since` and `variance select` print one line per changed file saying how it was read, or why it was not, and name each test that loaded it through an import the file graph does not list; `variance select --format json` gives the same readings as `readings`, and `@variance-authority/sense/test-selection` exports the formatter as `readingLines`.
+
 ## 0.8.0
 
 ### Minor Changes

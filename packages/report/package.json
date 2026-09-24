@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/report",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "The shape a Variance Authority run leaves behind, so a person, a pull request and an agent read one format.",
   "keywords": [
     "variance-authority",

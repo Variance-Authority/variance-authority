@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/event",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Announce what the code decided, so a test waits for the decision instead of guessing when it was made.",
   "keywords": [
     "variance-authority",
