@@ -1,9 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { digestString } from '@variance-authority/core/format';
-import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
-import { explain, selectedFiles } from './test-since.mjs';
+import { inSnapshotCoordinates } from './since-diff.mjs';
+import { explain, readingLines } from './since-report.mjs';
+import { selectedFiles } from './test-since.mjs';
 import { ROOT } from './workspaces.js';
 
 /**
@@ -121,61 +121,6 @@ describe('a changed source file is asked about under every name it was loaded by
   });
 });
 
-describe('the frame check reads only the paths it has a digest to compare against', () => {
-  const coverage = {
-    commit: 'a'.repeat(40),
-    modules: [
-      { file: 'packages/dom/src/collect.ts', instrumented: true, sourceDigest: digestString('kept') },
-      { file: 'packages/dom/dist/collect.js', instrumented: true, sourceDigest: digestString('built') },
-      { file: 'packages/event/dist/log.js', instrumented: true, sourceDigest: digestString('built') },
-      { file: 'packages/dom/src/unread.ts', instrumented: false, sourceDigest: digestString('kept') },
-    ],
-  };
-  // Every changed path, in the shape a wide diff arrives in: two with a source
-  // row, and the rest of it fixtures, manifests and a stem the snapshot holds
-  // only a built twin for.
-  const changed = [
-    'packages/dom/src/collect.ts',
-    'packages/dom/src/unread.ts',
-    'packages/event/src/log.ts',
-    'fixtures/one.json',
-    'package.json',
-  ];
-
-  const asking = (): { asked: string[]; sourceAtFor: (paths: readonly string[]) => (file: string) => string } => {
-    const asked: string[] = [];
-    return {
-      asked,
-      sourceAtFor: (paths) => {
-        asked.push(...paths);
-        return (file) => (file === 'packages/dom/src/collect.ts' ? 'moved on' : 'kept');
-      },
-    };
-  };
-
-  it('never asks about a path with no source row, whatever else the diff names', () => {
-    const { asked, sourceAtFor } = asking();
-    outOfFrame(coverage, changed, sourceAtFor);
-
-    // `unread.ts` has a row the build could not read, `log.ts` only a built
-    // twin whose digest is of other text, and the last two no row at all.
-    expect(asked).toEqual(['packages/dom/src/collect.ts']);
-  });
-
-  it('reports the module whose text moved and leaves the unasked ones alone', () => {
-    const { sourceAtFor } = asking();
-    expect([...outOfFrame(coverage, changed, sourceAtFor)]).toEqual([
-      'packages/dom/src/collect.ts',
-    ]);
-  });
-
-  it('asks nothing at all when the diff meets no source row', () => {
-    const { asked, sourceAtFor } = asking();
-    expect([...outOfFrame(coverage, ['fixtures/one.json'], sourceAtFor)]).toEqual([]);
-    expect(asked).toEqual([]);
-  });
-});
-
 describe('the tool is reachable the way its comments say', () => {
   it('is wired to a script', () => {
     const manifest = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
@@ -202,5 +147,31 @@ describe('why a file runs is printed in one line', () => {
     expect(
       explain({ test: 't', via: [{ kind: 'importer', trail: ['src/rules.ts', 'src/decide.ts'] }] }),
     ).toBe('src/rules.ts → src/decide.ts');
+  });
+});
+
+describe('a reader and a reading are printed where the reader looks', () => {
+  it('names the value, the file that declares it, and where it was read', () => {
+    const region = { kind: 'region', file: 'src/slider.ts', name: 'Slider', path: 'Slider', startLine: 4, endLine: 9 };
+    expect(
+      explain({ test: 't', via: [{ kind: 'reader', name: 'LIMIT', file: 'src/limits.ts', reader: 'src/slider.ts', region }] }),
+    ).toBe('reads LIMIT of src/limits.ts at src/slider.ts:4-9 Slider');
+    expect(explain({ test: 't', via: [{ kind: 'reader', name: 'LIMIT', file: 'src/limits.ts', reader: 'src/slider.test.ts' }] })).toBe(
+      'reads LIMIT of src/limits.ts at src/slider.test.ts',
+    );
+  });
+
+  it('prints one line per changed file: the verdict, or why there was none', () => {
+    expect(
+      readingLines([
+        { file: 'src/limits.ts', verdict: 'values', names: ['LIMIT'] },
+        { file: 'src/a.ts', unread: 'hunk' },
+      ]),
+    ).toEqual([
+      '',
+      '  read     src/limits.ts  values LIMIT',
+      '  read     src/a.ts       unread (the diff does not apply to the recorded text)',
+    ]);
+    expect(readingLines([])).toEqual([]);
   });
 });

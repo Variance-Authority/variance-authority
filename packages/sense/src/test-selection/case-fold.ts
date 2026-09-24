@@ -15,6 +15,7 @@ import { AMBIENT, executionIndexFrom, readCaseJournals, unpackCase, unpackFrames
 import { executionIndexBytes } from './execution-format.js';
 import { writeCoverageBytes } from './index.js';
 import type { ExecutionTest } from './reverse.js';
+import { isWritten } from './written-lines.js';
 
 /** What the first, allocation-free pass over a case-journal directory learned. */
 export interface CaseRun {
@@ -275,10 +276,13 @@ export async function foldCaseRun(
   for (const [row, [, module]] of shaped.entries()) {
     if (moduleEntered[row] !== 1) continue;
     const from = moduleBlocks[row]!;
-    const to = moduleBlocks[row + 1]!;
+    // The regions with a place, as `executionIndexFrom` keeps them: the rest
+    // were written by the transform, and a journey has nowhere to name them.
+    const kept: number[] = [];
+    for (const [at, block] of module.blocks.entries()) if (isWritten(block)) kept.push(from + at);
     encodedModules.push({
       file: module.file,
-      blocks: module.blocks.map((block) => ({
+      blocks: module.blocks.filter(isWritten).map((block) => ({
         kind: block.kind,
         name: block.name,
         path: block.path,
@@ -286,8 +290,8 @@ export async function foldCaseRun(
         endLine: block.endLine,
         source: block.source,
       })),
-      called: calledSets.subarray(from, to),
-      loaded: loaded.subarray(from, to),
+      called: Uint32Array.from(kept, (block) => calledSets[block]!),
+      loaded: Uint8Array.from(kept, (block) => loaded[block]!),
     });
   }
   return {

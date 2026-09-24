@@ -9,6 +9,7 @@ import { CrossingSets } from './crossing-sets.js';
 import { openCrossingSets } from './crossing-sets-read.js';
 import { NO_OWNER, blob, column, kindId, sections } from './format-layout.js';
 import { samePreconditions } from './merge.js';
+import { NO_LINE } from './written-lines.js';
 import type { CoverageTest, TestCoverage } from './index.js';
 
 /**
@@ -201,8 +202,8 @@ export function layerTestCoverage(
         outBlockDigest[block] = id(held.digest);
         outBlockName[block] = id(held.name);
         outBlockPath[block] = id(held.path);
-        outStart[block] = held.startLine;
-        outEnd[block] = held.endLine;
+        outStart[block] = held.startLine ?? NO_LINE;
+        outEnd[block] = held.endLine ?? NO_LINE;
         outBlockSource[block] = held.source ? 1 : 0;
         widen(held.testFiles.length);
         for (const [order, file] of held.testFiles.entries()) {

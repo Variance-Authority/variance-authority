@@ -111,9 +111,9 @@ why this narrows within it rather than replacing it.
 has one initialization block, so editing any of them selects every test that
 loaded the file — which is close to what the static selector already answers.
 That stratum must be reported as a near-tie rather than folded into a headline.
-[0057](0057-a-module-block-is-read-before-it-is-charged.md) reopens this: a
-top-level change is read before it is charged, and only a change to what the
-module does at load keeps the module.
+[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md)
+reopens this: a top-level change is read before it is charged, and only a
+change to what the module does at load keeps the module.
 
 **A `git mv` costs the file's history.** The path is part of a block's identity,
 so a moved file's blocks retire and their recorded test files run once. Carrying

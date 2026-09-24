@@ -70,6 +70,31 @@ names, and one whose two do not agree is charged **whole** — every subject tha
 ever covered it — and named in the run's notes. Recording once over a clean tree
 is what narrows by region again.
 
+## What a change to a module's top level runs
+
+A line at a module's top level sits in no function, so by its lines alone it is
+charged to the module: every subject that loaded the file. Most edits up there
+run nothing new. A comment, a type or a new function does not change what the
+module does as it loads, and a changed constant changes only the code that
+reads it.
+
+So each changed file is read from both of its texts, the recorded one and the
+one your diff makes of it, and charged by what the edit does:
+
+| The edit | What it selects |
+|---|---|
+| A comment, a type, formatting | Nothing |
+| A function body, or a new function | The subjects that entered the changed regions |
+| A top-level value, such as `LIMIT = 10` becoming `20` | Those, and every subject that entered a function reading `LIMIT`, in the file or in a file that imports it |
+| Anything that runs as the module loads | Every subject that loaded the file |
+
+A read is followed one file deep, through each file that imports the value, and
+further only through a re-export. A file that imports the module as a namespace
+and hands it on whole is charged whole, because no name follows the value from
+there. The run prints a line per changed file saying how it was read, or why it
+could not be — a diff that does not apply to the recorded text, a text that does
+not parse — and a file that could not be read is charged by its lines.
+
 ## Where selection widens
 
 Selection is deliberately conservative because the two possible mistakes have

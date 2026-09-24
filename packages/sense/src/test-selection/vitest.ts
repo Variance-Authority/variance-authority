@@ -320,7 +320,7 @@ function selectionPlugin(
       // coordinates in once the prior transforms' maps are read back through —
       // and of `code`, which is what those transforms made of it, when there is
       // no map to read back through and the lines stay where they were left.
-      const { lineOf, sourceDigest, file: wrote } = recordedFrame(
+      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
         code,
         priorMap(this),
         file,
@@ -345,7 +345,7 @@ function selectionPlugin(
         id: moduleId,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
+        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
       });
       return { code: done.code, map: null };
     },

@@ -33,6 +33,7 @@ describe('a changed file the recording cannot answer for', () => {
       entered: [],
       unread: ['README.md'],
       stale: [],
+      readings: [],
       because: [],
     });
   });
@@ -213,6 +214,7 @@ describe('a changed file the recording cannot answer for', () => {
       entered: [],
       unread: ['src/unparsed.ts'],
       stale: [],
+      readings: [],
       because: [],
     });
   });

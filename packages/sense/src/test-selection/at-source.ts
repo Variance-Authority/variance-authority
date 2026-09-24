@@ -70,6 +70,7 @@ import { askCoverageFile } from './coverage-file.js';
 import { distanceFromView, type DistanceOptions, type TestDistance } from './distance.js';
 import { findModules } from './lookup.js';
 import type { SelectionCause, SelectionReason } from './select.js';
+import { NO_LINE } from './written-lines.js';
 
 /**
  * Where to ask.
@@ -196,7 +197,11 @@ export function testsReachingFromView(
   for (const module of rows) {
     const first = coverage.moduleBlocks.at(module);
     const end = coverage.moduleBlocks.at(module + 1);
-    for (const block of resolve(coverage, first, end, point)) matched.push(block);
+    for (const block of resolve(coverage, first, end, point)) {
+      // A region the transform wrote without an origin is no place in the
+      // file, and an answer here is a list of places.
+      if (coverage.blockStart.at(block) !== NO_LINE) matched.push(block);
+    }
   }
   matched.sort((left, right) => span(coverage, left) - span(coverage, right));
 

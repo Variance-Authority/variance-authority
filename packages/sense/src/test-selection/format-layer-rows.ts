@@ -4,6 +4,7 @@ import type { TestCoverageView } from './format-view.js';
 import type { CrossingSetsView } from './crossing-sets-read.js';
 import type { LayeredOrder } from './format-dictionary.js';
 import { KINDS, NO_OWNER } from './format-layout.js';
+import { writtenLines } from './written-lines.js';
 import {
   addressKey,
   addressed,
@@ -172,8 +173,7 @@ export function layeredRows(input: {
       digest: view.string(blockDigest[at]!),
       name: view.string(blockName[at]!),
       path: view.string(blockPath[at]!),
-      startLine: blockStart[at]!,
-      endLine: blockEnd[at]!,
+      ...writtenLines(blockStart[at]!, blockEnd[at]!),
       source: blockSource[at] === 1,
       testFiles,
     };

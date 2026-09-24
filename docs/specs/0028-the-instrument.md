@@ -151,7 +151,17 @@ requests count into two arrays with no change to the probe.
 inserted text contains a newline. A region whose body is a block gets
 `__va(n);` after its `{`. A bare statement body is wrapped in `{` and `}`,
 which is also what keeps a synthesized `else` from rebinding to an inner `if`.
-An expression-bodied arrow becomes `(__va(n), expr)`. An `await` is wrapped as
+An expression-bodied arrow becomes `(__va(n), expr)`. A function whose
+parameters can throw while they bind carries its probe in the parameter list
+instead: from the first parameter that can throw, the parameters move into an
+object pattern over a rest parameter, the probe is that pattern's first
+computed key, and each parameter in front of the first default leaves a
+placeholder at its position, so `length`, `arguments` and binding order are
+what they were — `f(a, { b }, c = 1)` becomes
+`f(a, __va$1, ...{[(__va(n),"")]: { b } = __va$1, 0: c = 1})`. A list whose
+first parameter is an object pattern keeps its text and its probe in the body,
+because Vitest, Playwright and Rstest read fixture names out of that text. An
+`await` is wrapped as
 `__vaR(await x, n)` so the resumed value reaches whoever wanted it. A missing
 `else` is appended as ` else{__va(n);}` and a missing `default` as
 `default:__va(n);` before the closing brace of the `switch`. The statement

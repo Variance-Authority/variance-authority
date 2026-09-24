@@ -9,6 +9,7 @@ import type {
   VariationDeviation,
 } from './index.js';
 import type { TestCoverageView } from './format-view.js';
+import { NO_LINE } from './written-lines.js';
 
 interface SourceFile {
   readonly code: readonly boolean[];
@@ -51,6 +52,8 @@ export async function deviationFromView(
     for (let block = view.moduleBlocks.at(module); block < view.moduleBlocks.at(module + 1); block += 1) {
       if (view.blockSource.at(block) !== 1) continue;
       const start = view.blockStart.at(block);
+      // Lines no author wrote are not lines of coverage.
+      if (start === NO_LINE) continue;
       const end = view.blockEnd.at(block);
       const span = end - start;
       const entered = new Set(view.crossings.members(view.blockSet.at(block)));

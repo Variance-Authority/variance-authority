@@ -34,6 +34,8 @@ describe('bindsOnly', () => {
     // so there is no name at runtime for anything already there to reach.
     expect(bindsOnly('declare function decide(n: number): boolean;')).toBe(true);
     expect(bindsOnly('function decide(n: number): boolean;')).toBe(true);
+    expect(bindsOnly('declare const LIMIT: number;')).toBe(true);
+    expect(bindsOnly('declare class Cart {}')).toBe(true);
   });
 
   it('is true for a type, an interface and a type-only import', () => {

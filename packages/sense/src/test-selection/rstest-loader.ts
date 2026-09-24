@@ -72,7 +72,7 @@ function instrumentModule(
   // coordinates in once SWC's map is read back through — and of `code`, which
   // is what SWC made of it, when there is no map and the lines stay where they
   // were left.
-  const { lineOf, sourceDigest, file: wrote } = recordedFrame(code, map, file, (at) =>
+  const { extentOf, sourceDigest, file: wrote } = recordedFrame(code, map, file, (at) =>
     readFileSync(at, 'utf8'),
   );
 
@@ -98,7 +98,7 @@ function instrumentModule(
     id: moduleId,
     sourceDigest,
     instrumented: true,
-    blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
+    blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
   });
   // Without the map it arrived with: the probes moved every line below the
   // first of them, and a map that says otherwise is worse than none.

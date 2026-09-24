@@ -130,3 +130,55 @@ export function describeRange(range) {
   if (range.from === range.to) return `${range.from} hop(s)`;
   return `${range.from}-${range.to} hops`;
 }
+
+/** One line for why a test file is in the run. */
+export function explain(cause) {
+  const reason = cause.via[0];
+  const more = cause.via.length > 1 ? ` (+${cause.via.length - 1})` : '';
+  switch (reason.kind) {
+    case 'region':
+      return `${reason.file}:${reason.startLine}-${reason.endLine} ${reason.path}${more}`;
+    case 'precondition':
+      return `precondition ${reason.name}${more}`;
+    case 'importer':
+      return `${reason.trail.join(' → ')}${more}`;
+    case 'reader':
+      return `reads ${reason.name} of ${reason.file} at ${reason.region === undefined ? reason.reader : `${reason.reader}:${reason.region.startLine}-${reason.region.endLine} ${reason.region.path}`}${more}`;
+    default:
+      return reason.kind;
+  }
+}
+
+/**
+ * What the parser made of each changed file, one line each: the verdict that
+ * charged it, or why its lines were read without one.
+ */
+export function readingLines(readings) {
+  if (readings.length === 0) return [];
+  const width = Math.max(...readings.map((reading) => reading.file.length));
+  return [
+    '',
+    ...readings.map((reading) => {
+      const said =
+        reading.verdict === undefined
+          ? `unread (${UNREAD[reading.unread]})`
+          : reading.verdict === 'values'
+            ? `values ${reading.names.join(', ')}`
+            : VERDICT[reading.verdict];
+      return `  read     ${reading.file.padEnd(width)}  ${said}`;
+    }),
+  ];
+}
+
+const VERDICT = {
+  none: 'none — the runtime text is equal',
+  bodies: 'bodies — the regions it touched, not the module',
+  load: 'load — every test that loaded it',
+};
+
+const UNREAD = {
+  source: 'no recorded text to read it against',
+  hunk: 'the diff does not apply to the recorded text',
+  parse: 'one side does not parse',
+  addon: 'no native scanner',
+};

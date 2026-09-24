@@ -605,17 +605,35 @@ below is one stage of that call.
    because the same bytes at the same line number are equally a line of the CSS
    or the copy a module renders out of a template literal, and a diff offers no
    coordinate finer than the line. One parse per inserted run.
-3. **Lines to blocks.** Each charged line costs one scan of the module's
+3. **Reading the change.** When you pass `sourceAt` and the recorded text
+   answers it, the file is read from both of its texts: the recorded one, and
+   that one with the diff's hunks applied. Each side is parsed twice, whole and
+   with every function body emptied, and the file gets one verdict. `none` —
+   the two programs are equal without comments, types and formatting — charges
+   nothing. `bodies` — what the module does as it loads and every binding's
+   value are equal — charges the regions around the lines and never the
+   module's own region. `values` charges the same regions, and every region
+   that reads a binding whose value moved: in the file, and in each direct
+   importer on a runtime edge, further only through a re-export. A read at
+   load charges that module, and an importer that hands a namespace on whole
+   charges its module. `load` charges the lines as step 4 does. Under `bodies`
+   or `values`, text inserted in a gap no region spans charges nothing. A file
+   without `sourceAt`, whose hunks do not apply to the recorded text, whose
+   text does not parse, or on a machine without the scanner's native addon is
+   charged by its lines, and `readings` says which. Two parses per side per
+   changed file, and one parse per importer of a moved value.
+4. **Lines to blocks.** Each charged line costs one scan of the module's
    blocks, O(B). Every synthesized region containing the line is charged. Source
    regions containing it are grouped by span, and the narrowest group is
    charged whole. Each wider group is charged in turn as long as a region of
    the group just charged extends outward, which means its text on that line
    sits beside the wider region's text. A region extends outward when the line
    is its first line, except that the module root and a continuation never do,
-   a function also does when the line is its last, and a resume does only when
-   no region of another kind has its span. A line no source region contains
+   a function also does when the line is its last, and a resume does on any of
+   its lines, but only when no region of another kind has its span: every line
+   of an awaited expression is evaluated before the await settles. A line no source region contains
    charges every block of the module.
-4. **Blocks to tests.** Each charged block's crossings, O(C of those blocks),
+5. **Blocks to tests.** Each charged block's crossings, O(C of those blocks),
    of every row recorded under the path — two builds that read one module are
    two rows, and the answer is all of them. Every changed path is also asked of
    the precondition table, O(P), whatever its rows say: a row answers which
@@ -623,7 +641,7 @@ below is one stage of that call.
    the file's text changes at all, and the two are not the same sentence. A row
    does buy the path out of *unread*, which is why a module nothing declares is
    still measured.
-5. **Files with no row.** Hand the relations graph in through
+6. **Files with no row.** Hand the relations graph in through
    `options.relations` and every changed file with no instrumented row under
    any of its names is asked of the graph, which walks to the files that
    import it. A file something imports as an asset — a stylesheet, an image, a
@@ -641,7 +659,7 @@ below is one stage of that call.
    the same way. A file with no row selects nobody even when a test declares
    it: a declaration selects on a change to the declared file's own text, and a
    walk asks for no such change. O(n + m) on the graph per changed file.
-6. **Unread.** A changed path is read when *some* name the caller says the
+7. **Unread.** A changed path is read when *some* name the caller says the
    snapshot may list it under has a module row, a precondition or a node in
    the graph. One file is often two names — a package's own suite loads `src`,
    every other package loads the built twin — and each name selects the tests
@@ -654,7 +672,8 @@ below is one stage of that call.
    when no test names it: the row is the measurement.
 
 The whole trace is O(diff length + inserted text + B per changed module + C of charged blocks
-+ P), and one graph walk more per changed file when a graph is supplied.
++ P), plus one graph walk per changed file when a graph is supplied, and the
+parses of step 3 when a reading is made.
 
 ## Tracing a test to what it depends on
 

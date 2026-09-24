@@ -58,6 +58,9 @@ use oxc_span::GetSpan;
 use oxc_syntax::number::ToJsString;
 use oxc_syntax::scope::ScopeFlags;
 
+#[path = "instrument_params.rs"]
+mod params;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Module = 0,
@@ -350,9 +353,11 @@ impl Walker {
     /// default is evaluated on every call, and a parameter added to read in the
     /// body changes what the function does and nothing its declarer does. So the
     /// region opens before the parameters are walked, and a function in a default
-    /// value is owned by the function whose parameter it is. The probe still
-    /// stands in the body, which is where arrival is observed.
-    fn entered(&mut self, own: Option<String>, params: &FormalParameters, body: Body) {
+    /// value is owned by the function whose parameter it is. The probe stands in
+    /// the body, unless binding a parameter can throw: then it stands in front of
+    /// that parameter, by the rewrite `instrument_params.rs` describes, because a
+    /// call that throws while binding has arrived.
+    fn entered(&mut self, own: Option<String>, params: &FormalParameters, body: Body, arrow: bool) {
         let hint = self.hint.take();
         self.named(own.or(hint));
         let owner = self.owner;
@@ -370,14 +375,25 @@ impl Walker {
         };
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
+        let plan = params::plan(params, entry, arrow);
         self.at("", entry, |w| {
+            for (at, text) in plan.iter().flat_map(|plan| &plan.before) {
+                w.push(*at, format_args!("{text}"));
+            }
             w.visit_formal_parameters(params);
+            if let Some(plan) = &plan {
+                w.push(plan.close, format_args!("}}"));
+            }
+            let body_probe = plan.is_none();
             match body {
                 Body::None => {}
                 Body::Block(body) => {
-                    w.hit(body.span.start + 1, entry);
+                    if body_probe {
+                        w.hit(body.span.start + 1, entry);
+                    }
                     w.list(&body.statements, "", entry);
                 }
+                Body::Expression(expression) if !body_probe => w.visit_expression(expression),
                 Body::Expression(expression) => {
                     // `(n) => n * 2` becomes `(n) => (probe, n * 2)`.
                     let span = expression.span();
@@ -514,7 +530,7 @@ impl<'a> Visit<'a> for Walker {
             FunctionType::FunctionDeclaration | FunctionType::FunctionExpression => {
                 let own = it.id.as_ref().map(|id| id.name.to_string());
                 let body = it.body.as_deref().map_or(Body::None, Body::Block);
-                self.entered(own, &it.params, body);
+                self.entered(own, &it.params, body, false);
             }
             // An overload signature or an `abstract` method opens nothing.
             _ => {
@@ -529,7 +545,7 @@ impl<'a> Visit<'a> for Walker {
             ArrowFunctionBody::FunctionBody(body) => Body::Block(body),
             expression => Body::Expression(expression.to_expression()),
         };
-        self.entered(None, &it.params, body);
+        self.entered(None, &it.params, body, true);
     }
 
     fn visit_class(&mut self, it: &Class<'a>) {

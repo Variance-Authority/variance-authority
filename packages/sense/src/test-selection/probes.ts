@@ -202,7 +202,7 @@ export function testSelectionProbes(
       // texts: the file on disk when the prior chain reads the extents back into
       // it, and `code` when there is no chain and the extents stay where the
       // transform left them.
-      const { lineOf, sourceDigest, file: wrote } = recordedFrame(
+      const { extentOf, sourceDigest, file: wrote } = recordedFrame(
         code,
         priorMap(this),
         source,
@@ -228,7 +228,7 @@ export function testSelectionProbes(
         id,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(code, block, lineOf)),
+        blocks: done.blocks.map((block) => coverageBlock(code, block, extentOf)),
       });
 
       // Hoisted in front of everything the module imports, and on the first line,

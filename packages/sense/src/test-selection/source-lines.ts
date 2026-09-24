@@ -16,9 +16,13 @@
  *
  * So the extents are translated back through the map the bundler already keeps.
  * Nothing here is a source map implementation: it decodes the one field that
- * carries positions and answers one question — *which line of the original was
- * this offset written on* — and every case it cannot answer falls back to the
- * generated line, which is the pre-existing behaviour rather than a guess.
+ * carries positions and answers one question — *which lines of the original was
+ * this region written on*. With no map there is nothing to translate through,
+ * and the answer is the generated lines, in the text the record's digest is
+ * then taken of. With a map, a region nothing of which has an origin is
+ * answered with no lines at all: it is text the transform wrote, and the
+ * generated line it sits on is a place in a file the diff is not written
+ * against.
  */
 
 import { dirname, resolve } from 'node:path';
@@ -32,8 +36,12 @@ export interface TransformSourceMap {
   readonly sourceRoot?: string;
 }
 
-/** An offset into the transformed text, answered as a line of the original. */
-export type LineOf = (offset: number) => number;
+/**
+ * A region of the transformed text — the offsets of its first and last
+ * characters — answered as the lines of the original those two were written on,
+ * in that order. `undefined` when the region was not written in the original.
+ */
+export type ExtentOf = (start: number, last: number) => readonly [number, number] | undefined;
 
 interface Segment {
   readonly column: number;
@@ -50,28 +58,42 @@ interface Segment {
  * diff will never name. When no source matches, every segment is accepted: a map
  * whose paths are written relative to a root this cannot see is still that
  * module's map, and the alternative is discarding it whole.
+ *
+ * Each end is the origin of the last thing at or before it, so the only text
+ * with no answer is text before the first origin in the module — the prologue
+ * esbuild writes when it lowers a decorator, forty-odd lines of helpers above
+ * the first line anyone wrote. A region that ends there has no lines. One that
+ * only begins there — the module itself — was written from its first origin
+ * on, so its first line is the origin of the first thing after its start; that
+ * origin sits inside the region, because its end has one and its start does
+ * not.
  */
 export function sourceLines(
   code: string,
   map: TransformSourceMap | undefined,
   file: string,
-): LineOf {
+): ExtentOf {
   // Once per module, not once per offset. A block asks twice and a module has
   // thousands of them, so counting newlines from the top each time is quadratic
   // in the file: over zod's source it is 268 ms, a quarter of everything the
   // process transforming that suite does.
   const starts = lineStarts(code);
-  const generated = (offset: number): number => lineOfStart(starts, offset) + 1;
-  if (map === undefined || map.mappings === '') return generated;
+  if (map === undefined || map.mappings === '') {
+    return (start, last) => [lineOfStart(starts, start) + 1, lineOfStart(starts, last) + 1];
+  }
 
   const only = sourceIndex(map.sources, file);
   const lines = decode(map.mappings);
+  const at = (offset: number): readonly [number, number] => {
+    const line = lineOfStart(starts, offset);
+    return [line, offset - (starts[line] ?? 0)];
+  };
 
-  return (offset) => {
-    const line = generated(offset) - 1;
-    const column = offset - (starts[line] ?? 0);
-    const found = nearest(lines, line, column, only);
-    return found === undefined ? line + 1 : found + 1;
+  return (start, last) => {
+    const closes = nearest(lines, ...at(last), only);
+    if (closes === undefined) return undefined;
+    const opens = nearest(lines, ...at(start), only) ?? following(lines, ...at(start), only) ?? closes;
+    return [opens + 1, closes + 1];
   };
 }
 
@@ -107,9 +129,9 @@ export function sourceLines(
  * digest from another.
  */
 export interface RecordedFrame {
-  /** An offset into the transformed text, as a line of the digested text. */
-  readonly lineOf: LineOf;
-  /** Of the text {@link lineOf} answers in, which is what a record must carry. */
+  /** A region of the transformed text, as lines of the digested text. */
+  readonly extentOf: ExtentOf;
+  /** Of the text {@link extentOf} answers in, which is what a record must carry. */
   readonly sourceDigest: string;
   /** The file that text is, which is what a record must be named after. */
   readonly file: string;
@@ -136,7 +158,7 @@ export function recordedFrame(
 
   return {
     file: named,
-    lineOf: sourceLines(code, map, file),
+    extentOf: sourceLines(code, map, file),
     sourceDigest: digestString(text ?? code),
   };
 }
@@ -206,6 +228,27 @@ function nearest(
       best = segment;
     }
     if (best !== undefined) return best.line;
+  }
+  return undefined;
+}
+
+/**
+ * The first segment at or after a position, for a position that has none
+ * before it. Only the prologue asks, so the walk ends at the first line of
+ * origins it meets.
+ */
+function following(
+  lines: readonly (readonly Segment[])[],
+  line: number,
+  column: number,
+  only: number | undefined,
+): number | undefined {
+  for (let at = line; at < lines.length; at += 1) {
+    for (const segment of lines[at] ?? []) {
+      if (only !== undefined && segment.source !== only) continue;
+      if (at === line && segment.column < column) continue;
+      return segment.line;
+    }
   }
   return undefined;
 }

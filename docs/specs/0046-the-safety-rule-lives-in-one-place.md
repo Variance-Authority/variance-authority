@@ -45,10 +45,12 @@ That would be a tidiness complaint if the four agreed. They do not:
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
 names no commit, with a docblock at `recorded-text.ts:111-113` saying this
-avoids "reporting every module stale". `recorded()` at
-`test-selection/select.ts:334` reads `undefined` as disagreement and returns
-`false`. **A commitless snapshot
-therefore reports exactly every changed module stale** — the widening is safe,
+avoids "reporting every module stale". `frameOf` at
+`test-selection/reading.ts:107` reads `undefined` under every name as
+disagreement and answers `stale`. `tools/test-since.mjs` withholds `sourceAt`
+from a commitless snapshot; the CLI does not. **Through `variance select` and
+`variance run --since`, a commitless snapshot therefore reports exactly every
+changed module stale** — the widening is safe,
 and the operator is told N modules "were recorded from a different text" and
 advised to record once over a clean tree, which cannot fix a missing commit.
 The same shape sits one layer down: the batched `git cat-file` read swallows
@@ -80,13 +82,13 @@ own answer, each widens as it must, and each produces advice an operator can
 act on. `readDiff` is guarded rather than letting every escape be misreported
 as a corrupt snapshot with destructive advice.
 
-**4. One frame check, in one unit.** The library asks per module name;
-`tools/test-since.mjs` carries its own `outOfFrame` / `inSnapshotCoordinates`
-because a workspace `dist` name is not a path git can answer. Wiring `knownAs`
-into the CLI as it stands *breaks* the library's check for exactly that reason,
-and the library has no answer for it. The name a row carries and the path a
-diff carries are two coordinate systems, and the translation between them
-belongs beside the check, once.
+**4. One translation between names and paths.** The frame check is one unit,
+`frameOf`, asked under every name `knownAs` gives a file, and a built twin's
+rows are in frame when the source's are. What is still written twice is the
+translation: `tools/test-since.mjs` rewrites a diff with `inSnapshotCoordinates`
+before the library sees it, and the CLI's reader supplies no `knownAs` at all.
+The name a row carries and the path a diff carries are two coordinate systems,
+and the translation between them belongs beside the check, once.
 
 **5. The record's own precision is used.** Per-region digests exist in the
 format and selection reads none of them: the frame check is whole-module and
@@ -134,8 +136,8 @@ carries an `it.todo` or a `// FIXME`, which is how this repository is supposed
 to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
-**9. The frame is checked against the frame the diff is in.** `recorded()`
-asks `sourceAt(name, coverage.commit)` (`test-selection/select.ts:331`) — the
+**9. The frame is checked against the frame the diff is in.** `frameOf`
+asks `sourceAt(name, coverage.commit)` (`test-selection/reading.ts:97`) — the
 text as of the *snapshot's* commit. The hunks it is deciding about are line
 ranges in the *diff base's* coordinates. The two coincide only while the
 snapshot was recorded at the base, which is the local case and not the CI one:

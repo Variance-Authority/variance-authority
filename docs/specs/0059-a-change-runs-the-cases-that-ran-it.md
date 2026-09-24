@@ -7,9 +7,8 @@ already reads that record. But it answers with test files, and so does
 hundred. Nothing hands a runner the five.
 **Built on:** `cases.ts` (the per-case record, scoped by async context),
 `execution-select.ts` `narrowByJourneys` (the region-to-case join),
-[0057](0057-a-module-block-is-read-before-it-is-charged.md) and
-[0058](0058-a-changed-value-is-charged-to-its-readers.md) (the regions a change
-is charged to).
+[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md) (the
+regions a change is charged to).
 
 ## Purpose
 
@@ -20,7 +19,7 @@ selection throws it away at the last step.
 
 ## What would discharge it
 
-**1. The join answers cases.** A region charged by 0030, 0057 or 0058 selects the
+**1. The join answers cases.** A region charged by 0030 or by a reading selects the
 cases whose crossings entered it. `ExecutionNarrowing` carries the cases for each
 selected file, each with its `SelectionReason`. A file keeps the file-grain
 answer when any of the following is true: the file itself changed, the file has

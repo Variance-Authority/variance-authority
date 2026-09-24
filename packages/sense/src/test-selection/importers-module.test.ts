@@ -27,6 +27,7 @@ describe('a changed module with no row, asked of the files that import it', () =
       entered: ['test/aaa.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/aaa.test.ts', via: [{ kind: 'importer', trail: ['src/rules.ts', 'test/aaa.test.ts'] }] },
       ],
@@ -55,6 +56,7 @@ describe('a changed module with no row, asked of the files that import it', () =
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail }] },
@@ -236,6 +238,8 @@ describe('a changed module with no row, asked of the files that import it', () =
       entered: ['test/alpha.test.ts'],
       unread: [],
       stale: [],
+      // No `sourceAt`, so no old text to read the change against.
+      readings: [{ file: 'src/decide.ts', unread: 'source' }],
       because: [
         {
           test: 'test/alpha.test.ts',

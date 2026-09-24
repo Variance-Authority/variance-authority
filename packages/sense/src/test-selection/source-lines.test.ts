@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
-import { sourceLines } from './source-lines.js';
+import { sourceLines, type ExtentOf } from './source-lines.js';
 import { testSelectionProbes, type TransformingContext } from './probes.js';
 import { readRecord, recordStore } from './instrumented-modules.js';
 import { coverageBlock, coverageModule } from './coverage-rows.js';
@@ -35,9 +35,13 @@ const TRANSFORMED = ORIGINAL.split('\n')
   .filter((line) => line !== '')
   .join('\n');
 
+/** The line one offset lands on, as a region of one character would be recorded. */
+const lineIn = (extentOf: ExtentOf) => (offset: number): number | undefined =>
+  extentOf(offset, offset)?.[0];
+
 describe('reading a block back to where it was written', () => {
   it('answers with the original line, not the generated one', () => {
-    const lineOf = sourceLines(TRANSFORMED, DROPPED_BLANK, '/repo/app/src/a.ts');
+    const lineOf = lineIn(sourceLines(TRANSFORMED, DROPPED_BLANK, '/repo/app/src/a.ts'));
 
     expect(lineOf(TRANSFORMED.indexOf('const a'))).toBe(1);
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
@@ -48,34 +52,50 @@ describe('reading a block back to where it was written', () => {
     // Not an error and not a guess: a build whose text *is* the file was the
     // only case this ever handled, and it still is.
     const of = (code: string): number =>
-      sourceLines(code, undefined, '/repo/app/src/a.ts')(code.indexOf('const f'));
+      lineIn(sourceLines(code, undefined, '/repo/app/src/a.ts'))(code.indexOf('const f'))!;
 
     expect(of(TRANSFORMED)).toBe(2);
     expect(of(ORIGINAL)).toBe(3);
   });
 
-  it('gives emitted code with no origin the origin of what precedes it', () => {
-    // A `keepNames` prologue, a hoisted helper, an import the transform moved:
-    // real generated lines that came from nothing. Reporting line 1 for them
-    // would file every one under the top of the file.
+  it('gives a region no lines when the transform wrote it above every origin', () => {
+    // The prologue esbuild writes when it lowers a decorator: real generated
+    // lines that came from nothing. Counted in the generated text they land on
+    // the author's lines below them, and an edit there selects whichever test
+    // ran the helper.
     const withPrologue = `var __name = (t) => t;\n${TRANSFORMED}`;
-    const lineOf = sourceLines(
+    const extentOf = sourceLines(
       withPrologue,
       { sources: ['app/src/a.ts'], mappings: `;${DROPPED_BLANK.mappings}` },
       '/repo/app/src/a.ts',
     );
+    const prologue = withPrologue.indexOf('\n') - 1;
 
-    expect(lineOf(withPrologue.indexOf('const f'))).toBe(3);
-    expect(lineOf(0)).toBe(1);
+    expect(lineIn(extentOf)(withPrologue.indexOf('const f'))).toBe(3);
+    expect(extentOf(0, prologue)).toBeUndefined();
+    // The module opens in the prologue and closes in the author's text: it was
+    // written from its first origin on.
+    expect(extentOf(0, withPrologue.length - 1)).toEqual([1, 5]);
+  });
+
+  it('gives emitted code below an origin the origin of what precedes it', () => {
+    // A helper written mid-file has an author's line above it, and that line is
+    // the nearest thing it was written for.
+    const withHelper = `${TRANSFORMED}\nvar __name = (t) => t;`;
+    const extentOf = sourceLines(withHelper, DROPPED_BLANK, '/repo/app/src/a.ts');
+
+    expect(lineIn(extentOf)(withHelper.indexOf('var __name'))).toBe(5);
   });
 
   it('ignores segments belonging to another file the map also names', () => {
     // Two sources, and the second one's lines are not this file's lines. A
     // block placed by them points into a file the diff will never name.
-    const lineOf = sourceLines(
-      TRANSFORMED,
-      { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'AAAA;ACEA' },
-      '/repo/app/src/a.ts',
+    const lineOf = lineIn(
+      sourceLines(
+        TRANSFORMED,
+        { sources: ['app/src/other.ts', 'app/src/a.ts'], mappings: 'AAAA;ACEA' },
+        '/repo/app/src/a.ts',
+      ),
     );
 
     expect(lineOf(TRANSFORMED.indexOf('const f'))).toBe(3);
@@ -91,11 +111,12 @@ describe('reading a block back to where it was written', () => {
       '\n',
     );
     // Generated line 1 came from original line 3, and lines 2-4 from 1-3.
-    const lineOf = sourceLines(
+    const extentOf = sourceLines(
       hoisted,
       { sources: ['app/src/a.tsx'], mappings: 'AAEA;AAFA;AACA;AACA' },
       '/repo/app/src/a.tsx',
     );
+    const lineOf = lineIn(extentOf);
     const block = {
       ordinal: 0,
       kind: 'module' as const,
@@ -106,9 +127,9 @@ describe('reading a block back to where it was written', () => {
       end: hoisted.indexOf('_tmpl$)') + 1,
     };
 
-    expect(lineOf(block.start)).toBeGreaterThan(lineOf(block.end - 1));
+    expect(lineOf(block.start)).toBeGreaterThan(lineOf(block.end - 1)!);
 
-    const row = coverageBlock(hoisted, block, lineOf);
+    const row = coverageBlock(hoisted, block, extentOf);
 
     expect(row.startLine).toBe(2);
     expect(row.endLine).toBe(3);

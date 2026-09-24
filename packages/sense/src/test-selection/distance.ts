@@ -240,7 +240,9 @@ function place(
     if (reason.kind === 'precondition') {
       return { test: cause.test, bearing: 'precondition', hops: 0, from: reason.name, trail: [reason.name] };
     }
-    if (reason.kind === 'region') seeds.push(reason.file);
+    // A reader is measured from the file that declares the value it reads:
+    // that is the file the change is in.
+    if (reason.kind === 'region' || reason.kind === 'reader') seeds.push(reason.file);
     // An importer chain is already a measured path from the changed file to the
     // module whose row answered. Its far end is where the walk below picks up,
     // and the chain is spliced back on once there is something to splice it to.

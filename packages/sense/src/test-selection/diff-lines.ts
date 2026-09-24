@@ -209,7 +209,7 @@ function gitPaths(rest: string): readonly string[] {
   return left === right ? [left] : [left, right];
 }
 
-function diffPath(value: string): string | undefined {
+export function diffPath(value: string): string | undefined {
   const path = value.startsWith('"') ? quoted(value)[0] : value.split('\t')[0];
   if (path === undefined || path === '/dev/null') return undefined;
   return path.startsWith('b/') || path.startsWith('a/') ? path.slice(2) : path;

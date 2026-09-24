@@ -41,8 +41,7 @@ export function crossedBlock(
     digest: row.digest,
     name: row.name,
     path: row.path,
-    startLine: row.startLine,
-    endLine: row.endLine,
+    ...(row.startLine === undefined ? {} : { startLine: row.startLine, endLine: row.endLine }),
     source: row.source,
     testFiles: row.testFiles,
   };
@@ -380,8 +379,8 @@ export function recutRows(
   if (fresh === undefined) return 'mislaid';
   // One lookup for the whole module: the default counts newlines from the top
   // of the file on every offset, and a module re-cut here asks twice per region.
-  const lineOf = sourceLines(source, undefined, module.file);
-  const rows = fresh.blocks.map((block) => coverageBlock(source, block, lineOf));
+  const extentOf = sourceLines(source, undefined, module.file);
+  const rows = fresh.blocks.map((block) => coverageBlock(source, block, extentOf));
   if (!sameNumbering(module.blocks, rows)) return 'mislaid';
   const before = new Map(addressed(module.blocks));
   // Rows by ordinal as they are decided, which is what a gained region reads its

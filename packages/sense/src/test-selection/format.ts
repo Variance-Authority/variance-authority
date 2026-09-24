@@ -16,6 +16,7 @@ import {
 } from './format-layout.js';
 import { openTestCoverage } from './format-view.js';
 import { CrossingSets } from './crossing-sets.js';
+import { NO_LINE, writtenLines } from './written-lines.js';
 
 /**
  * The logical model, written to a snapshot and read back out of one.
@@ -127,8 +128,8 @@ export function encodeTestCoverage(coverage: TestCoverage): Buffer {
       blockDigest[blockIndex] = stringId(block.digest);
       blockName[blockIndex] = stringId(block.name);
       blockPath[blockIndex] = stringId(block.path);
-      blockStart[blockIndex] = block.startLine;
-      blockEnd[blockIndex] = block.endLine;
+      blockStart[blockIndex] = block.startLine ?? NO_LINE;
+      blockEnd[blockIndex] = block.endLine ?? NO_LINE;
       blockSource[blockIndex] = block.source ? 1 : 0;
       if (block.testFiles.length > crossers.length) {
         crossers = new Uint32Array(1 << (32 - Math.clz32(block.testFiles.length - 1)));
@@ -258,8 +259,7 @@ export function decodeTestCoverage(bytes: Uint8Array): TestCoverage {
         digest: string(blockDigest[block]!),
         name: string(blockName[block]!),
         path: string(blockPath[block]!),
-        startLine: blockStart[block]!,
-        endLine: blockEnd[block]!,
+        ...writtenLines(blockStart[block]!, blockEnd[block]!),
         source: blockSource[block] === 1,
         testFiles,
         ...(loadedBy.length === 0 ? {} : { loadedBy }),

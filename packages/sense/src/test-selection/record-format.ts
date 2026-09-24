@@ -25,6 +25,7 @@ import type { BlockKind } from '../instrument/index.js';
 import { KINDS } from './format-layout.js';
 import type { CoverageBlock } from './index.js';
 import type { CapturedModule } from './instrumented-modules.js';
+import { NO_LINE, writtenLines } from './written-lines.js';
 
 /** `VAREC` and a format version. A segment that does not open with it is not one. */
 const MAGIC = Buffer.from([0x56, 0x41, 0x52, 0x45, 0x43, 0x00, 0x00, 0x01]);
@@ -162,8 +163,8 @@ function encodeRecord(module: CapturedModule): Buffer {
     out.writeUInt32LE(block.owner ?? NO_OWNER, owner + index * 4);
     out.writeUInt32LE(names[index]!, name + index * 4);
     out.writeUInt32LE(paths[index]!, path + index * 4);
-    out.writeUInt32LE(block.startLine, startLine + index * 4);
-    out.writeUInt32LE(block.endLine, endLine + index * 4);
+    out.writeUInt32LE(block.startLine ?? NO_LINE, startLine + index * 4);
+    out.writeUInt32LE(block.endLine ?? NO_LINE, endLine + index * 4);
     if (block.source) out[source + (index >> 3)]! |= 1 << (index & 7);
     digestBytes(block.digest).copy(out, digest + index * DIGEST_BYTES);
   }
@@ -259,8 +260,7 @@ export function decodeRecord(raw: Buffer, frame: Frame): CapturedModule | undefi
       digest: digestText(payload, digest + index * DIGEST_BYTES),
       name: strings[payload.readUInt32LE(name + index * 4)] ?? '',
       path: strings[payload.readUInt32LE(path + index * 4)] ?? '',
-      startLine: payload.readUInt32LE(startLine + index * 4),
-      endLine: payload.readUInt32LE(endLine + index * 4),
+      ...writtenLines(payload.readUInt32LE(startLine + index * 4), payload.readUInt32LE(endLine + index * 4)),
       source: (payload.readUInt8(source + (index >> 3)) & (1 << (index & 7))) !== 0,
       testFiles: [],
     });

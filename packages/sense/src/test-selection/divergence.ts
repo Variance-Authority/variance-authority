@@ -1,4 +1,5 @@
 import type { BlockKind, CoverageModule, TestCoverage } from './index.js';
+import { isWritten } from './written-lines.js';
 
 /**
  * One module, two observers, and not the same path through it.
@@ -123,9 +124,10 @@ function divergenceOf(
 ): JourneyDivergence | undefined {
   // A synthesized region has no source to open, and an implicit `else` nobody
   // took is every `a && b` in the file — a list of them is a list a reader
-  // learns to skip past the one entry that meant something. The module root is
-  // dropped for a different reason: see `observersOf`.
-  const regions = module.blocks.filter((block) => block.source && block.kind !== 'module');
+  // learns to skip past the one entry that meant something. A region the
+  // transform wrote has no line to name either. The module root is dropped for
+  // a different reason: see `observersOf`.
+  const regions = module.blocks.filter(isWritten).filter((block) => block.source && block.kind !== 'module');
   const observers = observersOf(regions, whole);
   if (observers.size < 2) return undefined;
 

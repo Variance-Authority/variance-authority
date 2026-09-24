@@ -123,6 +123,7 @@ import journalFormat from './journal-format.cjs';
 import type { CapturedModule } from './instrumented-modules.js';
 import { codeUnitOrder, idOrder, isMissing, projectPath } from './instrumented-modules.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionTest } from './reverse.js';
+import { isWritten } from './written-lines.js';
 
 /**
  * Where the worker half hands the case scope to the runner half.
@@ -274,7 +275,10 @@ export function executionIndexFrom(
     modules: rows
       .map(([id, module]) => ({
         file: module.file,
-        blocks: module.blocks.map((block): ExecutionBlock => ({
+        // An index is read by place: every reader asks it for a line or prints
+        // one. A region the transform wrote without an origin has no place, so
+        // it has no row here; the snapshot keeps it only to hold its ordinal.
+        blocks: module.blocks.filter(isWritten).map((block): ExecutionBlock => ({
           kind: block.kind,
           name: block.name,
           path: block.path,

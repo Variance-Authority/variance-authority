@@ -14,9 +14,9 @@ import {
   textAtRecording,
 } from '@variance-authority/sense/test-selection';
 import { sourceStem } from './page-side.mjs';
-import { inSnapshotCoordinates, outOfFrame } from './since-diff.mjs';
+import { inSnapshotCoordinates } from './since-diff.mjs';
 import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
-import { describeRange, distanceLines, findingLines, helpLines } from './since-report.mjs';
+import { describeRange, distanceLines, explain, findingLines, helpLines, readingLines } from './since-report.mjs';
 
 /**
  * Run the tests a change reached, from the suite's own record of itself.
@@ -90,22 +90,6 @@ const diffOfNew = (path) =>
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   }).stdout;
-
-/** One line for why a test file is in the run. */
-export function explain(cause) {
-  const reason = cause.via[0];
-  const more = cause.via.length > 1 ? ` (+${cause.via.length - 1})` : '';
-  switch (reason.kind) {
-    case 'region':
-      return `${reason.file}:${reason.startLine}-${reason.endLine} ${reason.path}${more}`;
-    case 'precondition':
-      return `precondition ${reason.name}${more}`;
-    case 'importer':
-      return `${reason.trail.join(' → ')}${more}`;
-    default:
-      return reason.kind;
-  }
-}
 
 /**
  * The files a change selects, or why the whole suite runs instead.
@@ -280,14 +264,11 @@ async function main() {
    * against *this* one, and two edits to the same file can cancel to a region
    * nothing entered and a selection of nothing at all.
    *
-   * So the check is performed, by {@link outOfFrame}, on every changed path the
-   * snapshot holds an instrumented source row for — `git cat-file --batch` over
-   * that intersection, at the commit the snapshot names. A file that disagrees has
-   * its hunks dropped and is charged every region it has, under every name. The
-   * shipped path is `narrowByExecution`'s `sourceAt`, and the two differ in the
-   * unit they ask at and in nothing else: `sourceAt` is asked per name, and the
-   * `dist` name of a workspace package has no answer git can give. That is
-   * argued where the check is.
+   * So the selector is handed `textAtRecording` as `sourceAt`, reading
+   * `git cat-file --batch` at the commit the snapshot names. A file whose text
+   * disagrees with its recorded digest is charged every region it has, under
+   * every name, and a file whose text agrees is read by the parser from both
+   * sides before any line of it is charged.
    *
    * A snapshot that names no commit is not checked, because a position is what
    * the text is read from. That is the `yarn test:since main` case, where the
@@ -341,10 +322,13 @@ async function main() {
     git('diff', '--no-renames', base),
     ...product.filter((path) => untracked.has(path)).map(diffOfNew),
   ].join('\n');
-  const reframed =
+  // Only a changed file with a row has line numbers to prove, so only those are
+  // named up front; a twin or an importer the reading asks about is read on
+  // its own.
+  const sourceAt =
     coverage.commit === undefined
-      ? new Set()
-      : outOfFrame(coverage, consequential, (checkable) => textAtRecording(ROOT, checkable));
+      ? undefined
+      : textAtRecording(ROOT, consequential.filter((path) => byStem.has(stemOf(path))));
 
   const { relations, enumerated, named, faces } = await importGraph({ root: ROOT, stemOf });
   // Named with no hunk, each is every region it has, and a file with no row is
@@ -362,13 +346,13 @@ async function main() {
     inSnapshotCoordinates(
       [diff, ...wholePackages.map((file) => `diff --git a/${file} b/${file}`)].join('\n'),
       byStem,
-      (path) => reframed.has(path),
     ),
     {
       relations,
       enumerated,
       knownAs: (file) => graphNames(byStem.get(stemOf(file)) ?? [file], named(file)),
       faces,
+      ...(sourceAt === undefined ? {} : { sourceAt }),
       ...(moved === undefined || moved.length === 0 ? {} : { packages: moved }),
     },
   );
@@ -441,11 +425,12 @@ async function main() {
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
     `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
-    ...(reframed.size === 0
+    ...(narrowing.stale.length === 0
       ? []
       : [
-          `  reframed ${reframed.size} changed file(s) recorded from other text, charged every region rather than read by line`,
+          `  stale    ${narrowing.stale.length} recorded name(s) cut from other text, charged every region rather than read by line`,
         ]),
+    ...readingLines(narrowing.readings ?? []),
     '',
     ...distanceLines(groups),
     '',

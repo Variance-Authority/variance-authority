@@ -227,9 +227,10 @@ describe('a line on the boundary of a region', () => {
   });
 
   it('that resumes after an await, or after two, is the line of the function around it', () => {
-    // `const data = await (await fetch(url)).json();` on line 2 of a function:
-    // the text before the first `await` is the function's. rejects entered the
-    // function and never resumed; ok resumed twice. Both ran what the line holds.
+    // `const data = await (await fetch(url)).json();` over lines 2 and 3 of a
+    // function: the text before the first `await` is the function's, and every
+    // line of the awaited expression is evaluated before it settles. beta entered
+    // the function and never resumed; alpha resumed twice. Both ran both lines.
     const awaited: TestCoverage = {
       ...coverage,
       modules: [
@@ -253,7 +254,7 @@ describe('a line on the boundary of a region', () => {
 +new`;
 
     expect(narrowByExecutionFromView(view(awaited), diff(2)).entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
-    expect(narrowByExecutionFromView(view(awaited), diff(3)).entered).toEqual(['test/alpha.test.ts']);
+    expect(narrowByExecutionFromView(view(awaited), diff(3)).entered).toEqual(['test/alpha.test.ts', 'test/beta.test.ts']);
   });
 
   it('that closes a function is the enclosing region\'s line too', () => {

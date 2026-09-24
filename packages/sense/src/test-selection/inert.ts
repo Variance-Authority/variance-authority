@@ -109,11 +109,15 @@ export function bindsOnly(added: string): boolean {
   const parsed = parseSync('added.tsx', added);
   if (parsed.errors.length > 0) return false;
   const body = parsed.program.body as readonly Node[];
-  return body.length > 0 && body.every(binding);
+  return body.length > 0 && body.every(erased);
 }
 
-function binding(node: Node): boolean {
+/** True for a statement the compiler removes before the module runs. */
+function erased(node: Node): boolean {
   if (ERASED.has(node.type)) return true;
+  // `declare const`, `declare class`, `declare module`: ambient, and emitted as
+  // nothing.
+  if (node.declare === true) return true;
   // A `const` or `declare` enum is erased: the module never evaluates it. Any
   // other enum is emitted as `(function (E) { ... })(E || (E = {}))`, which
   // runs when the module does and writes its members into whatever object the
@@ -123,7 +127,7 @@ function binding(node: Node): boolean {
   // member initializers do not decide this — the emitted function running at
   // all does — and the added text cannot say whether the name is new, because
   // the rest of the file is not in the hunk.
-  if (node.type === 'TSEnumDeclaration') return node.const === true || node.declare === true;
+  if (node.type === 'TSEnumDeclaration') return node.const === true;
   if (node.type === 'ImportDeclaration') return node.importKind === 'type';
   if (node.type === 'ExportAllDeclaration') return node.exportKind === 'type';
   if (node.type === 'ExportNamedDeclaration') {
@@ -137,11 +141,11 @@ function binding(node: Node): boolean {
     if (node.source !== null && node.source !== undefined) return false;
     return node.declaration === null || node.declaration === undefined
       ? true
-      : binding(node.declaration);
+      : erased(node.declaration);
   }
   if (node.type === 'ExportDefaultDeclaration') {
     return node.declaration !== null && node.declaration !== undefined &&
-      binding(node.declaration);
+      erased(node.declaration);
   }
   return false;
 }

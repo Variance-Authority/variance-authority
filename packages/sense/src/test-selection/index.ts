@@ -122,7 +122,23 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 export type { CoverageShard };
 
-export interface CoverageBlock {
+/**
+ * The lines of the source a region was written on, inclusive — or neither.
+ *
+ * A transform is free to write text nobody wrote: esbuild lowers a decorator by
+ * prepending the helpers it calls, and the map it hands back gives them no
+ * origin. Their regions are real — the build runs them and the probes count
+ * them — but they are nowhere in the file a diff is written against. Absent is
+ * the honest record: a line would be a place the region was never written,
+ * and the narrowest phantom there decides what an edit to it selects.
+ */
+export type WrittenLines =
+  | { readonly startLine: number; readonly endLine: number }
+  | { readonly startLine?: never; readonly endLine?: never };
+
+export type CoverageBlock = CoverageRegion & WrittenLines;
+
+interface CoverageRegion {
   readonly ordinal: number;
   readonly kind: BlockKind;
   /** Ordinal of the enclosing arrival region; absent only on the module root. */
@@ -131,8 +147,6 @@ export interface CoverageBlock {
   readonly digest: string;
   readonly name: string;
   readonly path: string;
-  readonly startLine: number;
-  readonly endLine: number;
   /** False for a synthesized control-flow region with no source of its own. */
   readonly source: boolean;
   readonly testFiles: readonly string[];

@@ -11,6 +11,7 @@
 import type { Block } from '../instrument/index.js';
 import type { CoverageBlock, CoverageModule } from './index.js';
 import { codeUnitOrder, type CapturedModule } from './instrumented-modules.js';
+import type { ExtentOf } from './source-lines.js';
 
 /** The coverage row a captured module makes once its crossings are known. */
 export function coverageModule(
@@ -36,10 +37,12 @@ export function coverageModule(
 /**
  * One block as coverage records it: ordinals and offsets become lines.
  *
- * `lineOf` is how the offsets get back to the file the author edited. Absent, it
- * counts newlines in whatever text the block was cut from — right for a
+ * `extentOf` is how the offsets get back to the file the author edited. Absent,
+ * it counts newlines in whatever text the block was cut from — right for a
  * transform that moved nothing, and a different number line for one that did.
- * The seams supply the bundler's own map; see `source-lines.ts`.
+ * The seams supply the bundler's own map; see `source-lines.ts`. A region the
+ * map gives no origin is recorded with no lines, never with the line the
+ * transform happened to put it on.
  *
  * The two ends are ordered after they are mapped, because a map answers one
  * position at a time and a transform is free to reorder. Solid's JSX compiler
@@ -54,10 +57,9 @@ export function coverageModule(
 export function coverageBlock(
   source: string,
   block: Block,
-  lineOf: (offset: number) => number = (offset) => lineAt(source, offset),
+  extentOf: ExtentOf = (start, last) => [lineAt(source, start), lineAt(source, last)],
 ): CoverageBlock {
-  const opens = lineOf(block.start);
-  const closes = lineOf(block.end > block.start ? block.end - 1 : block.end);
+  const extent = extentOf(block.start, block.end > block.start ? block.end - 1 : block.end);
   return {
     ordinal: block.ordinal,
     kind: block.kind,
@@ -65,8 +67,7 @@ export function coverageBlock(
     digest: block.digest,
     name: block.name,
     path: block.path,
-    startLine: Math.min(opens, closes),
-    endLine: Math.max(opens, closes),
+    ...(extent === undefined ? {} : { startLine: Math.min(...extent), endLine: Math.max(...extent) }),
     source: block.end > block.start,
     testFiles: [],
   };

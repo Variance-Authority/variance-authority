@@ -25,6 +25,7 @@ describe('narrowByExecution', () => {
       entered: ['test/alpha.test.ts'],
       unread: [],
       stale: [],
+      readings: [{ file: 'src/decide.ts', unread: 'source' }],
       because: [
         {
           test: 'test/alpha.test.ts',
@@ -89,7 +90,7 @@ describe('narrowByExecution', () => {
   // the same text, and every hunk a later diff produces is then charged to
   // whatever region happens to occupy those numbers now.
   describe('a recording cut from a different text than the diff is written against', () => {
-    const decided = "export function decide(value) {\n  if (value) {\n    return 'A';\n  }\n  return 'B';\n}\n";
+    const decided = "// Decides.\nexport function decide(value) {\n  if (value) {\n    return 'A';\n  }\n  return 'B';\n}\n";
     const dated: TestCoverage = {
       ...coverage,
       modules: coverage.modules.map((module) =>
@@ -103,6 +104,26 @@ describe('narrowByExecution', () => {
       expect(narrowByExecutionFromView(view(), diff, { sourceAt: () => decided })).toMatchObject({
         entered: ['test/alpha.test.ts'],
         stale: [],
+        readings: [{ file: 'src/decide.ts', verdict: 'bodies', names: [] }],
+      });
+    });
+
+    it('reads the lines alone, and says so, when the diff does not apply to the recorded text', () => {
+      // The digest agrees, so the numbers are coordinates; the removed line is
+      // not the recorded one, so there is no second text to parse.
+      const moved = decided.replace("return 'A';", "return 'Z';");
+      const recorded: TestCoverage = {
+        ...dated,
+        modules: dated.modules.map((module) =>
+          module.file === 'src/decide.ts' ? { ...module, sourceDigest: digestString(moved) } : module,
+        ),
+      };
+      expect(
+        narrowByExecutionFromView(openTestCoverage(encodeTestCoverage(recorded)), diff, { sourceAt: () => moved }),
+      ).toMatchObject({
+        entered: ['test/alpha.test.ts'],
+        stale: [],
+        readings: [{ file: 'src/decide.ts', unread: 'hunk' }],
       });
     });
 
@@ -144,6 +165,7 @@ describe('narrowByExecution', () => {
       expect(narrowByExecutionFromView(view(), diff)).toMatchObject({
         entered: ['test/alpha.test.ts'],
         stale: [],
+        readings: [{ file: 'src/decide.ts', unread: 'source' }],
       });
     });
   });

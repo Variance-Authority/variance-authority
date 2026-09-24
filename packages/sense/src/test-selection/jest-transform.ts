@@ -210,7 +210,7 @@ function place(
   // coordinates in once the wrapped transformer's map is read back through —
   // and of the transformed text when there is no map to read back through, so
   // the digest never vouches for a number line it did not see.
-  const { lineOf, sourceDigest, file: wrote } = recordedFrame(
+  const { extentOf, sourceDigest, file: wrote } = recordedFrame(
     transformed.code,
     parsedMap(transformed),
     path,
@@ -225,7 +225,7 @@ function place(
         id,
         sourceDigest,
         instrumented: true,
-        blocks: done.blocks.map((block) => coverageBlock(transformed.code, block, lineOf)),
+        blocks: done.blocks.map((block) => coverageBlock(transformed.code, block, extentOf)),
       };
   writeRecord(records, captured);
   // Every probe is placed on the line it reports, so the wrapped transformer's

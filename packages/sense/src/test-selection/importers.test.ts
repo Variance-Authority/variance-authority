@@ -27,6 +27,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
@@ -56,6 +57,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/tokens.css', 'src/decide.ts'] }] },
@@ -238,6 +240,7 @@ describe('a changed file no probe can sit in, asked of the module that imports i
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.css', 'src/decide.ts'] }] },
@@ -329,6 +332,7 @@ describe('a package the install moved, asked of the files that import it', () =>
       entered: ['test/alpha.test.ts', 'test/beta.test.ts'],
       unread: [],
       stale: [],
+      readings: [],
       because: [
         { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
         { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['@mui/material', 'src/decide.ts'] }] },
@@ -361,6 +365,7 @@ describe('a package the install moved, asked of the files that import it', () =>
       entered: [],
       unread: [],
       stale: [],
+      readings: [],
       because: [],
     });
   });
@@ -383,6 +388,7 @@ describe('a package the install moved, asked of the files that import it', () =>
       entered: [],
       unread: [],
       stale: [],
+      readings: [],
       because: [],
     });
   });

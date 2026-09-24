@@ -133,6 +133,17 @@ export interface NativeScanner {
    * `native/build.mjs` takes when they are what failed to compile.
    */
   readLanguage(language: string, file: string, source: string): string | null;
+  /**
+   * What one change to a module does when the module loads, read from both
+   * texts: `none`, `bodies`, `values` with the bindings whose values moved, or
+   * `load`. `null` when either text does not parse.
+   */
+  moduleVerdict?(file: string, before: string, after: string): NativeModuleVerdict | null;
+  /**
+   * Where one file reads the given names: its own bindings, or when
+   * `imported`, the exports of a module it imports. `null` when it does not parse.
+   */
+  moduleReaders?(file: string, text: string, names: string[], imported: boolean): NativeModuleReaders | null;
   /** Read, fold, and encode one run's case journals without crossing rows into V8. */
   foldJourney?(
     caseDirectory: string,
@@ -166,6 +177,31 @@ export interface NativeScanner {
 }
 
 /** `Relations`, flattened to the columns the addon walks. */
+export interface NativeModuleVerdict {
+  readonly kind: 'none' | 'bodies' | 'values' | 'load';
+  /** Top-level bindings whose value moved. */
+  readonly names: string[];
+  /** Exported names whose binding moved or went. */
+  readonly exports: string[];
+  /** Exported names the new text no longer has. */
+  readonly gone: string[];
+}
+
+export interface NativeModuleReaders {
+  /** Reads inside functions: the 1-based line and the changed name the read traces to. */
+  readonly reads: Array<{ readonly line: number; readonly name: string }>;
+  /** The changed names the module reads while it loads. */
+  readonly load: string[];
+  /** Names this file exports whose value moved, with the changed name each carries. */
+  readonly exported: Array<{ readonly name: string; readonly origin: string }>;
+  /** A `require`, an `import()` or an `import x = require()` no name reaches. */
+  readonly untraced: boolean;
+  /** Every name this file imports by name. */
+  readonly imports: string[];
+  /** Names this file re-exports from a source, among those that moved. */
+  readonly passed: Array<{ readonly name: string; readonly origin: string }>;
+}
+
 export interface NativeJourneyGraph {
   readonly names: readonly string[];
   readonly kinds: Uint8Array;
