@@ -19,6 +19,13 @@ const READY = (() => {
   }
 })();
 
+if (!READY) {
+  console.warn(
+    '\npackages/eyes (reporter): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 const live = READY ? describe : describe.skip;
 
 function playwright(archive: string, results: string): Promise<{ code: number | null; output: string }> {
