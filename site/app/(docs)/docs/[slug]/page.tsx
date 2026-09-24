@@ -91,7 +91,7 @@ export default async function Page({ params }: PageProps) {
           }
         : slug === "coverage-test-selection"
           ? {
-              "what-recording-buys-over-the-import-graph": (
+              "distance-puts-conditions-between-a-test-and-a-module": (
                 <figure className="doc-figure doc-figure-panel">
                   <ConditionsOnTheWay />
                   <figcaption>

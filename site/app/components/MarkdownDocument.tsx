@@ -96,9 +96,15 @@ export default function MarkdownDocument({
               </>
             );
           },
-          h3: ({ children }) => (
-            <h3 id={headingId(textOf(children))}>{children}</h3>
-          ),
+          h3: ({ children }) => {
+            const id = headingId(textOf(children));
+            return (
+              <>
+                <h3 id={id}>{children}</h3>
+                {sectionFigures[id]}
+              </>
+            );
+          },
           a: ({ href = "", children, className }) => (
             <a href={siteHref(href, sourcePath)} className={className}>
               {siteLinkLabel(href, children)}

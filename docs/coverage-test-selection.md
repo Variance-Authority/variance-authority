@@ -85,12 +85,45 @@ it.
 
 ## What recording buys over the import graph
 
-The refusals above are about cost: the time instrumentation adds, and a record
-that goes stale as the code moves. The import graph costs nothing to keep,
-because it is read from source on every change. A recording has to repay its
-cost by answering differently from the graph, and often enough to matter.
+If you have used coverage, you probably share the view above: it is slow to
+collect, out of date by the next commit, and too large to keep for a big
+repository. Those are costs, and the
+[four questions below](#four-questions-that-decide-whether-it-works-on-every-change)
+take each of them. A cost is only worth paying for an answer you cannot get for
+free, and the import graph is free: it is read from source on every change. So
+start with the answer. What can a recording tell you that the graph cannot?
 
-Start with what an import says:
+Take a toolbar with two buttons:
+
+```jsx
+import { saveDraft } from "./drafts";
+import { shareLink } from "./sharing";
+
+export function Toolbar({ draft }) {
+  return (
+    <>
+      <button onClick={() => saveDraft(draft)}>Save</button>
+      <button onClick={() => shareLink(draft)}>Share</button>
+    </>
+  );
+}
+```
+
+Three tests render it. One clicks Save, one clicks Share, and one clicks
+nothing. All three import `Toolbar`, and through it `drafts` and `sharing`, so
+to the import graph they are the same test three times:
+
+| You change | The import graph selects | The record selects |
+|---|---|---|
+| `shareLink` in `sharing.ts` | all three | the test that clicked Share |
+| the Share button's `onClick` | all three | the test that clicked Share |
+| `saveDraft` in `drafts.ts` | all three | the test that clicked Save |
+| the markup `Toolbar` returns | all three | all three |
+
+The graph cannot tell a click from no click. The record can, because a click
+runs code and no click runs none.
+
+The same holds when the code sits behind an import:
 
 ```js
 import { renderPdf } from "./pdf";
@@ -124,10 +157,12 @@ runs. The graph draws the same edge from `exportReport` to `./pdf` in both
 versions. The JSON test runs no code in `./pdf` in either version, and a record
 of what it ran says so in both.
 
-In one file the gap between loading and running is one branch. Across a suite
-it grows, for two reasons.
+In one file the gap between loading and running is one button or one branch.
+Across a suite it grows, for two reasons.
 
-**Good tests divide the work.** Each test in a well-composed suite checks one
+### Good tests divide the work
+
+Each test in a well-composed suite checks one
 behaviour, so the tests of a module cover different, overlapping branches of
 it, and none of them runs all of it. A change to one branch is charged only to
 the tests that took that branch. Seen from one test file, the same rule applies:
@@ -136,7 +171,9 @@ to every module it loads. In Zod, 131 test files load `locales/ru.ts`, 2 of
 them call `getRussianPlural`, and 1 runs the branch the example edit
 changes.
 
-**Distance puts conditions between a test and a module.** Most imports
+### Distance puts conditions between a test and a module
+
+Most imports
 between a test and a module add code that decides whether the module is called
 at all. The further
 a test is from a module, the more often it loads the module and never calls it,
@@ -145,6 +182,8 @@ because execution took another branch before it got there. In TanStack Query,
 29 of them. The import graph counts all 149. The [execution record](execution-record.md) counts the tests
 that ran the changed region: the function, branch arm or loop body the edit is
 in.
+
+### What the record keeps
 
 So in a well-tested codebase the graph and the run give answers that are far
 apart. [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/) calls
@@ -156,9 +195,9 @@ it. In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
 graph-based selector's extra runs come from those modules.
 
-That is what a recording buys. TAP and Meta weighed it against what recording
-costs, and cost is the first of four questions that decide whether it repays
-itself.
+That is the answer a recording buys. Whether it is worth what it costs is the
+first of four questions, and the rest decide whether you can run it on every
+change.
 
 ## Four questions that decide whether it works on every change
 
