@@ -17,22 +17,35 @@ where each one widens, and what each one costs to run on every change.
 Running only the tests that executed the changed code is regression test
 selection, and research has studied it for decades.
 [On testing](on-testing.md#coverage-opens-the-question-it-does-not-close-it)
-covers that research. Tools have shipped it for years:
+covers that research. Most research tools, such as
+[Ekstazi](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf)
+for Java, record which files each test loaded rather than what it executed.
 
-| Tool | What it records per test | What a change is charged at |
-|---|---|---|
-| [Ekstazi](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf), Java research | The class and resource files the test loaded | File |
-| [Microsoft Test Impact Analysis](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis), .NET | The files the test depends on | File |
-| [pytest-testmon](https://testmon.org/), Python | Coverage, split into function bodies and one module body, each checksummed from its syntax tree | Block |
-| [Wallaby.js](https://wallabyjs.com/docs/), JavaScript in the editor | The code each test ran | Test |
-| [Datadog Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis/how_it_works/), JavaScript and others | The code files the test covered | File |
-| [CircleCI Smarter Testing](https://circleci.com/docs/guides/test/set-up-test-impact-analysis/) | The files the test covered | File |
-| [Teamscale](https://docs.teamscale.com/tutorial/tia-java/) and [Sealights](https://docs.sealights.io/knowledgebase/test-optimization/how-it-works) | The methods the test ran | Method |
+Products that select tests fall into two groups. The first records a file list
+per test, either the files a test depends on or the files its coverage touched,
+and discards everything below the file:
 
-Several of them already ignore edits a test cannot observe. pytest-testmon
+| Product | What it keeps per test |
+|---|---|
+| [Microsoft Test Impact Analysis](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis), .NET | The files the test depends on |
+| [Datadog Test Impact Analysis](https://docs.datadoghq.com/tests/test_impact_analysis/how_it_works/), JavaScript and others | The files its coverage touched |
+| [CircleCI Smarter Testing](https://circleci.com/docs/guides/test/set-up-test-impact-analysis/) | The files its coverage touched |
+
+A change anywhere in a listed file selects the test, so for selection these
+behave like an import graph cut to the files a test loaded.
+
+The second group keeps coverage below the file, and a change is charged to the
+tests that ran the changed part:
+
+| Product | What it keeps per test |
+|---|---|
+| [pytest-testmon](https://testmon.org/), Python | Function bodies and one module body, each checksummed from its syntax tree |
+| [Wallaby.js](https://wallabyjs.com/docs/), JavaScript in the editor | The code each test ran, while the editor session lasts |
+| [Teamscale](https://docs.teamscale.com/tutorial/tia-java/) and [Sealights](https://docs.sealights.io/knowledgebase/test-optimization/how-it-works) | The methods the test ran |
+
+Some of them already ignore edits a test cannot observe. pytest-testmon
 compares syntax trees, so a comment or whitespace change selects nothing.
-Teamscale documents the same for comments, whitespace and renames. Ekstazi
-ignores the debug information that changes when line numbers change.
+Teamscale documents the same for comments, whitespace and renames.
 
 The selectors built into your tools work from the import graph instead:
 `jest --changedSince` and `vitest --changed` decide by file, and `nx affected`
@@ -45,7 +58,7 @@ report obsolete. The [Meta paper](https://arxiv.org/abs/1810.05286) calls
 accurate per-test coverage impractical in a large monolithic repository and
 learns from past failures instead.
 
-Most of them share two limits. Recording costs real time: [Ekstazi's
+The tools that record per test share two limits. Recording costs real time: [Ekstazi's
 first collection run](https://users.ece.utexas.edu/~gligoric/papers/GligoricETAL15Ekstazi.pdf) costs about 8× on one subject, and Datadog [reports a 25%
 median](https://www.datadoghq.com/blog/engineering/ruby-test-impact-analysis/)
 for its own Ruby extension against 200% to 400% for the stock tracers. And a
@@ -95,8 +108,8 @@ graph-based selector's extra runs come from those modules.
 
 ## Four questions that decide whether it works on every change
 
-Every coverage-based tool above records some version of the same relation:
-this test executed that code. What decides whether you can run one on every
+Every tool above records some version of the same relation:
+this test used that code. What decides whether you can run one on every
 change is how it answers four questions.
 
 **What does the recording cost?** The coverage your runner already offers
@@ -178,9 +191,10 @@ the thing to fix. Every run prints one line per changed file saying how it was
 read, or why it could not be.
 [Where selection widens](selecting.md#where-selection-widens) lists each case.
 
-The record is columnar and shares repeated
-test sets, so the record of a 300,000-module repository is 42 MB, and one edit
-reads a small part of that file.
+The record is columnar and stores each repeated set of tests once. In a
+checkout of around 400,000 files, close to the size of Chromium's, the
+record of one test runner's roughly 25,000 unit test files is about 30 MB, and
+one edit reads a small part of it.
 [How the test-to-code map stays small](how-selection-scales.md) explains the
 format.
 
