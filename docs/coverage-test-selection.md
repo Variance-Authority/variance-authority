@@ -357,6 +357,76 @@ files that ran it. Two ran `getRussianPlural`, and one of them ran the arm, so
 two files are selected. Four files the record did not observe whole also run,
 as they do on every change. That makes the 6 files in the lead.
 
+### When a constant changes
+
+A `values` verdict names the bindings whose value changed. Nothing ran when the
+constant changed. What changes is the code that reads it, and the record already
+has a region for each function that reads it. So the change is charged to those
+functions, not to the module that declares the constant:
+
+```ts
+// limits.ts
+export const MAX_ITEMS = 20; // changed to 50
+export const DEFAULTS = { pageSize: MAX_ITEMS };
+
+export function clamp(n) {
+  return Math.min(n, MAX_ITEMS);
+}
+
+export function label() {
+  return "items";
+}
+```
+
+```ts
+// list.ts
+import { DEFAULTS as defaults } from "./limits";
+import * as limits from "./limits";
+
+export function List({ items }) {
+  return items.slice(0, defaults.pageSize);
+}
+
+export function Footer() {
+  return "up to " + limits.MAX_ITEMS;
+}
+
+export function Header() {
+  return "Items";
+}
+```
+
+```
+read limits.ts: values — MAX_ITEMS changed; their readers and the changed regions are charged
+```
+
+The addon looks for reads of the changed name in the oxc syntax tree, first in
+`limits.ts` and then in each file that imports it:
+
+- `clamp` reads `MAX_ITEMS` inside a function, so the tests that ran `clamp` are
+  selected. `label` reads nothing that changed and is not charged.
+- `DEFAULTS` is built from `MAX_ITEMS` without running anything, so its value
+  changed too, and its readers are looked for in turn.
+- `list.ts` imports `DEFAULTS` as `defaults`, so a read of `defaults` is a read
+  of `DEFAULTS`, and `List` is charged. `limits.MAX_ITEMS` is a read of
+  `MAX_ITEMS` through the namespace, so `Footer` is charged. `Header` is not,
+  and neither is a test that only rendered `Header`.
+
+Some reads cannot be placed in one function, and those charge the whole module:
+
+- A read at the top level, such as `const cache = new Array(MAX_ITEMS)`, runs
+  when the module loads. Every test that loaded that file is selected.
+- A namespace passed on whole, such as `configure(limits)`, or a module loaded
+  by `require` or `import()`, gives the parser no name to match.
+
+The search goes one import deep: it looks in the files that import the declaring
+file, and further only through a file that re-exports the name, such as a
+barrel with `export { MAX_ITEMS } from "./limits"`. Names are matched by
+spelling, without resolving scopes. A parameter named `MAX_ITEMS` counts as a
+read, which selects more tests and never fewer. A test that loaded `limits.ts`
+through an import the file graph does not list is printed by name as `unseen`
+and not selected, because the missing import is what to fix.
+
 A file the parser cannot read is charged by its lines, and a file the record has
 no data for is read against the file graph. Either way, the run prints the reason.
 [Tracing a diff to tests](execution-record.md#tracing-a-diff-to-tests) gives
