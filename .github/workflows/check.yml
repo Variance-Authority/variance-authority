@@ -146,7 +146,11 @@ jobs:
       - name: review what the suite walked
         if: github.event_name == 'pull_request'
         shell: bash
+        # The source index reads what each changed region is; under CI a reader
+        # refuses to build it on demand, so publishing it is a step here. It sits
+        # beside the recording and is cached with it.
         run: |
+          node packages/cli/dist/bin.js index
           node packages/cli/dist/bin.js covering --since HEAD^1 --format github
           {
             echo '### What the suite walked of this change'

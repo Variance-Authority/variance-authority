@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
@@ -13,6 +14,8 @@ import { covering, formatCovering } from './covering.js';
 
 // A suite recorded through the real Vitest seam, into a cache of its own, so
 // the snapshot beside the index holds the digest the frame is checked against.
+// The index is published the way a pipeline publishes it: under CI a reader
+// refuses to build one on demand.
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cases-vitest');
@@ -29,6 +32,7 @@ beforeAll(async () => {
     [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '--config', resolve(fixture, 'vitest.config.ts')],
     { cwd: repository, env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: testCoverageFile(repository) } },
   );
+  await updateSourceIndex(repository);
 }, 60_000);
 
 afterAll(async () => {
