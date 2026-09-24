@@ -115,6 +115,10 @@ On the seven-Material-UI corpus, measured by
 ## 7. Out of scope
 
 - A watcher of our own, in any form.
+- The agent's own after-edit hooks as a source of changed paths. Every agent
+  host names and shapes its hooks differently, and each would need its own
+  adapter. fsmonitor answers every writer at once: the agent, an editor, a
+  checkout and a code generator.
 - Holding an index in the daemon's memory. Reading a generation in place, instead
   of decoding every segment, is the reader's work and lands on its own.
 - Starting the daemon from a reader.
