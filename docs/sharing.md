@@ -9,15 +9,17 @@ of deriving it again.
 New here? Start with [your first run](start.md).
 
 A run that compares a branch against mainline needs two different things about
-mainline. One is the baselines: the images, which only a baseline store can
-answer for and which nothing here touches. The other is everything the run
-*derived* about the suite itself — which components exist, which subjects show
-them, and every name the run wrote down for all of it. A **subject** is one
-named UI state you asked for and can ask for again, under an id you choose such
-as `cart/empty`. That second half is a fact about a
-commit, not about a run: it costs a source scan, a browser and a
-[composition](composition.md) pass, and it is identical on every machine that
-starts from the same tree.
+mainline:
+
+- **The baselines.** These are the images, which only a baseline store can
+  answer for and which nothing here touches.
+- **Everything the run *derived* about the suite itself.** This is which
+  components exist, which subjects show them, and every name the run wrote down
+  for all of it. A **subject** is one named UI state you asked for and can ask
+  for again, under an id you choose such as `cart/empty`. This second half is a
+  fact about a commit, not about a run: it costs a source scan, a browser and a
+  [composition](composition.md) pass, and it is identical on every machine that
+  starts from the same tree.
 
 So the second machine should not pay for it again. Mainline computed it an hour
 ago, on a runner that no longer exists. A share is where those bytes were left

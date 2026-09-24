@@ -1,11 +1,13 @@
 # Ask a run from the command line
 
-The CLI gives an agent a shell entrance to four subjects: `variance ask` reads a
-completed visual report, `variance ask --at` reads a suite still executing from
-its watcher, `variance ask search` and its siblings read the source tree, and
-`variance distill` reads portable [Eyes](eyes.md) and [Sense](../packages/sense)
-evidence for one test. Each calls the same analyzer its MCP counterpart calls,
-but needs no client configuration.
+The CLI gives an agent a shell entrance to four subjects. Each command calls the
+same analyzer its MCP counterpart calls, but needs no client configuration.
+
+- `variance ask` reads a completed visual report.
+- `variance ask --at` reads a suite still executing from its watcher.
+- `variance ask search` and its siblings read the source tree.
+- `variance distill` reads portable [Eyes](eyes.md) and
+  [Sense](../packages/sense) evidence for one test.
 
 ## Find out what may be asked
 

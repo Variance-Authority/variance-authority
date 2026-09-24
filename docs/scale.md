@@ -255,13 +255,18 @@ JSON**, and it is already folded: one file per worker process, not one per
 test. Ask for the unfolded relation, one row per
 test per region, and the multiplier is the number of test files.
 
-Two fears attach to that once a repository is large: that recording it produces
-gigabytes of data, and that reading it needs gigabytes of memory. A third is
-about the clock rather than the bytes — that a suite under instrumentation
-crawls — and it is answered where the suites are timed, in
-[what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
-1.02× on Zod and 1.08× on TanStack Query, against 1.30× for the same suites
-under `--coverage`. The figures below come from two recordings:
+Three fears attach to that once a repository is large, two about the bytes and
+one about the clock:
+
+- That recording it produces gigabytes of data.
+- That reading it needs gigabytes of memory.
+- **That a suite under instrumentation crawls.** This one is answered where the
+  suites are timed, in
+  [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
+  1.02× on Zod and 1.08× on TanStack Query, against 1.30× for the same suites
+  under `--coverage`.
+
+The figures below come from two recordings:
 
 - **Material UI.** [Material UI](https://github.com/mui/material-ui)'s own
   Vitest suite, recorded with the selection probes installed: 791 modules, 184
@@ -561,11 +566,13 @@ be wrong in the safe direction: 20,000 cases at five hundred regions each is ten
 million crossings, which is about 5 MB. Measured, the three recordings above
 run 0.21 MB to 0.46 MB.
 
-Two things to do if your cap is the binding constraint. Compress the upload —
-the columns are run-coded but the file as a whole is not, and gzip takes a
-0.46 MB per-case index to 0.31 MB. And upload the per-case index only to a job
-that asks a question that needs it: the skip list never reads that file, so a
-job that does not receive it selects exactly as well.
+Two things to do if your cap is the binding constraint:
+
+- **Compress the upload.** The columns are run-coded but the file as a whole is
+  not, and gzip takes a 0.46 MB per-case index to 0.31 MB.
+- **Upload the per-case index only to a job that asks a question that needs
+  it.** The skip list never reads that file, so a job that does not receive it
+  selects exactly as well.
 
 ## What decides the value is what changed, not how much
 

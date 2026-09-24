@@ -76,11 +76,13 @@ conditions, and where the explanation leads. Each check should narrow the cause
 and give you evidence for the next step.
 
 When a story or page region changes, Variance Authority captures it again to
-check why. Two checks separate timing problems from shared state. `again`
-captures it in the same page: does it change on its own? That is reported as
-`unstable`. `alone` captures it in a clean environment under the same time
-conditions: does removing the earlier subjects change the result? That is
-reported as `order-dependent`.
+check why. Two checks separate timing problems from shared state:
+
+- **`again` captures it in the same page.** Does it change on its own? That is
+  reported as `unstable`.
+- **`alone` captures it in a clean environment under the same time
+  conditions.** Does removing the earlier subjects change the result? That is
+  reported as `order-dependent`.
 
 `again` runs first. If the subject changes between two captures in the same
 page, a different result in a clean page would tell you nothing about shared

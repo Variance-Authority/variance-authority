@@ -250,9 +250,12 @@ and your `.gitignore`.
 ## Missing and corrupt baselines
 
 A missing pair — both `.png` and `.json` absent for a key — returns `null` and
-is treated as a new baseline. Any other corruption throws: one file without
-the other, a sidecar that will not parse, EACCES after a permissions change,
-EMFILE under a run wide enough to exhaust the descriptor table.
+is treated as a new baseline. Any other corruption throws:
+
+- one file without the other
+- a sidecar that will not parse
+- EACCES after a permissions change
+- EMFILE under a run wide enough to exhaust the descriptor table
 
 A CI cache restore that ran out of space, or a `put` killed between its two
 writes, both produce exactly a half-written pair — the case that throws.

@@ -62,17 +62,20 @@ and no server: [ask a run from the command line](agent-cli.md).
 
 ## Ask from the run outward
 
-Begin a report-file session with `variance_summary`. It accounts for planned
-subjects that were not observed as well as for the observations that produced a
-**verdict** — the one word reported per subject: `unchanged`, `changed`, `new`,
-`incomparable` or `ignored` — so silence cannot be mistaken for a clean run.
+Ask in this order:
 
-If the summary names changes, ask `variance_changes` before opening an
-individual subject. It groups shared causes across subjects. Narrow to a
-subject, component, finding, [composition](composition.md), or verdict explanation only when the
-question requires that detail. After replacing the report with a completed
-rerun, `variance_diff` compares the current supplied state with the one kept
-from the preceding successful tool call.
+- **Begin a report-file session with `variance_summary`.** It accounts for
+  planned subjects that were not observed as well as for the observations that
+  produced a **verdict** — the one word reported per subject: `unchanged`,
+  `changed`, `new`, `incomparable` or `ignored` — so silence cannot be mistaken
+  for a clean run.
+- **If the summary names changes, ask `variance_changes` before opening an
+  individual subject.** It groups shared causes across subjects.
+- Narrow to a subject, component, finding, [composition](composition.md), or
+  verdict explanation only when the question requires that detail.
+- **After replacing the report with a completed rerun, ask `variance_diff`.** It
+  compares the current supplied state with the one kept from the preceding
+  successful tool call.
 
 A question that names a thing rather than a subject id goes to
 [`variance_locate`](locate.md). It finds subjects from a description over every

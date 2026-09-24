@@ -186,9 +186,10 @@ throws unless the verdict is `unchanged`, with the sentence the run would have
 printed. `toBeUnchanged` is the same decision as a matcher function, for a suite
 that composes its own `expect`.
 
-`variance` does throw, rather than returning a verdict, in two cases: the
-subject is still showing a Suspense fallback (see below), and no subject id
-could be derived because the call was made outside a test.
+`variance` does throw, rather than returning a verdict, in two cases:
+
+- The subject is still showing a Suspense fallback (see below).
+- No subject id could be derived because the call was made outside a test.
 
 ### Options
 

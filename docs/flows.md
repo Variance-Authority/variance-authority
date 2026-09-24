@@ -27,15 +27,18 @@ evidence each reading actually captured. Deployment decides who keeps the
 baseline, where review happens, and whether the comparison stays available long
 enough to answer questions across runs.
 
-The first four levels below are alternative choices about **retention** — where
-approved baselines live and how long they last, set by the `retention` field and
-the `baselines` section in each example. **Placement** — which machine runs the
-browser that paints each reading — is a separate axis, covered later on this
-page. [Tribunal](../packages/tribunal) and
-history are services a durable run can add; one Tribunal deployment can supply
-both the remote-baseline and the history protocol. How you get each subject in
-the first place is a separate choice, described in [how subjects are
-acquired](surface.md).
+This page keeps four choices apart:
+
+- **The first four levels below are alternative choices about retention.**
+  Retention is where approved baselines live and how long they last, set by the
+  `retention` field and the `baselines` section in each example.
+- **Placement is a separate axis.** It is which machine runs the browser that
+  paints each reading, covered later on this page.
+- **[Tribunal](../packages/tribunal) and history are services a durable run can
+  add.** One Tribunal deployment can supply both the remote-baseline and the
+  history protocol.
+- How you get each subject in the first place is a separate choice, described
+  in [how subjects are acquired](surface.md).
 
 | Level | You operate | Choose it when | The constraint you accept |
 | --- | --- | --- | --- |

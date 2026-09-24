@@ -212,13 +212,15 @@ when a runner needs a readiness signal at component level rather than network
 level. On a page that already loaded React, the tap reports `attached: false`
 instead of reporting the page as quiet.
 
-Each retained commit keeps two independent readings. `components` comes from
-React's `PerformedWork` flags and says which render bodies ran. `updaters` comes
-from the root's `memoizedUpdaters` and says which live instances initiated the
-update — each an innermost-first component path whose frames include a name, a
-reconciliation key and a props digest. A missing `updaters` means the renderer
-did not expose the set; an empty array means it did and the commit had no
-retained updater, as on an initial mount.
+Each retained commit keeps two independent readings:
+
+- **`components` says which render bodies ran.** It comes from React's
+  `PerformedWork` flags.
+- **`updaters` says which live instances initiated the update.** It comes from
+  the root's `memoizedUpdaters`, and each entry is an innermost-first component
+  path whose frames include a name, a reconciliation key and a props digest. A
+  missing `updaters` means the renderer did not expose the set; an empty array
+  means it did and the commit had no retained updater, as on an initial mount.
 
 The options are caller policy rather than hidden defaults:
 

@@ -205,9 +205,13 @@ without a baseline.
 ## An addon stood down for the pass
 
 `@storybook/addon-a11y` with `test` set runs axe in `afterEach`, on every story.
-A visual pass pays for that twice — once for the scan, once for the phase it has
-to wait out before it can switch stories — and reads the answer never, so the
-adapter says `a11y.manual` on the preview's channel before it asks for anything.
+A visual pass never reads the answer, and pays for it twice:
+
+- once for the scan
+- once for the phase it has to wait out before it can switch stories
+
+So the adapter says `a11y.manual` on the preview's channel before it asks for
+anything.
 
 Whether *the addon* stops scanning when it hears that is a claim about somebody
 else's package, so it is checked against the package. From the repository root:

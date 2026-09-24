@@ -9,12 +9,16 @@ it once.
 
 Reading a repository of a few hundred thousand files quickly is not one
 problem. It is a sequence of them, and each one is created by the answer to the
-last. A fast parser makes reading the bottleneck. Reading a file from
-JavaScript costs seven times what reading it from Rust does, so the stage gets
-compiled. Getting the reading off the main thread makes the kernel the
-bottleneck. Widening the reads makes them slower. Refusing to open files at all
-buys a subprocess you then have to earn back. And a scan you only pay once is a scan whose answer you now have to store
-and query, which is [its own page](scale.md).
+last:
+
+- A fast parser makes reading the bottleneck.
+- **Reading a file from JavaScript costs seven times what reading it from Rust
+  does**, so the stage gets compiled.
+- Getting the reading off the main thread makes the kernel the bottleneck.
+- Widening the reads makes them slower.
+- Refusing to open files at all buys a subprocess you then have to earn back.
+- **A scan you only pay once is a scan whose answer you now have to store and
+  query**, which is [its own page](scale.md).
 
 This is that sequence, in the order it was met. Almost every figure in it was
 measured on one repository this project did not write — [Material

@@ -149,12 +149,13 @@ Naming a component is one step short. An agent asked to fix `Button` still has t
 find `Button`, and a reviewer still has to guess whether it is the design-system
 one or the local one in checkout.
 
-There are two kinds of answer here and they are not interchangeable. Resolving a
-component name against a [source index](source-index.md) names where the
-component is **declared**.
-A call site names where the element that changed is **written**, which for
-anything rendered more than once is the only one of the two that distinguishes
-the instances.
+There are two kinds of answer here and they are not interchangeable:
+
+- **A component name names where the component is declared.** You get it by
+  resolving the name against a [source index](source-index.md).
+- **A call site names where the element that changed is written.** For anything
+  rendered more than once, it is the only one of the two that distinguishes the
+  instances.
 
 ### What each build already knows
 
@@ -295,10 +296,12 @@ leaving every attribution untouched. A region matches a cause under either
 namespace, author or enclosure, because a one-sided test finds nothing and
 silently reverts to area.
 
-Two limits. The semantic tier may name more than one cause, and here it names
-two: `Toggle` and `Text`, both real. It does not collapse them, because picking
-one would be inventing a fact. With no causes supplied the order falls back to
-area.
+Two limits:
+
+- **The semantic tier may name more than one cause.** Here it names two:
+  `Toggle` and `Text`, both real. It does not collapse them, because picking one
+  would be inventing a fact.
+- With no causes supplied, the order falls back to area.
 
 ## What this refuses to conclude
 

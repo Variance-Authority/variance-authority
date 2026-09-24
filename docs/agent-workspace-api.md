@@ -273,10 +273,13 @@ call that lists names other packages import with nothing written above the
 declaration.
 
 `from` means two different things across the two tools, so read each one for
-what it does. On `docs_uses` it orders and never removes: every site of the name
-still comes back, and proximity there is shared path segments, a fact about the
-filesystem. On `docs_search` it is a start point: the import graph is walked and
-names outside the closure are removed.
+what it does:
+
+- **On `docs_uses`, it orders and never removes.** Every site of the name still
+  comes back, and proximity there is shared path segments, a fact about the
+  filesystem.
+- **On `docs_search`, it is a start point.** The import graph is walked and
+  names outside the closure are removed.
 
 Neither is a distance. How many hops separate two modules, and what selecting on
 that distance costs, is [`@variance-authority/sense`](distance.md).

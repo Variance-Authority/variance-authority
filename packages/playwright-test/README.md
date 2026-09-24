@@ -33,17 +33,18 @@ suite keeps the runner, fixtures, matchers and import paths it already owns.
 
 Keep `toHaveScreenshot()` when `1530 pixels differ` is the answer you want; the
 two can assert on the same page in the same test. Three things are different
-here.
+here:
 
-The failure message names components, and where the engine or a source index can
-say so, the file and line behind them — the sample above is the whole message,
-with no image opened. A baseline records the browser, platform and scale it was
-painted under, so a baseline recorded elsewhere returns `incomparable` rather
-than a wall of differences you would have to read through. And the document, the
-pixels and the browser's accessibility tree are three separate results, so a role
-or accessible name that changed without repainting anything still returns
-`changed` — with Playwright's own ARIA snapshots from before and after retained
-beside the image.
+- **The failure message names components.** Where the engine or a source index
+  can say so, it also names the file and line behind them — the sample above is
+  the whole message, with no image opened.
+- **A baseline records the browser, platform and scale it was painted under.**
+  A baseline recorded elsewhere returns `incomparable` rather than a wall of
+  differences you would have to read through.
+- **The document, the pixels and the browser's accessibility tree are three
+  separate results.** A role or accessible name that changed without repainting
+  anything still returns `changed` — with Playwright's own ARIA snapshots from
+  before and after retained beside the image.
 
 ## Install
 

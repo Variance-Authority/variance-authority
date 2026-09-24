@@ -16,10 +16,15 @@ measures the reimplementation — the same objection
 the only arrangement in which we can be **wrong** is the one where the other side
 is real.
 
-Run it and you see four things printed: a scoreboard over eight declared edits, a
-render-only inspection, a migration read straight off the baselines Playwright
-recorded, and a locale layout comparison. Every number in them comes from the
-incumbent's own runner and from the same page Variance Authority reads.
+Run it and you see four things printed:
+
+- a scoreboard over eight declared edits
+- a render-only inspection
+- a migration read straight off the baselines Playwright recorded
+- a locale layout comparison
+
+Every number in them comes from the incumbent's own runner and from the same page
+Variance Authority reads.
 
 The scope is eight declared scenarios on one Mac and one Chromium. It says
 nothing about a hosted review product, a browser fleet, or a representative win
@@ -44,9 +49,15 @@ products use underneath. Beating a bespoke differ would prove nothing about any
 of them; this measurement is against the algorithm they share.
 
 **What it therefore does not cover** is the half of a hosted product that is not
-a comparison: a review UI, an approval workflow across a team, a cross-browser
-grid, change detection at repository scale. Those are real, this case says nothing
-about them, and [`../README.md`](../README.md) says so plainly.
+a comparison:
+
+- a review UI
+- an approval workflow across a team
+- a cross-browser grid
+- change detection at repository scale
+
+Those are real, this case says nothing about them, and
+[`../README.md`](../README.md) says so plainly.
 
 ## Running it
 

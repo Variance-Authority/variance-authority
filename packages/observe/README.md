@@ -296,9 +296,16 @@ measures displacement.
 
 ## What this package does not do
 
-It performs no DOM acquisition, opens no browser, chooses no baseline
-directory, writes no report, emits no exit code, and exposes no approval
-command. It also fixes one order — render, look up, compare, isolate, attribute,
+It leaves six jobs to your pipeline:
+
+- It performs no DOM acquisition.
+- It opens no browser.
+- It chooses no baseline directory.
+- It writes no report.
+- It emits no exit code.
+- It exposes no approval command.
+
+It also fixes one order — render, look up, compare, isolate, attribute,
 decide. If your pipeline needs a different order, compose the same public tools
 from [`@variance-authority/core`](https://variance-authority.dev/reference/packages/core),
 [`@variance-authority/raster`](https://variance-authority.dev/reference/packages/raster)

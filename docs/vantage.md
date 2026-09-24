@@ -139,12 +139,18 @@ read rather than half-reading it.
 Every read returns a snapshot: plain values that will not change again, so an
 answer about a run in flight cannot shift while you are reading it.
 
-One watcher keeps the 200 newest tests, and per test the 500 newest
-announcements and 100 newest notes. Past those, entries drop from the front and
-are counted in `forgotten` and `forgottenNotes`, so an empty list is never
-mistaken for a beginning that was dropped. `pending` is exact regardless: what is
-bounded is the list of announcements, not the tally of work that opened and never
-closed.
+One watcher keeps:
+
+- the 200 newest tests
+- per test, the 500 newest announcements
+- per test, the 100 newest notes
+
+Past those, entries drop from the front and are counted in `forgotten` and
+`forgottenNotes`, so an empty list is never mistaken for a beginning that was
+dropped.
+
+`pending` is exact regardless: what is bounded is the list of announcements, not
+the tally of work that opened and never closed.
 
 ## Reading it from an agent
 

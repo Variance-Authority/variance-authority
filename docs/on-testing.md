@@ -127,11 +127,14 @@ It refuses to answer them from overlap alone.
 
 The vocabulary also matters. Yoo and Harman's [survey of regression testing
 techniques](https://onlinelibrary.wiley.com/doi/10.1002/stvr.430) separates
-minimization, selection, and prioritization. Minimization changes the suite you
-own. Selection chooses the tests relevant to a change. Prioritization decides
-which tests run first. A faster selection does not prove that the suite owns the
-right tests, and a smaller suite does not prove that the next run should execute
-all of them.
+three decisions:
+
+- Minimization changes the suite you own.
+- Selection chooses the tests relevant to a change.
+- Prioritization decides which tests run first.
+
+A faster selection does not prove that the suite owns the right tests, and a
+smaller suite does not prove that the next run should execute all of them.
 
 ## Let tests have lifetimes
 

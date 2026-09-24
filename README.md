@@ -204,10 +204,12 @@ The packages above are built from smaller ones you can also use directly:
 `@variance-authority/png-sharp`, `@variance-authority/session`,
 `@variance-authority/playwright`, `@variance-authority/storybook`,
 `@variance-authority/store`, `@variance-authority/report`, and
-`@variance-authority/remote`. These are supported entrypoints, not internals: a
-custom integration can acquire a document without rendering it, compare existing
-rasters without a browser, or consume a report without reopening the system
-under test.
+`@variance-authority/remote`. These are supported entrypoints, not internals. A
+custom integration can:
+
+- acquire a document without rendering it
+- compare existing rasters without a browser
+- consume a report without reopening the system under test
 
 The [architecture package map](docs/architecture.md#packages) names what every
 package requires and what contract it owns. The

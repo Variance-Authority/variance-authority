@@ -56,12 +56,16 @@ answer lists the fields it read and the fields it did not:
 | declaring files | a [source index](source-index.md) — the map from a component to the files that declare it |
 | custom properties | the CSS cascade those boundaries resolved through |
 
-**Search is absent, and says so, on three kinds of run:** a raster-only capture,
-which is an image with no markup behind it; a run under ephemeral retention,
-which renders the baseline inside the run and keeps nothing once the run ends;
-and a suite built on something other than React, which leaves no boundaries to
-read and so no words beyond the ids you chose. Absent is not empty — see [three
-answers that look alike](#three-answers-that-look-alike).
+**Search is absent, and says so, on three kinds of run:**
+
+- **A raster-only capture.** It is an image with no markup behind it.
+- **A run under ephemeral retention.** It renders the baseline inside the run
+  and keeps nothing once the run ends.
+- **A suite built on something other than React.** It leaves no boundaries to
+  read, and so no words beyond the ids you chose.
+
+Absent is not empty — see [three answers that look
+alike](#three-answers-that-look-alike).
 
 ## Ask it
 
@@ -303,12 +307,14 @@ most specific. The CLI takes one `--from` and one `--to`; over MCP each also
 takes a list, as in `variance_locate {query: "the contract warning", from:
 ["app/dispatch/", "src/shared/"]}`.
 
-**A start point also changes what your words are worth.** Removing subjects is
-one half. The other is that rarity is a count over subjects, so counting it
-inside the scope changes the ranking: a word every screen in the application
-says is worth nothing, and a word every screen *in this area* says is worth
-nothing here. Those are different statements, and inside an area the second is
-the useful one.
+**A start point also changes what your words are worth.** It has two halves:
+
+- It removes subjects.
+- **It counts rarity inside the scope.** Rarity is a count over subjects, so
+  counting it inside the scope changes the ranking: a word every screen in the
+  application says is worth nothing, and a word every screen *in this area*
+  says is worth nothing here. Those are different statements, and inside an
+  area the second is the useful one.
 
 A start point narrows a relation question the same way, where it is removing
 surfaces before any of them is read:

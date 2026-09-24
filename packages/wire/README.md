@@ -290,11 +290,13 @@ Three answers, and they are distinguishable:
 | Connection refused | The listener is closed, or the port belongs to a worker that has finished. |
 
 `report` shows you none of these; `deliver` rejects with the status. If a
-process under test is silent, check in this order: whether `channelFrom` returned
-`undefined` at all (no carrier and no return cookie), whether the address on the
-cookie is loopback `http` (anything else resolves to `undefined` and sends
-nothing), and whether the driver called `on` for that instrument before the
-report landed.
+process under test is silent, check in this order:
+
+1. **Did `channelFrom` return `undefined`?** It does when there is no carrier
+   and no return cookie.
+2. **Is the address on the cookie loopback `http`?** Anything else resolves to
+   `undefined` and sends nothing.
+3. Did the driver call `on` for that instrument before the report landed?
 
 ### Reading back, with `answer`
 

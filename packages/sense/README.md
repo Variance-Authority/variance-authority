@@ -292,10 +292,13 @@ region already covered by then is recorded as **loaded** by that file as well as
 crossed by it — a function that ran because the module was imported rather than
 because a test called it. `loadedBy` on the block is where you find it.
 
-**A configuration with `projects` needs the wrap in two places.** A Vitest
-project inherits neither plugins nor setup files from the configuration around
-it, so wrap each project *and* keep one wrap at the root for the reporter that
-folds the run. A root-only wrap is the shape that looks right and records
+**A configuration with `projects` needs the wrap in two places:**
+
+- **Wrap each project.** A Vitest project inherits neither plugins nor setup
+  files from the configuration around it.
+- Keep one wrap at the root for the reporter that folds the run.
+
+A root-only wrap is the shape that looks right and records
 nothing: the reporter runs, the file is written, and it says every test reaches
 no source. That run says so on the way out —
 `instrumented 0 modules across N test file(s)`.
@@ -449,10 +452,12 @@ modules by path, and you can name them yourself:
 ## Cut an Rstest run down to a diff
 
 Rstest builds the suite with Rspack and runs what it built, so the recording
-half is a loader rather than a plugin. Wrap the configuration once and the rule
-is appended to `tools.rspack` rather than replacing it, `setupFiles` keep their
-order and gain the counter factory at the start, and `reporters` gain one at the
-end.
+half is a loader rather than a plugin. Wrap the configuration once and it
+changes in three places:
+
+- The rule is appended to `tools.rspack` rather than replacing it.
+- `setupFiles` keep their order and gain the counter factory at the start.
+- `reporters` gain one at the end.
 
 ```ts
 // rstest.config.ts
@@ -546,11 +551,15 @@ finish and keeps it from ever justifying a skip. `heads` names other builds the
 same run drove, whose stores join this call. `commit` overrides where the
 recording stands, which otherwise reads the checkout's `HEAD`.
 
-Recording refuses in one direction only. A run whose reported modules no store
-can identify, a record from another probe recipe, and a page with no collector
-each record **nothing** and say why — costing the next run its full suite —
-because half a journal written as though it were whole is the failure that
-silently skips a subject. Every region covered while a module was evaluating is
+Recording refuses in one direction only. Each of these records **nothing** and
+says why, costing the next run its full suite:
+
+- a run whose reported modules no store can identify
+- a record from another probe recipe
+- a page with no collector
+
+Half a journal written as though it were whole is the failure that silently
+skips a subject. Every region covered while a module was evaluating is
 attributed to *every* subject the run drained: a module initializes once per
 page, for whichever subject happened to be first. Concurrent workers merge under
 a lock on the index file.
@@ -1608,12 +1617,15 @@ None of the five asks the project to change a runner option for the case axis,
 and each writes the index beside its snapshot.
 
 Two answers are properties of the record rather than of a host, so they read the
-same under all five. A run that transforms nothing because every module came
-from a warm cache still attributes what its tests covered: what a region means
-is stored per module under a content key, and a run joins those records rather
-than producing them. And an observation that did not finish is dropped from the
-pool rather than counted as a miss, so nothing a host retries or interrupts can
-justify a skip.
+same under all five:
+
+- **A run that transforms nothing because every module came from a warm cache
+  still attributes what its tests covered.** What a region means is stored per
+  module under a content key, and a run joins those records rather than
+  producing them.
+- **An observation that did not finish is dropped from the pool rather than
+  counted as a miss,** so nothing a host retries or interrupts can justify a
+  skip.
 
 ## Entrypoints
 

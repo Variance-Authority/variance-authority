@@ -71,16 +71,19 @@ a new type. What differs between languages is how much the syntax tells you.
 
 **JavaScript and TypeScript.** One language, not six: `.ts`, `.tsx`, `.jsx`,
 `.mjs` and `.cts` share a reader and a resolver, so a dialect is not a port.
-The syntax says almost everything, and the work is in resolution instead. A
-`tsconfig.json` is found per file rather than once per repository, which is what
-a workspace of many packages needs, and its `paths` apply where it applies.
-Export conditions are read in order, source before built output, so a package
-that publishes both is read as its source rather than its `dist`. Anything
-outside this repository resolves to nothing on purpose — a builtin, a package in
-`node_modules`, a path above the root — because no diff of this repository can
-be that file. On macOS and Windows a specifier can resolve to a file it does not
-name, since both match filenames without regard to case; that is handled where
-it happens rather than left to the case-sensitive machine CI runs on.
+The syntax says almost everything, and the work is in resolution instead:
+
+- **A `tsconfig.json` is found per file** rather than once per repository, which
+  is what a workspace of many packages needs, and its `paths` apply where it
+  applies.
+- **Export conditions are read in order, source before built output**, so a
+  package that publishes both is read as its source rather than its `dist`.
+- **Anything outside this repository resolves to nothing on purpose** — a
+  builtin, a package in `node_modules`, a path above the root — because no diff
+  of this repository can be that file.
+- **On macOS and Windows a specifier can resolve to a file it does not name**,
+  since both match filenames without regard to case; that is handled where it
+  happens rather than left to the case-sensitive machine CI runs on.
 
 **Stylesheets.** A second language rather than a dialect of the first, because
 the same string asked from two places is two different questions: `./colors`
@@ -129,20 +132,30 @@ the default and the default is only a default.
 ## What the answer will not do
 
 **It will not answer short.** On a clean exit the list is never empty, because
-the changed files are always among the files they reach. When the walk cannot
-stand behind a list — nothing changed since the ref, nothing changed that any
-reader claims, or a changed source file the scan never reached — the command
-writes nothing to stdout, says why on stderr, and exits `2`. A run list is the
+the changed files are always among the files they reach. The walk cannot stand
+behind a list in three cases:
+
+- nothing changed since the ref
+- nothing changed that any reader claims
+- a changed source file the scan never reached
+
+In each of them the command writes nothing to stdout, says why on stderr, and
+exits `2`. A run list is the
 dangerous shape to get wrong: an empty one piped into a runner runs nothing and
 looks like a fast green build.
 
-**It will not hide what it could not read.** A changed path in no language this
-build reads — a lockfile, a Dockerfile, a workflow — is taken out of the walk and
-named on stderr rather than dropped. A file whose own edges could not be
-enumerated — a parse error, a missing grammar, a computed import, a macro, a
-name resolved by reflection — is walked from as though it had changed, and a
-sentence on stderr says which file and why. A widening you can read is a work
-item; a widening you cannot is a tax.
+**It will not hide what it could not read.** Two kinds of file are named on
+stderr:
+
+- **A changed path in no language this build reads is taken out of the walk** —
+  a lockfile, a Dockerfile, a workflow — and named on stderr rather than
+  dropped.
+- **A file whose own edges could not be enumerated is walked from as though it
+  had changed** — a parse error, a missing grammar, a computed import, a macro,
+  a name resolved by reflection — and a sentence on stderr says which file and
+  why.
+
+A widening you can read is a work item; a widening you cannot is a tax.
 
 **It will not narrow by language.** The reach of a diff that touched Python and
 Swift is one walk over one graph, and the Swift file reached through a target

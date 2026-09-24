@@ -1,11 +1,14 @@
 # Run visual review from the command line
 
 Four commands make the review loop, and
-[`@variance-authority/cli`](../packages/cli/README.md) is all four: `doctor`
-checks the machine can paint reproducibly, `run` captures every subject and
-writes one report, `report` renders that report for a person, and `accept`
-promotes an image you already looked at. This page runs them in order against a
-project that already collects subjects, ending on a run that exits `0` because
+[`@variance-authority/cli`](../packages/cli/README.md) is all four:
+
+- `doctor` checks the machine can paint reproducibly;
+- `run` captures every subject and writes one report;
+- `report` renders that report for a person;
+- `accept` promotes an image you already looked at.
+
+This page runs them in order against a project that already collects subjects, ending on a run that exits `0` because
 nothing moved.
 
 This page assumes you already have a **collector** — the module that mounts each
@@ -274,13 +277,17 @@ Three exit codes, and a verdict never shares one with a crash:
 | `1` | the run completed and found something a person must decide about. |
 | `2` | the run did not happen as configured — bad config, missing browser, a store the run could not connect to. Never a statement about your UI. |
 
-Six things take a completed run to `1`: a `changed`, `new` or `incomparable`
-verdict; a subject the run meant to observe and could not; a subject that was
-read twice with nothing changed in between and disagreed with itself, outside
-what it declared it asserts on; and an `error` diagnostic, which means the run
-looked at less than the whole subject — a stylesheet served cross-origin and
-skipped on both sides compares clean while the styling was missing from both
-images.
+Six things take a completed run to `1`:
+
+- a `changed` verdict;
+- a `new` verdict;
+- an `incomparable` verdict;
+- a subject the run meant to observe and could not;
+- a subject that was read twice with nothing changed in between and disagreed
+  with itself, outside what it declared it asserts on;
+- **an `error` diagnostic**, which means the run looked at less than the whole
+  subject — a stylesheet served cross-origin and skipped on both sides compares
+  clean while the styling was missing from both images.
 
 `--exit-zero-on-changes` turns `1` into `0` on `run` and `report`, for a job
 that reports rather than blocks a merge. It leaves `2` alone, which `|| true`

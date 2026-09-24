@@ -84,29 +84,36 @@ costs 2.1× to 2.7× on a jsdom suite. Nobody pays that in CI, so nobody has the
 relation in CI.
 
 The second cost is the file, and it is the one that quietly decides whether a
-thing survives contact with a build system. Spelled the obvious way — one
-object per crossing, with field names — this relation measured 31 to 37 bytes
-per crossing on three real projects: 27.2 MB of sidecar next to a 0.3 MB
-record, against a CI artifact cap. Spelled as a dictionary, interned sets and
-three parallel integer columns under run coding, the same 906,578 crossings
-are **0.46 MB — about half a byte each**. That is most of the engineering in
-this feature, and it is what makes the answer something a job uploads without
-thinking about it.
+thing survives contact with a build system. On three real projects, the same
+relation spelled two ways measured:
+
+- **Spelled the obvious way, it is 31 to 37 bytes per crossing.** One object
+  per crossing, with field names, is 27.2 MB of sidecar next to a 0.3 MB
+  record, against a CI artifact cap.
+- **Spelled as a dictionary, it is about half a byte per crossing.** Interned
+  sets and three parallel integer columns under run coding put the same
+  906,578 crossings in **0.46 MB**.
+
+That is most of the engineering in this feature, and it is what makes the
+answer something a job uploads without thinking about it.
 
 Those timings are the recorder writing the file-level axis; cases add an
 attribution per crossing on top of them.
 
-What it costs *you* is not what it cost us. Plan around +10% and treat
-anything under that as luck: how many regions a test crosses is a property of
-your code, not of the recorder, and a suite that spends most of its time in
-one hot module pays differently from one that spends it starting workers.
-What those cycles buy, though, is the part worth putting on the other side of
-the comparison — and it is not a percentage. A run under `--coverage` ends
-with a number. A run under the recorder ends with a dataset that says which
-tests have been through which lines, and that is the input to running fewer
-of them next time. Measure both halves on your own suite: the overhead the
-way those figures were made — five runs with the recorder, five without,
-compare the medians — and then a selected run against the full one.
+What it costs *you* is not what it cost us:
+
+- **Plan around +10%, and treat anything under that as luck.** How many
+  regions a test crosses is a property of your code, not of the recorder, and
+  a suite that spends most of its time in one hot module pays differently from
+  one that spends it starting workers.
+- **What those cycles buy is not a percentage.** It is the part worth putting
+  on the other side of the comparison. A run under `--coverage` ends with a
+  number. A run under the recorder ends with a dataset that says which tests
+  have been through which lines, and that is the input to running fewer of
+  them next time.
+- **Measure both halves on your own suite.** Measure the overhead the way
+  those figures were made — five runs with the recorder, five without,
+  compare the medians — and then a selected run against the full one.
 
 ## What the union throws away
 

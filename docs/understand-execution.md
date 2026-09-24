@@ -84,8 +84,11 @@ change your assertions, approve a baseline, or treat silence as proof that
 nothing happened — a reading no instrument took is missing from the report
 rather than present and zero.
 
-So the answer you can get depends on what was running at the time. A live view
-of a suite ends with the suite. A retained record says only what the instruments
-you installed could see. When the evidence a question needs was never recorded,
-ask a narrower question of what you do have, or turn the instrument on and run
-again; [Observability contracts](observability.md) lists what each one costs.
+So the answer you can get depends on what was running at the time:
+
+- A live view of a suite ends with the suite.
+- A retained record says only what the instruments you installed could see.
+
+When the evidence a question needs was never recorded, ask a narrower question
+of what you do have, or turn the instrument on and run again;
+[Observability contracts](observability.md) lists what each one costs.

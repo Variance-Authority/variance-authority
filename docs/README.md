@@ -86,19 +86,22 @@ through an edit and a check.
 
 ## Start from the tools you already use
 
-For rendered comparison, keep the harness that already puts the app in that
-state: [Playwright](start-playwright.md), [Storybook](start-storybook.md),
-[application routes](start-routes.md), [Jest or Vitest](start-unit.md), [Vitest
-browser mode](start-vitest-browser.md), [Rstest](start-rstest.md), or [a custom
-collector](start-custom.md). [Observe one state](start.md) takes a single UI
-state through capture, review, and explicit acceptance before you decide how
-much of the suite belongs in the workflow.
+Each path needs different evidence:
 
-Source discovery needs only a readable TypeScript checkout. Test selection and
-reduction need an [execution record](execution-record.md). Live investigation
-needs a watcher running before the suite starts. Each guide states the evidence
-it can read and leaves an unavailable reading absent instead of turning it into
-a result.
+- **For rendered comparison, keep the harness that already puts the app in
+  that state:** [Playwright](start-playwright.md),
+  [Storybook](start-storybook.md), [application routes](start-routes.md), [Jest
+  or Vitest](start-unit.md), [Vitest browser mode](start-vitest-browser.md),
+  [Rstest](start-rstest.md), or [a custom collector](start-custom.md). [Observe
+  one state](start.md) takes a single UI state through capture, review, and
+  explicit acceptance before you decide how much of the suite belongs in the
+  workflow.
+- Source discovery needs only a readable TypeScript checkout.
+- Test selection and reduction need an [execution record](execution-record.md).
+- Live investigation needs a watcher running before the suite starts.
+
+Each guide states the evidence it can read and leaves an unavailable reading
+absent instead of turning it into a result.
 
 ## Understand the model when you need it
 

@@ -37,16 +37,19 @@ In practice that rules out, inside the rendered output:
 - a live read — a network call, a database row, a feature flag service;
 - the machine's locale, timezone, or `process.env`, unless you pin them.
 
-Two more requirements come from where the render ends up. The CSS that styles
-the subject has to be reachable from the DOM you hand over — a `<style>` tag, a
-stylesheet the document already includes, or inline `style` — because rules are
-read out of the document rather than fetched. And the subject has to be
-resource-closed or resource-free: anything it references by URL is fetched from
-nowhere at paint time, so a subject with images or web fonts needs their bytes
-embedded in the document (`assets` and `resources` on the render document, which
-the [`@variance-authority/dom` reference](../packages/dom/README.md) covers). The
-example below references nothing, which is the easiest version of this to start
-from.
+Two more requirements come from where the render ends up:
+
+- **The CSS that styles the subject has to be readable from the DOM you hand
+  over** — a `<style>` tag, a stylesheet the document already includes, or
+  inline `style` — because rules are read out of the document rather than
+  fetched.
+- **The subject has to be resource-closed or resource-free.** Anything it
+  references by URL is fetched from nowhere at paint time, so a subject with
+  images or web fonts needs their bytes embedded in the document (`assets` and
+  `resources` on the render document, which the
+  [`@variance-authority/dom` reference](../packages/dom/README.md) covers). The
+  example below references nothing, which is the easiest version of this to
+  start from.
 
 ## Why a browser is installed
 

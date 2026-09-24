@@ -39,8 +39,12 @@ is launched.
 ## Keep the capture directory in one place
 
 Captures are written to a directory, and three files have to agree on which one:
-the test that writes them, the once-per-run hook that empties it, and the
-collector the CLI reads it through. Put the path in one module and import it.
+
+- the test that writes them
+- the once-per-run hook that empties it
+- the collector the CLI reads it through
+
+Put the path in one module and import it.
 
 ```js
 // variance/captures.mjs

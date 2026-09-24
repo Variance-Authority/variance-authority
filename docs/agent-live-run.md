@@ -117,11 +117,14 @@ unmatched start is the place to continue diagnosis.
 
 ## Keep the lifetime honest
 
-The watcher keeps a bounded number of entries and says when older ones were
-dropped, so you can tell *nothing was announced* from *the beginning was
-forgotten*. Its state does not alter the suite's retained evidence, and a
-watcher that fails does not fail the test. Stop the watcher and the state is
-gone.
+The watcher's state is limited in four ways:
+
+- **The watcher keeps a bounded number of entries.** It says when older ones
+  were dropped, so you can tell *nothing was announced* from *the beginning was
+  forgotten*.
+- Its state does not alter the suite's retained evidence.
+- A watcher that fails does not fail the test.
+- Stop the watcher and the state is gone.
 
 When the question is about what a test queried, clicked, rendered or covered,
 collect portable evidence and use [`npx variance distill`](distill.md). The full

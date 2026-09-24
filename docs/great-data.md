@@ -131,20 +131,24 @@ can tell you it never read regions.
 
 ## What keeping the record costs
 
-You pay in three places, and none of them is per seat. The scan that keeps the
-[source index](source-index.md) current runs before every run that selects;
-[what a source scan costs](performance.md) prices that stage against one Chromium paint
-of one subject, and a suite of any size pays it once per run. The three files
-the record lives in — the source index, the [execution record](execution-record.md)
-and the [lexicon](lexicon.md) — are sized in [addressing scale](scale.md), each
-against a different count of your own: the modules in your checkout, the modules
-your suite covers, and the subjects it captures. The scan's caches sit in
-[your cache](cache.md), outside the work tree unless you name a place inside it,
-so nothing about them is committed. Instruments you have not installed cost nothing:
-journeys need a build that includes the selection probes, and `openVantage()`
-reads one environment variable per worker and returns nothing when it is
-unset. What accumulates across runs lives in a service you run in your own
-infrastructure, and it stores no pixels.
+You pay in three places, and none of them is per seat:
+
+- **The scan runs once per run.** The scan that keeps the
+  [source index](source-index.md) current runs before every run that selects;
+  [what a source scan costs](performance.md) prices that stage against one
+  Chromium paint of one subject, and a suite of any size pays it once per run.
+- **The record is three files, each sized against a count of your own.** The
+  source index, the [execution record](execution-record.md) and the
+  [lexicon](lexicon.md) are sized in [addressing scale](scale.md) against the
+  modules in your checkout, the modules your suite covers, and the subjects it
+  captures. The scan's caches sit in [your cache](cache.md), outside the work
+  tree unless you name a place inside it, so nothing about them is committed.
+- **What accumulates across runs lives in a service you run.** It runs in your
+  own infrastructure, and it stores no pixels.
+
+Instruments you have not installed cost nothing: journeys need a build that
+includes the selection probes, and `openVantage()` reads one environment
+variable per worker and returns nothing when it is unset.
 
 ## Get a record you can ask questions of
 

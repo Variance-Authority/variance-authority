@@ -17,13 +17,15 @@ This answers a question a list of clicks cannot: whether two executions already
 differ at Arrange, whether one Act has the same effect under both
 preconditions, and which Act first changes that effect.
 
-Two terms are used throughout below. A **subject** is one named UI state you
-asked for and can ask for again, identified by a stable id such as
-`page-one-article`; here a subject is the precondition a recording starts from,
-and arranging it is your harness's job. An **observation profile** is what the
-capture surface was able to see at all, independent of what it found: `jsdom`
-resolves roles, accessible names and author-declared style but has no layout
-engine, while `chromium` adds the resolved cascade, real geometry and pixels.
+Two terms are used throughout below:
+
+- **A subject is one named UI state you asked for and can ask for again.** It is
+  identified by a stable id such as `page-one-article`. Here a subject is the
+  precondition a recording starts from, and arranging it is your harness's job.
+- **An observation profile is what the capture surface was able to see at
+  all**, independent of what it found. `jsdom` resolves roles, accessible names
+  and author-declared style but has no layout engine, while `chromium` adds the
+  resolved cascade, real geometry and pixels.
 
 ## Run it
 

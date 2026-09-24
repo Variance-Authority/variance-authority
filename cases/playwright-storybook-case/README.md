@@ -30,9 +30,14 @@ every page. A document that was replaced during the test, by a second `goto`, a
 reload, a removed frame or a closed tab, cannot be read afterwards. The spec is
 still recorded with what its last document executed, but it is marked
 incomplete. An incomplete record is never trusted to show that the spec did not
-reach a change, so the next selection runs that spec instead of skipping it. Two
-things do not replace a document: `pushState` and a hash change. A single-page
-application moving between its own routes loses nothing.
+reach a change, so the next selection runs that spec instead of skipping it.
+
+Two things do not replace a document:
+
+- `pushState`
+- a hash change
+
+A single-page application moving between its own routes loses nothing.
 
 ## The files
 

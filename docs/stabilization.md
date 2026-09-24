@@ -219,11 +219,15 @@ snapshot.environment.inputs.stabilization  // 'v1:…', or undefined
 Every baseline is stored under an environment key: a hash of every render
 input — engine, viewport, fonts, and the rest — that produced it, so two
 captures are only compared when they agree on what made them. That key comes
-in two forms: a **full** one, which also pins the device's pixel ratio, for
-the raster baseline only a matching device can reproduce; and a **semantic**
-one, which omits it, because layout does not change between a retina laptop
-and a plain CI runner. The recipe digest is a **render input** itself, in the
-semantic key as well as the full one. So:
+in two forms:
+
+- **The full key also pins the device's pixel ratio.** It is for the raster
+  baseline only a matching device can reproduce.
+- **The semantic key omits the pixel ratio.** Layout does not change between a
+  retina laptop and a plain CI runner.
+
+The recipe digest is a **render input** itself, in the semantic key as well as
+the full one. So:
 
 - A baseline collected untouched and a run collected held still are **two
   baselines**. They are never compared, and the run says `incomparable` rather

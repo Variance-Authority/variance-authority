@@ -253,15 +253,18 @@ meets a baseline painted by another engine reports the pair `incomparable` and
 names both engines instead of diffing them.
 
 Two capabilities are Chromium's alone, and that is a position rather than a gap
-to be closed. Text rasterization is pinnable on Chromium only:
-`--disable-lcd-text` and `--font-render-hinting=none` are flags no other engine
-accepts, so Firefox and WebKit paint text the way the host does and their rasters
-belong to the host that made them — give them one host, or a container image, and
-keep it. And the engine-located half of source attribution reads
-`[[FunctionLocation]]` over the Chrome DevTools Protocol, which Chromium alone
-provides; under the other two engines the source scan answers on its own, with
-its candidates unnarrowed, and the run claims nothing it could not see. The
-stabilization recipe is likewise written against Chromium's behaviour.
+to be closed:
+
+- **Text rasterization is pinnable on Chromium only.** `--disable-lcd-text` and
+  `--font-render-hinting=none` are flags no other engine accepts, so Firefox and
+  WebKit paint text the way the host does and their rasters belong to the host
+  that made them — give them one host, or a container image, and keep it.
+- **The engine-located half of source attribution is Chromium's only.** It reads
+  `[[FunctionLocation]]` over the Chrome DevTools Protocol, which Chromium alone
+  provides; under the other two engines the source scan answers on its own, with
+  its candidates unnarrowed, and the run claims nothing it could not see.
+
+The stabilization recipe is likewise written against Chromium's behaviour.
 
 Renderer identity covers engine, platform, scale, fonts, stabilization, and the
 rasterization recipe, which is why the pair above is reported rather than

@@ -12,10 +12,12 @@ got there first and read by every test after, so a suite that passes in the
 order you wrote it fails in another one, and the failure names the second test
 rather than the one that did the writing.
 
-The usual answers both cost something. Rebuilding the world between tests pays
-setup on every test and throws away the evidence that would have identified the
-leak. Reading a module's internals from a test file makes the test know things
-the module never promised.
+The usual answers both cost something:
+
+- **Rebuilding the world between tests pays setup on every test.** It also
+  throws away the evidence that would have identified the leak.
+- **Reading a module's internals from a test file couples the test to them.**
+  The test knows things the module never promised.
 
 This package inverts that: the module that owns the state says how to reset it,
 and the runner says when.

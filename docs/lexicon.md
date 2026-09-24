@@ -300,10 +300,14 @@ it matches — and rarity already prices it at close to nothing.
 ## Three absences, told apart
 
 A field the run could not read is absent from the report's field list, not
-present and empty. No snapshot means no `names`, `text` or `roles`; no journal
-means no `regions`; no source index means no `files`. A production build with
-the owner links stripped has an empty `createdBy` on every subject — read, and
-genuinely empty.
+present and empty:
+
+- No snapshot means no `names`, `text` or `roles`.
+- No journal means no `regions`.
+- No source index means no `files`.
+
+A production build with the owner links stripped has an empty `createdBy` on
+every subject — read, and genuinely empty.
 
 The answer says which of these it is looking at, per field, before it says what
 matched, because *nothing matched* and *nothing was read* are answers with

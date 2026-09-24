@@ -15,11 +15,15 @@ does not collapse, and the regions do not overlap.
 
 A **sensitivity** declares which bands a subject asserts on. A band is the kind
 of change a comparison found, not its size. There are five, loudest first:
-`a11y` (a role, accessible name or ARIA state changed), `geometry` (boxes
-appeared, vanished, moved or resized), `token` (style values changed while
-structure stayed the same), `content` (text changed and nothing else did), and
-`texture` (sub-pixel raster noise). A sensitivity names the bands that matter
-for a given subject, never a size or a percentage. It is not an
+
+- `a11y` — a role, accessible name or ARIA state changed.
+- `geometry` — boxes appeared, vanished, moved or resized.
+- `token` — style values changed while structure stayed the same.
+- `content` — text changed and nothing else did.
+- `texture` — sub-pixel raster noise.
+
+A sensitivity names the bands that matter for a given subject, never a size or
+a percentage. It is not an
 [ignore](ignores.md): an ignore excludes a named place or difference shape;
 a sensitivity states the kinds of change that matter for a named set of
 subjects.

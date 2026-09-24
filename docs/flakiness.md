@@ -70,10 +70,14 @@ Prevention is the base layer and it is on by default
 residue is worth naming, not tolerating.
 
 A run that calls a subject `changed` is claiming something about a component, and
-there are exactly three ways for that claim to be wrong: an earlier subject left
-state behind, the page does not render the same thing twice, or somebody really
-did edit something. All three arrive identically — *the pixels moved* — and they
-need three different people to do three different things.
+there are exactly three ways for that claim to be wrong:
+
+- An earlier subject left state behind.
+- The page does not render the same thing twice.
+- Somebody really did edit something.
+
+All three arrive identically — *the pixels moved* — and they need three
+different people to do three different things.
 
 So a changed subject is collected a second time, and there are two second passes,
 each varying exactly one thing:

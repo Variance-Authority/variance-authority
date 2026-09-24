@@ -63,10 +63,13 @@ those fields are absent.
 ### The pair that decides whether a change is real
 
 A run calling a subject `changed` is claiming something about a component, and
-there are exactly three ways for that claim to be wrong: an earlier subject left
-state behind, the page does not render the same thing twice, or somebody really
-did edit something. All three arrive as _the pixels moved_, and they need three
-different people.
+there are exactly three ways for that claim to be wrong:
+
+- An earlier subject left state behind.
+- The page does not render the same thing twice.
+- Somebody really did edit something.
+
+All three arrive as _the pixels moved_, and they need three different people.
 
 |             | world   | time     | answers                                 | reported as       |
 | ----------- | ------- | -------- | --------------------------------------- | ----------------- |

@@ -6,9 +6,12 @@ Two scans of the same unchanged checkout should not do the same work twice. The
 `variance index` writes the index, and the commands that use the file graph
 read it without scanning. Everything in it is derived from the checkout, so a
 missing, incomplete or corrupt index costs a scan and cannot change what a scan
-finds. It stores the two things a repeated scan would otherwise redo — one parse per set
-of file bytes, and one resolved record per file: that file's outgoing edges,
-the declarations it publishes, and the directories its specifiers looked in.
+finds. It stores the two things a repeated scan would otherwise redo:
+
+- One parse per set of file bytes.
+- **One resolved record per file.** It lists that file's outgoing edges, the
+  declarations it publishes, and the directories its specifiers looked in.
+
 Both are published together, so no scan can read a parse state and a record
 state that never existed at the same time.
 

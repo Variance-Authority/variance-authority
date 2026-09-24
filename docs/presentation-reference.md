@@ -61,10 +61,13 @@ The available options are:
 | `stabilize` | Replaces the default stabilization recipe by intervention id. `[]` is only for a caller-owned static document whose page clock cannot advance. |
 | `paint` | Paint means drawing an SVG overlay of the measurements onto the page you just read. `true` paints every diagnostic layer; a layer list paints only those layers; omission leaves the page unpainted. |
 
-Readiness follows the chosen subject. Images inside the locator and its portals
-settle before geometry is read, while an unrelated incomplete image elsewhere
-in the document does not delay the reading. Font settlement remains
-document-wide because substitution can move geometry inside the subject.
+Readiness follows the chosen subject:
+
+- **Images are scoped to the subject.** Images inside the locator and its
+  portals settle before geometry is read, while an unrelated incomplete image
+  elsewhere in the document does not delay the reading.
+- **Fonts are document-wide.** Font settlement remains document-wide because
+  substitution can move geometry inside the subject.
 
 ## Read a report
 
@@ -142,10 +145,12 @@ immediate children in structural order. The members may be heterogeneous: a
 heading region, summary, action area, and activity region can still form one
 composition whose adjacent gaps matter together.
 
-The result retains every distance, boundary strength, and spacing cluster plus
-min/median/max summaries. Descendants, skipped siblings, or an axis that does
-not describe the owned separations are refused. The sequence remains the useful
-evidence; its maximum or median alone can conceal one abrupt gap.
+- **The result lists the whole sequence.** It retains every distance, boundary
+  strength, and spacing cluster plus min/median/max summaries. The sequence
+  remains the useful evidence; its maximum or median alone can conceal one
+  abrupt gap.
+- **Some inputs are refused:** descendants, skipped siblings, or an axis that
+  does not describe the owned separations.
 
 ### Declare product-known relationship roles
 
@@ -201,13 +206,16 @@ The available layers are `semantic`, `spacing`, `axes`, `baselines`,
 its owner and touched nodes; finding, pattern, and hierarchy paint also
 includes the corresponding report-local id.
 
-The overlay is a non-interactive SVG. It takes no pointer events, exposes
-nothing to assistive technology, and does not change the application's styles.
-Its conspicuous colors identify diagnostic groups, not judgments about the
-product's colors. It is a real element in the document, so a screenshot taken
-while it is up contains it: call `clearPresentationPaint(page)` before any
-screenshot or visual-regression assertion that follows. A later acquisition also
-removes an earlier overlay before reading the page.
+The overlay is a non-interactive SVG:
+
+- It takes no pointer events and exposes nothing to assistive technology.
+- It does not change the application's styles.
+- Its conspicuous colors identify diagnostic groups, not judgments about the
+  product's colors.
+- **A screenshot taken while it is up contains it.** It is a real element in
+  the document, so call `clearPresentationPaint(page)` before any screenshot or
+  visual-regression assertion that follows. A later acquisition also removes an
+  earlier overlay before reading the page.
 
 ## Compare two readings
 
@@ -251,12 +259,15 @@ never changes that verdict.
 
 ## Authority and limits
 
-The evidence answers two things: whether the interface preserved its
-information, and how its relationships are rendered. It may show that two
-declared meanings are rendered alike or that one peer departs from its
-group. It cannot decide how much information the product should contain or
-whether the response should be a table, cards, typography, spacing, a denser
-layout, a sparser layout, or no edit.
+The evidence answers two things:
+
+- whether the interface preserved its information; and
+- how its relationships are rendered.
+
+It may show that two declared meanings are rendered alike or that one peer
+departs from its group. It cannot decide how much information the product should
+contain or whether the response should be a table, cards, typography, spacing, a
+denser layout, a sparser layout, or no edit.
 
 ARIA evidence remains an independent browser reading, not a repaired version of
 the DOM-correlated anchors. Empty and partial roots are observed values. Only

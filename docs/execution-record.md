@@ -77,12 +77,14 @@ recorded per file only: that run writes no case index and prints a warning.
 question that reads it.
 
 Two answers are properties of this file rather than of a host, so they read the
-same under all five. A run that transformed nothing, because every module came
-from a warm cache, still records what its tests covered: what a region means is
-stored per module under a content key, and a run joins those records rather
-than producing them. And an observation that did not finish is dropped from the
-pool rather than counted as a miss, so nothing a host retries or interrupts can
-justify a skip.
+same under all five:
+
+- **A run that transformed nothing still records what its tests covered.** When
+  every module came from a warm cache, what a region means is already stored per
+  module under a content key, and a run joins those records rather than
+  producing them.
+- **An observation that did not finish is dropped from the pool.** It is not
+  counted as a miss, so nothing a host retries or interrupts can justify a skip.
 
 The snapshot is not a run history. It stores no pass-or-fail verdict for each
 attempt and no sequence connecting a failing local edit to the corrected change

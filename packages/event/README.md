@@ -147,8 +147,9 @@ export async function pay(authorize: () => Promise<void>): Promise<void> {
 }
 ```
 
-`events.finished(...)` settles only on the `end`; `events.happened(...)` settles
-on either phase. `events.pending` is everything that started and has not ended.
+- `events.finished(...)` settles only on the `end`.
+- `events.happened(...)` settles on either phase.
+- `events.pending` is everything that started and has not ended.
 
 ## What it costs where nobody is listening
 

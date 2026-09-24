@@ -52,9 +52,12 @@ behalf, so a cause you understand still goes to review as a change to accept or
 reject.
 
 Two verdicts are not code problems at all, and `explain-verdict` is there to say
-so before you go looking for an edit: `new` means no baseline has been approved
-for that subject yet, and `incomparable` means a baseline exists but another
-browser, platform, scale factor or font stack rendered it. Where the evidence
-for a hop is missing — no component name on an element, no second reading to
-part against — the answer stops at the last hop it could complete and names the
-one it could not.
+so before you go looking for an edit:
+
+- `new` means no baseline has been approved for that subject yet.
+- `incomparable` means a baseline exists but another browser, platform, scale
+  factor or font stack rendered it.
+
+Where the evidence for a hop is missing — no component name on an element, no
+second reading to part against — the answer stops at the last hop it could
+complete and names the one it could not.

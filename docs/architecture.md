@@ -99,10 +99,14 @@ Two of these need a host — a DOM to acquire from, a browser to render in. Thre
 need nothing at all, which is what makes the cheap gate above cheap.
 
 **prepare** is a set rather than a stage. A **trick** is one named action that
-holds part of the page still: a reset puts the page into a known state, a hold
-stops something that would keep moving, a wait blocks until something outside
-the page's control lands, a support removes something present that must not be
-measured. Each trick declares the cheapest tier that can observe its effect and
+holds part of the page still:
+
+- A reset puts the page into a known state.
+- A hold stops something that would keep moving.
+- A wait blocks until something outside the page's control lands.
+- A support removes something present that must not be measured.
+
+Each trick declares the cheapest tier that can observe its effect and
 the one property it governs, and a **recipe** is the list of tricks a run applies
 ([holding a page still](stabilization.md)). Two tricks over one property is a
 conflict the run reports, not a precedence rule it invents.

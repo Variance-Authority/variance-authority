@@ -20,10 +20,13 @@ No threshold catches that, because a tool that sees one run at a time keeps no
 sum. Neither does a sharper differ, a better mask or a stricter reviewer — each
 of the eleven decisions was right.
 
-A record across runs answers three more questions of the same shape: how often a
-component actually changes, whether a flake started today or has been happening
-all month, and where a component has started appearing. That record needs
-somewhere to live.
+A record across runs answers three more questions of the same shape:
+
+- How often does a component actually change?
+- Did a flake start today, or has it been happening all month?
+- Where has a component started appearing?
+
+That record needs somewhere to live.
 
 ## What it is, and what it is not
 

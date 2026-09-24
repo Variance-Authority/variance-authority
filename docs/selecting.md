@@ -160,12 +160,14 @@ not parse — and a file that could not be read is charged by its lines.
 ## Where selection widens
 
 Selection is deliberately conservative because the two possible mistakes have
-very different costs.
+very different costs:
 
-A subject observed when it need not have been costs a collection. A subject
-*skipped* when it should have been observed produces a green run over an
-unwatched surface — and it does so silently, because that subject is not in the
-report to be missing from. So every uncertainty resolves toward observing:
+- A subject observed when it need not have been costs a collection.
+- **A subject *skipped* when it should have been observed produces a green run
+  over an unwatched surface.** It does so silently, because that subject is not
+  in the report to be missing from.
+
+So every uncertainty resolves toward observing:
 
 | Situation | What happens |
 |---|---|

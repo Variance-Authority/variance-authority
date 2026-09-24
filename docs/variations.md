@@ -124,10 +124,13 @@ every other axis is the same word in both — so what is measured above is that
 axis and nothing else.
 ```
 
-Two consequences to plan for. Once you configure `names`, the grammar replaces the
-rule above rather than backing it up: a name whose words are not in your vocabulary
-gets no parent at all. And two subjects that land on the same coordinate are refused
-by name, so you fix the names rather than find out which one the run picked.
+Two consequences to plan for:
+
+- **Once you configure `names`, the grammar replaces the rule above rather than
+  backing it up.** A name whose words are not in your vocabulary gets no parent
+  at all.
+- **Two subjects that land on the same coordinate are refused by name.** You fix
+  the names rather than find out which one the run picked.
 
 ## Declare the link where a name will not say it
 

@@ -47,12 +47,14 @@ Loaded but not covered: 1 module(s).
 
 ## A written mock narrows the next selection too
 
-Replace the import and two things happen. The run stops evaluating the module,
-which is the saving you asked for. And the source scan stops drawing the edge:
-it reads `vi.mock`, `jest.mock` and `sb.mock` off test, story and setup files,
-and takes the mocked module out of the graph as seen from that file at every
-level. This test stops being selected by a change to the module it replaced, or
-to anything only that module reaches.
+Replace the import and two things happen:
+
+- **The run stops evaluating the module.** That is the saving you asked for.
+- **The source scan stops drawing the edge.** It reads `vi.mock`, `jest.mock`
+  and `sb.mock` off test, story and setup files, and takes the mocked module
+  out of the graph as seen from that file at every level. This test stops
+  being selected by a change to the module it replaced, or to anything only
+  that module reaches.
 
 That is why an explicit mock beats a spy that happens to intercept everything. A
 spy is a fact about one run; a `vi.mock` call is a fact the scan can read

@@ -145,11 +145,13 @@ rendering sends the document to an endpoint you operate and gets back the image
 and the identity of what painted it. Either way the subject id, the baseline
 lookup and the verdict are the same.
 
-Choose local when the setup and transport cost of an endpoint outweighs what it
-buys. Choose remote when one pinned machine, placement next to your data, or
-several renderers in parallel is worth the network hop. A document that carries
-its own resource bytes paints identically anywhere; one that still points at
-your server needs an endpoint that can call that server.
+- Choose local when the setup and transport cost of an endpoint outweighs what
+  it buys.
+- Choose remote when one pinned machine, placement next to your data, or
+  several renderers in parallel is worth the network hop.
+
+A document that carries its own resource bytes paints identically anywhere; one
+that still points at your server needs an endpoint that can call that server.
 
 ## Where the baseline lives between runs
 
@@ -169,10 +171,16 @@ subject with no baseline.
 
 ## When the answer is a managed product
 
-Choose Percy, Chromatic, Argos, or Applitools when what you need is a hosted
-review UI for the whole team, a browser and device fleet you do not maintain, a
-support contract, a branch-and-merge baseline workflow, a perceptual differ, or
-a compliance commitment. Variance Authority gives you the component and
+Choose Percy, Chromatic, Argos, or Applitools when what you need is:
+
+- a hosted review UI for the whole team;
+- a browser and device fleet you do not maintain;
+- a support contract;
+- a branch-and-merge baseline workflow;
+- a perceptual differ;
+- a compliance commitment.
+
+Variance Authority gives you the component and
 `file:line` behind a changed region and a second read before a change is
 reported; it does not give you any of those six.
 
