@@ -19,8 +19,8 @@ import type { NativeScanner } from './native.js';
  * Written out rather than composed from `process.platform` and `process.arch`,
  * because a bundler reads this file statically and a computed specifier is a
  * specifier it cannot follow. It is also the list: `optionalDependencies` in
- * this package's manifest, the directories under `npm/`, and these three names
- * are one decision held in three places, and `tools/native-packages.check.ts`
+ * this package's manifest, the directories under `npm/`, and these names are
+ * one decision held in three places, and `tools/native-packages.check.ts`
  * is what keeps them the same decision.
  *
  * Keyed without a libc, because only one build per platform is published. On
@@ -30,6 +30,7 @@ import type { NativeScanner } from './native.js';
  */
 export const PLATFORMS: Readonly<Record<string, string>> = {
   'darwin-arm64': '@variance-authority/sense-darwin-arm64',
+  'linux-arm64': '@variance-authority/sense-linux-arm64-gnu',
   'linux-x64': '@variance-authority/sense-linux-x64-gnu',
   'win32-x64': '@variance-authority/sense-win32-x64-msvc',
 };

@@ -21,13 +21,13 @@ import { describe, expect, it } from 'vitest';
  * nothing here reaches into another package by relative path.
  *
  * That is the whole reason this file exists. The acceleration failing open is
- * what makes a three-platform matrix safe to ship (ADR-0065) and is also what
+ * what makes a four-platform matrix safe to ship (ADR-0065) and is also what
  * makes a broken one invisible, so the arrangement is asserted here rather than
  * discovered in a benchmark six weeks later.
  *
  * What it does not assert is that a binary is present. Nothing builds one on a
  * machine without `cargo`, and `release.yml` is where a publish is held to
- * having all three.
+ * having every one.
  */
 
 /**

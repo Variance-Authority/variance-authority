@@ -115,6 +115,7 @@
   },
   "optionalDependencies": {
     "@variance-authority/sense-darwin-arm64": "workspace:*",
+    "@variance-authority/sense-linux-arm64-gnu": "workspace:*",
     "@variance-authority/sense-linux-x64-gnu": "workspace:*",
     "@variance-authority/sense-win32-x64-msvc": "workspace:*",
     "tree-sitter-java": "^0.23.5",

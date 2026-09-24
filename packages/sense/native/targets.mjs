@@ -15,6 +15,11 @@
  */
 export const TARGETS = {
   'aarch64-apple-darwin': { package: 'darwin-arm64', artifact: 'libsense_native.dylib' },
+  'aarch64-unknown-linux-gnu': {
+    package: 'linux-arm64-gnu',
+    artifact: 'libsense_native.so',
+    glibc: '2.17',
+  },
   'x86_64-unknown-linux-gnu': {
     package: 'linux-x64-gnu',
     artifact: 'libsense_native.so',

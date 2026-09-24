@@ -15,11 +15,11 @@
  * development-only loading path to keep working. A platform we do not publish
  * for has nowhere like that to write, so the binary goes to `dist/native/`,
  * which is the loader's second attempt and this script's only reason to have
- * one: somebody on Linux arm64 who compiles gets an accelerated scan without a
- * package existing for them.
+ * one: somebody on a musl Linux who compiles gets the addon without a package
+ * existing for them.
  *
- * `--target <triple>` cross-compiles, which is how the release matrix fills the
- * three packages from three runners.
+ * `--target <triple>` cross-compiles, which is how the release matrix fills one
+ * package per runner.
  *
  * One binary per platform, built for the floor of it: `rustc` builds
  * `aarch64-apple-darwin` for `apple-m1`, which every Apple Silicon Mac runs.

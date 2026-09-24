@@ -1,0 +1,40 @@
+{
+  "name": "@variance-authority/sense-linux-arm64-gnu",
+  "version": "0.7.0",
+  "description": "The prebuilt source scanner @variance-authority/sense loads on Linux arm64 against glibc 2.17 or newer.",
+  "keywords": [
+    "variance-authority",
+    "napi",
+    "prebuilt",
+    "linux",
+    "arm64"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/sense",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/sense/npm/linux-arm64-gnu"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "glibc"
+  ],
+  "main": "scan.node",
+  "scripts": {
+    "prepack": "node ../../scripts/verify-native-pack.mjs"
+  },
+  "files": [
+    "scan.node"
+  ]
+}

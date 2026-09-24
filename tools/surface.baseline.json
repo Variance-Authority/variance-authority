@@ -3294,6 +3294,18 @@
     },
     "names": {}
   },
+  "@variance-authority/sense-linux-arm64-gnu": {
+    "declared": {
+      "main": "scan.node",
+      "files": [
+        "scan.node"
+      ],
+      "engines": {
+        "node": ">=22.15"
+      }
+    },
+    "names": {}
+  },
   "@variance-authority/sense-linux-x64-gnu": {
     "declared": {
       "main": "scan.node",

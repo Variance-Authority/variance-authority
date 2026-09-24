@@ -4581,6 +4581,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/sense-linux-arm64-gnu@workspace:*, @variance-authority/sense-linux-arm64-gnu@workspace:packages/sense/npm/linux-arm64-gnu":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/sense-linux-arm64-gnu@workspace:packages/sense/npm/linux-arm64-gnu"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/sense-linux-x64-gnu@workspace:*, @variance-authority/sense-linux-x64-gnu@workspace:packages/sense/npm/linux-x64-gnu":
   version: 0.0.0-use.local
   resolution: "@variance-authority/sense-linux-x64-gnu@workspace:packages/sense/npm/linux-x64-gnu"
@@ -4604,6 +4610,7 @@ __metadata:
     "@types/picomatch": "npm:^4.0.3"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/sense-darwin-arm64": "workspace:*"
+    "@variance-authority/sense-linux-arm64-gnu": "workspace:*"
     "@variance-authority/sense-linux-x64-gnu": "workspace:*"
     "@variance-authority/sense-win32-x64-msvc": "workspace:*"
     "@variance-authority/wire": "workspace:^"
@@ -4620,6 +4627,8 @@ __metadata:
     vitest: ^2.1.9 || ^3.0.0 || ^4.0.0
   dependenciesMeta:
     "@variance-authority/sense-darwin-arm64":
+      optional: true
+    "@variance-authority/sense-linux-arm64-gnu":
       optional: true
     "@variance-authority/sense-linux-x64-gnu":
       optional: true

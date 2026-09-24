@@ -29,12 +29,13 @@ interface Entry {
 describe('what a release publishes', () => {
   const packages = publishable() as readonly Entry[];
 
-  // The three platform packages live under `packages/sense/npm/` rather than
+  // The platform packages live under `packages/sense/npm/` rather than
   // beside their siblings, and a check that walked only `packages/*` would have
   // called the split 0.5.6 complete — `sense-darwin-arm64` was one of the five
   // that published and the other two were not.
   it.each([
     '@variance-authority/sense-darwin-arm64',
+    '@variance-authority/sense-linux-arm64-gnu',
     '@variance-authority/sense-linux-x64-gnu',
     '@variance-authority/sense-win32-x64-msvc',
   ])('includes %s', (name) => {
