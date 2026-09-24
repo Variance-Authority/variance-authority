@@ -116,6 +116,16 @@ because execution took another branch before it got there. In TanStack Query,
 that ran the changed region: the function, branch arm or loop body the edit is
 in.
 
+An import declares a dependency; it does not use one. ES modules made imports
+statically analyzable, which is what lets a graph-based selector read them, but
+a static `import` says only that the module loads, not that any of its code
+runs. CommonJS never made that promise: a `require` can sit inside a function,
+and React Native's
+[inline requires](https://reactnative.dev/docs/optimizing-javascript-loading)
+move each `require` to the point of first use, so a module loads only when the
+branch that needs it runs. The graph reads both as the same edge. Execution
+records the same thing in both systems: the code that ran.
+
 In the record, a shared module is charged to the tests that ran the changed
 code. In the graph, it is charged to every test that imports it, and most of a
 graph-based selector's extra runs come from those modules.
