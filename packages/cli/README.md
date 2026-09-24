@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -482,25 +482,42 @@ install:
 variance covering --since origin/main --format github
 variance covering --since origin/main --format bitbucket-report
 variance covering --since origin/main --format bitbucket-annotations
+variance covering --since origin/main --format markdown
 ```
 
 Every host gets the same regions in the same order. Holes come first, then
 regions nothing entered, then regions one case entered alone. A hole is the one
 finding the diff cannot show you, and a host that caps its annotations drops
 the tail, not the head. A walked region is not annotated: a pull request
-painted over all of its tested code hides the lines that need a reader.
+painted over all of its tested code hides the lines that need a reader. The
+regions of one function that share a state are one annotation, listing each
+region's lines, so a function with a branch and a callback left unentered is
+one thing to read, not two. `markdown` prints the whole review as a table, with
+nothing cut, for a step summary or a pull request comment.
 
 These formats answer `--since` and nothing narrower. The record must have been
 written at the commit under review, which is what a CI step that runs the suite
 first gives you; any other record is refused, because its line numbers are not
 the ones the host draws.
 
-On GitHub, the step prints workflow commands and the host draws them:
+On GitHub, the step prints workflow commands and the host draws them. A pull
+request is checked out as the merge of its head into the base, so the merge's
+first parent is the base it is reviewed against, and a checkout two commits deep
+holds it:
 
 ```yaml
+- uses: actions/checkout@v4
+  with:
+    fetch-depth: 2
 - run: yarn test
-- run: npx variance covering --since origin/${{ github.base_ref }} --format github
+- run: npx variance index
+- run: npx variance covering --since HEAD^1 --format github
+- run: npx variance covering --since HEAD^1 --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
+
+GitHub draws at most ten notices and ten warnings from one step, so the step
+summary is where a reader finds the rest. In CI, `variance index` publishes the
+source index the review reads; outside CI it is built when first asked for.
 
 On Bitbucket Cloud, the report and its annotations are two requests to the Code
 Insights API, through the proxy a pipeline already has:

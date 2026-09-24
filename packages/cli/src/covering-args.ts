@@ -172,7 +172,7 @@ function executionAnd(flags: Flags): CoveringSource {
   const format = flags.values.get('--format') ?? 'text';
   if (format !== 'text' && format !== 'json' && !REVIEW.has(format)) {
     throw new OperatorError(
-      `--format must be text, json, github, bitbucket-report or bitbucket-annotations, not \`${format}\``,
+      `--format must be text, json, github, bitbucket-report, bitbucket-annotations or markdown, not \`${format}\``,
     );
   }
   const execution = flags.values.get('--execution');
@@ -184,4 +184,4 @@ function executionAnd(flags: Flags): CoveringSource {
   };
 }
 
-const REVIEW: ReadonlySet<string> = new Set(['github', 'bitbucket-report', 'bitbucket-annotations']);
+const REVIEW: ReadonlySet<string> = new Set(['github', 'bitbucket-report', 'bitbucket-annotations', 'markdown']);

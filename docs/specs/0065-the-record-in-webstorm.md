@@ -7,8 +7,8 @@ runs in WebStorm and in any IDE on the platform that opens JavaScript.
 each range's state as a gutter icon and an error-stripe mark, with its cases and
 the cases that stopped before it in the tooltip. It starts one
 `covering --file --text -` process per repaint. A stale file gets one mark on
-line 1. A refusal reaches only the IDE log, because the plugin has no status bar
-widget yet.
+line 1. A status bar widget names the holes in the file in front, says when the
+record is stale, and carries a refusal in its tooltip.
 **Built on:** [0063](0063-an-editor-asks-about-the-text-it-holds.md) (the reader,
 its facets and the mark vocabulary), [0067](0067-a-case-carries-its-outcome.md),
 [0068](0068-an-edit-runs-what-it-reaches-from-the-editor.md),
@@ -44,8 +44,9 @@ happens on the EDT, and only if the document has not changed since it was read.
 The command is `node_modules/.bin/variance`, or else `variance` on `PATH`,
 which is the command a terminal in the project would run. What is missing is a
 light project service that starts the 0063 reader once, under an
-`OSProcessHandler` tied to the project, and a status bar widget that says when
-there is no install and shows a refusal.
+`OSProcessHandler` tied to the project. The status bar widget reads the answer
+the selected editor last painted; it has nothing to show while a run is under
+way, which item 3 gives it.
 
 **2. The gutter and the line.** Each range becomes a `RangeHighlighter` from the
 editor's `MarkupModel`, with a `GutterIconRenderer` and an error-stripe mark in

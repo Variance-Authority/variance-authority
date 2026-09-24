@@ -63,14 +63,15 @@ import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
  * How the answer is written. `text` reads; `json` is for whatever asks next.
- * The other three are one host's own shape for a review of a diff: `github`
- * prints workflow commands a pull request shows beside the lines, and the two
- * `bitbucket-` formats print one Code Insights request body each.
+ * The others are a review of a diff: `github` prints workflow commands a pull
+ * request shows beside the lines, the two `bitbucket-` formats print one Code
+ * Insights request body each, and `markdown` prints the whole review uncut, for
+ * a step summary or a comment.
  */
 export type CoveringFormat = 'text' | 'json' | ReviewFormat;
 
 /** The formats a code host reads, each answering `--since` on the commit it reviews. */
-export type ReviewFormat = 'github' | 'bitbucket-report' | 'bitbucket-annotations';
+export type ReviewFormat = 'github' | 'bitbucket-report' | 'bitbucket-annotations' | 'markdown';
 
 export { formatCovering } from './covering-text.js';
 

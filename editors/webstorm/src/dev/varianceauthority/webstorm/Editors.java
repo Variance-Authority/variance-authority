@@ -41,6 +41,12 @@ public final class Editors implements EditorFactoryListener, ApplicationActivati
     if (painter != null) Disposer.dispose(painter);
   }
 
+  /** The answer last painted in this editor, or none before the first one arrives. */
+  static Record.Answer answerFor(Editor editor) {
+    Painter painter = PAINTERS.get(editor);
+    return painter == null ? null : painter.answer();
+  }
+
   @Override
   public void applicationActivated(IdeFrame frame) {
     for (Painter painter : PAINTERS.values()) painter.refresh();

@@ -12,6 +12,8 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <editorFactoryListener implementation="dev.varianceauthority.webstorm.Editors"/>
+    <statusBarWidgetFactory id="dev.variance-authority.status"
+                            implementation="dev.varianceauthority.webstorm.Status$Factory"/>
   </extensions>
 
   <applicationListeners>

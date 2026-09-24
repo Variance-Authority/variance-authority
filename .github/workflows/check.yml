@@ -137,9 +137,10 @@ jobs:
 
       # What the suite walked of this change, on the lines a reviewer reads. A
       # hole is a warning and every other finding a notice; walked regions are
-      # left out. GitHub draws at most ten of each level from one step, and holes
-      # come first so that the cut falls on the least useful ones; the step's
-      # log carries every one.
+      # left out, and one function's regions that share a state are one
+      # annotation. GitHub draws at most ten of each level from one step, and
+      # holes come first so that the cut falls on the least useful ones; the
+      # step summary carries every one.
       #
       # `HEAD^1` is the base tip the merge was made against, so the change is the
       # pull request's own and not whatever `main` gained since it branched.
@@ -152,6 +153,7 @@ jobs:
         run: |
           node packages/cli/dist/bin.js index
           node packages/cli/dist/bin.js covering --since HEAD^1 --format github
+          node packages/cli/dist/bin.js covering --since HEAD^1 --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       # ## What this job does not do, stated rather than discovered
       #

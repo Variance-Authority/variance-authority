@@ -62,7 +62,7 @@ describe('a review of a diff, in the shape a code host draws', () => {
     const report = JSON.parse(formatCovering(ANSWER, 'bitbucket-report'));
 
     expect(report.report_type).toBe('COVERAGE');
-    expect(report.details).toBe('4 changed regions since main. 3 annotated.');
+    expect(report.details).toBe('4 changed regions since main. 3 annotations.');
     expect(Object.fromEntries(report.data.map((entry: { title: string; value: number }) => [entry.title, entry.value])))
       .toEqual({
         'Changed regions': 4,
@@ -89,9 +89,84 @@ describe('a review of a diff, in the shape a code host draws', () => {
     expect(batches.map((batch: unknown[]) => batch.length)).toEqual(Array.from({ length: 10 }, () => 100));
     const report = JSON.parse(formatCovering(many, 'bitbucket-report'));
     expect(report.details).toBe(
-      '1234 changed regions since main. 1000 of 1234 annotated, holes first; Bitbucket keeps no more on one report.',
+      '1234 changed regions since main. 1000 of 1234 annotations, holes first; Bitbucket keeps no more on one report.',
     );
     expect(report.data.at(-1)).toEqual({ title: 'Recorded at', type: 'TEXT', value: '03984ae78218' });
+  });
+
+  it('draws the regions of one function that share a state as one annotation, naming each one\'s lines', () => {
+    const nested: Covering = {
+      ...ANSWER,
+      changed: [{
+        file: 'src/total.ts',
+        recorded: true,
+        cases: [],
+        regions: [
+          region('refund', 30, { kind: 'branch', endLine: 30, stopped: [], state: 'unwalked' }),
+          region('refund/map.arg0', 34, { endLine: 35, stopped: [], state: 'unwalked' }),
+          region('refund', 32, { kind: 'loop', endLine: 32, tests: [test('a')], stopped: [], state: 'alone' }),
+        ],
+      }],
+    };
+
+    expect(formatCovering(nested, 'github').split('\n')).toEqual([
+      '::notice file=packages/cart/src/total.ts,line=30,endLine=35,title=Unwalked%3A refund::' +
+        'No case entered 2 regions of refund (lines 30, 34–35), and every case that could have reached them finished.',
+      '::notice file=packages/cart/src/total.ts,line=32,endLine=32,title=One case%3A refund::' +
+        'One case entered loop refund: a (total.test.ts).',
+      '',
+    ]);
+    const report = JSON.parse(formatCovering(nested, 'bitbucket-report'));
+    expect(report.details).toBe('3 changed regions since main. 2 annotations.');
+    expect(report.data.find((entry: { title: string }) => entry.title === 'Nothing entered').value).toBe(2);
+  });
+
+  it('names a function nothing entered once, not each branch inside it, and leaves a module\'s load alone', () => {
+    const nested: Covering = {
+      ...ANSWER,
+      changed: [{
+        file: 'src/total.ts',
+        recorded: true,
+        cases: [],
+        regions: [
+          region('', 1, { kind: 'module', endLine: 90, tests: [test('a')], stopped: [], state: 'loaded' }),
+          region('refund', 30, { endLine: 40, stopped: [], state: 'unwalked' }),
+          region('refund', 32, { kind: 'branch', endLine: 34, stopped: [], state: 'unwalked' }),
+          region('refund/map.arg0', 36, { endLine: 36, stopped: [], state: 'unwalked' }),
+        ],
+      }],
+    };
+
+    expect(formatCovering(nested, 'github').split('\n')).toEqual([
+      '::notice file=packages/cart/src/total.ts,line=30,endLine=40,title=Unwalked%3A refund::' +
+        'No case entered function refund, and every case that could have reached it finished.',
+      '',
+    ]);
+  });
+
+  it('prints the whole review as Markdown, counting every state and naming the files the record does not hold', () => {
+    const answer: Covering = {
+      ...ANSWER,
+      at: '03984ae78218aa',
+      changed: [...ANSWER.changed!, { file: 'README.md', recorded: false, cases: [], regions: [] }],
+    };
+
+    expect(formatCovering(answer, 'markdown').split('\n')).toEqual([
+      '### What the suite walked',
+      '',
+      '4 changed regions since `main`, recorded at `03984ae78218`: 1 hole, 1 unwalked, 1 entered by one case, 1 walked.',
+      '',
+      '| | Where | What the record says |',
+      '|---|---|---|',
+      '| Hole | `packages/cart/src/total.ts:40–42` | ' +
+        'No case entered function settle, and a case that could have reached it stopped first: checks out. |',
+      '| Unwalked | `packages/cart/src/total.ts:30–32` | ' +
+        'No case entered function refund, and every case that could have reached it finished. |',
+      '| One case | `packages/cart/src/total.ts:20–22` | One case entered function round: a (total.test.ts). |',
+      '',
+      'Changed files the record does not hold: `packages/cart/README.md`.',
+      '',
+    ]);
   });
 
   it('escapes what a workflow command is made of', () => {

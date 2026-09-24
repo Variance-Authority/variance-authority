@@ -1,0 +1,60 @@
+# Spec 0071 — a test is read alone
+
+**Missing:** a view of what one test does, apart from the rest of the suite.
+While you are writing a test, the record's answer about any line is the whole
+suite's: forty cases walk the function, and the one you are editing is one name
+in a tooltip. There is no way to ask what *this* test enters, and no way to see
+what your last edit to it changed. Today the editors show something close to
+this by accident, because `cases.bin` holds only the last run (the defect 0069
+closes), but they label it as the whole suite's answer.
+**Built on:** [0069](0069-the-case-index-layers-each-run.md) (the index names
+the cases of the last run, and keeps the layer that run retired),
+[0065](0065-the-record-in-webstorm.md) item 2 (*show only this case's lines*),
+and [0070](0070-a-change-says-what-its-tests-moved.md) (what moved, per region).
+
+## Purpose
+
+A test read inside the whole suite is read with a bias. Other cases' crossings
+cover the lines it misses, so its gaps look walked, and its rows can predate the
+edit you just made. Reading it alone removes both biases:
+
+- **Other cases.** The view is the chosen cases' crossings and nothing else.
+- **Stale rows.** The view is the last run's, and the run is the one you just
+  made, so it describes the test as it is now.
+
+Running alone is the runner's job, not ours. Vitest isolates each test file by
+default, so one file's reach does not depend on the files that ran before it.
+Within a file, cases share module state, and a case that runs after another can
+find a memoized value and skip the code that would compute it. Running one case
+(`-t`) is how you remove that last bias, and the runner already offers it. The
+suite still reuses one world for speed. Only a request about one test pays for
+running it alone.
+
+## What would discharge it
+
+**1. A scope for the question.** `covering --file <path> --cases last` answers
+from the cases the last run held, and `--cases <test file>` from one file's
+cases. The states are the same five, measured against the chosen cases:
+**unwalked** reads "no case you chose entered it", and the whole suite's answer
+is not implied. The answer says which cases it was scoped to, so a reader never
+mistakes a focused answer for the suite's.
+
+**2. What the edit changed.** With `--cases last`, each region also says how
+the chosen cases moved against the layer the run retired (0069 item 3): gained,
+lost, or hidden when the case stopped. This is 0070's comparison with the
+previous run of the same test as its base. No CI and no second recording are
+needed.
+
+**3. A toggle in each editor.** The status bar item switches the painted view
+between *the suite* and *the last run alone*, and says which view is showing.
+The per-case popup of 0065 item 2 and its VS Code counterpart set the scope to
+one case. A lost region gets its own mark while the focus is on.
+
+## Acceptance
+
+1. Run the whole suite, then run one test file. With the toggle on, the editor
+   paints only what that file entered. With it off, it paints the suite's
+   answer, unchanged by the partial run.
+2. Delete an assertion that was the only path into a branch, and run the file.
+   The branch shows as **lost** in the focused view.
+3. `covering --cases last --format json` names the cases it was scoped to.

@@ -17,6 +17,11 @@ the text the suite ran over cannot be found, one warning mark on the first line
 says the record is stale, and nothing else is painted. Coming back to the IDE
 after a run in a terminal repaints every open editor.
 
+The status bar says what the record made of the file in front of you: how many
+holes it has, or that the record is stale. When nothing is painted, it says
+`variance: not painted`, and its tooltip gives the reason, such as no recording
+yet or no CLI to ask.
+
 The plugin works in WebStorm and in every other JetBrains IDE from 2025.1 on.
 
 ## Install

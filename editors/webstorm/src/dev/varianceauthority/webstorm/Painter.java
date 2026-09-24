@@ -64,6 +64,7 @@ final class Painter implements Disposable {
   private final String file;
   private final Alarm alarm = new Alarm(Alarm.ThreadToUse.POOLED_THREAD, this);
   private final List<RangeHighlighter> painted = new ArrayList<>();
+  private volatile Record.Answer answer;
 
   Painter(Editor editor, String root, String file) {
     this.editor = editor;
@@ -101,8 +102,8 @@ final class Painter implements Disposable {
     MarkupModel markup = editor.getMarkupModel();
     for (RangeHighlighter highlighter : painted) markup.removeHighlighter(highlighter);
     painted.clear();
-    // TODO: a refusal reaches idea.log and nothing a person looks at; it wants a
-    // status bar widget, as the VS Code client shows it.
+    this.answer = answer;
+    Status.update(editor);
     if (answer.refusal() != null) {
       LOG.info("variance: " + answer.refusal());
       return;
@@ -121,6 +122,11 @@ final class Painter implements Disposable {
       if (start < 0 || start > end) continue;
       add(markup, start, end, range.state(), tooltip(range) + frame);
     }
+  }
+
+  /** The answer painted last, which the status bar reads. */
+  Record.Answer answer() {
+    return answer;
   }
 
   private void add(MarkupModel markup, int startLine, int endLine, String state, String tooltip) {
