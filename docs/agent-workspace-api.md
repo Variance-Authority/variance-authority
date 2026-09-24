@@ -72,16 +72,14 @@ This path is measured on seven copies of [Material
 UI](https://github.com/mui/material-ui) side by side in one checkout: 288,197
 tracked paths. Every figure is the median of seven runs, each run a separate
 process looking for `button`, on an Apple M4 Max with 64 GB, macOS 27.0, Node
-v26.7.0, ripgrep 15.2.0 and a warm filesystem cache. The text searches cost
-about a hundred times what a question costs, so the chart plots the power of ten:
-2 is 100 ms, 3 is one second, 4 is ten seconds.
+v26.7.0, ripgrep 15.2.0 and a warm filesystem cache.
 
 ```mermaid
 xychart-beta horizontal
-  accTitle: Milliseconds to answer button over 288,197 paths, as a power of ten
+  accTitle: Milliseconds to answer button over 288,197 paths
   x-axis ["git grep", "rg", "produce the generation, once", "ask search --to", "ask search --from", "ask search"]
-  y-axis "milliseconds, log10" 0 --> 4.2
-  bar [3.99, 3.90, 3.83, 2.42, 2.36, 2.00]
+  y-axis "milliseconds" 0 --> 10000
+  bar [9688, 7862, 6695, 263, 228, 101]
 ```
 
 | One process | Milliseconds |
