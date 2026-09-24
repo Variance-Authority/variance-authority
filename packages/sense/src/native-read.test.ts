@@ -165,7 +165,7 @@ describe('the native reader against the JavaScript one', () => {
   });
 
   it.runIf(available)('names its kinds the way the oracle names them', () => {
-    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type']);
+    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends']);
   });
 
   /**

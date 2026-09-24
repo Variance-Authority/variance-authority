@@ -178,6 +178,19 @@ which component changed. That is why `README.md` beside a component edit does
 not widen the run, while a diff containing only `README.md` does unless an
 execution record is kept.
 
+A file your code reads without importing it has no edge: a schema a mock server
+loads with `readFileSync`, or a fixture read by path. Name it in the module that
+reads it:
+
+```ts
+/// <depends path="./schema.graphql" />
+```
+
+The line can sit anywhere in the file, and the path is relative to the file.
+TypeScript and your runtime read it as a comment. The scan reads it as a
+`depends` edge, so a change to `schema.graphql` reaches every test that loads
+the module. A directive with no `path` is reported as a gap in that file.
+
 ## A change nothing has been seen rendering
 
 `RootLayout` renders every page in the app and appears in no client fiber tree,

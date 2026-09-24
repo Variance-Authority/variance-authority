@@ -35,7 +35,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 10;
+const VERSION = 11;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */

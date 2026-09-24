@@ -305,7 +305,8 @@ function condense(relations: Relations, allowed: Uint8Array): Condensation {
  * a decision with a cost, and it should read like one.
  *
  * `type` is not in it: a type-only import is erased before a render, so a change
- * behind one is not an input the render folded.
+ * behind one is not an input the render folded. `depends` is: the module's author
+ * declared that it reads the file, which makes the file's bytes an input.
  *
  * `depends-on` is not in it either, for the opposite reason. It runs between two
  * packages, and a package node is a name rather than a content digest — an
@@ -319,6 +320,7 @@ export const CLOSURE_EDGES: readonly EdgeKind[] = [
   'dynamic',
   'asset',
   'declared-in',
+  'depends',
 ];
 
 /** Edge kinds as a lookup, so the inner loop tests a byte. */

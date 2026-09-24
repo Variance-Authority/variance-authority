@@ -349,7 +349,7 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         format: "variance-authority-source-index",
         // `VERSION` in `source-index-format.ts`: a layer the reader refuses is
         // a layer thrown away, which `native-read.test.ts` catches.
-        version: 10,
+        version: 11,
         sections,
     })
     .unwrap_or_default();

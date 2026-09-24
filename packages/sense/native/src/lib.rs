@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 mod acquire;
 mod batch;
+mod depends;
 mod digest;
 mod git;
 #[cfg(feature = "grammars")]

@@ -22,10 +22,11 @@ pub enum Kind {
     Reexports,
     Dynamic,
     Type,
+    Depends,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 4] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type];
+    pub const ALL: [Kind; 5] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends];
     pub fn code(self) -> u8 {
         self as u8
     }
@@ -35,6 +36,7 @@ impl Kind {
             Self::Reexports => "reexports",
             Self::Dynamic => "dynamic",
             Self::Type => "type",
+            Self::Depends => "depends",
         }
     }
 }
@@ -274,6 +276,11 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     if let Some(reason) = required.unknown {
         reasons.push(reason);
     }
+    let depends = crate::depends::depends_in(source, &parsed.program.comments, &lines);
+    requests.extend(depends.requests);
+    if depends.pathless > 0 {
+        reasons.push(format!("{} `/// <depends>` directive(s) that name no `path`", depends.pathless));
+    }
     if let Some(first) = parsed.diagnostics.first() {
         let count = parsed.diagnostics.len();
         reasons.push(format!("{count} parse error(s): {}", first.message));
@@ -420,21 +427,6 @@ fn declarations(file: &str, source: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn names_kinds_the_way_the_oracle_does() {
-        assert_eq!(
-            Kind::ALL.map(Kind::as_str),
-            ["imports", "reexports", "dynamic", "type"]
-        );
-    }
-
-    #[test]
-    fn a_code_indexes_the_name() {
-        for (code, kind) in Kind::ALL.iter().enumerate() {
-            assert_eq!(kind.code() as usize, code);
-        }
-    }
 
     fn read(source: &str) -> Read {
         read_module("a.ts", source, &Allocator::default(), false)

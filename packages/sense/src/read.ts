@@ -71,6 +71,7 @@ import type { EdgeKind } from '@variance-authority/core/relate';
 import { harvestDocs, harvestSymbols, type SourceSymbol, type TextSpan } from './harvest.js';
 import type { ImportDiff, Node } from './taint/index.js';
 import { mockDiff } from './taint/mocks.js';
+import { dependsIn } from './depends.js';
 import { optionsFor } from './transfer.js';
 
 /**
@@ -356,9 +357,10 @@ export function readModule(file: string, contents: string): Read {
     requests.push({ value: literal, kind: 'dynamic', bindings: [], line: lineAt(entry.start) });
   }
 
-  const required = readRequires(contents);
-  requests.push(...required.requests);
-  if (required.unknown !== undefined) reasons.push(required.unknown);
+  for (const found of [readRequires(contents), dependsIn(result.comments, lineAt)]) {
+    requests.push(...found.requests);
+    if (found.unknown !== undefined) reasons.push(found.unknown);
+  }
 
   // Errors are recoverable in `oxc` — a result always comes back — so the record
   // is a *partial* answer rather than an absent one, which is the case this
@@ -485,13 +487,7 @@ function quoted(text: string): string | undefined {
 
 /** A specifier no repository file can be behind. */
 export function isExternal(value: string): boolean {
-  return (
-    value.startsWith('data:') ||
-    value.startsWith('http:') ||
-    value.startsWith('https:') ||
-    value.startsWith('//') ||
-    value.startsWith('#')
-  );
+  return ['data:', 'http:', 'https:', '//', '#'].some((prefix) => value.startsWith(prefix));
 }
 
 function messageOf(error: unknown): string {

@@ -104,7 +104,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 4;
+const VERSION = 5;
 
 /**
  * Files whose *contents* decide where other files resolve to.

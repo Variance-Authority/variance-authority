@@ -98,6 +98,8 @@ export const EDGE_KINDS = [
   'declared-in',
   /** A package to a package its install resolved beneath it. */
   'depends-on',
+  /** `/// <depends path="./y" />` — a file the module reads without importing it. */
+  'depends',
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 

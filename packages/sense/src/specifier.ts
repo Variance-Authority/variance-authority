@@ -108,6 +108,9 @@ export function packageOf(request: string): string | undefined {
  */
 export function kindFor(kind: EdgeKind, target: string): EdgeKind {
   if (kind === 'type') return 'type';
+  // Declared by the module's author, and read whatever it is, so it stays itself
+  // for a finding to say why a test was selected.
+  if (kind === 'depends') return 'depends';
 
   // What the target is read as, not whether it is JavaScript: a `.py` file is
   // code that carries a change the same way a `.ts` file is, and calling it an
