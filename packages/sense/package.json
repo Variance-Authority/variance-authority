@@ -81,6 +81,10 @@
       "types": "./dist/test-selection/jest-reporter.d.ts",
       "default": "./dist/test-selection/jest-reporter.js"
     },
+    "./runner": {
+      "types": "./dist/test-selection/runner.d.ts",
+      "default": "./dist/test-selection/runner.js"
+    },
     "./jest-setup": "./dist/test-selection/jest-setup.cjs",
     "./jest-globals": "./dist/test-selection/jest-globals.cjs"
   },

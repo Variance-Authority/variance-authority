@@ -487,8 +487,9 @@ never more than one commit old.
 ## Start
 
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
-  `@variance-authority/sense`, then pass `$(variance select --format vitest)`
-  to your runner.
+  `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
+  `@variance-authority/sense/runner`. Then pass
+  `$(variance select --format vitest)` to your runner.
 - [Measure test distance](distance.md) to run the tests nearest to a change
   first.
 - [Run relevant work](run-relevant-work.md) when the tests are visual subjects

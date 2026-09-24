@@ -2289,6 +2289,10 @@
           "types": "./dist/test-selection/jest-reporter.d.ts",
           "default": "./dist/test-selection/jest-reporter.js"
         },
+        "./runner": {
+          "types": "./dist/test-selection/runner.d.ts",
+          "default": "./dist/test-selection/runner.js"
+        },
         "./jest-setup": "./dist/test-selection/jest-setup.cjs",
         "./jest-globals": "./dist/test-selection/jest-globals.cjs"
       },
@@ -2616,6 +2620,19 @@
         "JestRunResults": "interface",
         "JestTestContext": "interface",
         "default": "class"
+      },
+      "./runner": {
+        "FinishedTestFile": "interface",
+        "InstrumentModuleOptions": "interface",
+        "RECORDING_VARIABLE": "const",
+        "Recording": "interface",
+        "RecordingOptions": "interface",
+        "RegisterRecordingOptions": "interface",
+        "TestFileObserver": "interface",
+        "instrumentModule": "function",
+        "observeTestFile": "function",
+        "registerRecording": "function",
+        "startRecording": "function"
       }
     }
   },

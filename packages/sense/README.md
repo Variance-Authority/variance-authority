@@ -493,6 +493,114 @@ To assemble a configuration by hand instead, `withTestSelection` names one
 module by path, and you can name it yourself:
 `@variance-authority/sense/rstest-loader`.
 
+## Record a runner this package has no seam for
+
+The Vitest, Jest and Rstest seams are configuration, because each of those
+runners names three places in its configuration: where source is transformed,
+where a test file starts and ends, and where the run ends. Any other runner has
+the same three places, including a harness you wrote yourself, but only its
+author knows where they are. So `@variance-authority/sense/runner` gives you a
+function to call from each one. The snapshot they write is the one every seam
+writes, and `variance select` and `selectTestFiles` read it without knowing
+which runner made it.
+
+Here is a complete runner that forks one process per test file. A file passes
+when its process exits with 0:
+
+```js
+// run.mjs: the process that starts the run
+import { execFile } from 'node:child_process';
+import { resolve } from 'node:path';
+import { promisify } from 'node:util';
+import { startRecording } from '@variance-authority/sense/runner';
+
+const execute = promisify(execFile);
+const files = ['test/alpha.case.mjs', 'test/beta.case.mjs'].map((file) => resolve(file));
+
+const recording = startRecording({ preconditions: ['run.mjs', 'worker.mjs'] });
+const finished = [];
+for (const file of files) {
+  const complete = await execute(process.execPath, ['worker.mjs', file]).then(() => true, () => false);
+  finished.push({ file, complete });
+}
+await recording.finish(finished);
+```
+
+```js
+// worker.mjs: the process that runs one test file
+import { observeTestFile, registerRecording } from '@variance-authority/sense/runner';
+
+registerRecording();
+
+const file = process.argv[2];
+const observer = observeTestFile(file);
+const cases = [];
+globalThis.test = (name, body) => cases.push({ name, body });
+await import(file);
+
+let failed = false;
+for (const { name, body } of cases) {
+  try {
+    await (observer ? observer.case(name, body) : body());
+  } catch (error) {
+    failed = true;
+    console.error(name, error);
+  }
+}
+observer?.finish();
+process.exitCode = failed ? 1 : 0;
+```
+
+Each function has one place in your runner:
+
+- **`startRecording` goes in the process that starts the run.** It takes
+  `root`, `coverageFile`, `preconditions`, `mode`, `continuations` and
+  `executionFile`, with the meanings they have on the Vitest seam. Name your
+  runner's own files and configuration in `preconditions`: nothing loads them
+  through a transform, so nothing else can tell a test's outcome depends on
+  them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
+  process and worker thread inherits. If your runner builds a child's
+  environment from nothing, spread `recording.env` into it.
+- **`recording.finish` goes where your runner knows which files passed.** A
+  file is `complete` when every case in it ran to the end and passed, or was
+  skipped. A file that failed, errored or stopped early recorded only part of
+  what it would have, so the snapshot keeps it as evidence that selects it and
+  never as a reach that excludes it.
+- **`registerRecording` goes in every process that loads product source,**
+  before it loads any. It instruments what Node evaluates through its own
+  module hooks: ES modules, CommonJS, TypeScript that Node strips itself, and
+  whatever a loader registered before it hands on. It needs Node 22.15 or
+  newer. `include` narrows which files count as product source; the default
+  is JavaScript and TypeScript inside the checkout, without test files,
+  dependencies or built output.
+- **`instrumentModule` replaces it if your runner already transforms
+  source.** Call it last, on the JavaScript about to run, with the `map` from
+  the file on disk when an earlier step moved lines. Records then name the
+  lines you edited, not the lines the transform emitted.
+- **`observeTestFile` goes around each test file,** in the process that runs
+  it, before that process loads the file. Run each case through
+  `observer.case(name, body)`, where `name` is the declaration path, such as
+  `['Checkout', 'applies a coupon']`. The case index records it as
+  `test/checkout.test.js > Checkout > applies a coupon`. Anything that runs
+  before the first case is credited to the whole file: its imports, its top
+  level and the hooks your runner ran first. Call `observer.finish()` after
+  the last case.
+
+A process observes one test file at a time, because a probe writes to the
+file observed at the moment it fires. Opening a second observer before the
+first one's `finish` throws. A runner that loads every file before it runs
+any case has no moment when only one file is running. Give it one: run each
+file in its own process, or load and run files one after another.
+
+Outside a recording, the functions do nothing. `observeTestFile` and
+`registerRecording` return `undefined`, and `instrumentModule` returns the code
+it was given. So the runner above runs your suite unchanged when no recording is
+open.
+
+If a file ran a module that no transform wrote a record for, the snapshot keeps
+that file as incomplete. If no transform wrote anything at all, `finish` says so
+and tells you where to look.
+
 ## Record what a driven page executed
 
 A Storybook preview or a Playwright-driven application is built by one process
@@ -1612,12 +1720,13 @@ which is whatever the host schedules, and where the per-case bracket goes.
 | Rstest | the test file | `it` and `test` on the realm and on `globalThis['@rstest/core']`, so an importing suite and a `globals: true` suite record alike |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the subject the preview shows |
+| Your runner, through `/runner` | the test file you observe | none: you call `observer.case` around each case |
 
-None of the five asks the project to change a runner option for the case axis,
-and each writes the index beside its snapshot.
+None of the five seams asks the project to change a runner option for the case
+axis, and every host writes the index beside its snapshot.
 
 Two answers are properties of the record rather than of a host, so they read the
-same under all five:
+same under every host:
 
 - **A run that transforms nothing because every module came from a warm cache
   still attributes what its tests covered.** What a region means is stored per
@@ -1636,6 +1745,7 @@ same under all five:
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
+| `@variance-authority/sense/runner` | recording from a runner with no seam: opening and folding the run, instrumenting what it loads, and bracketing each test file and case | Node 22.15 or newer, and one test file at a time per process |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |

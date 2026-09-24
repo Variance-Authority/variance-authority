@@ -883,6 +883,11 @@ vitest run $(variance select --format vitest)
 jest $(variance select --format jest)
 ```
 
+The journal is what [`@variance-authority/sense`](../sense/README.md) wrote the
+last time that suite ran: its seams record Vitest, Jest and Rstest, and
+[`@variance-authority/sense/runner`](../sense/README.md#record-a-runner-this-package-has-no-seam-for)
+records any other runner.
+
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never
 complete: it records the tests that finished whole, at one commit, in one

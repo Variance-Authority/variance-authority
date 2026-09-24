@@ -56,8 +56,21 @@ export function runFor(coverageFile: string, root: string, mode: InstrumentMode)
   const runs = (carrier[RUNS] ??= new Map<string, SelectionRun>());
   const found = runs.get(coverageFile);
   if (found !== undefined) return found;
+  const run = newRun(coverageFile, root, mode);
+  runs.set(coverageFile, run);
+  return run;
+}
+
+/**
+ * A run nobody else can find: its directories beside the snapshot, and the
+ * numbering the last fold published.
+ *
+ * The seams whose halves meet in one process register it with {@link runFor};
+ * `runner.ts` hands its halves the run through the environment instead.
+ */
+export function newRun(coverageFile: string, root: string, mode: InstrumentMode): SelectionRun {
   const runDirectory = resolve(dirname(coverageFile), `.run-${process.pid}-${randomUUID()}`);
-  const run: SelectionRun = {
+  return {
     root,
     runDirectory,
     caseDirectory: `${runDirectory}-cases`,
@@ -72,8 +85,6 @@ export function runFor(coverageFile: string, root: string, mode: InstrumentMode)
     cases: true,
     settled: false,
   };
-  runs.set(coverageFile, run);
-  return run;
 }
 
 /** The run a half that was handed only the snapshot's path is taking part in. */

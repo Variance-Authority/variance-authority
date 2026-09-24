@@ -12,7 +12,7 @@
  */
 
 import { rm } from 'node:fs/promises';
-import { instrumentationId } from '../instrument/index.js';
+import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
 import { layeredCoverage } from './format-layer.js';
@@ -22,6 +22,9 @@ import {
   loadedOf,
   moduleNamesFile,
   projectPath,
+  readRecords,
+  type CapturedModule,
+  type ReadJournal,
 } from './instrumented-modules.js';
 import { coverageModule } from './coverage-rows.js';
 import { writeCaseIndex } from './case-fold.js';
@@ -56,6 +59,18 @@ export interface FoldDestination {
    * than at the happy end.
    */
   readonly shims: readonly string[];
+  /**
+   * Where transforms in other processes wrote what their probes mean, for a
+   * run whose {@link SelectionRun.modules} nobody in this process filled.
+   *
+   * A journal that names a module no store answers for is a file whose reach
+   * is not known, so the file is recorded incomplete and the module left out,
+   * as the Jest reporter does. Without stores that is a lost identity, and it
+   * throws.
+   */
+  readonly stores?: readonly (string | readonly string[])[];
+  /** What a run that placed no module should check first, when the seam knows better than the default. */
+  readonly unreached?: string;
 }
 
 /**
@@ -72,14 +87,19 @@ export function foldRun(
   const { root, runDirectory, caseDirectory, modules, mode } = run;
   const { coverageFile, executionFile } = destination;
 
-  const record = async (files: readonly FinishedFile[]): Promise<void> => {
-    noteAnEmptyRecord(files.length, modules.size);
+  const record = async (finished: readonly FinishedFile[]): Promise<void> => {
     // A worker wrote its journal down; a page handed its own to the runner,
     // which carried it here on the file.
-    const journals = [
+    const written = [
       ...await readJournals(runDirectory),
-      ...files.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
+      ...finished.flatMap((file) => (file.journal === undefined ? [] : [file.journal])),
     ];
+    const { journals, unplaced } = destination.stores === undefined
+      ? { journals: written, unplaced: new Set<string>() }
+      : await placeFrom(destination.stores, written, modules, root, instrumentationId(mode));
+    const files = finished.map((file) =>
+      unplaced.has(projectPath(root, file.filepath)) ? { ...file, complete: false } : file);
+    noteAnEmptyRecord(files.length, modules.size, destination.unreached);
     // A journal names modules by id, so nothing here re-keys paths; the id is
     // what the map is keyed by too.
     const rows = journals.map((journal) => ({
@@ -148,5 +168,38 @@ export function foldRun(
     } finally {
       for (const shim of destination.shims) await rm(shim, { force: true });
     }
+  };
+}
+
+/**
+ * The records every journal names, read into the run, and the files whose
+ * journal named one no store answers for.
+ *
+ * Read by the ids the journals name and no others: a store keeps every module
+ * any earlier run transformed, and the run is about the ones this run's files
+ * went through.
+ */
+async function placeFrom(
+  stores: readonly (string | readonly string[])[],
+  journals: readonly ReadJournal[],
+  modules: Map<ModuleId, CapturedModule>,
+  root: string,
+  instrumentation: string,
+): Promise<{ journals: readonly ReadJournal[]; unplaced: ReadonlySet<string> }> {
+  const read = await readRecords(
+    stores,
+    journals.flatMap((journal) => journal.modules.map((entered) => entered.id)),
+    instrumentation,
+  );
+  for (const [id, module] of read) modules.set(id, module);
+  const unplaced = new Set<string>();
+  return {
+    journals: journals.map((journal) => {
+      const placed = journal.modules.filter((entered) => modules.has(entered.id));
+      if (placed.length === journal.modules.length) return journal;
+      unplaced.add(projectPath(root, journal.testFile));
+      return { ...journal, modules: placed };
+    }),
+    unplaced,
   };
 }

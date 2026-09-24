@@ -68,8 +68,9 @@ case from the next.
 | Rstest | the test file | `it` and `test` wherever the suite reads them — off the realm, or off the object an import of `@rstest/core` compiles to |
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the unit the preview shows |
+| [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
-None of them asks you to change a runner option to record cases, and the
+None of the seams asks you to change a runner option to record cases, and the
 snapshot's bytes do not depend on them — the case axis is a second file beside
 it. A test file that runs in a page, under Vitest or Rstest browser mode, is
 recorded per file only: that run writes no case index and prints a warning.
@@ -77,7 +78,7 @@ recorded per file only: that run writes no case index and prints a warning.
 question that reads it.
 
 Two answers are properties of this file rather than of a host, so they read the
-same under all five:
+same under every host:
 
 - **A run that transformed nothing still records what its tests covered.** When
   every module came from a warm cache, what a region means is already stored per
