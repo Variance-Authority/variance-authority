@@ -5,6 +5,7 @@ import {
   navigationNeighbors,
   navigationSection,
 } from "../navigation";
+import TableOfContents from "./TableOfContents";
 
 export interface TableOfContentsItem {
   readonly id: string;
@@ -126,12 +127,12 @@ export default function DocsPage({
             <p className="mb-3 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-quiet">
               On this page
             </p>
-            <ul className="space-y-2 border-l border-hairline">
+            <ul className="relative space-y-2 border-l border-hairline">
               {toc.map((entry) => (
                 <li key={entry.id}>
                   <a
                     href={`#${entry.id}`}
-                    className="block border-l border-transparent py-1 pl-4 text-xs leading-5 text-quiet transition-colors hover:border-orange hover:text-ivory"
+                    className="block border-l border-transparent py-1 pl-4 text-xs leading-5 text-quiet transition-colors hover:border-orange hover:text-ivory aria-[current=location]:text-ivory"
                   >
                     {entry.label}
                   </a>
@@ -139,6 +140,7 @@ export default function DocsPage({
               ))}
             </ul>
           </nav>
+          <TableOfContents key={current} />
         </aside>
       ) : null}
     </>

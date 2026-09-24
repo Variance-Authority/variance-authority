@@ -258,6 +258,19 @@ html {
   scrollbar-color: #383e41 transparent;
 }
 
+/* The section being read, placed by TableOfContents through two variables. */
+.docs-toc ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: var(--toc-height, 0);
+  transform: translateY(var(--toc-top, 0));
+  background: var(--color-orange);
+  transition: transform 150ms ease-out, height 150ms ease-out;
+}
+
 .skip-link {
   position: fixed;
   top: 0.75rem;
@@ -645,6 +658,10 @@ html {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .docs-toc ul::before {
+    transition: none;
   }
 
   .reveal {
