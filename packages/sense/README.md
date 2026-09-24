@@ -387,6 +387,36 @@ instrumented project by project, each keeping its own transform and setup files,
 with one reporter for the run; a project named by path rather than spelled
 inline is refused, because its transform cannot be wrapped from here.
 
+`withTestSelection` reads the object you pass it, before Jest resolves
+anything, so three things are yours to spell out:
+
+- **The preset's transform.** A configuration with no `transform` of its own
+  gets Jest's default, `babel-jest`, wrapped. Jest then merges the preset's
+  `transform` in after it, and the first pattern that matches wins, so your
+  preset's transformer never runs. Copy the preset's `transform` into the object
+  you wrap. Its setup files and environment still run; name them in
+  `preconditions` so a change to them selects every test.
+- **A transformer's path.** Names resolve from the checkout root, and Jest
+  resolves them from the project's `rootDir`. A transformer installed only under
+  a nested package needs `require.resolve` from there.
+- **An async configuration.** Await it, then wrap the object it returns.
+
+```js
+// jest.config.mjs
+import { createRequire } from 'node:module';
+import { withTestSelection } from '@variance-authority/sense/jest';
+import buildConfig from './jest.base.mjs';
+
+const require = createRequire(import.meta.url);
+const preset = require('@acme/jest-preset/jest-preset.js');
+
+export default async () =>
+  withTestSelection(
+    { ...(await buildConfig()), transform: preset.transform },
+    { preconditions: ['jest.config.mjs', 'jest.base.mjs'] },
+  );
+```
+
 Jest transforms inside the workers it forks and keeps the transformed text on
 disk under a content key. The probes ride that cache, and the record of what
 those probes mean is stored under the same key inside Jest's `cacheDirectory`,
