@@ -32,6 +32,5 @@ export default withTestSelection(
     coverageFile,
     include: (file) => file.startsWith(source),
     preconditions: ['rstest.injected.config.mjs'],
-    cases: true,
   },
 );

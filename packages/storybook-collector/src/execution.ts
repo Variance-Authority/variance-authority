@@ -42,21 +42,13 @@ export interface StoryExecutionOptions {
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;
   /**
-   * Also write the execution index: which individual story entered which region.
-   *
-   * Off by default, and the default is the point. The index is what answers
-   * *which stories walk this branch* — the question `variance covering` and
-   * `@variance-authority/distill` are asked, and the one a component library
-   * with a few hundred stories is worth asking. It is a row per story per
-   * region either way, so a preview that indexes ten thousand stories to answer
-   * a question nobody asks has bought a large file and nothing else.
+   * Where the execution index — which individual story entered which region —
+   * goes. Defaults beside the snapshot, as the Vitest seam's does.
    *
    * A story is the case this costs nothing to name: the driver shows one at a
-   * time, so the per-case grain a unit runner needs an async scope and a custom
-   * runner for is already here.
+   * time, so the per-case grain a unit runner needs a custom runner for is
+   * already here.
    */
-  readonly cases?: boolean;
-  /** Where that index goes. Defaults beside the snapshot, as the Vitest seam's does. */
   readonly executionFile?: string;
   /**
    * The probe recipe the preview was built with, matching
@@ -135,7 +127,7 @@ export async function createStoryRecorder(
       // touches. A story the driving index does not know — a subject named on
       // the command line, a preview rebuilt since — has no file to be a case
       // in, and contributes to the file-level record only.
-      if (options.cases === true && story !== undefined) {
+      if (story !== undefined) {
         cases.push({ file: story.file, name: `${story.title}/${story.name}`, id: storyId, journal });
       }
     },

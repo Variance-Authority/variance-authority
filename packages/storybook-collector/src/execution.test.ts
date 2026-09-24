@@ -75,7 +75,6 @@ describe('a Storybook run records what each story executed', () => {
         root,
         cacheRoot,
         coverageFile,
-        cases: true,
       });
       await recorder.note(pageReporting(journal(0)), 'story:price--premium', true);
       await recorder.note(pageReporting(journal(1)), 'story:price--plain', true);
@@ -126,7 +125,6 @@ describe('a Storybook run records what each story executed', () => {
         cacheRoot,
         coverageFile: 'coverage.bin',
         executionFile: 'cases.bin',
-        cases: true,
       });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id: 'packages/ui/price.js', hits: [0], shared: [] }] }),
@@ -144,18 +142,5 @@ describe('a Storybook run records what each story executed', () => {
     } finally {
       await rm(checkout, { recursive: true, force: true });
     }
-  });
-
-  it('writes the same record and no index for a run that did not ask', async () => {
-    await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {
-      const recorder = await createStoryRecorder(index, { root, cacheRoot, coverageFile });
-      await recorder.note(pageReporting(journal(0)), 'story:price--premium', true);
-      await recorder.close();
-
-      expect((await readTestCoverage(coverageFile)).tests.map((test) => test.file)).toEqual([
-        'story:price--premium',
-      ]);
-      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
-    });
   });
 });

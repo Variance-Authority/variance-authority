@@ -141,7 +141,7 @@ describe('an Rstest file that runs in a page', () => {
       expect(await readFile(setup, 'utf8')).not.toContain('wrapCase');
       await reporter.onTestRunEnd({ results: [] });
 
-      expect(warn.mock.calls.flat().join('\n')).toMatch(/`cases` is not recorded for a test file that runs in a page/);
+      expect(warn.mock.calls.flat().join('\n')).toMatch(/a test file that runs in a page is recorded per file, not per case/);
       await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow(/ENOENT/);
     } finally {
       warn.mockRestore();

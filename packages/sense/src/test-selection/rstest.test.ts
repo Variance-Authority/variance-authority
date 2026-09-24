@@ -63,23 +63,22 @@ describe('what a wrapped Rstest configuration becomes', () => {
     // module finds the probe log its header resolves.
     const shim = await readFile(setupFiles[0]!, 'utf8');
     expect(shim).toContain("from \"@rstest/core\"");
-    // A run that was not asked for cases opens no scope, and the shim that
-    // would wrap the injected registrars is not written.
-    expect(shim).not.toContain('wrapCase');
+    // Every run records cases, so the shim wraps the injected registrars.
+    expect(shim).toContain('wrapCase');
   });
 
   it('wraps the registrars a suite imports, which is a configuration without globals', async () => {
     const directory = await root();
     const config = withTestSelection(
       { root: directory },
-      { coverageFile: resolve(directory, 'coverage.bin'), cases: true },
+      { coverageFile: resolve(directory, 'coverage.bin') },
     );
     const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
     expect(shim).toContain('wrapCase');
     // `@rstest/core` is an Rspack external of type `global`, so an import of it
     // is a read of this property and wrapping the property is wrapping the
-    // import. Nothing about it is configured, which is why `cases` asks the
-    // project for nothing.
+    // import. Nothing about it is configured, which is why recording cases asks
+    // the project for nothing.
     expect(shim).toContain('globalThis["@rstest/core"]');
   });
 
@@ -87,7 +86,7 @@ describe('what a wrapped Rstest configuration becomes', () => {
     const directory = await root();
     const config = withTestSelection(
       { root: directory, globals: true },
-      { coverageFile: resolve(directory, 'coverage.bin'), cases: true },
+      { coverageFile: resolve(directory, 'coverage.bin') },
     );
     const shim = await readFile((config.setupFiles as readonly string[])[0]!, 'utf8');
     // Both holders, in one shim: a suite may spell it either way, file by file,

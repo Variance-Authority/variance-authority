@@ -47,29 +47,14 @@ export interface TestSelectionOptions {
    */
   readonly mode?: InstrumentMode;
   /**
-   * Also record which individual test *cases* entered each region, beside the
-   * per-file snapshot.
-   *
-   * Off by default, and that is a measurement rather than caution: the per-case
-   * index holds one crossing per case-and-region where the file-level snapshot
-   * holds one per file-and-region, so it grows by roughly the number of cases
-   * that share a file. CI selects files to run and has no use for the
-   * difference; a local loop and a coding agent asking *which five of these two
-   * hundred cases walked the branch I changed* have nothing else to ask.
-   *
-   * The snapshot CI reads is unchanged either way — this adds a second artifact
-   * beside it, and never alters the first.
-   */
-  readonly cases?: boolean;
-  /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
    *
-   * Without it, `cases` assumes what a suite almost always is: one case at a
-   * time. The case running now is a variable, the probe reads a closure slot
+   * Without it, the case recording assumes what a suite almost always is: one
+   * case at a time. The case running now is a variable, the probe reads a closure slot
    * for it, and per-case recording costs what the per-file recording costs. A
-   * second case opening while one is still open is then refused rather than
-   * guessed at, because the guess charges one case's crossings to another and a
+   * second case opening while one is still open records that file whole rather
+   * than guessing, because the guess charges one case's crossings to another and a
    * case credited with less than it reached is a case a change can skip.
    *
    * With it, each case gets an async context instead, which follows its
@@ -88,6 +73,10 @@ export interface TestSelectionOptions {
   /**
    * Where the per-case execution index goes. Defaults to `<coverageFile>.cases.bin`;
    * a name ending `.json` is written as JSON instead, at the size JSON costs.
+   *
+   * Every run writes it. A file of a hundred cases usually tests several
+   * behaviours, and only the case record tells the half that walked a changed
+   * branch from the half that did not.
    */
   readonly executionFile?: string;
 }
@@ -137,7 +126,6 @@ export function withTestSelection(
     : resolve(configRoot, options.coverageFile);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
-  if (options.cases === true) run.cases = true;
   // Named for the run rather than for the seam. These are files on disk now, so
   // two Vitest processes over one project — a watch run beside a CLI one, or
   // this repository's own integration tests — would otherwise write each other's
@@ -207,7 +195,7 @@ export function withTestSelection(
       setupFiles: [
         writeSeamModule(
           setupId,
-          setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined, {
+          setupSource(run.runDirectory, run.caseDirectory, {
             continuations: options.continuations === true,
           }),
         ),
@@ -220,7 +208,9 @@ export function withTestSelection(
       // scope is worth less than a suite that runs. Per-case recording then has
       // no bracket and records the file as one ambient bucket, which is the
       // file-level answer it already had.
-      ...(options.cases === true && config.test?.runner === undefined
+      // FIXME: a project with its own runner gets file-level answers without
+      // being told; the case runner could extend the configured class instead.
+      ...(config.test?.runner === undefined
         ? {
           runner: writeSeamModule(runnerId, caseRunnerSource({
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
@@ -310,7 +300,7 @@ function selectionPlugin(
       if (run.cases) {
         run.cases = false;
         console.warn(
-          'variance-authority: `cases` is not recorded for a test file that runs in a page; ' +
+          'variance-authority: a test file that runs in a page is recorded per file, not per case; ' +
             'this run writes the file-level snapshot only.',
         );
       }

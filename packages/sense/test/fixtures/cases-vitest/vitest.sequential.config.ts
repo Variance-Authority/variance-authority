@@ -11,7 +11,7 @@ if (coverageFile === undefined) throw new Error('VARIANCE_AUTHORITY_COVERAGE is 
 // Per-case recording the way a suite gets it by default: the case running now
 // is a variable, and nothing follows a continuation. `VARIANCE_AUTHORITY_FILES`
 // picks which of the two test files run, because one of them is concurrent on
-// purpose and this recipe is the one that refuses that.
+// purpose and this recipe is the one that records it whole.
 export default withTestSelection(
   defineConfig({
     root,
@@ -22,7 +22,6 @@ export default withTestSelection(
   }),
   {
     coverageFile,
-    cases: true,
     include: (file) => file.startsWith(source),
   },
 );

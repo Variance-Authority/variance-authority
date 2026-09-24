@@ -39,8 +39,8 @@ Two cases need an ignore entry, and you create both. Set `cacheRoot` to a path
 inside the checkout, and ignore that directory as [the cache](cache.md) page
 shows. Or pass `coverageFile` to a runner integration to put the snapshot at a
 path you name, typically inside the repository so CI can upload it as an
-artifact, and ignore that path. Turning on `cases`
-writes a second file at `<coverageFile>.cases.bin`, under the same rule.
+artifact, and ignore that path. The same run writes a second file at
+`<coverageFile>.cases.bin`, under the same rule.
 
 Three more things live under that directory. Each instrumenting build keeps a
 store of module records under a `<label>` of its own; the module names table is
@@ -58,10 +58,10 @@ whole suite instead of narrowing on damage.
 
 Five hosts write this file, and they write the same structures into it. What
 differs is the owner of an observation — the key a crossing joins, which is
-whatever that host schedules — and where the bracket goes when you turn `cases`
-on.
+whatever that host schedules — and where the bracket goes that separates one
+case from the next.
 
-| Host | An observation is owned by | `cases` brackets |
+| Host | An observation is owned by | The case bracket wraps |
 |---|---|---|
 | Vitest | the test file | the asynchronous scope of each case, so cases in flight together stay apart |
 | Jest | the test file | the body of every case the runner announces, so a file that imports `it` from `@jest/globals` is bracketed like one that does not |
@@ -70,8 +70,9 @@ on.
 | Storybook | the story | the story, which is already the unit the preview shows |
 
 None of them asks you to change a runner option to record cases, and the
-snapshot is byte-identical whether you record them or not — the case axis is a
-second file beside it.
+snapshot's bytes do not depend on them — the case axis is a second file beside
+it. A test file that runs in a page, under Vitest or Rstest browser mode, is
+recorded per file only: that run writes no case index and prints a warning.
 [Own fewer tests](own-fewer-tests.md#ask-which-tests-claim-a-line) is the
 question that reads it.
 

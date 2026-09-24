@@ -64,12 +64,14 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true, executionFile: '.variance/execution.json' },
+  { executionFile: '.variance/execution.json' },
 );
 ```
 
-`cases: true` is what makes the recording per test case rather than per test
-file. Without it the file `distill` needs is not written.
+Every wrapped run writes the per-case recording beside its per-file snapshot,
+and `executionFile` names where it goes. A test file that runs in a page is
+recorded per file only, so a browser-mode run does not write the file `distill`
+needs.
 
 **An Eyes archive** — which elements each test addressed, and the React
 component behind each one. Install

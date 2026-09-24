@@ -21,5 +21,5 @@ export default withTestSelection(
     root,
     test: { include: ['test/*.injected.ts'], environment: 'node', globals: true },
   }),
-  { coverageFile, cases: true, include: (file) => file.startsWith(source) },
+  { coverageFile, include: (file) => file.startsWith(source) },
 );

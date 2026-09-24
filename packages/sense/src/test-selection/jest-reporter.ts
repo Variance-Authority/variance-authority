@@ -95,7 +95,6 @@ class JestCoverageReporter {
       `.run-${process.pid}-${randomUUID()}`,
     );
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
-    if ('coverageFile' in this.#config && this.#config.cases !== true) return;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
@@ -181,8 +180,7 @@ class JestCoverageReporter {
     // those files may be skipped. Said once, where the run ends.
     noteAnEmptyRecord(results.testResults.length, modules.size);
     // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, its readers are unchanged, and a run that records cases writes
-    // the same bytes there as one that does not.
+    // must run*, and its readers are unchanged.
     if (caseDirectory !== undefined) {
       const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
       await writeCaseIndex(executionFile, caseDirectory, root, modules);

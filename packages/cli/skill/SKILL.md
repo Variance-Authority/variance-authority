@@ -469,9 +469,10 @@ none of it:
 - **Runtime journey:** `variance covering`, `variance_source_tests`,
   `variance_changed_tests` and
   `variance_distill` require an `ExecutionIndex` with stable per-test ids. Under
-  Vitest, `withTestSelection(config, { cases: true })` from
-  `@variance-authority/sense/vitest` writes one; without `cases` the
-  test-selection snapshot is per test *file* and cannot substitute. Any runner,
+  Vitest, every run wrapped in `withTestSelection(config)` from
+  `@variance-authority/sense/vitest` writes one beside its snapshot, except a
+  run whose files run in a page; the test-selection snapshot is per test *file*
+  and cannot substitute. Any runner,
   debugger, editor integration or other collector that owns per-test crossings
   can supply the index instead.
 - **Live journey/events:** compose `varianceFixtures` from

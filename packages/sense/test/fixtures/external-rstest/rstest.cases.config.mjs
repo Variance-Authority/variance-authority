@@ -28,5 +28,5 @@ export default withTestSelection(
     include: ['test/*.case.ts'],
     setupFiles: ['./test/setup.mjs'],
   },
-  { coverageFile, include: (file) => file.startsWith(source), preconditions: ['rstest.cases.config.mjs'], cases: true },
+  { coverageFile, include: (file) => file.startsWith(source), preconditions: ['rstest.cases.config.mjs'] },
 );

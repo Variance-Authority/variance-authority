@@ -47,7 +47,7 @@ from a file that never expands the relation back. It is not read into memory to
 be asked about, so a question against that 77 MB touches under 5% of it and
 answers cold in under a tenth of a second. It is not rebuilt to be updated, so a
 run after an edit pays for the records the edit touched. It does not grow on a
-second axis unless you turn one on.
+second axis: the case axis is a separate file, priced at the end.
 
 A tool that reads your whole codebase can run out of memory on a large one.
 There is a size past which dying is fair, and this page says where it puts that
@@ -90,10 +90,10 @@ subject, but how to *find* one. It is written per subject, which
 puts it on its own axis — the index and the record are priced in modules, and
 the lexicon is priced in subjects.
 
-This page is the arithmetic on all three, in that order. A fourth file is
-optional and priced at the end: turning on [`cases`](execution-record.md) asks
-the same relation per **case** — one `it` or `test`, rather than the file that
-holds it — and it is
+This page is the arithmetic on all three, in that order. A fourth file, which
+the same run writes, is priced at the end: the per-case
+[execution index](execution-record.md) records the same relation per **case** —
+one `it` or `test`, rather than the file that holds it — and it is
 the only one of the four that grows on two axes at once.
 
 **Each of the three is priced against a different count of your own**, and
@@ -486,13 +486,13 @@ above: about 120 MB for a cold answer to a 100-file diff. What a repository
 that size changes is how long a first scan takes — priced per module above —
 and how much storage you keep, not how much memory a run needs.
 
-## The per-case index, when you ask for it
+## The per-case index
 
 Everything above prices the relation at file granularity: which *test file*
 covered which region. That is what a skip list needs, and it is the only thing
 a `--since` run reads: a runner skips whole files, so knowing which of a file's
-forty cases reached a line buys a skip list nothing. Turn on `cases` and a second
-file is written beside the record holding the same relation one level down —
+forty cases reached a line buys a skip list nothing. The same run writes a second
+file beside the record, with the same relation one level down —
 which *case* covered which region — because that is what answers *which tests
 walk this branch* and
 what [`variance covering`](../packages/cli#covering-which-tests-covered-this-line) and
@@ -545,8 +545,8 @@ rather than the direction that breaks, which is why it is worth pricing in
 advance instead of discovering.
 
 So price the upload, not the disk. What travels between jobs is the record and,
-if you ask for it, the per-case index; the source index is rebuilt from the
-tree and the lexicon travels with whatever consumes it.
+when a later job reads it, the per-case index; the source index is rebuilt from
+the tree and the lexicon travels with whatever consumes it.
 
 | what you upload | 791 covered modules | 200,000 modules |
 |---|---|---|
@@ -563,9 +563,9 @@ run 0.21 MB to 0.46 MB.
 
 Two things to do if your cap is the binding constraint. Compress the upload —
 the columns are run-coded but the file as a whole is not, and gzip takes a
-0.46 MB per-case index to 0.31 MB. And leave `cases` off
-until something asks a question that needs it: the skip list never reads that
-file, so a run that does not record it selects exactly as well.
+0.46 MB per-case index to 0.31 MB. And upload the per-case index only to a job
+that asks a question that needs it: the skip list never reads that file, so a
+job that does not receive it selects exactly as well.
 
 ## What decides the value is what changed, not how much
 

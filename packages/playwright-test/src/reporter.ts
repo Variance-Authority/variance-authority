@@ -76,18 +76,8 @@ export interface ExecutionReporterOptions {
    */
   readonly preconditions?: readonly string[];
   /**
-   * Also write the execution index: which individual test entered which region.
-   *
-   * Off by default, and left off for most suites. The index answers *which
-   * tests walk this branch* — the question `variance covering` and
-   * `@variance-authority/distill` are asked — and it is a row per test per
-   * region, so a suite that indexes to answer a question nobody asks has bought
-   * a large file and nothing else. Whether the workers produced any is theirs
-   * to decide; this only writes what arrived.
-   */
-  readonly cases?: boolean;
-  /**
-   * Where that index goes. Defaults beside the snapshot: `<coverage file>.cases.bin`;
+   * Where the execution index — which individual test entered which region —
+   * goes. Defaults beside the snapshot: `<coverage file>.cases.bin`;
    * a name ending `.json` is written as JSON instead, at the size JSON costs.
    */
   readonly executionFile?: string;
@@ -153,7 +143,7 @@ export default class implements Reporter {
         ...(staged.heads === undefined || staged.heads.length === 0
           ? {}
           : { heads: staged.heads }),
-        ...(this.#options.cases === true && staged.cases !== undefined && staged.cases.length > 0
+        ...(staged.cases !== undefined && staged.cases.length > 0
           ? { cases: staged.cases }
           : {}),
         ...(this.#executionFile === undefined ? {} : { executionFile: this.#executionFile }),

@@ -130,8 +130,9 @@ export function foldRun(
     });
     if (!merged.held) noteABusyIndex(coverageFile);
     // Beside the snapshot, never inside it. The snapshot answers *which files
-    // must run*, its readers are unchanged, and a run that records cases writes
-    // the same bytes there as one that does not.
+    // must run*, and its readers are unchanged. A run whose files ran in a page
+    // recorded no case, and an index with no case in it would answer *which
+    // cases walk this line* with none.
     if (run.cases) {
       await writeCaseIndex(executionFile, caseDirectory, root, modules);
     }

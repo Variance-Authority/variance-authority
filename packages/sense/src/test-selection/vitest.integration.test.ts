@@ -362,12 +362,12 @@ describe('the Vitest integration', () => {
     async function record(
       config: string,
       env: Readonly<Record<string, string>> = {},
-    ): Promise<{ coverage: Buffer; index?: ExecutionIndex }> {
+    ): Promise<{ coverage: Buffer; index?: ExecutionIndex; output: string }> {
       const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-vitest-'));
       temporary.push(directory);
       const coverageFile = resolve(directory, 'coverage.bin');
 
-      await execute(
+      const { stdout, stderr } = await execute(
         process.execPath,
         [vitest, 'run', '--config', resolve(casesFixture, config)],
         {
@@ -383,7 +383,11 @@ describe('the Vitest integration', () => {
 
       const coverage = await readFile(coverageFile);
       const index = await readFile(`${coverageFile}.cases.bin`).catch(() => undefined);
-      return { coverage, ...(index === undefined ? {} : { index: decodeExecutionIndex(index) }) };
+      return {
+        coverage,
+        output: `${stdout}${stderr}`,
+        ...(index === undefined ? {} : { index: decodeExecutionIndex(index) }),
+      };
     }
 
     const named = (index: ExecutionIndex, line: number): readonly string[] =>
@@ -422,16 +426,15 @@ describe('the Vitest integration', () => {
       expect(named(index, 8)).toEqual(['decide > falls through to B']);
     }, 20_000);
 
-    it('refuses a concurrent file rather than charging one case to another', async () => {
+    it('records a concurrent file whole rather than charging one case to another', async () => {
       // A variable cannot hold two cases, and guessing which one owns a
-      // crossing is the direction `selecting.md` forbids. So the run fails, and
-      // says which mode records it.
+      // crossing is the direction `selecting.md` forbids. So the file keeps its
+      // file-level record, names no case, and says which mode would.
       const concurrent = { VARIANCE_AUTHORITY_FILES: 'test/concurrent.case.ts' };
-      const failed = await record('vitest.sequential.config.ts', concurrent)
-        .then(() => undefined, (error: { stdout?: string; stderr?: string }) => error);
-      if (failed === undefined) throw new Error('the concurrent fixture recorded without a scope');
+      const { coverage, index, output } = await record('vitest.sequential.config.ts', concurrent);
 
-      const output = `${failed.stdout ?? ''}${failed.stderr ?? ''}`;
+      expect(coverage.length).toBeGreaterThan(0);
+      expect(index === undefined ? [] : named(index, 14)).toEqual([]);
       expect(output).toContain('takes the alpha branch while the other case is open was still running');
       expect(output).toContain('continuations: true');
     }, 20_000);
@@ -447,20 +450,6 @@ describe('the Vitest integration', () => {
       expect(named(index, 14)).toEqual(['slowly > takes the alpha branch while the other case is open']);
       expect(named(index, 17)).toEqual(['slowly > takes the fallthrough while the other case is open']);
     }, 20_000);
-
-    it('leaves the snapshot CI reads byte for byte what it was', async () => {
-      // The file-level journal under per-case recording is the bitwise union of
-      // the case buckets and the ambient one. Presence is all a reader of it
-      // asks for, so the union is the same record the flat collector wrote —
-      // and the cost of turning cases on is not paid by anyone reading this.
-      const [cased, flat] = await Promise.all([
-        record('vitest.config.ts'),
-        record('vitest.config.ts', { VARIANCE_AUTHORITY_CASES: 'off' }),
-      ]);
-
-      expect(cased.coverage.equals(flat.coverage)).toBe(true);
-      expect(flat.index).toBeUndefined();
-    }, 30_000);
 
     it('costs one crossing per case and region where a file costs one per file', async () => {
       const { coverage, index } = await record('vitest.config.ts');

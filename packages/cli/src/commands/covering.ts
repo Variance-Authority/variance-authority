@@ -5,7 +5,7 @@
  * forward from a diff and answers *what could this change touch*; this one
  * reads a recorded run backwards from one piece of source and answers *what
  * already went there*. One is structure and needs no history; this one is
- * evidence and exists only where a suite has been recorded with `cases: true`.
+ * evidence and exists only where a suite has been recorded.
  *
  * The reading is three library calls, and it was three library calls for a
  * while: whoever wanted it wrote a script around `coveringTests`. That is a
@@ -303,8 +303,8 @@ async function readIndex(
     throw new OperatorError(
       `no readable per-case execution index at \`${from}\` (${
         error instanceof Error ? error.message : String(error)
-      }). One is written by a run configured with \`withTestSelection(config, { cases: true })\`; ` +
-        'without it this project knows which files a test covered but not which case covered them.',
+      }). Every run wrapped in \`withTestSelection\` writes one beside its coverage file; ` +
+        'a run whose test files ran in a page writes none, and knows which files a test covered but not which case.',
     );
   }
 }

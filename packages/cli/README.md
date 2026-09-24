@@ -258,7 +258,7 @@ comparison and nothing else.
   from `@variance-authority/eyes/collect`;
 - **the execution index** — which files and regions each test covered. Install
   [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-  and wrap the Vitest config in `withTestSelection(config, { cases: true,
+  and wrap the Vitest config in `withTestSelection(config, {
   executionFile: '.variance/execution.json' })`.
 
 Either file may be omitted and the missing domain stays unavailable; execution
@@ -381,8 +381,8 @@ Given `--file` alone the answer is per range rather than per test: the recorded
 regions of the file, each with the tests shared by every line in it, which is
 where an unclaimed region shows up as one.
 
-The index comes from a run wrapped in `withTestSelection(config, { cases: true })`
-and is read from where that run writes it, so an agent with a line number
+The index comes from any run wrapped in `withTestSelection(config)` and is read
+from where that run writes it, so an agent with a line number
 needs no flag but `--file`. `--execution <path>` names an index recorded
 somewhere else, and `--root <path>` names the project root the run recorded
 against. A missing index is refused rather than answered empty, because an empty

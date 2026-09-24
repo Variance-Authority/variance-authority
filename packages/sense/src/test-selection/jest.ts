@@ -55,29 +55,14 @@ export interface JestTestSelectionOptions {
    */
   readonly mode?: InstrumentMode;
   /**
-   * Also record which individual test *cases* entered each region, beside the
-   * per-file snapshot.
-   *
-   * Off by default, and that is a measurement rather than caution: the per-case
-   * index holds one crossing per case-and-region where the file-level snapshot
-   * holds one per file-and-region, so it grows by roughly the number of cases
-   * that share a file. CI selects files to run and has no use for the
-   * difference; a local loop and a coding agent asking *which five of these two
-   * hundred cases walked the branch I changed* have nothing else to ask.
-   *
-   * The snapshot CI reads is unchanged either way — this adds a second artifact
-   * beside it, and never alters the first.
-   */
-  readonly cases?: boolean;
-  /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
    *
-   * Without it, `cases` assumes what a suite almost always is: one case at a
+   * Without it, the case recording assumes what a suite almost always is: one case at a
    * time. The case running now is a variable, the probe reads a closure slot
    * for it, and per-case recording costs what the per-file recording costs. A
-   * second case opening while one is still open is then refused rather than
-   * guessed at, because the guess charges one case's crossings to another and a
+   * second case opening while one is still open records that file whole rather
+   * than guessing, because the guess charges one case's crossings to another and a
    * case credited with less than it reached is a case a change can skip.
    *
    * With it, each case gets an async context instead, which follows its
@@ -151,8 +136,6 @@ export interface SelectionReporterConfig {
   readonly preconditions: readonly string[];
   /** The probe recipe the transforms placed; `presence` when absent. */
   readonly mode?: InstrumentMode;
-  /** Whether the run records which case entered each region, not only which file. */
-  readonly cases?: boolean;
   /** Whether that recording follows each case through the async context, and names the runaways. */
   readonly continuations?: boolean;
   /** Where the per-case execution index goes; `<coverageFile>.cases.bin` when absent. */
@@ -256,8 +239,7 @@ export function withTestSelection(
     coverageFile,
     preconditions: [...new Set(preconditions)],
     ...(mode === undefined ? {} : { mode }),
-    ...(options.cases === true ? { cases: true } : {}),
-    ...(options.cases === true && options.continuations === true ? { continuations: true } : {}),
+    ...(options.continuations === true ? { continuations: true } : {}),
     ...(options.executionFile === undefined
       ? {}
       : { executionFile: resolve(rootDir, options.executionFile) }),

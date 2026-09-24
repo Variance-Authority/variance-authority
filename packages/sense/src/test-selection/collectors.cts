@@ -132,14 +132,13 @@ function attach(holder: Holder, continuations: boolean): Engine {
  */
 const nameOf = (key: string): string => key.split('\u0000')[1] || key.split('\u0000')[0] || AMBIENT;
 
-const twoAtOnce = (open: string, opening: string): Error =>
-  new Error(
-    `variance-authority: ${nameOf(open)} was still running when ${nameOf(opening)} started. ` +
-      'Per-case recording holds one case at a time, which is two cases open at once — a ' +
-      'concurrent group, or a case that left work behind. Record with ' +
-      '{ cases: true, continuations: true }: it follows every case through the async context ' +
-      'and names the ones whose work outlived them.',
-  );
+const twoAtOnce = (open: string, opening: string): string =>
+  `variance-authority: ${nameOf(open)} was still running when ${nameOf(opening)} started, ` +
+  `in ${open.split('\u0000')[0]}. Per-case recording holds one case at a time, so this file ` +
+  'is recorded as a whole: a change it reaches runs every case in it. Two cases open at once ' +
+  'is a concurrent group, or a case that left work behind. Record with ' +
+  '{ continuations: true } to follow every case through the async context and name the ' +
+  'ones whose work outlived them.';
 
 /** One bucket for the file. */
 function flat(holder: Holder): Collector {
@@ -187,6 +186,11 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   };
 
   let ambient = bucketFor(AMBIENT);
+  // Set when a second case opens while one is still open and no async context
+  // tells them apart. From then on every crossing is the file's, and the file
+  // writes no case frame: a case credited with less than it reached is a case
+  // a change can skip, and the file-level record is still exact.
+  let tangled = false;
   // One case at a time, so the case running now is a variable that `enter`
   // and `release` move, and the probe never asks.
   let current = ambient;
@@ -240,7 +244,14 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     ) as unknown as Result;
   };
   const enter = <Result,>(key: string, body: () => Result): Result => {
-    if (scopes === undefined && current !== ambient) throw twoAtOnce(current.key, key);
+    if (tangled) return body();
+    if (scopes === undefined && current !== ambient) {
+      tangled = true;
+      console.warn(twoAtOnce(current.key, key));
+      current = ambient;
+      engine.use(ambient);
+      return body();
+    }
     const bucket = bucketFor(key);
     bucket.open = true;
     if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, body));
@@ -267,7 +278,7 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     },
     finish(testFile) {
       for (const [key, bucket] of buckets) close(bucket, key === AMBIENT ? ambientKey(testFile) : key);
-      return { modules: union, frames };
+      return { modules: union, frames: tangled ? undefined : frames };
     },
     runaways: () => [...late].map(nameOf),
   };

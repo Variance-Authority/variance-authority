@@ -276,7 +276,7 @@ describe('a worker that is one of several', () => {
       const { cacheRoot, id } = await instrumented(root);
       const owner = 'tests/checkout.spec.ts';
 
-      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile, cases: true });
+      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
       await recorder.note(
         pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
         owner,
@@ -295,25 +295,6 @@ describe('a worker that is one of several', () => {
         'pays with a saved card',
       ]);
       expect([...new Set(index.tests.map((test) => test.file))]).toEqual([owner]);
-    });
-  });
-
-  it('writes no index at all for a run that did not ask', async () => {
-    await inRoot(async (root) => {
-      const coverageFile = resolve(root, 'coverage.bin');
-      const { cacheRoot, id } = await instrumented(root);
-
-      const recorder = createExecutionRecorder({ root, cacheRoot, coverageFile });
-      await recorder.note(
-        pageReporting({ instrumentation: INSTRUMENTATION, modules: [{ id, hits: [0], shared: [] }] }),
-        'tests/checkout.spec.ts',
-        { name: 'pays with a saved card', id: 'one' },
-      );
-      await recorder.close();
-
-      // The coordinate was there for the taking and the run did not ask for it.
-      // Being able to name a case is not being obliged to write a row for one.
-      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
     });
   });
 

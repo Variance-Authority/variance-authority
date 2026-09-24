@@ -76,23 +76,8 @@ export interface ExecutionRecording {
    */
   readonly origin?: string;
   /**
-   * Also record which individual test entered which region, not only which
-   * spec file.
-   *
-   * Off by default and worth leaving off for most suites. Selection does not
-   * use it — the runner's unit of execution is the spec file, so a distinction
-   * finer than that is one no `--since` could spend. What it is for is the
-   * question asked *of* a line rather than of a commit: which tests walk this
-   * branch, which `variance covering` and `@variance-authority/distill`
-   * answer. It is a row per test per region, so a suite that writes one to
-   * answer a question nobody asks has bought a large file and nothing else.
-   *
-   * Turning it on needs the reporter, like everything else this seam writes:
-   * the index is folded once, by the process that saw the whole run.
-   */
-  readonly cases?: boolean;
-  /**
-   * Where that index goes, for the worker that has no reporter to fold it.
+   * Where the execution index — which individual test entered which region —
+   * goes, for the worker that has no reporter to fold it.
    * Defaults beside the snapshot: `<coverage file>.cases.bin`; a name ending
    * `.json` is written as JSON instead, at the size JSON costs.
    */
@@ -258,7 +243,7 @@ export function createExecutionRecorder(
       const accumulated = owners.get(owner) ?? { hits: new Map(), shared: new Map(), complete: true };
       absorb(accumulated, journal);
       owners.set(owner, accumulated);
-      if (recording.cases !== true || subject === undefined) return;
+      if (subject === undefined) return;
       absorb(caseOf(owner, subject), journal);
     },
 
@@ -279,7 +264,7 @@ export function createExecutionRecorder(
       const open = await takeReports();
       const journey = mintJourney();
       minted.set(journey, owner);
-      if (recording.cases === true && subject !== undefined) mintedFor.set(journey, { owner, subject });
+      if (subject !== undefined) mintedFor.set(journey, { owner, subject });
       // Both at one site, because they are one fact: this is the execution, and
       // this is where it answers. Written apart, whichever half a later mint
       // overwrote would leave a head reporting under an id nobody claims.

@@ -87,10 +87,10 @@ commit's coordinates. Record before you review: an index behind the tree
 answers fluently about regions that have moved.
 
 This reading needs [test-level coverage](test-level-coverage.md) — the same
-recording with a case axis, which is a run wrapped in
-`withTestSelection(config, { cases: true })`. Without it you have the
-file-grain [record](execution-record.md), which answers which test *files*
-covered a module and cannot name a case.
+recording with a case axis, which every run wrapped in `withTestSelection`
+writes beside the file-grain [record](execution-record.md). The file-grain
+record alone answers which test *files* covered a module and cannot name a
+case.
 
 Over MCP the same evidence is `variance_changed_tests`, which takes the unified
 diff the agent is already holding rather than a ref — nothing in that package

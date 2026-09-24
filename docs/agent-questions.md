@@ -47,7 +47,7 @@ that instrument or reconstruct its output:
 | --- | --- | --- |
 | visual report | `variance run` with a configured report path; see [run an existing collector](start-cli.md) | supply the resulting `RunReport`, not configuration interpreted after the run |
 | full presentation graph | `sensePresentation` from `@variance-authority/presentation/playwright`; see [presentation](presentation.md) | acquire the live subject once and supply its `PresentationReport` |
-| per-test source execution | a Vitest run wrapped with `cases: true`, or any runner, debugger, or editor integration that owns per-test crossings; see [Sense](../packages/sense/README.md#record-which-case-covered-a-region) | supply stable test ids in an `ExecutionIndex`; the per-file test-selection snapshot cannot substitute |
+| per-test source execution | a Vitest run wrapped with `withTestSelection`, or any runner, debugger, or editor integration that owns per-test crossings; see [Sense](../packages/sense/README.md#record-which-case-covered-a-region) | supply stable test ids in an `ExecutionIndex`; the per-file test-selection snapshot cannot substitute |
 | live events | compose `varianceFixtures`, then follow [inspect a live run](agent-live-run.md) | start the watcher before the suite and use the exact address it prints |
 | Eyes attention | compose the RTL or Playwright adapter using the [Eyes integration reference](../packages/eyes/README.md) | author AAA markers, retain journals with their completion state under stable runner ids, and install React observation before `react-dom` loads |
 | scenario AAA | record host-produced snapshots and Acts using the [scenario reference](../packages/scenario/README.md) | archive the semantic executions when they must survive the process |

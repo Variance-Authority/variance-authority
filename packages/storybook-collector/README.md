@@ -394,19 +394,10 @@ A story is its own owner in the recorded index — Storybook is an execution
 surface this tool drives one subject at a time — and a story that did not render
 still contributes its crossings while never justifying a later skip.
 
-Set `cases` to also write the execution index: one row per story per region,
+Every run also writes the execution index: one row per story per region,
 beside the coverage index, or wherever `executionFile` points. That is the file
 `variance covering` and `@variance-authority/distill` read to answer *which
-stories walk this branch* — the question a component library is worth asking and
-a preview of ten thousand stories usually is not, which is why it is off by
-default.
-
-```js
-export default storybookCollector({
-  source: { dirs: ['src'] },
-  tests: { label: 'storybook', cases: true },
-});
-```
+stories walk this branch*.
 
 A story is the case this costs nothing to name. The driver shows one at a time,
 so the per-story grain a unit runner needs an async scope for is already here:

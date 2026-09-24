@@ -162,7 +162,7 @@ describe('what the seam refuses to instrument', () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-seam-modules-'));
     const coverageFile = resolve(root, 'coverage.bin');
     try {
-      const configured = withTestSelection({}, { root, coverageFile, cases: true });
+      const configured = withTestSelection({}, { root, coverageFile });
       const setup = (configured.test!.setupFiles as string[])[0]!;
       const runner = configured.test!.runner as string;
 
@@ -200,7 +200,7 @@ describe('what the seam refuses to instrument', () => {
       // project that installed it.
       expect(() => createRequire(resolve(root, 'package.json')).resolve('@vitest/runner')).toThrow();
 
-      const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin'), cases: true });
+      const configured = withTestSelection({}, { root, coverageFile: resolve(root, 'coverage.bin') });
       const runner = configured.test!.runner as string;
       const source = await readFile(runner, 'utf8');
       const spelling = (name: string): string =>

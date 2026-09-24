@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PROBE_RUNTIME } from '../instrument/index.js';
 import journals from './journal-format.cjs';
 
@@ -119,17 +119,27 @@ async function sequential(): Promise<Record<string, unknown>> {
 }
 
 /** The same default collector, handed two cases at once. */
-async function refused(): Promise<string | null> {
+async function tangled() {
   const holder: Record<PropertyKey, unknown> = {};
-  collectors.scoped(holder, false);
+  const collector = collectors.scoped(holder, false);
   const { alpha, beta } = cases(probeIn(holder));
   const scope = holder[CASE_SCOPE] as Scope;
+  const warnings: string[] = [];
+  const warn = vi.spyOn(console, 'warn').mockImplementation((message: unknown) => {
+    warnings.push(String(message));
+  });
   try {
     await Promise.all([scope.enter('A', alpha), scope.enter('B', beta)]);
-    return null;
-  } catch (error) {
-    return (error as Error).message;
+  } finally {
+    warn.mockRestore();
   }
+  const { modules, frames } = collector.finish('');
+  const entered = modules.get('m') ?? new Uint32Array(8);
+  return {
+    warnings,
+    frames,
+    entered: [...entered.keys()].filter((at) => at > 0 && entered[at] !== 0),
+  };
 }
 
 /**
@@ -188,10 +198,15 @@ describe('attributing crossings while two cases are in flight', () => {
     });
   });
 
-  it('refuses two cases at once rather than charging one to the other', async () => {
-    const message = await refused();
-    expect(message).toContain('A was still running when B started');
-    expect(message).toContain('continuations: true');
+  it('records the file whole when two cases open at once, rather than charging one to the other', async () => {
+    const { warnings, frames, entered } = await tangled();
+    // Both cases still ran: recording never fails a test the suite would pass.
+    expect(entered).toEqual([1, 2, 3, 4]);
+    // No case frame, so no case can be skipped on this file's record.
+    expect(frames).toBeUndefined();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('A was still running when B started');
+    expect(warnings[0]).toContain('continuations: true');
   });
 
   it('is what snapshot-and-subtract cannot do at any price', async () => {

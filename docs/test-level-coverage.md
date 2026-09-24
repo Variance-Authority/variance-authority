@@ -190,14 +190,12 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true },
 );
 ```
 
 **Run the suite the way you run it.** No separate coverage pass, no second
-command, and the file-level snapshot the same run writes is byte-identical
-whether or not you asked for cases — so whatever reads it in CI does not
-change.
+command, and the file-level snapshot the same run writes does not depend on the
+case axis — so whatever reads it in CI does not change.
 
 **Ask.** From a shell, about a place:
 
@@ -243,13 +241,14 @@ index is those pairs and nothing else: three parallel integer columns, sorted
 case-major, delta-coded and run-compressed. Sorting case-major is what makes
 the run coding pay — a case's crossings arrive together, so the case column is
 a handful of runs rather than a million values. The sizes at four scales are in
-[addressing scale](scale.md#the-per-case-index-when-you-ask-for-it).
+[addressing scale](scale.md#the-per-case-index).
 
 **The case axis is a sidecar.** It is written beside the record rather than
-into it, because the shared durable record CI hands between jobs stays
-file-level, and a case axis over every region of a very large repository costs
-that file several times its size. Locally, where the recording spans what you
-are actually running, it is a fraction of a megabyte.
+into it, so the shared durable record CI hands between jobs stays file-level. A
+case axis over every region of a very large repository costs several times the
+record's size, and as a second file it is a second upload that a job which only
+selects files does without. Over the recording you run locally it is a fraction
+of a megabyte.
 
 ## What it still does not tell you
 

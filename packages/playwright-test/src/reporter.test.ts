@@ -45,7 +45,7 @@ describe('the reporter that folds what the workers recorded', () => {
     await inRoot(async (root) => {
       const coverageFile = resolve(root, 'coverage.bin');
       const cacheRoot = await instrumented(root);
-      const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile, cases: true });
+      const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
 
       reporter.onBegin({} as FullConfig);
       const directory = stagingDirectory()!;
@@ -92,25 +92,6 @@ describe('the reporter that folds what the workers recorded', () => {
     });
   });
 
-  it('leaves the index alone for a run that did not ask for one', async () => {
-    await inRoot(async (root) => {
-      const coverageFile = resolve(root, 'coverage.bin');
-      const cacheRoot = await instrumented(root);
-      const reporter = new ExecutionReporter({ root, cacheRoot, coverageFile });
-
-      reporter.onBegin({} as FullConfig);
-      await stageExecution(stagingDirectory()!, {
-        subjects: [{ owner: 'tests/checkout.spec.ts', journal: journal(0), complete: true }],
-        cases: [{ file: 'tests/checkout.spec.ts', name: 'case one', id: 'one', journal: journal(0) }],
-      });
-      await reporter.onEnd();
-
-      // A worker offered the cases and the run never asked for them. Being
-      // able to write the index is not being obliged to.
-      expect((await readTestCoverage(coverageFile)).tests).toHaveLength(1);
-      await expect(readFile(`${coverageFile}.cases.bin`)).rejects.toThrow();
-    });
-  });
   it('writes a relative index beside the root it was given, where the fixture writes it', async () => {
     // Every seam resolves these against its own root. Resolved against the
     // checkout instead, a suite under `packages/ui` staged its workers beside
@@ -127,7 +108,6 @@ describe('the reporter that folds what the workers recorded', () => {
         cacheRoot,
         coverageFile: 'coverage.bin',
         executionFile: 'cases.bin',
-        cases: true,
       });
 
       reporter.onBegin({} as FullConfig);

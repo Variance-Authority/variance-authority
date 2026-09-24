@@ -21,7 +21,7 @@ which tests remain owned.
 ## Ask which tests claim a line
 
 Record case identities once. `withTestSelection` wraps a Vitest configuration
-and keeps its plugins, setup files and reporters; `cases: true` writes an
+and keeps its plugins, setup files and reporters; every run writes an
 [execution index](execution-record.md) naming which individual case covered each
 region, beside the file-level snapshot the same run already writes.
 
@@ -35,7 +35,6 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true },
 );
 ```
 
@@ -86,11 +85,9 @@ measure from one origin, so neither composes with `--since`.
 
 One limit shapes how you read the list either way: anything a file covered
 before its first case — imports, `beforeAll`, top-level evaluation — is
-credited to every case in that file. Turn cases on for a local loop over the
-code you are changing, not for the repository-wide index CI reads to select
-files. A Jest, Rstest, Playwright or Storybook suite wraps its own
-configuration the same way and records the same regions; each writes the case
-axis against the unit it schedules, and
+credited to every case in that file. A Jest, Rstest, Playwright or Storybook
+suite wraps its own configuration the same way and records the same regions;
+each writes the case axis against the unit it schedules, and
 [what each host records](execution-record.md#what-each-host-records) is that
 one table.
 

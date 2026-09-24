@@ -328,7 +328,7 @@ export interface CoveringRegion {
  * carries which one it is rather than leaving a reader to infer it from an empty
  * array.
  *
- * `cases` closes the third shape, which is the one a review hits constantly: a
+ * The case index closes the third shape, which is the one a review hits constantly: a
  * changed **test file** has no module row at all, because the run instruments
  * what the tests import rather than the tests themselves. The index still knows
  * every case declared in it, and those cases are the honest answer to *what did

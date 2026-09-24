@@ -42,7 +42,7 @@ export interface SelectionRun {
   include: (file: string) => boolean;
   /** Files this seam generated, which no transform may instrument. */
   readonly shims: Set<string>;
-  /** Whether any configuration in this run asked for per-case crossings. */
+  /** Whether this run records per-case crossings: every run does, unless its files run in a page. */
   cases: boolean;
   /** The snapshot is written once, by whichever hook the runner calls. */
   settled: boolean;
@@ -69,7 +69,7 @@ export function runFor(coverageFile: string, root: string, mode: InstrumentMode)
     mode,
     include: defaultInclude,
     shims: new Set<string>(),
-    cases: false,
+    cases: true,
     settled: false,
   };
   runs.set(coverageFile, run);

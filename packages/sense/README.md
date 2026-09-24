@@ -24,8 +24,8 @@ It answers four questions:
 - Which named test cases covered a given function or line — the query an editor
   or a coding agent asks.
 
-The first three work today from a wrapped runner. The fourth needs a recording
-made with `cases: true`, which every host this package reaches writes —
+All four work from a wrapped runner. The fourth reads the per-case index the
+run writes beside its snapshot, and every host this package reaches writes one —
 [what each one gives the recording](#what-each-host-gives-the-recording) is one
 table.
 
@@ -250,7 +250,7 @@ and each name selects the tests recorded under it.
 ### Options on the Vitest seam
 
 The optional second argument accepts `root`, `coverageFile`, `include`,
-`preconditions`, `mode`, `cases`, `continuations`, and `executionFile`.
+`preconditions`, `mode`, `continuations`, and `executionFile`.
 
 | option | default | use it when |
 |---|---|---|
@@ -259,7 +259,6 @@ The optional second argument accepts `root`, `coverageFile`, `include`,
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them |
-| `cases` | off | you want per-test-case crossings as well ([below](#record-which-case-covered-a-region)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
 | `executionFile` | `<coverageFile>.cases.bin` | choosing where the per-case recording goes; a name ending `.json` writes JSON instead |
 
@@ -364,7 +363,7 @@ export default withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
-`cases`, `continuations`, and `executionFile`, with the meanings above. Jest
+`continuations`, and `executionFile`, with the meanings above. Jest
 does not say which config file it loaded, so name it in `preconditions`. There
 is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
@@ -423,14 +422,14 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
-`mode`, `cases`, `continuations`, and `executionFile`, with the meanings above.
+`mode`, `continuations`, and `executionFile`, with the meanings above.
 Rstest does not say which config file it loaded, so name it in `preconditions`.
 The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
 edited rather than the ones the transpiler emitted.
 
-`cases` needs nothing from the configuration. Rstest has no runner option, so
+Recording per case needs nothing from the configuration. Rstest has no runner option, so
 the per-case bracket goes around `it` and `test` themselves — on the realm when
 `globals: true` puts them there, and on `globalThis['@rstest/core']`, which is
 where Rstest assigns its API and what Rspack compiles an import of that external
@@ -1386,21 +1385,22 @@ distances into inclusive ranges; an indexed but unreached range has an empty
 range. Missing source returns no claim; an invalid test reference or distance
 throws.
 
-Every seam here writes an `ExecutionIndex` when it is asked for one. Without
-`cases: true` a crossing joins the whole test file, which is the granularity
-selection spends.
+Every seam here writes an `ExecutionIndex` beside its snapshot. In the snapshot
+a crossing joins the whole test file, which is the granularity selection
+spends; in the index it joins the case.
 
 ### Record which case covered a region
 
-Pass `cases: true` to `withTestSelection` — any seam — and the run writes an
-`ExecutionIndex` beside its snapshot. The snapshot itself is byte-identical
-either way, so CI reads the same file whichever you choose:
+Every run wrapped in `withTestSelection` — any seam — writes an
+`ExecutionIndex` at `<coverageFile>.cases.bin`, beside its snapshot. The
+snapshot's bytes do not depend on the index, so CI reads the same file to select
+test files. Pass `executionFile` to put the index somewhere else:
 
 ```ts
 // vitest.config.ts, with the two imports of the first sample.
 export default withTestSelection(
   defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-  { cases: true, executionFile: '.variance-authority/cases.bin' },
+  { executionFile: '.variance-authority/cases.bin' },
 );
 ```
 
@@ -1415,6 +1415,10 @@ const index = decodeExecutionIndex(await readFile('.variance-authority/cases.bin
 const walked = coveringTests(index, { file: 'src/cart/total.ts', line: 14 });
 ```
 
+A test file that runs in a page — Vitest or Rstest browser mode — is recorded
+per file only. That run writes the snapshot and no index, and prints a warning
+that says so.
+
 The index is the same relation the snapshot holds, asked at case granularity
 rather than file granularity, so it grows with cases times regions. Written as
 columns it is under a megabyte for a suite whose JSON spelling of the same
@@ -1422,7 +1426,7 @@ relation is twenty-seven. Name the file `.json` and you get that JSON, for a
 reader that has to have it:
 
 ```ts
-{ cases: true, executionFile: '.variance-authority/cases.json' }
+{ executionFile: '.variance-authority/cases.json' }
 ```
 
 Each entry in `index.tests` is keyed by the case's **coordinate**: the
@@ -1445,7 +1449,9 @@ running, not inside a start-and-stop bracket around it. A suite runs its cases
 one at a time, so by default *the case running now* is a variable: the case
 that a crossing joins is a single read, and recording per case costs what
 recording per file costs. Two cases open at once cannot both be that variable,
-so the second one is refused with an error naming both.
+so their file is recorded as a whole: it has no case frames, and every case in
+it is credited with what the file covered. The run prints a warning that names
+both cases and suggests `{ continuations: true }`.
 
 Pass `continuations: true` and each case gets an asynchronous scope instead.
 Work a case started and did not await is then charged to the case that started
@@ -1494,15 +1500,14 @@ region, not how it got there, so every answer is ordered by identity rather
 than by depth. Anything a file covered before its first case — imports, `beforeAll`,
 top-level evaluation — is credited to every case in that file.
 
-**Turn cases on for a local loop, not for the repository index.** The case axis
-grows the relation by roughly the number of cases that share a file, and the
-growth does not compress away, because two regions of one module are covered by
-*different* subsets of cases — which is exactly the information being bought.
-Recording 4,011 cases over 364 test files of this repository produced 28.8 MB of
-the JSON above against a 681 KB snapshot. So it is the right axis for a coding
-agent asking which five of two hundred cases walked the branch you just changed,
-and the wrong one for the index CI reads to select files over every region there
-is.
+**The index grows with cases; file selection reads the snapshot.** The case
+axis grows the relation by roughly the number of cases that share a file, and
+the growth does not compress away, because two regions of one module are
+covered by *different* subsets of cases — which is exactly the information the
+index records. Recording 4,011 cases over 364 test files of this repository
+produced 28.8 MB of the JSON above against a 681 KB snapshot. The index answers
+a coding agent asking which five of two hundred cases walked the branch you just
+changed; selecting test files over every region there is reads the snapshot.
 
 ### Ask the index about a diff
 
@@ -1546,7 +1551,7 @@ which of them an observer covered, and whether that observation was whole — in
 one snapshot format. What differs is the unit an observation is attributed to,
 which is whatever the host schedules, and where the per-case bracket goes.
 
-| Host | A crossing joins | The bracket `cases: true` installs |
+| Host | A crossing joins | The per-case bracket it installs |
 |---|---|---|
 | Vitest | the test file | the case the runner is running, or its asynchronous scope under `continuations` |
 | Jest | the test file | the body of every case the runner announces, whichever registrar declared it, plus `it` and `test` on the realm |
@@ -1554,8 +1559,8 @@ which is whatever the host schedules, and where the per-case bracket goes.
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the subject the preview shows |
 
-None of the five asks the project to turn on a runner option to buy the case
-axis, and each writes the index beside the snapshot it was already writing.
+None of the five asks the project to change a runner option for the case axis,
+and each writes the index beside its snapshot.
 
 Two answers are properties of the record rather than of a host, so they read the
 same under all five. A run that transforms nothing because every module came

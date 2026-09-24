@@ -60,34 +60,14 @@ export interface RstestTestSelectionOptions {
    */
   readonly mode?: InstrumentMode;
   /**
-   * Also record which individual test *cases* entered each region, beside the
-   * per-file snapshot.
-   *
-   * Off by default, and that is a measurement rather than caution: the per-case
-   * index holds one crossing per case-and-region where the file-level snapshot
-   * holds one per file-and-region, so it grows by roughly the number of cases
-   * that share a file. CI selects files to run and has no use for the
-   * difference; a local loop and a coding agent asking *which five of these two
-   * hundred cases walked the branch I changed* have nothing else to ask.
-   *
-   * Requires `globals: true`: Rstest has no runner option, so the only place a
-   * case bracket can be installed is around the registrars themselves, and a
-   * suite that imports `it` from `@rstest/core` gets the runner's own binding
-   * rather than this one.
-   *
-   * The snapshot CI reads is unchanged either way — this adds a second artifact
-   * beside it, and never alters the first.
-   */
-  readonly cases?: boolean;
-  /**
    * Follow each case through the async context, and name the cases whose work
    * outlived them.
    *
-   * Without it, `cases` assumes what a suite almost always is: one case at a
+   * Without it, the case recording assumes what a suite almost always is: one case at a
    * time. The case running now is a variable, the probe reads a closure slot
    * for it, and per-case recording costs what the per-file recording costs. A
-   * second case opening while one is still open is then refused rather than
-   * guessed at, because the guess charges one case's crossings to another and a
+   * second case opening while one is still open records that file whole rather
+   * than guessing, because the guess charges one case's crossings to another and a
    * case credited with less than it reached is a case a change can skip.
    *
    * With it, each case gets an async context instead, which follows its
@@ -164,7 +144,6 @@ export function withTestSelection(
     : resolve(configRoot, options.coverageFile);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
-  if (options.cases === true) run.cases = true;
 
   // Named for the run rather than for the seam, so two Rstest processes over
   // one project — a watch run beside a CLI one — do not write each other's
@@ -219,9 +198,7 @@ export function withTestSelection(
   // `globalThis['@rstest/core']`, which is where Rstest assigns its API and
   // what Rspack compiles the import of that external to. Wrapping both reaches
   // a mixed suite, and wrapping an absent one is skipped.
-  const scope = options.cases === true
-    ? caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`)
-    : undefined;
+  const scope = caseGlobalsSource(`globalThis, globalThis[${JSON.stringify(RSTEST_API)}]`);
   return {
     ...config,
     // First, so a setup file of the project's that loads an instrumented
@@ -229,10 +206,10 @@ export function withTestSelection(
     setupFiles: [
       writeSeamModule(
         setupId,
-        setupSource(run.runDirectory, options.cases === true ? run.caseDirectory : undefined, {
+        setupSource(run.runDirectory, run.caseDirectory, {
           runner: RSTEST_API,
           continuations: options.continuations === true,
-          ...(scope === undefined ? {} : { scope }),
+          scope,
         }),
       ),
       ...setupFiles,
@@ -291,7 +268,7 @@ function pagePlugin(setupId: string, run: SelectionRun, mode: InstrumentMode) {
       if (run.cases) {
         run.cases = false;
         console.warn(
-          'variance-authority: `cases` is not recorded for a test file that runs in a page; ' +
+          'variance-authority: a test file that runs in a page is recorded per file, not per case; ' +
             'this run writes the file-level snapshot only.',
         );
       }

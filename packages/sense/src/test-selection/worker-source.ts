@@ -62,8 +62,8 @@ export interface SetupShim {
    * Follow each case's continuations through the async context, and name the
    * cases whose work outlived them.
    *
-   * Off, the case running now is a variable and a second case opening while one
-   * is still open is refused. `collectors.cts` has both modes, and `cases.ts`
+   * Off, the case running now is a variable, and a second case opening while one
+   * is still open records the file whole. `collectors.cts` has both modes, and `cases.ts`
    * what each costs.
    */
   readonly continuations?: boolean;
@@ -71,30 +71,27 @@ export interface SetupShim {
 
 export function setupSource(
   runDirectory: string,
-  caseDirectory?: string,
+  caseDirectory: string,
   shim: SetupShim = {},
 ): string {
-  const writeCases = caseDirectory === undefined ? '' : caseWriterSource(caseDirectory);
-
   return `
 import { afterAll, beforeAll, expect } from ${JSON.stringify(shim.runner ?? 'vitest')};
 import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
-const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').${
-    caseDirectory === undefined ? 'flat(globalThis)' : `scoped(globalThis, ${shim.continuations === true})`
-  };
+const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
+    shim.continuations === true
+  });
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);
 const runaways = () => collector.runaways();
-${caseDirectory === undefined ? '' : (shim.scope ?? '')}
+${shim.scope ?? ''}
 // What had run before the file's first test. The file is collected — its
 // imports evaluated, its top level run — before any hook runs, so a function
 // counted here ran as a consequence of loading, not of a test. Read off the
 // ambient bucket, which is the only one that exists at this point: no case has
-// opened a scope yet. Where cases are recorded it is closed as a record of its
-// own rather than copied.
+// opened a scope yet. It is closed as a record of its own rather than copied.
 const testPath = () => {
   const testFile = expect.getState().testPath;
   if (!testFile) throw new Error('variance-authority could not identify the current Vitest file');
@@ -111,7 +108,7 @@ afterAll(async () => {
     ${JSON.stringify(`${runDirectory}/`)} + stamp + '.va',
     journalFormat.encodeJournal(testFile, modules, loaded),
   );
-${caseDirectory === undefined ? '' : `  const outlived = runaways();
+  const outlived = runaways();
   if (outlived.length > 0) {
     console.warn(
       'variance-authority: work outlived its case in ' + testFile + ':\\n  ' +
@@ -121,7 +118,7 @@ ${caseDirectory === undefined ? '' : `  const outlived = runaways();
       'the runner says it is, which is what a flaky neighbour is made of.',
     );
   }
-`}${writeCases}});`;
+${caseWriterSource(caseDirectory)}});`;
 }
 
 /**
@@ -178,7 +175,7 @@ afterAll(function () {
  */
 export function caseWriterSource(caseDirectory: string): string {
   return `
-  if (frames.length > 0) {
+  if (frames !== undefined && frames.length > 0) {
     await mkdir(${JSON.stringify(caseDirectory)}, { recursive: true });
     await writeFile(${JSON.stringify(caseDirectory + '/')} + stamp + '.vac', journalFormat.packFrames(frames));
   }

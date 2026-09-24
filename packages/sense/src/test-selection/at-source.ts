@@ -49,10 +49,10 @@
  *
  * A test file. The snapshot's test table is keyed by path, so *which tests* is
  * answered at the granularity the record holds and no finer. Individual test
- * names live in the per-case sidecar the Vitest reporter writes under
- * `cases: true`, and [`reverse.ts`](./reverse.ts) is the query over that. A
- * caller wanting names asks this first to find out whether anything reached the
- * point at all, and asks that second, over a file most runs do not write.
+ * names live in the per-case sidecar every run writes beside it, and
+ * [`reverse.ts`](./reverse.ts) is the query over that. A caller wanting names
+ * asks this first to find out whether anything reached the point at all, and
+ * asks that second.
  *
  * ## No distance is invented
  *

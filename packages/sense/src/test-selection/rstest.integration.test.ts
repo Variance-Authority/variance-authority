@@ -93,8 +93,7 @@ describe('the Rstest integration', () => {
     const coverageFile = resolve(directory, 'coverage.bin');
     await run('rstest.cases.config.mjs', directory);
 
-    // Beside the snapshot, never inside it: the file CI reads is the same file
-    // a run without `cases` writes.
+    // Beside the snapshot, never inside it.
     const index = decodeExecutionIndex(await readFile(`${coverageFile}.cases.bin`));
     // `globals` is off here, so the registrars under test are the ones on the
     // object an import of `@rstest/core` compiles to, and the coordinate is

@@ -107,39 +107,38 @@ past a unit face, and tests the change entered by no route they imported.
 
 ## Which named tests a change reached
 
-`yarn test` records at the grain CI asks about: which *files* must run. A review
-asks a narrower question — of the two hundred cases in those files, which ones
-walked the branch that changed — and that is a second recording:
+`yarn test` records which *files* entered each region and, beside that, which
+named *cases* did. A review asks the narrower question — of the two hundred
+cases in those files, which ones walked the branch that changed:
 
 ```bash
-yarn test:cases
+yarn test
 variance covering --file packages/jsx-source/src/record.ts --line 99
 variance covering --since main
 ```
 
-[`tools/cases.config.mts`](tools/cases.config.mts) is the whole configuration.
-It is a separate arm rather than a flag on the first because the answer is
-wanted on almost no runs and the index it writes is large. The recording itself
-is cheap — the suite runs its cases one at a time, so the case a crossing joins
-is a variable rather than a scope to look up. Measured on zod's suite — 5,656
-cases, ten interleaved repetitions of each arm, median of the runner's own
-`tests` figure — the arm spends 6.1% more time inside the tests than the
-file-level one, and 3.5% more on TanStack Query. Instrumenting at all is the
-larger half: 6.9% on zod and 4.0% on TanStack Query over an uninstrumented
-run. The index lands beside the snapshot as
+The case recording is cheap: the suite runs its cases one at a time, so the
+case a crossing joins is a variable rather than a scope to look up. Measured on
+zod's suite — 5,656 cases, ten interleaved repetitions of each arm, median of
+the runner's own `tests` figure — it spends 6.1% more time inside the tests
+than a file-level recording, and 3.5% more on TanStack Query. Instrumenting at
+all is the larger half: 6.9% on zod and 4.0% on TanStack Query over an
+uninstrumented run. The index lands beside the snapshot as
 `<coverage file>.cases.bin` and is a couple of hundred kilobytes on this
 repository.
 
-Add `continuations: true` to that configuration when a case's work outlives the
-case — a test that is synchronous to the runner and starts something
-asynchronous underneath, which is what breaks the test after it. Each case then
-gets an async context, the file names the cases that crossed a region after
-they had settled, and the run pays 4.7 nanoseconds a crossing more than the
-variable does — 6.3 ns against 1.6, of which 5.5 is `getStore()` itself. On
-the same zod measurement the two arms do not separate: the crossing count
-predicts 0.2%, and ten interleaved repetitions cannot resolve that against the
-suite's own spread. The microbenchmark separates them and a suite does not.
-Without it, two cases open at once is an error rather than a guess.
+Add `continuations: true` to `selection` in
+[`vitest.config.mts`](vitest.config.mts) when a case's work outlives the case —
+a test that is synchronous to the runner and starts something asynchronous
+underneath, which is what breaks the test after it. Each case then gets an
+async context, the file names the cases that crossed a region after they had
+settled, and the run pays 4.7 nanoseconds a crossing more than the variable
+does — 6.3 ns against 1.6, of which 5.5 is `getStore()` itself. On the same zod
+measurement the two arms do not separate: the crossing count predicts 0.2%, and
+ten interleaved repetitions cannot resolve that against the suite's own spread.
+The microbenchmark separates them and a suite does not. Without it, a file
+whose cases overlap is recorded as a whole and the run says which two cases
+overlapped.
 
 `variance covering` prints the named tests that reached a line, and
 `--at-distance <hops>` or `--in-package` narrows them to the ones written near
