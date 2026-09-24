@@ -354,13 +354,16 @@ alone charges the handler and nothing wider, and a handler no test crossed then
 selects no test at all. A one-line handler has no such line, so every edit to
 it runs the tests that reached the component.
 
-**Added text is charged for what it does.** An insertion has no line of its
+**Added text is charged for what it does.** A change read from both of its
+texts ([step 3](#tracing-a-diff-to-tests)) charges an insertion into a gap no
+region spans nothing at all, and what follows applies when it cannot be read that
+way. An insertion has no line of its
 own in the text the rows are coordinates in, so it is charged to the lines on
 either side of the gap it opens — and at a module's top level both of those are
 the module, whose crossings are every test that ever imported the file. The
 diff includes the added text, so the question is asked of the text instead: a
-type, an interface, a signature with no body, a type-only import, a comment,
-each of them erased before the module runs, which leaves the text that was
+type, an interface, a signature with no body, a type-only import, each of
+them erased before the module runs, which leaves the text that was
 already there the whole of what ran, so the hunk charges nobody. A function
 declaration is not on that list, because it hoists: it binds its name at the top
 of the block the text landed in, over whatever value that name had there, and
@@ -587,6 +590,30 @@ tests.preconditions[t + 1]`, O(preconditions of that test).
 
 ## Tracing a diff to tests
 
+```mermaid
+flowchart TD
+  accTitle: How one changed file becomes a list of tests
+  diff["a changed file"] --> frame{"recorded over<br/>this text?"}
+  frame -->|no| whole["the module, whole"]
+  frame -->|yes| read{"read from both texts"}
+  read -->|none| nothing["nothing"]
+  read -->|"bodies or values"| regions["regions around the lines,<br/>and readers of changed values"]
+  read -->|"load, or not read"| lines["every region the lines fall in"]
+  read -.->|"no row"| walk["measured importers<br/>in the file graph"]
+  whole --> tests["tests that entered them"]
+  regions --> tests
+  lines --> tests
+  walk --> tests
+  pre["preconditions"] --> tests
+
+  classDef quiet fill:none,stroke-dasharray:4 3;
+  class nothing quiet;
+```
+
+A file with no row is read first, with every export counted as changed; the
+dashed branch is what that reading cannot answer. A precondition selects on any
+change to its file's text, whatever the reading says.
+
 `selectTestFiles` performs the trace one changed file at a time. Each step
 below is one stage of that call.
 
@@ -650,11 +677,15 @@ below is one stage of that call.
    does buy the path out of *unread*, which is why a module nothing declares is
    still measured.
 6. **Files with no row.** Hand the relations graph in through
-   `options.relations` and every changed file with no instrumented row under
-   any of its names is asked of the graph, which walks to the files that
-   import it. A file something imports as an asset — a stylesheet, an image, a
-   JSON file, where no probe can sit — is walked along `asset` edges only,
-   through the stylesheets that import it to the modules that import those. A
+   `options.relations` and a changed module with no instrumented row under any
+   of its names is read as step 3 reads one with a row, with every export
+   counted as changed. What that reading cannot answer — no `sourceAt`, a text
+   that does not parse, a `load` verdict — and every file with no row that is
+   not a module is asked of the graph, which walks to the files that import it.
+   A file something imports as an asset — a stylesheet, an image, a JSON file,
+   where no probe can sit — is walked along `asset` and `depends` edges only,
+   through the stylesheets that import it to the modules that import or declare
+   those. A
    module is walked along every runtime edge and never `type`, and each chain
    stops at the first test file or module with probes; a module without probes
    measured nothing, so the chain goes on past it. Each file a walk stops at

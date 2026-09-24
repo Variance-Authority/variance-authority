@@ -32,6 +32,10 @@ export default function MermaidDiagram({ source }: { source: string }) {
             edgeLabelBackground: "#181b1d",
             clusterBkg: "#181b1d",
             clusterBorder: "#383e41",
+            // A sequence diagram's note is yellow by default.
+            noteBkgColor: "#24282a",
+            noteTextColor: "#f3f4f6",
+            noteBorderColor: "#756d67",
             // Series in order: what the page is about, what it is compared
             // with, a one-off cost. The last colour is the card behind the
             // chart (`.mermaid-canvas`): a bar chart ends with an all-zero

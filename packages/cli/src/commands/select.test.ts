@@ -384,7 +384,7 @@ describe('reading this checkout', () => {
       ['alpha', 'beta', 'gamma'].map((name) => `--exclude=${join(root, `test/${name}.test.ts`)}\n`).join(''),
     );
     expect(said.err).not.toContain('skipping nothing');
-    expect(said.err).not.toContain('src/elsewhere.ts');
+    expect(said.err).not.toContain('records nothing about');
     expect(said.err).toContain('3 of the 3 test files the journal recorded whole');
   });
 });

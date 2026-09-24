@@ -66,6 +66,23 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     expect(narrowByExecutionFromView(view(), diff('src/tokens.css'), { relations })).toEqual(measuredAlone);
   });
 
+  it('follows a `/// <depends>` edge from an asset as far as it follows an import', () => {
+    // `src/rules.json` is imported by a module no test measured, and
+    // `src/decide.ts` declares it reads the file. The declaration is the
+    // chain that ends at a row.
+    const relations = relationsOf({
+      relations: [
+        asset('src/legacy-widget.js', 'src/rules.json'),
+        { from: file('src/decide.ts'), to: file('src/rules.json'), kind: 'depends' },
+      ],
+    });
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.json'), { relations }).because).toEqual([
+      { test: 'test/alpha.test.ts', via: [{ kind: 'importer', trail: ['src/rules.json', 'src/decide.ts'] }] },
+      { test: 'test/beta.test.ts', via: [{ kind: 'importer', trail: ['src/rules.json', 'src/decide.ts'] }] },
+    ]);
+  });
+
   it('counts a row with probes and no crossings as measured: nobody entered it', () => {
     // An instrumented module nobody ran is an answer — the build carried
     // probes into it and no test crossed them — where a module with no row

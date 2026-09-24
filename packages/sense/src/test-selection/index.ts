@@ -70,8 +70,8 @@ export {
   stitchJourneyArtifacts,
   type JourneyArtifactResult,
 } from './jest-journey-artifact.js';
-export type { BlockKind };
-export type { ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
+export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
+export { readingLines, type FileReading } from './reading-lines.js';
 export { journeyDivergences };
 export {
   atDistance,

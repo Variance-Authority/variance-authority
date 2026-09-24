@@ -344,10 +344,14 @@ file reaches importers and components together.
 | `type` | Type-only request, erased before runtime. |
 | `asset` | Stylesheet request, font, image, JSON, or another target the scan does not open. |
 | `declared-in` | Component to the file declaring it. |
+| `depends-on` | Package to a package its install resolved beneath it. |
+| `depends` | Module to a file it names in `/// <depends path="…" />`: a file it reads without importing it. |
 
 Type-only edges remain in the graph because source-oriented questions need
-them. The default reach and closure use `RUNTIME_EDGES`, every kind except
-`type`: a type-only dependency runs no test and paints no pixel. To ask about source instead — a
+them. The default reach uses `RUNTIME_EDGES`, every kind except `type`: a
+type-only dependency runs no test and paints no pixel. A closure digest uses
+`CLOSURE_EDGES`, which also leaves out `depends-on`, because a package node is a
+name, not content that a hash could show changing. To ask about source instead — a
 documentation generator reading prop types, say — pass `EDGE_KINDS` or another
 explicit set. `relationsOfFiles`, `affectedBy`,
 `RUNTIME_EDGES` and `EDGE_KINDS` are all exported from

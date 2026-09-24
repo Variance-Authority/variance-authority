@@ -265,10 +265,13 @@ yarn test:since --at-distance 0-2  # only the tests within two imports of the ch
 yarn test:since --help             # every flag, and the loop below
 ```
 
-It selects on what the recording measured, and on nothing else. A changed file
-with no row — a stylesheet, a page-side module that cannot take a probe, a file
-added since the recording — is asked of the import graph, and the nearest
-measured files that import it select their tests; a bumped package is answered
+It selects on what the recording measured, and on nothing else. Each changed
+file is read from both of its texts first, and prints a `read` line saying what
+the edit does. A module added since the recording is read the same way, with
+every export counted as changed, so it selects the tests that entered a function
+reading one. A changed file with no row that reading cannot answer — a
+stylesheet, a page-side module that cannot take a probe — is asked of the import
+graph, and the nearest measured files that import it select their tests; a bumped package is answered
 the same way by its measured importers. A changed path the graph does not list
 either — a README, a fixture — selects nothing by itself and is reported. What
 the harness loads without importing it is declared instead: the seam declares

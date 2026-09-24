@@ -922,6 +922,19 @@ When a test does read that fixture, name it in the `preconditions` option of the
 Vitest recorder in `@variance-authority/sense`: from the next recording on, a
 change to it selects every test it governs.
 
+Each changed source file also gets a line on stderr saying how the parser read
+it, or why it could not, and `json` lists the same readings under `readings`.
+`variance run --since` adds the same lines to the run's warnings:
+
+```
+read src/limits.ts: values — LIMIT changed; their readers and the changed regions are charged
+unseen test/fill.test.ts: loaded src/limits.ts through an import the file graph does not list; named, not selected
+read src/cart.ts: unread — the diff does not apply to the recorded text, so its changed lines are charged
+```
+
+An `unseen` test loaded the file through an import the file graph is missing.
+It is named rather than selected, because the missing edge is what you fix.
+
 The journal's own commit is what the diff is measured from, because its line
 numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which names no commit of its own.

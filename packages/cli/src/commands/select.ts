@@ -77,7 +77,7 @@
  */
 
 import { resolve } from 'node:path';
-import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { readingLines, type ExecutionNarrowing, type FileReading } from '@variance-authority/sense/test-selection';
 import { many } from './reach.js';
 
 /** How the answer is written for whoever is about to run the tests. */
@@ -144,6 +144,11 @@ export interface TestSelection {
   readonly recorded?: { readonly whole: number; readonly entered: number };
   readonly unread: readonly string[];
   readonly stale: readonly string[];
+  /**
+   * What the parser made of each changed file. Absent when no diff was read
+   * against the journal, which is not the same as a diff that changed nothing.
+   */
+  readonly readings?: readonly FileReading[];
 }
 
 /**
@@ -192,13 +197,14 @@ export function skippableTests(input: SelectInput): TestSelection {
     };
   }
 
-  const { whole, entered, unread, stale } = input.ground.narrowing;
+  const { whole, entered, unread, stale, readings } = input.ground.narrowing;
   const notes = [...unreadNotes(unread), ...recordingNotes(stale, input.commit, input.given === true)];
   const measured = {
     ...base,
     notes,
     unread,
     stale,
+    ...(readings === undefined ? {} : { readings }),
     recorded: { whole: whole.length, entered: entered.length },
   };
 
@@ -359,6 +365,7 @@ function jsonOf(selection: TestSelection): object {
     },
     unread: selection.unread,
     stale: selection.stale,
+    ...(selection.readings === undefined ? {} : { readings: selection.readings }),
   };
 }
 
@@ -377,6 +384,7 @@ export function selectionNotes(selection: TestSelection): string {
       : [`skipping nothing: ${selection.widened}.`, `${selection.because}.`];
 
   for (const note of selection.notes) lines.push(`${note}.`);
+  lines.push(...readingLines(selection.readings ?? []));
 
   return `${lines.join('\n')}\n`;
 }

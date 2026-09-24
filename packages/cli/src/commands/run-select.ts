@@ -35,7 +35,7 @@ import {
   type BeforeReach,
   type Relations,
 } from '@variance-authority/core/relate';
-import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
+import { readingLines, type ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { ReachReport } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
@@ -272,16 +272,20 @@ export async function selectionFor(
       ...skipped.map((entry): [string, string] => [entry.subject, because(entry)]),
       ...(journey?.skipped ?? []).map((entry): [string, string] => [entry.subject, because(entry)]),
     ]),
-    notes: notesFor(
-      ref,
-      { ...answer, skipped, kept },
-      journey,
-      {
-        unread: journal?.unread ?? [],
-        stale: journal?.stale ?? [],
-      },
-      before,
-    ),
+    notes: [
+      ...notesFor(
+        ref,
+        { ...answer, skipped, kept },
+        journey,
+        {
+          unread: journal?.unread ?? [],
+          stale: journal?.stale ?? [],
+        },
+        before,
+      ),
+      // What the parser made of each changed file, as the journal read it.
+      ...readingLines(journal?.readings ?? []),
+    ],
   };
 }
 

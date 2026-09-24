@@ -170,10 +170,10 @@ describe('a reader and a reading are printed where the reader looks', () => {
       ]),
     ).toEqual([
       '',
-      '  read     src/limits.ts  values LIMIT',
-      '  unseen   test/fill.test.js  loaded it through no import the graph holds',
-      '  read     src/wrap.ts    load — its package declares that loading src/wrap.ts does something',
-      '  read     src/a.ts       unread (the diff does not apply to the recorded text)',
+      '  read src/limits.ts: values — LIMIT changed; their readers and the changed regions are charged',
+      '  unseen test/fill.test.js: loaded src/limits.ts through an import the file graph does not list; named, not selected',
+      '  read src/wrap.ts: load — the `sideEffects` field of its package declares src/wrap.ts',
+      '  read src/a.ts: unread — the diff does not apply to the recorded text, so its changed lines are charged',
     ]);
     expect(readingLines([])).toEqual([]);
   });

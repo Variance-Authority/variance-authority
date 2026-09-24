@@ -189,7 +189,8 @@ means the test's own source or a precondition changed.
 Distance combines the import graph with the record of what each test ran. It
 finds the shortest path between the changed file and the test using only modules
 that test covered or loaded. If several changed files select the same test, the
-nearest determines its distance.
+nearest determines its distance. A test selected because it reads a value the
+change altered is measured from the file that declares the value.
 
 An import graph alone can suggest a shorter path through a module the test never
 loaded. The [execution record](execution-record.md) rules out that path.
@@ -225,9 +226,10 @@ A longer path is not itself a problem.
 dispatches paths to a runner. A repository integration owns both operations.
 
 **Distance describes recorded execution.** It cannot provide a path for a
-branch that no recorded test took. Selection charges a changed line no recorded
-region contains to every test that ran its module; distance counts only the
-imports those tests actually took, and says nothing about a path none of them did.
+branch that no recorded test took. When a change cannot be read from both of
+its texts, selection charges a changed line no recorded region contains to every
+test that ran its module; distance counts only the imports those tests actually
+took, and says nothing about a path none of them did.
 
 **Distance is not detection distance.** It counts import hops to a selected
 test. It does not say that test can reveal this fault, that no nearer test can,

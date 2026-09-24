@@ -48,7 +48,8 @@ its exact import sites. `uses --from` only orders those sites by path proximity;
 it does not perform another graph traversal or remove any result.
 
 This is a resolved module graph, not a function-call graph. It records file
-imports, re-exports, literal dynamic imports, type imports and asset edges. It
+imports, re-exports, literal dynamic imports, type imports, asset edges, and the
+files a module names in `/// <depends path="…" />`. It
 can answer what a file rests on, what rests on that file, and where an exported
 name is imported. It does not claim that one function called another at runtime;
 open the named file or use a language server for that question.

@@ -70,6 +70,30 @@ names, and one whose two do not agree is charged **whole** — every subject tha
 ever covered it — and named in the run's notes. Recording once over a clean tree
 is what narrows by region again.
 
+```mermaid
+sequenceDiagram
+  accTitle: Who answers each step of variance run --since
+  participant R as variance run --since
+  participant G as git
+  participant P as parser
+  participant F as file graph
+  participant X as execution record
+  R->>G: diff from the merge base
+  G-->>R: changed hunks, and each file's text at the recorded commit
+  R->>P: both texts of each changed file
+  P-->>R: none, bodies, values or load
+  R->>F: who reads a changed value, and who imports a file with no row
+  F-->>R: the nearest measured files
+  R->>X: the regions and files those answers charge
+  X-->>R: the tests that entered them
+  Note over R,X: every other test the record observed whole is skipped
+```
+
+Each party answers the question it owns. Git says what changed, the parser says
+what the change does, the graph says who uses it, and the record says which tests
+ran there. When one of them cannot answer, the run falls back to a coarser
+answer, such as the changed lines instead of the edit, and names the file.
+
 ## What a change to a module's top level runs
 
 A line at a module's top level sits in no function, so by its lines alone it is
@@ -79,12 +103,37 @@ module does as it loads, and a changed constant changes only the code that
 reads it.
 
 So each changed file is read from both of its texts, the recorded one and the
-one your diff makes of it, and charged by what the edit does:
+one your diff makes of it, and charged by what the edit does. A changed value is
+charged where it is read, not where it is loaded:
+
+```mermaid
+flowchart LR
+  accTitle: A changed value selects the tests that entered a function reading it
+  change["limits.ts<br/>LIMIT = 10 → 20"]
+  clamp["clamp() in limits.ts<br/>reads LIMIT"]
+  onChange["onChange() in slider.ts<br/>reads LIMIT"]
+  render["render() in slider.ts<br/>reads no LIMIT"]
+  drag["slider.test.ts<br/>selected"]
+  snap["snapshot.test.ts<br/>skipped"]
+
+  change --> clamp
+  change -->|"one import away"| onChange
+  clamp -->|"entered by"| drag
+  onChange -->|"entered by"| drag
+  render -->|"entered by"| snap
+
+  classDef quiet fill:none,stroke-dasharray:4 3;
+  class render,snap quiet;
+```
+
+`snapshot.test.ts` loaded `slider.ts` and rendered it, and it still is not
+selected: nothing it ran reads `LIMIT`.
 
 | The edit | What it selects |
 |---|---|
 | A comment, a type, formatting | Nothing |
-| A function body, or a new function | The subjects that entered the changed regions |
+| A new function | Nothing, until a change calls it |
+| A function body | The subjects that entered the changed regions |
 | A top-level value, such as `LIMIT = 10` becoming `20` | Those, and every subject that entered a function reading `LIMIT`, in the file or in a file that imports it |
 | Anything that runs as the module loads | Every subject that loaded the file |
 
@@ -139,9 +188,12 @@ and removes every subject it recorded whole that the diff did not reach, the
 subjects the two whole-suite rows kept included. It also keeps every subject it
 recorded entering the changed lines, including one whose baseline names none of
 the components the change reached, so the run prints the subjects it kept that
-way. A changed path it has no row
-for is answered by the measured files that import it, and one nothing measured
-imports keeps no subject in the run. Two refusals stand over the record, because it
+way. A changed module it has no row for, such as a new file, is read as a
+module with a row is, with every export counted as changed: the subjects that
+entered a function reading one of them are selected. A path that reading cannot
+answer, such as a stylesheet, a module whose loading does something, or a text
+that does not parse, is answered by the measured files that import it, and one
+nothing measured imports keeps no subject in the run. Two refusals stand over the record, because it
 never saw what they are about — a change to a file named in
 [`source.before`](changes-before-and-beyond.md#how-a-change-before-reach-is-declared),
 and an install that could not be compared.

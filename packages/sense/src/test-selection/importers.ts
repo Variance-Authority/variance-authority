@@ -299,7 +299,9 @@ export function answerByImporters(
     }
     const seed = knownAs(file);
     if (importedAsAsset(relations, id)) {
-      const traversal = dependentsOf(relations, [id], { through: ['asset'] });
+      // A module that declares it reads the file is a step to it as much as
+      // one that imports it: nothing else in its syntax names the file.
+      const traversal = dependentsOf(relations, [id], { through: ['asset', 'depends'] });
       for (const other of traversal.nodes) {
         // The file itself, and a file something imports as an asset: the second
         // is a step on the way to the module that carries it, and the walk went

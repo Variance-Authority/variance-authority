@@ -356,7 +356,10 @@ remain two edges.
 **Edge kinds.** `imports` (a value import), `reexports` (an import that also
 republishes), `dynamic` (`import()` with a literal specifier), `type` (erased
 before anything runs), `asset` (a stylesheet's `@import`, or a `url()` that names
-a font or an image), and `declared-in` (a component to the file that declares it).
+a font or an image), `declared-in` (a component to the file that declares it),
+`depends-on` (a package to a package its install resolved beneath it), and
+`depends` (a module to a file it names in `/// <depends path="…" />`, which it
+reads without importing).
 A request is `type` only when its statement is written `import type` or
 `export type`; `import { type T } from './t'` is a value import, because under
 `verbatimModuleSyntax` it still loads `./t` and the `tsconfig` that decides is
@@ -393,9 +396,9 @@ the sets are fixed:
 | Question | Kinds walked |
 | --- | --- |
 | what a diff affected — the selection walk | every kind but `type` |
-| what a subject's digest folds | every kind but `type` |
+| what a subject's digest folds | every kind but `type` and `depends-on` |
 | what a file's neighbourhood is — `variance ask locate` | every kind, `type` included |
-| which module imports a file no probe can sit in | `asset` alone |
+| which module imports a file no probe can sit in | `asset` and `depends` |
 
 `type` is out of the first two because a type-only import is erased before
 anything runs, so a change behind one reaches no importer and changes no digest.

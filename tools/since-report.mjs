@@ -8,6 +8,8 @@
  * findings because neither of them needs a red test to be worth reading.
  */
 
+import { readingLines as formatReadings } from '@variance-authority/sense/test-selection';
+
 /**
  * One line per distance, so the table a caller took a leg out of is always on
  * screen beside it.
@@ -150,41 +152,10 @@ export function explain(cause) {
 }
 
 /**
- * What the parser made of each changed file, one line each: the verdict that
- * charged it, or why its lines were read without one.
+ * What the parser made of each changed file, one line each, in the wording the
+ * shipped CLI prints: `readingLines` is sense's, and this only lays it out.
  */
 export function readingLines(readings) {
   if (readings.length === 0) return [];
-  const width = Math.max(...readings.map((reading) => reading.file.length));
-  return [
-    '',
-    ...readings.map((reading) => {
-      const said =
-        reading.verdict === undefined
-          ? `unread (${UNREAD[reading.unread]})`
-          : reading.verdict === 'values'
-            ? `values ${reading.names.join(', ')}`
-            : reading.effects === undefined
-              ? VERDICT[reading.verdict]
-              : `load — its package declares that loading ${reading.effects.join(', ')} does something`;
-      const line = `  read     ${reading.file.padEnd(width)}  ${said}`;
-      // A test that loaded the file by an edge the graph does not hold: named,
-      // not run, so the edge can be fixed where it is missing.
-      const unseen = (reading.unseen ?? []).map((test) => `  unseen   ${test}  loaded it through no import the graph holds`);
-      return [line, ...unseen];
-    }).flat(),
-  ];
+  return ['', ...formatReadings(readings).map((line) => `  ${line}`)];
 }
-
-const VERDICT = {
-  none: 'none — the runtime text is equal',
-  bodies: 'bodies — the regions it touched, not the module',
-  load: 'load — every test that loaded it',
-};
-
-const UNREAD = {
-  source: 'no recorded text to read it against',
-  hunk: 'the diff does not apply to the recorded text',
-  parse: 'one side does not parse',
-  addon: 'no native scanner',
-};

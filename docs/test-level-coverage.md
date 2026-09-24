@@ -176,8 +176,8 @@ test](distill.md).
 skip list is a question about test *files*, one entry per file, and the case
 axis would cost a shared record several times its size to refine an answer
 nobody reads. Test-level coverage explains; the file-level
-[record](execution-record.md) selects. They are two axes of the same recording
-and you choose per run which you are writing.
+[record](execution-record.md) selects. They are two axes of the same recording,
+and every recorded run writes both.
 
 ## The process
 

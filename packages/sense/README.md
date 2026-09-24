@@ -82,7 +82,7 @@ const diff = await readFile('change.diff', 'utf8');
 const { whole, entered, unread, stale } = await narrowByExecution(
   testCoverageFile(root),
   diff,
-  { sourceAt: textAtRecording(root, changedLines(diff).keys()) },
+  { sourceAt: textAtRecording(root, changedLines(diff).keys()), root },
 );
 
 const reached = new Set(entered);
@@ -123,9 +123,22 @@ missing snapshot, a snapshot from another machine, and a first run all leave
   because nothing looked — which reads exactly like frames that agree.
 - `because` — one entry per selected test, in the order of `entered`, listing
   every reason it is there: a `region` (file, name, path and lines of the
-  innermost recorded block a changed line fell in), a `precondition` by name, or
-  an `importer` with the trail from the changed file to the file the test was
-  found through. Print it beside each path a watch loop runs.
+  innermost recorded block a changed line fell in), a `precondition` by name, a
+  `reader` (a place in `reader` that reads the value `name`, declared in `file`,
+  that the change altered), or an `importer` with the trail from the changed
+  file to the file the test was found through. Print it beside each path a
+  watch loop runs.
+- `readings` — one entry per changed file, saying how the change was read. A
+  `verdict` of `none`, `bodies`, `values` or `load` is what the edit does; `names`
+  lists the values it altered, `effects` the files whose package declares that
+  loading them does something, and `unseen` the tests that loaded the file
+  through no import the graph holds. An entry with `unread` instead was charged
+  by its lines: `source` when you passed no `sourceAt`, `hunk` when the diff
+  does not apply to the recorded text, `parse` when a text does not parse, and
+  `addon` when this machine has no native scanner.
+
+Pass `root` so a file's `package.json` is asked for its `sideEffects`; without
+it no file is read as `load` on that account.
 
 `selectTestFiles` returns `entered` alone, for a caller that has established the
 second half some other way.
@@ -194,22 +207,21 @@ A changed file selects by how the snapshot records it.
   nobody covered it.
 - **A module with no row at all** selects nothing from the record: nothing
   loaded it, every test that imports it mocked it, or it sits outside what the
-  run instrumented. Pass `relations` and the nearest files that import it and
-  have a row answer for it (below). It is listed in `unread` when no test
+  run instrumented. Pass `relations` and `sourceAt` and it is read, with every
+  export counted as changed; the nearest files that import it and have a row
+  answer for what that reading cannot (below). It is listed in `unread` when no test
   declares it and the graph has no node for it either.
 - **A stylesheet, image, or JSON file** can take no probe, so it never has a
   row. Pass `relations` to answer it through the graph instead (below).
 
-The unit of a change is the **line**, in the coordinates of the diff's own base
-revision. A hunk header is not the change: the context lines printed around an
-edit are unchanged, and charging them selects the tests that covered the lines a
-reader was shown. Each changed line is answered by the narrowest recorded region
-containing it, and the selection is the union over lines, so one commit that
-edits an import and a click handler selects everything the module selects. A
-line that opens or closes the narrowest region charges the enclosing region too,
-out to the first region that contains the line in its interior. A line no region
-covers widens to the whole module. A deleted file is read from its `--- a/`
-path, and a renamed file's hunks under its old name.
+Each changed file is first read from both of its texts, and the verdict decides
+what is charged, as [running less of the
+suite](https://variance-authority.dev/docs/selecting#what-a-change-to-a-modules-top-level-runs)
+describes. A file that cannot be read is charged by its **lines**, in the
+coordinates of the diff's own base revision; so are the regions a `bodies` or
+`values` verdict charges. The line rules, stage by stage with their costs, are
+in [tracing a diff to
+tests](https://variance-authority.dev/docs/execution-record#tracing-a-diff-to-tests).
 
 A module the instrumenter could not parse is recorded with
 `instrumented: false`; selection widens to every test that loaded it, each of
@@ -221,12 +233,14 @@ nothing from it.
 
 `narrowByExecution(file, diff, { relations })` walks from a stylesheet, image
 or JSON file through `asset` edges — the kind the scan gives an import of
-anything that is not a module — through the stylesheets that import it, to the
-modules that import those, and no further. Build `relations` with
+anything that is not a module — and `depends` edges, which a module draws with
+`/// <depends path="./rules.json" />` to a file it reads without importing it.
+The walk goes through the stylesheets that import the file to the modules that
+import or declare those, and no further. Build `relations` with
 [the scan](#scan-the-checkout-for-the-file-graph).
 
-A module with no instrumented row under any of its names is walked the same way
-along every runtime edge, never `type`, and each chain stops at the first test
+A module with no instrumented row under any of its names, when it could not be
+read or its verdict is `load`, is walked the same way along every runtime edge, never `type`, and each chain stops at the first test
 file or instrumented module it reaches. A module the build could not instrument
 is walked past, and its tests come from the preconditions. A test that mocked
 the changed module, or the file it loaded it through, is cut.
@@ -1231,9 +1245,10 @@ A probe is one counter increment, and the transform is paid once per changed
 file rather than once per test — about 0.14 ms a module, two fifths of that
 already the platform's
 ([the execution record](https://variance-authority.dev/docs/execution-record)).
-Digests come from `node:crypto`, and the parsed tree crosses out of `oxc`
-without a JSON round trip on any 64-bit little-endian host; where that transfer
-is unavailable the same tree arrives more slowly and the records are identical.
+The walk runs in the native addon, which ships for macOS on Apple silicon,
+Linux on x64 and arm64 with glibc, and Windows on x64. On any other host
+`instrument` throws and names why the addon did not load, because a run that
+records nothing would look like a run in which nothing ran.
 
 If a module cannot be parsed, `instrument` returns `undefined`. Check for that
 before reading `result.blocks`: a missing result and an empty block list are
