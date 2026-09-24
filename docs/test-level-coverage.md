@@ -179,13 +179,6 @@ and the ones it covered without ever addressing anything in them are candidates
 for a smaller boundary — the reading behind [distilling a
 test](distill.md).
 
-**Not deciding what to skip.** Selection stays at file grain, deliberately: a
-skip list is a question about test *files*, one entry per file, and the case
-axis would cost a shared record several times its size to refine an answer
-nobody reads. Test-level coverage explains; the file-level
-[record](execution-record.md) selects. They are two axes of the same recording,
-and every recorded run writes both.
-
 ## The process
 
 **Record it once.** The recorder wraps the configuration you already have and

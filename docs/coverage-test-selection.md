@@ -472,7 +472,7 @@ the scripts every figure came from.
 It selects whole test files, as Datadog and CircleCI do. What differs is what
 a file is charged with: the regions it ran, not every file it covered. The same
 run records which test case covered which region, and [test-level coverage](test-level-coverage.md) reads that to
-explain a line, but a skip list stays at file grain.
+explain a line.
 
 It does not rank, predict or learn from history. A test runs because the
 record saw it execute changed code, or because the record cannot rule it out.
@@ -483,6 +483,12 @@ A record describes the commit it was recorded at. A change is measured from
 that commit rather than from your branch point, so a record several commits old
 selects for every change made since. Record on every run and the record is
 never more than one commit old.
+
+It does not see through a cache. A memoized function is credited to the case
+that ran it first. A later case that got the cached result is not recorded as
+reading the function, or anything the function calls, so a change to either does
+not select it. [What this does not reach](selecting.md#what-this-does-not-reach)
+says when that happens and when it does not.
 
 ## Start
 

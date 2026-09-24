@@ -675,6 +675,45 @@ instrumented and observed. But *nothing here has ever been in this branch* is a
 sentence somebody can act on, and the alternative is inferring it from a report
 that cannot mention it.
 
+**A function a cache answered instead of running.** The record names a case as
+a reader of the code it ran. When a memoizer such as `memoize-one` or lodash's
+`memoize` returns a cached result, the function it wraps does not run. So the
+record credits that function to the case that filled the cache, not to the case
+that read it, and a change to the function selects the first case and skips the
+second. Which cases share a cache depends on how long the cache lives:
+
+- **Cases in one file share it.** Only the first case that calls with a given
+  argument runs the function. Every case after it is recorded without the
+  function, and without anything the function calls.
+- **Files that share one module graph share it.** This is Vitest with
+  `--no-isolate`, or any runner that evaluates a module once per process. A
+  later file that calls only the wrapper runs no code in the module that the
+  record instruments, so the record credits nothing in that module to any of
+  its cases.
+- **A file that evaluates its own modules starts empty.** This is the default
+  in Vitest and Jest. The first case in each file runs the function.
+
+A cache that lives for one mount or one request, such as React's `useMemo`,
+`memo` or `cache`, is empty again when a case renders. The function runs, and
+the record sees it.
+
+**A cache also keeps what the function was given while it ran.** If the case
+that filled the cache had mocked something the function calls, the cached
+result is the mocked one. Every later case with the same argument gets that
+result without mocking anything, and none of them is recorded as a reader of
+the function or of what it calls. The case that mocked is not either, because a
+mocked function does not run. Nothing in the record connects the later case to
+the value it got, so a change to the real function selects none of them. The
+later case can also fail: it asserts on the real value and gets the mocked one.
+
+The record does not look inside the cache. To do that it would have to patch the
+library, or clear the cache between cases, and both change the code you are
+testing. A case the record misses this way is a case whose result depends on
+what ran before it. Run it alone and it runs the function, which the recorded
+run did not. That is the same order dependence that makes a test pass in one
+order and fail in another, and [test order and shared state](flakiness.md#test-order-and-shared-state)
+is where it is found and fixed.
+
 **A first run.** Nothing has baselines, so nothing can be ruled out, and the
 whole suite runs. That is correct and worth expecting: `--since` pays from the
 second run onward.
