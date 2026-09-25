@@ -55,7 +55,7 @@ pub struct Instrumented {
 }
 
 /// `instrument()` from `src/instrument/index.ts`, or `null` where it must answer.
-#[napi(js_name = "instrument")]
+#[napi(js_name = "instrument", catch_unwind)]
 pub fn instrument_module(source: String, file: String, entries: bool) -> Option<Instrumented> {
     let out = instrument(&source, &file, entries)?;
     let count = out.blocks.len();
@@ -138,6 +138,20 @@ fn instrument_in(allocator: &Allocator, source: &str, file: &str, entries: bool)
         }
     }
     code.push_str(&source[read..]);
+
+    // A module that is all prologue takes its header on the line of its last
+    // statement, which may end without a semicolon: `export * from './a'`
+    // followed by `var __vaK` is not a program. A module that is only a
+    // hashbang would take it inside that comment and record nothing. The
+    // separator makes each a program that runs its header.
+    let tail = prologue > 0 && program.body.iter().all(is_prologue);
+    let separator = match &program.hashbang {
+        Some(hashbang) if tail && hashbang.span.end == prologue => "\n",
+        _ if tail && !source[..prologue as usize].ends_with(';') => ";",
+        _ => "",
+    };
+    code.insert_str((prologue + before) as usize, separator);
+    before += separator.len() as u32;
 
     let digests = own_digests(source, &walker.blocks);
     let mut blocks = walker.blocks;

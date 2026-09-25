@@ -64,7 +64,7 @@ pub use seed::seed_files;
 /// same object graph the oracle would have and no more. `null` means no reader
 /// here claims that language, and the caller falls back to its own.
 #[cfg(feature = "grammars")]
-#[napi]
+#[napi(catch_unwind)]
 pub fn read_language(language: String, file: String, source: String) -> Option<String> {
     let read = languages::read(&language, &file, &source)?;
     serde_json::to_string(&read).ok()
@@ -81,7 +81,7 @@ pub fn read_language(language: String, file: String, source: String) -> Option<S
 /// crate does — git identity, the path set, the oxc parse, resolution, the
 /// journey fold — is here and is what it was.
 #[cfg(not(feature = "grammars"))]
-#[napi]
+#[napi(catch_unwind)]
 pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
     None
 }
@@ -106,14 +106,14 @@ pub struct GitTree {
 /// `null` rather than a throw, matching `gitDigests`: the scanner's own digest is
 /// correct and merely slower, so a tarball or a sandbox is a saving that did not
 /// apply rather than a repository that is misconfigured.
-#[napi]
+#[napi(catch_unwind)]
 pub fn git_tree(root: String) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
     Some(tree_from_snapshot(snapshot, Vec::new()))
 }
 
 /// Build repository identity and select the Git-visible files below configured roots.
-#[napi]
+#[napi(catch_unwind)]
 pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
     let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
@@ -137,24 +137,24 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
 #[napi]
 impl GitTree {
     /// Files found below the roots supplied to `gitTreeFor`.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn seeds(&self) -> Vec<String> {
         self.seeds.clone()
     }
     /// How many paths the tree holds.
-    #[napi(getter)]
+    #[napi(getter, catch_unwind)]
     pub fn size(&self) -> u32 {
         self.paths.len() as u32
     }
 
     /// Whether the tree holds this path.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn has(&self, path: String) -> bool {
         self.at.contains_key(&path)
     }
 
     /// The digest of one path's bytes on disk, spelled `git:<object>`.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn digest(&self, path: String) -> Option<String> {
         self.at
             .get(&path)
@@ -162,7 +162,7 @@ impl GitTree {
     }
 
     /// Digests for `paths`, in the same order; empty when the tree has no path.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn digests_for(&self, paths: Vec<String>) -> Vec<String> {
         paths
             .iter()
@@ -245,13 +245,13 @@ impl GitTree {
     /// The one method that is the size of the repository. A caller wanting the
     /// whole listing as a `Map` — the published `gitDigests` shape — goes
     /// through here and pays for it; a scan does not.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn paths(&self) -> Vec<String> {
         self.paths.clone()
     }
 
     /// Every digest, in the same order as `paths`.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn digests(&self) -> Vec<String> {
         self.oids.iter().map(git::spell).collect()
     }
@@ -260,7 +260,7 @@ impl GitTree {
     ///
     /// The list is the caller's because `reuse.ts` owns it. What is not the
     /// caller's is the scan over four hundred thousand paths to apply it.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn named(&self, names: Vec<String>) -> Vec<String> {
         self.paths
             .iter()
@@ -270,7 +270,7 @@ impl GitTree {
     }
 
     /// Every directory in the tree, named by the entries it holds.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn directories(&self) -> HashMap<String, String> {
         tree::directories(&self.paths)
     }
@@ -281,7 +281,7 @@ impl GitTree {
     /// bounds where a bare specifier could land, so the honest expression is the
     /// whole path set. That is the fold most worth doing here, because it is the
     /// one whose input is every path there is.
-    #[napi]
+    #[napi(catch_unwind)]
     pub fn config_digest(
         &self,
         header: Vec<String>,

@@ -72,7 +72,7 @@ pub(crate) struct GraphOptions {
 }
 
 /// Read, parse and extract a batch without resolving its requests.
-#[napi]
+#[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
 pub fn read_batch(
     root: String,
@@ -88,7 +88,7 @@ pub fn read_batch(
 }
 
 /// Read, parse, extract and resolve a frontier on one native side.
-#[napi]
+#[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
 pub fn scan_batch(
     root: String,
@@ -339,7 +339,7 @@ fn columns(read: Vec<(Read, String, bool)>, include_parses: bool) -> ReadBatch {
 }
 
 /// Kind names indexed by the codes `ReadBatch.kinds` carries.
-#[napi]
+#[napi(catch_unwind)]
 pub fn kinds() -> Vec<String> {
     Kind::ALL
         .iter()

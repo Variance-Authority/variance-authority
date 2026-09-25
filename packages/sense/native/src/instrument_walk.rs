@@ -278,7 +278,12 @@ impl Walker {
         if !written {
             let at = it.span.end - 1;
             let ordinal = self.open(Kind::Case, &format!("{label}/default"), at, at, Some(owner));
-            self.push(at, format_args!("default:__va({ordinal});"));
+            // The last case's last statement may end at the `}` with no
+            // semicolon, as minified code writes it: `return 1default:` is not
+            // a program. With no case there is no statement to end, and a bare
+            // `;` is not a clause.
+            let separator = if it.cases.is_empty() { "" } else { ";" };
+            self.push(at, format_args!("{separator}default:__va({ordinal});"));
         }
         label
     }

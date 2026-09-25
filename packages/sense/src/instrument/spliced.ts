@@ -134,6 +134,10 @@ type WellFormed = string & { isWellFormed(): boolean };
  * No addon is an error rather than an uninstrumented module: every module would
  * be one, and a run that records nothing would look like a run in which nothing
  * ran. The refusal the loader kept names the package or the `dlopen` message.
+ *
+ * A walk that panics is an error too, and names the file it panicked on: the
+ * addon returns the panic instead of aborting, so the test file that loaded
+ * this module fails and the worker running it goes on to the next.
  */
 export function spliced(source: string, file: string, mode: InstrumentMode): Spliced | undefined {
   const addon = native();
@@ -142,7 +146,12 @@ export function spliced(source: string, file: string, mode: InstrumentMode): Spl
   }
   if (!(source as WellFormed).isWellFormed()) return undefined;
 
-  const answer = addon.instrument(source, file, mode === 'entries');
+  let answer: ReturnType<typeof addon.instrument>;
+  try {
+    answer = addon.instrument(source, file, mode === 'entries');
+  } catch (error) {
+    throw new Error(`instrument: the native walk failed on ${file}: ${(error as Error).message}`, { cause: error });
+  }
   if (answer === null) return undefined;
 
   const blocks: Block[] = [];

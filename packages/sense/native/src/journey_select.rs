@@ -178,7 +178,7 @@ fn select(
 /// The test files `changed` needs, read off the journey file at `file` and,
 /// when given, the file graph; `packages` are the names whose install moved.
 /// Unsorted: the caller orders by code unit.
-#[napi]
+#[napi(catch_unwind)]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,

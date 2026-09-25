@@ -34,7 +34,7 @@ pub struct JourneyFoldResult {
 }
 
 /// Read, fold, and encode one run's case journals without crossing per-row objects into V8.
-#[napi]
+#[napi(catch_unwind)]
 pub fn fold_journey(
     case_directory: String,
     root: String,
@@ -86,7 +86,7 @@ fn answer(
 }
 
 /// Fold one run and write its compressed artifact without transferring it through V8.
-#[napi]
+#[napi(catch_unwind)]
 pub fn fold_journey_to(
     case_directory: String,
     root: String,

@@ -177,7 +177,7 @@ fn stitch(files: &[String]) -> Result<Stitched, String> {
 }
 
 /// Union journey-only execution artifacts without materializing one object per crossing.
-#[napi]
+#[napi(catch_unwind)]
 pub fn stitch_journeys(files: Vec<String>) -> napi::Result<JourneyStitch> {
     let answered = stitch(&files).map_err(napi::Error::from_reason)?;
     Ok(JourneyStitch {
@@ -191,7 +191,7 @@ pub fn stitch_journeys(files: Vec<String>) -> napi::Result<JourneyStitch> {
 }
 
 /// Stitch and write the compressed artifact without transferring it through V8.
-#[napi]
+#[napi(catch_unwind)]
 pub fn stitch_journeys_to(files: Vec<String>, output: String) -> napi::Result<JourneyStitchResult> {
     let answered = stitch(&files).map_err(napi::Error::from_reason)?;
     journey_output::replace(&output, &answered.bytes).map_err(napi::Error::from_reason)?;

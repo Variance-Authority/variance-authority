@@ -100,7 +100,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
 }
 
 /// The journey file at `file`, holding only what a reader of `changed` could look at.
-#[napi]
+#[napi(catch_unwind)]
 pub fn project_journeys(file: String, changed: Vec<JourneyChange>) -> napi::Result<JourneyProjection> {
     project(&file, &changed).map_err(napi::Error::from_reason)
 }
