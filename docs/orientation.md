@@ -175,7 +175,8 @@ tests ran which code; that is the [execution record](execution-record.md).
 
 The source graph records module imports, re-exports, literal dynamic imports,
 type imports and asset edges. It is not a function-call graph. `uses` reports
-where a name is imported, not where code called it at runtime.
+where a name is imported, or read off a namespace or an `import()`, not where
+code called it at runtime.
 
 No graph database service is required. The workspace generation stores a
 compact graph with dependencies and dependents both materialized. The useful

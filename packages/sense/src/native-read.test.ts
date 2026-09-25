@@ -78,7 +78,8 @@ describe('the native reader against the JavaScript one', () => {
         ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
         ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
       };
-      const answered = JSON.parse(batch.parses[index] ?? 'null');
+      // `members` is the native reader's alone; see the todo below.
+      const { members: _, ...answered } = JSON.parse(batch.parses[index] ?? 'null') ?? {};
       if (JSON.stringify(answered) !== JSON.stringify(oracle)) {
         disagreed.push({ file, oracle, answered });
       }
@@ -86,6 +87,12 @@ describe('the native reader against the JavaScript one', () => {
 
     expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
   }, 120_000);
+
+  it.todo(
+    'the JavaScript reader records the names a file reads off a namespace import or an `import()`, ' +
+      'as the native reader does, so `ask uses` lists them on a machine the addon did not reach — ' +
+      'needs a member walk beside `readModule` in `read.ts`',
+  );
 
   it.runIf(available)('resolves every repository request the way the oracle does', async () => {
     const files = await modules();

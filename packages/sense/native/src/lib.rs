@@ -42,6 +42,7 @@ mod journey_read;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;
+mod members;
 mod mocks;
 mod module_moved;
 mod module_readers;

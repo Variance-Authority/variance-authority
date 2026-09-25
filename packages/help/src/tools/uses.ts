@@ -30,6 +30,13 @@ import { entriesNamed, isPackage, unfound } from './find.js';
  * back is the path, not the source. Serving the source would spend a context
  * window re-transmitting a file the caller can read in one cheap operation, and
  * it would answer with the file as it was when this reading was taken.
+ *
+ * ## A module held whole is named as such
+ *
+ * A name read off `import()` or off `import * as` is a site like any other, and
+ * it is marked, because the line that reads the name is not the line that loads
+ * it. An `import()` loads the module when that call runs, so whether the name
+ * is there at all can depend on a path the program takes.
  */
 
 /** How many leading path segments two files share. */
@@ -63,9 +70,17 @@ function listed(sites: readonly Use[], heading: string): readonly string[] {
     '',
     heading,
     '',
-    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.type ? ' (type only)' : ''}`),
+    ...shown.map((use) => `${use.at}:${use.line} — ${use.by}${use.type ? ' (type only)' : ''}${held(use)}`),
     ...(rest > 0 ? [`… and ${rest} more.`] : []),
   ];
+}
+
+/** Where a name read off a module held whole was loaded, and when. */
+function held(use: Use): string {
+  if (use.through === undefined) return '';
+  return use.through.kind === 'dynamic'
+    ? ` (through import() on line ${use.through.line}, loaded when that call runs)`
+    : ` (through the namespace imported on line ${use.through.line})`;
 }
 
 /** Every site of one name, across every door it is published from, without duplicates. */
@@ -88,7 +103,8 @@ export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
     'Every place in the workspace that imports one exported name, with the file and line to ' +
-    'open. Stories and tests are listed separately as worked examples. Pass `from` — the file ' +
+    'open, including a read through `import()` or `import * as`, which is marked with the line ' +
+    'that loads the module. Stories and tests are listed separately as worked examples. Pass `from` — the file ' +
     'you are working in — to order the sites by how much of their path they share with it.',
   inputSchema: {
     type: 'object',
@@ -134,8 +150,12 @@ export const uses: Tool<Help> = {
         ? 'In path order; pass `from` to put the sites nearest your file first.'
         : `Nearest first, by how much of the path each shares with ${from}.`;
 
+    const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
     return [
       `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}.`,
+      ...(dynamic === 0
+        ? []
+        : [`${sites.length === 1 ? 'It is' : dynamic === sites.length ? 'Every one is' : `${dynamic} of them are`} read off import(), which loads the module when that call runs, not when the file loads.`]),
       nearest,
       ...listed(stories, 'Stories — written to show it in use:'),
       ...listed(tests, 'Tests — written to pin what it does:'),

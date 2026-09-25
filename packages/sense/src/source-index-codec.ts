@@ -2,6 +2,7 @@ import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import type { Parsed, ParseKey } from './cache.js';
 import type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
 import { addHarvestStrings } from './source-index-harvest.js';
+import { addMemberStrings } from './source-index-members.js';
 import { addMockStrings } from './source-index-mocks.js';
 
 /** Split the cache key so its already-interned digest is not stored twice. */
@@ -39,6 +40,7 @@ export function dictionary(
     }
     addHarvestStrings(parsed, values);
     addMockStrings(parsed, values);
+    addMemberStrings(parsed, values);
     for (const value of parsed.declares ?? []) values.add(value);
     if (parsed.unknown !== undefined) values.add(parsed.unknown);
   }

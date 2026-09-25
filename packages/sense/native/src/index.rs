@@ -90,6 +90,7 @@ pub fn parse_segment(
         values.extend(read.declares.iter().cloned());
         values.extend(read.mocks.minus.iter().cloned());
         values.extend(read.mocks.plus.iter().cloned());
+        values.extend(read.members.iter().map(|member| member.name.clone()));
         if let Some(unknown) = &read.unknown {
             values.insert(unknown.clone());
         }
@@ -122,6 +123,10 @@ pub fn parse_segment(
     let mut parse_harvested = Vec::with_capacity(rows.len());
     let mut parse_mocks_minus = Vec::with_capacity(rows.len() + 1);
     let mut parse_mocks_plus = Vec::with_capacity(rows.len() + 1);
+    let mut parse_members = Vec::with_capacity(rows.len() + 1);
+    let mut member_request = Vec::new();
+    let mut member_name = Vec::new();
+    let mut member_line = Vec::new();
     let mut mocks_minus = Vec::new();
     let mut mocks_plus = Vec::new();
     let mut request_value = Vec::new();
@@ -202,6 +207,12 @@ pub fn parse_segment(
         parse_mocks_plus.push(mocks_plus.len() as u32);
         mocks_minus.extend(read.mocks.minus.iter().map(|value| id(value)));
         mocks_plus.extend(read.mocks.plus.iter().map(|value| id(value)));
+        parse_members.push(member_name.len() as u32);
+        for member in &read.members {
+            member_request.push(member.request);
+            member_name.push(id(&member.name));
+            member_line.push(member.line);
+        }
     }
     parse_requests.push(request_value.len() as u32);
     parse_exports.push(export_exported.len() as u32);
@@ -209,6 +220,7 @@ pub fn parse_segment(
     parse_symbols.push(symbol_name.len() as u32);
     parse_mocks_minus.push(mocks_minus.len() as u32);
     parse_mocks_plus.push(mocks_plus.len() as u32);
+    parse_members.push(member_name.len() as u32);
 
     encode(vec![
         u8s("strings.blob", string_blob),
@@ -258,6 +270,10 @@ pub fn parse_segment(
         u32s("parses.mocks-plus", parse_mocks_plus),
         u32s("mocks.minus", mocks_minus),
         u32s("mocks.plus", mocks_plus),
+        u32s("parses.members", parse_members),
+        u32s("members.request", member_request),
+        u32s("members.name", member_name),
+        u32s("members.line", member_line),
         u32s("declares.name", declare_name),
         u32s("records.file", vec![]),
         u32s("records.deleted", vec![]),
@@ -349,7 +365,7 @@ fn encode(columns: Vec<Column>) -> Vec<u8> {
         format: "variance-authority-source-index",
         // `VERSION` in `source-index-format.ts`: a layer the reader refuses is
         // a layer thrown away, which `native-read.test.ts` catches.
-        version: 11,
+        version: 12,
         sections,
     })
     .unwrap_or_default();

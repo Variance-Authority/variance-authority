@@ -18,6 +18,7 @@ import type { Parsed, ParseKey } from './cache.js';
 import type { Export } from './read.js';
 import { dictionary, joinedKey, partsOf } from './source-index-codec.js';
 import { encodeHarvest, openHarvest } from './source-index-harvest.js';
+import { encodeMembers, openMembers } from './source-index-members.js';
 import { encodeMocks, openMocks } from './source-index-mocks.js';
 import { packageOf } from './specifier.js';
 
@@ -35,7 +36,7 @@ import { packageOf } from './specifier.js';
  * that recorded no exports against one that was never asked for them.
  */
 const FORMAT = 'variance-authority-source-index';
-const VERSION = 11;
+const VERSION = 12;
 const WHAT = 'source index';
 
 /** A record, and the directories whose contents could still change its edges. */
@@ -232,6 +233,7 @@ export function encodeSourceIndex(stored: StoredSourceIndex): Buffer {
     'exports.line': Uint32Array.from(exportLine),
     ...encodeHarvest(parses, id),
     ...encodeMocks(parses, id),
+    ...encodeMembers(parses, id),
     'declares.name': Uint32Array.from(declareName),
     'records.file': recordFile,
     'records.deleted': Uint32Array.from(
@@ -298,11 +300,11 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
   const declareName = opened.u32('declares.name');
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
+  const membersOf = openMembers(opened, text, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
   validateOffset(parseExports, exportExported.length, parseKey.length);
   validateOffset(parseDeclares, declareName.length, parseKey.length);
-  sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested]);
-  sameLength(parseKey.length, [parseWay]);
+  sameLength(parseKey.length, [parseExportPresent, parseDeclarePresent, parseUnknown, parseHarvested, parseWay]);
   if (deletedParseIds.length !== deletedParseWays.length) throw invalid();
   sameLength(requestValue.length, [requestKind, requestLine]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
@@ -353,6 +355,7 @@ export function decodeSourceIndex(input: Uint8Array): StoredSourceIndex {
       ...(flag(parseHarvested[row]) ? { harvested: true } : {}),
       ...(flag(parseDeclarePresent[row]) ? { declares } : {}),
       ...(mocks === undefined ? {} : { mocks }),
+      ...membersOf(row, requests.length),
       ...(unknown === undefined ? {} : { unknown }),
     });
   }

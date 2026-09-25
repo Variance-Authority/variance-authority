@@ -204,6 +204,11 @@ stories and the tests — the files written to show the name in use — listed a
 from the source that depends on it. Pass `from` with the file you are editing and
 the sites arrive ordered by how many leading path segments they share with it.
 
+A name your code reads off `import * as` or off `import()` is a site too, and the
+site names the line that loads the module. An `import()` loads it when that call
+runs, not when the file loads, so the file can run without the module ever
+loading.
+
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.
 
@@ -255,8 +260,9 @@ The server reads manifests and TypeScript source, not `dist`. It parses with
 runs behind it. A types target under an output directory is mapped back to that
 package's source. A consumer is a workspace package whose source imports the
 symbol; it is not a claim about runtime execution or external adoption. A site
-is an import of the name, not a call to it — where the name is used inside that
-file is a question for your editor's language server.
+is an import of the name, or a read of it off a module the file holds whole, not
+a call to it — where a named import is used inside that file is a question for
+your editor's language server.
 
 Missing documentation remains missing, and a search with no exact substring
 match says so before it offers anything near it. Those absences are source

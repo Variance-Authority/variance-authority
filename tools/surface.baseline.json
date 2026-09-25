@@ -1359,6 +1359,7 @@
         "Readmes": "type",
         "Recorded": "interface",
         "Requested": "interface",
+        "Through": "interface",
         "Usage": "interface",
         "UsageOptions": "interface",
         "Use": "interface",

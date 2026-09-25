@@ -193,7 +193,7 @@ function collectingUsage(opened: ReadonlySet<string>): {
         }
       }
 
-      for (const asked of parsed.requests) {
+      for (const [index, asked] of parsed.requests.entries()) {
         const key = requested(asked.value);
         if (!packages.has(key.slice(0, key.indexOf(' ')))) continue;
         if (!opened.has(key)) {
@@ -208,6 +208,13 @@ function collectingUsage(opened: ReadonlySet<string>): {
           const uses = held.get(binding.imported) ?? [];
           held.set(binding.imported, uses);
           uses.push({ by, at, line: binding.line, type: binding.type, kind });
+        }
+        const through = { kind: asked.kind === 'dynamic' ? 'dynamic' : 'namespace', line: asked.line } as const;
+        for (const member of parsed.members ?? []) {
+          if (member.request !== index) continue;
+          const uses = held.get(member.name) ?? [];
+          held.set(member.name, uses);
+          uses.push({ by, at, line: member.line, type: false, kind, through });
         }
       }
     },

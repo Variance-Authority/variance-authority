@@ -13,6 +13,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use crate::harvest::{Harvest, SourceSymbol, TextSpan};
+use crate::members::{members_in, Member};
 use crate::mocks::{mocks_in, Mocks};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
@@ -90,6 +91,8 @@ pub struct Read {
     pub(crate) declares: Vec<String>,
     #[serde(skip_serializing_if = "Mocks::is_empty")]
     pub(crate) mocks: Mocks,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) members: Vec<Member>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub unknown: Option<String>,
 }
@@ -258,15 +261,19 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
     }));
 
     let mut reasons = Vec::new();
+    let mut dynamic = Vec::new();
     for entry in &record.dynamic_imports {
         let text = &source[entry.module_request.start as usize..entry.module_request.end as usize];
         match quoted(text) {
-            Some(value) => requests.push(Request {
-                value,
-                kind: Kind::Dynamic,
-                bindings: Vec::new(),
-                line: lines.at(entry.span.start),
-            }),
+            Some(value) => {
+                dynamic.push((entry.span.start, requests.len() as u32));
+                requests.push(Request {
+                    value,
+                    kind: Kind::Dynamic,
+                    bindings: Vec::new(),
+                    line: lines.at(entry.span.start),
+                });
+            }
             None => reasons.push("an `import()` whose specifier is not a literal".to_owned()),
         }
     }
@@ -286,6 +293,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         reasons.push(format!("{count} parse error(s): {}", first.message));
     }
 
+    let members = members_in(&parsed.program, &lines, &requests, &dynamic);
     Read {
         requests,
         exports,
@@ -293,6 +301,7 @@ pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: boo
         harvested: symbols,
         declares: declarations(file, source),
         mocks: mocks_in(source, &parsed.program),
+        members,
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
     }
 }

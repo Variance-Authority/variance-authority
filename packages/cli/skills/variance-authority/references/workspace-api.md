@@ -186,7 +186,9 @@ imports is a different answer, not an empty list:
 `symbol` answers what a name is *supposed* to be: the signature and the comment
 somebody wrote above it. `uses` answers how it is *actually* written here, from
 the imports, which a stale doc comment cannot spoil. Ask it whenever you are
-about to write a call and the signature alone leaves a choice open.
+about to write a call and the signature alone leaves a choice open. A name read
+off `import()` or `import * as` is listed with the line that loads the module,
+and an `import()` loads it only when that call runs.
 
 ```
 $ variance-authority-help uses digestValue --from packages/cli/src/run.ts
