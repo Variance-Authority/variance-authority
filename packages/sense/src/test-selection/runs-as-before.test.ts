@@ -32,8 +32,8 @@ function write(root: string, files: Readonly<Record<string, string>>): void {
   }
 }
 
-describe.runIf(nativeAvailable())('the changed files that run as before', () => {
-  it('names a file whose edit was a comment, a type or formatting, and not one whose code moved', () => {
+describe.runIf(nativeAvailable())('what each changed file moves for its importers', () => {
+  it('names no export for an edit that was a comment, a type or formatting, and the export whose code moved', () => {
     const { root, commit } = checkout({
       'src/price.ts': PRICE,
       'src/typed.ts': PRICE,
@@ -48,28 +48,30 @@ describe.runIf(nativeAvailable())('the changed files that run as before', () => 
         'src/style.css': '/* red */\n.a { color: red; }\n',
       });
       const answer = runsAsBefore(root, commit, ['src/moved.ts', 'src/price.ts', 'src/style.css', 'src/typed.ts']);
-      expect(answer).toEqual({ files: ['src/price.ts', 'src/typed.ts'] });
+      expect(answer).toEqual({
+        moved: new Map([['src/moved.ts', ['price']], ['src/price.ts', []], ['src/typed.ts', []]]),
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('keeps a file added or deleted since the commit changed, because one side has no text', () => {
+  it('charges a file added or deleted since the commit whole, because one side has no text', () => {
     const { root, commit } = checkout({ 'src/price.ts': PRICE });
     try {
       rmSync(join(root, 'src/price.ts'));
       write(root, { 'src/added.ts': '// nothing yet\n' });
-      expect(runsAsBefore(root, commit, ['src/added.ts', 'src/price.ts'])).toEqual({ files: [] });
+      expect(runsAsBefore(root, commit, ['src/added.ts', 'src/price.ts'])).toEqual({ moved: new Map() });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('keeps a file that does not parse changed', () => {
+  it('charges a file that does not parse whole', () => {
     const { root, commit } = checkout({ 'src/price.ts': PRICE });
     try {
       write(root, { 'src/price.ts': `// half an edit\n${PRICE}export function (\n` });
-      expect(runsAsBefore(root, commit, ['src/price.ts'])).toEqual({ files: [] });
+      expect(runsAsBefore(root, commit, ['src/price.ts'])).toEqual({ moved: new Map() });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

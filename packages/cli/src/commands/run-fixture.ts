@@ -19,7 +19,7 @@ import {
 import type { ExecutionNarrowing } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
-import type { InstallDiff } from './reach.js';
+import type { InstallDiff } from './installed.js';
 import {
   run,
   type CliRunReport,

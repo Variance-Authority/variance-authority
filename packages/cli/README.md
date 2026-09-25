@@ -1029,7 +1029,12 @@ are left out of the walk and named on stderr, so you can see the part of your
 diff the answer is not about. So is a JavaScript or TypeScript file whose edit
 was a comment, a type or formatting: it is read from both texts, runs what it
 ran before, and reaches nothing. A JSX pragma and a type in a decorated class
-are not that kind of edit, because the compiler writes both into what runs. Everything else a person needs goes there too,
+are not that kind of edit, because the compiler writes both into what runs. A
+file whose edit changed only some of its exports is walked from those exports:
+a file that imports `label` from it is left out when only `total` changed, and
+stderr names `total`.
+[How different languages are handled](../../docs/polyglot.md#why-an-import-graph-is-the-safe-half)
+says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
 

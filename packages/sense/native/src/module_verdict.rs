@@ -57,6 +57,7 @@ use oxc_ast_visit::Visit;
 use oxc_span::ContentEq;
 use napi_derive::napi;
 
+use crate::module_moved::{exported, Top};
 use crate::module_readers::{bound, declared, interface_of};
 use crate::module_shape::{parse, plain_class, pure, Lines};
 
@@ -69,7 +70,9 @@ pub enum Verdict {
     /// the exports the new text no longer has. `imported` is every source an
     /// import binds from on one side only: loading it is a use only when its
     /// package declares so, which is the manifest's to answer, not the text's.
-    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String>, imported: Vec<String> },
+    /// `moved` is the exports an importer sees move (`module_moved.rs`), or
+    /// nothing when the module hands a moved binding on at load.
+    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String>, imported: Vec<String>, moved: Option<Vec<String>> },
     /// What the module does when it is loaded is different.
     Load,
 }
@@ -166,16 +169,16 @@ impl<'s, 'a> View<'s, 'a> {
 
 pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     let allocator = Allocator::default();
-    let (old, now) = (parse(&allocator, file, before, true)?, parse(&allocator, file, after, true)?);
-    if pragmas(&old) != pragmas(&now) {
+    let (whole_old, whole_now) = (parse(&allocator, file, before, true)?, parse(&allocator, file, after, true)?);
+    if pragmas(&whole_old) != pragmas(&whole_now) {
         return Some(Verdict::Load);
     }
-    if old.directives.content_eq(&now.directives) && old.body.content_eq(&now.body) {
+    if whole_old.directives.content_eq(&whole_now.directives) && whole_old.body.content_eq(&whole_now.body) {
         return Some(Verdict::None);
     }
-    let (old_reads, now_reads) = (reads_of(&old), reads_of(&now));
+    let (old_reads, now_reads) = (reads_of(&whole_old), reads_of(&whole_now));
     let (old_lines, now_lines) = (Lines::new(before), Lines::new(after));
-    let (old_interface, now_interface) = (interface_of(&old, &old_lines), interface_of(&now, &now_lines));
+    let (old_interface, now_interface) = (interface_of(&whole_old, &old_lines), interface_of(&whole_now, &now_lines));
 
     let (old, now) = (parse(&allocator, file, before, false)?, parse(&allocator, file, after, false)?);
     if !old.directives.content_eq(&now.directives) {
@@ -212,10 +215,18 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     // is read for every name it holds, the new one included.
     let moved = old_interface.iter().filter(|(name, bound)| now_interface.get(*name) != Some(bound));
     let added = now_interface.keys().filter(|name| !old_interface.contains_key(*name));
-    let exports = moved.map(|(name, _)| name).chain(added).cloned().collect();
-    let gone = old_interface.keys().filter(|name| !now_interface.contains_key(*name)).cloned().collect();
+    let exports: Vec<String> = moved.map(|(name, _)| name).chain(added).cloned().collect();
+    let gone: Vec<String> = old_interface.keys().filter(|name| !now_interface.contains_key(*name)).cloned().collect();
     let imported = was.imports.symmetric_difference(&is.imports).map(|source| source.to_string()).collect();
-    Some(Verdict::Values { names, exports, gone, imported })
+
+    let top = Top::of(&whole_now);
+    let seeds = names.iter().cloned().chain(top.changed(&Top::of(&whole_old)));
+    let moved = top.moved(seeds).map(|bindings| {
+        let mut all = exported(&now_interface, &bindings);
+        all.extend(exports.iter().chain(&gone).cloned());
+        all.into_iter().collect()
+    });
+    Some(Verdict::Values { names, exports, gone, imported, moved })
 }
 
 fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
@@ -369,18 +380,21 @@ pub struct ModuleVerdict {
     pub gone: Vec<String>,
     /// Sources an import binds names from on one side only.
     pub imported: Vec<String>,
+    /// Exports an importer sees behave differently, bodies included; nothing
+    /// when every export may.
+    pub moved: Option<Vec<String>>,
 }
 
 /// The verdict on one file's change, or nothing when either text does not parse.
 #[napi]
 pub fn module_verdict(file: String, before: String, after: String) -> Option<ModuleVerdict> {
-    let (kind, names, exports, gone, imported) = match verdict(&file, &before, &after)? {
-        Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
-        Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
-        Verdict::Values { names, exports, gone, imported } => {
+    let (kind, names, exports, gone, imported, moved) = match verdict(&file, &before, &after)? {
+        Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new(), Some(Vec::new())),
+        Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new(), None),
+        Verdict::Values { names, exports, gone, imported, moved } => {
             let kind = if names.is_empty() && exports.is_empty() { "bodies" } else { "values" };
-            (kind, names, exports, gone, imported)
+            (kind, names, exports, gone, imported, moved)
         }
     };
-    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone, imported })
+    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone, imported, moved })
 }

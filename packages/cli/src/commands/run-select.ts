@@ -41,7 +41,8 @@ import { OperatorError } from '../exit.js';
 import { affectedSubjects, type Affected } from './affected.js';
 import { keyFor, type Plan } from './collector.js';
 import { unenteredSubjects } from './journey.js';
-import { many, movedPackages, withMovedPackages, withoutManifests, type InstallDiff } from './reach.js';
+import { movedPackages, withMovedPackages, withoutManifests, type InstallDiff } from './installed.js';
+import { many } from './reach.js';
 import { reachOf } from './reach-subjects.js';
 import type { ObserveContext, RunDeps, RunOptions } from './run-context.js';
 
@@ -203,7 +204,7 @@ export async function selectionFor(
           ...(before === undefined ? {} : { before }),
           ...(changedDirs === undefined ? {} : { changedDirs }),
           ...(explains.install === undefined ? {} : { install: explains.install }),
-          ...(explains.quiet === undefined ? {} : { quiet: explains.quiet }),
+          ...(explains.movedExports === undefined ? {} : { movedExports: explains.movedExports }),
         });
 
   if (options.since === undefined) {
@@ -230,7 +231,7 @@ export async function selectionFor(
     ...(config.source.unrendered === undefined ? {} : { unrendered: config.source.unrendered }),
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
     ...(options.since.install === undefined ? {} : { install: options.since.install }),
-    ...(options.since.quiet === undefined ? {} : { quiet: options.since.quiet }),
+    ...(options.since.movedExports === undefined ? {} : { movedExports: options.since.movedExports }),
   });
 
   // Absent all the way down: no diff text, no reader, or a reader that found no
@@ -290,7 +291,9 @@ export async function selectionFor(
       // as `none` is said once.
       ...new Set(
         readingLines([
-          ...(options.since.quiet ?? []).map((file) => ({ file, verdict: 'none' as const, names: [] })),
+          ...[...(options.since.movedExports ?? [])]
+            .filter(([, exports]) => exports.length === 0)
+            .map(([file]) => ({ file, verdict: 'none' as const, names: [] })),
           ...(journal?.readings ?? []),
         ]),
       ),

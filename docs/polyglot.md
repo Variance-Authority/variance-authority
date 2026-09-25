@@ -72,6 +72,28 @@ which `emitDecoratorMetadata` writes into the class. A file in another language,
 and a file that was added, deleted or does not parse, is walked from whatever
 the edit was.
 
+When the edit changes some of a file's exports and nothing that runs as the
+module loads, the walk starts from those exports and not from the whole file. An
+export is changed when its own code changed, or when anything it uses at the top
+level of the same file changed: a function, a constant, a `let` that a changed
+function writes. If `cart.ts` changes `total` and leaves `label` as it was, a file
+that imports `total` is in the list and a file that imports only `label` is not.
+A barrel passes each changed export on under the name it gives it, so
+`export { total as sum } from './cart'` puts every file that imports `sum` in
+the list, and `export * from './cart'` passes on every name but `default`.
+Stderr names the changed exports of each file, and `--format json` lists them
+under `exports`.
+
+The walk is whole wherever an import names no export:
+
+- a namespace import, `import * as cart`
+- a `require`, and an `import './cart'` that binds nothing
+- a dynamic `import()`
+
+It is also whole one import further out. A file that imports a changed export
+is walked from as a whole file, because which of its own exports use that name
+is not read.
+
 ## One reader per language, one graph
 
 A language here is a reader and a resolution algorithm — what does this file

@@ -121,4 +121,41 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
       expect(view(before, `/**\n * The view.\n * @jsxImportSource preact\n */\n${body}`)?.kind).toBe('none');
     });
   });
+
+  describe('the exports an importer sees move', () => {
+    const before = [
+      'const LIMIT = 10;',
+      'function clamp(n: number) {\n  return Math.min(n, LIMIT);\n}',
+      'export function total(n: number) {\n  return clamp(n) * 2;\n}',
+      'export function label() {\n  return "cart";\n}',
+      'export default function render() {\n  return label();\n}',
+      '',
+    ].join('\n');
+
+    it('names every export that reaches a changed value through the bindings of the file', () => {
+      expect(verdictOf(before, before.replace('= 10', '= 20'))?.moved).toEqual(['total']);
+    });
+
+    it('names the export whose helper changed inside its body, and none beside it', () => {
+      expect(verdictOf(before, before.replace('Math.min', 'Math.max'))).toMatchObject({ kind: 'bodies', moved: ['total'] });
+    });
+
+    it('names a default export by `default`, and what calls into it', () => {
+      expect(verdictOf(before, before.replace('"cart"', '"basket"'))?.moved).toEqual(['default', 'label']);
+    });
+
+    it('names nothing for a change nothing runs', () => {
+      expect(verdictOf(before, `// the cart\n${before}`)?.moved).toEqual([]);
+    });
+
+    it('names every export when a statement hands a moved binding on as the module loads', () => {
+      const handed = `${before}globalThis.clamp = clamp;\n`;
+      expect(verdictOf(handed, handed.replace('Math.min', 'Math.max'))?.moved).toBeUndefined();
+    });
+
+    it('moves what reads a `let` that a changed function may write', () => {
+      const state = 'let count = 0;\nexport function bump() {\n  count += 1;\n}\nexport function read() {\n  return count;\n}\nexport function name() {\n  return "n";\n}\n';
+      expect(verdictOf(state, state.replace('+= 1', '+= 2'))?.moved).toEqual(['bump', 'read']);
+    });
+  });
 });

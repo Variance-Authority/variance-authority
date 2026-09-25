@@ -41,7 +41,7 @@
 import { OperatorError } from '../exit.js';
 import { affectedFiles, refused } from './reach.js';
 import { relationsFor } from './source-graph.js';
-import { changedSince, diffPoint, quietSince } from './since.js';
+import { changedSince, diffPoint, movedSince } from './since.js';
 
 /** How the file list is written. `plain` is what a pipe wants. */
 export type ReachFormat = 'plain' | 'json';
@@ -89,8 +89,9 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const readable = changed.filter((file) => READABLE.has(suffixOf(file)));
   const unread = changed.filter((file) => !READABLE.has(suffixOf(file)));
 
-  const quiet = (await quietSince(await diffPoint(request.since), readable)) ?? [];
-  const reach = affectedFiles(relations, readable, ['.'], [], quiet);
+  const movedExports = (await movedSince(await diffPoint(request.since), readable)) ?? new Map();
+  const quiet = readable.filter((file) => movedExports.get(file)?.length === 0);
+  const reach = affectedFiles(relations, readable, ['.'], [], movedExports);
   if (refused(reach)) {
     throw new OperatorError(
       `${reach.whole}. Rather than print a file list this cannot stand behind, \`reach\` stops ` +
@@ -118,6 +119,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
               changed: [...changed],
               unread,
               quiet,
+              exports: Object.fromEntries([...movedExports].filter(([, exports]) => exports.length > 0)),
               seeded: reach.seeded,
               files: reach.files,
             },

@@ -17,8 +17,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
 import { OperatorError } from '../exit.js';
-import { installDiff, type DiffPoint } from './installed.js';
-import type { InstallDiff } from './reach.js';
+import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
+import type { MovedExports } from './reach.js';
 
 /**
  * Files a diff against `ref` touched, named the way the run names files.
@@ -308,21 +308,24 @@ export async function diffPoint(
  * there at both ends is one it can.
  */
 /**
- * The changed files that change nothing that runs, in run coordinates.
+ * What each changed file moved for its importers, in run coordinates.
  *
  * Each is read at the same point the install is, from both texts — git's at
  * the merge base and the disk's now — and the addon's verdict decides. A
  * comment, a type or formatting moves nothing a test executes, so a walk from
- * the file graph seeds none of them.
+ * the file graph seeds none of them; a change to one export seeds only the
+ * files that import it.
  *
- * `undefined` is *no reading was taken*: no diff point, a path outside the
- * checkout, or no addon on this machine. Every changed file is then a change,
- * which is the answer the walk gave before it could read one.
+ * `undefined` is *no reading was taken*: no diff point, or no addon on this
+ * machine. Every changed file is then a change, which is the answer the walk
+ * gave before it could read one. A file the reading could not name exports for
+ * — a path outside the checkout, one added, one whose load moved — is absent
+ * from the map, and seeds the walk whole.
  */
-export async function quietSince(
+export async function movedSince(
   point: DiffPoint | undefined,
   changed: readonly string[],
-): Promise<readonly string[] | undefined> {
+): Promise<MovedExports | undefined> {
   if (point === undefined) return undefined;
   const here = process.cwd();
   const named = new Map<string, string>();
@@ -332,7 +335,8 @@ export async function quietSince(
   }
   const { runsAsBefore } = await import('@variance-authority/sense/test-selection');
   const read = runsAsBefore(point.repository, point.base, [...named.keys()]);
-  return 'unread' in read ? undefined : read.files.map((file) => named.get(file)!);
+  if ('unread' in read) return undefined;
+  return new Map([...read.moved].map(([file, exports]) => [named.get(file)!, exports]));
 }
 
 async function fileAt(
@@ -414,14 +418,14 @@ export async function narrowingFor(
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
-    readonly quiet?: readonly string[];
+    readonly movedExports?: MovedExports;
     readonly diff?: string;
   };
   readonly against?: {
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
-    readonly quiet?: readonly string[];
+    readonly movedExports?: MovedExports;
   };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
@@ -435,7 +439,7 @@ export async function narrowingFor(
   // The changed files are read at that point too, from both texts.
   const point = request.since === undefined ? undefined : await diffPoint(request.since, dirs);
   const installed = changed === undefined ? undefined : await installDiff(point, changed);
-  const quiet = changed === undefined ? undefined : await quietSince(point, changed);
+  const movedExports = changed === undefined ? undefined : await movedSince(point, changed);
   const since =
     request.since === undefined || changed === undefined
       ? undefined
@@ -443,7 +447,7 @@ export async function narrowingFor(
           ref: request.since,
           changed,
           ...(installed === undefined ? {} : { install: installed }),
-          ...(quiet === undefined ? {} : { quiet }),
+          ...(movedExports === undefined ? {} : { movedExports }),
           ...(diff === undefined ? {} : { diff }),
         };
   const againstRef = request.against ?? (request.relations ? request.since : undefined);
@@ -455,7 +459,7 @@ export async function narrowingFor(
             ref: againstRef,
             changed: since.changed,
             ...(installed === undefined ? {} : { install: installed }),
-            ...(quiet === undefined ? {} : { quiet }),
+            ...(movedExports === undefined ? {} : { movedExports }),
           }
         : await (async () => {
             const changed = await changedSince(againstRef, dirs);
@@ -464,12 +468,12 @@ export async function narrowingFor(
             // report that no selected subject was selected for.
             const at = await diffPoint(againstRef, dirs);
             const read = await installDiff(at, changed);
-            const still = await quietSince(at, changed);
+            const still = await movedSince(at, changed);
             return {
               ref: againstRef,
               changed,
               ...(read === undefined ? {} : { install: read }),
-              ...(still === undefined ? {} : { quiet: still }),
+              ...(still === undefined ? {} : { movedExports: still }),
             };
           })();
 

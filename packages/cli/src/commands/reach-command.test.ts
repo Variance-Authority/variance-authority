@@ -206,3 +206,45 @@ describe('a changed file that runs what it ran before', () => {
     expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs, so it seeds nothing/);
   });
 });
+
+describe('a changed file read by the exports it changed', () => {
+  const SHOP = {
+    'package.json': '{ "name": "shop", "type": "module" }\n',
+    'src/cart.ts':
+      'export function total(n: number): number {\n  return n * 2;\n}\n' +
+      "export function label(): string {\n  return 'cart';\n}\n",
+    'src/index.ts': "export { total as sum, label } from './cart.js';\n",
+    'test/total.test.ts': "import { total } from '../src/cart.js';\ntotal(1);\n",
+    'test/label.test.ts': "import { label } from '../src/cart.js';\nlabel();\n",
+    'test/sum.test.ts': "import { sum } from '../src/index.js';\nsum(1);\n",
+    'test/badge.test.ts': "import { label } from '../src/index.js';\nlabel();\n",
+    'test/whole.test.ts': "import * as cart from '../src/cart.js';\ncart.label();\n",
+  };
+
+  it('reaches the importers of the export that moved, through a barrel, and not the others', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace('n * 2', 'n * 3') }, 'double to triple');
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual([
+      'src/cart.ts',
+      'src/index.ts',
+      'test/sum.test.ts',
+      'test/total.test.ts',
+      'test/whole.test.ts',
+    ]);
+    expect(said.err).toMatch(/src\/cart\.ts changes total; only files that import a changed export are walked/);
+  });
+
+  it('names the changed exports in the JSON it prints', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace("'cart'", "'basket'") }, 'rename the label');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--format', 'json']);
+
+    expect(JSON.parse(said.out)).toMatchObject({ exports: { 'src/cart.ts': ['label'] } });
+    expect(JSON.parse(said.out).files).not.toContain('test/total.test.ts');
+  });
+});
