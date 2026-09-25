@@ -76,12 +76,30 @@ describe('the walk', () => {
     expect(names).toEqual(['', '\\uD800x', '\uFFFD']);
   });
 
+  it('ends the last case before the default it adds, as minified code does not', () => {
+    const source = 'function f(a){switch(a){case 1:return 1}return 0}';
+
+    expect(parseSync('minified.js', instrument(source, 'minified.js')!.code).errors).toEqual([]);
+  });
+
   it('leaves a source holding a lone surrogate uninstrumented', () => {
     expect(spliced('const a = "\uD800";\nif (a) b();\n', 'lone.js', 'presence')).toBeUndefined();
   });
 });
 
 describe('the header', () => {
+  it.each([
+    ['reexport-only.js', "export * from './a'\n"],
+    ['bare-directive.js', '"use strict"'],
+    ['hashbang-only.js', '#!/usr/bin/env node\n'],
+  ])('declares the runtime as a statement of a module that is all prologue: %s', (file, source) => {
+    const parsed = parseSync(file, instrument(source, file)!.code);
+    const statements = parsed.program.body as readonly { type: string; declarations?: readonly { id: { name: string } }[] }[];
+
+    expect(parsed.errors).toEqual([]);
+    expect(statements.some((statement) => statement.declarations?.[0]?.id.name === '__vaK')).toBe(true);
+  });
+
   it.each(['await-first.js', 'await-after-import.js'])(
     'declares the runtime in front of a first statement that opens with a probe: %s',
     (file) => {

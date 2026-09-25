@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, RwLock};
 
 use oxc_resolver::{
     ResolveOptions, Resolver, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
@@ -10,9 +10,21 @@ use oxc_resolver::{
 
 const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
+const DEFAULT_CONDITIONS: [&str; 4] = ["source", "import", "require", "default"];
+
 pub struct Resolvers {
-    modules: Resolver,
+    modules: Arc<Resolver>,
     exact: Resolver,
+    /// The options `modules` was built with, which a condition set is cloned from:
+    /// `clone_with_options` replaces options rather than merging them.
+    options: ResolveOptions,
+    /// Whether the caller named the conditions. Named conditions are the answer,
+    /// and no `tsconfig` adds to them.
+    named: bool,
+    /// Governing `tsconfig` → the module resolver its `customConditions` select.
+    governed: RwLock<HashMap<PathBuf, Arc<Resolver>>>,
+    /// Condition set → its resolver, so configs that agree share one.
+    conditioned: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
     canonical: Mutex<HashMap<PathBuf, PathBuf>>,
 }
 
@@ -26,11 +38,9 @@ impl Resolvers {
                 .chain(std::iter::once(".json"))
                 .map(str::to_owned)
                 .collect(),
-            condition_names: condition_names.unwrap_or_else(|| {
-                ["source", "import", "require", "default"]
-                    .map(str::to_owned)
-                    .to_vec()
-            }),
+            condition_names: condition_names
+                .clone()
+                .unwrap_or_else(|| DEFAULT_CONDITIONS.map(str::to_owned).to_vec()),
             main_fields: ["source", "module", "main"].map(str::to_owned).to_vec(),
             extension_alias: vec![
                 (
@@ -58,16 +68,64 @@ impl Resolvers {
             ..ResolveOptions::default()
         };
 
-        let modules = Resolver::new(options);
+        let modules = Resolver::new(options.clone());
         // `cloneWithOptions` normalizes against OXC defaults; it does not merge
         // with the factory's current settings. The oracle supplies only an empty
         // extension alias, so the exact resolver intentionally has no tsconfig.
         let exact = modules.clone_with_options(ResolveOptions::default());
+        let modules = Arc::new(modules);
+        let conditioned = HashMap::from([(options.condition_names.clone(), Arc::clone(&modules))]);
         Self {
             modules,
             exact,
+            options,
+            named: condition_names.is_some(),
+            governed: RwLock::new(HashMap::new()),
+            conditioned: Mutex::new(conditioned),
             canonical: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// The module resolver for a request written in `from`: the default
+    /// conditions plus the `customConditions` of the `tsconfig` that governs
+    /// `from` — the config `oxc_resolver` already picked for its `paths`.
+    fn modules_for(&self, from: &Path) -> Arc<Resolver> {
+        if self.named {
+            return Arc::clone(&self.modules);
+        }
+        let Ok(Some(tsconfig)) = self.modules.find_tsconfig(from) else {
+            return Arc::clone(&self.modules);
+        };
+        let path = tsconfig.path();
+        if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
+            return found;
+        }
+        let resolver = match crate::conditions::custom_conditions(path) {
+            Some(custom) if !custom.is_empty() => self.with_conditions(custom),
+            _ => Arc::clone(&self.modules),
+        };
+        if let Ok(mut held) = self.governed.write() {
+            held.insert(path.to_owned(), Arc::clone(&resolver));
+        }
+        resolver
+    }
+
+    fn with_conditions(&self, custom: Vec<String>) -> Arc<Resolver> {
+        let mut names = self.options.condition_names.clone();
+        for name in custom {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        let Ok(mut held) = self.conditioned.lock() else {
+            return Arc::clone(&self.modules);
+        };
+        Arc::clone(held.entry(names.clone()).or_insert_with(|| {
+            Arc::new(self.modules.clone_with_options(ResolveOptions {
+                condition_names: names,
+                ..self.options.clone()
+            }))
+        }))
     }
 
     pub fn resolve(
@@ -78,7 +136,8 @@ impl Resolvers {
         known: Option<&HashMap<String, u32>>,
     ) -> Option<String> {
         let request = request_of(written)?;
-        for resolver in [&self.modules, &self.exact] {
+        let modules = self.modules_for(from);
+        for resolver in [modules.as_ref(), &self.exact] {
             let Ok(answer) = resolver.resolve_file(from, request) else {
                 continue;
             };
@@ -106,7 +165,11 @@ impl Resolvers {
     /// `resolve` reduces to a repository path.
     pub fn resolution(&self, from: &Path, request: &str) -> Option<oxc_resolver::Resolution> {
         let request = request_of(request)?;
-        [&self.modules, &self.exact].into_iter().find_map(|resolver| resolver.resolve_file(from, request).ok())
+        let modules = self.modules_for(from);
+        modules
+            .resolve_file(from, request)
+            .or_else(|_| self.exact.resolve_file(from, request))
+            .ok()
     }
 
     fn canonical(&self, path: &Path) -> PathBuf {

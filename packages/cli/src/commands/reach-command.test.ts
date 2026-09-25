@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -269,5 +269,52 @@ describe('a changed file read by the exports it changed', () => {
     expect(answer.files).toContain('test/label.test.ts');
     expect(answer).not.toHaveProperty('quiet');
     expect(answer).not.toHaveProperty('exports');
+  });
+});
+
+/**
+ * A workspace package that exports its source under a condition only the
+ * `tsconfig` names, and has no built output in the checkout. Without the
+ * condition the import lands on the missing `dist/`, the edge from `app` to
+ * `lib` is absent, and a change to `lib` reaches nothing in `app`.
+ */
+describe('a workspace that exports source under a custom condition', () => {
+  const WORKSPACE = {
+    '.gitignore': 'node_modules\n',
+    'package.json': '{ "name": "acme", "private": true, "workspaces": ["packages/*"] }\n',
+    'packages/lib/package.json': JSON.stringify({
+      name: '@acme/lib',
+      type: 'module',
+      exports: { '.': { '@acme/source': './src/index.ts', import: './dist/index.js' } },
+    }),
+    'packages/lib/src/index.ts': 'export function clamp(n: number): number {\n  return Math.min(n, 10);\n}\n',
+    'packages/app/package.json': '{ "name": "@acme/app", "type": "module" }\n',
+    'packages/app/src/index.ts': "import { clamp } from '@acme/lib';\nexport const app = (n: number) => clamp(n);\n",
+    'packages/app/src/app.test.ts': "import { app } from './index.js';\napp(1);\n",
+  };
+
+  async function reachLib(tsconfig: string): Promise<Said> {
+    const root = checkout({ ...WORKSPACE, 'tsconfig.json': tsconfig });
+    mkdirSync(join(root, 'node_modules/@acme'), { recursive: true });
+    symlinkSync('../../packages/lib', join(root, 'node_modules/@acme/lib'));
+    commit(root, { 'packages/lib/src/index.ts': WORKSPACE['packages/lib/src/index.ts'].replace('10', '20') }, 'raise the cap');
+    return reach(['reach', '--since', 'HEAD~1']);
+  }
+
+  it('reaches nothing in the importer when no tsconfig names the condition', async () => {
+    const said = await reachLib('{ "compilerOptions": { "strict": true } }\n');
+
+    expect(said.out.trim().split('\n')).toEqual(['packages/lib/src/index.ts']);
+  });
+
+  it('reaches the importer and its test when the governing tsconfig names it', async () => {
+    const said = await reachLib('{ "compilerOptions": { "customConditions": ["@acme/source"] } }\n');
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual([
+      'packages/app/src/app.test.ts',
+      'packages/app/src/index.ts',
+      'packages/lib/src/index.ts',
+    ]);
   });
 });

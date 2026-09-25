@@ -7,6 +7,9 @@
 //! with no row, and a region that ran while its module evaluated are answered by
 //! the file graph, plus the record's own entrants wherever it holds a row. A
 //! changed test file selects itself, and a path neither knows is `unread`. A
+//! file whose two texts were read charges by the verdict: `none` charges
+//! nothing, and `bodies` charges the regions its lines fall in without the
+//! module's own, because the reading proved what it does as it loads is equal. A
 //! crossing is its case's own: a mock is installed before the file's first case
 //! runs, and module evaluation — the one box where a runner evaluates the real
 //! module to shape a mock — is the region's `loaded` flag, credited to no case
@@ -77,9 +80,18 @@ impl<'a> Selecting<'a> {
         Ok(())
     }
 
-    fn change(&mut self, file: &str, ranges: &[(u32, u32)], module: Option<usize>) -> Result<Option<String>, String> {
+    fn change(
+        &mut self,
+        file: &str,
+        ranges: &[(u32, u32)],
+        module: Option<usize>,
+        read: Option<&str>,
+    ) -> Result<Option<String>, String> {
         if let Some(test) = self.held.get(file).copied() {
             self.entered.insert(test);
+        }
+        if read == Some("none") && !ranges.is_empty() {
+            return Ok(None);
         }
         let Some(module) = module.filter(|_| !ranges.is_empty()) else {
             let by_graph = self.importers(file);
@@ -96,6 +108,7 @@ impl<'a> Selecting<'a> {
         };
 
         let journey = self.journey;
+        let settled = read == Some("bodies");
         let candidates: Vec<usize> = journey.blocks(module).filter(|block| journey.overlaps(*block, ranges)).collect();
         let mut chosen: Vec<usize> = Vec::new();
         let mut innermost = Vec::new();
@@ -107,6 +120,11 @@ impl<'a> Selecting<'a> {
         }
         chosen.sort_unstable();
         chosen.dedup();
+        if settled {
+            // Text between two declarations falls in the module's own region,
+            // and the reading proved nothing there runs differently.
+            chosen.retain(|block| journey.text(journey.kinds[*block]).map_or(true, |kind| kind != "module"));
+        }
         let loaded = chosen.iter().any(|block| journey.loaded[*block] == 1);
 
         self.seen.fill(false);
@@ -161,7 +179,7 @@ fn select(
     for change in changed {
         let ranges = pairs(&change.ranges);
         let module = by_file.get(change.file.as_str()).copied();
-        if let Some(file) = selecting.change(&change.file, &ranges, module)? {
+        if let Some(file) = selecting.change(&change.file, &ranges, module, change.read.as_deref())? {
             unread.push(file);
         }
     }
@@ -178,7 +196,7 @@ fn select(
 /// The test files `changed` needs, read off the journey file at `file` and,
 /// when given, the file graph; `packages` are the names whose install moved.
 /// Unsorted: the caller orders by code unit.
-#[napi]
+#[napi(catch_unwind)]
 pub fn select_journeys(
     file: String,
     changed: Vec<JourneyChange>,

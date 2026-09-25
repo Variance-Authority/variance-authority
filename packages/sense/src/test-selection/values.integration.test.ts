@@ -95,6 +95,27 @@ describe('a change read from both of its texts', () => {
     expect(narrowing.entered).toEqual([]);
   });
 
+  it('selects nothing for a doc comment added above a function', async () => {
+    // The new lines sit between two declarations, where the only region is the
+    // module's own, and a line-mapped reading charges them to every loader.
+    const opening = 'export function render(): string {';
+    const documented = `/**\n * Reads the bound through \`DEFAULTS\`.\n *\n * @returns the label a control shows.\n */\n${opening}`;
+    const narrowing = await select(await edit(limits, opening, documented));
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'none', names: [] }]);
+    expect(narrowing.entered).toEqual([]);
+  });
+
+  it('charges a doc comment added beside a changed body to nothing but the body', async () => {
+    const opening = 'export function render(): string {';
+    const documented = `/**\n * Reads the bound through \`DEFAULTS\`.\n */\n${opening}`;
+    const before = readFileSync(resolve(repository, limits), 'utf8');
+    const narrowing = await select(
+      await edit(limits, before, before.replace(opening, documented).replace('Math.min', 'Math.max')),
+    );
+    expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);
+    expect(narrowing.entered).toEqual(tests('clamp'));
+  });
+
   it('charges a function body to the tests that entered it', async () => {
     const narrowing = await select(await edit(limits, 'Math.min(value, LIMIT)', 'Math.max(value, LIMIT)'));
     expect(narrowing.readings).toEqual([{ file: limits, verdict: 'bodies', names: [] }]);

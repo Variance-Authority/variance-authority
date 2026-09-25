@@ -86,7 +86,7 @@ struct Found {
 
 /// The same seed set as `files.ts`, with independent directory reads fanned over
 /// the filesystem width rather than performed by one JavaScript thread.
-#[napi]
+#[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     let root = PathBuf::from(root);
     let mut pending: Vec<Directory> = dirs

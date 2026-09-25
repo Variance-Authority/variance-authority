@@ -1,4 +1,4 @@
-# TanStack Query: 77% fewer test file runs than Nx
+# TanStack Query: 78% fewer test file runs than Nx
 
 [TanStack Query](https://github.com/TanStack/query) is 27 packages, so a
 package-grain selector already has something useful to say: change
@@ -10,14 +10,14 @@ with 10.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, the record skips **at least 79% of
->   all test file runs** — at most 2,355 instead of 11,280.
-> - TanStack Query already runs `nx affected` on every pull request, and it
->   still selects **168 of the 188 files**, because every test in an affected
->   project is affected. Put the record behind Nx and it skips at least **77%
->   more than Nx does alone**.
+> - Over the sixty commits before it landed, each checked against a record made
+>   at its parent commit, `nx affected` selects 3,464 test file runs of 11,280.
+>   The record selects **775, 78% fewer than Nx**.
+> - The walk from what the edit changed selects **441**, and the file graph
+>   1,470. The record selects more than the walk on commits that change a
+>   manifest the Vite configuration reads, and one file more on every commit.
 > - Change one line in `query-core` and the record selects **10 files, 4.4s
->   instead of 12.7s** — a **65%** shorter run.
+>   instead of 12.7s**, a **65%** shorter run.
 > - One commit of setup, and recording costs **1.08×** a suite run.
 
 Nothing in the repository was written with this in mind and no test was changed
@@ -48,11 +48,11 @@ separate runs cannot see it.
 | recording | 12.77 s — **1.08×** |
 | `vitest --coverage`, V8 provider | 15.25 s — **1.29×** |
 
-Same pass and fail counts in all three — the 22 that fail upstream fail in each
-— with the Vite cache and the record cache cleared between runs. This suite runs
-in jsdom, so a worker holds 193 scripts against Zod's 52. A probe is paid for by
-the test that reaches it and does not notice; the engine's counters are read
-rather than fired, and a read answers with the whole isolate. Asked the question
+Same pass and fail counts in all three — the 22 that fail in the upstream
+repository fail in each — with the Vite cache and the record cache cleared
+between runs. This suite runs in jsdom, so a worker holds 193 scripts against
+Zod's 52. A probe is paid for by the test that reaches it and does not notice;
+the engine's counters are read rather than fired, and a read answers with the whole isolate. Asked the question
 a selector asks — after every test, not once per worker — the same counters cost
 2.1× to 2.7× the suite, and that is with the result thrown away.
 
@@ -93,49 +93,67 @@ by a handful, and which handful is different for every branch.
 Two orders of magnitude separate the two, and only something present while the
 tests ran can tell them apart.
 
-## Sixty commits, priced rather than run
+## Sixty commits, each against its own parent
 
-The fork keeps a replay script that walks the sixty commits before the
-instrumentation landed, asks the selector the same question at the same
-coordinates, and counts what would have run. It checks no old code out. It
-reports separately on the commits whose files have not moved since the
-recording, because a commit is priceable against a record only while its line
-numbers still mean what they meant.
+The fork keeps a replay script for the sixty commits before the instrumentation
+landed. For each one it checks out the commit's parent, records the suite
+there, then checks out the commit and asks which test files its change needs.
+Every count is in one unit: the test files in the parent's record, 188 on
+every commit. A file selected on five commits counts five times.
 
-Test file runs over the sixty commits:
+Four selectors answer the same sixty questions. `nx affected` is what the
+repository runs on every pull request. The replay script names its inputs:
+prose, examples, CI and type tests are not inputs to the unit suite. The other
+three are Variance Authority: the file graph (`variance reach
+--whole-files`), the walk from what the edit changed (`variance reach`), and the
+record (`variance select`).
 
 ```mermaid
 xychart-beta horizontal
   accTitle: Test file runs selected over sixty TanStack Query commits
-  x-axis ["the record, at most", "project graph", "run everything"]
+  x-axis ["reach", "the record", "file graph", "nx affected", "run everything"]
   y-axis "test file runs" 0 --> 11500
-  bar [2355, 0, 0]
-  bar [0, 10207, 0]
-  bar [0, 0, 11280]
-  bar [0, 0, 0]
+  bar [441, 0, 0, 0, 0]
+  bar [0, 775, 0, 0, 0]
+  bar [0, 0, 1470, 0, 0]
+  bar [0, 0, 0, 3464, 0]
+  bar [0, 0, 0, 0, 11280]
 ```
 
-Per commit, against 188 files if you always run everything:
+| | total | median | p90 | selects nothing on |
+| --- | --- | --- | --- | --- |
+| run everything | 11,280 | 188 | 188 | 0 |
+| `nx affected` | 3,464 | 0 | 188 | 36 |
+| the file graph | 1,470 | 0 | 143 | 42 |
+| the walk from what changed | **441** | 0 | 0 | 55 |
+| the record | **775** | 1 | 23 | 0 |
 
-| | total | median | p90 |
-| --- | --- | --- | --- |
-| project graph | 10,207 | 168 (89%) | 188 (100%) |
-| the record, at most | **2,355** | **0 (0%)** | 187 (99%) |
+The file graph and Nx both widen on a hub. Five commits edit comments in
+`query-core`'s `types.ts`, which nearly every test imports, and the file graph
+selects 143 or 144 on each of them, and Nx 168. The walk reads both texts of each changed file,
+finds that nothing that runs has changed, and selects none.
 
-Thirty-six of the sixty run nothing at all. On the thirty commits whose
-coordinates are still exact the graph owes 4,917 runs and the record owes 315,
-with a 90th percentile of 15 files — 8% of the suite — and twenty-five of the
-thirty running nothing.
+Where a commit changes code, the record selects fewer than the walk, because it knows
+which of the files that import a module ran the lines that changed. Three
+`fix(query-core)` commits select 143 from the walk; the record selects 67, 47
+and 23.
 
-Every figure for the record in this section is a ceiling. The replay counts
-the whole suite for any commit that changes a path no run read and that its own
-list does not set aside — eight of the sixty, over 38 distinct paths, 27 of
-them a `package.json`. The record selects nothing for such a path by itself, so
-on those eight commits it runs no more files than the replay counts.
+Where a commit changes a package manifest, the record selects more than both
+walks, and that is correct. Nx selects 188 on those commits. Each project's Vite
+configuration imports its own `package.json`, so a manifest is part of the
+configuration its tests ran under. Neither walk treats a manifest as a changed
+file. The record reruns the tests of the projects whose configuration changed,
+and no others: a commit that changes the devtools manifests reruns 14 files, and
+the three that change nearly every package's manifest rerun 179 to 181. Those
+four commits are 553 of the record's 775.
 
-Type tests are another file no run reads. The compiler checks them and
-nothing executes them, so no recording has a row for one and a change to one
-selects nothing from the record. This repository runs them as a separate target, and
+The record selects at least one file on every commit, because one file here
+fails in the upstream repository on every commit, and a file that did not pass
+is a file the record does not speak for. It runs every time.
+
+Type tests are files no run reads. The compiler checks them and nothing
+executes them, so no recording has a row for one, and a change to one selects
+nothing from the record. This repository runs them as a separate target, and
 that target owns them.
 
 ## What it took to fit
@@ -155,7 +173,7 @@ One commit, and three things in it:
 git clone https://github.com/Variance-Authority/tanstack-query-example
 cd tanstack-query-example && pnpm install
 pnpm vitest run                        # records
-node .variance-scratch/replay.mjs 60 c2231461^
+node .variance-scratch/replay.mjs 60 c2231461
 ```
 
 Measured on an M4 Max with 64 GB under Node 26. A wall-clock figure is a

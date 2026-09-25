@@ -19,6 +19,11 @@ import { selectOutput } from './select-command.js';
  * `deep`; only `other.test.ts` imports it. A bump of `deep` in the lockfile is
  * read off the patch's own blobs and walked back through the install.
  *
+ * `decide.ts` ran as it loaded in both, so a line charged to its own region
+ * reaches every file that imports it. A comment between the two functions is
+ * such a line, and the reading of the patch's two texts proves nothing runs
+ * differently.
+ *
  * The fixture is the row-per-crossing spelling, which is the one a caller can
  * write, so this reads through `narrowByJourneys`; the addon's reading of the
  * set spelling is held to the same answers in `journey-native.test.ts`.
@@ -43,6 +48,25 @@ describe('selecting from a journey file', () => {
     writeFileSync(join(root, 'change.patch'), patch(6));
     const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
     expect(said.out).toBe('test/other.test.ts\n');
+  });
+
+  it('skips every test for a comment above a function, which sits in the region that ran as the module loaded', async () => {
+    git('add', '.');
+    git('commit', '-qm', 'before');
+    writeFileSync(join(root, 'src/decide.ts'), DECIDE.replace('export function second', '/**\n * Buckets a reading.\n */\nexport function second'));
+    writeFileSync(join(root, 'change.patch'), git('diff'));
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('test/branch.test.ts\ntest/other.test.ts\n');
+  });
+
+  it('charges the lines as they fall when the patch names no blob to read', async () => {
+    const comment = [
+      'diff --git a/src/decide.ts b/src/decide.ts', '--- a/src/decide.ts', '+++ b/src/decide.ts',
+      '@@ -4,0 +5,3 @@', '+/**', '+ * Buckets a reading.', '+ */', '',
+    ].join('\n');
+    writeFileSync(join(root, 'change.patch'), comment);
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'change.patch', noGit: true });
+    expect(said.out).toBe('');
   });
 
   it('refuses a list of paths, which carries no line to select by', async () => {
@@ -117,7 +141,11 @@ function project(): string {
     tests,
     modules: [{
       file: 'src/decide.ts',
-      blocks: [region('first', 1, 3, crossings(0, 1)), region('second', 5, 7, crossings(0))],
+      blocks: [
+        { ...region('', 1, 8, crossings(0, 1)), kind: 'module', loaded: true },
+        region('first', 1, 3, crossings(0, 1)),
+        region('second', 5, 7, crossings(0)),
+      ],
     }],
   }));
   return root;

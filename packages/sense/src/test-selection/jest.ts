@@ -132,8 +132,14 @@ export interface SelectionTransformerConfig {
 export interface SelectionReporterConfig {
   readonly root: string;
   readonly coverageFile: string;
-  /** Absolute paths of every configured setup file and declared precondition. */
+  /**
+   * Absolute paths of every project's setup and environment files and every
+   * declared precondition: what a test rests on when Jest did not say which
+   * project ran it.
+   */
   readonly preconditions: readonly string[];
+  /** Absolute paths of the preconditions declared for every test, whichever project ran it. */
+  readonly declared?: readonly string[];
   /** The probe recipe the transforms placed; `presence` when absent. */
   readonly mode?: InstrumentMode;
   /** Whether that recording follows each case through the async context, and names the runaways. */
@@ -238,6 +244,7 @@ export function withTestSelection(
     root,
     coverageFile,
     preconditions: [...new Set(preconditions)],
+    ...(declared.length === 0 ? {} : { declared }),
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
     ...(options.executionFile === undefined

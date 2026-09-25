@@ -28,7 +28,7 @@ use crate::resolve::Resolvers;
 /// absolute path of a file outside the checkout, or an empty string when
 /// nothing resolves. The sources a diff added or removed are the ones the
 /// graph cannot name, because it holds edges and not the words that wrote them.
-#[napi]
+#[napi(catch_unwind)]
 pub fn resolve_sources(root: String, file: String, sources: Vec<String>) -> Vec<String> {
     let resolvers = Resolvers::new(None, None);
     // The resolver answers with the path a symlink leads to, and a repository
@@ -48,7 +48,7 @@ pub fn resolve_sources(root: String, file: String, sources: Vec<String>) -> Vec<
 
 /// Of these files, repository-relative or absolute, those whose package
 /// declares that loading them does something, in the order asked.
-#[napi]
+#[napi(catch_unwind)]
 pub fn declared_effects(root: String, files: Vec<String>) -> Vec<String> {
     let root = Path::new(&root);
     let mut manifests = HashMap::new();

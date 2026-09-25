@@ -240,6 +240,8 @@ export interface NativeJourneyChange {
   readonly file: string;
   /** Flat inclusive `[start, end]` pairs; empty names the whole file. */
   readonly ranges: number[];
+  /** What reading the file's two texts proved, `none` or `bodies`; absent when none was made. */
+  readonly read?: string;
 }
 
 export interface NativeJourneyProjection {

@@ -1,23 +1,27 @@
-# Zod: 51% fewer test file runs
+# Zod: 57% fewer test file runs
 
 [Zod](https://github.com/colinhacks/zod) is one package, and 196 of its 202 test
 files reach the code they exercise through a single barrel. A selector that
 decides at the grain of a package therefore has nothing to say about it, and a
-selector that decides at the grain of a file has almost nothing: change one
-line and either one owes you the suite. Run the suite once through
-[Variance Authority](README.md) and the same edit selects 8 runs, because the
-record knows which of the files that *reach* a module covered the *lines* you
-changed.
+selector that decides at the grain of a file has little more: change one line
+in the core and either one selects most of the suite. Run the suite once
+through [Variance Authority](README.md) and a one-line edit selects 8 runs,
+because the record knows which of the files that *reach* a module covered the
+*lines* you changed.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, the record skips **at least 51% of
->   all test file runs** — at most 5,917 instead of 12,120.
-> - Zod runs its whole suite on every change. The most a package graph could
->   save here is **18%**; put the record behind that graph and it skips at
->   least **40% more than the graph does alone**.
-> - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.6s
->   instead of 8.1s** — an **80%** shorter run. A package graph would still run
+> - Over the sixty commits before it landed, each checked against a record made
+>   at its parent commit, the record selects **5,196 test file runs of 12,120,
+>   57% fewer** than running everything, which is what Zod does. A package graph
+>   selects 8,047.
+> - The walk from what the edit changed selects **4,142**, and the file graph
+>   4,531. The record selects fewer than the walk where a commit changes the
+>   inside of a function, and more where it changes code that runs as the core
+>   loads, which Zod's compile-mode setup runs for every test. Manifest,
+>   lockfile and build commits are 1,818 of the record's 5,196.
+> - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
+>   instead of 8.2s**, an **82%** shorter run. A package graph would still run
 >   201 of the 202 files.
 > - One commit of setup, and recording costs **1.02×** a suite run.
 
@@ -33,9 +37,9 @@ with the write-up and the scripts every figure below came from.
 | Test files | 202 |
 | Test file runs | 398 |
 | Tests | 5,656 |
-| Wall clock | 8.1s |
-| Modules recorded | 122 |
-| Regions recorded | 9,049 |
+| Wall clock | 8.2s |
+| Modules recorded | 123 |
+| Regions recorded | 9,067 |
 | Record on disk | 539 KB |
 
 There are more runs than files because two of Zod's Vitest projects collect the
@@ -67,12 +71,12 @@ Inside `getRussianPlural` in `packages/zod/src/v4/locales/ru.ts`:
 +  if (lastDigit >= 2 && lastDigit < 5) {
 ```
 
-Eight runs over six distinct paths, 95 tests, 1.6s of wall clock against 8.1s.
+Eight runs over six distinct paths, 95 tests, 1.5s of wall clock against 8.2s.
 Two of those six are the files the record selected; the other four are files it
-refuses to speak for, which run every time. The package graph offers 201 of
+does not speak for, which run every time. The package graph offers 201 of
 202 — on a single-package library that is the whole suite with a rounding
-error. 131 of the 202 test files import the edited module, so 131 is the floor
-for anything deciding at the grain of a file.
+error. 197 of the 202 test files load the edited module while they run, so a
+selector that reruns every file that loaded the module selects 197.
 
 ## Why the grain is the whole argument
 
@@ -80,17 +84,16 @@ A module's regions are not covered uniformly, and the spread is what a graph
 cannot see. `ru.ts` is 50 regions:
 
 ```
-  131 files    1-188   · module
-    2 files    5-23    getRussianPlural · entry
-    1 files   14-16    getRussianPlural · if#1/then
-    2 files   16-16    getRussianPlural · if#1/else
-    0 files  128-136   error/anon#0 · switch#0/case#0
+  197 files    3-188   · module
+    2 files    5-23    getRussianPlural
+    1 files   14-16    getRussianPlural · branch
+    2 files   18-20    getRussianPlural · branch
 ```
 
-Median 1, 90th percentile 2, maximum 131, and 21 of the 50 covered by nobody.
+Median 1, 90th percentile 2, maximum 197, and 21 of the 50 covered by nobody.
 The hub modules behave the same way at a larger size: `core/schemas.ts` is
-1,206 regions loaded by 130 test files with a median region covered by 7;
-`core/compile.ts` is 686 regions, 130 loaders, median 4.
+1,206 regions loaded by 197 test files with a median region covered by 7;
+`core/compile.ts` is 686 regions, median 13.
 
 Two orders of magnitude separate a module's top level from its interior, and
 only something present while the tests ran can tell them apart.
@@ -109,47 +112,79 @@ file it may skip. The four are worth naming, because neither reason is a bug:
   nor setup files.
 
 Wrapping `packages/treeshake` is one file and it is the wrong answer. It raises
-the record to 201 whole and 124 modules, but the 3,301 regions it adds are the
-*built bundle*, not the source — so an edit to `src/ru.ts` would let the
+the record to 201 whole, but the regions it adds are the *built bundle*, not
+the source — so an edit to `src/ru.ts` would let the
 selector skip tests that genuinely depend on that source, because what they
 covered is an artifact no diff names. Leaving those three to run every time
 costs 3 files out of 202 and is correct.
 
-## Sixty commits, priced rather than run
+## Sixty commits, each against its own parent
 
-The fork keeps a replay script that walks the sixty commits before the
-instrumentation landed, asks the selector the same question at the same
-coordinates, and counts what would have run. It checks no old code out. It
-reports separately on the commits whose files have not moved since the
-recording, because a commit is priceable against a record only while its line
-numbers still mean what they meant.
+The fork keeps a replay script for the sixty commits before the instrumentation
+landed. For each one it checks out the commit's parent, builds the library,
+records the suite there, then checks out the commit and asks which test files
+its change needs. Every count is in one unit: the test files in the parent's
+record. A file selected on five commits counts five times.
 
-Against 12,120 runs if you always run everything:
+Two baselines and three Variance Authority selectors answer the same sixty
+questions. Zod itself runs everything, so the first baseline is `vitest run`.
+The second is a package graph read from the workspace manifests, because it is
+the usual alternative to running everything. The three selectors are the file
+graph (`variance reach --whole-files`), the walk from what the edit changed
+(`variance reach`), and the record (`variance select`).
 
-| | total | median | p90 |
-| --- | --- | --- | --- |
-| what the repository ships | 12,120 | 202 (100%) | 202 (100%) |
-| package graph | 9,881 | 201 (100%) | 202 (100%) |
-| the record, at most | **5,917** | **130 (64%)** | 198 (98%) |
+```mermaid
+xychart-beta horizontal
+  accTitle: Test file runs selected over sixty Zod commits
+  x-axis ["reach", "file graph", "the record", "package graph", "run everything"]
+  y-axis "test file runs" 0 --> 12500
+  bar [4142, 0, 0, 0, 0]
+  bar [0, 4531, 0, 0, 0]
+  bar [0, 0, 5196, 0, 0]
+  bar [0, 0, 0, 8047, 0]
+  bar [0, 0, 0, 0, 12120]
+```
 
-The median of 130 is the hub floor showing up again: a change spread across
-several regions of `core/schemas.ts` and its neighbours does reach most of the
-suite, and saying otherwise would be a lie the record refuses to tell. On the
-commits where nothing in the core moved it runs nothing at all — 18 of the 60,
-and 10 of the 13 whose coordinates are still exact.
+| | total | median | p90 | selects nothing on |
+| --- | --- | --- | --- | --- |
+| run everything | 12,120 | 202 | 202 | 0 |
+| package graph | 8,047 | 201 | 202 | 20 |
+| the file graph | 4,531 | 130 | 134 | 22 |
+| the walk from what changed | **4,142** | 127 | 134 | 26 |
+| the record | **5,196** | 67 | 202 | 0 |
 
-Every figure for the record in this section is a ceiling. The replay counts
-the whole suite for any commit that changes a path no run read and that its own
-list does not set aside — seventeen of the sixty, over fourteen distinct paths,
-five of them a `package.json`. The record selects nothing for such a path by
-itself, so on those seventeen commits it runs no more files than the replay
-counts.
+The two walks sit close together because most of Zod's tests import the library
+through one namespace, `import * as z`, and the walk is whole wherever an import
+names no export.
 
-One of those paths is a dependency no import names. A test reads
-`packages/docs/content/api.mdx` through the filesystem, which is a real
-dependency and an invisible one. Listed in the `preconditions` of the project
-that reads it, a change to it selects every test that project records; left
-unlisted, it selects nothing.
+Where a commit changes the inside of a function, the record selects fewer
+than the walk, because it knows which of the files that load `core/schemas.ts`
+ran the lines that changed. It selects fewer on twelve commits, 798 fewer in all. A fix
+to discriminated unions selects 130 from the walk and 19 from the record; a fix
+to format checks, 130 and 28.
+
+Where a commit changes code that runs as the v4 core loads, such as a regular
+expression constant or the locale index, the record selects more than both
+walks, and that is correct. The compile-mode project runs every `packages/zod`
+test with a setup file that imports the core, so that code runs in every one of
+those runs, including the 59 v3 test files that import none of it. Neither walk reads configuration, so neither sees the setup
+file; the record saw it run. Ten commits select 200 to 202 from the record
+where the walks select 128 to 135.
+
+Eleven commits change a manifest, the lockfile or the build, and neither walk
+treats those as changed files. The record reruns the tests whose install or
+configuration changed: each of the six release commits selects 201, the two
+that only refresh the lockfile select 4, and the eleven together are 1,818 of
+the record's 5,196.
+
+The record selects at least four files on every commit, because four files
+run every time. On the commits that change only prose or a benchmark it selects
+4 to 8.
+
+One test reads `packages/docs/content/api.mdx` through the filesystem, which is
+a real dependency and one no import names. The docs project lists it in its
+`preconditions`, so a change to it reruns every test that project records and
+no other project's. Left unlisted, it selects nothing.
 
 ## What it took to fit
 
@@ -171,7 +206,7 @@ One commit, and three things in it:
 git clone https://github.com/Variance-Authority/zod-example
 cd zod-example && pnpm install
 vitest run                             # records
-node .variance-scratch/replay.mjs 60 796e1360^
+node .variance-scratch/replay.mjs 60 796e1360
 ```
 
 Measured on an M4 Max with 64 GB under Node 26. A wall-clock figure is a

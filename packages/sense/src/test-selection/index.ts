@@ -54,7 +54,8 @@ export {
 export { anyStopped } from './stopped.js';
 export { placeInText, type HeldLines, type Placement } from './placed.js';
 export { stateOf, type RangeState } from './range-state.js';
-export { narrowByJourneys, type JourneySelectionOptions } from './execution-select.js';
+export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
+export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
 export {
@@ -68,7 +69,6 @@ export { mergeExecutionIndexes } from './execution-merge.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
 export { readingLines, type FileReading } from './reading-lines.js';
-export { journeyDivergences };
 export {
   atDistance,
   distanceRange,
@@ -99,7 +99,7 @@ export type {
 } from './distance.js';
 export { eitherFace, indexFaces } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
-export { foldTestCoverage, mergeCoverage };
+export { foldTestCoverage, journeyDivergences, mergeCoverage };
 export {
   CACHE_CONFIG,
   cacheLayers,

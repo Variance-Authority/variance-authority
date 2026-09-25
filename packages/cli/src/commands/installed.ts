@@ -288,6 +288,17 @@ function entriesIn(patch: string, wanted: (path: string) => boolean): readonly P
   return found;
 }
 
+/**
+ * The text each file had before `patch`, read from the blob its `index` line
+ * names. A file the patch names no old blob for — new, or written without
+ * `index` lines — or whose blob is not in this repository has no entry.
+ */
+export async function patchPreimages(patch: string, root: string = process.cwd()): Promise<ReadonlyMap<string, string>> {
+  const entries = entriesIn(patch, () => true).filter((entry) => entry.before !== undefined);
+  const texts = await Promise.all(entries.map(async (entry) => [entry.path, await blob(entry.before!, root)] as const));
+  return new Map(texts.filter((pair): pair is readonly [string, string] => pair[1] !== undefined));
+}
+
 async function blob(id: string, root: string): Promise<string | undefined> {
   try {
     const { stdout } = await promisify(execFile)('git', ['cat-file', 'blob', id], {

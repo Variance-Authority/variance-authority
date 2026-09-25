@@ -342,11 +342,11 @@ export const NAVIGATION = [
     items: [
       {
         href: "/docs/selection-zod",
-        label: "Zod: 51% fewer test file runs",
+        label: "Zod: 57% fewer test file runs",
       },
       {
         href: "/docs/selection-tanstack-query",
-        label: "TanStack Query: 77% fewer test file runs than Nx",
+        label: "TanStack Query: 78% fewer test file runs than Nx",
       },
     ],
   },

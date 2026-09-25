@@ -24,7 +24,8 @@
 
 import { realpathSync } from 'node:fs';
 import { basename, isAbsolute, relative, sep } from 'node:path';
-import { ResolverFactory } from 'oxc-resolver';
+import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
+import { customConditionsFor } from './conditions.js';
 import { resolveJvm } from './jvm.js';
 import type { LanguageId } from './language.js';
 import { resolvePython } from './python.js';
@@ -41,7 +42,11 @@ export interface ResolveOptions {
    * nearest one per file, which is what a workspace of many packages needs.
    */
   readonly tsconfig?: string | 'auto';
-  /** Export conditions, in order. Defaults to a source-first, browser bias. */
+  /**
+   * Export conditions, and the whole of them. Absent, a file resolves under
+   * {@link DEFAULT_CONDITIONS} plus the `customConditions` of the `tsconfig`
+   * that governs it.
+   */
   readonly conditionNames?: readonly string[];
 }
 
@@ -69,8 +74,15 @@ export const EXCLUDE_DIRS = [
  * because `.js` was rewritten to `.ts` has to be re-asked without the rewrite.
  */
 export interface Resolvers {
-  /** Modules first, with the `.js` → `.ts` rewrite on. */
+  /** Modules first, with the `.js` → `.ts` rewrite on, under the default conditions. */
   readonly modules: ResolverFactory;
+  /**
+   * The module resolver for a request written in `from`: `modules`, or a clone
+   * of it that adds the `customConditions` of the `tsconfig` governing `from`
+   * ([`conditions.ts`](./conditions.ts)). Conditions a caller named are the
+   * answer, and then this is always `modules`.
+   */
+  readonly modulesFor: (from: string) => ResolverFactory;
   /** Stylesheet extensions only. */
   readonly styles: ResolverFactory;
   /** No extension rewriting, for the one request where the rewrite is the bug. */
@@ -173,9 +185,12 @@ export interface Asking {
 export function resolversFor(options: ResolveOptions): Resolvers {
   const tsconfig = options.tsconfig ?? 'auto';
 
-  const modules = new ResolverFactory({
+  const defaults = [...(options.conditionNames ?? DEFAULT_CONDITIONS)];
+  // Held whole, because `cloneWithOptions` replaces options rather than merging
+  // them: a condition set is a clone built from every option below.
+  const moduleOptions: NapiResolveOptions = {
     extensions: [...MODULE_EXTENSIONS, ...STYLE_EXTENSIONS, '.json'],
-    conditionNames: [...(options.conditionNames ?? DEFAULT_CONDITIONS)],
+    conditionNames: defaults,
     mainFields: ['source', 'module', 'main'],
     // A TypeScript file under `nodenext` imports `./graph.js` and means
     // `./graph.ts`. Without this the extension on disk never matches, every
@@ -192,16 +207,47 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     // and its files are repository files like any other.
     symlinks: true,
     builtinModules: true,
-  });
+  };
+  const modules = new ResolverFactory(moduleOptions);
 
   return {
     modules,
+    modulesFor: options.conditionNames === undefined
+      ? conditioned(modules, moduleOptions, customConditionsFor(tsconfig))
+      : () => modules,
     styles: modules.cloneWithOptions({ extensions: [...STYLE_EXTENSIONS] }),
     exact: modules.cloneWithOptions({ extensionAlias: {} }),
     canonical: new Map(),
     against: undefined,
     asking: { file: undefined, answers: new Map() },
     tree: undefined,
+  };
+}
+
+/**
+ * `modulesFor` over one factory: a file's custom conditions select a clone that
+ * adds them, and files whose configs agree share it. Asked once per file, since
+ * `resolveAll` asks a file's requests together.
+ */
+function conditioned(
+  modules: ResolverFactory,
+  moduleOptions: NapiResolveOptions,
+  customOf: (file: string) => readonly string[],
+): (from: string) => ResolverFactory {
+  const defaults = moduleOptions.conditionNames ?? [];
+  const bySet = new Map<string, ResolverFactory>();
+  let last: { from: string; factory: ResolverFactory } | undefined;
+  return (from) => {
+    if (last?.from === from) return last.factory;
+    const names = [...new Set([...defaults, ...customOf(from)])];
+    let factory = modules;
+    if (names.length > defaults.length) {
+      const key = names.join('\0');
+      factory = bySet.get(key) ?? modules.cloneWithOptions({ ...moduleOptions, conditionNames: names });
+      bySet.set(key, factory);
+    }
+    last = { from, factory };
+    return factory;
   };
 }
 
@@ -287,9 +333,10 @@ function resolved(input: {
 
   const style = language === 'style';
   const attempts = style ? styleRequests(request) : [request];
+  const modules = resolvers.modulesFor(from);
   const order = style
-    ? [resolvers.styles, resolvers.modules]
-    : [resolvers.modules, resolvers.exact];
+    ? [resolvers.styles, modules]
+    : [modules, resolvers.exact];
 
   for (const resolver of order) {
     for (const attempt of attempts) {

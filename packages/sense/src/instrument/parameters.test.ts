@@ -53,6 +53,13 @@ const FIXTURES: ReadonlyArray<readonly [string, string]> = [
      out.push(a.length, b.length, c.length, d.length, e.length, f.length);`,
   ],
   [
+    'a destructured rest that is the whole list binds every argument',
+    `function f(...[a, b]) { out.push(a, b, f.length, arguments.length); }
+     function g(...{ length }) { return length; }
+     const h = (...[a]) => a;
+     f(1, 2, 3); out.push(g(4, 5), h(6));`,
+  ],
+  [
     'every argument lands where it did, and a missing one takes its default',
     `function f(p, { x }, q = 'dq', r, ...rest) { out.push(JSON.stringify([p, x, q, r, rest])); }
      f(1, { x: 2 }); f(1, { x: 2 }, undefined, 4, 5, 6); f(1, { x: 2 }, null, 4);`,

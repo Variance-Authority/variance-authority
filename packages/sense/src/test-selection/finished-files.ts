@@ -28,12 +28,15 @@ import {
 import type { CoveragePrecondition, CoverageTest } from './index.js';
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
+import type { RunnerProject } from './governing-config.js';
 
 export interface RunnerTask {
   readonly filepath?: string;
   readonly result?: { readonly state: string };
   readonly tasks?: readonly RunnerTask[];
   readonly meta?: object;
+  /** Vitest 2's name for the project that ran the file. */
+  readonly projectName?: string;
 }
 
 /**
@@ -56,6 +59,8 @@ export interface ReportedModule {
   readonly errors?: () => { readonly length: number };
   /** What the file's own hooks attached to it, carried from wherever it ran. */
   readonly meta?: () => object;
+  /** The project that ran it, whose Vite server loaded its configuration. */
+  readonly project?: RunnerProject;
 }
 
 /**
@@ -101,6 +106,11 @@ export interface FinishedFile {
    * writing it down: a page has no disk to write a frame to.
    */
   readonly journal?: ReadJournal;
+  /**
+   * The configurations it ran under, when the runner said: a file two projects
+   * both match ran under both. Absent when the runner did not say.
+   */
+  readonly configs?: readonly string[];
 }
 
 /** What a page's two drains carry: before the first test, and after it. */
@@ -274,9 +284,17 @@ export function oneRowPerFile(
   for (const file of files) {
     const path = projectPath(root, file.filepath);
     const seen = byPath.get(path);
+    // Unknown under either announcement is unknown for the file: it falls
+    // back to every configuration, never to the one that happened to say.
+    const configs = seen === undefined
+      ? file.configs
+      : seen.configs === undefined || file.configs === undefined
+      ? undefined
+      : [...new Set([...seen.configs, ...file.configs])];
     byPath.set(path, {
       filepath: seen?.filepath ?? file.filepath,
       complete: (seen?.complete ?? true) && file.complete,
+      ...(configs === undefined ? {} : { configs }),
     });
   }
   return [...byPath.values()];

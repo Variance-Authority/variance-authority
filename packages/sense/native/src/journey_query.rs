@@ -27,6 +27,10 @@ pub struct JourneyChange {
     pub file: String,
     /// Flat inclusive pairs; empty names the whole file.
     pub ranges: Vec<u32>,
+    /// What reading the file's two texts proved: `none`, nothing at runtime
+    /// moved; `bodies`, what it does as it loads did not. Absent when no
+    /// reading was made, and the lines are charged as they fall.
+    pub read: Option<String>,
 }
 
 #[napi(object)]
@@ -108,7 +112,7 @@ fn project(file: &str, changed: &[JourneyChange]) -> Result<JourneyProjection, S
 }
 
 /// The journey file at `file`, holding only what a reader of `changed` could look at.
-#[napi]
+#[napi(catch_unwind)]
 pub fn project_journeys(file: String, changed: Vec<JourneyChange>) -> napi::Result<JourneyProjection> {
     project(&file, &changed).map_err(napi::Error::from_reason)
 }

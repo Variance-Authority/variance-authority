@@ -295,8 +295,13 @@ async function readConfig(path: string): Promise<Record<string, unknown> | undef
   } catch {
     return undefined;
   }
+  return parseConfig(text);
+}
+
+/** A configuration file's text as an object, or nothing when it is not one. */
+export function parseConfig(text: string): Record<string, unknown> | undefined {
   try {
-    const value: unknown = JSON.parse(stripComments(text).replace(/,(\s*[}\]])/gu, '$1'));
+    const value: unknown = JSON.parse(stripComments(text.replace(/^\uFEFF/u, '')).replace(/,(\s*[}\]])/gu, '$1'));
     return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
   } catch {
     return undefined;

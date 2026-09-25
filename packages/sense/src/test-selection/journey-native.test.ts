@@ -6,7 +6,7 @@ import { relationsOfFiles, type FileRecord, type Relations } from '@variance-aut
 import { CrossingSets } from './crossing-sets.js';
 import type { LineRange } from './diff-lines.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { narrowByJourneys } from './execution-select.js';
+import { narrowByJourneys, type JourneyRead } from './execution-select.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { projectJourneyFile, selectJourneyFile } from './journey-native.js';
 
@@ -97,6 +97,14 @@ const CHANGES: readonly (readonly [string, ReadonlyMap<string, readonly LineRang
   ])],
 ];
 
+/** Changes whose two texts were read, with what the reading proved. */
+const READ: readonly (readonly [string, ReadonlyMap<string, readonly LineRange[]>, ReadonlyMap<string, JourneyRead>])[] = [
+  ['a comment above a function', new Map([['src/api.ts', lines(1, 2)]]), new Map([['src/api.ts', 'bodies']])],
+  ['a range across regions', new Map([['src/api.ts', lines(1, 10)]]), new Map([['src/api.ts', 'bodies']])],
+  ['a change nothing runs', new Map([['src/api.ts', lines(1, 10)]]), new Map([['src/api.ts', 'none']])],
+  ['a test file nothing runs differently', new Map([['test/other.test.ts', lines(1)]]), new Map([['test/other.test.ts', 'none']])],
+];
+
 const BUMPS: readonly (readonly [string, readonly string[]])[] = [
   ['a package a file imports', ['ky']],
   ['a package under the one a file imports', ['ky-core']],
@@ -136,6 +144,38 @@ describe('selecting off a journey file in the addon', () => {
       });
     }
   }
+
+  for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {
+    for (const [what, changed, read] of READ) {
+      it(`answers ${what}, read, as narrowByJourneys does, with ${graph}`, async () => {
+        const options = { ...(relations === undefined ? {} : { relations: relations as Relations }), read };
+        expect(await selectJourneyFile(FILE, changed, options)).toEqual(narrowByJourneys(index, changed, options));
+      });
+    }
+  }
+
+  it('charges lines a reading proved load the same to the regions they fall in, and never to the module', async () => {
+    // Lines 1-2 fall in `api.ts`'s own region alone, which ran as it loaded:
+    // charged by line, they select every file that imports it.
+    const above = new Map([['src/api.ts', lines(1, 2)]]);
+    const at = async (read?: JourneyRead) =>
+      (await selectJourneyFile(FILE, above, { relations: plain, ...(read ? { read: new Map([['src/api.ts', read]]) } : {}) }))
+        ?.entered;
+    expect(await at()).toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+    expect(await at('bodies')).toEqual([]);
+    expect(await at('none')).toEqual([]);
+
+    const across = new Map([['src/api.ts', lines(1, 10)]]);
+    const bodies = new Map<string, JourneyRead>([['src/api.ts', 'bodies']]);
+    expect((await selectJourneyFile(FILE, across, { relations: plain, read: bodies }))?.entered)
+      .toEqual(['test/card.test.ts', 'test/plain.test.ts', 'test/wire.test.ts']);
+  });
+
+  it('selects a changed test file whatever its reading proved', async () => {
+    const changed = new Map([['test/other.test.ts', lines(1)]]);
+    const read = new Map<string, JourneyRead>([['test/other.test.ts', 'none']]);
+    expect((await selectJourneyFile(FILE, changed, { relations: plain, read }))?.entered).toEqual(['test/other.test.ts']);
+  });
 
   it('charges a line to the innermost region, and holds every case to what it entered, mocks or not', async () => {
     const at = async (file: string, line: number) =>

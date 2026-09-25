@@ -2477,6 +2477,9 @@
         "JourneyDivergence": "interface",
         "JourneyDivergenceOptions": "interface",
         "JourneyProjection": "interface",
+        "JourneyRead": "type",
+        "JourneyReading": "interface",
+        "JourneyReadingOptions": "interface",
         "JourneyRegion": "interface",
         "JourneySelectionOptions": "interface",
         "LastCaseRun": "interface",
@@ -2543,6 +2546,7 @@
         "placeInText": "function",
         "projectJourneyFile": "function",
         "ranWhileLoading": "function",
+        "readJourneyChange": "function",
         "readTestCoverage": "function",
         "readableTestCoverage": "function",
         "readingLines": "function",
@@ -2655,6 +2659,7 @@
       },
       "./jest-reporter": {
         "JestRunResults": "interface",
+        "JestTest": "interface",
         "JestTestContext": "interface",
         "default": "class"
       },

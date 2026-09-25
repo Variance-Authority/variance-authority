@@ -298,6 +298,12 @@ because a test called it. `loadedBy` on the block is where you find it.
   files from the configuration around it.
 - Keep one wrap at the root for the reporter that folds the run.
 
+A project's config file, the local modules it imports and its setup files are
+preconditions of that project's tests and of no other project's, so a change
+to the browser project's setup file does not rerun the unit tests. The root
+configuration decides which projects exist, and is a precondition of every
+test.
+
 A root-only wrap is the shape that looks right and records
 nothing: the reporter runs, the file is written, and it says every test reaches
 no source. That run says so on the way out —
@@ -356,6 +362,16 @@ yarn exec variance journeys stitch \
   --into journeys.bin
 ```
 
+`variance select --execution journeys.bin` answers a patch from that file. To
+do the same from code, pass the changed lines to `narrowByJourneys`, and pass
+`read` from `readJourneyChange(diff, before, { root, relations })`, where
+`before` returns the text the patch was written against. A journey file carries
+no source text, so without `read` a line is charged to the region it falls in,
+and a comment above a function falls in the module's own region, which every
+file that imports the module ran. With `read`, a file whose change runs nothing
+charges nothing, and a file whose load-time behaviour did not change charges
+only the functions its lines fall in.
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own
@@ -387,7 +403,9 @@ JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
 does not name, less dependencies and built output. A setup entry that names a
 package — `dotenv/config` — is left alone. A configuration with `projects` is
 instrumented project by project, each keeping its own transform and setup files,
-with one reporter for the run; a project named by path rather than spelled
+with one reporter for the run. Each test's setup and environment files are read
+from the project Jest ran it under, so a change to one project's setup file
+does not rerun another project's tests; a project named by path rather than spelled
 inline is refused, because its transform cannot be wrapped from here.
 
 `withTestSelection` reads the object you pass it, before Jest resolves
@@ -397,8 +415,9 @@ anything, so three things are yours to spell out:
   gets Jest's default, `babel-jest`, wrapped. Jest then merges the preset's
   `transform` in after it, and the first pattern that matches wins, so your
   preset's transformer never runs. Copy the preset's `transform` into the object
-  you wrap. Its setup files and environment still run; name them in
-  `preconditions` so a change to them selects every test.
+  you wrap. Its setup files and environment still run, and are read from the
+  configuration Jest resolved, so a local preset's files are preconditions
+  without being named.
 - **A transformer's path.** Names resolve from the checkout root, and Jest
   resolves them from the project's `rootDir`. A transformer installed only under
   a nested package needs `require.resolve` from there.
@@ -487,7 +506,9 @@ are recorded the same way, and a suite that mixes the two is too.
 
 A configuration with `projects` describes the run rather than a suite: wrap each
 project *and* keep one wrap at the root, the same shape a Vitest `projects`
-layout needs.
+layout needs. A project that sets `name` keeps its setup files and
+`preconditions` for its own tests. A project Rstest names by default is named
+after the wrap has run, so its files are preconditions of every test.
 
 To assemble a configuration by hand instead, `withTestSelection` names one
 module by path, and you can name it yourself:
@@ -937,7 +958,13 @@ never touch a disk.
 
 `conditionNames` and `tsconfig` are accepted by the same call and control how
 specifiers become file edges; the generated declaration states their exact
-shapes.
+shapes. Without `conditionNames`, a file resolves under `source`, `import`,
+`require` and `default` plus the `customConditions` of the `tsconfig` that
+governs it, following `extends` the way TypeScript does. So a workspace whose
+packages export source under a condition of their own, such as
+`"@tanstack/custom-condition": "./src/index.ts"`, gets edges into that source
+rather than into built output the checkout does not hold. When you pass
+`conditionNames`, your list is the whole set and no `tsconfig` adds to it.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
 still joins the graph. Edges into a sibling package's built output, or another

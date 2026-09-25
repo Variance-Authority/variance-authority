@@ -486,7 +486,7 @@ pub struct ModuleReaders {
 /// The readers of `names` in one file: bindings of its own when `imported` is
 /// false, or exports of a module it imports when true. Nothing when the text
 /// does not parse.
-#[napi]
+#[napi(catch_unwind)]
 pub fn module_readers(file: String, text: String, names: Vec<String>, imported: bool) -> Option<ModuleReaders> {
     let allocator = oxc_allocator::Allocator::default();
     let program = crate::module_shape::parse(&allocator, &file, &text, true)?;
