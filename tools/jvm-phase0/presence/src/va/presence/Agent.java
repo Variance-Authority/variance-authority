@@ -86,6 +86,7 @@ public final class Agent implements ClassFileTransformer {
 
   public static void premain(String args, Instrumentation inst) {
     inst.addTransformer(new Agent(args));
+    Presence.on = true;
   }
 
   private static Pattern glob(String glob) {

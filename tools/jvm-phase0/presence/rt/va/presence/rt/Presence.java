@@ -16,6 +16,9 @@ public final class Presence {
   /** Fixed size so the reference never changes and the JIT treats it as a constant. */
   public static final boolean[] P = new boolean[Integer.getInteger("va.presence.capacity", 1 << 22)];
 
+  /** Set by the agent's premain: without it nothing is probed and {@link Journey} records nothing. */
+  public static volatile boolean on;
+
   private static final List<String> META = new ArrayList<>();
   private static final List<String> FAILED = new ArrayList<>();
 
@@ -45,6 +48,41 @@ public final class Presence {
       hit[k++] = i;
     }
     return java.util.Arrays.copyOf(hit, k);
+  }
+
+  /**
+   * One record row for {@code owner}: the methods hit since the last drain, cleared
+   * as they are read. {@code unknown} names the classes entered whose source file
+   * could not be resolved, and every class that failed to instrument so far; either
+   * makes the row unable to exclude its owner.
+   */
+  public static String row(String owner) {
+    return row(owner, drain());
+  }
+
+  /** The row for methods already drained, which a window credits to several owners. */
+  static String row(String owner, int[] hit) {
+    StringBuilder line = new StringBuilder("{\"owner\":").append(quote(owner)).append(",\"methods\":[");
+    StringBuilder unknown = new StringBuilder();
+    boolean first = true;
+    for (int i : hit) {
+      String m = meta(i);
+      if (m.startsWith("{\"unknown\":")) {
+        unknown.append(unknown.length() > 0 ? "," : "").append(m, 11, m.length() - 1);
+        continue;
+      }
+      if (!first) line.append(',');
+      first = false;
+      line.append(m);
+    }
+    for (String f : failed()) unknown.append(unknown.length() > 0 ? "," : "").append(quote(f));
+    line.append(']');
+    if (unknown.length() > 0) line.append(",\"unknown\":[").append(unknown).append(']');
+    return line.append("}\n").toString();
+  }
+
+  static String quote(String s) {
+    return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 
   public static synchronized String meta(int index) {

@@ -32,7 +32,9 @@ docker run --rm -v "$WORK/m2:/root/.m2" -v "$WORK/lib:/lib-out" -v "$HERE:/src:r
     rm -rf /tmp/pr /tmp/pa && mkdir -p /tmp/pr /tmp/pa
     javac --release 8 -nowarn -d /tmp/pr \$(find /src/presence/rt -name '*.java')
     jar cf /bin-out/va-presence-rt.jar -C /tmp/pr .
-    javac --release 8 -nowarn -d /tmp/pa -cp '/tmp/pr:/lib-out/asm.jar:/lib-out/asm-tree.jar' \$(find /src/presence/src -name '*.java')
+    # javac's tree API is outside --release 8, so its one reader is built against the running JDK at level 8.
+    javac -source 8 -target 8 -Xlint:-options -nowarn -d /tmp/pa /src/presence/src/va/presence/Spans.java
+    javac --release 8 -nowarn -d /tmp/pa -cp '/tmp/pa:/tmp/pr:/lib-out/asm.jar:/lib-out/asm-tree.jar' \$(find /src/presence/src -name '*.java' ! -name Spans.java)
     (cd /tmp/pa && jar xf /lib-out/asm.jar && jar xf /lib-out/asm-tree.jar && rm -rf META-INF module-info.class)
     printf 'Premain-Class: va.presence.Agent\nBoot-Class-Path: va-presence-rt.jar\n' > /tmp/presence.mf
     jar cfm /bin-out/va-presence.jar /tmp/presence.mf -C /tmp/pa .

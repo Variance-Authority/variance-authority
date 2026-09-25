@@ -28,9 +28,10 @@ import java.util.TreeSet;
  * Writes a presence record as sense's execution record, the snapshot its selector reads.
  *
  * Phase 0 harness. Each source file is a module whose root spans the whole file,
- * with one {@code function} region per method a test entered, spanning its line
- * table, so the record reads as JS {@code entries} coverage does. The regions come
- * from the bytecode, not from a walk of the source:
+ * with one {@code function} region per method a test entered, so the record reads as
+ * JS {@code entries} coverage does. A region spans the method's source, signature to
+ * closing brace, where javac can parse the file, and its line table otherwise. Which
+ * methods are regions comes from the bytecode, not from a walk of the source:
  * <ul>
  * <li>a lambda body is not a region: it marks the method whose span holds its
  * first line, because a single-line lambda shares that line with the code around it;
@@ -38,8 +39,9 @@ import java.util.TreeSet;
  * (an anonymous class written on one line) marks that method, for the same reason;
  * <li>constructors and static initializers mark the root: their line tables carry
  * field initializers from anywhere in the class;
- * <li>a signature, a closing brace and every method no test entered lie outside all
- * regions, so a change there charges every test that entered the file.
+ * <li>every method no test entered lies outside all regions, and a region's first and
+ * last lines are shared with the region around it, so a change to a signature or a
+ * closing brace charges every test that entered the file.
  * </ul>
  * Entering a region marks its owners up to the root. A row that lists an unknown
  * or failed class is written incomplete, so its absences justify no skip.
@@ -62,12 +64,26 @@ public final class Coverage {
 
   private Coverage() {}
 
-  /** Usage: Coverage &lt;record.jsonl&gt; &lt;out&gt; [commit] [source roots, colon separated]. */
+  /**
+   * Usage: Coverage &lt;record.jsonl&gt; &lt;out&gt; [commit] [source roots, colon separated]
+   * [journeys.tsv]. The last is a driver's table, one {@code <journey>\t<subject file>}
+   * per line, and makes the record a service's.
+   */
   public static void main(String[] args) throws IOException {
-    if (args.length < 2) throw new IllegalArgumentException("usage: Coverage <record.jsonl> <out> [commit] [sources]");
+    if (args.length < 2) {
+      throw new IllegalArgumentException("usage: Coverage <record.jsonl> <out> [commit] [sources] [journeys.tsv]");
+    }
     String commit = args.length > 2 && !args[2].isEmpty() ? args[2] : null;
-    List<String> roots = Arrays.asList((args.length > 3 ? args[3] : Agent.DEFAULT_SOURCES).split(":"));
-    write(Paths.get(args[0]), Paths.get(args[1]), commit, roots);
+    List<String> roots = Arrays.asList((args.length > 3 && !args[3].isEmpty() ? args[3] : Agent.DEFAULT_SOURCES).split(":"));
+    Map<String, String> journeys = null;
+    if (args.length > 4) {
+      journeys = new HashMap<>();
+      for (String line : Files.readAllLines(Paths.get(args[4]), StandardCharsets.UTF_8)) {
+        int tab = line.indexOf('\t');
+        if (tab > 0) journeys.put(line.substring(0, tab), line.substring(tab + 1));
+      }
+    }
+    write(Paths.get(args[0]), Paths.get(args[1]), commit, roots, journeys);
   }
 
   /** Called by the listener when the plan finishes, with the roots the agent resolved classes under. */
@@ -76,11 +92,16 @@ public final class Coverage {
   }
 
   static void write(Path record, Path out, String commit, List<String> roots) throws IOException {
+    write(record, out, commit, roots, null);
+  }
+
+  static void write(Path record, Path out, String commit, List<String> roots, Map<String, String> journeys)
+      throws IOException {
     List<Map<String, Object>> rows = new ArrayList<>();
     for (String line : Files.readAllLines(record, StandardCharsets.UTF_8)) {
       if (!line.isEmpty()) rows.add(Json.object(line));
     }
-    byte[] bytes = encode(model(rows, commit, roots));
+    byte[] bytes = encode(model(rows, commit, roots, journeys));
     Path temporary = out.resolveSibling(out.getFileName() + ".tmp");
     Files.write(temporary, bytes);
     Files.move(temporary, out, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -103,8 +124,8 @@ public final class Coverage {
   static final class Method {
     final String cls;
     final String method;
-    final int first;
-    final int last;
+    int first;
+    int last;
     final int[] lines;
     final TreeSet<String> tests = new TreeSet<>();
 
@@ -128,6 +149,12 @@ public final class Coverage {
 
     boolean rooted() {
       return lines.length == 0 || method.startsWith("<init>") || method.startsWith("<clinit>");
+    }
+
+    /** The name as the source spells it, without the descriptor. */
+    String name() {
+      int paren = method.indexOf('(');
+      return paren < 0 ? method : method.substring(0, paren);
     }
 
     boolean lambda() {
@@ -171,27 +198,72 @@ public final class Coverage {
   }
 
   static Model model(List<Map<String, Object>> rows, String commit, List<String> roots) throws IOException {
+    return model(rows, commit, roots, null);
+  }
+
+  /**
+   * With {@code journeys}, the driver's table of which subject each journey was, the
+   * rows are a service's: {@code journey:<id>} rows belong to that subject, and an
+   * unattributed window belongs to every subject the table names, since the service
+   * cannot say whose it was. Without it, each row is a test class of this JVM.
+   */
+  static Model model(List<Map<String, Object>> rows, String commit, List<String> roots, Map<String, String> journeys)
+      throws IOException {
     Model model = new Model();
     model.commit = commit;
     Map<String, Test> tests = new TreeMap<>();
     Map<String, Map<String, Method>> byFile = new TreeMap<>();
+    List<String> everyone = new ArrayList<>();
+    if (journeys != null) {
+      for (String subject : new TreeSet<>(journeys.values())) {
+        String text = text(subject);
+        tests.put(subject, new Test(subject, true, text == null ? null : digest(text)));
+        everyone.add(subject);
+      }
+    }
+    int claimed = 0;
+    int unclaimed = 0;
     for (Map<String, Object> row : rows) {
       String owner = (String) row.get("owner");
-      if (owner.startsWith("between")) continue;
-      String file = testFile(owner, roots);
-      String text = text(file);
+      List<String> files;
+      if (journeys == null) {
+        if (owner.startsWith("between")) continue;
+        files = Collections.singletonList(testFile(owner, roots));
+      } else if (owner.startsWith("journey:")) {
+        String subject = journeys.get(owner.substring("journey:".length()));
+        if (subject == null) {
+          unclaimed++;
+          continue;
+        }
+        claimed++;
+        files = Collections.singletonList(subject);
+      } else {
+        files = everyone;
+      }
       List<?> unknown = (List<?>) row.get("unknown");
-      Test prior = tests.get(file);
-      boolean complete = (unknown == null || unknown.isEmpty()) && (prior == null || prior.complete);
-      tests.put(file, new Test(file, complete, text == null ? null : digest(text)));
+      for (String file : files) {
+        Test prior = tests.get(file);
+        boolean complete = (unknown == null || unknown.isEmpty()) && (prior == null || prior.complete);
+        String digest = prior != null ? prior.digest : null;
+        if (prior == null) {
+          String text = text(file);
+          digest = text == null ? null : digest(text);
+        }
+        tests.put(file, new Test(file, complete, digest));
+      }
       for (Object o : (List<?>) row.get("methods")) {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) o;
         Map<String, Method> methods = byFile.computeIfAbsent((String) m.get("file"), k -> new LinkedHashMap<>());
         String key = m.get("class") + "." + m.get("method");
-        methods.computeIfAbsent(key, k -> new Method(m)).tests.add(file);
+        methods.computeIfAbsent(key, k -> new Method(m)).tests.addAll(files);
       }
     }
+    if (journeys != null && !journeys.isEmpty() && claimed == 0) {
+      throw new IOException("the service recorded none of the " + journeys.size()
+          + " journeys the driver minted: a service that was not watched cannot be told from one that ran nothing");
+    }
+    if (unclaimed > 0) System.err.println("presence: " + unclaimed + " journey rows no subject claimed: traffic the driver did not mint");
     model.tests.addAll(tests.values());
     for (Map.Entry<String, Map<String, Method>> e : byFile.entrySet()) {
       String text = text(e.getKey());
@@ -220,6 +292,21 @@ public final class Coverage {
 
   private static Module module(String file, String text, List<Method> all) {
     String[] lines = text.split("\n", -1);
+    List<Spans.Span> spans;
+    try {
+      spans = Spans.of(file, text);
+    } catch (LinkageError e) {
+      // A Java 8 runtime without tools.jar: the line tables stand.
+      spans = Collections.emptyList();
+    }
+    for (Method m : all) {
+      if (m.rooted() || m.lambda()) continue;
+      Spans.Span s = Spans.around(spans, m.name(), m.first, m.last);
+      if (s != null) {
+        m.first = s.first;
+        m.last = s.last;
+      }
+    }
     // Widest first, so a method is compared with every region that could hold it.
     List<Method> candidates = new ArrayList<>();
     for (Method m : all) if (!m.rooted() && !m.lambda()) candidates.add(m);
