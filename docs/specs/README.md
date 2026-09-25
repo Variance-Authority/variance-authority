@@ -76,6 +76,7 @@ hiding it.
 | [A change says what its tests moved](0070-a-change-says-what-its-tests-moved.md) | `covering --since --against` compares two records region by region, in `text` and `json`. | **What moved, where the edit is.** No editor marks a lost region. |
 | [A test is read alone](0071-a-test-is-read-alone.md) | `covering --cases` answers from one test file or the last run, and says what the last run moved; the editors paint only the suite. | **One test alone in the editor.** No editor switches its paint to the last run's cases. |
 | [A case read two ways is compared with itself](0072-a-case-read-two-ways-is-compared-with-itself.md) | The regions each case ran, one recording at a time, and `journeyDivergences` comparing observers within one recording. | **A second reading.** A case a run reached replaces its old reading unread, and the index does not say what source it stands on. So a case a cache or a mock made depend on state is recorded once and trusted, and nothing says where a fresh page per test could go. |
+| [A test owns the files its services ran](0063-a-test-owns-the-files-its-services-ran.md) | The Phase 0 harness divides JaCoCo probe state per top-level test class in one JVM. | **An attempt-scoped service observation.** No recorder joins a test's requests to source files entered across service processes, or proves that an isolated or concurrent recording is complete enough to exclude a test. |
 
 ## Discharged
 
