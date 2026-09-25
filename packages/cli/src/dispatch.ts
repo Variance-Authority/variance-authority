@@ -18,7 +18,6 @@ import {
   affectedProjects,
   historyFor,
   identityOf,
-  readCliRunReport,
   relationsFor,
   run,
   journeyAgainst,
@@ -28,7 +27,6 @@ import {
   storeFor,
   writeArtifactToDisk,
   writeCliRunReport,
-  type CliRunReport,
   type Plan,
 } from './commands/run.js';
 import { renderCacheLine, sweepRenders } from './commands/renders.js';
@@ -43,7 +41,7 @@ import {
   readClaims,
 } from './commands/adjudicate.js';
 import { liveIgnores } from './commands/ignores.js';
-import { mergeReports } from './commands/merge.js';
+import { reportsFor } from './commands/report-read.js';
 import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './commands/accept.js';
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
@@ -199,7 +197,7 @@ export async function dispatch(
     }
 
     case 'report': {
-      const report = await reportsFor(parsed.reports, config);
+      const report = await reportsFor(parsed.reports, config, parsed.embedImages);
       streams.out(
         formatReport({
           report,
@@ -405,6 +403,7 @@ export async function dispatch(
       const body = renderComment({
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
+        ...(parsed.toAccept !== undefined ? { toAccept: parsed.toAccept } : {}),
       });
 
       // An empty file, never a missing one. The poster has to tell "nothing
@@ -463,21 +462,6 @@ function sideJob(
   if (!suppress || code !== EXIT_REVIEW) return code;
   streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
   return EXIT_CLEAN;
-}
-
-/**
- * The report the operator meant: the configured one, or the shards they named.
- *
- * Shared by `report` and `comment` so a sharded suite gets *one* of each. Having
- * only the first take shard paths would leave the pull-request body reading a
- * single slice while the text output described the suite — two answers about one
- * run, from one binary, differing by which subcommand asked.
- */
-async function reportsFor(paths: readonly string[], config: Config): Promise<CliRunReport> {
-  const named = paths.length === 0 ? [config.report] : paths;
-  return mergeReports(
-    await Promise.all(named.map(async (path) => ({ path, report: await readCliRunReport(path) }))),
-  );
 }
 
 /** The generic half of planning, when the config named a source that has one. */

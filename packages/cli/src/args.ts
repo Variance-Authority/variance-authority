@@ -47,6 +47,7 @@ export const BOOLEAN = new Set([
   '--no-git',
   '--whole-files',
   '--exit-zero-on-changes',
+  '--embed-images',
 ]);
 
 /**

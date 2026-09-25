@@ -274,7 +274,7 @@ message and frame:
 ```
 ### [F01] cart.test.mjs :: cart > empty
 
-"message": "cart/empty: new — no baseline for `cart/empty` under this renderer; nothing to compare against"
+"message": "cart/empty: new — no baseline under this renderer; nothing to compare against"
 ```
 
 Approve it with the flag you already use for snapshots, then run again:

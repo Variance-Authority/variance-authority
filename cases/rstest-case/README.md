@@ -78,7 +78,7 @@ captures/button%2Fsave.va-capture.json
 rendered by playwright-chromium (chromium@151.0.7922.34, darwin/arm64, 1x)
 1 new
 
-[new] button/save: no baseline for `button/save` under this renderer; nothing to
+[new] button/save: no baseline under this renderer; nothing to
 compare against; the collection of this subject reported unverified-fonts (warn)
 ×2, portals-not-resolved (warn), so what was compared may be less than the whole
 subject
@@ -123,7 +123,7 @@ ordinary failure — file, name, frame and all:
 ```
 ### [F01] cart.e2e.test.mjs :: cart > empty
 
-"message": "cart/empty: new — no baseline for `cart/empty` under this renderer; nothing to compare against",
+"message": "cart/empty: new — no baseline under this renderer; nothing to compare against",
 "topFrame": { "file": ".../packages/playwright-test/src/matcher.ts", "line": 48, "method": "assertUnchanged" }
 ```
 

@@ -391,6 +391,21 @@ describe('renderComment', () => {
     expect(renderComment({ report: tokenChange(1) })).not.toContain('Full report and images');
   });
 
+  it('ends on the step the reviewer takes next, in the operator\'s words', () => {
+    // A reviewer on a pull request has no report on disk, so the command-line
+    // fallback gives way to the link, and accepting is where this repository
+    // says it is.
+    const body = renderComment({
+      report: tokenChange(1),
+      runUrl: 'https://example.invalid/page',
+      toAccept: 'dispatch **variance** on `main`',
+    });
+    expect(body).toContain('To accept: dispatch **variance** on `main`');
+    expect(body).not.toContain('variance report --subject');
+    expect(renderComment({ report: tokenChange(1) })).toContain('variance report --subject');
+    expect(renderComment({ report: tokenChange(1) })).not.toContain('To accept');
+  });
+
   it('carries the drift total to the reviewer who is about to approve the next step', () => {
     // The finding no comparison on this pull request can reach. Each of the
     // eleven approvals was correct about the 2px it saw; the 8px is a sum, and

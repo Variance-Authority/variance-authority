@@ -170,9 +170,20 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # The comment counts collateral instead of listing it, so the reader
-          # needs somewhere to go for the rest. This link is honest only because
-          # the upload step below exists; the action never infers it.
-          run-url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          # needs somewhere to go for the rest: one HTML file with the pictures
+          # inside it, uploaded unzipped so the comment's link opens it in the
+          # browser — on a phone as well, which is where a review often happens.
+          report-page: 'true'
+
+          # The step the comment cannot take for the reviewer, and where it lives
+          # here: the dispatch below, on `main`. The cache a dispatch saves on a
+          # branch is invisible to that branch's pull request runs, which read
+          # the merge ref's scope and `main`'s, so an accept anywhere else would
+          # be kept where no comparison ever reads it.
+          to-accept: >-
+            check the report, then run
+            [variance](${{ github.server_url }}/${{ github.repository }}/actions/workflows/variance.yml)
+            on `main` with **accept** ticked.
 
           # OFF, and it stays off unless somebody decides otherwise on purpose.
           #
@@ -236,24 +247,22 @@ jobs:
           path: cases/storybook-case/.variance/baselines
           key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
 
-      # The operator's decision, and the only thing this workflow sends anywhere.
+      # Everything the run wrote, for a reviewer who wants the files rather than
+      # the page: the report JSON, every image and sidecar, and the baselines.
       # GitHub's own artifact store, on the instance already running the job.
-      # Delete it and the run-url line above together, or keep both — a link to
-      # artifacts that were never uploaded is worse than no link.
       #
       # The path is the case's report directory. It has to match the `report` and
       # `images` paths in its config, and nothing checks that it does: a config
-      # that moved them would upload an empty artifact behind a link the comment
-      # still prints.
+      # that moved them would upload an empty artifact and only warn.
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: variance-report
+          name: variance-files
           path: cases/storybook-case/.variance/
           # Without this the artifact is empty and nothing says so. `.variance` is
           # a dotted directory, and this action skips hidden files by default —
-          # so the upload would succeed, the comment would still print its link,
-          # and the reviewer would download a zip with nothing in it.
+          # so the upload would succeed and the reviewer would download a zip
+          # with nothing in it.
           include-hidden-files: true
           # The baselines are in here too, and that is deliberate: an artifact a
           # reviewer downloads should contain what the comparison was made

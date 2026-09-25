@@ -325,13 +325,19 @@ export function warningBlocks(report: CliRunReport, docket: Docket): readonly st
   return lines.length === 0 ? [] : ['### Warnings', lines.join('\n')];
 }
 
+/**
+ * Where to look, and what to do after looking.
+ *
+ * The command line is the fallback for a comment with no report to link: it
+ * reads a report on disk, which a reviewer on a pull request does not have.
+ */
 export function footerBlocks(options: CommentOptions): readonly string[] {
   return [
     [
-      ...(options.runUrl === undefined
-        ? []
-        : [`Full report and images: ${options.runUrl}`]),
-      'Per subject: `variance report --subject <id>`',
+      options.runUrl === undefined
+        ? 'Per subject: `variance report --subject <id>`'
+        : `Full report and images: ${options.runUrl}`,
+      ...(options.toAccept === undefined ? [] : [`To accept: ${options.toAccept}`]),
     ].join('  \n'),
   ];
 }

@@ -70,7 +70,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--root',
     '--format',
   ],
-  report: ['--format', '--subject', '--exit-zero-on-changes'],
+  report: ['--format', '--embed-images', '--subject', '--exit-zero-on-changes'],
   ask: [
     '--subject',
     '--subjects',
@@ -111,7 +111,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: [],
   share: ['--ref', '--publish'],
-  comment: ['--body-file', '--run-url', '--marker'],
+  comment: ['--body-file', '--run-url', '--to-accept', '--marker'],
 };
 
 export const USAGE = [
@@ -120,7 +120,7 @@ export const USAGE = [
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]',
-  'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
+  'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]',
   'variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]',
   'variance watch',
@@ -132,7 +132,7 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
-  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
+  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [<report>...] | --marker',
   '',
   '`--version` prints the version of this tool.',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',

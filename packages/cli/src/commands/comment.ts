@@ -145,6 +145,15 @@ export interface CommentOptions {
    * place nobody published to would be worse than omitting it.
    */
   readonly runUrl?: string;
+  /**
+   * How a reviewer accepts what the comment lists, in the operator's words.
+   *
+   * The comment is where the reviewer is when they decide, and accepting is the
+   * one step it cannot take for them. Where that step lives — a workflow to
+   * dispatch, a label, a command on a checkout — is this repository's policy, so
+   * the operator states it and nothing here guesses.
+   */
+  readonly toAccept?: string;
   readonly limits?: Partial<CommentLimits>;
 }
 
