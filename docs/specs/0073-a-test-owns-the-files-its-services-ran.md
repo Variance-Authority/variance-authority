@@ -23,14 +23,15 @@ cannot infer which test caused a request from the time the request arrived.
 
 ### The concurrency problem
 
-JaCoCo's execution data is one set of probe flags for an agent in one JVM.
-`getExecutionData(true)` snapshots and resets that shared set, so a recorder
-divides it by time: each attempt gets the hits between its reset and its dump,
-its **window**. A session id or an `.exec` filename labels the dump; it does not
-partition the counters. A lock around dump/reset protects the operation, not
-the interval in which the work ran.
+JaCoCo's execution data is one set of probe flags for an agent in one JVM. A
+flag records that a probe was hit, once; a second hit leaves no trace. To see
+the next attempt's hits, a recorder must drain the flags and **reset** them:
+`getExecutionData(true)`. Each attempt gets the hits between its reset and its
+dump, its **window**. A session id or an `.exec` filename labels the dump; it
+does not partition the flags.
 
-The two ways a hit can land in the wrong window are not equally dangerous:
+Overlapping windows are not the damage. The two ways a hit can land in the
+wrong window are not equally dangerous:
 
 - **Another attempt's work lands in this window.** This attempt's row gains
   files it never needed. It is selected more often than necessary. That costs
@@ -38,16 +39,30 @@ The two ways a hit can land in the wrong window are not equally dangerous:
 - **This attempt's work lands outside its window.** Its row lacks a file it
   entered. A change to that file skips it. This is the miss.
 
-So a window-based record is sound when every attempt's work is **contained**
-in its window. Extra hits from health checks, scheduled jobs or any unrelated
-traffic do not break containment; they only widen rows. Two attempts sharing
-one JVM at the same time break it for both: each one's hits land partly in the
-other's window.
+The reset produces the second kind. When attempt A dumps and resets while B is
+still running, every probe B set before that moment is erased from B's window,
+and B's row loses the files it entered first. Overlap alone would only widen
+both rows; the reset turns it into a miss. So under reset, the record is
+sound only when one attempt at a time owns the flags, and every attempt's work
+is **contained** in its window. Health checks, scheduled jobs and other
+unrelated traffic do not break containment; they only widen rows.
 
-### Why a test JVM does not have it
+A read that erases nothing removes the reset, and with it the need for
+exclusive ownership. Each probe stores the epoch of its last hit in place of a
+flag; the driver advances the epoch at attempt boundaries. At its end, an
+attempt reads the probes stamped since its start. A later hit by another
+attempt overwrites the stamp with a later epoch, which is still inside the
+first attempt's range if it happened before that attempt ended. Nothing is
+cleared, so concurrent attempts each get a superset of their own hits:
+concurrency costs precision, not soundness. It still needs containment, since
+a task that outlives its attempt stamps a later epoch. JaCoCo has no such
+probe; it is a store of one long in place of one boolean, and the cost is
+measured under item 7, not assumed.
 
-A Maven project's own unit tests already meet the containment condition, and
-the reasons are structural:
+### Why a test JVM survives the reset
+
+A Maven project's own unit tests reset only when nothing else is running, and
+their work is contained in their windows. The reasons are structural:
 
 - **The boundary runs on the thread that does the work.** JUnit Platform
   fires the class's start and finish events on the thread that runs the class.
@@ -104,11 +119,12 @@ takes 336 s against 143 s for the suite in one JVM.
 
 ### The same fix for a service
 
-A service JVM has the problem because its boundary is not visible from inside
-it, and because it serves attempts concurrently. Both are removed the way
-Surefire removes them for tests: **one attempt at a time per service instance,
-and parallelism by instances.** The driver resets and dumps the service's agent
-at the attempt's boundaries, as the test listener does in-process. Extra
+A service JVM serves attempts concurrently, so a reset for one attempt erases
+another's hits. Surefire avoids that for tests by never resetting while another
+class runs, and a service can do the same: **one attempt at a time per service
+instance, and parallelism by instances.** The driver resets and dumps the
+service's agent at the attempt's boundaries, as the test listener does
+in-process. Extra
 instances cost memory and startup; for a suite whose selection skips most of
 it, that is the smaller price, and it is where recording starts.
 
@@ -116,11 +132,13 @@ What an instance cannot give by itself is the thread fact: the driver does not
 see when a service's asynchronous tail has finished. The service must report
 it (item 3).
 
-The broader mode makes each probe write presence under the attempt's execution
-identity. That removes the dump/reset race and admits shared, concurrent
-service workers, at the price of carrying the identity through every runtime
-boundary. The two modes produce the same selection fact; neither is assumed to
-have the lower cost before measurement.
+Two modes remove the reset, and with it the need for exclusive instances.
+Epoch-stamped probes (item 4) let attempts share an instance and cost only
+precision: a row widens by whatever ran beside it. Identity-keyed presence
+(item 5) makes each probe write under the attempt's execution identity, which
+keeps rows exact at the price of carrying the identity through every runtime
+boundary. All three produce the same selection fact; none is assumed to have
+the lower cost before measurement.
 
 ## What would discharge it
 
@@ -158,10 +176,20 @@ thread audit. A service that cannot report it gives rows that are partial, and
 a partial row cannot exclude a test. Unrelated traffic in a window only widens
 the row; it does not make it partial.
 
-**4. Identity-keyed recording is the broader mode.** A purpose-built JVM
+**4. Epoch-stamped recording shares an instance without a reset.** A JVM
+instrument stores, per probe, the epoch of its last hit. The driver advances the
+epoch at each attempt's start on every participating instance and records the
+epoch it got back. At the attempt's end, after the settle report of item 3,
+each participant returns the files whose probes carry an epoch at or after that
+start. Nothing is cleared. Attempts that overlap on one instance each receive
+their own hits plus their neighbours'; the report counts how many attempts
+overlapped each row, so the widening is visible. A task that outlives its
+attempt is caught by the settle report, as in item 3.
+
+**5. Identity-keyed recording is the exact mode.** A purpose-built JVM
 instrument may mark source-file presence at class or method entry into a
-concurrent set keyed by execution identity, without resetting process-wide
-counters. The request adapter establishes the identity at ingress. Each async
+concurrent set keyed by execution identity, so no read clears another
+attempt's presence. The request adapter establishes the identity at ingress. Each async
 or reactive boundary must carry it into the code where probes run; each
 outbound boundary must forward it to declared participants. An existing
 carrier, such as the OpenTelemetry Java agent's context and W3C baggage, is
@@ -172,7 +200,7 @@ one JaCoCo `.exec` per attempt or convert those files through a coverage
 report. This mode permits interleaved attempts
 in one JVM, but only where the carrier and runtime scope have been verified.
 
-**5. The join refuses silence.** The driver joins participant reports by its
+**6. The join refuses silence.** The driver joins participant reports by its
 attempt identity and retains the observed call edges. A declared participant
 that fails to report, a missing build inventory, a lost report, an unverified
 hop, a still-running async tail or a worker the driver cannot account for
@@ -182,14 +210,15 @@ file set from no file set, and tells the operator which boundary prevented a
 narrower selection. This follows [0029](0029-what-a-run-remembers.md), rather
 than treating a timeout as zero coverage.
 
-**6. Cost and correctness are measured separately.** The Phase 0 harness may
+**7. Cost and correctness are measured separately.** The Phase 0 harness may
 continue to compare method, shape, line and file selection against faults.
 The implementation must also measure full test-phase wall time and artifact
-size for a bare run, exclusive-instance JaCoCo recording, and identity-keyed
-file recording on the same suite. It must count incomplete rows and attribution
-errors under concurrent load. The exclusive-instance mode is acceptable even if it is
-slower; the measurement makes that price visible instead of ruling it out by
-architecture.
+size for a bare run, exclusive-instance JaCoCo recording, epoch-stamped
+recording, and identity-keyed file recording on the same suite, and, for the
+epoch mode, how much rows widen at each level of overlap. It must count
+incomplete rows and attribution errors under concurrent load. The
+exclusive-instance mode is acceptable even if it is slower; the measurement
+makes that price visible instead of ruling it out by architecture.
 
 ## Acceptance
 
@@ -208,9 +237,11 @@ architecture.
    `ObjectUtils`' static initializer selects the 210 test classes that ran on
    it without entering it.
 5. Two tests whose requests interleave in one JVM enter different source files.
+   A reset between them is refused: a JaCoCo dump taken while another attempt
+   is open is marked unsuitable for per-attempt exclusion. Epoch-stamped
+   recording returns each attempt both files and counts the overlap.
    Identity-keyed recording returns each file only for its own attempt, even
-   when both requests resume on different threads. A JaCoCo interval dump of
-   the same overlap is marked unsuitable for per-attempt exclusion.
+   when both requests resume on different threads.
 6. A browser's first request, a service-to-service call, and an asynchronous
    continuation retain one attempt identity wherever the deployment claims
    coverage. Removing the carrier at any hop produces an incomplete row and
@@ -225,8 +256,9 @@ architecture.
 
 This specifies the observation and its trust conditions, not a single agent or
 router. JaCoCo serves the exclusive-instance mode, which comes first, and the
-Phase 0 selection experiment. The keyed collector is more broadly applicable
-because it does not require exclusive service ownership; it still requires real
+Phase 0 selection experiment. The epoch-stamped and keyed collectors are more
+broadly applicable because they never reset, so they do not require exclusive
+service ownership; the keyed one still requires real
 propagation through every runtime boundary it claims. A request edge without
 an instrumented participant can narrow only to tests that called the observed
 endpoint, under [0036](0036-a-journey-crosses-processes.md); it cannot claim
