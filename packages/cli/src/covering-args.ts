@@ -50,6 +50,8 @@ export interface CoveringAt extends CoveringSource {
 export interface CoveringSince extends CoveringSource {
   /** `--since <ref>`: every region a diff against this ref changed. */
   readonly since: string;
+  /** `--against <record>`: the base's case index, compared with this one region by region. */
+  readonly against?: string;
   readonly file?: undefined;
 }
 
@@ -101,7 +103,19 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
           'which is one origin and has one answer.',
       );
     }
-    return { ...executionAnd(flags), since };
+    const against = flags.values.get('--against');
+    if (against === '') throw new OperatorError('`--against` takes the case index the base recorded.');
+    if (against !== undefined && REVIEW.has(flags.values.get('--format') ?? 'text')) {
+      // TODO: the review formats carry motion on the test file and on each lost region — spec 0070 item 3.
+      throw new OperatorError('`--against` answers in `text` and `json`; a code host is not shown what moved yet.');
+    }
+    return { ...executionAnd(flags), since, ...(against === undefined ? {} : { against }) };
+  }
+  if (flags.values.get('--against') !== undefined) {
+    throw new OperatorError(
+      '`--against` compares two records of one change, so it takes `--since <ref>`; ' +
+        '`--cases last` compares the last run with the one before it without it.',
+    );
   }
 
   const review = flags.values.get('--format');

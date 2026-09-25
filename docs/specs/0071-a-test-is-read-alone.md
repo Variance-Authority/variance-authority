@@ -1,10 +1,9 @@
 # Spec 0071 — a test is read alone
 
-**Missing:** what your last edit to a test changed, and a way to see one test
-alone in the editor. `covering --cases last|<test file>` answers from the chosen
-cases rather than the suite, and says so, but it states where the cases went,
-not where they went differently from the run before. Both editors paint only
-the suite's answer.
+**Missing:** a way to see one test alone in the editor. `covering --cases
+last|<test file>` answers from the chosen cases rather than the suite, and with
+`last` says what moved against the cases the run replaced. Both editors paint
+only the suite's answer.
 **Built on:** [0069](0069-the-case-index-layers-each-run.md) (the index names
 the cases of the last run, and keeps the layer that run retired),
 [0065](0065-the-record-in-webstorm.md) item 2 (*show only this case's lines*),
@@ -30,13 +29,7 @@ running it alone.
 
 ## What would discharge it
 
-**1. What the edit changed.** With `--cases last`, each region also says how
-the chosen cases moved against the layer the run retired (0069 item 3): gained,
-lost, or hidden when the case stopped. This is 0070's comparison with the
-previous run of the same test as its base. No CI and no second recording are
-needed.
-
-**2. A toggle in each editor.** The status bar item switches the painted view
+**1. A toggle in each editor.** The status bar item switches the painted view
 between *the suite* and *the last run alone*, and says which view is showing.
 The per-case popup of 0065 item 2 and its VS Code counterpart set the scope to
 one case. A lost region gets its own mark while the focus is on.

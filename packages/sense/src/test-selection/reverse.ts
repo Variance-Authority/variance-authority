@@ -39,6 +39,7 @@ export interface ExecutionCrossing {
   readonly loaded?: boolean;
 }
 
+/** One region of a module, and the cases that entered it. */
 export interface ExecutionBlock {
   readonly kind: string;
   readonly name: string;

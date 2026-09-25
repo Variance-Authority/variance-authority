@@ -75,8 +75,8 @@ hiding it.
 | [A case carries its outcome](0067-a-case-carries-its-outcome.md) | Every seam reads each case's state, folds it into one `complete` bit, and drops it. | **Pass, fail, message, frames, duration and output per case.** Nothing can paint the lines a failing case walked. |
 | [An edit runs what it reaches, from the editor](0068-an-edit-runs-what-it-reaches-from-the-editor.md) | `test:since` selecting nearest first, from a shell. | **A save that runs it.** No editor starts the selection, streams its outcomes, or repaints from the run's record. |
 | [The case index layers each run](0069-the-case-index-layers-each-run.md) | The snapshot layers each run over what it held; the case index is rewritten with the last run's cases. | **A case index that survives a partial run.** After one test file runs, every region it did not reach reads unwalked. |
-| [A change says what its tests moved](0070-a-change-says-what-its-tests-moved.md) | `covering --since` answers about the lines a change touched. | **A comparison of two records.** A test that stops entering a function regresses a file the diff does not name, and no review shows it. |
-| [A test is read alone](0071-a-test-is-read-alone.md) | `covering --cases` answers from one test file or the last run; the editors paint only the suite. | **What the edit moved.** Nothing compares the last run with what it replaced, and no editor shows one test alone. |
+| [A change says what its tests moved](0070-a-change-says-what-its-tests-moved.md) | `covering --since --against` compares two records region by region, in `text` and `json`. | **What moved, on the pull request.** No pipeline step restores the base, the code host formats refuse `--against`, and no editor marks a lost region. |
+| [A test is read alone](0071-a-test-is-read-alone.md) | `covering --cases` answers from one test file or the last run, and says what the last run moved; the editors paint only the suite. | **One test alone in the editor.** No editor switches its paint to the last run's cases. |
 
 ## Discharged
 

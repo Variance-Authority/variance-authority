@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -425,6 +425,18 @@ the suite's.
 A run of one file does not change the suite's answer: the index keeps every
 case the run did not replace.
 
+With `last`, the answer also says what your edit changed. The run keeps the
+cases it replaced, so each region those cases entered before and do not enter
+now is listed, and so is each region they entered for the first time:
+
+```text
+Against the run before it: 1 lost, 0 hidden, 0 thinned, 0 gained.
+  lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
+src/checkout/total.test.ts now enters 0 regions it did not, and no longer enters 1.
+```
+
+The words are the ones `--against` uses below.
+
 #### Asking about the text you hold
 
 The recorded line numbers are the ones the suite ran over. Edit the file and
@@ -498,6 +510,46 @@ The diff is measured from the commit the record was written at rather than from
 the merge base with `<ref>`, since the index's line ranges are in that commit's
 coordinates and nothing else's. Record before you read: an index behind the tree
 answers fluently about regions that have moved.
+
+#### What a change moved
+
+A change to a test does its work on lines the diff does not show. The test that
+stops calling a function takes that function's coverage with it, and the
+function's file is not in the diff. `--against` reads a second record, the
+base, and compares the two region by region:
+
+```bash
+variance covering --since origin/main --against base/coverage.bin.cases.bin
+```
+
+```text
+Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 0 thinned, 2 gained.
+  lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
+  hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
+  ...
+src/checkout/total.test.ts now enters 2 regions it did not, and no longer enters 1.
+```
+
+A region is matched across the two by its place in the module's tree, not by
+its lines, so a function your change moved down the file is still the same
+function. Each region whose cases moved is one of four:
+
+- **lost**: cases walked it at the base, none do now, and every case that could
+  have reached it finished. This is a regression.
+- **hidden**: the same, except a case that could have reached it stopped. The
+  case is named, and the region is not called a regression.
+- **thinned**: several cases walked it at the base, one does now.
+- **gained**: no case walked it at the base, one or more do now.
+
+A region that stayed walked is not listed. When nothing moved, the answer says
+*no region moved*, because an empty list and a comparison that was not made
+are different answers.
+
+The base is the record your base branch made, restored in CI into a directory
+of its own before this run writes. It names the commit it was made at. When
+that commit is behind the merge base, the files the base branch changed in
+between are left out and named, because what moved in them is that branch's
+doing, not yours. `--against` answers in `text` and `json`.
 
 #### On the pull request itself
 

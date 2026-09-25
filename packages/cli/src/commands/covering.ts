@@ -56,6 +56,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
+import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
 import { diffAtTip, diffSince, headCommit, repositoryDirectory } from './since.js';
@@ -126,6 +127,8 @@ export interface Covering {
   readonly from: string;
   /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
   readonly scope?: CoveringScope;
+  /** Under `--against`, or `--cases last`: the regions whose cases moved since the base. */
+  readonly motion?: CoveringMotion;
   /** The commit the record stands at, when it says. The diff is measured from it. */
   readonly at?: string;
   /**
@@ -152,14 +155,16 @@ export interface Covering {
  */
 export async function covering(request: ParsedCovering): Promise<Covering> {
   let scope: CoveringScope | undefined;
+  let full: ExecutionIndex | undefined;
   const answer = await ask(request, async (from, changed) => {
     const read = await readIndex(from, changed);
     if (request.cases === undefined) return read;
-    const cut = await scopeCases(read.index, from, request.cases, request.root);
+    const cut = await scopeCases((full = read.index), from, request.cases, request.root);
     scope = cut.scope;
     return { index: cut.index, files: read.files };
   });
-  return scope === undefined ? answer : { ...answer, scope };
+  const motion = await motionFor(request, answer.from, scope, full);
+  return { ...answer, ...(scope === undefined ? {} : { scope }), ...(motion === undefined ? {} : { motion }) };
 }
 
 async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {

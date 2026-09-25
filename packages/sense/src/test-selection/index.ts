@@ -118,6 +118,8 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 // Where the run that wrote the case index last is named, and what it replaced.
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
+export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion } from './case-motion.js';
+export type { RegionMotion, RegionMotionKind, TestFileMotion } from './case-motion.js';
 export type { CoverageShard };
 
 /**
