@@ -87,6 +87,35 @@ public final class Agent implements ClassFileTransformer {
   public static void premain(String args, Instrumentation inst) {
     inst.addTransformer(new Agent(args));
     Presence.on = true;
+    parts();
+  }
+
+  /**
+   * With a parts directory, from {@code -Dva.parts} or the
+   * {@code VARIANCE_AUTHORITY_PARTS} a test runner hands the processes it starts,
+   * the record is converted into {@link Parts} when the JVM exits. The record
+   * then goes to a directory of this process's own unless {@code va.out} names
+   * one, since two services converting one record would each claim the other's rows.
+   */
+  private static void parts() {
+    String configured = System.getProperty("va.parts", System.getenv("VARIANCE_AUTHORITY_PARTS"));
+    if (configured == null || configured.isEmpty()) return;
+    java.nio.file.Path directory = java.nio.file.Paths.get(configured).toAbsolutePath();
+    if (System.getProperty("va.out") == null) {
+      try {
+        System.setProperty("va.out", java.nio.file.Files.createTempDirectory("va-presence-").toString());
+      } catch (java.io.IOException e) {
+        throw new java.io.UncheckedIOException("presence could not make a directory for its record", e);
+      }
+    }
+    java.nio.file.Path record = java.nio.file.Paths.get(System.getProperty("va.out"), "record.jsonl");
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      try {
+        Parts.write(record, directory);
+      } catch (java.io.IOException | RuntimeException e) {
+        System.err.println("presence: wrote no parts: " + e);
+      }
+    }, "va-presence-parts"));
   }
 
   private static Pattern glob(String glob) {
