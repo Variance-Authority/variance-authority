@@ -17,6 +17,7 @@ public final class Presence {
   public static final boolean[] P = new boolean[Integer.getInteger("va.presence.capacity", 1 << 22)];
 
   private static final List<String> META = new ArrayList<>();
+  private static final List<String> FAILED = new ArrayList<>();
 
   private Presence() {}
 
@@ -48,5 +49,15 @@ public final class Presence {
 
   public static synchronized String meta(int index) {
     return META.get(index);
+  }
+
+  /** Records a class the agent meant to instrument and could not: it runs unseen from here on. */
+  public static synchronized void fail(String cls) {
+    FAILED.add(cls);
+  }
+
+  /** Every class that failed so far; no window after its load can say it was not entered. */
+  public static synchronized String[] failed() {
+    return FAILED.toArray(new String[0]);
   }
 }

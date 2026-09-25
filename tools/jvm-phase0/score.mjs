@@ -3,10 +3,12 @@
 // Phase 0 harness. For each first-parent pair (parent -> child):
 //   selected  — from the parent's record, at method, shape, line and file grain, and
 //               by `variance reach` from the static graph;
-//   forced    — test classes whose own file changed, or that the parent never recorded;
+//   forced    — test classes whose own file changed, that the parent never recorded, or whose
+//               parent row names a class it could not resolve to a file (`unknown`);
 //   truth     — test classes whose *child* record enters a changed method (new side),
 //               plus any test class that failed in the child.
-// A miss is a truth test class that a grain neither selected nor forced.
+// A miss is a truth test class that a grain neither selected nor forced. A method with no
+// line table has no span, so any change to its file charges it.
 //
 // Usage: node score.mjs <replay dir> <reach clone> <variance bin> [test source root]
 
@@ -22,6 +24,7 @@ function loadRecord(sha) {
   const path = join(replay, sha, 'record.jsonl');
   if (!existsSync(path)) return null;
   const tests = new Map();
+  tests.incomplete = new Set();
   for (const text of readFileSync(path, 'utf8').trim().split('\n')) {
     if (!text) continue;
     const row = JSON.parse(text);
@@ -30,6 +33,7 @@ function loadRecord(sha) {
       continue;
     }
     tests.set(row.owner, row.methods);
+    if (row.unknown?.length) tests.incomplete.add(row.owner);
   }
   return tests;
 }
@@ -43,12 +47,14 @@ function failed(sha) {
 
 /** A method is charged when a changed line falls in its span, or an insertion lands inside or against it. */
 function methodHit(m, lines, inserts) {
+  if (m.first < 0) return true;
   for (const l of lines) if (l >= m.first && l <= m.last) return true;
   for (const k of inserts) if (k >= m.first && k <= m.last + 1) return true;
   return false;
 }
 
 function lineHit(m, lines, inserts) {
+  if (!m.lines.length) return true;
   for (const l of m.lines) if (lines.has(l) || inserts.has(l) || inserts.has(l + 1)) return true;
   return false;
 }
@@ -116,6 +122,7 @@ for (let i = 1; i < order.length; i++) {
   const other = [...diff.keys()].filter((p) => !/\.(java|kt)$/.test(p));
   const forced = new Set([...diff.keys()].filter((p) => p.startsWith(testRoot + '/')).map(fqcn));
   for (const t of after.keys()) if (!before.has(t) && !t.startsWith('<spill')) forced.add(t);
+  for (const t of before.incomplete) forced.add(t);
   const membersPath = join(replay, child, 'members.json');
   const shape = shapeChanged(diff, existsSync(membersPath) ? JSON.parse(readFileSync(membersPath, 'utf8')) : null);
   const sel = select(before, diff, 'old', shape);
@@ -132,6 +139,7 @@ for (let i = 1; i < order.length; i++) {
     other: other.join(' '),
     all,
     forced: forced.size,
+    incomplete: before.incomplete.size,
     truth: truth.size,
     method: sel.method.size,
     shape: sel.shape.size,
