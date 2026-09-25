@@ -70,7 +70,7 @@ import type { CoveringAt, ParsedCovering } from '../covering-args.js';
  * Insights request body each, and `markdown` prints the whole review uncut, for
  * a step summary or a comment.
  */
-export type CoveringFormat = 'text' | 'json' | ReviewFormat;
+export type CoveringFormat = 'text' | 'refs' | 'json' | ReviewFormat;
 
 /** The formats a code host reads, each answering `--since` on the commit it reviews. */
 export type ReviewFormat = 'github' | 'bitbucket-report' | 'bitbucket-annotations' | 'markdown';
@@ -177,7 +177,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
     const at = from.startsWith(testCoverageFile(request.root))
       ? await recordedCommit(testCoverageFile(request.root))
       : undefined;
-    const review = request.format !== 'text' && request.format !== 'json';
+    const review = request.format !== 'text' && request.format !== 'refs' && request.format !== 'json';
     if (review) await onTip(request.format, at);
     const changed = await changeSince(request.since, request.root, at, review);
     const { index } = await readIndex(from, changed);

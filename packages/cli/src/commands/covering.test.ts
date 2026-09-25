@@ -85,7 +85,7 @@ describe('asking which tests entered a line', () => {
       .toContain('every case that could have reached it finished: unwalked.');
     expect(formatCovering({ ...answer, stopped }, 'text')).toContain(
       'a hole: a case that could have reached it stopped first, so the record cannot see it.\n' +
-        '  stopped: checks out — flow.test.tsx [far]',
+        '  stopped: flow.test.tsx > checks out [far]',
     );
     expect(formatCovering(answer, 'text')).toBe('No named test covered line 40 of src/total.ts.\n');
   });

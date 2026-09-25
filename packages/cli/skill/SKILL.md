@@ -512,7 +512,12 @@ function, nearest first.
 npx variance covering --file src/checkout/total.ts --line 48
 npx variance covering --file src/checkout/total.ts --function applyDiscount --format json
 npx variance covering --file src/checkout/total.ts        # per recorded range
+npx variance covering --file src/checkout/total.ts --format refs  # each case once, ranges by number
 ```
+
+Read with `--format refs`: it numbers each case once in a table at the end and
+names every range's cases by those numbers, so a module whose eleven cases all
+walk it costs one table, not eleven names per range.
 
 The index is read from where a recorded run writes it, so `--file` is usually
 the whole command; `--execution <path>` names one recorded elsewhere and

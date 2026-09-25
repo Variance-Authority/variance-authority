@@ -76,7 +76,7 @@ export function formatCoveringChange(
         `  a test file — ${count(file.cases.length, 'named case')} declared here, which is ` +
           'what changed rather than what was covered:',
       );
-      lines.push(...file.cases.map((test) => `    ${test.name} [${test.id}]`));
+      lines.push(...file.cases.map((test) => `    ${describe(test)}`));
     }
     if (!file.recorded) {
       if (file.cases.length === 0) {
@@ -175,5 +175,6 @@ function carried(passengers: CoveringChange['regions'][number]['passengers']): s
  * `--at-distance`.
  */
 function describe(test: CoveringTest | ExecutionTest): string {
-  return `${test.name} — ${test.file} [${test.id}]`;
+  // The id is the file and the name unless a project spelled it otherwise, so it is printed only then.
+  return `${test.file} > ${test.name}${test.id === `${test.file} > ${test.name}` ? '' : ` [${test.id}]`}`;
 }

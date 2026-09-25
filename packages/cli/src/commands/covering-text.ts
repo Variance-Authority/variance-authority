@@ -13,11 +13,13 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
+import { formatCoveringRefs } from './covering-refs.js';
 import { formatReview } from './covering-review.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
+  if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
   if (format === 'text') return `${[...scopeText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
   return formatReview(answer, format);
@@ -34,7 +36,7 @@ function text(answer: Covering): string {
   if (tests.length === 0) {
     return [
       `No named test covered ${where} of ${answer.file}${unentered(answer.stopped)}`,
-      ...(answer.stopped ?? []).map((test) => `  stopped: ${test.name} — ${test.file} [${test.id}]`),
+      ...(answer.stopped ?? []).map((test) => `  stopped: ${test.file} > ${caseName(test)}`),
       ...narrowedText(answer),
     ].join('\n');
   }
@@ -42,7 +44,7 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...tests.map((test) => `  ${describe(test)}`),
+    ...caseLines(tests, '  '),
     ...narrowedText(answer),
   ].join('\n');
 }
@@ -53,7 +55,7 @@ function text(answer: Covering): string {
  * A focused answer reads exactly like the suite's, and the two lead to
  * opposite decisions about a region nobody entered, so it is said first.
  */
-function scopeText(answer: Covering): readonly string[] {
+export function scopeText(answer: Covering): readonly string[] {
   const scope = answer.scope;
   if (scope === undefined) return [];
   const count = `${scope.tests.length} case${scope.tests.length === 1 ? '' : 's'}`;
@@ -66,7 +68,7 @@ function scopeText(answer: Covering): readonly string[] {
  * The file was edited since the recording and the recorded text is not in
  * history, so there is no line to give.
  */
-function staleText(answer: Covering): string {
+export function staleText(answer: Covering): string {
   return `${answer.file} is not the text the suite ran over${
     answer.at === undefined ? '' : ` at ${answer.at.slice(0, 12)}`
   }, and that text could not be found, so no recorded line is a place in it. Run the suite to record it again.`;
@@ -81,18 +83,23 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       named.size
     } named test${named.size === 1 ? '' : 's'}${framed(answer)}`,
   ];
+  // Where each list of cases was first printed, so a later range walked by the same cases points at it.
+  const printed = new Map<string, string>();
   for (const range of ranges) {
-    lines.push(`${range.startLine === range.endLine
-      ? `line ${range.startLine}`
-      : `lines ${range.startLine}-${range.endLine}`}${range.state === undefined ? '' : ` — ${range.state}`}${
+    const place = range.startLine === range.endLine ? `line ${range.startLine}` : `lines ${range.startLine}-${range.endLine}`;
+    lines.push(`${place}${range.state === undefined ? '' : ` — ${range.state}`}${
       range.moved === true ? ', edited since the recording' : ''
     }`);
-    lines.push(...(range.tests.length === 0
-      ? [`  no named test covered this range${unentered(range.stopped)}`]
-      : range.tests.map((test) => `  ${describe(test)}`)));
-    lines.push(...(range.tests.length === 0 ? range.stopped ?? [] : []).map((test) =>
-      `    stopped: ${test.name} — ${test.file} [${test.id}]`,
-    ));
+    const key = range.tests.map((test) => `${test.id}\0${test.loaded === true}`).join('\n');
+    if (range.tests.length === 0) {
+      lines.push(`  no named test covered this range${unentered(range.stopped)}`);
+      lines.push(...(range.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`));
+    } else if (printed.has(key)) {
+      lines.push(`  the same ${range.tests.length === 1 ? 'named test' : `${range.tests.length} named tests`} as ${printed.get(key)}`);
+    } else {
+      lines.push(...caseLines(range.tests, '  '));
+      printed.set(key, place);
+    }
   }
   lines.push(...narrowedText(answer));
   return lines.join('\n');
@@ -133,7 +140,7 @@ function unentered(stopped: readonly ExecutionTest[] | undefined): string {
  * walk could not place at all — which on a recording made against built output
  * is most of them. Why each one left is the notes' job, and the notes say it.
  */
-function narrowedText(answer: Covering): readonly string[] {
+export function narrowedText(answer: Covering): readonly string[] {
   const narrowed = answer.narrowed;
   if (narrowed === undefined) return [];
   return [
@@ -160,6 +167,27 @@ function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
   });
 }
 
-function describe(test: CoveringTest): string {
-  return `${test.name} — ${test.file} [${test.id}]${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`;
+/**
+ * Cases under the test file that declares them, each file named once.
+ *
+ * A case's id is its file and its name, so a line carrying all three said the
+ * file twice, and a range walked by eleven cases of one file said it
+ * twenty-two times. An id that is not that — a project's, say — is printed.
+ */
+function caseLines(tests: readonly CoveringTest[], indent: string): readonly string[] {
+  const byFile = new Map<string, CoveringTest[]>();
+  for (const test of tests) {
+    const held = byFile.get(test.file);
+    if (held === undefined) byFile.set(test.file, [test]);
+    else held.push(test);
+  }
+  return [...byFile].flatMap(([file, cases]) => [
+    `${indent}${file}`,
+    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`),
+  ]);
+}
+
+/** A case's name, with its id when the id is not its file and its name. */
+function caseName(test: ExecutionTest): string {
+  return test.id === `${test.file} > ${test.name}` ? test.name : `${test.name} [${test.id}]`;
 }

@@ -189,9 +189,9 @@ function parseAtDistance(
 /** Where to read the index, where the run was rooted, and how to write the answer. */
 function executionAnd(flags: Flags): CoveringSource {
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'json' && !REVIEW.has(format)) {
+  if (format !== 'text' && format !== 'refs' && format !== 'json' && !REVIEW.has(format)) {
     throw new OperatorError(
-      `--format must be text, json, github, bitbucket-report, bitbucket-annotations or markdown, not \`${format}\``,
+      `--format must be text, refs, json, github, bitbucket-report, bitbucket-annotations or markdown, not \`${format}\``,
     );
   }
   const execution = flags.values.get('--execution');

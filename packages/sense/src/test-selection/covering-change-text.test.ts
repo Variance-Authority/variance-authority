@@ -66,7 +66,7 @@ describe('formatCoveringChange', () => {
     ]);
 
     expect(text).toContain('1 case, and it is the only witness (+1 carried in while the module evaluated)');
-    expect(text).toContain('    guest — test/cart.test.ts [test/cart.test.ts > guest]');
+    expect(text).toContain('    test/cart.test.ts > guest');
     // The passenger is counted, not named as a witness: it was present, it did
     // not go there, and a reader picking a test to run must not pick it.
     expect(text).not.toContain('    staff —');
@@ -119,7 +119,7 @@ describe('formatCoveringChange', () => {
     expect(text).toContain(
       '1-6 function priceOf — a hole: no case covered this region, and 1 case that could have reached it stopped first',
     );
-    expect(text).toContain('    stopped first: refunds — test/cart.test.ts [refund]');
+    expect(text).toContain('    stopped first: test/cart.test.ts > refunds [refund]');
     expect(text).toContain(
       '8-10 function priceOf — no case covered this region, and every case that could have reached it finished',
     );

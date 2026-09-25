@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json|github|bitbucket-report|bitbucket-annotations|markdown]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -324,10 +324,41 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 
 ```text
 3 named tests covered line 48 of src/checkout/total.ts:
-  applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
-  renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-  checks out — src/checkout/flow.test.tsx [flow.test.tsx::checks out]
+  src/checkout/total.test.ts
+    applies a percentage discount
+  src/checkout/Cart.test.tsx
+    renders a cart with a coupon
+  src/checkout/flow.test.tsx
+    checks out
 ```
+
+Each test file is named once, with its cases under it. Over a whole file, a
+range walked by the same cases as the one before says so in one line.
+
+`--format refs` is the same answer for an agent, which pays for every repeated
+name. Each case is numbered once, in a table at the end, and every range names
+its cases by number, with runs collapsed:
+
+```bash
+variance covering --file src/checkout/total.ts --format refs
+```
+
+```text
+src/checkout/total.ts — 3 recorded ranges
+1-8 walked: 1-3
+12-20 walked: 1-3
+48 walked: 1-3
+
+cases
+src/checkout/Cart.test.tsx
+  1 renders a cart with a coupon
+src/checkout/flow.test.tsx
+  2 checks out
+src/checkout/total.test.ts
+  3 applies a percentage discount
+```
+
+`3*` marks a case that was inside the range only while the module evaluated.
 
 This is not a verdict. Execution says where a test went, never why the trip was
 worth taking, so three tests on one line is the beginning of the question *why
