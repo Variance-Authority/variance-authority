@@ -285,12 +285,12 @@ public final class Coverage {
     return "src/test/java/" + base + ".java";
   }
 
-  private static String text(String file) throws IOException {
+  static String text(String file) throws IOException {
     Path p = Paths.get(file);
     return Files.isRegularFile(p) ? new String(Files.readAllBytes(p), StandardCharsets.UTF_8) : null;
   }
 
-  private static Module module(String file, String text, List<Method> all) {
+  static Module module(String file, String text, List<Method> all) {
     String[] lines = text.split("\n", -1);
     List<Spans.Span> spans;
     try {
