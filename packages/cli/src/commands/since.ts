@@ -307,6 +307,34 @@ export async function diffPoint(
  * that was not there before is an install this cannot compare, and one that is
  * there at both ends is one it can.
  */
+/**
+ * The changed files that change nothing that runs, in run coordinates.
+ *
+ * Each is read at the same point the install is, from both texts — git's at
+ * the merge base and the disk's now — and the addon's verdict decides. A
+ * comment, a type or formatting moves nothing a test executes, so a walk from
+ * the file graph seeds none of them.
+ *
+ * `undefined` is *no reading was taken*: no diff point, a path outside the
+ * checkout, or no addon on this machine. Every changed file is then a change,
+ * which is the answer the walk gave before it could read one.
+ */
+export async function quietSince(
+  point: DiffPoint | undefined,
+  changed: readonly string[],
+): Promise<readonly string[] | undefined> {
+  if (point === undefined) return undefined;
+  const here = process.cwd();
+  const named = new Map<string, string>();
+  for (const file of changed) {
+    const at = relative(point.repository, join(here, file));
+    if (!at.startsWith('..')) named.set(at, file);
+  }
+  const { runsAsBefore } = await import('@variance-authority/sense/test-selection');
+  const read = runsAsBefore(point.repository, point.base, [...named.keys()]);
+  return 'unread' in read ? undefined : read.files.map((file) => named.get(file)!);
+}
+
 async function fileAt(
   repository: string,
   revision: string,
@@ -386,12 +414,14 @@ export async function narrowingFor(
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
+    readonly quiet?: readonly string[];
     readonly diff?: string;
   };
   readonly against?: {
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
+    readonly quiet?: readonly string[];
   };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
@@ -402,10 +432,10 @@ export async function narrowingFor(
   // diff of files against the merge base beside a diff of packages against
   // anything else would report bumps nobody made every time `main` moved.
   const changed = request.since === undefined ? undefined : await changedSince(request.since, dirs);
-  const installed =
-    request.since === undefined || changed === undefined
-      ? undefined
-      : await installDiff(await diffPoint(request.since, dirs), changed);
+  // The changed files are read at that point too, from both texts.
+  const point = request.since === undefined ? undefined : await diffPoint(request.since, dirs);
+  const installed = changed === undefined ? undefined : await installDiff(point, changed);
+  const quiet = changed === undefined ? undefined : await quietSince(point, changed);
   const since =
     request.since === undefined || changed === undefined
       ? undefined
@@ -413,6 +443,7 @@ export async function narrowingFor(
           ref: request.since,
           changed,
           ...(installed === undefined ? {} : { install: installed }),
+          ...(quiet === undefined ? {} : { quiet }),
           ...(diff === undefined ? {} : { diff }),
         };
   const againstRef = request.against ?? (request.relations ? request.since : undefined);
@@ -420,14 +451,26 @@ export async function narrowingFor(
     againstRef === undefined
       ? undefined
       : againstRef === since?.ref
-        ? { ref: againstRef, changed: since.changed, ...(installed === undefined ? {} : { install: installed }) }
+        ? {
+            ref: againstRef,
+            changed: since.changed,
+            ...(installed === undefined ? {} : { install: installed }),
+            ...(quiet === undefined ? {} : { quiet }),
+          }
         : await (async () => {
             const changed = await changedSince(againstRef, dirs);
             // A second ref is a second install. Explaining a run by one diff's
             // packages while narrowing it by another's would put a bump in the
             // report that no selected subject was selected for.
-            const read = await installDiff(await diffPoint(againstRef, dirs), changed);
-            return { ref: againstRef, changed, ...(read === undefined ? {} : { install: read }) };
+            const at = await diffPoint(againstRef, dirs);
+            const read = await installDiff(at, changed);
+            const still = await quietSince(at, changed);
+            return {
+              ref: againstRef,
+              changed,
+              ...(read === undefined ? {} : { install: read }),
+              ...(still === undefined ? {} : { quiet: still }),
+            };
           })();
 
   return {

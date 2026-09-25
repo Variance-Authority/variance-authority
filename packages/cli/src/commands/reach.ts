@@ -200,9 +200,9 @@ interface Seeds {
 /**
  * The diff affects nothing, and that is an answer rather than a gap.
  *
- * Only the install can produce it: a diff of manifests alone, where every
- * package resolved to what it resolved before or no file imports the ones that
- * changed. The callers part here — a report says *no component is affected* and carries
+ * A diff of manifests where every package resolved to what it resolved before
+ * or no file imports the ones that changed, and a diff of files that change
+ * nothing that runs, produce it. The callers part here — a report says *no component is affected* and carries
  * the sentence, and a run list cannot, because an empty list on the far side of
  * an `xargs` runs nothing and reads as a fast green build.
  */
@@ -228,6 +228,10 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * A package name the graph has no node for is not a gap — it is a dependency no
  * file in this repository asks for, and it reaches nothing.
  *
+ * `quiet` are changed files read from both texts as running what they ran
+ * before — a comment, a type, formatting. They seed nothing, and a diff of
+ * nothing else is the answer *nothing*, as a diff of settled manifests is.
+ *
  * `before` is the far-left end: what the harness rests on that nothing imports.
  * It is asked first and it does not narrow — a walk against the arrows from a
  * setup file the suite loads for every test reaches whatever happens to import
@@ -247,11 +251,16 @@ function seedsOf(
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
+  quiet: readonly string[] = [],
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
   const moved = movedPackages(relations, install);
-  const files = [...withoutManifests(changed, install.manifests), ...moved.unplaced];
+  const still = changed.filter((file) => quiet.includes(file));
+  const files = [
+    ...withoutManifests(changed, install.manifests).filter((file) => !still.includes(file)),
+    ...moved.unplaced,
+  ];
 
   // Before anything is walked, and it refuses rather than narrows. A walk
   // against the arrows from a setup file the suite loads for every test reaches
@@ -298,11 +307,12 @@ function seedsOf(
   const fromPackages = install.packages.filter((name) => !absent.has(name)).length;
   const fromFiles = seeded - fromPackages;
   const source =
-    fromPackages === 0
+    (fromPackages === 0
       ? many(fromFiles, 'changed file')
       : fromFiles === 0
         ? many(fromPackages, 'changed package')
-        : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`;
+        : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`) +
+    (still.length === 0 ? '' : ` (${ranAsBefore(still)})`);
   if (unscanned.length > 0) {
     return {
       unscanned,
@@ -319,12 +329,20 @@ function seedsOf(
     // step earlier — a lockfile rewritten by a workspace version bump resolves
     // every package to what it resolved before, and changed nothing.
     if (files.length === 0 && expanded.length === 0 && changed.length > 0) {
-      return {
-        nothing:
-          install.packages.length === 0
+      const settled =
+        install.packages.length > 0
+          ? `no file imports ${listed([...install.packages].sort(byCodeUnit))}`
+          : still.length === 0
             ? 'the diff changed only manifests, and the install resolves every package to what ' +
               'it resolved before'
-            : `no file imports ${listed([...install.packages].sort(byCodeUnit))}`,
+            : 'the install resolves every package to what it resolved before';
+      return {
+        nothing:
+          still.length === 0
+            ? settled
+            : still.length === changed.length
+              ? ranAsBefore(still)
+              : `${ranAsBefore(still)}, and ${settled}`,
       };
     }
 
@@ -364,8 +382,9 @@ export function affectedFiles(
   changed: readonly string[],
   roots: readonly string[],
   changedDirs: readonly string[] = [],
+  quiet: readonly string[] = [],
 ): AffectedFiles | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots);
+  const walk = seedsOf(relations, changed, changedDirs, roots, NO_INSTALL_DIFF, undefined, quiet);
   if (refused(walk)) return walk;
   // The one place this and the report disagree. There is a real answer here and
   // it is *nothing*, which a report can print and a run list cannot hand over.
@@ -396,8 +415,9 @@ export function affectedComponents(
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
+  quiet: readonly string[] = [],
 ): AffectedComponents | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots, install, before);
+  const walk = seedsOf(relations, changed, changedDirs, roots, install, before, quiet);
   if (refused(walk)) return walk;
   if (affectsNothing(walk)) {
     return { components: [], files: [], seeded: 0, how: walk.nothing };
@@ -442,6 +462,12 @@ export function many(count: number, singular: string): string {
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
+}
+
+/** The clause naming the changed files that seeded nothing, and why. */
+function ranAsBefore(files: readonly string[]): string {
+  return `${listed(files)} ${files.length === 1 ? 'changes' : 'change'} nothing that runs, so ` +
+    `${files.length === 1 ? 'it seeds' : 'they seed'} nothing`;
 }
 
 /**

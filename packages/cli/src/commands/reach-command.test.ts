@@ -163,3 +163,46 @@ describe('what a diff reaches, on stdout', () => {
     expect(files).toContain('Sources/App/Main.swift');
   });
 });
+
+describe('a changed file that runs what it ran before', () => {
+  const TYPESCRIPT = {
+    'package.json': '{ "name": "shop", "type": "module" }\n',
+    'src/limits.ts': 'export function clamp(value: number): number {\n  return Math.min(value, 10);\n}\n',
+    'src/cart.ts': "import { clamp } from './limits.js';\nexport const total = (n: number) => clamp(n);\n",
+    'src/cart.test.ts': "import { total } from './cart.js';\ntotal(1);\n",
+  };
+
+  it('leaves a file whose edit was a comment and a type out of the walk, and names it on stderr', async () => {
+    checkout(TYPESCRIPT);
+    commit(
+      process.cwd(),
+      {
+        'src/limits.ts':
+          '/** The cap on a line. */\nexport function clamp(value: number): 0 | number {\n  return Math.min(value, 10);\n}\n',
+        'src/cart.ts': "import { clamp } from './limits.js';\nexport const total = (n: number) => clamp(n + 1);\n",
+      },
+      'a comment and a fix',
+    );
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual(['src/cart.test.ts', 'src/cart.ts']);
+    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs/);
+  });
+
+  it('exits 2 and writes nothing to stdout when every changed file runs what it ran before', async () => {
+    checkout(TYPESCRIPT);
+    commit(
+      process.cwd(),
+      { 'src/limits.ts': 'export function clamp(value: number): number {\n  // The cap on a line.\n  return Math.min(value, 10);\n}\n' },
+      'a comment',
+    );
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_OPERATOR);
+    expect(said.out).toBe('');
+    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs, so it seeds nothing/);
+  });
+});

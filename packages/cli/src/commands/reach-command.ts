@@ -28,12 +28,20 @@
  * They are taken out before the walk and named on stderr, so an operator can
  * see the part of their diff this answer is not about. A diff that is *entirely*
  * such paths still refuses, because then there is nothing left to be about.
+ *
+ * ## A change that runs nothing
+ *
+ * A changed file whose edit was a comment, a type or formatting is read from
+ * both texts and left out of the walk, because no test runs anything it did
+ * not run before. It is named on stderr too. A diff of nothing else refuses,
+ * like a diff of lockfiles: it reaches nothing, and an empty list would read as
+ * *run nothing* with nobody told why.
  */
 
 import { OperatorError } from '../exit.js';
 import { affectedFiles, refused } from './reach.js';
 import { relationsFor } from './source-graph.js';
-import { changedSince } from './since.js';
+import { changedSince, diffPoint, quietSince } from './since.js';
 
 /** How the file list is written. `plain` is what a pipe wants. */
 export type ReachFormat = 'plain' | 'json';
@@ -81,7 +89,8 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const readable = changed.filter((file) => READABLE.has(suffixOf(file)));
   const unread = changed.filter((file) => !READABLE.has(suffixOf(file)));
 
-  const reach = affectedFiles(relations, readable, ['.']);
+  const quiet = (await quietSince(await diffPoint(request.since), readable)) ?? [];
+  const reach = affectedFiles(relations, readable, ['.'], [], quiet);
   if (refused(reach)) {
     throw new OperatorError(
       `${reach.whole}. Rather than print a file list this cannot stand behind, \`reach\` stops ` +
@@ -108,6 +117,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
               since: request.since,
               changed: [...changed],
               unread,
+              quiet,
               seeded: reach.seeded,
               files: reach.files,
             },

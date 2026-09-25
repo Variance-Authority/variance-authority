@@ -1010,10 +1010,11 @@ alone enough to answer from with nothing recorded, and it is the same direction
 of error every narrowing in this tool is allowed.
 
 This one prints a **run** list, which is the dangerous shape, so it has no short
-answer at all. Either stdout lists every file the diff reaches — the changed
-files themselves always among them — or the command writes nothing to stdout and
-exits `2`. It refuses when the diff is empty, when a changed file in a language
-it reads is not in the graph, and when no changed file is in the graph:
+answer at all. Either stdout lists every file the diff reaches — every changed
+file that runs differently among them — or the command writes nothing to stdout
+and exits `2`. It refuses when the diff is empty, when a changed file in a
+language it reads is not in the graph, when no changed file is in the graph, and
+when every changed file runs what it ran before:
 
 ```
 $ variance reach --since origin/main
@@ -1025,7 +1026,10 @@ nobody read.
 
 Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile —
 are left out of the walk and named on stderr, so you can see the part of your
-diff the answer is not about. Everything else a person needs goes there too,
+diff the answer is not about. So is a JavaScript or TypeScript file whose edit
+was a comment, a type or formatting: it is read from both texts, runs what it
+ran before, and reaches nothing. A JSX pragma and a type in a decorated class
+are not that kind of edit, because the compiler writes both into what runs. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
 

@@ -63,6 +63,15 @@ recorded as edges and skipped by a walk that asks what a change can reach at
 runtime. The `else:` branch of that Python block is the runtime half and is
 followed.
 
+A changed JavaScript or TypeScript file is read from both of its texts before the
+walk starts. When the edit is a comment, a type or formatting, the file runs
+exactly what it ran before, so nothing is walked from it and it is not in the
+list. Stderr names it. Two edits of that kind change what runs and are walked
+from: a JSX pragma such as `@jsxImportSource`, and a type in a decorated class,
+which `emitDecoratorMetadata` writes into the class. A file in another language,
+and a file that was added, deleted or does not parse, is walked from whatever
+the edit was.
+
 ## One reader per language, one graph
 
 A language here is a reader and a resolution algorithm — what does this file
@@ -132,11 +141,12 @@ the default and the default is only a default.
 ## What the answer will not do
 
 **It will not answer short.** On a clean exit the list is never empty, because
-the changed files are always among the files they reach. The walk cannot stand
-behind a list in three cases:
+every changed file that runs differently is among the files it reaches. The walk
+cannot stand behind a list in four cases:
 
 - nothing changed since the ref
 - nothing changed that any reader claims
+- every changed file runs what it ran before
 - a changed source file the scan never reached
 
 In each of them the command writes nothing to stdout, says why on stderr, and

@@ -203,6 +203,7 @@ export async function selectionFor(
           ...(before === undefined ? {} : { before }),
           ...(changedDirs === undefined ? {} : { changedDirs }),
           ...(explains.install === undefined ? {} : { install: explains.install }),
+          ...(explains.quiet === undefined ? {} : { quiet: explains.quiet }),
         });
 
   if (options.since === undefined) {
@@ -229,6 +230,7 @@ export async function selectionFor(
     ...(config.source.unrendered === undefined ? {} : { unrendered: config.source.unrendered }),
     ...(narrowDirs === undefined ? {} : { changedDirs: narrowDirs }),
     ...(options.since.install === undefined ? {} : { install: options.since.install }),
+    ...(options.since.quiet === undefined ? {} : { quiet: options.since.quiet }),
   });
 
   // Absent all the way down: no diff text, no reader, or a reader that found no
@@ -283,8 +285,15 @@ export async function selectionFor(
         },
         before,
       ),
-      // What the parser made of each changed file, as the journal read it.
-      ...readingLines(journal?.readings ?? []),
+      // What the parser made of each changed file: the files the structural
+      // ground did not seed from, then the journal's reading. A file both read
+      // as `none` is said once.
+      ...new Set(
+        readingLines([
+          ...(options.since.quiet ?? []).map((file) => ({ file, verdict: 'none' as const, names: [] })),
+          ...(journal?.readings ?? []),
+        ]),
+      ),
     ],
   };
 }

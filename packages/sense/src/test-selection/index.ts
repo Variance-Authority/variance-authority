@@ -52,10 +52,7 @@ export {
 } from './reverse.js';
 export { narrowByJourneys, type JourneySelectionOptions } from './execution-select.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
-export {
-  formatCoveringChange,
-  type CoveringChangeHeading,
-} from './covering-change-text.js';
+export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
 export {
   EXECUTION_FORMAT,
   decodeExecutionIndex,
@@ -92,6 +89,7 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording } from './recorded-text.js';
+export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export type {
   Bearing,
   DistanceOptions,

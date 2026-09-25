@@ -44,6 +44,12 @@ export interface ReachInput {
   readonly install?: InstallDiff;
 
   /**
+   * Changed files read from both texts as running what they ran before. They
+   * seed nothing. Absent is *no reading was taken*.
+   */
+  readonly quiet?: readonly string[];
+
+  /**
    * Component names each planned subject's stored baseline recorded.
    *
    * `undefined` for a subject with no baseline, and for one whose baseline
@@ -74,6 +80,7 @@ export function reachOf(input: ReachInput): ReachReport {
     roots,
     input.install ?? NO_INSTALL_DIFF,
     input.before,
+    input.quiet ?? [],
   );
 
   if (refused(walk)) {
