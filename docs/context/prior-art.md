@@ -10,7 +10,7 @@ it and is a pointer to go and read, not evidence this project produced — which
 is why it is not mixed with the journal, where a measurement arrives with the
 command that made it ([README](README.md)).
 
-Five fields touch this project, and only one of them is the one people assume.
+Six fields touch this project, and only one of them is the one people assume.
 
 | Field | Its question | Our page |
 | --- | --- | --- |
@@ -19,6 +19,7 @@ Five fields touch this project, and only one of them is the one people assume.
 | Flake detection | Is this failure about the change? | [`flakiness.md`](../flakiness.md) |
 | Fault localization | Which line caused it? | [`attribution.md`](../attribution.md) |
 | Coverage adequacy | Is this suite good enough? | [`better-tests.md`](../better-tests.md), [`tests.md`](../tests.md) |
+| Codebase orientation for agents | Where should an agent read first? | [`orientation.md`](../orientation.md) |
 
 ## Test-to-code traceability
 
@@ -233,6 +234,59 @@ has to say which of the two it is beating it on. Nothing here slices to the
 assertion, and [spec 0035](../specs/0035-a-flake-is-what-the-run-did-not-execute.md)
 is the nearest place that changes.
 
+## Codebase orientation for agents
+
+The field that asks where an agent should read before it edits. It splits into
+three layers, and the products in it differ by which layer a model produces:
+
+- **Structure** — declarations, imports, exports, consumers. Deterministic,
+  cheap once indexed, the same answer every time. The parser, git and the
+  manifest own it (ADR-0069).
+- **Retrieval** — which pieces matter for *this* task. Query-dependent.
+- **Understanding** — what a flow means and why. Model-written, per task, and
+  the most expensive.
+
+**Aider's repository map** (tree-sitter tags ranked on a file-reference graph,
+cut to a token budget) is the structure layer pushed into every prompt. No
+model decides it; the budget decides how much of it the agent sees.
+
+**Cognition's SWE-grep / Fast Context** (blog, 2025-10-16) is the retrieval
+layer, trained. A small model runs up to eight parallel `grep`/`glob`/read calls
+per turn for about four turns and returns **files and line ranges, not a
+summary** — their stated reason is that a fast model's summary can draw a wrong
+conclusion and mislead the strong one, and that a range list is gradeable where
+prose is not. They report agent trajectories spending over 60% of the first turn
+on retrieval. It sits inside the loop: the user asks nothing extra.
+
+**Windsurf Codemaps** (Cognition, 2025-11-04; lineage Ask Devin → DeepWiki →
+Codemaps) is the understanding layer, per question. An agent (SWE-1.5 or Sonnet
+4.5) explores from a prompt and writes a hierarchy of files and functions with
+explanations; every map is a snapshot. The announcement states the effect on
+Devin and Cascade was not yet benchmarked, and proposes an open `.codemap`
+protocol. It survives as a feature, not as the representation the agent works
+from: getting one is an extra step (generate, read, `@mention`), and generating
+one is a second exploration, which is the cost the map was meant to save.
+
+**What it means here.** `variance ask` is the structure layer with retrieval
+left to the asking model — the position [`orientation.md`](../orientation.md)
+takes, and the one SWE-grep's summary finding supports from the other side. Two
+things follow for us:
+
+- The moat is not structure. Structure is a commodity (LSP, SCIP, repo maps, an
+  agent that greps well). None of the three reads **what ran** — the
+  `refreshToken → SSR` kind of question is a reach and journey question, and no
+  static layer answers it.
+- Codemaps failed at adoption as much as at architecture: a tool the agent must
+  know to call is a `@codemap` step. Skills and the session daemon (spec 0056)
+  are what put `ask` inside the loop, and whether they do is unmeasured —
+  [spec 0013](../specs/0013-a-real-agent.md) is marked not proven.
+
+Compass is the understanding layer, persisted and question-cut rather than
+generated per task, and wired to code by coordinates. Codemaps' risk was cost
+per question; Compass's is staleness, which its own `growth-and-drift.md` says
+no structural comparison sees. The rule for both: **derive what an owner knows;
+declare only what no owner knows.**
+
 ## Where the field contradicts us
 
 | Our position | Who measured otherwise | What it costs us |
@@ -242,6 +296,7 @@ is the nearest place that changes.
 | One signal, exact, or unknown | TCTracer: the ensemble beat every single technique | Evidence against purity, on the attribution question only |
 | The corpus is enough to argue from | Methods2Test: ground truth at a scale in-house corpora do not reach | Named in [spec 0022](../specs/0022-evidence-from-code-this-project-did-not-write.md) already |
 | Naming the witnesses beats counting the lines | Schuler & Zeller, Petrović et al.: execution is the weak half either way | True against a percentage, not against an oracle-aware measure; say which |
+| An index saves the agent's exploration | SWE-grep: trained parallel grep matches frontier retrieval in about four turns, with no index | The claim needs an agent benchmark in tool calls and tokens before a product page quotes it |
 
 None of those is a refutation of a shipped behaviour. Each is a reason a
 sentence on a product page needs a measurement behind it before it is quoted as

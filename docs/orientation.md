@@ -149,6 +149,28 @@ Subject orientation reads the report a completed run already produced. Its
 inverted index when first asked. It does not scan the checkout to answer the
 question.
 
+## Other work on orienting an agent
+
+Each of these answers the question an agent asks first, *where do I read*, and
+each gives a different part of that answer to a model:
+
+| Work | What the agent gets | What decides it |
+| --- | --- | --- |
+| [Aider's repository map](https://aider.chat/docs/repomap.html) | Definitions and signatures from across the repository, ranked on a graph of which files reference which, cut to a token budget and sent with every request | A parser and a graph ranking |
+| [SWE-grep](https://cognition.com/blog/swe-grep), Cognition's Fast Context | Files and line ranges | A small model trained to run `grep`, `glob` and file reads in parallel |
+| [Windsurf Codemaps](https://cognition.com/blog/codemaps) | A tree of files and functions for one question, with an explanation of how they connect | An agent that explores the repository and writes the map; each map is a snapshot |
+
+Cognition measured its agents spending more than 60% of their first turn on
+retrieving context. For SWE-grep it chose files and line ranges over a summary,
+because a summary from the fast model can be wrong and mislead the model that
+does the work.
+
+`ask` gives the same kind of output as SWE-grep: declarations, import sites and
+paths, never an explanation. What decides them is the parser and the module
+graph, not a model, so the same question gets the same answer until the code
+changes. The model that asks supplies the words. None of the three reads which
+tests ran which code; that is the [execution record](execution-record.md).
+
 ## Know where the answer stops
 
 The source graph records module imports, re-exports, literal dynamic imports,
