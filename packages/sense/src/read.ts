@@ -485,7 +485,10 @@ function quoted(text: string): string | undefined {
   return value.includes('${') ? undefined : value;
 }
 
-/** A specifier no repository file can be behind. */
+/**
+ * A stylesheet value no repository file can be behind. `url(#gradient)` is a
+ * fragment; a module's `#polyfill` is a subpath import ([`requestOf`](./specifier.ts)).
+ */
 export function isExternal(value: string): boolean {
   return ['data:', 'http:', 'https:', '//', '#'].some((prefix) => value.startsWith(prefix));
 }

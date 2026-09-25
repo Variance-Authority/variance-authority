@@ -186,12 +186,16 @@ impl Resolvers {
     }
 }
 
+/// A specifier as a resolvable request, cut at a build tool's `?` or `#`
+/// suffix. A leading `#` is a subpath import the `imports` field maps, not a
+/// fragment, and `specifier.ts` `requestOf` draws the same line.
 pub fn request_of(value: &str) -> Option<&str> {
     let trimmed = value.trim();
     if trimmed.is_empty() || trimmed.starts_with("data:") || trimmed.starts_with("node:") {
         return None;
     }
-    let cut = [trimmed.find('?'), trimmed.find('#')]
+    let fragment = trimmed.char_indices().skip(1).find(|&(_, c)| c == '#').map(|(at, _)| at);
+    let cut = [trimmed.find('?'), fragment]
         .into_iter()
         .flatten()
         .min()
@@ -247,5 +251,12 @@ mod tests {
     fn strips_build_suffixes() {
         assert_eq!(request_of(" ./button.ts?raw#x "), Some("./button.ts"));
         assert_eq!(request_of("node:fs"), None);
+    }
+
+    #[test]
+    fn keeps_a_subpath_import() {
+        assert_eq!(request_of("#polyfill"), Some("#polyfill"));
+        assert_eq!(request_of("#internal/a.js?raw#x"), Some("#internal/a.js"));
+        assert_eq!(request_of("#"), Some("#"));
     }
 }
