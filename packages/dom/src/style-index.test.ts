@@ -156,9 +156,46 @@ const MARKUP =
 
 const SUBJECTS = 40;
 
+/** What a regime spent: wall clock, and how many times it walked the document's sheets. */
+interface Regime {
+  readonly ms: number;
+  /** Indexes built. Exact, so a busy machine cannot move it. */
+  readonly walks: number;
+}
+
+/**
+ * The design-system world, with a counter on `document.styleSheets`.
+ *
+ * `indexStyleSheets` reads it once per index it builds and nothing else in a
+ * collection reads it at all — jsdom's own cascade reaches the sheets through
+ * its internals, not through the public getter — so the count is the number of
+ * indexes built.
+ */
+function countedWorld(): { document: Document; container: Element; walks: () => number } {
+  const { document, container } = world(DESIGN_SYSTEM);
+
+  let owner: object | null = document;
+  let descriptor: PropertyDescriptor | undefined;
+  while (owner && !(descriptor = Object.getOwnPropertyDescriptor(owner, 'styleSheets'))) {
+    owner = Object.getPrototypeOf(owner) as object | null;
+  }
+  const read = descriptor!.get!;
+
+  let walks = 0;
+  Object.defineProperty(document, 'styleSheets', {
+    get(this: Document) {
+      walks += 1;
+      return read.call(this);
+    },
+    configurable: true,
+  });
+
+  return { document, container, walks: () => walks };
+}
+
 /** Index rebuilt per subject: what `collect` did for every caller. */
-function perSubjectIndex(subjects: number): number {
-  const { container } = world(DESIGN_SYSTEM);
+function perSubjectIndex(subjects: number): Regime {
+  const { container, walks } = countedWorld();
   const started = performance.now();
 
   for (let index = 0; index < subjects; index += 1) {
@@ -166,12 +203,12 @@ function perSubjectIndex(subjects: number): number {
     collect(container, { ...OPTIONS, subject: { id: `story:s${index}`, kind: 'fixture' } });
   }
 
-  return performance.now() - started;
+  return { ms: performance.now() - started, walks: walks() };
 }
 
 /** One index for the document, built inside the measurement because it is paid. */
-function sharedIndex(subjects: number): number {
-  const { document, container } = world(DESIGN_SYSTEM);
+function sharedIndex(subjects: number): Regime {
+  const { document, container, walks } = countedWorld();
   const started = performance.now();
 
   const shared = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
@@ -184,7 +221,35 @@ function sharedIndex(subjects: number): number {
     });
   }
 
-  return performance.now() - started;
+  return { ms: performance.now() - started, walks: walks() };
+}
+
+/**
+ * The share of one subject's collection that is building its index, as the
+ * median over `subjects`.
+ *
+ * `collect` without an index is `indexStyleSheets` followed by `collect` with
+ * one, so timing the two halves separately takes the same collection apart
+ * rather than running a second one. Both halves of a subject are timed back to
+ * back, so load that slows one slows the other; the median drops the subjects a
+ * stall landed in.
+ */
+function indexShare(subjects: number): number {
+  const { document, container } = world(DESIGN_SYSTEM);
+  const shares: number[] = [];
+
+  for (let index = 0; index < subjects; index += 1) {
+    container.innerHTML = MARKUP;
+    const started = performance.now();
+    const built = indexStyleSheets(document, conditionsFor(document, VIEWPORT));
+    const indexed = performance.now();
+    collect(container, { ...OPTIONS, subject: { id: `story:s${index}`, kind: 'fixture' }, index: built });
+    const finished = performance.now();
+    shares.push((indexed - started) / (finished - started));
+  }
+
+  shares.sort((left, right) => left - right);
+  return shares[Math.floor(shares.length / 2)]!;
 }
 
 describe('a DOM that answers `undefined` for a sheet with no owner', () => {
@@ -269,27 +334,49 @@ describe('the cost of rebuilding the index per subject', () => {
     // Warm once so neither side pays for lazy module initialisation.
     perSubjectIndex(2);
     sharedIndex(2);
+    indexShare(2);
 
-    const rebuiltMs = perSubjectIndex(SUBJECTS);
-    const sharedMs = sharedIndex(SUBJECTS);
-    const ratio = rebuiltMs / sharedMs;
+    const rebuilt = perSubjectIndex(SUBJECTS);
+    const shared = sharedIndex(SUBJECTS);
+    const longer = sharedIndex(SUBJECTS * 4);
+    const share = indexShare(SUBJECTS);
 
     console.log(
       [
         '',
         `COLLECTION COST (${SUBJECTS} subjects, ${DESIGN_SYSTEM.split('\n').length} CSS rules)`,
-        `  index per subject: ${rebuiltMs.toFixed(0)}ms  (${(rebuiltMs / SUBJECTS).toFixed(2)}ms each)`,
-        `  one shared index:  ${sharedMs.toFixed(0)}ms  (${(sharedMs / SUBJECTS).toFixed(2)}ms each)`,
-        `  speedup:           ${ratio.toFixed(1)}×`,
+        `  index per subject: ${rebuilt.ms.toFixed(0)}ms  (${(rebuilt.ms / SUBJECTS).toFixed(2)}ms each)`,
+        `  one shared index:  ${shared.ms.toFixed(0)}ms  (${(shared.ms / SUBJECTS).toFixed(2)}ms each)`,
+        `  indexes built:     ${rebuilt.walks} rebuilding, ${shared.walks} shared`,
+        `  spent indexing:    ${(share * 100).toFixed(0)}% of a subject's collection, median`,
+        `  speedup:           ${(rebuilt.ms / shared.ms).toFixed(1)}×  (reported, not gated — see the todo below)`,
         '',
       ].join('\n'),
     );
 
-    // Deliberately loose, and for the same reason the session's cost measurement
-    // is: the claim is "the index stopped dominating", not a particular multiple.
-    // A tight bound fails on a loaded CI box and teaches everyone to ignore the
-    // file. Both halves are the same `collect`, so this one holds its reading
-    // under the suite's own instrumentation and stays a test.
-    expect(ratio).toBeGreaterThan(2);
+    // Half one: the saving, counted. Integers, so a busy machine cannot move
+    // them, and the longer run catches an index rebuilt on a threshold rather
+    // than per subject, which a fixed-size comparison would not see.
+    expect(rebuilt.walks).toBe(SUBJECTS);
+    expect(shared.walks).toBe(1);
+    expect(longer.walks).toBe(1);
+
+    // Half two: the saving is only worth having if an index costs something.
+    // Removing a fraction f of the work is a 1/(1 - f) speedup, so an index that
+    // is more than half of every collection makes sharing it better than twice
+    // as fast — derived from measured parts of one run rather than by dividing
+    // two. The bound is where the trade stops being obviously worth making, not
+    // where the reading sits (about two thirds alone).
+    expect(share).toBeGreaterThan(0.5);
   });
+
+  // The end-to-end speedup, which is the sentence a reader wants and which
+  // nothing here asserts. It divides one separately-timed run by another, and
+  // the shared run is the small denominator: a stall of a few hundred
+  // milliseconds lands whole in its ~100ms and barely dents the rebuild. Alone
+  // the ratio reads about 3×; beside a parallel `yarn test` it read 1.6× to 9×
+  // across ten runs, and 0.9× inside one.
+  it.todo(
+    'sharing one index across a document collects a fixed corpus more than 2× faster than rebuilding it per subject — needs a lane where the measurement has the machine to itself, since the ratio divides two separately-timed runs and a parallel suite moves it from 3× to below 1×',
+  );
 });
