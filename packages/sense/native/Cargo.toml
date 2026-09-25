@@ -38,6 +38,9 @@ napi-derive = "3"
 # The matcher `oxc_resolver` already builds, and the one rolldown reads a
 # `sideEffects` glob with.
 fast-glob = "1"
+# The comment and trailing-comma stripper `oxc_resolver` reads a `tsconfig` with,
+# so `customConditions` is read from the same text it parses.
+json-strip-comments = "3"
 oxc_allocator = { version = "0.144.0", features = ["pool"] }
 oxc_ast = "0.144.0"
 oxc_ast_visit = "0.144.0"

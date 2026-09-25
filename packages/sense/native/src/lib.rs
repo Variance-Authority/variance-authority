@@ -19,6 +19,7 @@ use std::collections::HashMap;
 
 mod acquire;
 mod batch;
+mod conditions;
 mod depends;
 mod digest;
 mod git;

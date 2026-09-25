@@ -104,7 +104,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 5;
+const VERSION = 6;
 
 /**
  * Files whose *contents* decide where other files resolve to.
@@ -165,7 +165,12 @@ export async function shapeOf(input: {
   const header = [
     `version ${VERSION}`,
     `tsconfig ${options?.tsconfig ?? 'auto'}`,
-    `conditions ${(options?.conditionNames ?? DEFAULT_CONDITIONS).join(',')}`,
+    // Unnamed conditions add each governing `tsconfig`'s `customConditions`,
+    // whose contents the config digest already holds; named ones are the whole
+    // set, and no `tsconfig` moves them.
+    options?.conditionNames === undefined
+      ? `conditions ${DEFAULT_CONDITIONS.join(',')} + tsconfig customConditions`
+      : `conditions ${options.conditionNames.join(',')}`,
   ];
 
   return {

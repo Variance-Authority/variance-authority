@@ -1169,6 +1169,7 @@ name = "sense-native"
 version = "0.0.0"
 dependencies = [
  "fast-glob",
+ "json-strip-comments",
  "napi",
  "napi-build",
  "napi-derive",

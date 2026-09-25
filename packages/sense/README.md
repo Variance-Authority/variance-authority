@@ -948,7 +948,13 @@ never touch a disk.
 
 `conditionNames` and `tsconfig` are accepted by the same call and control how
 specifiers become file edges; the generated declaration states their exact
-shapes.
+shapes. Without `conditionNames`, a file resolves under `source`, `import`,
+`require` and `default` plus the `customConditions` of the `tsconfig` that
+governs it, following `extends` the way TypeScript does. So a workspace whose
+packages export source under a condition of their own, such as
+`"@tanstack/custom-condition": "./src/index.ts"`, gets edges into that source
+rather than into built output the checkout does not hold. When you pass
+`conditionNames`, your list is the whole set and no `tsconfig` adds to it.
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
 still joins the graph. Edges into a sibling package's built output, or another
