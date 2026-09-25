@@ -1,3 +1,4 @@
+import { digestFileName } from '@variance-authority/core/format';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
 import { formatSkills } from './doctor-skills.js';
@@ -107,12 +108,28 @@ function partitionLines(partitions: readonly Partition[]): readonly string[] {
   if (partitions.length === 0) return [];
   return [
     '  stored by identity:',
-    ...partitions.map(
-      (entry) =>
-        `    ${entry.mine ? '→' : ' '} ${entry.identity.slice(0, 16)}… ` +
+    ...partitions.flatMap((entry) => [
+      `    ${entry.mine ? '→' : ' '} ${entry.identity.slice(0, 16)}… ` +
         `${entry.baselines} baseline(s)${entry.mine ? '  (this machine)' : ''}`,
-    ),
+      ...(entry.colonSpelled === undefined ? [] : [colonLine(entry.identity, entry.colonSpelled)]),
+    ]),
   ];
+}
+
+/**
+ * The partition still spelled with a colon, and the move that retires it.
+ *
+ * Said rather than fixed: those baselines compare, and the store moves each one
+ * when it is next accepted, so nothing here is wrong on this machine. What the
+ * name breaks is a checkout on Windows and an artifact upload, and a subject
+ * whose pixels never change is never accepted again — so the move is handed to
+ * the operator as a move, into a directory that cannot already hold the file.
+ */
+function colonLine(identity: string, count: number): string {
+  return (
+    `        ${count} of them in a \`${identity.slice(0, 16)}…\` directory, which Windows ` +
+    `cannot check out; move its files into \`${digestFileName(identity).slice(0, 16)}…\` beside it`
+  );
 }
 
 /**

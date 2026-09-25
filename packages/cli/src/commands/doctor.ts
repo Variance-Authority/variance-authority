@@ -151,6 +151,11 @@ export interface Partition {
   readonly baselines: number;
   /** Whether this is the identity a renderer opened here would write under. */
   readonly mine: boolean;
+  /**
+   * How many of them sit in a directory named with the raw `v1:` digest, which
+   * the store still reads and Windows cannot check out. Absent when none do.
+   */
+  readonly colonSpelled?: number;
 }
 
 export interface HistoryFinding {
