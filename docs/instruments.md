@@ -124,7 +124,7 @@ worked case is a Blink attribute-order effect that changed a document digest whi
 leaving the verdict entirely correct. Left in place, it can turn the cheap tier off
 for later runs, and whether it does depends on the collection history of the run
 that recorded the baseline
-([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-reaches)).
+([`flakiness.md`](flakiness.md#the-class-of-defect-a-second-reading-finds)).
 
 ### Five instruments that never open one
 

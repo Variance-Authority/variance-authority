@@ -514,7 +514,7 @@ region rather than a bit, and block ranges rather than function entries — and
 Vitest's provider asks for both. Node's inspector exposes no cheaper mode;
 the best-effort one is d8's.
 
-A probe fires when execution reaches it, so what you pay tracks what your tests
+A probe fires only when its code runs, so what you pay tracks what your tests
 **ran**. The engine's counters are not fired but read, and
 `takePreciseCoverage` answers with every script the isolate has loaded, so what
 you pay tracks what the worker **had open**. For one report at the end of a
@@ -650,7 +650,7 @@ It wants both sides to exist, which is what makes it the last thing to set up
 rather than the first: a record comes from a [journey](journeys.md), and taints come from a
 reader or a table. With one side alone there is nothing to disagree with.
 
-## What this does not reach
+## What the record does not show
 
 **A fork that has never gone the other way.** Rendering is a series of choices —
 this branch, that child, or none — and a baseline records the ones that were

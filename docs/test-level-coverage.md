@@ -35,7 +35,7 @@ is not slower. It is **30% more money, every run, forever**, for a union.
 
 The same three suites with the recorder installed are 9.05 s, 12.77 s and
 26.76 s: **+2%, +8% and +3%**. The difference is not tuning, it is which way
-the instrument faces. A probe fires when execution reaches it, so what you pay
+the instrument faces. A probe fires only when its code runs, so what you pay
 tracks what your tests *ran*. The engine's counters are not fired but read, and
 the read hands back every script the worker had open, whether a test went near
 it or not.
