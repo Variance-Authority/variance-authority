@@ -76,7 +76,7 @@ hiding it.
 | [An edit runs what it reaches, from the editor](0068-an-edit-runs-what-it-reaches-from-the-editor.md) | `test:since` selecting nearest first, from a shell. | **A save that runs it.** No editor starts the selection, streams its outcomes, or repaints from the run's record. |
 | [The case index layers each run](0069-the-case-index-layers-each-run.md) | The snapshot layers each run over what it held; the case index is rewritten with the last run's cases. | **A case index that survives a partial run.** After one test file runs, every region it did not reach reads unwalked. |
 | [A change says what its tests moved](0070-a-change-says-what-its-tests-moved.md) | `covering --since` answers about the lines a change touched. | **A comparison of two records.** A test that stops entering a function regresses a file the diff does not name, and no review shows it. |
-| [A test is read alone](0071-a-test-is-read-alone.md) | Every answer is the whole suite's. | **A scope for the question.** Nothing answers what one test, or the last run, entered, or what an edit to it moved. |
+| [A test is read alone](0071-a-test-is-read-alone.md) | `covering --cases` answers from one test file or the last run; the editors paint only the suite. | **What the edit moved.** Nothing compares the last run with what it replaced, and no editor shows one test alone. |
 
 ## Discharged
 

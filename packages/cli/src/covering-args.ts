@@ -12,6 +12,11 @@ export interface CoveringSource {
   /** The project root the run recorded against; defaults to the working directory. */
   readonly root: string;
   readonly format: CoveringFormat;
+  /**
+   * `--cases last|<test file>`: answer from those cases alone rather than the
+   * whole suite — the run that wrote the index last, or every case of one file.
+   */
+  readonly cases?: string;
 }
 
 /** A question about one piece of source. */
@@ -176,9 +181,18 @@ function executionAnd(flags: Flags): CoveringSource {
     );
   }
   const execution = flags.values.get('--execution');
+  const cases = flags.values.get('--cases');
+  if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
+  if (cases !== undefined && REVIEW.has(format)) {
+    throw new OperatorError(
+      `\`--format ${format}\` reviews a commit with the whole suite's answer, so it takes no \`--cases\`: ` +
+        'a code host would show a few cases\' answer as the suite\'s.',
+    );
+  }
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
+    ...(cases === undefined ? {} : { cases }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,
   };

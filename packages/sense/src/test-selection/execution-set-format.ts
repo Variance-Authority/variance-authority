@@ -1,6 +1,6 @@
 import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.js';
 import { blob, column, sections, validSections, type Header, type Section } from './format-layout.js';
-import { openCrossingSets } from './crossing-sets-read.js';
+import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import type { CrossingSetsPool, SetId } from './crossing-sets.js';
 import { intern } from '@variance-authority/core/segment';
 import type { ExecutionBlock, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
@@ -105,6 +105,25 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
   }, SET_EXECUTION_FORMAT);
 }
 
+/** A set-spelled index opened at its sets: regions name set ids, and no crossing is made an object. */
+export interface OpenedSetExecutionIndex {
+  readonly tests: readonly ExecutionTest[];
+  readonly modules: readonly SetExecutionModule[];
+  readonly sets: CrossingSetsView;
+}
+
+/**
+ * Open the compact spelling without decoding a crossing, for a reader that
+ * works on sets — the layering a run does over the index it replaces. Returns
+ * nothing for the row spelling, which has no sets to hand over.
+ */
+export function openSetExecutionIndex(bytes: Uint8Array): OpenedSetExecutionIndex | undefined {
+  const opened = sectionsOf(bytes);
+  const version = opened.header.version;
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) return undefined;
+  return openedSets(opened);
+}
+
 /** Read the compact journey spelling into the runner-independent object model. */
 export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const opened = sectionsOf(bytes);
@@ -112,6 +131,22 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) {
     throw new Error(`unsupported execution index version: ${opened.header.version}`);
   }
+  const { tests, modules, sets } = openedSets(opened);
+  return {
+    tests,
+    modules: modules.map((module): ExecutionModule => ({
+      file: module.file,
+      blocks: module.blocks.map((block, at): ExecutionBlock => ({
+        ...block,
+        ...(module.loaded[at] === 1 ? { loaded: true as const } : {}),
+        crossings: Array.from(members(sets, module.called[at]!, tests.length), (test) => ({ test, distance: 0 })),
+      })),
+    })),
+  };
+}
+
+function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
+  const version = opened.header.version;
   const words = (name: string): Uint32Array => columnWords(opened, name);
   const flags = (name: string): Uint8Array => columnBytes(opened, name);
   const stringOffsets = words('strings.off');
@@ -160,17 +195,20 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const setOffsets = words('sets.off');
   const setBytes = columnBlob(opened, 'sets.blob', setOffsets);
   const sets = openCrossingSets({ bytes: setBytes, offsets: setOffsets, testCount: tests.length });
-  const modules: ExecutionModule[] = [];
+  const modules: SetExecutionModule[] = [];
   for (let module = 0; module < moduleFile.length; module += 1) {
     const first = moduleBlocks[module]!;
     const last = moduleBlocks[module + 1]!;
     if (last < first || last > blockCount) throw invalid();
-    const blocks: ExecutionBlock[] = [];
+    const blocks: Omit<ExecutionBlock, 'crossings'>[] = [];
+    const called = new Uint32Array(last - first);
+    const loaded = new Uint8Array(last - first);
     for (let block = first; block < last; block += 1) {
-      const called = members(sets, blockCalled[block]!, tests.length);
-      const loaded = version === LOADED_SETS_FORMAT
+      if (blockCalled[block]! >= sets.size) throw invalid();
+      called[block - first] = blockCalled[block]!;
+      loaded[block - first] = (version === LOADED_SETS_FORMAT
         ? members(sets, blockLoaded[block]!, tests.length).length > 0
-        : blockLoaded[block] === 1;
+        : blockLoaded[block] === 1) ? 1 : 0;
       blocks.push({
         kind: string(blockKind[block]!),
         name: string(blockName[block]!),
@@ -178,13 +216,11 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
         startLine: blockStart[block]!,
         endLine: blockEnd[block]!,
         source: blockSource[block] === 1,
-        ...(loaded ? { loaded: true as const } : {}),
-        crossings: Array.from(called, (test) => ({ test, distance: 0 })),
       });
     }
-    modules.push({ file: string(moduleFile[module]!), blocks });
+    modules.push({ file: string(moduleFile[module]!), blocks, called, loaded });
   }
-  return { tests, modules };
+  return { tests, modules, sets };
 }
 
 function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
@@ -206,7 +242,7 @@ function dictionary(index: SetExecutionIndex): ReadonlySet<string> {
 }
 
 function members(
-  sets: ReturnType<typeof openCrossingSets>,
+  sets: CrossingSetsView,
   set: SetId,
   testCount: number,
 ): Uint32Array {

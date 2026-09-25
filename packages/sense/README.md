@@ -1448,7 +1448,10 @@ spends; in the index it joins the case.
 Every run wrapped in `withTestSelection` — any seam — writes an
 `ExecutionIndex` at `<coverageFile>.cases.bin`, beside its snapshot. The
 snapshot's bytes do not depend on the index, so CI reads the same file to select
-test files. Pass `executionFile` to put the index somewhere else:
+test files. A run of some files replaces the cases of those files and keeps the
+rest, as the snapshot does. Beside the index, `cases.last.json` names the run
+that wrote it last, and `cases.before.bin` holds what the index had for that
+run's files before it. Pass `executionFile` to put the index somewhere else:
 
 ```ts
 // vitest.config.ts, with the two imports of the first sample.

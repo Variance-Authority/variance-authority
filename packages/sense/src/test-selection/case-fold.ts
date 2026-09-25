@@ -1,5 +1,8 @@
-import { readFile, readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readFile, readdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { layerCaseIndex } from './case-layer.js';
+import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
@@ -13,7 +16,7 @@ import {
 } from './instrumented-modules.js';
 import { AMBIENT, executionIndexFrom, readCaseJournals, settledAcross, unpackCase, unpackFrames } from './cases.js';
 import { executionIndexBytes } from './execution-format.js';
-import { writeCoverageBytes } from './index.js';
+import { writeCoverageBytes, type CoverageTest } from './index.js';
 import type { ExecutionTest } from './reverse.js';
 import { isWritten } from './written-lines.js';
 
@@ -150,12 +153,72 @@ export async function writeCaseIndex(
   directory: string,
   root: string,
   modules: ReadonlyMap<ModuleId, CapturedModule>,
+  run: CaseRunTests,
 ): Promise<void> {
   if (file.endsWith('.json')) {
+    // TODO: lay a JSON index over the one it replaces, as the columns are — a
+    // `.json` name is still rewritten with the last run's cases alone.
     await writeCoverageBytes(file, executionIndexBytes(file, executionIndexFrom(await readCaseJournals(directory, root), modules)));
     return;
   }
-  await writeCoverageBytes(file, (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes);
+  const fresh = (await foldCaseRun(await inspectCaseRun(directory, root), modules)).bytes;
+  const layers = caseLayerFiles(file);
+  const written = await withIndexLock(file, async () => {
+    const { merged, last, before } = layerCaseIndex(await readIfThere(file), fresh, {
+      ran: new Set(run.tests.map((test) => test.file)),
+      finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
+      present: (test) => existsSync(resolve(root, test)),
+    });
+    await writeCoverageBytes(file, merged);
+    const named: LastCaseRun = {
+      ...(run.commit === undefined ? {} : { commit: run.commit }),
+      at: new Date().toISOString(),
+      files: [...new Set(run.tests.map((test) => test.file))].sort(codeUnitOrder),
+      cases: last,
+    };
+    await writeCoverageBytes(layers.last, Buffer.from(`${JSON.stringify(named, null, 2)}\n`));
+    // Absent is not empty: with no index to take them from, there is no before.
+    if (before === undefined) await rm(layers.before, { force: true });
+    else await writeCoverageBytes(layers.before, before);
+  });
+  if (!written.held) noteABusyIndex(file);
+}
+
+/** What a run tells the case index about itself. */
+export interface CaseRunTests {
+  /** Every test file the run was handed, and whether it ran to the end. */
+  readonly tests: readonly Pick<CoverageTest, 'file' | 'complete'>[];
+  /** The commit the run was made at, as the snapshot carries it. */
+  readonly commit?: string;
+}
+
+/**
+ * The run that wrote the case index last. Its cases are in the index itself,
+ * as that run left them, so this names them and holds nothing else.
+ */
+export interface LastCaseRun {
+  readonly commit?: string;
+  readonly at: string;
+  readonly files: readonly string[];
+  readonly cases: readonly string[];
+}
+
+/**
+ * The two layers kept beside a case index: the run that wrote it last, and what
+ * the index held for that run's files before it landed.
+ */
+export function caseLayerFiles(file: string): { readonly last: string; readonly before: string } {
+  const stem = file.endsWith('.bin') ? file.slice(0, -'.bin'.length) : file;
+  return { last: `${stem}.last.json`, before: `${stem}.before.bin` };
+}
+
+async function readIfThere(file: string): Promise<Buffer | undefined> {
+  try {
+    return await readFile(file);
+  } catch (error) {
+    if (isMissing(error)) return undefined;
+    throw error;
+  }
 }
 
 /**

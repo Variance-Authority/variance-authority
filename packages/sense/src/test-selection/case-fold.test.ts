@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
@@ -5,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../native.js';
-import { foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
+import { caseLayerFiles, foldCaseRun, inspectCaseRun, writeCaseIndex } from './case-fold.js';
 import {
   AMBIENT,
   executionIndexFrom,
@@ -119,10 +120,27 @@ describe('the bounded case fold', () => {
 
     const written = resolve(cases, '..', 'cases.bin');
     const spelled = resolve(cases, '..', 'cases.json');
-    await writeCaseIndex(written, cases, '/repo', modules);
-    await writeCaseIndex(spelled, cases, '/repo', modules);
+    await writeCaseIndex(written, cases, '/repo', modules, { tests: [] });
+    await writeCaseIndex(spelled, cases, '/repo', modules, { tests: [] });
     expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
     expect(JSON.parse(await readFile(spelled, 'utf8'))).toEqual(previous);
+    // The first write has nothing to lay over: the run is the index and the last
+    // run both, and there is no before.
+    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
+      .toMatchObject({ files: [], cases: previous.tests.map((test) => test.id) });
+    expect(existsSync(caseLayerFiles(written).before)).toBe(false);
+
+    // The same run again lands over the first, and keeps what it replaced: every
+    // case of a file whose cases the journals carry, announced or not.
+    await writeCaseIndex(written, cases, '/repo', modules, {
+      tests: [{ file: 'test/early.test.ts', complete: true }],
+      commit: 'abc',
+    });
+    expect(decodeExecutionIndex(await readFile(written))).toEqual(previous);
+    expect(decodeExecutionIndex(await readFile(caseLayerFiles(written).before)).tests.map((test) => test.id))
+      .toEqual(previous.tests.map((test) => test.id));
+    expect(JSON.parse(await readFile(caseLayerFiles(written).last, 'utf8')))
+      .toMatchObject({ commit: 'abc', files: ['test/early.test.ts'] });
   });
 
   it('represents a four-million-crossing run without allocating one entry per crossing', async () => {

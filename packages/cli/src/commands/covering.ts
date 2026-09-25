@@ -56,6 +56,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
 import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
+import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
 import { diffAtTip, diffSince, headCommit, repositoryDirectory } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -123,6 +124,8 @@ export interface Covering {
   readonly frame?: 'recorded' | 'mapped' | 'stale';
   /** Where the index was read, so an empty answer can be checked against a path. */
   readonly from: string;
+  /** Present under `--cases`: the cases the answer was read from, which are not the suite. */
+  readonly scope?: CoveringScope;
   /** The commit the record stands at, when it says. The diff is measured from it. */
   readonly at?: string;
   /**
@@ -148,6 +151,18 @@ export interface Covering {
  * is the sentence that gets a test deleted.
  */
 export async function covering(request: ParsedCovering): Promise<Covering> {
+  let scope: CoveringScope | undefined;
+  const answer = await ask(request, async (from, changed) => {
+    const read = await readIndex(from, changed);
+    if (request.cases === undefined) return read;
+    const cut = await scopeCases(read.index, from, request.cases, request.root);
+    scope = cut.scope;
+    return { index: cut.index, files: read.files };
+  });
+  return scope === undefined ? answer : { ...answer, scope };
+}
+
+async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {
   const from = request.execution ?? (await defaultExecutionFile(request.root));
 
   if (request.since !== undefined) {
@@ -404,6 +419,8 @@ async function changeSince(
   }
   return changed;
 }
+
+type IndexReader = typeof readIndex;
 
 /**
  * The index, read for the files a question is about.

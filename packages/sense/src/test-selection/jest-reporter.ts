@@ -183,7 +183,10 @@ class JestCoverageReporter {
     // must run*, and its readers are unchanged.
     if (caseDirectory !== undefined) {
       const executionFile = this.#config.executionFile ?? `${coverageFile}.cases.bin`;
-      await writeCaseIndex(executionFile, caseDirectory, root, modules);
+      await writeCaseIndex(executionFile, caseDirectory, root, modules, {
+        tests,
+        ...(commit === undefined ? {} : { commit }),
+      });
       await rm(caseDirectory, { recursive: true, force: true });
     }
     await rm(runDirectory, { recursive: true, force: true });

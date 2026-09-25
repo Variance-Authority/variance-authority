@@ -116,6 +116,8 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+// Where the run that wrote the case index last is named, and what it replaced.
+export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
 export type { CoverageShard };
 
 /**

@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|json|github|bitbucket-report|bitbucket-annotations|markdown]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -396,6 +396,34 @@ paints it with:
 
 A range with no word is one the record cannot rank, because a case's stop was
 never recorded.
+
+#### Reading the test you are writing
+
+The answer about a file is the whole suite's. While you write a test, that
+hides what you want to see: forty cases walk the function, so the lines your
+test misses still read as walked. `--cases` answers from the cases you choose
+and nothing else:
+
+```bash
+variance covering --file src/checkout/total.ts --cases last
+variance covering --file src/checkout/total.ts --cases src/checkout/total.test.ts
+```
+
+```text
+Read from the 3 cases of the last run at 8a72c74b1e03, not the whole suite.
+src/checkout/total.ts — 4 recorded ranges, 3 named tests
+```
+
+`last` is the run that wrote the index last, which is the run you just made. A
+test file is every case the index holds for it. The five words mean the same
+thing measured against those cases: `unwalked` is *no case you chose entered
+it*, not *no test does*. The answer starts by saying which cases it was read
+from, and `--format json` names each one under `scope`. A code host's review
+format refuses `--cases`, because the host would show a few cases' answer as
+the suite's.
+
+A run of one file does not change the suite's answer: the index keeps every
+case the run did not replace.
 
 #### Asking about the text you hold
 

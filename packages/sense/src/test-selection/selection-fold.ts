@@ -134,12 +134,10 @@ export function foldRun(
     // recorded no case, and an index with no case in it would answer *which
     // cases walk this line* with none.
     if (run.cases) {
-      // FIXME: this replaces the case index with this run's cases alone, where
-      // the snapshot above layers the run over what it held. After a run of
-      // one file, `covering` and both editors call every region that file did
-      // not reach unwalked, "every case that could have reached it finished",
-      // though the rest of the suite reached it and did not run. Spec 0069.
-      await writeCaseIndex(executionFile, caseDirectory, root, modules);
+      await writeCaseIndex(executionFile, caseDirectory, root, modules, {
+        tests,
+        ...(commit === undefined ? {} : { commit }),
+      });
     }
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });

@@ -18,7 +18,7 @@ import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  if (format === 'text') return `${text(answer)}\n`;
+  if (format === 'text') return `${[...scopeText(answer), text(answer)].join('\n')}\n`;
   return formatReview(answer, format);
 }
 
@@ -44,6 +44,21 @@ function text(answer: Covering): string {
     ...tests.map((test) => `  ${describe(test)}`),
     ...narrowedText(answer),
   ].join('\n');
+}
+
+/**
+ * Which cases the answer was read from, before anything it says.
+ *
+ * A focused answer reads exactly like the suite's, and the two lead to
+ * opposite decisions about a region nobody entered, so it is said first.
+ */
+function scopeText(answer: Covering): readonly string[] {
+  const scope = answer.scope;
+  if (scope === undefined) return [];
+  const count = `${scope.tests.length} case${scope.tests.length === 1 ? '' : 's'}`;
+  return [scope.cases === 'last'
+    ? `Read from the ${count} of the last run${scope.at === undefined ? '' : ` at ${scope.at.slice(0, 12)}`}, not the whole suite.`
+    : `Read from the ${count} of ${scope.cases}, not the whole suite.`];
 }
 
 /**
