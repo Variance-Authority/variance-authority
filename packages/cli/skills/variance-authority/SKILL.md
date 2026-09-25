@@ -1,6 +1,6 @@
 ---
 name: variance-authority
-description: Use when reading a Variance Authority run, watcher, evidence file or MCP connection, choosing which tests an edit needs and which to run first, or asking what a workspace publishes and where a name is used.
+description: How to use `variance`, the Variance Authority CLI. Read it before you run a `variance` command.
 ---
 
 # Variance Authority

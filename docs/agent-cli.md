@@ -202,13 +202,18 @@ reading and the skill's counterfactual verification loop are described in
 reports, watchers and connections, choosing which tests to run, and what a
 workspace publishes, and opens a reference file for each only when the question
 needs it. Installing the package puts it on disk; your agent reads it only from
-its own skills directory, `.agents/skills` or `.claude/skills` in the project or
-your home directory. Link it there rather than copying it, so it follows every
-update:
+its own skills directory, in the project or your home directory. Claude Code
+reads `.claude/skills`; most other agents read `.agents/skills`. Link it into
+both rather than copying it, so it follows every update:
 
 ```bash
 mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
 ```
+
+An agent opens a skill only when its description matches the task, and it reads
+`AGENTS.md` every session. The lines that send it to `variance ask` before it
+searches the code are in [finding code through the workspace index](agent-workspace-api.md#point-an-agent-at-it).
 
 `variance doctor` lists which skills your agent can find, says whether each is a
 link or a copy that has fallen behind, and prints the link for any it cannot

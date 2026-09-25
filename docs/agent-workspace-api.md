@@ -284,15 +284,28 @@ that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 
-The skill that drives these calls is `variance-authority`, which ships in
-`@variance-authority/cli` at
+Your agent reads `AGENTS.md` at the start of every session, and a skill only
+when its description matches the task. Put these lines in `AGENTS.md`, with
+`npx` changed to however your package manager runs a local binary:
+
+```markdown
+## Finding your way in the code
+
+Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` says what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+```
+
+The skill is `variance-authority`. It ships in `@variance-authority/cli` at
 `node_modules/@variance-authority/cli/skills/variance-authority` and covers the
-rest of the CLI too. Your agent reads skills from `.agents/skills` or
-`.claude/skills`, in the project or your home directory. Link the skill there
-rather than copying it, so it follows every update:
+rest of the CLI too. Claude Code reads skills from `.claude/skills`; most other
+agents read `.agents/skills`. Link the skill into both rather than copying it,
+so it follows every update:
 
 ```bash
 mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
+mkdir -p .claude/skills && ln -s ../../.agents/skills/variance-authority .claude/skills/variance-authority
 ```
 
 `variance doctor` reports whether your agent can find it.

@@ -21,6 +21,10 @@ import { said } from '../here.js';
  * a doubt printed rather than a fault, and never moves the exit code.
  */
 
+// FIXME: a skill in either directory counts as found, and Claude Code reads only
+// `.claude/skills`, so a link in `.agents/skills` alone reports found to an agent
+// that cannot see it. The finding needs one answer per host, and the doctor needs
+// to reach it without a `variance.config.json`, which today exits 2 first.
 /** Where an agent host reads skills, relative to the project and to the home directory. */
 export const SKILL_HOMES: readonly string[] = ['.agents/skills', '.claude/skills'];
 

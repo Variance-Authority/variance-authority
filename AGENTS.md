@@ -21,6 +21,13 @@ described under **Verifying**.
 `yarn test:since` needs one more thing: a recording. `yarn test` writes it, and
 until `yarn test` has run in this checkout there is nothing for it to read.
 
+## Finding your way in the code
+
+Ask before you grep: `yarn variance ask uses --name <name>` lists who imports a
+name, `ask symbol --name <name>` says what it is and where it is declared, and
+`ask search --query <words>` finds a name by what it does. The
+`variance-authority` skill has the rest.
+
 ## Where writing goes
 
 Each kind of writing has one home and one job. A file that does two jobs is
