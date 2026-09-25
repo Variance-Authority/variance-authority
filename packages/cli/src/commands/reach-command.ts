@@ -36,6 +36,12 @@
  * not run before. It is named on stderr too. A diff of nothing else refuses,
  * like a diff of lockfiles: it reaches nothing, and an empty list would read as
  * *run nothing* with nobody told why.
+ *
+ * `--whole-files` skips that reading and walks from every changed file whole,
+ * which is the answer `jest --changedSince` gives over the same graph. It is
+ * never narrower, so it is always safe to ask for, and the two answers side by
+ * side are how a reader checks what the reading saved. The reading was not
+ * made, so `quiet` and `exports` are absent from the JSON rather than empty.
  */
 
 import { OperatorError } from '../exit.js';
@@ -52,6 +58,8 @@ export interface ReachRequest {
   /** `--since <ref>`: the ref the diff is taken against. Required; there is no default. */
   readonly since: string;
   readonly format: ReachFormat;
+  /** `--whole-files`: walk from every changed file whole, without reading the edit. */
+  readonly wholeFiles?: boolean;
   readonly noGit?: boolean;
 }
 
@@ -89,8 +97,10 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const readable = changed.filter((file) => READABLE.has(suffixOf(file)));
   const unread = changed.filter((file) => !READABLE.has(suffixOf(file)));
 
-  const movedExports = (await movedSince(await diffPoint(request.since), readable)) ?? new Map();
-  const quiet = readable.filter((file) => movedExports.get(file)?.length === 0);
+  const movedExports = request.wholeFiles
+    ? undefined
+    : ((await movedSince(await diffPoint(request.since), readable)) ?? new Map<string, readonly string[]>());
+  const quiet = movedExports && readable.filter((file) => movedExports.get(file)?.length === 0);
   const reach = affectedFiles(relations, readable, ['.'], [], movedExports);
   if (refused(reach)) {
     throw new OperatorError(
@@ -101,6 +111,9 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
 
   const notes = [
     reach.how,
+    ...(movedExports === undefined
+      ? ['--whole-files: every changed file is walked from whole; no edit was read']
+      : []),
     ...(unread.length === 0
       ? []
       : [
@@ -118,8 +131,12 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
               since: request.since,
               changed: [...changed],
               unread,
-              quiet,
-              exports: Object.fromEntries([...movedExports].filter(([, exports]) => exports.length > 0)),
+              ...(movedExports === undefined
+                ? {}
+                : {
+                    quiet,
+                    exports: Object.fromEntries([...movedExports].filter(([, exports]) => exports.length > 0)),
+                  }),
               seeded: reach.seeded,
               files: reach.files,
             },

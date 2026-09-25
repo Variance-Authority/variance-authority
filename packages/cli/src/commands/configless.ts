@@ -168,6 +168,7 @@ export async function answerConfigless(
         cwd: process.cwd(),
         since: parsed.since,
         format: parsed.format,
+        ...(parsed.wholeFiles ? { wholeFiles: true } : {}),
         ...(parsed.noGit ? { noGit: true } : {}),
       });
       streams.err(said.err);

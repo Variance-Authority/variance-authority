@@ -44,6 +44,7 @@ export const BOOLEAN = new Set([
   '--in-package',
   '--just-answer',
   '--no-git',
+  '--whole-files',
   '--exit-zero-on-changes',
 ]);
 

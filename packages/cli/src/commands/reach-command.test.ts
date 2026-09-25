@@ -247,4 +247,27 @@ describe('a changed file read by the exports it changed', () => {
     expect(JSON.parse(said.out)).toMatchObject({ exports: { 'src/cart.ts': ['label'] } });
     expect(JSON.parse(said.out).files).not.toContain('test/total.test.ts');
   });
+
+  it('walks from every changed file whole under --whole-files, and says so', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace('n * 2', 'n * 3') }, 'double to triple');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--whole-files']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n')).toEqual(expect.arrayContaining(['test/label.test.ts', 'test/badge.test.ts']));
+    expect(said.err).toMatch(/--whole-files: every changed file is walked from whole; no edit was read/);
+  });
+
+  it('walks from a comment under --whole-files, and prints no reading it did not make', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': `// cart\n${SHOP['src/cart.ts']}` }, 'a comment');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--whole-files', '--format', 'json']);
+    const answer = JSON.parse(said.out);
+
+    expect(answer.files).toContain('test/label.test.ts');
+    expect(answer).not.toHaveProperty('quiet');
+    expect(answer).not.toHaveProperty('exports');
+  });
 });

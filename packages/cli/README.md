@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
-variance reach   --since <ref> [--format plain|json] [--no-git]
+variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] | --since <ref> [--execution <path>] [--root <path>] [--format text|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
@@ -1037,6 +1037,10 @@ stderr names `total`.
 says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
+
+`--whole-files` walks from every changed file whole without reading the edit,
+which is the list a file-by-file import graph gives. It is never shorter than
+the default list, so running both shows what the reading left out.
 
 No `variance.config.json` is read, and there is no default for `--since`: without
 a ref there is no diff, and the honest answer would be every file in the
