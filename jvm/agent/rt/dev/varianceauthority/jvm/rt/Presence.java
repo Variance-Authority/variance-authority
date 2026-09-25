@@ -33,7 +33,15 @@ public final class Presence {
     return META.size() - 1;
   }
 
-  /** The indices hit since the last drain, cleared as they are read. */
+  /**
+   * The indices hit since the last drain, cleared as they are read.
+   *
+   * A flag set again between its read and its clear goes to the window this drain
+   * ends, not the next. That is its owner's window: a drain runs at a class
+   * boundary, before the next class starts, or under the lock that opens and
+   * closes journeys, before the journey entering is open. What runs during the
+   * drain runs for an owner of the window it ends.
+   */
   public static int[] drain() {
     int n;
     synchronized (Presence.class) {

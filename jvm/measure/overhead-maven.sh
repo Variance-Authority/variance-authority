@@ -9,8 +9,8 @@ mkdir -p "$OUT"
 SKIPS="-Drat.skip -Dcheckstyle.skip -Dspotbugs.skip -Dpmd.skip -Djapicmp.skip -Danimal.sniffer.skip \
   -Djacoco.skip -Dmaven.javadoc.skip -Dcyclonedx.skip -Dspdx.skip -Denforcer.skip -Dmoditect.skip \
   -Dbnd.skip -Dmaven.source.skip"
-JACOCO="-javaagent:/va/lib/org.jacoco.agent-runtime.jar=output=none,includes=$INCLUDES"
-PRESENCE="-javaagent:/va/bin/variance-agent.jar=includes=$INCLUDES"
+JACOCO="-javaagent:/va/lib/org.jacoco.agent-runtime.jar=output=none${INCLUDES:+,includes=$INCLUDES}"
+PRESENCE="-javaagent:/va/bin/variance-agent.jar${INCLUDES:+=includes=$INCLUDES}"
 docker run --rm -v "$WORK/m2:/root/.m2" -v "$WORK:/va:ro" -v "$REPO:/repo" -v "$OUT:/out" -w /repo \
   maven:3.9-eclipse-temurin-21 sh -euc "
     mvn -B -q -o test-compile $SKIPS > /out/compile.log 2>&1

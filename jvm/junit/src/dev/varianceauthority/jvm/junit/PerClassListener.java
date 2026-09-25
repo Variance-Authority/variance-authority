@@ -11,6 +11,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
 
 import org.junit.platform.engine.TestExecutionResult;
@@ -34,8 +35,11 @@ import org.junit.platform.launcher.TestPlan;
  * line in a run means no class's work could land in another's window.
  *
  * The store is the presence agent's when it is loaded, and JaCoCo's otherwise.
- * Presence rows are appended to `record.jsonl` in the analyzer's format, and when
- * the plan finishes the agent writes the same record as sense's `coverage.va`; JaCoCo
+ * Presence rows are appended in the analyzer's format to this JVM's own record,
+ * `records/<pid>-<uuid>.jsonl`, so forks that share `va.out` never write one file,
+ * and a between row is named for its JVM. When the plan finishes the agent seals
+ * that record and merges every finished one into `record.jsonl` and sense's
+ * `coverage.va`; JaCoCo
  * windows are written as `<class>.exec` for the analyzer. Either is reached by
  * reflection: presence through the bootstrap loader, JaCoCo through the system
  * class loader, which is also the check that an agent jar is visible to a
@@ -48,7 +52,9 @@ public final class PerClassListener implements TestExecutionListener {
   private Method getExecutionData;
   private Method setSessionId;
   private Method row;
-  private int between;
+  private Path own;
+  private String between = "between-";
+  private int windows;
   private String open;
   private Set<Thread> before = new HashSet<>();
 
@@ -64,8 +70,11 @@ public final class PerClassListener implements TestExecutionListener {
     try {
       Files.createDirectories(out);
       if (row != null) {
+        String jvm = pid() + "-" + UUID.randomUUID();
+        own = Files.createDirectories(out.resolve("records")).resolve(jvm + ".jsonl");
+        between = "between-" + jvm + "-";
         log("plan-start\t" + System.nanoTime());
-        dump("between-" + between++);
+        dump(between + windows++);
         return;
       }
       Class<?> rt = Class.forName("org.jacoco.agent.rt.RT", true, ClassLoader.getSystemClassLoader());
@@ -77,7 +86,7 @@ public final class PerClassListener implements TestExecutionListener {
     } catch (ReflectiveOperationException | IOException e) {
       throw new IllegalStateException("JaCoCo agent not reachable from the test class loader", e);
     }
-    dump("between-" + between++);
+    dump(between + windows++);
   }
 
   @Override
@@ -85,7 +94,7 @@ public final class PerClassListener implements TestExecutionListener {
     String name = topLevelClass(id);
     if (name == null) return;
     if (open != null) log("overlap\t" + open + "\t" + name);
-    dump("between-" + between++);
+    dump(between + windows++);
     session(name);
     open = name;
     before = new HashSet<>(Thread.getAllStackTraces().keySet());
@@ -105,17 +114,17 @@ public final class PerClassListener implements TestExecutionListener {
 
   @Override
   public void testPlanExecutionFinished(TestPlan testPlan) {
-    dump("between-" + between++);
+    dump(between + windows++);
     if (row != null) coverage();
     log("plan-end\t" + System.nanoTime());
   }
 
-  /** The record as sense's execution record, `coverage.va`, written by the presence agent's jar. */
+  /** This JVM's record sealed, and every finished one merged into `record.jsonl` and `coverage.va`, by the presence agent's jar. */
   private void coverage() {
     try {
       Class.forName("dev.varianceauthority.jvm.Coverage", true, ClassLoader.getSystemClassLoader())
-          .getMethod("write", Path.class, Path.class)
-          .invoke(null, out.resolve("record.jsonl"), out.resolve("coverage.va"));
+          .getMethod("finish", Path.class, Path.class)
+          .invoke(null, own, out);
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException("presence agent could not write coverage.va", e);
     }
@@ -170,13 +179,19 @@ public final class PerClassListener implements TestExecutionListener {
   private void presence(String name) {
     try {
       String line = (String) row.invoke(null, name);
-      Files.write(out.resolve("record.jsonl"), line.getBytes(StandardCharsets.UTF_8),
+      Files.write(own, line.getBytes(StandardCharsets.UTF_8),
           StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
+  }
+
+  private static String pid() {
+    String name = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
+    int at = name.indexOf('@');
+    return at < 0 ? name : name.substring(0, at);
   }
 
   private void log(String line) {

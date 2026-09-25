@@ -47,15 +47,15 @@ docker run --rm -v "$WORK/m2:/root/.m2" -v "$CLONE:/repo" -w /repo \
 An unprimed dependency shows up as `FAILED` in the run's output, and that
 commit has no record.
 
-The scripts reach Surefire through `-DagentArgs`. That works because Commons
-Lang's `argLine` interpolates `${agentArgs}`. For another project, add
-`${agentArgs}` to its Surefire `argLine` first, or the suite runs with no
-recorder and every row comes out empty.
+The scripts reach Surefire through `-DagentArgs`, which Commons Lang's
+`argLine` interpolates as `${agentArgs}`. For another project, add
+`${agentArgs}` to its Surefire `argLine`. `record-maven.sh` fails when no test
+JVM carried the recorder, and when Maven itself fails; a failing test does not
+fail it.
 
 `replay-maven.sh` and `score.mjs` check out commits in the clones you give
 them, and `mutants-maven.sh` adds worktrees to `$CLONE`. Give them clones that
-you keep for this, not your working checkout. `replay-maven.sh` reverses the
-commit list with BSD `tail -r`, so it runs on a macOS host.
+you keep for this, not your working checkout.
 
 ## Runs
 
@@ -68,10 +68,8 @@ commit list with BSD `tail -r`, so it runs on a macOS host.
   - `pressplit`: the agent plus one row per class, written as `record.jsonl`
     with no analysis step.
 
-  `includes` defaults to `*`, and an empty string means `*` too. Under the
-  agent, `*` makes every row name Surefire's classes as `unknown`, and such a
-  row never excludes its test. So pass the project's own packages, such as
-  `'org.apache.commons.lang3.*'`. Extra Maven flags pass through:
+  With `includes` empty or left out, JaCoCo probes every class and the agent
+  the checkout's own. Extra Maven flags pass through:
   `-DreuseForks=false` records every test class in its own JVM.
 - `compare-records.mjs <ref> <other> [out.json]` compares two records of one
   commit class by class, such as the suite against every class run alone. It

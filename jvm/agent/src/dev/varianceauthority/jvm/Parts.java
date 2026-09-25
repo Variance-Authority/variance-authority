@@ -126,19 +126,24 @@ public final class Parts {
 
   // ---------------------------------------------------------------- names
 
+  /** The nearest directory above the working directory that holds {@code .git}; the working directory outside one. */
+  static Path checkoutRoot() {
+    Path cwd = Paths.get("").toAbsolutePath().normalize();
+    for (Path at = cwd; at != null; at = at.getParent()) {
+      if (Files.exists(at.resolve(".git"))) return at;
+    }
+    return cwd;
+  }
+
   /** The working directory relative to the checkout, with a trailing slash; empty at its root or outside one. */
   static String checkoutPrefix() {
     Path cwd = Paths.get("").toAbsolutePath().normalize();
-    for (Path at = cwd; at != null; at = at.getParent()) {
-      if (Files.exists(at.resolve(".git"))) {
-        String relative = at.relativize(cwd).toString().replace(File.separatorChar, '/');
-        return relative.isEmpty() ? "" : relative + "/";
-      }
-    }
-    return "";
+    String relative = checkoutRoot().relativize(cwd).toString().replace(File.separatorChar, '/');
+    return relative.isEmpty() ? "" : relative + "/";
   }
 
-  private static String name(String prefix, String file) {
+  /** A path the working directory reads, as the checkout names it. */
+  static String name(String prefix, String file) {
     Path path = Paths.get(file);
     if (path.isAbsolute()) {
       Path cwd = Paths.get("").toAbsolutePath().normalize();

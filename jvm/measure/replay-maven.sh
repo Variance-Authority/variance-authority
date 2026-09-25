@@ -11,7 +11,7 @@ BASE="$WORK/replay/$NAME"
 mkdir -p "$BASE"
 # The order is fixed on the first run: a resumed replay starts from a detached
 # checkout, where `git log` would pick a different window.
-[ -f "$BASE/order.txt" ] || git -C "$REPO" log --first-parent --format=%H -n "$N" | tail -r > "$BASE/order.txt"
+[ -f "$BASE/order.txt" ] || git -C "$REPO" log --first-parent --reverse --format=%H -n "$N" > "$BASE/order.txt"
 for sha in $(cat "$BASE/order.txt"); do
   dir="$BASE/$sha"
   if [ -f "$dir/record.jsonl" ]; then continue; fi
@@ -19,7 +19,7 @@ for sha in $(cat "$BASE/order.txt"); do
   git -C "$REPO" checkout -q --detach "$sha"
   git -C "$REPO" diff "$sha^1" "$sha" > "$dir/diff.patch" || true
   rm -rf "$REPO/target/classes" "$REPO/target/test-classes" "$REPO/target/surefire-reports"
-  sh "$HERE/record-maven.sh" "$WORK" "$REPO" "$RECORDER" "$dir/exec" "$INCLUDES" > "$dir/run.txt" 2>&1
+  sh "$HERE/record-maven.sh" "$WORK" "$REPO" "$RECORDER" "$dir/exec" "$INCLUDES" > "$dir/run.txt" 2>&1 || echo "record failed" >> "$dir/run.txt"
   for f in "$REPO"/target/surefire-reports/TEST-*.xml; do
     [ -f "$f" ] || continue
     sed -n 's/.*<testsuite [^>]*name="\([^"]*\)"[^>]*tests="\([0-9]*\)"[^>]*errors="\([0-9]*\)"[^>]*failures="\([0-9]*\)".*/\1\t\2\t\3\t\4/p' "$f" | head -1

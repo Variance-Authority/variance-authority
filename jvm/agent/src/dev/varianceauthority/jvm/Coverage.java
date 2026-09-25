@@ -5,11 +5,15 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -48,7 +52,10 @@ import java.util.TreeSet;
  *
  * The listener writes it beside {@code record.jsonl} when the plan finishes; the
  * {@code main} writes it for a record already on disk. Source texts are read from
- * the working directory, which must be the commit the record was made at.
+ * the working directory, which must be the commit the record was made at, and
+ * named as {@link Parts} names them: relative to the checkout, so a module's
+ * record matches a diff taken at its root. A driver's journey subjects are
+ * written as the table spells them.
  *
  * The bytes are sense's snapshot format 8 with every column and set stored
  * uncompressed, which its reader accepts: a run is compressed only when that pays,
@@ -86,9 +93,131 @@ public final class Coverage {
     write(Paths.get(args[0]), Paths.get(args[1]), commit, roots, journeys);
   }
 
-  /** Called by the listener when the plan finishes, with the roots the agent resolved classes under. */
-  public static void write(Path record, Path out) throws IOException {
-    write(record, out, System.getProperty("va.commit"), Agent.roots());
+  /**
+   * Called by the listener when this JVM's plan finishes: seals {@code own}, this
+   * JVM's record under {@code <out>/records}, then writes {@code record.jsonl} and
+   * {@code coverage.va} from every sealed record there.
+   *
+   * A seal is a last line naming the text of every file the record's rows read,
+   * as this JVM saw it. A record whose texts still hold is current, and for each
+   * test class the newest current record's row wins, so a rerun replaces what it
+   * reran and keeps what it did not. A record whose texts moved is deleted: its
+   * rows describe code that is gone. So is one that no test class reads from any
+   * longer. A record with no seal is a JVM still running, or one that died; it is
+   * left alone, and a running one merges everything when its own plan ends.
+   *
+   * Forks that share {@code out} merge under a lock on {@code <out>/.lock}, and
+   * the last to finish writes the whole record. One that finishes while another
+   * still runs writes what has finished, and a class missing from a record runs.
+   */
+  public static void finish(Path own, Path out) throws IOException {
+    List<String> roots = Agent.roots();
+    seal(own, roots);
+    try (FileChannel channel = FileChannel.open(out.resolve(".lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        FileLock held = channel.lock()) {
+      List<Sealed> sealed = new ArrayList<>();
+      try (DirectoryStream<Path> records = Files.newDirectoryStream(own.getParent(), "*.jsonl")) {
+        for (Path file : records) {
+          Sealed record = Sealed.read(file);
+          if (record == null) continue;
+          if (record.current()) sealed.add(record);
+          else Files.delete(file);
+        }
+      }
+      sealed.sort(Comparator.comparingLong((Sealed s) -> s.end).thenComparing(s -> s.file.getFileName().toString()));
+      Map<String, Sealed> newest = new HashMap<>();
+      for (Sealed record : sealed) for (String owner : record.owners()) newest.put(owner, record);
+      StringBuilder merged = new StringBuilder();
+      for (Sealed record : sealed) {
+        StringBuilder kept = new StringBuilder();
+        boolean reads = false;
+        for (int i = 0; i < record.lines.size(); i++) {
+          String owner = (String) record.rows.get(i).get("owner");
+          boolean between = owner.startsWith("between");
+          if (!between && newest.get(owner) != record) continue;
+          reads |= !between;
+          kept.append(record.lines.get(i)).append('\n');
+        }
+        if (reads || record.file.equals(own)) merged.append(kept);
+        else Files.delete(record.file);
+      }
+      Path record = out.resolve("record.jsonl");
+      Path temporary = record.resolveSibling("record.jsonl.tmp");
+      Files.write(temporary, merged.toString().getBytes(StandardCharsets.UTF_8));
+      Files.move(temporary, record, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+      write(record, out.resolve("coverage.va"), System.getProperty("va.commit"), roots);
+    }
+  }
+
+  /** Appends the seal: when this JVM finished, and the digest of every file its rows read. */
+  private static void seal(Path own, List<String> roots) throws IOException {
+    TreeSet<String> files = new TreeSet<>();
+    if (Files.isRegularFile(own)) {
+      for (String line : Files.readAllLines(own, StandardCharsets.UTF_8)) {
+        if (line.isEmpty()) continue;
+        Map<String, Object> row = Json.object(line);
+        String owner = (String) row.get("owner");
+        if (!owner.startsWith("between")) files.add(testFile(owner, roots));
+        for (Object o : (List<?>) row.get("methods")) files.add((String) ((Map<?, ?>) o).get("file"));
+      }
+    }
+    StringBuilder seal = new StringBuilder("{\"end\":").append(System.currentTimeMillis()).append(",\"texts\":{");
+    boolean first = true;
+    for (String file : files) {
+      String text = text(file);
+      seal.append(first ? "" : ",").append(Agent.quote(file)).append(':').append(Agent.quote(text == null ? "" : digest(text)));
+      first = false;
+    }
+    seal.append("}}\n");
+    Files.write(own, seal.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+  }
+
+  /** One JVM's record that carries its seal. */
+  private static final class Sealed {
+    final Path file;
+    final long end;
+    final Map<?, ?> texts;
+    final List<String> lines = new ArrayList<>();
+    final List<Map<String, Object>> rows = new ArrayList<>();
+
+    private Sealed(Path file, long end, Map<?, ?> texts) {
+      this.file = file;
+      this.end = end;
+      this.texts = texts;
+    }
+
+    /** The record, or null when its last line is not a seal. */
+    static Sealed read(Path file) throws IOException {
+      List<String> lines = new ArrayList<>();
+      for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) if (!line.isEmpty()) lines.add(line);
+      if (lines.isEmpty()) return null;
+      Map<String, Object> last = Json.object(lines.get(lines.size() - 1));
+      if (!last.containsKey("end")) return null;
+      Sealed record = new Sealed(file, ((Number) last.get("end")).longValue(), (Map<?, ?>) last.get("texts"));
+      for (String line : lines.subList(0, lines.size() - 1)) {
+        record.lines.add(line);
+        record.rows.add(Json.object(line));
+      }
+      return record;
+    }
+
+    /** Whether every file the rows read still has the text it had. */
+    boolean current() throws IOException {
+      for (Map.Entry<?, ?> e : texts.entrySet()) {
+        String text = text((String) e.getKey());
+        if (text == null || !digest(text).equals(e.getValue())) return false;
+      }
+      return true;
+    }
+
+    List<String> owners() {
+      List<String> out = new ArrayList<>();
+      for (Map<String, Object> row : rows) {
+        String owner = (String) row.get("owner");
+        if (!owner.startsWith("between")) out.add(owner);
+      }
+      return out;
+    }
   }
 
   static void write(Path record, Path out, String commit, List<String> roots) throws IOException {
@@ -211,6 +340,9 @@ public final class Coverage {
       throws IOException {
     Model model = new Model();
     model.commit = commit;
+    // Named as the checkout names them, as a diff at its root does; read where this JVM runs.
+    String prefix = Parts.checkoutPrefix();
+    Map<String, String> read = new HashMap<>();
     Map<String, Test> tests = new TreeMap<>();
     Map<String, Map<String, Method>> byFile = new TreeMap<>();
     List<String> everyone = new ArrayList<>();
@@ -228,7 +360,10 @@ public final class Coverage {
       List<String> files;
       if (journeys == null) {
         if (owner.startsWith("between")) continue;
-        files = Collections.singletonList(testFile(owner, roots));
+        String file = testFile(owner, roots);
+        String named = Parts.name(prefix, file);
+        read.put(named, file);
+        files = Collections.singletonList(named);
       } else if (owner.startsWith("journey:")) {
         String subject = journeys.get(owner.substring("journey:".length()));
         if (subject == null) {
@@ -246,7 +381,7 @@ public final class Coverage {
         boolean complete = (unknown == null || unknown.isEmpty()) && (prior == null || prior.complete);
         String digest = prior != null ? prior.digest : null;
         if (prior == null) {
-          String text = text(file);
+          String text = text(read.getOrDefault(file, file));
           digest = text == null ? null : digest(text);
         }
         tests.put(file, new Test(file, complete, digest));
@@ -268,7 +403,8 @@ public final class Coverage {
     for (Map.Entry<String, Map<String, Method>> e : byFile.entrySet()) {
       String text = text(e.getKey());
       if (text == null) throw new IOException("recorded file " + e.getKey() + " is not in the checkout");
-      model.modules.add(module(e.getKey(), text, new ArrayList<>(e.getValue().values())));
+      Module module = module(e.getKey(), text, new ArrayList<>(e.getValue().values()));
+      model.modules.add(new Module(Parts.name(prefix, e.getKey()), module.sourceDigest, module.blocks));
     }
     return model;
   }

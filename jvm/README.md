@@ -42,7 +42,7 @@ Vintage engine. With Maven Surefire:
 <plugin>
   <artifactId>maven-surefire-plugin</artifactId>
   <configuration>
-    <argLine>-javaagent:${va.bin}/variance-agent.jar=includes=org.example.* -javaagent:${va.bin}/variance-junit.jar -Dva.out=${project.build.directory}/va</argLine>
+    <argLine>-javaagent:${va.bin}/variance-agent.jar -javaagent:${va.bin}/variance-junit.jar -Dva.out=${project.build.directory}/va</argLine>
   </configuration>
 </plugin>
 ```
@@ -56,7 +56,7 @@ tasks.test {
   useJUnitPlatform()
   val va = file("/path/to/jvm/dist/bin")
   jvmArgs(
-    "-javaagent:$va/variance-agent.jar=includes=org.example.*",
+    "-javaagent:$va/variance-agent.jar",
     "-javaagent:$va/variance-junit.jar",
     "-Dva.out=${layout.buildDirectory.dir("va").get().asFile}",
   )
@@ -65,12 +65,18 @@ tasks.test {
 
 Each top-level test class becomes one row of `record.jsonl` in `va.out`. When
 the test plan finishes, the listener writes the same record as `coverage.va`.
-The listener appends to `record.jsonl`, so record into a fresh directory, such
-as one that `mvn clean` or `gradle clean` removes.
+
+Each test JVM keeps its own rows under `va.out/records` and, when its plan
+finishes, merges every finished JVM's rows into `record.jsonl`. Forks that share
+a `va.out` merge in turn, so the last one to finish writes the whole suite. A
+rerun replaces the rows of the classes it ran and keeps the rest, so
+`-Dtest=AddTest` leaves the other classes' rows in place. A row that read a file
+whose text has changed since is dropped, and its class runs until it is recorded
+again.
 
 | Setting | Where | Default | |
 | --- | --- | --- | --- |
-| `includes` | agent option | `*` | Colon-separated class-name globs, with `*` and `?`, as JaCoCo's. |
+| `includes` | agent option | the checkout's own classes | Colon-separated class-name globs, with `*` and `?`, as JaCoCo's. |
 | `sources` | agent option | `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin` | Colon-separated source roots, relative to the test JVM's working directory. |
 | `va.out` | system property | `va-exec` | Where `record.jsonl`, `coverage.va` and `events.tsv` go. |
 | `va.commit` | system property | none | The commit `coverage.va` names as its baseline. |
@@ -81,10 +87,11 @@ Agent options are comma-separated after the `=`, as in
 `includes=com.acme.*,sources=src/main/java:src/test/java`. Any other option
 fails the JVM at startup.
 
-Scope `includes` to your own packages. With the default `*`, the agent probes
-Surefire, JUnit and every library. None of them has a file under the source
-roots, so each one is `unknown` in every row that entered it, and a row that
-lists an `unknown` class cannot exclude its test. Nothing is ever skipped.
+Without `includes`, the agent probes the classes that load from inside the
+checkout, such as a module's `target/classes`, and nothing from the Maven or
+Gradle cache or the JDK. A diff of the checkout cannot change a dependency, so
+probing one could only mark rows `unknown`. Name `includes` when your own
+classes load from outside the checkout.
 
 ### What a row holds
 
@@ -113,9 +120,7 @@ Work is charged to a row by time: whatever the store flagged between one test
 class's start and the next is that class's. Surefire and Gradle run one class
 at a time per JVM, and that keeps each class's work inside its row. Parallel
 classes inside one JVM share their flags, so record with JUnit's parallel
-execution off. Record with one fork too: forks that share a `va.out` each
-rewrite `coverage.va` when their own plan ends, so the file holds only what the
-last fork to finish had seen.
+execution off. Parallel forks are fine, since each fork is a JVM of its own.
 
 At each class boundary the listener logs to `events.tsv` whether a thread the
 class started is still alive (`survivor`) or the common pool is still busy
@@ -140,10 +145,8 @@ From a script, `narrowByExecution('target/va/coverage.va', diff)` from
 `@variance-authority/sense/test-selection` returns `whole`, every test file in
 the record, and `entered`, the ones the diff reaches.
 
-Paths in `coverage.va` are relative to the test JVM's working directory, which
-Surefire and Gradle set to the module directory. They match a diff taken at the
-checkout root only when the module is the checkout root. In a multi-module
-build, take the diff with `git diff --relative` from inside the module.
+Paths in `coverage.va` are relative to the checkout, whichever module ran, so
+they match a diff taken at its root.
 
 To convert a record already on disk, run this from the directory the suite ran
 in, at the commit the record was made at:
@@ -186,6 +189,9 @@ Start the service with the agent and a parts directory:
 java -javaagent:/path/to/variance-agent.jar=includes=com.acme.* \
   -Dva.parts=/abs/path/parts -jar service.jar
 ```
+
+A jar that bundles its dependencies loads them from inside the checkout too, so
+name your own packages in `includes` there.
 
 `VARIANCE_AUTHORITY_PARTS` works in place of `-Dva.parts`. Start it from its
 module directory inside the checkout, because the `sources` roots are relative
@@ -269,13 +275,29 @@ that call its API, and Playwright specs that drive it through a browser. Nothing
 in the cases or the specs imports the service, so no import graph reaches a Java
 file from a test.
 
+`jvm/test/modules` is a two-module Maven build with no `includes`, whose `calc`
+module runs each test class in a JVM of its own, two at a time, into one
+`va.out`.
+
 ```bash
+node jvm/test/record.mjs "$WORK/record" jvm/dist/bin
 node jvm/test/parts.mjs "$WORK/parts" jvm/dist/bin
 node jvm/test/journey.mjs "$WORK/journey" jvm/dist/bin packages/cli/dist/bin.js
 ```
 
-Both need Docker and a built checkout (`yarn build`). `journey.mjs` also needs
-Playwright's Chromium.
+All three need Docker and a built checkout (`yarn build`). `journey.mjs` also
+needs Playwright's Chromium.
+
+`record.mjs` records the build fresh, again, with `-Dtest=AddTest`, and after an
+edit to a test file. It checks that:
+
+- `coverage.va` names files relative to the checkout, so a diff at its root
+  selects from either module's record.
+- No row names an `unknown` class, so every test is eligible to skip.
+- Every fork's classes are in the record once.
+- A rerun replaces rows, and `-Dtest=` keeps the rows of the classes it did not
+  run.
+- An edit retires the rows of the class whose record read the edited file.
 
 `parts.mjs` runs the shop under the agent with a parts directory, runs Jest in
 band against it, stops the JVM, and then finalizes Jest's journey file. It

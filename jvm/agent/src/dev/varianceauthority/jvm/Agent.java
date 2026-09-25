@@ -3,6 +3,10 @@ package dev.varianceauthority.jvm;
 import java.io.File;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,6 +39,11 @@ import dev.varianceauthority.jvm.rt.Presence;
  * store is {@link Presence}, on the bootstrap class path through this jar's
  * {@code Boot-Class-Path}.
  *
+ * Without {@code includes}, the classes probed are the checkout's own: those
+ * loaded from a location inside it ({@code target/classes}, a module's jar),
+ * and none loaded from a dependency cache or the JDK. No diff of the checkout
+ * can change a dependency, so probing one could only ever mark rows unknown.
+ *
  * A class's file is found, not assumed: the one path under the roots that
  * exists as {@code <root>/<package>/<SourceFile>}, or else the one file under
  * the roots with that name, for Kotlin, whose package need not match its
@@ -54,8 +63,12 @@ import dev.varianceauthority.jvm.rt.Presence;
 public final class Agent implements ClassFileTransformer {
   static final String DEFAULT_SOURCES = "src/main/java:src/test/java:src/main/kotlin:src/test/kotlin";
   private static volatile List<String> active = Arrays.asList(DEFAULT_SOURCES.split(":"));
+  /** What {@link #resolve} answers for a class whose source name matches more than one file. */
+  private static final String AMBIGUOUS = "";
   private final List<Pattern> includes = new ArrayList<>();
   private final List<String> roots = new ArrayList<>();
+  /** Where the checkout's own classes load from, when {@code includes} did not name them. */
+  private final Path checkout;
   private final Map<String, String> resolved = new HashMap<>();
   private Map<String, List<String>> byName;
 
@@ -67,14 +80,14 @@ public final class Agent implements ClassFileTransformer {
       String key = option.substring(0, eq);
       String value = option.substring(eq + 1);
       if (key.equals("includes")) {
-        for (String glob : value.split(":")) includes.add(glob(glob));
+        for (String glob : value.split(":")) if (!glob.isEmpty()) includes.add(glob(glob));
       } else if (key.equals("sources")) {
         sources = value;
       } else {
         throw new IllegalArgumentException("unknown presence option " + key);
       }
     }
-    if (includes.isEmpty()) includes.add(glob("*"));
+    checkout = includes.isEmpty() ? Parts.checkoutRoot() : null;
     for (String root : sources.split(":")) roots.add(root);
     active = roots;
   }
@@ -132,20 +145,35 @@ public final class Agent implements ClassFileTransformer {
   public byte[] transform(ClassLoader loader, String name, Class<?> redefined, ProtectionDomain domain, byte[] bytes) {
     if (loader == null || name == null || redefined != null || name.startsWith("dev/varianceauthority/jvm/")) return null;
     String dotted = name.replace('/', '.');
-    boolean included = false;
-    for (Pattern p : includes) {
-      if (p.matcher(dotted).matches()) {
-        included = true;
-        break;
-      }
-    }
-    if (!included) return null;
+    if (checkout == null ? !declared(dotted) : !inCheckout(domain)) return null;
     try {
       return instrument(bytes);
     } catch (RuntimeException | LinkageError e) {
       Presence.fail(name);
       System.err.println("presence: left " + dotted + " uninstrumented: " + e);
       return null;
+    }
+  }
+
+  private boolean declared(String dotted) {
+    for (Pattern p : includes) {
+      if (p.matcher(dotted).matches()) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Whether a class loaded from inside the checkout. A location that is there
+   * but cannot be read as a path counts as the checkout's, so its entries mark
+   * rows rather than vanish.
+   */
+  private boolean inCheckout(ProtectionDomain domain) {
+    CodeSource source = domain == null ? null : domain.getCodeSource();
+    if (source == null || source.getLocation() == null) return false;
+    try {
+      return Paths.get(source.getLocation().toURI()).toAbsolutePath().normalize().startsWith(checkout);
+    } catch (URISyntaxException | RuntimeException e) {
+      return true;
     }
   }
 
@@ -156,7 +184,11 @@ public final class Agent implements ClassFileTransformer {
     int slash = cn.name.lastIndexOf('/');
     String dir = slash < 0 ? "" : cn.name.substring(0, slash + 1);
     String file = resolve(dir, cn.sourceFile);
-    int unknown = file == null ? Presence.register("{\"unknown\":" + quote(cn.name) + "}") : -1;
+    int unknown = -1;
+    if (file == null || file.equals(AMBIGUOUS)) {
+      unknown = Presence.register("{\"unknown\":" + quote(cn.name) + "}");
+      file = null;
+    }
     boolean changed = false;
     for (MethodNode m : cn.methods) {
       if (m.instructions.size() == 0) continue;
@@ -196,7 +228,7 @@ public final class Agent implements ClassFileTransformer {
       List<String> named = byName().get(sourceFile);
       if (named != null) found.addAll(named);
     }
-    String file = found.size() == 1 ? found.get(0) : null;
+    String file = found.size() == 1 ? found.get(0) : found.isEmpty() ? null : AMBIGUOUS;
     resolved.put(key, file);
     return file;
   }
@@ -237,7 +269,7 @@ public final class Agent implements ClassFileTransformer {
     return s.append("]}").toString();
   }
 
-  private static String quote(String s) {
+  static String quote(String s) {
     return "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
   }
 }
