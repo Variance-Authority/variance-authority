@@ -2,6 +2,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { parseExecutionIndex } from '@variance-authority/distill';
+import { OperatorError } from '../exit.js';
 import {
   decodeExecutionIndex,
   isEncodedExecutionIndex,
@@ -60,6 +61,23 @@ export async function defaultExecutionFile(root: string): Promise<string> {
   if (await readable(columns)) return columns;
   const json = `${testCoverageFile(root)}.cases.json`;
   return (await readable(json)) ? json : columns;
+}
+
+/**
+ * The index a recorded run left, refused as `unrecorded` when no run left one.
+ *
+ * Told apart from an index that is there and cannot be read: that one is a
+ * defect somebody fixes, and this one is a project that never ran the recorder,
+ * which a program asking on every edit has to be able to recognise.
+ */
+export async function recordedExecutionFile(root: string): Promise<string> {
+  const file = await defaultExecutionFile(root);
+  if (await readable(file)) return file;
+  throw new OperatorError(
+    `nothing is recorded in \`${root}\`: no run left a per-case index at \`${file}\`. ` +
+      'Run the suite with `withTestSelection` and ask again.',
+    { kind: 'unrecorded' },
+  );
 }
 
 async function readable(file: string): Promise<boolean> {

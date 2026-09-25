@@ -22,6 +22,10 @@ and its marks move with it. If the file changed so much that the text the suite
 ran over cannot be found, the status bar says the record is stale and nothing
 is painted.
 
+In a workspace with no CLI to ask, or no run recorded, the extension shows
+nothing and stops asking. It asks again when the window comes back to the
+front, or when you run **Variance: Read the recording again**.
+
 **Variance: Cases through this line** lists the cases for the line under the
 cursor, and the cases that stopped before it. Choosing one opens its file.
 **Variance: Read the recording again** repaints after a run. Coming back to the

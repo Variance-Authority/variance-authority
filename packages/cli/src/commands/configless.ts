@@ -18,7 +18,7 @@
  * added to one list and not the other is offered a flag it will ignore.
  */
 
-import { EXIT_CLEAN, type ExitCode } from '../exit.js';
+import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Parsed } from '../parse.js';
 import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
@@ -119,7 +119,16 @@ export async function answerConfigless(
     // flag long and needs nothing configured. Naming the file is still allowed,
     // for the run that happened somewhere else.
     case 'covering': {
-      streams.out(formatCovering(await covering(parsed), parsed.format));
+      try {
+        streams.out(formatCovering(await covering(parsed), parsed.format));
+      } catch (error) {
+        // A program reading JSON is told which refusal this is on the stream it
+        // parses; the sentence still goes to stderr, for the person.
+        if (parsed.format === 'json' && error instanceof OperatorError && error.kind !== undefined) {
+          streams.out(`${JSON.stringify({ refused: error.kind })}\n`);
+        }
+        throw error;
+      }
       return EXIT_CLEAN;
     }
 

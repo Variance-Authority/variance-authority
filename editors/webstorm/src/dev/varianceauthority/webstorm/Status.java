@@ -57,7 +57,8 @@ final class Status extends EditorBasedWidget implements StatusBarWidget.TextPres
   @Override
   public @NotNull String getText() {
     Record.Answer answer = shown();
-    if (answer == null) return "";
+    // A project with no CLI or no recording is not one of ours; the bar stays as it was.
+    if (answer == null || answer.quiet()) return "";
     if (answer.refusal() != null) return "variance: not painted";
     if ("stale".equals(answer.frame())) return "variance: record is stale";
     long holes = answer.ranges().stream().filter((range) -> "hole".equals(range.state())).count();
@@ -67,7 +68,7 @@ final class Status extends EditorBasedWidget implements StatusBarWidget.TextPres
   @Override
   public String getTooltipText() {
     Record.Answer answer = shown();
-    if (answer == null) return null;
+    if (answer == null || answer.quiet()) return null;
     if (answer.refusal() != null) return answer.refusal();
     if ("stale".equals(answer.frame())) {
       return "This file changed since the suite ran, and the text it ran over could not be found. "

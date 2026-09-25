@@ -2,7 +2,7 @@
   "name": "variance-authority",
   "displayName": "Variance Authority",
   "description": "Which test cases went through each line, painted in the gutter from the last run's recording.",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "publisher": "machine-garden",
   "license": "MIT",
   "private": true,

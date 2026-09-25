@@ -504,6 +504,11 @@ against. A missing index is refused rather than answered empty, because an empty
 list here reads as *no test covers this line* — the sentence that gets a test
 deleted.
 
+When no run has recorded the project at all, `--format json` also prints
+`{"refused":"unrecorded"}` on standard output. A program asking on every edit
+can then stop asking without reading the sentence, which still goes to standard
+error for a person.
+
 ### Covering a change: what a review needs before reading the diff
 
 `--since <ref>` asks the same question of everything a diff touched, which is

@@ -75,6 +75,13 @@ function activate(context) {
   /** The question in flight per document, so a newer edit cancels it. */
   const pending = new Map();
   const timers = new Map();
+  /**
+   * Workspace folders with nothing to ask: no CLI, or no recording. Nothing is
+   * asked in them until the window comes back to the front, which is when a run
+   * in a terminal could have written one; otherwise every pause in typing would
+   * start a process to hear the same refusal.
+   */
+  const quiet = new Set();
 
   function folderOf(document) {
     if (document.uri.scheme !== 'file') return undefined;
@@ -83,7 +90,7 @@ function activate(context) {
 
   async function refresh(document) {
     const folder = folderOf(document);
-    if (folder === undefined) return;
+    if (folder === undefined || quiet.has(folder.uri.fsPath)) return;
     const key = document.uri.toString();
     pending.get(key)?.cancel();
     const question = ask({
@@ -96,6 +103,7 @@ function activate(context) {
     const result = await question.answer;
     if (pending.get(key) !== question || result.cancelled) return;
     pending.delete(key);
+    if (result.quiet) quiet.add(folder.uri.fsPath);
     answers.set(key, result);
     for (const editor of vscode.window.visibleTextEditors) {
       if (editor.document.uri.toString() === key) paint(editor);
@@ -126,7 +134,8 @@ function activate(context) {
   }
 
   function describe(result) {
-    if (result === undefined) return status.hide();
+    // A workspace with no CLI or no recording is not one of ours; the bar stays as it was.
+    if (result === undefined || result.quiet) return status.hide();
     if (result.refusal !== undefined) {
       status.text = '$(circle-slash) variance';
       status.tooltip = result.refusal;
@@ -198,6 +207,7 @@ function activate(context) {
     casesAtLine,
     ...Object.values(decorations),
     vscode.commands.registerCommand('variance.refresh', () => {
+      quiet.clear();
       for (const editor of vscode.window.visibleTextEditors) void refresh(editor.document);
     }),
     vscode.workspace.onDidChangeTextDocument((event) => later(event.document)),
@@ -216,7 +226,9 @@ function activate(context) {
     // A suite run in a terminal writes a new recording; coming back to the
     // window is when the person expects the paint to follow it.
     vscode.window.onDidChangeWindowState((state) => {
-      if (state.focused) for (const editor of vscode.window.visibleTextEditors) void refresh(editor.document);
+      if (!state.focused) return;
+      quiet.clear();
+      for (const editor of vscode.window.visibleTextEditors) void refresh(editor.document);
     }),
   );
 

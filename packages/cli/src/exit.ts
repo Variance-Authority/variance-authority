@@ -81,11 +81,26 @@ export class OperatorError extends Error {
   /** See {@link OPERATOR_ERROR_MARKER}. Spelled out, because the name is the contract. */
   readonly varianceOperatorError = true;
 
-  constructor(message: string, options?: ErrorOptions) {
+  /**
+   * What kind of refusal this is, for a program that must act on it rather
+   * than print it. Only a refusal a caller branches on has one; the sentence is
+   * for the person and is never matched.
+   */
+  readonly kind?: RefusalKind;
+
+  constructor(message: string, options?: ErrorOptions & { readonly kind?: RefusalKind }) {
     super(message, options);
     this.name = 'OperatorError';
+    if (options?.kind !== undefined) this.kind = options.kind;
   }
 }
+
+/**
+ * The refusals a program branches on. `unrecorded`: the project has no
+ * recording to ask, so asking again changes nothing until a run writes one —
+ * an editor stops asking instead of starting a process per keystroke.
+ */
+export type RefusalKind = 'unrecorded';
 
 /**
  * Whether an error is a statement about the operator's configuration.

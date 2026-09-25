@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.CapturingProcessHandler;
 import com.intellij.execution.process.ProcessOutput;
@@ -26,8 +27,12 @@ final class Record {
   /** One recorded range where it stands in the held text. */
   record Range(int startLine, int endLine, String state, boolean moved, List<Case> cases, List<String> stopped) {}
 
-  /** The answer about one file: its ranges and the frame they stand in, or the CLI's refusal. */
-  record Answer(List<Range> ranges, String frame, String refusal) {}
+  /**
+   * The answer about one file: its ranges and the frame they stand in, or the CLI's refusal.
+   * {@code quiet} is a refusal that holds for the whole project until a run changes it:
+   * no CLI to ask, or nothing recorded.
+   */
+  record Answer(List<Range> ranges, String frame, String refusal, boolean quiet) {}
 
   /** One test file among the cases that went through a line: how many of its cases did, of how many. */
   record TestFile(String file, int cases, int of, Integer hops) {}
@@ -52,7 +57,7 @@ final class Record {
 
   static Answer ask(String root, String file, String text) {
     Asked asked = run(root, text, "covering", "--file", file, "--root", root, "--text", "-", "--format", "json");
-    return asked.refusal() != null ? refused(asked.refusal()) : read(asked.answer());
+    return asked.refusal() != null ? new Answer(List.of(), null, asked.refusal(), asked.quiet()) : read(asked.answer());
   }
 
   /**
@@ -87,7 +92,7 @@ final class Record {
     return new Line(files, cases, null);
   }
 
-  private record Asked(JsonObject answer, String refusal) {}
+  private record Asked(JsonObject answer, String refusal, boolean quiet) {}
 
   private static Asked run(String root, String text, String... arguments) {
     List<String> command = new ArrayList<>();
@@ -98,17 +103,25 @@ final class Record {
         .withCharset(StandardCharsets.UTF_8)
         // The shell's environment, so `node` is found the way a terminal finds it.
         .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE);
+    CapturingProcessHandler handler;
     try {
-      CapturingProcessHandler handler = new CapturingProcessHandler(line);
+      handler = new CapturingProcessHandler(line);
+    } catch (ExecutionException error) {
+      // No CLI to ask: this project does not use variance, or has not installed it yet.
+      return new Asked(null, "variance could not be started: " + error.getMessage(), true);
+    }
+    try {
       try (OutputStream input = handler.getProcessInput()) {
         input.write(text.getBytes(StandardCharsets.UTF_8));
       }
       ProcessOutput output = handler.runProcess(30_000);
-      if (output.isTimeout()) return new Asked(null, "variance did not answer within 30 seconds.");
-      if (output.getExitCode() != 0) return new Asked(null, firstParagraph(output.getStderr()));
-      return new Asked(JsonParser.parseString(output.getStdout()).getAsJsonObject(), null);
+      if (output.isTimeout()) return new Asked(null, "variance did not answer within 30 seconds.", false);
+      if (output.getExitCode() != 0) {
+        return new Asked(null, firstParagraph(output.getStderr()), unrecorded(output.getStdout()));
+      }
+      return new Asked(JsonParser.parseString(output.getStdout()).getAsJsonObject(), null, false);
     } catch (Exception error) {
-      return new Asked(null, "variance could not be asked: " + error.getMessage());
+      return new Asked(null, "variance could not be asked: " + error.getMessage(), false);
     }
   }
 
@@ -139,11 +152,17 @@ final class Record {
           stopped));
     }
     String frame = answer.has("frame") ? answer.get("frame").getAsString() : null;
-    return new Answer(ranges, frame, null);
+    return new Answer(ranges, frame, null, false);
   }
 
-  private static Answer refused(String sentence) {
-    return new Answer(List.of(), null, sentence);
+  /** Whether a refusal says the project has nothing recorded, by its kind and never by its words. */
+  private static boolean unrecorded(String stdout) {
+    try {
+      JsonObject refusal = JsonParser.parseString(stdout).getAsJsonObject();
+      return refusal.has("refused") && "unrecorded".equals(refusal.get("refused").getAsString());
+    } catch (Exception notJson) {
+      return false;
+    }
   }
 
   /** A refusal's first paragraph is the sentence; the rest routes a terminal reader. */

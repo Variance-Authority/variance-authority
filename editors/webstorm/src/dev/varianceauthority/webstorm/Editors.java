@@ -11,6 +11,7 @@ import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.IdeFrame;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -47,8 +48,25 @@ public final class Editors implements EditorFactoryListener, ApplicationActivati
     return painter == null ? null : painter.answer();
   }
 
+  /**
+   * Projects that have nothing to ask: no CLI, or no recording. Nothing is asked
+   * in them until the IDE comes back to the front, which is when a run in a
+   * terminal could have written one; otherwise every pause in typing, in every
+   * project, would start a process to hear the same refusal.
+   */
+  private static final Set<String> QUIET = ConcurrentHashMap.newKeySet();
+
+  static boolean quiet(String root) {
+    return QUIET.contains(root);
+  }
+
+  static void hush(String root) {
+    QUIET.add(root);
+  }
+
   @Override
   public void applicationActivated(IdeFrame frame) {
+    QUIET.clear();
     for (Painter painter : PAINTERS.values()) painter.refresh();
   }
 }

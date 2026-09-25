@@ -87,6 +87,7 @@ final class Painter implements Disposable {
   /** Ask again once the edits stop for a moment; a newer edit replaces a pending question. */
   void refresh() {
     alarm.cancelAllRequests();
+    if (Editors.quiet(root)) return;
     alarm.addRequest(this::ask, DEBOUNCE_MS);
   }
 
@@ -111,6 +112,7 @@ final class Painter implements Disposable {
     Status.update(editor);
     if (answer.refusal() != null) {
       LOG.info("variance: " + answer.refusal());
+      if (answer.quiet()) Editors.hush(root);
       return;
     }
     Document document = editor.getDocument();

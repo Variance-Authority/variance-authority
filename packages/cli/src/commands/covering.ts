@@ -54,7 +54,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
-import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
+import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { hopsToTests, nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
@@ -172,7 +172,7 @@ export async function covering(request: ParsedCovering): Promise<Covering> {
 }
 
 async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {
-  const from = request.execution ?? (await defaultExecutionFile(request.root));
+  const from = request.execution ?? (await recordedExecutionFile(request.root));
 
   if (request.since !== undefined) {
     // The snapshot's commit is the coordinate of what was recorded beside it,

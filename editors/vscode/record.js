@@ -30,7 +30,9 @@ function commandFor(root, configured) {
  * buffer, saved or not; `line` narrows the question to one line of it.
  *
  * Resolves to `{ answer }` or `{ refusal }`: a refusal is the CLI's own
- * sentence, shown to the person as it was written. `cancel` stops the process
+ * sentence, shown to the person as it was written. `quiet` marks a refusal
+ * that holds for the whole workspace until a run changes it: no CLI to start,
+ * or nothing recorded. `cancel` stops the process
  * when a newer edit has made the question stale.
  */
 function ask({ root, file, text, line, command }) {
@@ -48,10 +50,13 @@ function ask({ root, file, text, line, command }) {
     const err = [];
     child.stdout.on('data', (chunk) => out.push(chunk));
     child.stderr.on('data', (chunk) => err.push(chunk));
-    child.on('error', (error) => resolve({ refusal: `variance could not be started: ${error.message}` }));
+    child.on('error', (error) => resolve({ refusal: `variance could not be started: ${error.message}`, quiet: true }));
     child.on('close', (code, signal) => {
       if (signal !== null) return resolve({ cancelled: true });
-      if (code !== 0) return resolve({ refusal: firstParagraph(Buffer.concat(err).toString('utf8')) });
+      if (code !== 0) {
+        const refusal = firstParagraph(Buffer.concat(err).toString('utf8'));
+        return resolve(unrecorded(Buffer.concat(out).toString('utf8')) ? { refusal, quiet: true } : { refusal });
+      }
       try {
         resolve({ answer: JSON.parse(Buffer.concat(out).toString('utf8')) });
       } catch (error) {
@@ -62,6 +67,15 @@ function ask({ root, file, text, line, command }) {
     child.stdin.end(text);
   });
   return { answer, cancel: () => child.kill() };
+}
+
+/** Whether a refusal says nothing is recorded, by its kind and never by its words. */
+function unrecorded(stdout) {
+  try {
+    return JSON.parse(stdout).refused === 'unrecorded';
+  } catch {
+    return false;
+  }
 }
 
 /** A refusal's first paragraph is the sentence; the rest routes a terminal reader. */
