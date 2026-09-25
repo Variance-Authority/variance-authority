@@ -1,8 +1,9 @@
 // Scores recorded selection against the next commit's own recording.
 //
 // Phase 0 harness. For each first-parent pair (parent -> child):
-//   selected  — from the parent's record, at method, shape, line and file grain, and
-//               by `variance reach` from the static graph;
+//   selected  — from the parent's record, at method, shape, line and file grain; by sense's
+//               selector over the record converted to function regions (`coverage.mjs`);
+//               and by `variance reach` from the static graph;
 //   forced    — test classes whose own file changed, that the parent never recorded, or whose
 //               parent row names a class it could not resolve to a file (`unknown`);
 //   truth     — test classes whose *child* record enters a changed method (new side),
@@ -15,10 +16,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadSense, toCoverage } from './coverage.mjs';
 import { parseDiff } from './diff.mjs';
 
 const [replay, reachClone, varianceBin, testRoot = 'src/test/java'] = process.argv.slice(2);
 const order = readFileSync(join(replay, 'order.txt'), 'utf8').trim().split('\n');
+const sense = await loadSense(varianceBin);
 
 function loadRecord(sha) {
   const path = join(replay, sha, 'record.jsonl');
@@ -97,6 +100,27 @@ function select(record, diff, side, shape = new Set()) {
 
 const fqcn = (path) => path.slice(testRoot.length + 1).replace(/\.(java|kt)$/, '').replaceAll('/', '.');
 
+const testFile = (owner) => `${testRoot}/${owner.replaceAll('.', '/')}.java`;
+
+/** The parent's record as sense's execution record, asked for the diff: entered, plus every test it cannot exclude. */
+async function recordSelect(parent, diffText) {
+  const rows = readFileSync(join(replay, parent, 'record.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const textOf = (file) => {
+    try {
+      return execFileSync('git', ['-C', reachClone, 'show', `${parent}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28 });
+    } catch {
+      return undefined;
+    }
+  };
+  const path = join(replay, parent, 'coverage.va');
+  await sense.writeTestCoverage(path, toCoverage({ rows, textOf, testFile, commit: parent, digestString: sense.digestString }));
+  const n = await sense.narrowByExecution(path, diffText);
+  const whole = new Set(n.whole);
+  const out = new Set(n.entered);
+  for (const r of rows) if (!r.owner.startsWith('between') && !whole.has(testFile(r.owner))) out.add(testFile(r.owner));
+  return new Set([...out].map(fqcn));
+}
+
 function reach(parent, child) {
   execFileSync('git', ['-C', reachClone, 'checkout', '-q', '--detach', child]);
   try {
@@ -117,7 +141,8 @@ for (let i = 1; i < order.length; i++) {
     rows.push({ child: child.slice(0, 9), skipped: 'no record' });
     continue;
   }
-  const diff = parseDiff(readFileSync(join(replay, child, 'diff.patch'), 'utf8'));
+  const diffText = readFileSync(join(replay, child, 'diff.patch'), 'utf8');
+  const diff = parseDiff(diffText);
   const javaMain = [...diff.keys()].filter((p) => /\.(java|kt)$/.test(p) && !p.startsWith(testRoot + '/'));
   const other = [...diff.keys()].filter((p) => !/\.(java|kt)$/.test(p));
   const forced = new Set([...diff.keys()].filter((p) => p.startsWith(testRoot + '/')).map(fqcn));
@@ -129,6 +154,7 @@ for (let i = 1; i < order.length; i++) {
   const truth = select(after, diff, 'new').method;
   for (const t of failed(child)) truth.add(t);
   for (const t of truth) if (t.startsWith('<spill')) truth.delete(t);
+  const rec = await recordSelect(parent, diffText);
   const r = reach(parent, child);
   const miss = (s) => [...truth].filter((t) => !s.has(t) && !forced.has(t));
   const all = [...after.keys()].filter((t) => !t.startsWith('<spill')).length;
@@ -146,22 +172,24 @@ for (let i = 1; i < order.length; i++) {
     shapeFiles: [...shape],
     line: sel.line.size,
     file: sel.file.size,
+    record: rec.size,
     reach: r.ok ? r.tests.size : `refused ${r.status}`,
     missMethod: miss(sel.method),
     missShape: miss(sel.shape),
     missLine: miss(sel.line),
     missFile: miss(sel.file),
+    missRecord: miss(rec),
     missReach: r.ok ? miss(r.tests) : null,
     reachNote: r.ok ? undefined : r.stderr,
     spill,
-    selected: { forced: [...forced], method: [...sel.method], shape: [...sel.shape], line: [...sel.line], file: [...sel.file], reach: r.ok ? [...r.tests] : null },
+    selected: { forced: [...forced], method: [...sel.method], shape: [...sel.shape], line: [...sel.line], file: [...sel.file], record: [...rec], reach: r.ok ? [...r.tests] : null },
   });
 }
 writeFileSync(join(replay, 'score.json'), JSON.stringify(rows, null, 2));
 const pad = (v, n) => String(v).padStart(n);
-console.log('child      main  all forced truth method shape  line  file reach | miss m/s/l/f/r   other');
+console.log('child      main  all forced truth method shape  line  file record reach | miss m/s/l/f/R/r   other');
 for (const r of rows) {
   if (r.skipped) { console.log(r.child, r.skipped); continue; }
-  console.log(r.child, pad(r.javaMain, 4), pad(r.all, 4), pad(r.forced, 6), pad(r.truth, 5), pad(r.method, 6), pad(r.shape, 5), pad(r.line, 5), pad(r.file, 5), pad(r.reach, 5),
-    '|', `${r.missMethod.length}/${r.missShape.length}/${r.missLine.length}/${r.missFile.length}/${r.missReach?.length ?? '-'}`, '  ', r.other.slice(0, 60));
+  console.log(r.child, pad(r.javaMain, 4), pad(r.all, 4), pad(r.forced, 6), pad(r.truth, 5), pad(r.method, 6), pad(r.shape, 5), pad(r.line, 5), pad(r.file, 5), pad(r.record, 6), pad(r.reach, 5),
+    '|', `${r.missMethod.length}/${r.missShape.length}/${r.missLine.length}/${r.missFile.length}/${r.missRecord.length}/${r.missReach?.length ?? '-'}`, '  ', r.other.slice(0, 60));
 }

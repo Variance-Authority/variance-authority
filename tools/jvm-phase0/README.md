@@ -18,11 +18,12 @@ It runs a Maven project's own suite in Docker, under JaCoCo or under the presenc
 - `compare-records.mjs` compares two records of one commit class by class, such as the suite against every class alone, and names the methods and files each side lacks.
 - `overhead-maven.sh` compiles once, then alternates the five modes over `surefire:test` alone, so recording cost is measured against the test phase and nothing else.
 - `replay-maven.sh` records a per-class run at each of the last N first-parent commits, under `split` or, with `pressplit` as its last argument, the presence agent.
-- `score.mjs` selects from the parent's record against the child's diff, then scores that selection against the child's own record and failures. It scores five grains:
+- `score.mjs` selects from the parent's record against the child's diff, then scores that selection against the child's own record and failures. It scores six grains:
   - `method`
   - `shape`: method, plus every test that entered a file whose change falls outside any method body
   - `line`
   - `file`
+  - `record`: the product selector over the record. `coverage.mjs` converts it into sense's execution record at function grain, so the record reads as `entries` coverage does in JS: a module root per file and one region per method a test entered, spanning its line table. Lambda bodies, and methods that share lines with the method around them, charge that method. Constructors and static initializers charge the root, because their line tables carry field initializers from anywhere in the class. A change outside every region charges every test that entered the file. `score.mjs` writes the converted record beside the parent's as `coverage.va`.
   - `reach`: `variance reach`, the static fallback
 - `mutants-maven.sh` seeds faults on each child's changed lines and runs the full suite per fault with no agent. `run-mutant.sh` runs one of them. The `m0` directory is the unmutated control.
 - `score-mutants.mjs` scores the same selections against the test classes that kill each fault. That truth owes nothing to the recorder.

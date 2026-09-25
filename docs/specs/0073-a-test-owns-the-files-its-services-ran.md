@@ -219,7 +219,8 @@ narrower selection. This follows [0029](0029-what-a-run-remembers.md), rather
 than treating a timeout as zero coverage.
 
 **6. Cost is measured, not assumed.** The Phase 0 harness keeps comparing
-method, shape, line and file selection against seeded faults. The
+method, shape, line and file selection, and sense's selector over the record
+at function grain, against seeded faults. The
 implementation measures full test-phase wall time for a bare run and for lane
 recording on the same suite, and the memory and startup the extra lanes cost.
 The agent's cost stays under JaCoCo's on the same suite. A probe that reads

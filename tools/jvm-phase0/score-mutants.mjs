@@ -13,7 +13,7 @@ import { join } from 'node:path';
 
 const [replay, mutants] = process.argv.slice(2);
 const score = JSON.parse(readFileSync(join(replay, 'score.json'), 'utf8'));
-const grains = ['method', 'shape', 'line', 'file', 'reach'];
+const grains = ['method', 'shape', 'line', 'file', 'record', 'reach'];
 
 function failed(dir) {
   const path = join(dir, 'status.tsv');
@@ -47,7 +47,7 @@ for (const child of readdirSync(mutants).filter((d) => /^[0-9a-f]{40}$/.test(d))
 }
 writeFileSync(join(mutants, 'score-mutants.json'), JSON.stringify(rows, null, 2));
 
-console.log('child     fault                                                    killers | missed (escaped) m / s / l / f / r');
+console.log('child     fault                                                    killers | missed (escaped) m / s / l / f / R / r');
 for (const r of rows) {
   const head = `${r.child} ${r.m.padEnd(3)} ${r.desc.slice(0, 52).padEnd(52)}`;
   if (!r.killers) { console.log(head, r.result); continue; }
