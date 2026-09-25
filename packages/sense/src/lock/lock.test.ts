@@ -259,6 +259,18 @@ describe('what moved', () => {
     expect(changedPackages(before, after)).toHaveLength(4);
   });
 
+  it('reads a package pnpm keys by its tarball URL', () => {
+    // pnpm writes an alias to a tarball unquoted, colons and all. The key ends
+    // at the colon YAML separates on, the one a space or the line's end follows.
+    const alias = `\n  zod443@https://registry.npmjs.org/zod/-/zod-4.4.3.tgz:\n    resolution: {integrity: sha512-ytENF==, tarball: https://registry.npmjs.org/zod/-/zod-4.4.3.tgz}\n    version: 4.4.3\n`;
+    const text = PNPM.replace('\nsnapshots:\n', `${alias}\nsnapshots:\n`);
+    const before = readLockfile('pnpm-lock.yaml', text);
+    const after = readLockfile('pnpm-lock.yaml', text.replaceAll('24.1.0', '24.1.1'));
+
+    expect(before.identities.has('zod443')).toBe(true);
+    expect(changedPackages(before, after)).toEqual(['jsdom']);
+  });
+
   it('is nothing when only a workspace version churned', () => {
     const before = readLockfile('yarn.lock', YARN_BERRY);
     const after = readLockfile('yarn.lock', YARN_BERRY.replace('0.0.0-use.local', '0.0.1-use.local'));

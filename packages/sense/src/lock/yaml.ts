@@ -123,10 +123,13 @@ function linesOf(text: string): readonly Line[] {
 }
 
 /**
- * The key and the rest of the line, with a quoted key's own colons left alone.
+ * The key and the rest of the line, with a key's own colons left alone.
  *
- * Every key that matters here contains one: `lodash@npm:^4.17.21` is a key, and
- * splitting it at the first colon would name a package `lodash@npm`.
+ * Every key that matters here can contain one: `lodash@npm:^4.17.21` is a key,
+ * and splitting it at the first colon would name a package `lodash@npm`. A
+ * quoted key ends at its closing quote. A plain one ends where YAML says it
+ * does, at the first colon a space or the end of the line follows, so pnpm's
+ * unquoted `zod443@https://registry.npmjs.org/zod/-/zod-4.4.3.tgz:` is one key.
  */
 function splitKey(body: string): { readonly key: string; readonly value: string } | undefined {
   const quote = body[0];
@@ -136,8 +139,8 @@ function splitKey(body: string): { readonly key: string; readonly value: string 
     return { key: body.slice(0, end + 1), value: body.slice(end + 2).trim() };
   }
 
-  const colon = body.indexOf(':');
-  if (colon === -1) return undefined;
+  const colon = /:(?: |$)/u.exec(body)?.index;
+  if (colon === undefined) return undefined;
   return { key: body.slice(0, colon), value: body.slice(colon + 1).trim() };
 }
 

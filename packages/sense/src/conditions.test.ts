@@ -123,8 +123,8 @@ describe('a condition only the tsconfig names', () => {
   });
 
   it('takes the config that owns the file, not the nearest one', async () => {
-    // `packages/app/tsconfig.json` owns only `lib/`, so `src/index.ts` answers
-    // to the root config, which names the condition.
+    // The `tsconfig.json` in the fixture's `packages/app` owns only `lib/`, so
+    // `src/index.ts` answers to the root config, which names the condition.
     const root = await workspace({
       'tsconfig.json': WITH,
       'packages/app/tsconfig.json': `{ "include": ["lib"], "compilerOptions": { "customConditions": [] } }`,
