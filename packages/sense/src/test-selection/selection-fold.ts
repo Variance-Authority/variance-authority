@@ -161,6 +161,7 @@ export function foldRun(
     }
     await rm(runDirectory, { recursive: true, force: true });
     await rm(caseDirectory, { recursive: true, force: true });
+    await rm(run.finishedDirectory, { recursive: true, force: true });
   };
 
   return async (files: readonly FinishedFile[]): Promise<void> => {

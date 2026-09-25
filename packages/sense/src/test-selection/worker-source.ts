@@ -204,7 +204,7 @@ export function caseWriterSource(caseDirectory: string): string {
  * [`vitest.ts`](./vitest.ts).
  */
 export function caseRunnerSource(
-  runner: { readonly module?: string; readonly utils?: string } = {},
+  runner: { readonly module?: string; readonly utils?: string; readonly finished?: string } = {},
 ): string {
   return `
 // \`vitest/runners\` on every supported major. Vitest 4.1 deprecates the entry in
@@ -215,8 +215,29 @@ export function caseRunnerSource(
 import { VitestTestRunner } from 'vitest/runners';
 import { getFn } from ${JSON.stringify(runner.module ?? '@vitest/runner')};
 import { getNames } from ${JSON.stringify(runner.utils ?? '@vitest/runner/utils')};
+import { mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+
+// The runner's own tree, cut to what the fold reads a file's outcome from. The
+// reporter is handed the same tree, and a command-line \`--reporter\` replaces
+// the reporter: an editor that runs one test from the gutter passes its own.
+const finished = ${JSON.stringify(runner.finished ?? null)};
+const tree = (task) => ({
+  ...(task.result === undefined ? {} : { result: { state: task.result.state } }),
+  ...(task.tasks === undefined ? {} : { tasks: task.tasks.map(tree) }),
+});
 
 export default class extends VitestTestRunner {
+  async onAfterRunFiles(files) {
+    await super.onAfterRunFiles?.(files);
+    if (finished === null) return;
+    await mkdir(finished, { recursive: true });
+    await writeFile(
+      finished + '/' + process.pid + '-' + randomUUID() + '.json',
+      JSON.stringify(files.map((file) => ({ filepath: file.filepath, ...tree(file) }))),
+    );
+  }
+
   runTask(test) {
     const fn = getFn(test);
     if (!fn) throw new Error('variance-authority: Vitest gave a task with no function');

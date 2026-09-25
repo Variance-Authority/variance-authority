@@ -336,6 +336,26 @@ export async function coverageTest(
   return { file, complete: task.complete && recorded, preconditions: [...preconditions.values()] };
 }
 
+/**
+ * The files a worker's case runner said it finished, read as the reporter
+ * reads the same tree.
+ *
+ * Empty when no runner of this seam's wrote any: the project brought its own,
+ * or no file ran.
+ */
+export async function readFinished(directory: string): Promise<readonly FinishedFile[]> {
+  let names: readonly string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if (isMissing(error)) return [];
+    throw error;
+  }
+  const trees = await Promise.all(names.map(async (name) =>
+    JSON.parse(await readFile(resolve(directory, name), 'utf8')) as readonly (RunnerTask & { filepath: string })[]));
+  return trees.flat().map((file) => ({ filepath: file.filepath, complete: taskComplete(file) }));
+}
+
 export async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
   let names: readonly string[];
   try {

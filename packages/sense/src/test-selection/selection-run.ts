@@ -25,6 +25,12 @@ export interface SelectionRun {
   readonly runDirectory: string;
   /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
   readonly caseDirectory: string;
+  /**
+   * Where a worker's case runner writes the task tree of each file it
+   * finished. The reporter is handed the same tree; this copy is what the run
+   * folds from when a command-line `--reporter` replaced the reporter.
+   */
+  readonly finishedDirectory: string;
   readonly modules: Map<ModuleId, CapturedModule>;
   /** Union over the projects: every file whose text every observation depended on. */
   readonly preconditions: Set<string>;
@@ -74,6 +80,7 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     root,
     runDirectory,
     caseDirectory: `${runDirectory}-cases`,
+    finishedDirectory: `${runDirectory}-files`,
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
     // Once per process, before any module is transformed: the table this run

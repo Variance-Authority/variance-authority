@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
@@ -10,8 +10,10 @@ import { coverageBlock } from './coverage-rows.js';
 import { recordedFrame } from './source-lines.js';
 import {
   carriedJournal,
+  readFinished,
   reportedComplete,
   taskComplete,
+  type FinishedFile,
   type ReportedModule,
   type RunnerTask,
 } from './finished-files.js';
@@ -105,6 +107,7 @@ interface VitePlugin extends ConfigPlugin {
     code: string,
     id: string,
   ) => { code: string; map: null } | null;
+  readonly closeBundle: () => Promise<void>;
 }
 
 /**
@@ -160,7 +163,8 @@ export function withTestSelection(
   const executionFile = options.executionFile === undefined
     ? `${coverageFile}.cases.bin`
     : resolve(configRoot, options.executionFile);
-  const reporter = selectionReporter(coverageFile, executionFile, run, [setupId, runnerId]);
+  const settle = foldRun(run, { coverageFile, executionFile, shims: [setupId, runnerId] });
+  const reporter = selectionReporter(settle);
   const reporters = config.test?.reporters === undefined ? ['default'] : array(config.test.reporters);
 
   // A configuration that names projects describes the run rather than a suite:
@@ -183,7 +187,7 @@ export function withTestSelection(
     };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode);
+  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode, settle);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
@@ -215,6 +219,7 @@ export function withTestSelection(
           runner: writeSeamModule(runnerId, caseRunnerSource({
             module: runnerImport(configRoot, runnerId, '@vitest/runner'),
             utils: runnerImport(configRoot, runnerId, '@vitest/runner/utils'),
+            finished: run.finishedDirectory,
           })),
         }
         : {}),
@@ -280,11 +285,22 @@ function selectionPlugin(
   run: SelectionRun,
   include: (file: string) => boolean,
   mode: InstrumentMode,
+  settle: (files: readonly FinishedFile[]) => Promise<void>,
 ): VitePlugin {
   const { modules, names, preconditions } = run;
+  let closing: Promise<void> | undefined;
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
+    // A command-line `--reporter` replaces the configured reporters rather
+    // than adding to them, and an editor that runs a test from the gutter
+    // passes its own. Vitest 2 has no hook that could put this seam's back.
+    // The server closes when the run does, in every major, so the run is
+    // folded here from what the case runner wrote, if no reporter folded it.
+    // Once, because a server with two environments closes each of them.
+    closeBundle() {
+      return closing ??= closeRun(run, settle, [setupId, runnerId]);
+    },
     // Where a file runs is the runner's to say, and `--browser` says it after
     // the configuration was written, so it is read here, where the command line
     // has already been merged in. A file in a page has no disk, no builtins and
@@ -352,14 +368,34 @@ function selectionPlugin(
   };
 }
 
-function selectionReporter(
-  coverageFile: string,
-  executionFile: string,
+/**
+ * Fold a run no reporter folded, from the trees its workers wrote.
+ *
+ * A run whose runner is the project's own left journals and no tree, and a
+ * journal alone cannot say whether its file passed: it is said, and nothing is
+ * written, rather than a record that calls every file complete.
+ */
+async function closeRun(
   run: SelectionRun,
+  settle: (files: readonly FinishedFile[]) => Promise<void>,
   shims: readonly string[],
-): Reporter {
-  const settle = foldRun(run, { coverageFile, executionFile, shims });
+): Promise<void> {
+  if (run.settled) return;
+  const files = await readFinished(run.finishedDirectory);
+  if (files.length > 0) return settle(files);
+  if (!existsSync(run.runDirectory)) return;
+  run.settled = true;
+  console.warn(
+    'variance-authority: this run recorded nothing. A command-line `--reporter` replaced the ' +
+      'reporter that writes the record, and the configured `runner` is the project\'s own, so no ' +
+      'worker said which files passed. Run without `--reporter` to record.',
+  );
+  rmSync(run.runDirectory, { recursive: true, force: true });
+  rmSync(run.caseDirectory, { recursive: true, force: true });
+  for (const shim of shims) rmSync(shim, { force: true });
+}
 
+function selectionReporter(settle: (files: readonly FinishedFile[]) => Promise<void>): Reporter {
   // Vitest 2 announces the end of a run as `onFinished(files)`, where a file is
   // a runner task. Vitest 3 replaced that with `onTestRunEnd(testModules)` over
   // a reported-task API, and Vitest 4 stopped calling `onFinished` on reporters
