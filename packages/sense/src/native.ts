@@ -469,12 +469,7 @@ function builtFromBatch(
         aliases: options.aliases,
       })
       : [];
-    built.push({
-      record,
-      ...(read === undefined ? {} : { read }),
-      targets,
-      witnesses,
-    });
+    built.push({ record, ...(read === undefined ? {} : { read }), targets, witnesses });
   }
 
   return built;

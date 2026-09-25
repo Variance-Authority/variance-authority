@@ -1,17 +1,18 @@
 # Spec 0073 — a test owns the files its services ran
 
 **Missing:** a trustworthy test-attempt-to-source-file record when the test
-driver and the code under test run in different processes. The JVM Phase 0
-harness divides one probe store at top-level test-class boundaries; it neither
-attributes service work nor records individual test methods.
+driver and the code under test run in different processes. The [JVM agent](../../jvm/README.md)
+divides one probe store at top-level test-class boundaries, and splits a
+service's work by journey only as far as its concurrent windows allow; it does
+not record individual test methods.
 **Built on:** [0036](0036-a-journey-crosses-processes.md) (the observed request
 edge and the second hop), [0029](0029-what-a-run-remembers.md) (an incomplete
 observation cannot justify a skip), and
 [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) (presence,
 not a count or a trace), and [changes before and beyond](../changes-before-and-beyond.md)
 (what a change no record can name selects). The
-[Phase 0 harness](../../tools/jvm-phase0/README.md) is an experiment for
-selection accuracy and cost, not this recorder.
+[measurements](../../jvm/measure/README.md) score selection accuracy and cost;
+they are not this recorder.
 
 ## Purpose
 
@@ -218,7 +219,7 @@ file set from no file set, and tells the operator which boundary prevented a
 narrower selection. This follows [0029](0029-what-a-run-remembers.md), rather
 than treating a timeout as zero coverage.
 
-**6. Cost is measured, not assumed.** The Phase 0 harness keeps comparing
+**6. Cost is measured, not assumed.** The measurements keep comparing
 method, shape, line and file selection, and sense's selector over the record
 at function grain, against seeded faults. The
 implementation measures full test-phase wall time for a bare run and for lane
