@@ -69,6 +69,8 @@
  * disk.
  */
 
+import type { Uses } from './narrow.js';
+
 /** Node kinds, in id order. An id is an index into this, never the word. */
 export const NODE_KINDS = ['file', 'component', 'package'] as const;
 export type NodeKind = (typeof NODE_KINDS)[number];
@@ -190,6 +192,14 @@ export interface Relations {
    * trail from the change arrives without crossing one of that file's shadows.
    */
   readonly shadows: ReadonlyMap<string, readonly string[]>;
+
+  /**
+   * How each file uses each file it imports, asked per edge as a walk crosses
+   * it ([`narrow.ts`](./narrow.ts)). A lookup rather than a column: the parse
+   * that recorded the edge already holds the names, and a walk asks only the
+   * edges it reaches. Absent for a graph built without one, which walks whole.
+   */
+  readonly uses?: Uses;
 }
 
 /**
@@ -257,6 +267,8 @@ export function relationsOf(input: {
   readonly isolated?: Iterable<Node>;
   /** Per file, the files its run never reaches; see {@link Relations.shadows}. */
   readonly shadows?: ReadonlyMap<string, readonly string[]>;
+  /** See {@link Relations.uses}. */
+  readonly uses?: Uses;
 }): Relations {
   const relations = [...input.relations];
   const unknownNodes = [...(input.unknown ?? [])].map((entry) =>
@@ -308,7 +320,17 @@ export function relationsOf(input: {
     if (because !== undefined) reasons.set(id, because);
   }
 
-  return { names, kinds, depends, dependents, unknown, reasons, index, shadows: input.shadows ?? new Map() };
+  return {
+    names,
+    kinds,
+    depends,
+    dependents,
+    unknown,
+    reasons,
+    index,
+    shadows: input.shadows ?? new Map(),
+    ...(input.uses === undefined ? {} : { uses: input.uses }),
+  };
 }
 
 interface Edge {

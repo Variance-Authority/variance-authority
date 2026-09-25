@@ -76,15 +76,18 @@ export interface ReportedModule {
  * Zero test files is a different state and is left alone — a run that collected
  * nothing has already said so in the runner's own output.
  */
-export function noteAnEmptyRecord(testFiles: number, instrumented: number): void {
+export function noteAnEmptyRecord(
+  testFiles: number,
+  instrumented: number,
+  unreached = 'The plugin did not reach the modules under test: check `include`, and — if this ' +
+    'configuration uses `projects` — that the plugin and the setup file are inside each project ' +
+    'rather than beside them, since a project does not inherit either.',
+): void {
   if (instrumented > 0 || testFiles === 0) return;
   console.warn(
     `variance-authority instrumented 0 modules across ${testFiles} test file(s). The snapshot ` +
       'about to be written therefore says no test reaches any source, and every selection made ' +
-      'from it will narrow to nothing rather than to the tests a change needs. The plugin did ' +
-      'not reach the modules under test: check `include`, and — if this configuration uses ' +
-      '`projects` — that the plugin and the setup file are inside each project rather than ' +
-      'beside them, since a project does not inherit either.',
+      `from it will narrow to nothing rather than to the tests a change needs. ${unreached}`,
   );
 }
 

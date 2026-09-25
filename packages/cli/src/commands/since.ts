@@ -17,8 +17,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join, relative } from 'node:path';
 import { OperatorError } from '../exit.js';
-import { installDiff, type DiffPoint } from './installed.js';
-import type { InstallDiff } from './reach.js';
+import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
+import type { MovedExports } from './reach.js';
 
 /**
  * Files a diff against `ref` touched, named the way the run names files.
@@ -129,51 +129,7 @@ export async function diffSince(
   }
 }
 
-/**
- * The diff a review reads, numbered in the commit under review.
- *
- * A pull request's lines are the tip's, and a record made on the tip numbers
- * its regions in the same text, so the lines the change wrote are asked of the
- * record on the tip's side. The hunk reader reads the old side, so the diff is
- * taken reversed: the tip stands where the recorded text would, and the merge
- * base where the edit would.
- *
- * FIXME: the tip side is the working tree, not `HEAD`, so an edit left
- * uncommitted in the checkout a review runs in is numbered as if the suite had
- * run over it. A CI checkout is clean; a developer's is not.
- */
-export async function diffAtTip(ref: string): Promise<string | undefined> {
-  const run = promisify(execFile);
-  const here = process.cwd();
-  const repository = await topLevel(run, here);
-  try {
-    const base = await mergeBase(run, ref, repository);
-    const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, '--no-renames', '-R', base], {
-      cwd: repository,
-      maxBuffer: 64 * 1024 * 1024,
-    });
-    return inCoordinates(stdout, here, repository);
-  } catch {
-    return undefined;
-  }
-}
-
-/** The commit the checkout stands at, or absent outside one. */
-export async function headCommit(): Promise<string | undefined> {
-  try {
-    const { stdout } = await promisify(execFile)('git', ['rev-parse', 'HEAD'], { cwd: process.cwd() });
-    return stdout.trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Where `directory` sits under the top of its checkout, `''` at the top itself. */
-export async function repositoryDirectory(directory: string): Promise<string> {
-  return relative(await topLevel(promisify(execFile), directory), directory);
-}
-
-type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
+export type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
 
 /**
  * Configuration a diff is read under, whatever the operator's own says.
@@ -185,8 +141,8 @@ type Run = (file: string, args: readonly string[], options: object) => Promise<{
  * tool's. Each turns every changed file into one the selector cannot read,
  * which widens the run and never says why.
  */
-const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
-const NO_DECORATION = ['--no-color', '--no-ext-diff'];
+export const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
+export const NO_DECORATION = ['--no-color', '--no-ext-diff'];
 
 /** Files a diff from `base` to the working tree names, one per record. */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
@@ -230,7 +186,7 @@ async function diffOfNew(run: Run, repository: string, file: string): Promise<st
  * Where `ref` and `HEAD` part: the commit a two-dot diff from it measures the
  * same distance as `ref...HEAD`, with the working tree included.
  */
-async function mergeBase(run: Run, ref: string, repository: string): Promise<string> {
+export async function mergeBase(run: Run, ref: string, repository: string): Promise<string> {
   const { stdout } = await run('git', ['merge-base', ref, 'HEAD'], { cwd: repository });
   return stdout.trim();
 }
@@ -248,7 +204,7 @@ async function mergeBase(run: Run, ref: string, repository: string): Promise<str
  * untouched for the reader to decode; it is repository-relative then, which is
  * the run's coordinate only when the run is at the top level.
  */
-function inCoordinates(diff: string, here: string, repository: string): string {
+export function inCoordinates(diff: string, here: string, repository: string): string {
   const move = (path: string): string => relative(here, join(repository, path));
   return diff
     .split('\n')
@@ -351,6 +307,38 @@ export async function diffPoint(
  * that was not there before is an install this cannot compare, and one that is
  * there at both ends is one it can.
  */
+/**
+ * What each changed file moved for its importers, in run coordinates.
+ *
+ * Each is read at the same point the install is, from both texts — git's at
+ * the merge base and the disk's now — and the addon's verdict decides. A
+ * comment, a type or formatting moves nothing a test executes, so a walk from
+ * the file graph seeds none of them; a change to one export seeds only the
+ * files that import it.
+ *
+ * `undefined` is *no reading was taken*: no diff point, or no addon on this
+ * machine. Every changed file is then a change, which is the answer the walk
+ * gave before it could read one. A file the reading could not name exports for
+ * — a path outside the checkout, one added, one whose load moved — is absent
+ * from the map, and seeds the walk whole.
+ */
+export async function movedSince(
+  point: DiffPoint | undefined,
+  changed: readonly string[],
+): Promise<MovedExports | undefined> {
+  if (point === undefined) return undefined;
+  const here = process.cwd();
+  const named = new Map<string, string>();
+  for (const file of changed) {
+    const at = relative(point.repository, join(here, file));
+    if (!at.startsWith('..')) named.set(at, file);
+  }
+  const { runsAsBefore } = await import('@variance-authority/sense/test-selection');
+  const read = runsAsBefore(point.repository, point.base, [...named.keys()]);
+  if ('unread' in read) return undefined;
+  return new Map([...read.moved].map(([file, exports]) => [named.get(file)!, exports]));
+}
+
 async function fileAt(
   repository: string,
   revision: string,
@@ -378,7 +366,7 @@ async function fileAt(
  * with a sentence naming the ref the operator actually typed, which is the more
  * useful of the two.
  */
-async function topLevel(
+export async function topLevel(
   run: (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>,
   from: string,
 ): Promise<string> {
@@ -430,12 +418,14 @@ export async function narrowingFor(
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
+    readonly movedExports?: MovedExports;
     readonly diff?: string;
   };
   readonly against?: {
     readonly ref: string;
     readonly changed: readonly string[];
     readonly install?: InstallDiff;
+    readonly movedExports?: MovedExports;
   };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
@@ -446,10 +436,10 @@ export async function narrowingFor(
   // diff of files against the merge base beside a diff of packages against
   // anything else would report bumps nobody made every time `main` moved.
   const changed = request.since === undefined ? undefined : await changedSince(request.since, dirs);
-  const installed =
-    request.since === undefined || changed === undefined
-      ? undefined
-      : await installDiff(await diffPoint(request.since, dirs), changed);
+  // The changed files are read at that point too, from both texts.
+  const point = request.since === undefined ? undefined : await diffPoint(request.since, dirs);
+  const installed = changed === undefined ? undefined : await installDiff(point, changed);
+  const movedExports = changed === undefined ? undefined : await movedSince(point, changed);
   const since =
     request.since === undefined || changed === undefined
       ? undefined
@@ -457,6 +447,7 @@ export async function narrowingFor(
           ref: request.since,
           changed,
           ...(installed === undefined ? {} : { install: installed }),
+          ...(movedExports === undefined ? {} : { movedExports }),
           ...(diff === undefined ? {} : { diff }),
         };
   const againstRef = request.against ?? (request.relations ? request.since : undefined);
@@ -464,14 +455,26 @@ export async function narrowingFor(
     againstRef === undefined
       ? undefined
       : againstRef === since?.ref
-        ? { ref: againstRef, changed: since.changed, ...(installed === undefined ? {} : { install: installed }) }
+        ? {
+            ref: againstRef,
+            changed: since.changed,
+            ...(installed === undefined ? {} : { install: installed }),
+            ...(movedExports === undefined ? {} : { movedExports }),
+          }
         : await (async () => {
             const changed = await changedSince(againstRef, dirs);
             // A second ref is a second install. Explaining a run by one diff's
             // packages while narrowing it by another's would put a bump in the
             // report that no selected subject was selected for.
-            const read = await installDiff(await diffPoint(againstRef, dirs), changed);
-            return { ref: againstRef, changed, ...(read === undefined ? {} : { install: read }) };
+            const at = await diffPoint(againstRef, dirs);
+            const read = await installDiff(at, changed);
+            const still = await movedSince(at, changed);
+            return {
+              ref: againstRef,
+              changed,
+              ...(read === undefined ? {} : { install: read }),
+              ...(still === undefined ? {} : { movedExports: still }),
+            };
           })();
 
   return {

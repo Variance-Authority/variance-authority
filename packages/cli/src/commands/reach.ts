@@ -59,6 +59,7 @@ import {
   type Relations,
 } from '@variance-authority/core/relate';
 import type { ReachedComponent } from '@variance-authority/report';
+import { movedPackages, NO_INSTALL_DIFF, withoutManifests, type InstallDiff } from './installed.js';
 
 /** What the walk found, when it could answer. */
 export interface AffectedComponents {
@@ -93,97 +94,15 @@ export function refused<T extends object>(reach: T | GraphRefusal): reach is Gra
 }
 
 /**
- * What a diff did to the install — the far-right end of the same line.
+ * Per changed file read from both texts, the exports its importers see move.
  *
- * A read of the lockfile at both revisions, collapsed to package names, or the
- * sentence saying the comparison could not be made. Never a list of changed
- * lockfile paths: which bytes of a lockfile changed says nothing (a workspace
- * version bump rewrites it and installs nothing), and which package names
- * resolved differently says everything.
- *
- * `manifests` are the *file names* that comparison speaks for — the lockfile's
- * own, and `package.json`, whose dependency fields are a request the lockfile
- * answered. A walk drops them from its seeds; anything else in the diff is
- * still a changed file.
- *
- * `moved` are the changed `package.json` *paths* whose change reaches past
- * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
- * the same comparison. Each one's directory is a changed directory: every
- * importer of the package may now load a different file.
+ * Empty is a file that runs what it ran before — a comment, a type, formatting
+ * — and seeds nothing. A list narrows the walk to the importers that bind one of
+ * those names, and carries them through a barrel under the names it republishes
+ * them as. A changed file absent here was not read, or its load moved, and it
+ * seeds the walk whole.
  */
-export type InstallDiff =
-  | {
-      readonly packages: readonly string[];
-      readonly manifests: readonly string[];
-      readonly moved: readonly string[];
-    }
-  | { readonly whole: string };
-
-/** The install as *nothing happened*, for a caller that has no reading to offer. */
-export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [], moved: [] };
-
-/**
- * Paths the install comparison has already spoken for, or handed on as `moved`.
- *
- * Matched on the last segment, so a monorepo's every `package.json` goes the
- * same way the root one does: a resolver, a `resolutions` block, a version
- * range — the install answered all three, at both revisions, by name. A moved
- * manifest is dropped here too; {@link movedPackages} says what stands in for it.
- */
-export function withoutManifests(
-  changed: readonly string[],
-  manifests: readonly string[],
-): readonly string[] {
-  return changed.filter(
-    (file) => !manifests.some((name) => file === name || file.endsWith(`/${name}`)),
-  );
-}
-
-/**
- * The files of every package whose manifest moved, from the graph.
- *
- * The directory of a moved `package.json` is expanded the way a monorepo tool's
- * changed directory is: every file the graph holds under it. A moved manifest
- * the graph holds no file beside is returned in `unplaced`, to be read as the
- * ordinary changed path it would have been — a gap under the scanned roots, a
- * file nothing reads outside them — rather than as a package that reached
- * nothing.
- */
-export function movedPackages(
-  relations: Relations,
-  install: InstallDiff | undefined,
-): { readonly files: readonly string[]; readonly unplaced: readonly string[] } {
-  const moved = install === undefined || 'whole' in install ? [] : install.moved;
-  if (moved.length === 0) return { files: [], unplaced: [] };
-  const names = nodesOfKind(relations, 'file').map((id) => relations.names[id]!);
-  const files = new Set<string>();
-  const unplaced: string[] = [];
-  for (const manifest of moved) {
-    const beside = names.filter((file) => within(file, [directoryOf(manifest)]));
-    if (beside.length === 0) unplaced.push(manifest);
-    for (const file of beside) files.add(file);
-  }
-  return { files: [...files].sort(byCodeUnit), unplaced };
-}
-
-/**
- * A patch that also changes, whole, every file of a package whose manifest
- * moved — the journal's reading of {@link movedPackages}.
- *
- * A file named with no hunk is every recorded region of it, and a file with no
- * row is answered by its recorded importers, so a package whose `exports`
- * moved selects every test that entered it or anything importing it, which is
- * what the walk's changed directory selects.
- */
-export function withMovedPackages(diff: string, files: readonly string[]): string {
-  if (files.length === 0) return diff;
-  return [diff, ...files.map((file) => `diff --git a/${file} b/${file}`)].join('\n');
-}
-
-function directoryOf(file: string): string {
-  const at = file.lastIndexOf('/');
-  return at === -1 ? '.' : file.slice(0, at);
-}
+export type MovedExports = ReadonlyMap<string, readonly string[]>;
 
 /**
  * The walk, and what the two callers below need in order to say it in their own
@@ -200,9 +119,9 @@ interface Seeds {
 /**
  * The diff affects nothing, and that is an answer rather than a gap.
  *
- * Only the install can produce it: a diff of manifests alone, where every
- * package resolved to what it resolved before or no file imports the ones that
- * changed. The callers part here — a report says *no component is affected* and carries
+ * A diff of manifests where every package resolved to what it resolved before
+ * or no file imports the ones that changed, and a diff of files that change
+ * nothing that runs, produce it. The callers part here — a report says *no component is affected* and carries
  * the sentence, and a run list cannot, because an empty list on the far side of
  * an `xargs` runs nothing and reads as a fast green build.
  */
@@ -228,6 +147,11 @@ function affectsNothing<T extends object>(walk: T | Nothing): walk is Nothing {
  * A package name the graph has no node for is not a gap — it is a dependency no
  * file in this repository asks for, and it reaches nothing.
  *
+ * `movedExports` are what the changed files moved, read from both texts. A
+ * file that moved nothing seeds nothing, and a diff of nothing else is the
+ * answer *nothing*, as a diff of settled manifests is. A file that moved some
+ * exports seeds a walk narrowed to their importers.
+ *
  * `before` is the far-left end: what the harness rests on that nothing imports.
  * It is asked first and it does not narrow — a walk against the arrows from a
  * setup file the suite loads for every test reaches whatever happens to import
@@ -247,11 +171,16 @@ function seedsOf(
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
+  movedExports: MovedExports = new Map(),
 ): Seeds | Nothing | GraphRefusal {
   if ('whole' in install) return { whole: install.whole };
 
   const moved = movedPackages(relations, install);
-  const files = [...withoutManifests(changed, install.manifests), ...moved.unplaced];
+  const still = changed.filter((file) => movedExports.get(file)?.length === 0);
+  const files = [
+    ...withoutManifests(changed, install.manifests).filter((file) => !still.includes(file)),
+    ...moved.unplaced,
+  ];
 
   // Before anything is walked, and it refuses rather than narrows. A walk
   // against the arrows from a setup file the suite loads for every test reaches
@@ -280,7 +209,12 @@ function seedsOf(
   ];
 
   const packages = install.packages.map((name) => ({ kind: 'package', name }) as const);
-  const affected = affectedBy(relations, [...files, ...expanded, ...packages]);
+  const narrowed = files.filter((file) => (movedExports.get(file)?.length ?? 0) > 0);
+  const affected = affectedBy(
+    relations,
+    [...files, ...expanded, ...packages],
+    narrowed.length === 0 ? {} : { moved: new Map(narrowed.map((file) => [file, movedExports.get(file)!])) },
+  );
   // Only the diff's own seeds can be missing; an expanded one came out of the
   // graph, so it is in it by construction.
   const seeded = files.length + packages.length - affected.missing.length + expanded.length;
@@ -298,11 +232,13 @@ function seedsOf(
   const fromPackages = install.packages.filter((name) => !absent.has(name)).length;
   const fromFiles = seeded - fromPackages;
   const source =
-    fromPackages === 0
+    (fromPackages === 0
       ? many(fromFiles, 'changed file')
       : fromFiles === 0
         ? many(fromPackages, 'changed package')
-        : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`;
+        : `${many(fromFiles, 'changed file')} and ${many(fromPackages, 'changed package')}`) +
+    (still.length === 0 ? '' : ` (${ranAsBefore(still)})`) +
+    (narrowed.length === 0 ? '' : ` (${byExport(narrowed, movedExports)})`);
   if (unscanned.length > 0) {
     return {
       unscanned,
@@ -319,12 +255,20 @@ function seedsOf(
     // step earlier — a lockfile rewritten by a workspace version bump resolves
     // every package to what it resolved before, and changed nothing.
     if (files.length === 0 && expanded.length === 0 && changed.length > 0) {
-      return {
-        nothing:
-          install.packages.length === 0
+      const settled =
+        install.packages.length > 0
+          ? `no file imports ${listed([...install.packages].sort(byCodeUnit))}`
+          : still.length === 0
             ? 'the diff changed only manifests, and the install resolves every package to what ' +
               'it resolved before'
-            : `no file imports ${listed([...install.packages].sort(byCodeUnit))}`,
+            : 'the install resolves every package to what it resolved before';
+      return {
+        nothing:
+          still.length === 0
+            ? settled
+            : still.length === changed.length
+              ? ranAsBefore(still)
+              : `${ranAsBefore(still)}, and ${settled}`,
       };
     }
 
@@ -364,8 +308,9 @@ export function affectedFiles(
   changed: readonly string[],
   roots: readonly string[],
   changedDirs: readonly string[] = [],
+  movedExports: MovedExports = new Map(),
 ): AffectedFiles | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots);
+  const walk = seedsOf(relations, changed, changedDirs, roots, NO_INSTALL_DIFF, undefined, movedExports);
   if (refused(walk)) return walk;
   // The one place this and the report disagree. There is a real answer here and
   // it is *nothing*, which a report can print and a run list cannot hand over.
@@ -396,8 +341,9 @@ export function affectedComponents(
   roots: readonly string[],
   install: InstallDiff = NO_INSTALL_DIFF,
   before?: BeforeReach,
+  movedExports: MovedExports = new Map(),
 ): AffectedComponents | GraphRefusal {
-  const walk = seedsOf(relations, changed, changedDirs, roots, install, before);
+  const walk = seedsOf(relations, changed, changedDirs, roots, install, before, movedExports);
   if (refused(walk)) return walk;
   if (affectsNothing(walk)) {
     return { components: [], files: [], seeded: 0, how: walk.nothing };
@@ -442,6 +388,19 @@ export function many(count: number, singular: string): string {
 /** The first three of a list, with a mark when there are more. */
 function sample(files: readonly string[]): string {
   return `${files.slice(0, 3).join(', ')}${files.length > 3 ? ', …' : ''}`;
+}
+
+/** The clause naming the changed files that seeded nothing, and why. */
+function ranAsBefore(files: readonly string[]): string {
+  return `${listed(files)} ${files.length === 1 ? 'changes' : 'change'} nothing that runs, so ` +
+    `${files.length === 1 ? 'it seeds' : 'they seed'} nothing`;
+}
+
+/** The clause naming the changed files that seeded only the importers of what they moved. */
+function byExport(files: readonly string[], movedExports: MovedExports): string {
+  const said = files.slice(0, 3).map((file) => `${file} changes ${movedExports.get(file)!.join(', ')}`);
+  const more = files.length > 3 ? `; ${files.length - 3} more` : '';
+  return `${said.join('; ')}${more}; only files that import a changed export are walked`;
 }
 
 /**

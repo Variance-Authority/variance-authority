@@ -191,6 +191,12 @@ export interface NativeModuleVerdict {
   readonly gone: string[];
   /** Sources an import binds names from on one side only. */
   readonly imported: string[];
+  /**
+   * Exports an importer sees behave differently, function bodies included.
+   * Absent when every export may: the load moved, or a statement that binds
+   * nothing hands a moved binding on.
+   */
+  readonly moved?: string[];
 }
 
 export interface NativeModuleReaders {

@@ -146,7 +146,7 @@ ids are the safe default after initial setup.
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
-variance reach   --since <ref> [--format plain|json] [--no-git]
+variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json|github|bitbucket-report|bitbucket-annotations|markdown]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
@@ -1100,6 +1100,11 @@ vitest run $(variance select --format vitest)
 jest $(variance select --format jest)
 ```
 
+The journal is what [`@variance-authority/sense`](../sense/README.md) wrote the
+last time that suite ran: its seams record Vitest, Jest and Rstest, and
+[`@variance-authority/sense/runner`](../sense/README.md#record-a-runner-this-package-has-no-seam-for)
+records any other runner.
+
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never
 complete: it records the tests that finished whole, at one commit, in one
@@ -1222,10 +1227,11 @@ alone enough to answer from with nothing recorded, and it is the same direction
 of error every narrowing in this tool is allowed.
 
 This one prints a **run** list, which is the dangerous shape, so it has no short
-answer at all. Either stdout lists every file the diff reaches — the changed
-files themselves always among them — or the command writes nothing to stdout and
-exits `2`. It refuses when the diff is empty, when a changed file in a language
-it reads is not in the graph, and when no changed file is in the graph:
+answer at all. Either stdout lists every file the diff reaches — every changed
+file that runs differently among them — or the command writes nothing to stdout
+and exits `2`. It refuses when the diff is empty, when a changed file in a
+language it reads is not in the graph, when no changed file is in the graph, and
+when every changed file runs what it ran before:
 
 ```
 $ variance reach --since origin/main
@@ -1237,9 +1243,21 @@ nobody read.
 
 Changed paths in no language it reads — a lockfile, a workflow, a Dockerfile —
 are left out of the walk and named on stderr, so you can see the part of your
-diff the answer is not about. Everything else a person needs goes there too,
+diff the answer is not about. So is a JavaScript or TypeScript file whose edit
+was a comment, a type or formatting: it is read from both texts, runs what it
+ran before, and reaches nothing. A JSX pragma and a type in a decorated class
+are not that kind of edit, because the compiler writes both into what runs. A
+file whose edit changed only some of its exports is walked from those exports:
+a file that imports `label` from it is left out when only `total` changed, and
+stderr names `total`.
+[How different languages are handled](../../docs/polyglot.md#walked-from-what-the-edit-changed)
+says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
+
+`--whole-files` walks from every changed file whole without reading the edit,
+which is the list a file-by-file import graph gives. It is never shorter than
+the default list, so running both shows what the reading left out.
 
 No `variance.config.json` is read, and there is no default for `--since`: without
 a ref there is no diff, and the honest answer would be every file in the

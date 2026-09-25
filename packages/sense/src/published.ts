@@ -20,7 +20,7 @@
 // compass: variance-authority.reach.source-index
 
 import { resolve } from 'node:path';
-import type { FileRecord } from '@variance-authority/core/relate';
+import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
@@ -29,6 +29,7 @@ import type { RecordCache } from './reuse.js';
 import { scanRelations } from './scan.js';
 import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
+import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
 export interface PublishedSources {
@@ -46,6 +47,11 @@ export interface PublishedSources {
   readonly cache: ParseCache;
   /** The segment digests that were read, in order: the generation's identity. */
   readonly generation: readonly Digest[];
+  /**
+   * How each file uses each file it imports, joined from the records and parses
+   * above when a walk asks for an edge. Nothing is stored for it.
+   */
+  readonly uses: Uses;
 }
 
 /** Open the published generation at `path`. Reads the index and nothing else. */
@@ -66,6 +72,7 @@ export async function readPublishedSources(path: string): Promise<PublishedSourc
       .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0),
     cache,
     generation: file.generation,
+    uses: usesOf(stored.records, cache),
   };
 }
 

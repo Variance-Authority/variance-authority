@@ -38,8 +38,7 @@
 import { readFile, stat } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
-import { installDiff, installDiffOfPatch } from './installed.js';
-import { movedPackages, withMovedPackages, withoutManifests } from './reach.js';
+import { installDiff, installDiffOfPatch, movedPackages, withMovedPackages, withoutManifests } from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';

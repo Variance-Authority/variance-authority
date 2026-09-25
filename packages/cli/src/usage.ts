@@ -54,7 +54,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   ],
   index: ['--no-git'],
   select: ['--since', '--execution', '--diff', '--format', '--no-git'],
-  reach: ['--since', '--format', '--no-git'],
+  reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
     '--line',
@@ -117,7 +117,7 @@ export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git]',
   'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
-  'variance reach   --since <ref> [--format plain|json] [--no-git]',
+  'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json|github|bitbucket-report|bitbucket-annotations|markdown]',
   'variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]',
@@ -208,6 +208,9 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
     `flags: ${flags.length === 0 ? 'none' : flags.join(', ')}`,
     ...(flags.includes('--no-git')
       ? ['--no-git: read file contents from the working tree, not from Git\'s object store. Git still lists the files and names each file\'s blob, so the source index is the same one and unchanged files are not read again.']
+      : []),
+    ...(flags.includes('--whole-files')
+      ? ['--whole-files: walk from every changed file whole, without reading what the edit changed. The list is never shorter than the default one; it is the list a file-by-file import graph gives.']
       : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'

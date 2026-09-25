@@ -515,6 +515,7 @@
         "Drift": "interface",
         "EDGE_KINDS": "const",
         "EdgeKind": "type",
+        "EdgeUse": "interface",
         "FileEdge": "interface",
         "FileRecord": "interface",
         "NODE_KINDS": "const",
@@ -528,6 +529,7 @@
         "RelationsOptions": "interface",
         "Traversal": "interface",
         "TraversalOptions": "interface",
+        "Uses": "type",
         "affectedBy": "function",
         "beforeReach": "function",
         "changedBefore": "function",
@@ -2289,6 +2291,10 @@
           "types": "./dist/test-selection/jest-reporter.d.ts",
           "default": "./dist/test-selection/jest-reporter.js"
         },
+        "./runner": {
+          "types": "./dist/test-selection/runner.d.ts",
+          "default": "./dist/test-selection/runner.js"
+        },
         "./jest-setup": "./dist/test-selection/jest-setup.cjs",
         "./jest-globals": "./dist/test-selection/jest-globals.cjs"
       },
@@ -2464,6 +2470,7 @@
         "ReachThrough": "interface",
         "RegionMotion": "interface",
         "RegionMotionKind": "type",
+        "RunsAsBefore": "type",
         "SelectionCause": "interface",
         "SelectionReason": "type",
         "SourceAudience": "interface",
@@ -2526,6 +2533,7 @@
         "remaining": "function",
         "repositoryLayers": "function",
         "repositoryRoot": "function",
+        "runsAsBefore": "function",
         "seedTestCoverage": "function",
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
@@ -2632,6 +2640,19 @@
         "JestRunResults": "interface",
         "JestTestContext": "interface",
         "default": "class"
+      },
+      "./runner": {
+        "FinishedTestFile": "interface",
+        "InstrumentModuleOptions": "interface",
+        "RECORDING_VARIABLE": "const",
+        "Recording": "interface",
+        "RecordingOptions": "interface",
+        "RegisterRecordingOptions": "interface",
+        "TestFileObserver": "interface",
+        "instrumentModule": "function",
+        "observeTestFile": "function",
+        "registerRecording": "function",
+        "startRecording": "function"
       }
     }
   },

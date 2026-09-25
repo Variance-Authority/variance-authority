@@ -40,6 +40,11 @@ describe('what reach is asked for', () => {
     );
   });
 
+  it('takes --whole-files, and leaves it out when not given', () => {
+    expect(parseArgs(['reach', '--since', 'main', '--whole-files'])).toMatchObject({ wholeFiles: true });
+    expect(parseArgs(['reach', '--since', 'main'])).not.toHaveProperty('wholeFiles');
+  });
+
   it('reads no configuration, so --config is not one of its flags', () => {
     // The fact `CONFIGLESS` states from the other side. A repository whose tests
     // another runner runs has no `variance.config.json`, and offering a flag

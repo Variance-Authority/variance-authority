@@ -8,7 +8,8 @@ import type { Config } from '../config.js';
 import type { Collector } from './collector.js';
 import type { RunIdentity } from './history.js';
 import type { JourneyReading } from './journeys.js';
-import type { InstallDiff } from './reach.js';
+import type { InstallDiff } from './installed.js';
+import type { MovedExports } from './reach.js';
 import type { CliObservationRecord, CliRunReport, NotObserved } from './run-report.js';
 
 /**
@@ -192,6 +193,13 @@ export interface RunOptions {
      * in the diff an ordinary unplaceable changed file.
      */
     readonly install?: InstallDiff;
+
+    /**
+     * What each changed file moved for its importers, read from both texts. A
+     * file that moved nothing — a comment, a type, formatting — seeds no walk.
+     * Absent is *no reading was taken*, and every changed file is a change.
+     */
+    readonly movedExports?: MovedExports;
   };
 
   /**
@@ -211,6 +219,8 @@ export interface RunOptions {
     readonly ref: string;
     /** What that diff did to the install, read the same way `since` reads it. */
     readonly install?: InstallDiff;
+    /** What each changed file moved for its importers, read the same way. */
+    readonly movedExports?: MovedExports;
   };
 
   /**

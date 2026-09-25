@@ -59,7 +59,8 @@ import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
-import { diffAtTip, diffSince, headCommit, repositoryDirectory } from './since.js';
+import { diffSince } from './since.js';
+import { diffAtTip, headCommit, repositoryDirectory } from './since-tip.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 

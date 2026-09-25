@@ -14,7 +14,7 @@ import { readdirSync, type Dirent } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
+import { relationsOfFiles, type Relations, type Uses } from '@variance-authority/core/relate';
 import { isCI } from 'ci-info';
 import { OperatorError } from '../exit.js';
 import { indexOf } from './affected.js';
@@ -133,7 +133,12 @@ export async function relationsFor(
   // the same unreadable file rather than narrowing.
   const depends = await installedDepends(root);
 
-  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends });
+  // A taint's addition joins the edge the parse recorded, and the names the
+  // parse bound on it no longer say everything the file reaches through it.
+  const uses: Uses = (importer, target) =>
+    tainted.additions.get(importer)?.includes(target) ? undefined : read.uses(importer, target);
+
+  return relationsOfFiles(tainted.records, { shadows: tainted.shadows, depends, uses });
 }
 
 /**
@@ -169,6 +174,7 @@ async function publishedWithin(
   return {
     records: scanner.sourcesWithin(published.records, root, dirs, before),
     cache: published.cache,
+    uses: published.uses,
   };
 }
 

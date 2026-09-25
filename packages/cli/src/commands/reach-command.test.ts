@@ -163,3 +163,111 @@ describe('what a diff reaches, on stdout', () => {
     expect(files).toContain('Sources/App/Main.swift');
   });
 });
+
+describe('a changed file that runs what it ran before', () => {
+  const TYPESCRIPT = {
+    'package.json': '{ "name": "shop", "type": "module" }\n',
+    'src/limits.ts': 'export function clamp(value: number): number {\n  return Math.min(value, 10);\n}\n',
+    'src/cart.ts': "import { clamp } from './limits.js';\nexport const total = (n: number) => clamp(n);\n",
+    'src/cart.test.ts': "import { total } from './cart.js';\ntotal(1);\n",
+  };
+
+  it('leaves a file whose edit was a comment and a type out of the walk, and names it on stderr', async () => {
+    checkout(TYPESCRIPT);
+    commit(
+      process.cwd(),
+      {
+        'src/limits.ts':
+          '/** The cap on a line. */\nexport function clamp(value: number): 0 | number {\n  return Math.min(value, 10);\n}\n',
+        'src/cart.ts': "import { clamp } from './limits.js';\nexport const total = (n: number) => clamp(n + 1);\n",
+      },
+      'a comment and a fix',
+    );
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual(['src/cart.test.ts', 'src/cart.ts']);
+    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs/);
+  });
+
+  it('exits 2 and writes nothing to stdout when every changed file runs what it ran before', async () => {
+    checkout(TYPESCRIPT);
+    commit(
+      process.cwd(),
+      { 'src/limits.ts': 'export function clamp(value: number): number {\n  // The cap on a line.\n  return Math.min(value, 10);\n}\n' },
+      'a comment',
+    );
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_OPERATOR);
+    expect(said.out).toBe('');
+    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs, so it seeds nothing/);
+  });
+});
+
+describe('a changed file read by the exports it changed', () => {
+  const SHOP = {
+    'package.json': '{ "name": "shop", "type": "module" }\n',
+    'src/cart.ts':
+      'export function total(n: number): number {\n  return n * 2;\n}\n' +
+      "export function label(): string {\n  return 'cart';\n}\n",
+    'src/index.ts': "export { total as sum, label } from './cart.js';\n",
+    'test/total.test.ts': "import { total } from '../src/cart.js';\ntotal(1);\n",
+    'test/label.test.ts': "import { label } from '../src/cart.js';\nlabel();\n",
+    'test/sum.test.ts': "import { sum } from '../src/index.js';\nsum(1);\n",
+    'test/badge.test.ts': "import { label } from '../src/index.js';\nlabel();\n",
+    'test/whole.test.ts': "import * as cart from '../src/cart.js';\ncart.label();\n",
+  };
+
+  it('reaches the importers of the export that moved, through a barrel, and not the others', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace('n * 2', 'n * 3') }, 'double to triple');
+
+    const said = await reach(['reach', '--since', 'HEAD~1']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n').sort()).toEqual([
+      'src/cart.ts',
+      'src/index.ts',
+      'test/sum.test.ts',
+      'test/total.test.ts',
+      'test/whole.test.ts',
+    ]);
+    expect(said.err).toMatch(/src\/cart\.ts changes total; only files that import a changed export are walked/);
+  });
+
+  it('names the changed exports in the JSON it prints', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace("'cart'", "'basket'") }, 'rename the label');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--format', 'json']);
+
+    expect(JSON.parse(said.out)).toMatchObject({ exports: { 'src/cart.ts': ['label'] } });
+    expect(JSON.parse(said.out).files).not.toContain('test/total.test.ts');
+  });
+
+  it('walks from every changed file whole under --whole-files, and says so', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': SHOP['src/cart.ts'].replace('n * 2', 'n * 3') }, 'double to triple');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--whole-files']);
+
+    expect(said.code).toBe(EXIT_CLEAN);
+    expect(said.out.trim().split('\n')).toEqual(expect.arrayContaining(['test/label.test.ts', 'test/badge.test.ts']));
+    expect(said.err).toMatch(/--whole-files: every changed file is walked from whole; no edit was read/);
+  });
+
+  it('walks from a comment under --whole-files, and prints no reading it did not make', async () => {
+    checkout(SHOP);
+    commit(process.cwd(), { 'src/cart.ts': `// cart\n${SHOP['src/cart.ts']}` }, 'a comment');
+
+    const said = await reach(['reach', '--since', 'HEAD~1', '--whole-files', '--format', 'json']);
+    const answer = JSON.parse(said.out);
+
+    expect(answer.files).toContain('test/label.test.ts');
+    expect(answer).not.toHaveProperty('quiet');
+    expect(answer).not.toHaveProperty('exports');
+  });
+});

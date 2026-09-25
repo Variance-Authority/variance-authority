@@ -4,7 +4,8 @@ import {
   type SourceIndex,
 } from '@variance-authority/core/attribute';
 import type { BeforeReach, Relations } from '@variance-authority/core/relate';
-import { affectedComponents, many, refused, within, type InstallDiff } from './reach.js';
+import type { InstallDiff } from './installed.js';
+import { affectedComponents, listed, many, refused, within, type MovedExports } from './reach.js';
 
 /**
  * Which subjects an edit could possibly have changed — and, far more carefully,
@@ -167,6 +168,14 @@ export interface AffectedInput {
    * and then a changed lockfile is an ordinary unreadable changed file again.
    */
   readonly install?: InstallDiff;
+
+  /**
+   * What each changed file moved for its importers, read from both texts. A
+   * file that moved nothing — a comment, a type, formatting — seeds nothing and
+   * forces nothing; one that moved some exports reaches only their importers.
+   * Absent is *no reading was taken*, and every changed file is a change.
+   */
+  readonly movedExports?: MovedExports;
 }
 
 export interface Affected {
@@ -245,8 +254,8 @@ export function affectedSubjects(input: AffectedInput): Affected {
 
   const narrowing =
     relations === undefined
-      ? byDeclaration(changed, changedDirs, source, roots, moved)
-      : byRelation(changed, changedDirs, relations, roots, install, input.before);
+      ? byDeclaration(changed, changedDirs, source, roots, moved, input.movedExports ?? new Map())
+      : byRelation(changed, changedDirs, relations, roots, install, input.before, input.movedExports ?? new Map());
 
   if ('whole' in narrowing) return everything(narrowing.whole, narrowing.rests);
   const { touched, how } = narrowing;
@@ -284,7 +293,7 @@ export function affectedSubjects(input: AffectedInput): Affected {
       subject,
       because:
         `its baseline records ${many(components.length, 'component')} and this diff touched none of ` +
-        `them (${[...touched].slice(0, 3).join(', ')}${touched.size > 3 ? ', …' : ''})`,
+        `them${touched.size === 0 ? '' : ` (${sample([...touched])})`}`,
     });
   }
 
@@ -323,6 +332,7 @@ function byDeclaration(
   source: SourceIndex,
   roots: readonly string[],
   moved: readonly string[],
+  movedExports: MovedExports,
 ): Narrowing {
   // Reading the install is only half the answer; the other half is *which files
   // import that package*, and that is the graph. Without one, a bumped package
@@ -337,7 +347,13 @@ function byDeclaration(
     };
   }
 
-  const inside = changed.filter((file) => within(file, roots));
+  // A file that changes nothing that runs moves no component and forces no
+  // whole run, whatever it declares.
+  const still = changed.filter((file) => movedExports.get(file)?.length === 0);
+  const inside = changed.filter((file) => within(file, roots) && !still.includes(file));
+  if (still.length === changed.length && changedDirs.length === 0) {
+    return { touched: new Set(), how: `${listed(still)} ${still.length === 1 ? 'changes' : 'change'} nothing that runs` };
+  }
   const declaring = declaringFiles(source);
 
   const undeclared = inside.filter((file) => !declaring.has(file));
@@ -394,11 +410,12 @@ function byRelation(
   roots: readonly string[],
   install: InstallDiff | undefined,
   before: BeforeReach | undefined,
+  movedExports: MovedExports,
 ): Narrowing {
   // The same call the report makes. Two walks would let the run skip a subject
   // for one reason and print another, and the printed one is what a reviewer
   // acts on.
-  const reach = affectedComponents(relations, changed, changedDirs, roots, install, before);
+  const reach = affectedComponents(relations, changed, changedDirs, roots, install, before, movedExports);
   if (refused(reach)) {
     return { whole: reach.whole, ...(reach.rests === undefined ? {} : { rests: reach.rests }) };
   }

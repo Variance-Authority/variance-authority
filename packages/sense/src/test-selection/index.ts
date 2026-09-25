@@ -88,6 +88,7 @@ export { changedLines, type LineRange } from './diff-lines.js';
 // ships because the check is opt-in: a caller that does not know to pass
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { textAtRecording } from './recorded-text.js';
+export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export type {
   Bearing,
   DistanceOptions,
@@ -118,8 +119,7 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 // Where the run that wrote the case index last is named, and what it replaced.
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
-export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion } from './case-motion.js';
-export type { RegionMotion, RegionMotionKind, TestFileMotion } from './case-motion.js';
+export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export type { CoverageShard };
 
 /**

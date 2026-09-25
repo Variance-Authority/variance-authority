@@ -9,8 +9,12 @@
 //!
 //! So each text is parsed twice: whole, and with every function emptied
 //! (`module_shape.rs`). The whole programs equal under `ContentEq` is a change
-//! nothing runs. Otherwise the emptied program — what the module does when it
-//! is loaded — is reduced to two things:
+//! nothing runs — unless a JSX pragma moved. `ContentEq` never sees a comment,
+//! and a pragma is the one comment the compiler reads: it decides what every
+//! element is emitted as and which runtime the module imports, so a pragma
+//! added, removed or given another argument is a load-time change. Otherwise
+//! the emptied program — what the module does when it is loaded — is reduced
+//! to two things:
 //!
 //! - the **sequence**: every statement that evaluates something when the module
 //!   runs — an import that binds nothing, which is there for what loading it
@@ -53,18 +57,22 @@ use oxc_ast_visit::Visit;
 use oxc_span::ContentEq;
 use napi_derive::napi;
 
+use crate::module_moved::{exported, Top};
 use crate::module_readers::{bound, declared, interface_of};
 use crate::module_shape::{parse, plain_class, pure, Lines};
 
 pub enum Verdict {
-    /// No text that runs differs: comments, types, spelling, formatting.
+    /// No text that runs differs: comments that set no pragma, types, spelling,
+    /// formatting.
     None,
     /// The load is the same but for these bindings' values and these exports;
     /// with both empty, what differs runs only when something calls. `gone` is
     /// the exports the new text no longer has. `imported` is every source an
     /// import binds from on one side only: loading it is a use only when its
     /// package declares so, which is the manifest's to answer, not the text's.
-    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String>, imported: Vec<String> },
+    /// `moved` is the exports an importer sees move (`module_moved.rs`), or
+    /// nothing when the module hands a moved binding on at load.
+    Values { names: Vec<String>, exports: Vec<String>, gone: Vec<String>, imported: Vec<String>, moved: Option<Vec<String>> },
     /// What the module does when it is loaded is different.
     Load,
 }
@@ -161,13 +169,16 @@ impl<'s, 'a> View<'s, 'a> {
 
 pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     let allocator = Allocator::default();
-    let (old, now) = (parse(&allocator, file, before, true)?, parse(&allocator, file, after, true)?);
-    if old.directives.content_eq(&now.directives) && old.body.content_eq(&now.body) {
+    let (whole_old, whole_now) = (parse(&allocator, file, before, true)?, parse(&allocator, file, after, true)?);
+    if pragmas(&whole_old) != pragmas(&whole_now) {
+        return Some(Verdict::Load);
+    }
+    if whole_old.directives.content_eq(&whole_now.directives) && whole_old.body.content_eq(&whole_now.body) {
         return Some(Verdict::None);
     }
-    let (old_reads, now_reads) = (reads_of(&old), reads_of(&now));
+    let (old_reads, now_reads) = (reads_of(&whole_old), reads_of(&whole_now));
     let (old_lines, now_lines) = (Lines::new(before), Lines::new(after));
-    let (old_interface, now_interface) = (interface_of(&old, &old_lines), interface_of(&now, &now_lines));
+    let (old_interface, now_interface) = (interface_of(&whole_old, &old_lines), interface_of(&whole_now, &now_lines));
 
     let (old, now) = (parse(&allocator, file, before, false)?, parse(&allocator, file, after, false)?);
     if !old.directives.content_eq(&now.directives) {
@@ -204,10 +215,18 @@ pub fn verdict(file: &str, before: &str, after: &str) -> Option<Verdict> {
     // is read for every name it holds, the new one included.
     let moved = old_interface.iter().filter(|(name, bound)| now_interface.get(*name) != Some(bound));
     let added = now_interface.keys().filter(|name| !old_interface.contains_key(*name));
-    let exports = moved.map(|(name, _)| name).chain(added).cloned().collect();
-    let gone = old_interface.keys().filter(|name| !now_interface.contains_key(*name)).cloned().collect();
+    let exports: Vec<String> = moved.map(|(name, _)| name).chain(added).cloned().collect();
+    let gone: Vec<String> = old_interface.keys().filter(|name| !now_interface.contains_key(*name)).cloned().collect();
     let imported = was.imports.symmetric_difference(&is.imports).map(|source| source.to_string()).collect();
-    Some(Verdict::Values { names, exports, gone, imported })
+
+    let top = Top::of(&whole_now);
+    let seeds = names.iter().cloned().chain(top.changed(&Top::of(&whole_old)));
+    let moved = top.moved(seeds).map(|bindings| {
+        let mut all = exported(&now_interface, &bindings);
+        all.extend(exports.iter().chain(&gone).cloned());
+        all.into_iter().collect()
+    });
+    Some(Verdict::Values { names, exports, gone, imported, moved })
 }
 
 fn view_of<'s, 'a>(program: &'s Program<'a>) -> View<'s, 'a> {
@@ -311,6 +330,29 @@ fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
     }
 }
 
+/// The JSX pragmas a text's comments set, each with its argument, in the order
+/// they are written. A pragma is a comment the compiler reads: `@jsx` and
+/// `@jsxFrag` name what every element is emitted as a call to, and
+/// `@jsxImportSource` and `@jsxRuntime` decide the import the compiler adds.
+/// Every comment is read, not only the leading ones, because Babel and esbuild
+/// honour a pragma anywhere in the file.
+fn pragmas<'a>(program: &Program<'a>) -> Vec<(&'a str, &'a str)> {
+    const NAMES: [&str; 4] = ["jsx", "jsxFrag", "jsxImportSource", "jsxRuntime"];
+    let mut found = Vec::new();
+    for comment in &program.comments {
+        let text = comment.content_span().source_text(program.source_text);
+        for (at, _) in text.match_indices('@') {
+            let rest = &text[at + 1..];
+            let name = &rest[..rest.find(|c: char| !c.is_ascii_alphanumeric()).unwrap_or(rest.len())];
+            if NAMES.contains(&name) {
+                let argument = rest[name.len()..].split_whitespace().next().unwrap_or("");
+                found.push((name, argument));
+            }
+        }
+    }
+    found
+}
+
 /// Every name the text reads, in function bodies too: a global a body reads
 /// changes meaning when a declaration of that name appears beside it.
 fn reads_of(program: &Program) -> BTreeSet<String> {
@@ -338,18 +380,21 @@ pub struct ModuleVerdict {
     pub gone: Vec<String>,
     /// Sources an import binds names from on one side only.
     pub imported: Vec<String>,
+    /// Exports an importer sees behave differently, bodies included; nothing
+    /// when every export may.
+    pub moved: Option<Vec<String>>,
 }
 
 /// The verdict on one file's change, or nothing when either text does not parse.
 #[napi]
 pub fn module_verdict(file: String, before: String, after: String) -> Option<ModuleVerdict> {
-    let (kind, names, exports, gone, imported) = match verdict(&file, &before, &after)? {
-        Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
-        Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new()),
-        Verdict::Values { names, exports, gone, imported } => {
+    let (kind, names, exports, gone, imported, moved) = match verdict(&file, &before, &after)? {
+        Verdict::None => ("none", Vec::new(), Vec::new(), Vec::new(), Vec::new(), Some(Vec::new())),
+        Verdict::Load => ("load", Vec::new(), Vec::new(), Vec::new(), Vec::new(), None),
+        Verdict::Values { names, exports, gone, imported, moved } => {
             let kind = if names.is_empty() && exports.is_empty() { "bodies" } else { "values" };
-            (kind, names, exports, gone, imported)
+            (kind, names, exports, gone, imported, moved)
         }
     };
-    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone, imported })
+    Some(ModuleVerdict { kind: kind.to_string(), names, exports, gone, imported, moved })
 }

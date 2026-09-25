@@ -33,11 +33,60 @@ variance reach --since origin/main | grep '\.test\.tsx$' | xargs -r vitest run
 variance reach --since origin/main | grep '/test_.*\.py$' | xargs -r pytest
 ```
 
-The list names every file the change can reach, the changed files among them,
-one per line. `--format json` returns the same answer with what was left out of
-it beside it. No project configuration is read, and `--since` has no default:
+The list names every file the change can reach, one per line, with the changed
+files among them except those whose edit changes nothing that runs.
+`--format json` returns the same answer with what was left out of it beside it. No project configuration is read, and `--since` has no default:
 the command is asked by a repository whose tests something else runs, and
 guessing a ref there would be guessing what a build is about to skip.
+
+## Walked from what the edit changed
+
+`jest --changedSince`, `vitest --changed` and Playwright's `--only-changed` walk
+the import graph from every file a diff touched, so a comment in a module every
+test imports runs every test. `variance reach` reads each changed file before
+and after the edit and walks the same graph from what the edit changed. An edit
+that changes nothing that runs selects nothing.
+
+Over the sixty commits before the setup commit of the [Zod](selection-zod.md)
+and [TanStack Query](selection-tanstack-query.md) case studies, summing the test
+files each commit selects, the graph walked from every touched file selects
+2,333 on TanStack Query and 4,341 on Zod. Walked from what each edit changed, it
+selects 704 and 3,955: 70% and 9% fewer. On TanStack Query, 1,403 of the 1,629
+come from edits that change nothing that runs, most of them to `types.ts`, which
+nearly every test imports. The other 226 come from changed exports: an edit to
+`streamedQuery` selects 10 test files where the file graph selects 221. A changed
+export narrows the walk least where tests import through a namespace, as most of
+Zod's tests do with `import * as z`.
+
+A changed JavaScript or TypeScript file is read from both of its texts before the
+walk starts. When the edit is a comment, a type or formatting, the file runs
+what it ran before, so nothing is walked from it and it is not in the list.
+Stderr names it. Two edits of that kind change what runs and are walked from: a
+JSX pragma such as `@jsxImportSource`, and a type in a decorated class, which
+`emitDecoratorMetadata` can write into the class. A file in another language,
+and a file that was added, deleted or does not parse, is walked from as a whole
+file.
+
+When the edit changes some of a file's exports and nothing that runs as the
+module loads, the walk starts from those exports and not from the whole file. An
+export is changed when its own code changed, or when anything it uses at the top
+level of the same file changed: a function, a constant, a `let` that a changed
+function writes. If `cart.ts` changes `total` and leaves `label` as it was, a file
+that imports `total` is in the list and a file that imports only `label` is not.
+A barrel passes each changed export on under the name it gives it, so
+`export { total as sum } from './cart'` puts every file that imports `sum` in
+the list. Stderr names the changed exports of each file, and `--format json` lists them
+under `exports`.
+
+The walk is whole wherever an import names no export:
+
+- a namespace import, `import * as cart`
+- a `require`, and an `import './cart'` that binds nothing
+- a dynamic `import()`
+
+It is also whole one import further out. A file that imports a changed export
+is walked from as a whole file, because which of its own exports use that name
+is not read.
 
 ## Why an import graph is the safe half
 
@@ -132,11 +181,12 @@ the default and the default is only a default.
 ## What the answer will not do
 
 **It will not answer short.** On a clean exit the list is never empty, because
-the changed files are always among the files they reach. The walk cannot stand
-behind a list in three cases:
+every changed file that runs differently is among the files it reaches. The walk
+cannot stand behind a list in four cases:
 
 - nothing changed since the ref
 - nothing changed that any reader claims
+- every changed file runs what it ran before
 - a changed source file the scan never reached
 
 In each of them the command writes nothing to stdout, says why on stderr, and

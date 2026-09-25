@@ -7,6 +7,8 @@ export interface ParsedReach {
   /** `--since <ref>`: the base to measure the diff from. There is no other coordinate. */
   readonly since: string;
   readonly format: ReachFormat;
+  /** `--whole-files`: walk from every changed file whole, without reading the edit. */
+  readonly wholeFiles?: boolean;
   readonly noGit?: boolean;
 }
 
@@ -43,5 +45,11 @@ export function parseReachArgs(flags: Flags): ParsedReach {
     );
   }
 
-  return { command: 'reach', since, format, ...(flags.present.has('--no-git') ? { noGit: true } : {}) };
+  return {
+    command: 'reach',
+    since,
+    format,
+    ...(flags.present.has('--whole-files') ? { wholeFiles: true } : {}),
+    ...(flags.present.has('--no-git') ? { noGit: true } : {}),
+  };
 }

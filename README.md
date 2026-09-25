@@ -272,9 +272,14 @@ Two questions meet in this repository — *what did this change look like* and
   counter with no stake in our answer.
 - **Jest `--changedSince`, Vitest `--changed`, Playwright `--only-changed`** —
   selection from the import graph, which needs no recording and cannot see a
-  route the graph does not carry.
+  route the graph does not include. They walk it from every file a diff touched;
+  [`variance reach`](docs/polyglot.md#walked-from-what-the-edit-changed) walks
+  it from what the edit changed, so an edit to a comment or a type selects
+  nothing, and a file that imports only an unchanged export of a changed file is
+  left out. Over sixty commits of TanStack Query, that is 704 test files where
+  the file graph selects 2,333.
   [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
-  is where the two readings part.
+  is where a record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
   [**Bazel**](https://bazel.build/) — selection at the project or target grain,
   from dependencies you declare rather than executions anyone observed. Coarse,

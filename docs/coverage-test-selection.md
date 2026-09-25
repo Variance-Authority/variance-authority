@@ -472,7 +472,7 @@ the scripts every figure came from.
 It selects whole test files, as Datadog and CircleCI do. What differs is what
 a file is charged with: the regions it ran, not every file it covered. The same
 run records which test case covered which region, and [test-level coverage](test-level-coverage.md) reads that to
-explain a line, but a skip list stays at file grain.
+explain a line.
 
 It does not rank, predict or learn from history. A test runs because the
 record saw it execute changed code, or because the record cannot rule it out.
@@ -484,11 +484,18 @@ that commit rather than from your branch point, so a record several commits old
 selects for every change made since. Record on every run and the record is
 never more than one commit old.
 
+It does not see through a cache. A memoized function is credited to the case
+that ran it first. A later case that got the cached result is not recorded as
+reading the function, or anything the function calls, so a change to either does
+not select it. [A result a cache returned](selecting.md#a-result-a-cache-returned)
+says when that happens and when it does not.
+
 ## Start
 
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
-  `@variance-authority/sense`, then pass `$(variance select --format vitest)`
-  to your runner.
+  `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
+  `@variance-authority/sense/runner`. Then pass
+  `$(variance select --format vitest)` to your runner.
 - [Measure test distance](distance.md) to run the tests nearest to a change
   first.
 - [Run relevant work](run-relevant-work.md) when the tests are visual subjects

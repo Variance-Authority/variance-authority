@@ -50,7 +50,7 @@ import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { promisify } from 'node:util';
-import type { InstallDiff } from './reach.js';
+import { nodesOfKind, within, type Relations } from '@variance-authority/core/relate';
 
 /** A package name each importing file gets an edge to, and the package it rests on. */
 export type Depends = readonly (readonly [string, string])[];
@@ -353,4 +353,101 @@ function pathTail(file: string): string {
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * What a diff did to the install — the far-right end of the same line.
+ *
+ * A read of the lockfile at both revisions, collapsed to package names, or the
+ * sentence saying the comparison could not be made. Never a list of changed
+ * lockfile paths: which bytes of a lockfile changed says nothing (a workspace
+ * version bump rewrites it and installs nothing), and which package names
+ * resolved differently says everything.
+ *
+ * `manifests` are the *file names* that comparison speaks for — the lockfile's
+ * own, and `package.json`, whose dependency fields are a request the lockfile
+ * answered. A walk drops them from its seeds; anything else in the diff is
+ * still a changed file.
+ *
+ * `moved` are the changed `package.json` *paths* whose change reaches past
+ * those fields — `exports`, `main`, `type`, `name` — read at both revisions by
+ * the same comparison. Each one's directory is a changed directory: every
+ * importer of the package may now load a different file.
+ */
+export type InstallDiff =
+  | {
+      readonly packages: readonly string[];
+      readonly manifests: readonly string[];
+      readonly moved: readonly string[];
+    }
+  | { readonly whole: string };
+
+/** The install as *nothing happened*, for a caller that has no reading to offer. */
+export const NO_INSTALL_DIFF: InstallDiff = { packages: [], manifests: [], moved: [] };
+
+/**
+ * Paths the install comparison has already spoken for, or handed on as `moved`.
+ *
+ * Matched on the last segment, so a monorepo's every `package.json` goes the
+ * same way the root one does: a resolver, a `resolutions` block, a version
+ * range — the install answered all three, at both revisions, by name. A moved
+ * manifest is dropped here too; {@link movedPackages} says what stands in for it.
+ */
+export function withoutManifests(
+  changed: readonly string[],
+  manifests: readonly string[],
+): readonly string[] {
+  return changed.filter(
+    (file) => !manifests.some((name) => file === name || file.endsWith(`/${name}`)),
+  );
+}
+
+/**
+ * The files of every package whose manifest moved, from the graph.
+ *
+ * The directory of a moved `package.json` is expanded the way a monorepo tool's
+ * changed directory is: every file the graph holds under it. A moved manifest
+ * the graph holds no file beside is returned in `unplaced`, to be read as the
+ * ordinary changed path it would have been — a gap under the scanned roots, a
+ * file nothing reads outside them — rather than as a package that reached
+ * nothing.
+ */
+export function movedPackages(
+  relations: Relations,
+  install: InstallDiff | undefined,
+): { readonly files: readonly string[]; readonly unplaced: readonly string[] } {
+  const moved = install === undefined || 'whole' in install ? [] : install.moved;
+  if (moved.length === 0) return { files: [], unplaced: [] };
+  const names = nodesOfKind(relations, 'file').map((id) => relations.names[id]!);
+  const files = new Set<string>();
+  const unplaced: string[] = [];
+  for (const manifest of moved) {
+    const beside = names.filter((file) => within(file, [directoryOf(manifest)]));
+    if (beside.length === 0) unplaced.push(manifest);
+    for (const file of beside) files.add(file);
+  }
+  return { files: [...files].sort(byCodeUnit), unplaced };
+}
+
+/**
+ * A patch that also changes, whole, every file of a package whose manifest
+ * moved — the journal's reading of {@link movedPackages}.
+ *
+ * A file named with no hunk is every recorded region of it, and a file with no
+ * row is answered by its recorded importers, so a package whose `exports`
+ * moved selects every test that entered it or anything importing it, which is
+ * what the walk's changed directory selects.
+ */
+export function withMovedPackages(diff: string, files: readonly string[]): string {
+  if (files.length === 0) return diff;
+  return [diff, ...files.map((file) => `diff --git a/${file} b/${file}`)].join('\n');
+}
+
+function directoryOf(file: string): string {
+  const at = file.lastIndexOf('/');
+  return at === -1 ? '.' : file.slice(0, at);
+}
+
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }

@@ -223,7 +223,7 @@ named, not left to be inferred:
 **`unentered` is the weaker sibling finding**: regions with source of their own
 that *no* observer in the pool covered. Not "these two renders disagree" but
 "this run never went here at all", which is the same absence
-[`selecting.md`](selecting.md#what-this-does-not-reach) cannot select on — and
+[`selecting.md`](selecting.md#a-branch-no-run-has-taken) cannot select on — and
 naming where it is does not close it.
 
 ### Stability is required inside the boundary, not outside it
@@ -324,7 +324,7 @@ you run, and a run that can name itself — `--run` and `--commit`, or the pair 
 CI you are already inside exports. Without an identity nothing is recorded and the
 run says so, because a history that quietly stops growing is worse than none.
 
-### The class of defect a second reading reaches
+### The class of defect a second reading finds
 
 The instability it catches need not be in the page. It can be in the observer,
 and that is the case no assertion about a verdict can find — because the verdict

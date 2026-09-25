@@ -105,6 +105,11 @@ function foldInto(union: Presence, view: View): void {
 /**
  * The realm's engine, made and installed if this is the first collector in it.
  *
+ * Exported for a host that loads instrumented modules before its first
+ * collector exists: `runner.ts` installs the engine when it registers its
+ * module hooks, and every probe that fires before a file is observed writes
+ * into the idle bucket rather than into a missing root.
+ *
  * Vitest without isolation evaluates this once per test file in one realm, and
  * every module the first file evaluated has already read the root and keeps it.
  * So a later file writes into the same engine through buckets of its own. The
@@ -298,4 +303,4 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   };
 }
 
-export = { flat, scoped, presenceOf, foldInto };
+export = { attach, flat, scoped, presenceOf, foldInto };

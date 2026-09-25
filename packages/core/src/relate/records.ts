@@ -31,6 +31,7 @@ import {
   type Relation,
   type Relations,
 } from './graph.js';
+import type { Uses } from './narrow.js';
 import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions } from './reach.js';
 
 export interface FileEdge {
@@ -159,12 +160,20 @@ export function relationsOfFiles(records: Iterable<FileRecord>, options: Relatio
     relations.push({ from: pkg(from), to: pkg(to), kind: 'depends-on' });
   }
 
-  return relationsOf({ relations, isolated, unknown, ...(options.shadows === undefined ? {} : { shadows: options.shadows }) });
+  return relationsOf({
+    relations,
+    isolated,
+    unknown,
+    ...(options.shadows === undefined ? {} : { shadows: options.shadows }),
+    ...(options.uses === undefined ? {} : { uses: options.uses }),
+  });
 }
 
 export interface RelationsOptions {
   /** Per file, the files its run never reaches; see {@link Relations.shadows}. */
   readonly shadows?: ReadonlyMap<string, readonly string[]>;
+  /** How each file uses what it imports; see {@link Relations.uses}. */
+  readonly uses?: Uses;
 
   /**
    * `[dependent, dependency]` pairs between packages, from a lockfile
@@ -225,7 +234,14 @@ export interface Affected {
   readonly traversal: Traversal;
 }
 
-export interface AffectedOptions extends TraversalOptions {
+export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
+  /**
+   * Per changed file, the exports its change moved, read from both of its
+   * texts; a file absent is charged whole. Narrows the walk only over a graph
+   * that carries {@link Relations.uses}.
+   */
+  readonly moved?: ReadonlyMap<string, readonly string[]>;
+
   /**
    * Per file, the files it takes out of its own graph: what a test mocks.
    *
@@ -273,7 +289,8 @@ export function affectedBy(
     else seeds.push(id);
   }
 
-  const traversal = unshadowed(relations, seeds, options);
+  const { moved, ...rest } = options;
+  const traversal = unshadowed(relations, seeds, moved === undefined ? rest : { ...rest, moved: movedIds(relations, moved) });
   const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
 
   for (const id of traversal.nodes) {
@@ -305,10 +322,23 @@ export function affectedBy(
  * file visited only through it is not visited either; the repeat ends when a
  * walk finds no new shadowed file, and a row once decided is not asked again.
  */
+/** The moved exports by node id, for the walk; files the graph never met drop out. */
+function movedIds(
+  relations: Relations,
+  moved: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<NodeId, readonly string[]> {
+  const ids = new Map<NodeId, readonly string[]>();
+  for (const [name, exports] of moved) {
+    const id = idOf(relations, 'file', name);
+    if (id !== undefined) ids.set(id, exports);
+  }
+  return ids;
+}
+
 function unshadowed(
   relations: Relations,
   seeds: readonly NodeId[],
-  options: AffectedOptions,
+  options: Omit<AffectedOptions, 'moved'> & TraversalOptions,
 ): Traversal & { readonly shadowed: readonly string[] } {
   const shadowed: string[] = [];
   const avoid = new Set<NodeId>(options.avoid ?? []);

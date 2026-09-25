@@ -29,6 +29,7 @@
  */
 
 import { EDGE_KINDS, RUNTIME_EDGES, type Adjacency, type EdgeKind, type NodeId, type Relations } from './graph.js';
+import { narrowed } from './narrow.js';
 
 /**
  * What one walk from a set of seeds visited: a mark over every node, the node
@@ -66,6 +67,13 @@ export interface TraversalOptions {
    * walk starts is exactly that removal, at no cost in the inner loop.
    */
   readonly avoid?: Iterable<NodeId>;
+  /**
+   * Per seed, the exports its change moved; a seed absent is charged whole.
+   * Read against the arrows only, and only over a graph that carries
+   * {@link Relations.uses}: an importer is then entered only through a name it
+   * uses ([`narrow.ts`](./narrow.ts)).
+   */
+  readonly moved?: ReadonlyMap<NodeId, readonly string[]>;
 }
 
 /** What depends on these nodes, transitively. Against the arrows. */
@@ -74,6 +82,10 @@ export function dependentsOf(
   seeds: Iterable<NodeId>,
   options: TraversalOptions = {},
 ): Traversal {
+  if (options.moved !== undefined && relations.uses !== undefined) {
+    const allowed = allowedKinds(options.through);
+    return narrowed(relations.dependents, relations.names, seeds, options.moved, relations.uses, allowed, options.avoid);
+  }
   return search(relations.dependents, relations.names.length, seeds, options);
 }
 
