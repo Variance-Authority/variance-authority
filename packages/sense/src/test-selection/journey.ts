@@ -180,8 +180,9 @@ export interface JourneyCollectorOptions {
    * initialized. Set, the head asks it which journey is running wherever
    * {@link JourneyCollector.enter} did not say, so a service whose tracing
    * already continues the incoming trace needs no `enter` at all. The test
-   * side runs each case inside that trace with `carryJourneys` from
-   * `@variance-authority/sense/case-journey`.
+   * side runs each case inside that trace: the same SDK named as `trace` to
+   * `withJourneyCoverage`, exported from a module the way
+   * `@variance-authority/sense/case-journey` shows.
    *
    * A trace carries an id and no way home, so this writes {@link parts}.
    */

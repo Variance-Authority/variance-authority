@@ -22,6 +22,7 @@
  *   a test-selection run still folds its file-level journals into its snapshot.
  */
 
+import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
@@ -113,6 +114,18 @@ export interface JestJourneyCoverageOptions {
    * inventories sit in the checkout's record store under that label.
    */
   readonly heads?: readonly string[];
+  /**
+   * A module whose export is the application's tracing, told to carry each
+   * case's journey as its trace id: `module.exports = sentry(Sentry)` after
+   * `Sentry.init`, or `openTelemetry(api)` after the SDK is registered, both
+   * from `@variance-authority/sense/case-journey`.
+   *
+   * It is required once per worker, outside every test file's sandbox, because
+   * an SDK hooks `fetch` for the whole process: initialized again in each
+   * file, the first file's hooks outlive it and the next file's requests carry
+   * the wrong trace. The project's `testEnvironment` still runs.
+   */
+  readonly trace?: string;
 }
 
 /** The subset of a Jest configuration this seam reads and rewrites. */
@@ -205,6 +218,8 @@ export const SELECTION_TRANSFORM = here('./jest-transform.js');
 export const SELECTION_GLOBALS = here('./jest-globals.cjs');
 export const SELECTION_SETUP = here('./jest-setup.cjs');
 export const SELECTION_REPORTER = here('./jest-reporter.js');
+/** The environment a configuration with a `trace` runs its own environment through. */
+export const TRACE_ENVIRONMENT = here('./jest-trace-environment.cjs');
 
 /**
  * Add source instrumentation, test-file attribution, and coverage persistence to
@@ -285,8 +300,13 @@ export function withJourneyCoverage(
   const root = repositoryRoot(rootDir);
   const inline = inlineProjects(config);
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));
-  const projects = inline?.map((project) =>
-    instrumented(project, root, projectRoot(project, rootDir), options.mode, declared));
+  const trace = options.trace === undefined ? undefined : configuredPath(options.trace, rootDir)[0];
+  if (options.trace !== undefined && trace === undefined) {
+    throw new Error(`trace ${JSON.stringify(options.trace)} is not a path: name the module that exports your tracing, as ./… or <rootDir>/…`);
+  }
+  const journeyProject = (project: JestConfig, at: string): JestConfig =>
+    traced(instrumented(project, root, at, options.mode, declared), at, trace);
+  const projects = inline?.map((project) => journeyProject(project, projectRoot(project, rootDir)));
   const reporter: JourneyReporterConfig = {
     root,
     journeyFile: resolve(rootDir, options.journeyFile),
@@ -297,10 +317,37 @@ export function withJourneyCoverage(
   };
 
   return {
-    ...(projects === undefined ? instrumented(config, root, rootDir, options.mode, declared) : config),
+    ...(projects === undefined ? journeyProject(config, rootDir) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
     reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter }]],
+  };
+}
+
+/**
+ * Run a project's environment through the one that requires the trace once
+ * per worker. The project's environment is resolved here as Jest resolves it —
+ * `node` when unset, `jest-environment-<name>` before `<name>` — and passed on
+ * as a file.
+ */
+function traced(config: JestConfig, rootDir: string, trace: string | undefined): JestConfig {
+  if (trace === undefined) return config;
+  const named = config.testEnvironment ?? 'node';
+  const [path] = configuredPath(named, rootDir);
+  const require = createRequire(resolve(rootDir, 'package.json'));
+  let environment = path;
+  if (environment === undefined) {
+    try {
+      environment = require.resolve(`jest-environment-${named}`);
+    } catch {
+      environment = require.resolve(named);
+    }
+  }
+  const options = (config['testEnvironmentOptions'] ?? {}) as Record<string, unknown>;
+  return {
+    ...config,
+    testEnvironment: TRACE_ENVIRONMENT,
+    testEnvironmentOptions: { ...options, varianceAuthority: { environment, trace } },
   };
 }
 

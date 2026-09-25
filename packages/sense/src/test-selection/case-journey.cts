@@ -9,7 +9,8 @@
  * the case, and written onto the case's own frame so the fold joins the two
  * after the run. Put it on the request yourself as the
  * `variance-authority-journey` cookie, or let the application's tracing carry
- * it with {@link carryJourneys}; nothing here touches a request.
+ * it: a module exporting `sentry(Sentry)` or `openTelemetry(api)`, named as
+ * `trace` to `withJourneyCoverage`. Nothing here touches a request.
  *
  * `undefined` outside a case, and in a run that does not record per case.
  * CommonJS so a test file reaches it from inside Jest's sandbox whatever it was
@@ -17,7 +18,6 @@
  */
 
 import journeyTrace = require('./journey-trace.cjs');
-import type { JourneyTrace } from './journey.js';
 
 /** Mirrors `CASE_SCOPE` in `cases.ts`, which a CommonJS file cannot import. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
@@ -27,7 +27,6 @@ const JOURNEY_COOKIE = 'variance-authority-journey';
 
 interface CaseScope {
   journey?: () => string | undefined;
-  carry?: (trace: JourneyTrace) => void;
 }
 
 const scope = (): CaseScope | undefined =>
@@ -35,27 +34,6 @@ const scope = (): CaseScope | undefined =>
 
 function caseJourney(): string | undefined {
   return scope()?.journey?.();
-}
-
-/**
- * Run every case from here on inside a trace whose id is its journey, so the
- * application's own tracing carries it across every fence it already crosses:
- *
- * ```js
- * // a `setupFilesAfterEnv` file, after the application's `Sentry.init`
- * const { carryJourneys, sentry } = require('@variance-authority/sense/case-journey');
- * carryJourneys(sentry(Sentry));
- * ```
- *
- * The head beyond the fence is handed the same SDK and asks it which trace is
- * running. False in a run that does not record per case, where there is no
- * journey to carry.
- */
-function carryJourneys(trace: JourneyTrace): boolean {
-  const carry = scope()?.carry;
-  if (carry === undefined) return false;
-  carry(trace);
-  return true;
 }
 
 /** The running case's journey as a `Cookie` pair, or `''` outside a case. */
@@ -67,7 +45,6 @@ function journeyCookie(): string {
 export = {
   caseJourney,
   journeyCookie,
-  carryJourneys,
   sentry: journeyTrace.sentry,
   openTelemetry: journeyTrace.openTelemetry,
   JOURNEY_COOKIE,

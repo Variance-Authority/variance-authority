@@ -21,12 +21,17 @@ export default withJourneyCoverage(
     cacheDirectory,
     testEnvironment: 'node',
     testMatch: ['<rootDir>/test/*.case.ts'],
-    // The application's tracing, initialized as it would be for any test, and
-    // told to carry each case's journey.
-    setupFilesAfterEnv: [`<rootDir>/${tracer}/case.cjs`],
     transform: {
       '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
     },
   },
-  { journeyFile, parts: [parts], heads: ['checkout', 'pricing'], preconditions: ['jest.config.mjs'] },
+  {
+    journeyFile,
+    parts: [parts],
+    heads: ['checkout', 'pricing'],
+    preconditions: ['jest.config.mjs'],
+    // The application's tracing, initialized once per worker as it would be
+    // for any test, and told to carry each case's journey.
+    trace: `./${tracer}/case.cjs`,
+  },
 );

@@ -237,27 +237,26 @@ describe('how a case settles', () => {
     expect(journals.journeyOf(journals.packJourney(journals.packCase('', '', ''), journey!))).toBe(journey);
   });
 
-  it('runs every case inside the trace it was told, whose id is the journey its frame names', () => {
-    const holder: Record<PropertyKey, unknown> = {};
-    const collector = collectors.scoped(holder, true);
-    const scope = holder[CASE_SCOPE] as Scope & {
-      journey(): string | undefined;
-      carry(trace: { name: string; carry: (journey: string, name: string, body: () => unknown) => unknown }): void;
-    };
+  it('runs every case inside the trace its realm was handed, whose id is the journey its frame names', () => {
     const carried: { journey: string; name: string }[] = [];
     let running: string | undefined;
-    scope.carry({
-      name: 'tracer',
-      carry: (journey, name, body) => {
-        carried.push({ journey, name });
-        running = journey;
-        try {
-          return body();
-        } finally {
-          running = undefined;
-        }
+    const holder: Record<PropertyKey, unknown> = {
+      [Symbol.for('variance-authority.test-selection.trace')]: {
+        name: 'tracer',
+        carry: (journey: string, name: string, body: () => unknown) => {
+          carried.push({ journey, name });
+          running = journey;
+          try {
+            return body();
+          } finally {
+            running = undefined;
+          }
+        },
+        current: () => running,
       },
-    });
+    };
+    const collector = collectors.scoped(holder, true);
+    const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
     let inside: string | undefined;
     // The case never asks for its journey: the trace is what carries it.
     expect(scope.enter(journals.packCase(FILE, 'quotes', 'quotes'), () => {

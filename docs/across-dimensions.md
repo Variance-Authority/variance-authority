@@ -90,18 +90,30 @@ because that is their whole job. Instead of putting a cookie on each request,
 you run each case inside a trace whose id is its journey, and every service
 asks its own SDK which trace is running. You hand Variance Authority the SDK
 instance your application initialized, so it reads the trace your tracing
-already carries and never parses a header for it. In a Jest
-`setupFilesAfterEnv` file, after your own `Sentry.init`:
+already carries and never parses a header for it. Write one module that
+initializes your tracing and exports it:
 
 ```js
+// test/trace.cjs
 const Sentry = require('@sentry/node');
-const { carryJourneys, sentry } = require('@variance-authority/sense/case-journey');
+const { sentry } = require('@variance-authority/sense/case-journey');
 
-carryJourneys(sentry(Sentry));
+Sentry.init({ dsn: process.env.SENTRY_DSN });
+module.exports = sentry(Sentry);
 ```
 
-With OpenTelemetry, pass the API your provider registered with:
-`carryJourneys(openTelemetry(require('@opentelemetry/api')))`. Each case then
+Then name it as `trace` to `withJourneyCoverage`:
+`withJourneyCoverage(config, { journeyFile, trace: './test/trace.cjs' })`. With
+OpenTelemetry, register your provider and instrumentation in that module and
+export `openTelemetry(require('@opentelemetry/api'))`.
+
+Jest requires the module once per worker, outside every test file's sandbox,
+and your `testEnvironment` still runs. It can't be a setup file. Setup files
+run again in each test file, and an SDK hooks `fetch` for the whole process, so
+a second initialization leaves the first file's hooks behind. The next file in
+that worker would then send the wrong trace.
+
+Each case then
 runs inside `Sentry.startSpan`, or under a sampled OpenTelemetry parent, whose
 trace id is its journey. Your `fetch` instrumentation propagates it like any
 other trace. The case's code and the services' request handling do not change.

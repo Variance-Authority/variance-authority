@@ -116,10 +116,15 @@ per execution through every hop, with no member to add: the trace id.
 **Where the application runs Sentry or OpenTelemetry, the journey is the trace
 id, and both sides are told it by the application's own SDK instance.**
 
-1. **The case starts the trace.** `carryJourneys(sentry(Sentry))` or
-   `carryJourneys(openTelemetry(api))` runs every case inside a trace whose id
-   is its journey (32 hex characters, which is why a minted journey is a UUID
-   with its dashes removed). The application's instrumentation propagates it.
+1. **The case starts the trace.** A module exporting `sentry(Sentry)` or
+   `openTelemetry(api)`, named as `trace` to `withJourneyCoverage`, runs every
+   case inside a trace whose id is its journey (32 hex characters, which is why
+   a minted journey is a UUID with its dashes removed). The application's
+   instrumentation propagates it. The module is required once per worker by a
+   Jest environment that wraps the project's own, never from a setup file. An
+   SDK hooks `fetch` through process-wide diagnostics channels, and one
+   initialized per test file left the first file's hooks sending its trace
+   from every later file in the worker.
 2. **The head asks, it does not parse.** `collectJourneys({ trace })` resolves
    a probe's journey as: the scope `enter` named, else `trace.current()`, else
    unattributed. A named journey outranks the trace. A build that installed the

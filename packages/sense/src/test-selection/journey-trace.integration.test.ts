@@ -21,13 +21,18 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe.each(['sentry', 'opentelemetry'])('a journey carried by %s', (tracer) => {
+describe.each([
+  ['sentry', []],
+  ['opentelemetry', []],
+  ['sentry', ['--runInBand']],
+  ['opentelemetry', ['--runInBand']],
+])('a journey carried by %s %j', (tracer, band) => {
   it('charges both services a case reached through the application tracing, with no cookie and no enter', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-trace-'));
     temporary.push(directory);
     const journeyFile = resolve(directory, 'journeys.bin');
     const parts = resolve(directory, 'parts');
-    await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false'], {
+    await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', ...band], {
       cwd: fixture,
       env: {
         ...process.env,

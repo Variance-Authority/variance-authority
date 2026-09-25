@@ -63,6 +63,9 @@ const AMBIENT = '';
 /** Where the runner half of the seam finds the scope; mirrors `CASE_SCOPE` in `cases.ts`. */
 const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
+/** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-trace-environment.cts`. */
+const TRACE = Symbol.for('variance-authority.test-selection.trace');
+
 /** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
 const ENTERED_EVALUATING = 0x80000001;
 
@@ -182,10 +185,11 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   // case asks, so a case that never crosses a fence carries nothing. A late
   // bucket under the same key is the same case and names the same journey.
   const journeys = new Map<string, string>();
-  // The trace a journey rides, once the test's own setup names one. Then every
-  // case runs inside a trace whose id is its journey, so the id is minted as
-  // the case starts rather than the first time the case asks.
-  let trace: JourneyTrace | undefined;
+  // The trace a journey rides, where the runner's environment put one in this
+  // realm: the application's tracing, initialized once for the worker. Then
+  // every case runs inside a trace whose id is its journey, so the id is minted
+  // as the case starts rather than the first time the case asks.
+  const trace = (holder as { [TRACE]?: JourneyTrace })[TRACE];
   const journeyOf = (key: string): string => {
     let id = journeys.get(key);
     if (id === undefined) {
@@ -307,10 +311,7 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
     return journeyOf(bucket.key);
   };
-  const carry = (by: JourneyTrace): void => {
-    trace = by;
-  };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, carry };
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

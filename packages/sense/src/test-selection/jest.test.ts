@@ -12,6 +12,7 @@ import {
   SELECTION_REPORTER,
   SELECTION_SETUP,
   SELECTION_TRANSFORM,
+  TRACE_ENVIRONMENT,
   withJourneyCoverage,
   withTestSelection,
 } from './jest.js';
@@ -60,6 +61,26 @@ describe('withJourneyCoverage for Jest', () => {
       'default',
       [SELECTION_REPORTER, { root: '/repo', journeyFile: '/repo/artifacts/shard-3.journeys.bin' }],
     ]);
+  });
+
+  it('runs the project environment through one that requires the trace once per worker', () => {
+    const rootDir = resolve(import.meta.dirname, '../..');
+    const configured = withJourneyCoverage(
+      { rootDir, testEnvironmentOptions: { customExportConditions: ['node'] } },
+      { journeyFile: 'journeys.bin', trace: '<rootDir>/test/sentry.cjs' },
+    );
+
+    expect(configured.testEnvironment).toBe(TRACE_ENVIRONMENT);
+    expect(configured.testEnvironmentOptions).toEqual({
+      customExportConditions: ['node'],
+      varianceAuthority: {
+        // Unset is Jest's `node`, resolved the way Jest resolves a name.
+        environment: expect.stringMatching(/jest-environment-node\/build\/index\.js$/),
+        trace: resolve(rootDir, 'test/sentry.cjs'),
+      },
+    });
+    expect(() => withJourneyCoverage({ rootDir }, { journeyFile: 'journeys.bin', trace: '@sentry/node' }))
+      .toThrow(/is not a path/);
   });
 });
 

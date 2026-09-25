@@ -400,19 +400,27 @@ same one. `caseJourney()` returns the bare id if you carry it some other way,
 such as trace baggage. Outside a case, both return nothing.
 
 If your application already runs Sentry or OpenTelemetry, the id is the trace
-id and your tracing carries it through every hop. Hand the SDK over once, in a
-`setupFilesAfterEnv` file after your own initialization, and leave the requests
-alone:
+id and your tracing carries it through every hop. Hand the SDK over from a
+module that initializes it and exports it, and leave the requests alone:
 
 ```js
+// test/trace.cjs
 const Sentry = require('@sentry/node');
-const { carryJourneys, sentry } = require('@variance-authority/sense/case-journey');
+const { sentry } = require('@variance-authority/sense/case-journey');
 
-carryJourneys(sentry(Sentry));
+Sentry.init({ dsn: process.env.SENTRY_DSN });
+module.exports = sentry(Sentry);
 ```
 
-With OpenTelemetry, pass the API your provider registered with:
-`carryJourneys(openTelemetry(require('@opentelemetry/api')))`. Each case then
+Name it as `trace: './test/trace.cjs'` to `withJourneyCoverage`. With
+OpenTelemetry, register your provider and export
+`openTelemetry(require('@opentelemetry/api'))`. Jest requires the module once
+per worker, outside every test file's sandbox, and your `testEnvironment`
+still runs. A setup file runs again in each test file. An SDK hooks `fetch` for
+the whole process, so a second initialization leaves the first file's hooks
+sending its trace from the next file's cases.
+
+Each case then
 runs inside a trace whose id is its journey, and the service is told the same
 SDK: `collectJourneys({ head: 'pricing', parts, trace: sentry(Sentry) })`. It
 asks the trace wherever a request did not name a journey.
