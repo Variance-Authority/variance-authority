@@ -8,3 +8,5 @@ A pull-request comment now groups subjects that have no baseline under one reaso
 `variance report --format html --embed-images` writes the report as one file with its images inside it, so it opens anywhere, including on a phone. On GitHub Actions, upload it with `actions/upload-artifact@v7` and `archive: false`, and the artifact link opens the page instead of downloading a zip.
 
 `variance comment --to-accept <text>` ends the comment with how a reviewer accepts in your repository. When `--run-url` is given, the comment links the report and no longer prints the `variance report --subject <id>` command, which needs the report on disk. The GitHub action takes `to-accept` and `report-page` inputs. `report-page` writes, uploads and links that page.
+
+In the HTML report, each subject's commands (`accept`, `again`, `alone`, `report --subject`) sit folded under **Commands for a checkout**, each with a line saying what it does. The mark on a subject whose inspection found nothing reads `no defects found`. On a narrow screen the header scrolls away instead of staying pinned.

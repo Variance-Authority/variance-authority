@@ -240,7 +240,7 @@ function regions(entry: ObservationRecord): string {
 function findings(entry: ObservationRecord): string {
   if (entry.findings === undefined) return '';
   if (entry.findings.length === 0) {
-    return '<p class="findings"><span class="mark ok" title="This render was inspected and no defect was found. Absent would mean nothing looked.">inspected</span></p>';
+    return '<p class="findings"><span class="mark ok" title="This render was inspected and no defect was found. Absent would mean nothing looked.">no defects found</span></p>';
   }
 
   const { arrived, rest, dated } = byArrival(entry.findings);
@@ -302,22 +302,29 @@ function row(finding: FindingRecord, dated: boolean): string {
 }
 
 /**
- * What to type next, ready to paste.
+ * What to type next, ready to paste, and folded away.
  *
- * The page's whole reason to exist is deciding, and every decision this tool
- * supports is a command. A reviewer who has to reconstruct the subject id by hand
- * is a reviewer who will do it wrong once. `again` before `alone` because reading
- * a subject twice is the cheaper question and it invalidates the other one:
+ * Every decision this tool supports is a command, and a reviewer who has to
+ * reconstruct the subject id by hand is a reviewer who will do it wrong once.
+ * But each one needs a checkout and a terminal, and this page is as often read
+ * on a phone from a pull request's link: four open buttons per subject were half
+ * of every card there, answering a question nobody holding a phone can act on.
+ * So they sit behind one line that says what they need, and each says what it
+ * does rather than naming the verb. `again` before `alone` because reading a
+ * subject twice is the cheaper question and it invalidates the other one:
  * something that will not read the same way twice has nothing for `alone` to
  * reproduce.
  */
 function commands(entry: CliObservationRecord): string {
   const id = entry.subject;
   const out = [
-    cmd(`variance accept ${id}`),
-    cmd(`variance again ${id}`, 'read twice'),
-    cmd(`variance alone ${id}`, 'read alone'),
-    cmd(`variance report --subject ${id}`),
+    cmd(`variance accept ${id}`, 'take this render as the baseline'),
+    cmd(`variance again ${id}`, 'render it twice: does it hold still?'),
+    cmd(`variance alone ${id}`, 'render it by itself: did a neighbour move it?'),
+    cmd(`variance report --subject ${id}`, 'this subject in the terminal'),
   ];
-  return `<div class="cmds">${out.join('')}</div>`;
+  return (
+    '<details class="cmds-fold"><summary>Commands for a checkout</summary>' +
+    `<div class="cmds">${out.join('')}</div></details>`
+  );
 }
