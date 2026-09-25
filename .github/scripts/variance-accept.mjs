@@ -99,14 +99,18 @@ async function carried() {
  * The newest completed `variance` check on a commit, or why there is none.
  *
  * Several runs can report on one commit — a push, a pull request, an accept —
- * and the newest one to finish is the current answer.
+ * and the newest one to finish is the current answer. A skipped one is no answer
+ * at all: the job did not run. The pull request's `closed` event and any label
+ * other than the accept label both start this workflow on the head commit and
+ * skip the job. On a merge that skipped run finishes seconds before this asks,
+ * and read as the answer it hid the acceptance it came after.
  */
 async function conclusion(commit) {
   const { check_runs: runs } = await request(
     'GET',
     `/commits/${commit}/check-runs?check_name=${encodeURIComponent(check)}&per_page=100`,
   );
-  const done = runs.filter((run) => run.completed_at !== null);
+  const done = runs.filter((run) => run.completed_at !== null && run.conclusion !== 'skipped');
   if (done.length === 0) return 'absent';
   done.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0));
   return done[0].conclusion ?? 'absent';
