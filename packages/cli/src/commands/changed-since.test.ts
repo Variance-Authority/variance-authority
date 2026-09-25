@@ -187,6 +187,22 @@ describe('what a diff touched, named the way the run names files', () => {
     expect(diff).toContain('+++ b/src/a.ts');
   });
 
+  it('reads a change back from the working tree on the lines the working tree numbers, still `a/` over `b/`', async () => {
+    // A record written after the change ran numbers the working tree, so the
+    // hunk a reader charges has to be read on that side; forward, `b = 3` would
+    // land on the base's line 2, which does not exist.
+    const root = mkdtempSync(join(tmpdir(), 'va-since-'));
+    repo(root);
+    commit(root, { 'src/a.ts': 'export const a = 1;\n' }, 'first');
+    writeFileSync(join(root, 'src/a.ts'), 'export const a = 2;\nexport const b = 3;\n');
+    writeFileSync(join(root, 'src/new.ts'), 'export const fresh = 1;\n');
+    process.chdir(root);
+
+    const diff = await diffSince('main', ['src'], undefined, { reverse: true });
+    expect(diff).toContain('--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,2 +1 @@\n-export const a = 2;\n-export const b = 3;\n');
+    expect(diff).toContain('--- a/src/new.ts\n+++ /dev/null\n@@ -1 +0,0 @@\n-export const fresh = 1;');
+  });
+
   it('shows a renamed file as the removal and the addition it is', async () => {
     // A rename with an edit would otherwise arrive as hunks under the new name
     // in the old file's coordinates; shown apart, the old name is charged whole

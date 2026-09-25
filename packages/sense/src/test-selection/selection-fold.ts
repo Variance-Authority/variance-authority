@@ -15,7 +15,7 @@ import { rm } from 'node:fs/promises';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
 import { commitOf } from './commit.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
 import {
   codeUnitOrder,
   crossingsOf,
@@ -40,7 +40,6 @@ import type { SelectionRun } from './selection-run.js';
 import { governingPreconditions } from './governing-config.js';
 import {
   seedTestCoverage,
-  writeCoverageBytes,
   type CoverageModule,
   type TestCoverage,
 } from './index.js';
@@ -140,7 +139,7 @@ export function foldRun(
     // lock, because a merge that landed while the numbering was still deciding
     // would describe modules the table had not agreed on yet.
     const merged = await withIndexLock(coverageFile, async (lock) => {
-      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+      await landRun(coverageFile, current, root);
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.
       await nameModules(

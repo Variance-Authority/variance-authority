@@ -27,7 +27,7 @@ import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
 import {
   codeUnitOrder,
   crossingsOf,
@@ -51,7 +51,6 @@ import {
 } from './jest.js';
 import {
   seedTestCoverage,
-  writeCoverageBytes,
   type CoveragePrecondition,
   type CoverageTest,
   type TestCoverage,
@@ -197,7 +196,7 @@ class JestCoverageReporter {
     // lock, because a merge that landed while the numbering was still deciding
     // would describe modules the table had not agreed on yet.
     const merged = await withIndexLock(coverageFile, async (lock) => {
-      await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+      await landRun(coverageFile, current, root);
       // Everything this run saw, numbered for the next one. A file first met
       // today was instrumented under its path; from here on it has a number.
       await nameModules(

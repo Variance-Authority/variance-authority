@@ -28,8 +28,10 @@ this repository, not one published to the Marketplace, so `uses:
 an image. [`docs/stabilization.md`](../../docs/stabilization.md) has both.
 
 The other two files here, [`check.yml`](check.yml) and
-[`release.yml`](release.yml), are this repository's own build and publish. They
-are not recipes and observe nothing.
+[`release.yml`](release.yml), are this repository's own build and publish, and
+neither is a recipe. `check.yml` also ends with `variance review` over the
+suite's own recording, and comments on the pull request under a marker of its
+own, so it never overwrites the gate's comment.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
 nightly, and the shards on demand only — sharding twelve subjects across three

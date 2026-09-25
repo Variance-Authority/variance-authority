@@ -98,6 +98,12 @@ export async function changedSince(
  * whatever drifted; that is wider than the truth, never narrower, because a line
  * the diff misplaces still lands in the module that was edited.
  *
+ * `reverse` reads the same change from the working tree back to `from`, so its
+ * old side is the working tree. A record written *after* the change ran is in
+ * those coordinates, and a hunk read the forward way would land on the lines
+ * the base numbered. Git writes the reversed prefixes the other way round;
+ * they are named so every reader of a diff here still sees `a/` over `b/`.
+ *
  * `undefined` rather than a throw. A repository that cannot produce a diff has
  * already refused the file list a moment earlier with a sentence naming the ref;
  * failing twice for one cause would replace that sentence with this one. And the
@@ -108,20 +114,22 @@ export async function diffSince(
   ref: string,
   roots: readonly string[] = [],
   from?: string,
+  options: { readonly reverse?: boolean } = {},
 ): Promise<string | undefined> {
   const run = promisify(execFile);
   const here = process.cwd();
   const repository = await topLevel(run, roots[0] === undefined ? here : join(here, roots[0]));
+  const side = options.reverse === true ? REVERSED : [];
 
   try {
-    const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
+    const { stdout } = await run('git', [...PLAIN, 'diff', ...NO_DECORATION, ...side, '--no-renames', from ?? (await mergeBase(run, ref, repository))], {
       cwd: repository,
       maxBuffer: 64 * 1024 * 1024,
     });
     // An untracked file has no diff of its own: it is shown as the addition it
     // is, so its every line is charged and the graph is asked who imports it.
     const added: string[] = [];
-    for (const file of await untrackedFiles(run, repository)) added.push(await diffOfNew(run, repository, file));
+    for (const file of await untrackedFiles(run, repository)) added.push(await diffOfNew(run, repository, file, side));
 
     return inCoordinates([stdout, ...added].join('\n'), here, repository);
   } catch {
@@ -143,6 +151,7 @@ type Run = (file: string, args: readonly string[], options: object) => Promise<{
  */
 const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
 const NO_DECORATION = ['--no-color', '--no-ext-diff'];
+const REVERSED = ['-R', '--src-prefix=b/', '--dst-prefix=a/'];
 
 /** Files a diff from `base` to the working tree names, one per record. */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
@@ -167,9 +176,9 @@ async function untrackedFiles(run: Run, repository: string): Promise<readonly st
 }
 
 /** The whole of a new file as one hunk of additions. `--no-index` exits 1 when the sides differ, which they do. */
-async function diffOfNew(run: Run, repository: string, file: string): Promise<string> {
+async function diffOfNew(run: Run, repository: string, file: string, side: readonly string[]): Promise<string> {
   try {
-    const { stdout } = await run('git', [...PLAIN, 'diff', '--no-index', ...NO_DECORATION, '--', '/dev/null', file], {
+    const { stdout } = await run('git', [...PLAIN, 'diff', '--no-index', ...NO_DECORATION, ...side, '--', '/dev/null', file], {
       cwd: repository,
       maxBuffer: 64 * 1024 * 1024,
     });

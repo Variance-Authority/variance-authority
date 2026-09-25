@@ -148,6 +148,7 @@ variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
+variance review  [--since <ref>] [--against <record>] [--out <dir>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -170,6 +171,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first |
+| `review` | says what a change did, after the suite ran it: the edits, the changed code no case covered, the cases added, and what changed outside any import |
 | `report` | re-reads what `run` wrote |
 | `adjudicate` | re-reads it against what you said you were doing |
 | `accept` | promotes a candidate image to baseline, by subject, by `--all`, or by `--shape` |
@@ -594,6 +596,98 @@ that commit is behind the merge base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
 names the moved regions' cases by the numbers of its case table.
+
+### Review: what a change did, for the person merging it
+
+`covering --since` lists every changed region. The person deciding whether to
+merge needs the counts first: which edits change nothing that runs, which new
+code no case covered, which code only a distant test covered, and what changed
+where no import shows it. `review` reads the recording the suite just wrote and
+answers that:
+
+```bash
+yarn test
+variance review --since origin/main
+```
+
+```text
+Changes since 3f9e21c07a44.
+
+2 changed regions in 1 file, 1 of them new.
+- 1 no case covered, 1 of them new.
+- 0 covered only by tests further than one import away.
+
+Edits:
+      1  top-level values
+      1  not a module
+
+Changed regions (new in brackets):
+      1 (0)  covered by a test that imports the file, or is the file
+      1 (1)  no case covered it
+
+Cases: 1 added, 0 removed, in 1 test file.
+- src/checkout/total.test.ts: + rounds
+
+Before any import: 1 changed file the tests declare as a precondition.
+- config.json: 1 of 1 test files
+
+Regions not covered by a test one import away:
+  src/checkout/total.ts:5-7 function round — no case covered it (new)
+```
+
+Each part comes from the party that owns the answer:
+
+- **Edits** reads each changed module from both of its texts: comments, types
+  and formatting change nothing that runs; otherwise the change is to function
+  bodies only, to top-level values, or to what the module loads. A changed
+  file that is not source, such as `config.json`, is counted as not a module.
+- **Changed regions** counts each changed function or branch by the tests that
+  covered it. When the only tests that ran a region are further than one import
+  from its file, a failure there points at code the test never names. A branch
+  inside an uncovered function is counted once, with the function;
+  `--format json` keeps every region.
+- **Cases** added and removed are read from the case index, per test file.
+- **Before any import** names changed files the test runner loads before any
+  test, such as its config, or declares in `preconditions`, and how many test
+  files depend on each. No import graph shows them.
+- Installed packages the lockfile changed, and workspace manifests whose entry
+  points changed, are listed last, because nothing in your own source shows
+  them either.
+
+The diff starts at the merge base with `<ref>`. Without `--since`, it starts at
+the last commit the suite ran at before this one. Every run writes that commit,
+with the test files it ran, to `coverage.runs.json` beside the recording, so
+after a `yarn test` on a branch, `variance review` alone answers for everything
+since the previous run. A retry or a second shard at the same commit keeps the
+same starting commit and adds its test files to the list.
+
+`--against <record>` is a case index recorded at the base, as in
+[What a change moved](#what-a-change-moved), and adds the regions whose cases
+changed. `--out <dir>` writes `review.json` and `review.md` beside what is
+printed. The markdown starts with a hidden marker line, so a pipeline finds its
+own pull request comment and edits it instead of posting another.
+
+In CI, restore the recording directory your base branch saved to the runner
+cache (`$RECORDING` below, the directory [the cache](../../docs/cache.md)
+describes), copy its case index aside before the suite runs, and review after
+it:
+
+```yaml
+- run: cp "$RECORDING/coverage.bin.cases.bin" "$RUNNER_TEMP/base.cases.bin"
+- run: yarn test
+- if: ${{ !cancelled() }}
+  run: |
+    npx variance index
+    npx variance review --since "$BASE" --against "$RUNNER_TEMP/base.cases.bin" \
+      --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
+```
+
+`variance index` comes first because the review asks the file graph which tests
+import each changed file, and under CI the graph is read from what `index`
+published, never built on demand. A region covered only by a test the published
+graph does not list, such as one added after `index` ran, is counted on its own
+line, because its distance was never measured; it is not counted as further
+than one import away.
 
 ### Watch: ask about a suite that has not finished
 

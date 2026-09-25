@@ -21,8 +21,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+# `pull-requests: write` is for the review comment and nothing else. A pull
+# request from a fork gets a read-only token whatever this says; the comment step
+# warns and continues there, and the review is still in the job summary and the
+# run's artifacts.
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: check-${{ github.ref }}
@@ -33,7 +38,12 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      # Every commit, because the review below diffs from a base it does not
+      # choose: the base tip on a pull request, and on `main` the commit the
+      # previous push left, which can be any number of commits back.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 24, and only 24, which is what `docker/linux-verify.sh` runs on.
       #
@@ -95,12 +105,122 @@ jobs:
         shell: bash
         run: yarn measure
 
+      # Where the suite keeps its recording, asked of `sense` rather than spelled
+      # here: the directory is a digest of the checkout's path under whatever
+      # `cacheRoot` resolves to, and the package is the one that knows both.
+      #
+      # And where this change starts. On a pull request the checkout is the merge
+      # of its head into the base, and the merge's first parent is the base tip,
+      # so the change is the pull request's own and not whatever `main` gained
+      # since it branched. On a push it is the commit the push replaced; a push
+      # with none, or a manual run, starts one commit back.
+      - name: locate the recording
+        id: recording
+        shell: bash
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          node --input-type=module -e "import { repositoryLayers } from '@variance-authority/sense/test-selection'; console.log('dir=' + repositoryLayers(process.cwd()).top)" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "base=$BEFORE" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=$(git rev-parse HEAD^1)" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The recording `main` saved at the base, or failing that the newest one
+      # it saved. Only `main` saves (below), so a pull request never reads
+      # another branch's run. `.run-*` is one run's scratch, which a finished run
+      # removes and a killed one leaves behind; it is excluded rather than
+      # carried forward.
+      - name: restore the recording
+        id: restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ steps.recording.outputs.dir }}
+            !${{ steps.recording.outputs.dir }}/.run-*
+          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ steps.recording.outputs.base }}
+          restore-keys: |
+            variance-${{ runner.os }}-${{ runner.arch }}-
+
+      # The suite below replaces the cases it runs, so the base's are copied
+      # aside first, and only when the restored recording was made at the base
+      # itself: a newer or older one would count as this change's cases that
+      # `main` gained or lost on its own.
+      - name: keep the base's cases
+        if: ${{ steps.restore.outputs.cache-hit == 'true' }}
+        shell: bash
+        env:
+          DIR: ${{ steps.recording.outputs.dir }}
+        run: |
+          if [ -f "$DIR/coverage.bin.cases.bin" ]; then
+            mkdir -p "$RUNNER_TEMP/variance-base"
+            cp "$DIR/coverage.bin.cases.bin" "$RUNNER_TEMP/variance-base/"
+          fi
+
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
-      # 2026-08-04 and now run in the step above.
+      # 2026-08-04 and now run in the step above. It records which case ran
+      # which region at this commit, which is what the review below reads.
       - name: test
+        id: test
         shell: bash
         run: yarn test
+
+      # What the change did, read from what the suite just recorded: the edits,
+      # the changed regions no case covered or only a distant test covered, the
+      # cases added and removed, and what changed before any import and beyond
+      # this repository's own code. It runs when the suite failed too: a red case
+      # still recorded what it ran, and the review is where a reviewer reads why.
+      #
+      # The source index is published first. Under CI a reader refuses to build
+      # it on demand, and the review asks it which tests import each changed file.
+      - name: review the change
+        id: review
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
+        shell: bash
+        env:
+          BASE: ${{ steps.recording.outputs.base }}
+        run: |
+          node packages/cli/dist/bin.js index
+          against=()
+          if [ -f "$RUNNER_TEMP/variance-base/coverage.bin.cases.bin" ]; then
+            against=(--against "$RUNNER_TEMP/variance-base/coverage.bin.cases.bin")
+          fi
+          node packages/cli/dist/bin.js review --since "$BASE" "${against[@]}" \
+            --out "$RUNNER_TEMP/variance-review" --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: keep the review
+        if: ${{ !cancelled() && steps.review.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: variance-review
+          path: ${{ runner.temp }}/variance-review/
+
+      # One comment, rewritten on every push, found by the marker the review
+      # writes on its first line. The marker is read from the file rather than
+      # spelled here, so the command stays the one place it is defined.
+      - name: tell the reviewer
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.review.outcome == 'success' }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          body="$RUNNER_TEMP/variance-review/review.md"
+          node .github/actions/variance/post-comment.mjs --body-file "$body" --marker "$(head -n 1 "$body")"
+
+      # Only `main` saves, under the commit it recorded, which is the key a pull
+      # request based on that commit restores. A red suite on `main` still saves:
+      # the next change is reviewed against what `main` ran, not against an older
+      # recording that no longer describes it.
+      - name: save the recording
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.test.outcome != 'skipped' }}
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ steps.recording.outputs.dir }}
+            !${{ steps.recording.outputs.dir }}/.run-*
+          key: variance-${{ runner.os }}-${{ runner.arch }}-${{ github.sha }}
 
       # ## What this job does not do, stated rather than discovered
       #

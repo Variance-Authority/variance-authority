@@ -75,6 +75,7 @@ back to the default, because you would not know where the recording went.
   test-selection/<repository>/
     coverage.bin                 which test ran which region of which module
     coverage.bin.cases.bin       the same, for each test case
+    coverage.runs.json           the runs at the current commit, and the commit before them
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     <label>/                     one record store per runner or plugin
@@ -124,6 +125,13 @@ written from, because `<repository>` is a digest of that path. With
 Without it, the path is `~/.cache/variance-authority`. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
 in the key.
+
+To review a pull request against its base, save the cache only from your main
+branch, and copy `coverage.bin.cases.bin` aside after the restore and before the
+suite runs, because the suite replaces the cases it runs. That copy is what
+`variance review --against` reads. A pull request that saved its own cache
+would restore it on its next push, and its review would compare the change with
+itself.
 
 ## Start cold
 

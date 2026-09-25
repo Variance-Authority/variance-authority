@@ -56,7 +56,7 @@ import {
 } from './observed.js';
 import { commitOf } from './commit.js';
 import { noteAnEmptyRecord } from './finished-files.js';
-import { layeredCoverage } from './format-layer.js';
+import { landRun } from './commit-runs.js';
 import { busyIndex, withIndexLock } from './index-lock.js';
 import {
   codeUnitOrder,
@@ -423,7 +423,7 @@ export async function recordExecution(
   // onto nothing. A no-op here and after the first run.
   await seedTestCoverage(coverageFile, root, options.cacheRoot);
   const merged = await withIndexLock(coverageFile, async (lock) => {
-    await writeCoverageBytes(coverageFile, await layeredCoverage(coverageFile, current, root));
+    await landRun(coverageFile, current, root);
     // Every module this run could identify, numbered for the next one. A file
     // first met today was instrumented under its path; from here on it has a
     // number, and the transform that emits it needs to consult nothing. Under

@@ -10,6 +10,7 @@ import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
+import { parseReviewArgs, type ParsedReview } from './review-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
@@ -103,7 +104,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedCovering | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare
+  | ParsedDistill | ParsedCovering | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -291,6 +292,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'ask': return parseAskArgs(flags, config);
 
     case 'distill': return parseDistill(flags);
+    case 'review': return parseReviewArgs(flags);
     case 'covering': return parseCoveringArgs(flags);
     case 'index': return parseIndexArgs(flags);
     case 'select': return parseSelectArgs(flags);

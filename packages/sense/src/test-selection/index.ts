@@ -79,10 +79,8 @@ export {
 export { distanceFromView, nearestFirst } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
 export type { SourceAudience, SourceAudienceTest, SourcePoint, SourceRegion };
-// The file list a selection will ask about, so a caller wiring `sourceAt` names
-// exactly the paths the selector will name and not a second parse of the same
-// diff that disagrees with this one at the edges — a rename, a mode change, a
-// binary file.
+// The file list a selection will ask about, so a caller wiring `sourceAt` names the
+// paths the selector names, not a second parse that disagrees at the edges.
 export { changedLines, type LineRange } from './diff-lines.js';
 // The other half of that wiring, for the ordinary case of a git checkout. It
 // ships because the check is opt-in: a caller that does not know to pass
@@ -110,15 +108,16 @@ export {
 } from './cache-layers.js';
 export { repositoryRoot } from './repository-root.js';
 // The write path's counterpart to `mergeCoverage`: the same fold, over the
-// columns of the file it is about to write over rather than over a model
-// somebody decoded first.
+// columns of the file it is about to write over, not over a decoded model.
 export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
 export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
-// Where the run that wrote the case index last is named, and what it replaced.
+export { testsGovernedBy } from './lookup.js';
+// The runs that wrote the case index and the snapshot, and what they were laid over.
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';
+export { commitRunsFile, landRun, readCommitRuns, type CommitRuns } from './commit-runs.js';
 export { caseMotion, type CaseMotion, type CaseMotionOptions, type MovedRegion, type RegionMotion, type RegionMotionKind, type TestFileMotion } from './case-motion.js';
 export type { CoverageShard };
 
