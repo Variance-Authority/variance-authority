@@ -103,6 +103,39 @@ permissions:
   pull-requests: write
   checks: read
 
+# Where a pull request's comment images live. One name, read by the job that
+# pushes them and by the job that deletes them, so changing it here cannot strand
+# a ref nothing will ever clean up. Empty on a push: there is no pull request, no
+# comment, and nothing to picture.
+#
+# Why `refs/variance/<head branch>`:
+#
+# - **Outside `refs/heads/`.** A clone fetches `refs/heads/*` and nothing else,
+#   so no developer's `git clone` or `git fetch` downloads a single pixel, and
+#   main's history never holds one. It is not in the branch list either, so it
+#   raises no "compare & pull request" banner and matches no branch protection
+#   rule or `on: push: branches` filter. `raw/<commit>` serves it all the same.
+# - **Named for the branch.** The branch is what the images describe and what a
+#   person recognises in `git ls-remote origin 'refs/variance/*'`. It lives in a
+#   namespace shaped exactly like `refs/heads/`, so any branch name is a valid
+#   name here, `feature/x` included, and two names collide here only when they
+#   would already collide as branches.
+# - **Not `refs/pull/`.** That namespace is GitHub's own and refuses a push.
+#
+# Two alternatives, each one line:
+#
+# - `refs/heads/${{ github.head_ref }}--variance` puts it in the branch list,
+#   beside the branch it pictures. Every clone then fetches it while the pull
+#   request is open.
+# - `refs/variance/pr/${{ github.event.pull_request.number }}` keys it by pull
+#   request, for a repository that proposes one branch into two bases at once;
+#   by branch, those two would overwrite each other's images.
+#
+# Whichever you choose, it holds one commit with no parent, replaced by every run
+# that finds a change, so nothing accumulates under it while it exists.
+env:
+  VARIANCE_IMAGE_REF: ${{ github.event_name == 'pull_request' && format('refs/variance/{0}', github.head_ref) || '' }}
+
 jobs:
   variance:
     # Labelling a pull request for any other reason starts this workflow too;
@@ -241,10 +274,10 @@ jobs:
           report-page: 'true'
 
           # The leading cause's before and after on the comment's first screen,
-          # served from a ref named for the branch it describes, and removed
-          # with it: see `images-cleanup` below. A pull request from a fork gets
-          # a read-only token, and its comment arrives without pictures.
-          image-ref: ${{ github.event_name == 'pull_request' && format('refs/variance/{0}', github.head_ref) || '' }}
+          # pushed to the ref named at the top of this file and removed by
+          # `images-cleanup` below. A pull request from a fork gets a read-only
+          # token, and its comment arrives without pictures.
+          image-ref: ${{ env.VARIANCE_IMAGE_REF }}
 
           # The step the comment cannot take for the reviewer, in this
           # repository's words. The label starts a run that accepts; see the
@@ -330,12 +363,12 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REF: variance/${{ github.head_ref }}
         run: |
-          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/$REF" --silent 2> err; then
-            echo "deleted refs/$REF"
+          # `git/` and the full name make the API's `git/refs/<name>` path.
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/${VARIANCE_IMAGE_REF}" --silent 2> err; then
+            echo "deleted $VARIANCE_IMAGE_REF"
           elif grep -qE 'HTTP (404|422)' err; then
-            echo "refs/$REF was never pushed; nothing to delete"
+            echo "$VARIANCE_IMAGE_REF was never pushed; nothing to delete"
           else
             cat err >&2
             exit 1
