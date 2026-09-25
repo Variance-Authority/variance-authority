@@ -383,8 +383,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
           answers = nativeFrontier(nativeOptions);
         }
       } catch {
-        // An acceleration is allowed to disappear and never to change the graph.
-        // The oracle remains the recovery path for an unavailable or mismatched addon.
+        // The per-file path below builds the same records, reading each module
+        // through the same addon, so a batch that failed is retried file by file.
       }
       if (answers !== undefined) {
         const accepting = performance.now();

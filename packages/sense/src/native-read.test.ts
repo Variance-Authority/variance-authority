@@ -1,99 +1,36 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import { indexSource } from '@variance-authority/core/attribute';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { memoryParseCache } from './cache.js';
-import { native, nativeAvailable, nativeFrontier, nativeGraph, type NativeReadBatch } from './native.js';
-import { MODULE_EXTENSIONS, readModule } from './read.js';
+import { native, nativeAvailable, nativeFrontier, nativeGraph } from './native.js';
+import { MODULE_EXTENSIONS } from './read.js';
 import { recordFor } from './record.js';
-import { parseWay } from './files.js';
 import { resolveTo, resolversFor } from './resolve.js';
 import { LARGEST_FILE } from './scan.js';
 import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
 import { requestOf } from './specifier.js';
 
 /**
- * The native reader and the JavaScript one, over the same bytes.
+ * The native scanner over this repository, against the resolver and record
+ * builder that still run in JavaScript.
  *
  * The corpus is this repository, which is the only corpus worth arguing with: a
  * fixture is a guess about what TypeScript looks like, and a few thousand real
- * files are not. Every tracked module is read both ways and the *specifiers and
- * their kinds* are compared — not the bindings, which the native side
- * deliberately does not build, and not the digests, which nothing here asks for.
- *
- * A disagreement is an edge the two implementations do not share, which is the
- * one failure mode that matters: an edge only one of them has is a file reported
- * that should not have been, or a file missed that should have been.
+ * files are not. A disagreement is an edge the two paths do not share: a file
+ * reported that should not have been, or a file missed that should have been.
  */
 
 const run = promisify(execFile);
 const available = nativeAvailable();
 const root = resolve(import.meta.dirname, '../../..');
 
-describe('the native reader against the JavaScript one', () => {
-  it.runIf(available)('agrees on every module in this repository', async () => {
-    const files = await modules();
-    expect(files.length).toBeGreaterThan(500);
-
-    const batch = native()!.readBatch(root, files);
-    const kinds = native()!.kinds();
-
-    const disagreed: unknown[] = [];
-    let at = 0;
-    for (const [index, file] of files.entries()) {
-      const answered = requestsOf(batch, kinds, index, at);
-      at += batch.counts[index]!;
-
-      const oracle = readModule(file, await readFile(join(root, file), 'utf8')).requests.map(
-        (request) => `${request.kind} ${request.value}`,
-      );
-
-      if (String(answered) !== String(oracle)) disagreed.push({ file, oracle, answered });
-    }
-
-    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
-  }, 120_000);
-
-  it.runIf(available)('returns the complete cacheable parse for every module', async () => {
-    const files = await modules();
-    const batch = native()!.readBatch(root, files);
-    const disagreed: unknown[] = [];
-
-    for (const [index, file] of files.entries()) {
-      const contents = await readFile(join(root, file), 'utf8');
-      const read = readModule(file, contents);
-      const declares = parseWay(file).declaring ? Object.keys(indexSource(file, contents)).sort() : [];
-      const oracle = {
-        requests: read.requests,
-        ...(read.exports === undefined ? {} : { exports: read.exports }),
-        ...(read.symbols === undefined ? {} : { symbols: read.symbols }),
-        harvested: true,
-        ...(declares.length === 0 ? {} : { declares }),
-        ...(read.mocks === undefined ? {} : { mocks: read.mocks }),
-        ...(read.unknown === undefined ? {} : { unknown: read.unknown }),
-      };
-      // `members` is the native reader's alone; see the todo below.
-      const { members: _, ...answered } = JSON.parse(batch.parses[index] ?? 'null') ?? {};
-      if (JSON.stringify(answered) !== JSON.stringify(oracle)) {
-        disagreed.push({ file, oracle, answered });
-      }
-    }
-
-    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
-  }, 120_000);
-
-  it.todo(
-    'the JavaScript reader records the names a file reads off a namespace import or an `import()`, ' +
-      'as the native reader does, so `ask uses` lists them on a machine the addon did not reach — ' +
-      'needs a member walk beside `readModule` in `read.ts`',
-  );
-
+describe('the native scanner over this repository', () => {
   it.runIf(available)('resolves every repository request the way the oracle does', async () => {
     const files = await modules();
     const batch = native()!.scanBatch(root, files);
@@ -221,16 +158,6 @@ describe('the native reader against the JavaScript one', () => {
     }
   });
 });
-
-/** One file's requests, as `<kind> <specifier>` in the order they were found. */
-function requestsOf(batch: NativeReadBatch, kinds: string[], index: number, at: number): string[] {
-  const held: string[] = [];
-  for (let step = 0; step < batch.counts[index]!; step += 1) {
-    held.push(`${kinds[batch.kinds[at + step]!]} ${batch.values[at + step]}`);
-  }
-
-  return held;
-}
 
 /** Every tracked module in this checkout, as repository-relative paths. */
 async function modules(): Promise<string[]> {

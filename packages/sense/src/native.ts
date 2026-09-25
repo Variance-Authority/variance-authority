@@ -1,12 +1,12 @@
 /**
  * The native scanner, when one arrived for this machine.
  *
- * It is an acceleration of the TypeScript scanner and never a replacement for
- * it: every answer it gives, the JavaScript path gives too, and the differential
- * tests are what say so. So a missing addon is not a degraded mode to warn
- * about — it is the implementation of record, running. That is what makes a
- * three-platform matrix a defensible thing to ship: a machine outside it is
- * slower and never wrong.
+ * It is the only module reader: [`readModule`](./read.ts) calls it for text
+ * already in hand, and the batch calls here read files off the disk. A machine
+ * the addon did not reach cannot read a module and says why, naming the
+ * refusal, rather than reading it some other way. The graph around the reader —
+ * resolution and the record — still has a JavaScript path, and the differential
+ * tests hold the two to one answer.
  *
  * Loading it is [`addon.ts`](./addon.ts), apart from everything here, because
  * the instrument loads it inside every test worker and the scanner's imports
@@ -133,6 +133,8 @@ export interface NativeScanner {
    * `native/build.mjs` takes when they are what failed to compile.
    */
   readLanguage(language: string, file: string, source: string): string | null;
+  /** One module's parse, as JSON, for source text already in hand. */
+  readSource(file: string, source: string): string;
   /**
    * What one change to a module does when the module loads, read from both
    * texts: `none`, `bodies`, `values` with the bindings whose values moved, or

@@ -124,9 +124,21 @@ struct ReexportGroup {
     line: u32,
 }
 
-/// The same `Parsed` value `read.ts` produces, from OXC's native module record.
+/// The dialect a source file is read in.
+///
+/// The extension alone leaves JSX off for `.js`, `.mjs` and `.cjs`, where most
+/// React components written in JavaScript live, and an element there is a parse
+/// error that leaves the file with no edges. Only those three are widened: `.ts`
+/// keeps its own dialect, because `<string>value` is a cast there.
+pub fn dialect(file: &str) -> Option<SourceType> {
+    let source_type = SourceType::from_path(file).ok()?;
+    let widened = [".js", ".mjs", ".cjs"].iter().any(|end| file.ends_with(end));
+    Some(if widened { source_type.with_jsx(true) } else { source_type })
+}
+
+/// One module's `Parsed` value, from OXC's native module record.
 pub fn read_module(file: &str, source: &str, allocator: &Allocator, symbols: bool) -> Read {
-    let source_type = SourceType::from_path(file).unwrap_or_else(|_| SourceType::tsx());
+    let source_type = dialect(file).unwrap_or_else(SourceType::tsx);
     let parsed = Parser::new(allocator, source, source_type).parse();
     let record = &parsed.module_record;
     let lines = Lines::new(source);

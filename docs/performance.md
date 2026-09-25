@@ -650,8 +650,10 @@ because a single sample is worth about that much either way.
 
 Every figure comes from a committed script, run against a clone of that
 checkout, all of them under `packages/sense/scripts`: `source-index.mjs` for the
-incremental, floor and git tables, `read-cost.mjs` for TypeScript against Rust,
-`read-width.mjs` for the width sweep, `scan-cost.mjs` for ripgrep.
+incremental, floor and git tables, `read-width.mjs` for the width sweep,
+`scan-cost.mjs` for ripgrep. The TypeScript figure is the module reader Sense
+replaced with the addon, timed against it on the same files before it was
+removed.
 
 Material UI is not a large repository, and none of the trees measured above
 are. What these rows come to on a checkout of a serious size — and what the

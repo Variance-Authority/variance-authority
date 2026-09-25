@@ -66,13 +66,10 @@
  * barrels are most of them.
  */
 
-import { parseSync } from 'oxc-parser';
 import type { EdgeKind } from '@variance-authority/core/relate';
-import { harvestDocs, harvestSymbols, type SourceSymbol, type TextSpan } from './harvest.js';
-import type { ImportDiff, Node } from './taint/index.js';
-import { mockDiff } from './taint/mocks.js';
-import { dependsIn } from './depends.js';
-import { optionsFor } from './transfer.js';
+import { native, nativeRefusal } from './addon.js';
+import type { SourceSymbol, TextSpan } from './harvest.js';
+import type { ImportDiff } from './taint/index.js';
 
 /**
  * The imported name of a default import, and the exported name of a default
@@ -243,246 +240,17 @@ export function linesOf(contents: string): (offset: number) => number {
 }
 
 /**
- * Static imports, re-exports, published names and literal dynamic imports.
- *
- * A type-only import is kept as its own kind rather than dropped. It cannot move
- * a pixel — every compiler erases it — and dropping it here would decide that for
- * every consumer, including the ones asking what a file rests on rather than what
- * a change could repaint.
- *
- * Type-only is the statement's keyword and never the sum of its names.
- * `import { type X } from './y'` loads `./y` under `verbatimModuleSyntax`, which
- * emits `import {} from './y'`, and loads nothing under the default elision.
- * Which one applies is in a `tsconfig` this cannot see, so the statement is a
- * runtime request and each binding still says it is a type.
+ * One module's requests, published names, symbols and mocks, read by the native
+ * addon (`native/src/read.rs`) from text the caller already holds. There is one
+ * module reader and it is the native one, so a machine the addon did not reach
+ * cannot read a module and says why rather than reading it some other way.
  */
 export function readModule(file: string, contents: string): Read {
-  let result;
-  try {
-    result = parseSync(file, contents, optionsFor(file, contents));
-  } catch (error) {
-    // Unnamed on purpose. What comes back from here is cached against the bytes
-    // and their dialect, so a message carrying a path would be handed to every
-    // other file holding the same content. The caller names the file it asked
-    // about ([`scan.ts`](./scan.ts)).
-    return { requests: [], unknown: `could not be parsed: ${messageOf(error)}` };
+  const addon = native();
+  if (addon === undefined) {
+    throw new Error(`sense: reading ${file} needs the native addon, which did not load: ${nativeRefusal()}`);
   }
-
-  const requests: Request[] = [];
-  const published: Export[] = [];
-  const record = result.module;
-  const lineAt = linesOf(contents);
-  const docs = harvestDocs(contents, result.comments);
-  const symbols = harvestSymbols(result.program, contents, docs);
-  const mocks = mockDiff(contents, () => result.program as unknown as Node);
-  // The record keeps typeness per name only, so each statement's keyword comes off
-  // the tree, keyed by the offset the record gives that statement.
-  const typed = new Set<number>();
-  for (const node of result.program.body) {
-    const kind =
-      node.type === 'ImportDeclaration' ? node.importKind : 'exportKind' in node ? node.exportKind : undefined;
-    if (kind === 'type') typed.add(node.start);
-  }
-
-  for (const entry of record.staticImports) {
-    const line = lineAt(entry.start);
-    const bindings = entry.entries.map(
-      (binding): Binding => ({
-        imported: importedName(binding.importName),
-        local: binding.localName.value,
-        type: binding.isType,
-        line,
-      }),
-    );
-
-    const kind = typed.has(entry.start) ? 'type' : 'imports';
-    requests.push({ value: entry.moduleRequest.value, kind, bindings, line });
-  }
-
-  // `export { a, b } from './x'` arrives as two entries naming one specifier.
-  // Grouping keeps it one request, so a barrel republishing fifty names is one
-  // edge rather than fifty, and the request is type-only when every statement
-  // naming it was written `export type`.
-  const republished = new Map<string, { bindings: Binding[]; type: boolean; line: number }>();
-
-  for (const entry of record.staticExports) {
-    const line = lineAt(entry.start);
-    for (const binding of entry.entries) {
-      const from = binding.moduleRequest?.value;
-      const exported = publishedName(binding.exportName);
-      const imported = sourceName(binding.importName);
-      const local = localName(binding.localName);
-      const doc = docs.get(entry.start);
-
-      published.push({
-        ...(exported === undefined ? {} : { exported }),
-        ...(local === undefined ? {} : { local }),
-        ...(from === undefined ? {} : { from }),
-        ...(imported === undefined ? {} : { imported }),
-        type: binding.isType,
-        line,
-        signature: { start: entry.start, end: entry.end },
-        ...(doc === undefined ? {} : { doc }),
-      });
-
-      if (from === undefined) continue;
-
-      // The request's own line is the first statement that wrote it. Statements
-      // arrive in source order, so the first one seen is the earliest.
-      const group = republished.get(from) ?? { bindings: [], type: true, line };
-      if (!typed.has(entry.start)) group.type = false;
-      // `export * from './x'` names nothing here, and a binding invented for it
-      // would claim a name this file never wrote.
-      if (exported !== undefined && imported !== undefined) {
-        group.bindings.push({ imported, local: exported, type: binding.isType, line });
-      }
-      republished.set(from, group);
-    }
-  }
-
-  for (const [value, group] of republished) {
-    requests.push({ value, kind: group.type ? 'type' : 'reexports', bindings: group.bindings, line: group.line });
-  }
-
-  const reasons: string[] = [];
-
-  for (const entry of record.dynamicImports) {
-    const literal = quoted(contents.slice(entry.moduleRequest.start, entry.moduleRequest.end));
-    if (literal === undefined) {
-      reasons.push('an `import()` whose specifier is not a literal');
-      continue;
-    }
-    // What a dynamic import binds is a property access on a promise, which is a
-    // question for the tree rather than the module record.
-    requests.push({ value: literal, kind: 'dynamic', bindings: [], line: lineAt(entry.start) });
-  }
-
-  for (const found of [readRequires(contents), dependsIn(result.comments, lineAt)]) {
-    requests.push(...found.requests);
-    if (found.unknown !== undefined) reasons.push(found.unknown);
-  }
-
-  // Errors are recoverable in `oxc` — a result always comes back — so the record
-  // is a *partial* answer rather than an absent one, which is the case this
-  // whole file exists to refuse to round down.
-  if (result.errors.length > 0) {
-    reasons.push(`${result.errors.length} parse error(s): ${result.errors[0]?.message ?? ''}`);
-  }
-
-  return {
-    requests,
-    ...(published.length > 0 ? { exports: published } : {}),
-    ...(symbols.length > 0 ? { symbols } : {}),
-    ...(mocks === undefined ? {} : { mocks }),
-    ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
-  };
-}
-
-/**
- * Literal `require` calls, and whether any call was not one.
- *
- * The module record cannot see `require`, so this is a text scan, and it is
- * written as a *count* comparison rather than as a parse: every `require(` is
- * counted, then every `require('literal')`, and a difference means at least one
- * call takes a value this cannot follow. The file is then unknown, and the
- * reason says which call.
- *
- * Both failure modes of a text scan are cheap here. A `require(` inside a
- * comment inflates the total and marks the file unknown over a call that is not
- * there, which costs one line in a report; a literal matched inside a string
- * adds an edge to a file that may not exist, and an edge to nothing reaches
- * nothing.
- *
- * What a `require` binds is a destructuring on the left of an `=`, which the
- * module record never saw and this does not parse for, so the request binds no
- * names rather than guessed ones.
- */
-function readRequires(contents: string): Read {
-  const calls = [...contents.matchAll(REQUIRE_CALL)].length;
-  if (calls === 0) return { requests: [] };
-
-  const lineAt = linesOf(contents);
-  const literals = [...contents.matchAll(REQUIRE_LITERAL)];
-  const requests = literals.map(
-    (match): Request => ({
-      value: match[1] ?? match[2]!,
-      kind: 'imports',
-      bindings: [],
-      line: lineAt(match.index),
-    }),
-  );
-
-  return {
-    requests,
-    ...(literals.length < calls
-      ? { unknown: `${calls - literals.length} \`require()\` call(s) with a specifier this cannot read` }
-      : {}),
-  };
-}
-
-const REQUIRE_CALL = /\brequire\s*\(/g;
-const REQUIRE_LITERAL = /\brequire\s*\(\s*(?:'([^']*)'|"([^"]*)")\s*\)/g;
-
-/**
- * The name an import binding refers to in the module it came from.
- *
- * Taken structurally rather than through `oxc`'s `const enum`, which cannot be
- * imported as a value under this build's module settings. The kinds are strings.
- */
-function importedName(name: Named): string {
-  if (name.kind === 'Default') return DEFAULT_NAME;
-  if (name.kind === 'NamespaceObject') return NAMESPACE_NAME;
-
-  return name.name ?? DEFAULT_NAME;
-}
-
-/** The name a file publishes under, or `undefined` for `export * from './x'`. */
-function publishedName(name: Named): string | undefined {
-  if (name.kind === 'Default') return DEFAULT_NAME;
-  if (name.kind === 'None') return undefined;
-
-  return name.name ?? undefined;
-}
-
-/** The name the source module publishes it under, when there is a source. */
-function sourceName(name: Named): string | undefined {
-  if (name.kind === 'All' || name.kind === 'AllButDefault') return NAMESPACE_NAME;
-  if (name.kind === 'None') return undefined;
-
-  return name.name ?? undefined;
-}
-
-/**
- * The declaration behind an export, when the value is locally accessible.
- *
- * `export default function () {}` has no local name — there is nothing in the
- * module to refer to — and that is `undefined` rather than an invented one.
- */
-function localName(name: Named): string | undefined {
-  if (name.kind === 'Default') return DEFAULT_NAME;
-  if (name.kind === 'None') return undefined;
-
-  return name.name ?? undefined;
-}
-
-/** The shape every name in the module record shares. */
-interface Named {
-  readonly kind: string;
-  readonly name: string | null;
-}
-
-/** The contents of a quoted literal, or `undefined` when it was not one. */
-function quoted(text: string): string | undefined {
-  const trimmed = text.trim();
-  const first = trimmed[0];
-  if (trimmed.length < 2 || (first !== "'" && first !== '"')) return undefined;
-  if (trimmed[trimmed.length - 1] !== first) return undefined;
-
-  const value = trimmed.slice(1, -1);
-  // A specifier that is a template with a hole is quoted and still not a
-  // constant. `import(`./${name}`)` is exactly the shape that must mark its
-  // file unknown.
-  return value.includes('${') ? undefined : value;
+  return JSON.parse(addon.readSource(file, contents)) as Read;
 }
 
 /**
@@ -491,8 +259,4 @@ function quoted(text: string): string | undefined {
  */
 export function isExternal(value: string): boolean {
   return ['data:', 'http:', 'https:', '//', '#'].some((prefix) => value.startsWith(prefix));
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

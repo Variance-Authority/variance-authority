@@ -35,8 +35,7 @@ use oxc_syntax::scope::ScopeFlags;
 /// The program, erased and optionally emptied, or nothing when the parser
 /// reported any error: a change is read only from two texts that both parse.
 pub fn parse<'a>(allocator: &'a Allocator, file: &str, text: &'a str, bodies: bool) -> Option<Program<'a>> {
-    // The JavaScript parser falls back the same way for an extension it does not know.
-    let source_type = SourceType::from_path(file).unwrap_or_default();
+    let source_type = crate::read::dialect(file).unwrap_or_default();
     let options = ParseOptions { preserve_parens: false, ..ParseOptions::default() };
     let parsed = Parser::new(allocator, text, source_type).with_options(options).parse();
     if parsed.panicked || !parsed.diagnostics.is_empty() {

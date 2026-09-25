@@ -58,6 +58,14 @@ mod tree;
 
 pub use seed::seed_files;
 
+/// One module's parse, as JSON: the value `readBatch` answers for a file on
+/// disk, for source text the caller already holds.
+#[napi(catch_unwind)]
+pub fn read_source(file: String, source: String) -> String {
+    let read = read::read_module(&file, &source, &oxc_allocator::Allocator::default(), true);
+    serde_json::to_string(&read).unwrap_or_default()
+}
+
 /// What one file of a tree-sitter language asks for and publishes, as JSON.
 ///
 /// The AST does not cross — a `Read` is a handful of specifiers and names, which
