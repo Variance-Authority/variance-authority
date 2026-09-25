@@ -1,5 +1,94 @@
 # @variance-authority/sense
 
+## 0.9.0
+
+### Minor Changes
+
+- be8f5fa: `variance covering --since <ref> --against <record>` says which regions a change's tests moved
+
+  Two case indexes are compared region by region, and each region whose cases
+  moved is lost, hidden, thinned or gained. Each test file says how many regions
+  it now enters and no longer enters. The files the base branch changed after the
+  base was recorded are left out and named. `--cases last` makes the same
+  comparison against the cases the last run replaced. `--format refs` names each
+  moved region's cases by number. `caseMotion` in
+  `@variance-authority/sense/test-selection` is the comparison, and each region
+  carries the cases at both ends as the records hold them.
+- 2f0b151: A changed JavaScript or TypeScript file whose edit is a comment, a type or formatting no longer seeds the file-graph walk. `variance reach` leaves it out of the list and names it on stderr, and refuses a diff made only of such files. `variance run --since` reaches no component through it and no longer runs the whole suite over it. `runsAsBefore` in `@variance-authority/sense/test-selection` reads, for each file of a diff, which of its exports changed since a commit; an empty list is a file that runs what it ran.
+- 9b0c94d: `variance covering --cases last|<test file>` answers from the chosen cases instead of the whole suite
+
+  `last` is the run that wrote the case index last. A test file is every case the
+  index holds for it. The answer starts by saying which cases it was read from,
+  and `--format json` names them under `scope`. `caseLayerFiles` in `@variance-authority/sense/test-selection` names
+  the files beside the index that record the last run and what that run replaced.
+- 0b81e06: Sense has one module reader now: the native addon. The JavaScript reader it used without the addon is gone. On a machine where the addon does not load, reading a module fails with the reason instead of falling back to a slower second copy. That copy had already fallen behind: it never recorded the names read off `import()` or a namespace.
+
+  A React component in a `.js`, `.mjs` or `.cjs` file now reads with its JSX, both in the file graph and when test selection reads a change. The addon used to leave JSX off for those extensions. A scan without the addon hid the problem, and on a machine with the addon those files got no edges, and a change to one was charged as a file that does not parse.
+- 2958674: `variance reach` and `variance run --since` walk from the exports a JavaScript or TypeScript edit changed, not from the whole file. A file that imports only exports the edit left as they were is not reached, and a barrel passes each changed export on under the name it republishes it as. Stderr names the changed exports of each file, and `variance reach --format json` lists them under `exports`. A namespace import, a `require`, a dynamic `import()` and an import that binds nothing are still walked whole. `affectedBy` in `@variance-authority/core/relate` takes `moved`, the exports each seed changed, and `relationsOfFiles` takes `uses`, the names each import binds; `readPublishedSources` in `@variance-authority/sense` returns that lookup, read from the parses the index already stores.
+
+### Patch Changes
+
+- fce1fd6: `variance covering --format refs` numbers each case once and names every range's cases by number
+
+  The table at the end lists each test file once with its cases under it, and a
+  range reads `1-5 walked: 1,3-11,2*`, where `*` marks a case that was inside only
+  while the module evaluated. The text answer names each test file once, prints
+  a case's id only when it is not the file and the name, and a range walked by
+  cases already listed points at the range that listed them.
+- f7e5b66: `variance select --execution` reads each changed module from both of its texts before charging its lines, as a selection from the snapshot already does. A comment added above a function sits between two declarations, in the region the module ran as it loaded, and it was charged to every file that imports the module: one comment in a widely imported file selected thousands of test files where the runtime change beside it selected six. The old text is the blob the patch names. A change that proves to run nothing now charges nothing, and one that leaves what the module does as it loads charges only the functions its lines fall in. A patch without `index` lines is charged by its lines, as before, and `select` prints each file's reading.
+- f529451: A Vitest run started with `--reporter` records
+
+  A command-line `--reporter` replaces the configured reporters, and an editor that runs a test from the gutter passes its own. `withTestSelection` now folds such a run when its server closes, from what its case runner wrote, so the record and the case index are written as for any other run. A project with its own `runner` is told the run recorded nothing, instead of getting no record and no message.
+- c1fdf46: A `pnpm-lock.yaml` that aliases a package to a tarball URL is read. pnpm writes that key unquoted, `zod443@https://registry.npmjs.org/zod/-/zod-4.4.3.tgz:`, and the reader split it at the first colon, refused the file, and `variance select` ran every test on any commit that changed the lockfile. A plain key now ends where YAML ends it, at the first colon followed by a space or the end of the line.
+- aa57273: `ask uses` finds a name your code reads off `import()` or `import * as`. It used to answer that nothing imported `narrowByJourneys` when `select-command.ts` read it as `selection.narrowByJourneys` after `const selection = await import(…)`. Such a site now names the line that loads the module, and an `import()` site says the module loads when that call runs, not when the file loads.
+
+  The parse carries these reads as `members`, apart from each request's `bindings`, so test selection reads exactly what it read before. The source index moves to version 12 and the help snapshot to version 3, and each is rebuilt on the first question after the upgrade.
+- 0580380: A subpath import such as `import { x } from '#polyfill'` is an edge in the file graph. Both scanners cut every specifier at its first `#`, which is right for a stylesheet's `url(#gradient)` and left a subpath import empty, so a change to the file a `package.json` `imports` map names reached none of its importers. A leading `#` in a module specifier now resolves through the `imports` field, a stylesheet fragment stays external, and `select --execution` can resolve a `#` import a diff added to ask whether its package declares `sideEffects`.
+- b04ad08: A type in a decorated class is now read as a load-time change. Under `emitDecoratorMetadata`, TypeScript writes the types of a decorated class's constructor parameters and decorated members into metadata calls that run when the class is defined, and a dependency-injection container reads them. Changing the type of an injected service used to read as `none` and select nothing. A changed parameter decorator such as `@Inject(TOKEN)`, which also runs when the class is defined, used to read as a function body. Types inside method bodies, and in classes with no decorator, still select nothing.
+- dea658f: A JSX pragma comment that is added, removed or given another argument (`@jsx`, `@jsxFrag`, `@jsxImportSource`, `@jsxRuntime`) is now read as a load-time change, so it selects every test that loaded the file. It used to read as `none` and select nothing, although it decides what every element compiles to and which runtime the module imports.
+- f7d90dc: A project's configuration governs its own tests. In a Vitest run with `projects`, a project's config file, the local modules it imports and its setup files are preconditions of that project's tests only, and the setup files are resolved against the project's own root, so one named relative to it is declared rather than missed. Jest reads each test's setup and environment files from the project it ran under, and Rstest keeps a named project's setup files for its own tests. The configuration that lists the projects stays a precondition of every test, and a test whose project the runner does not name rests on every project's files.
+- 28c7086: `@variance-authority/sense/runner` records a suite from a runner this package has no seam for. `startRecording` opens the run and folds it, `registerRecording` instruments ES modules, CommonJS and Node-stripped TypeScript through `module.registerHooks` (or `instrumentModule` from the runner's own transform), and `observeTestFile` brackets each test file and case. Processes a runner forks join the recording through `VARIANCE_AUTHORITY_RECORDING`, and the snapshot is the one `variance select` already reads.
+- 47e6664: What the CLI, the MCP tools, the servers and the GitHub action print is shorter. An explanation that repeated on every row now prints once, as a header or on the first line that needs it. The reasoning behind an answer stays in the source and is no longer printed. The source snapshot footer is one line, `Snapshot <time>.`
+
+  A changed file in a language the verdict does not read, such as Rust or Python, now reads as `unread (not a JavaScript or TypeScript module)` instead of as a file that does not parse. It is charged the same way.
+- 990ac1a: The agent skills name the commands that ship
+
+  The test-selection skill no longer says there is no command line: it routes
+  to `variance select`, `reach`, `index` and `covering`. The CLI skill lists
+  every command that reads no config, and covers `covering --hops`, `--cases`,
+  the per-file rows, `gained` motion and the `unrecorded` refusal. The workspace
+  skill names `variance ask` as the same six questions.
+- 93d53c8: One `variance-authority` skill ships in `@variance-authority/cli`, with a reference file per question, and `variance doctor` says whether your agent can find it
+
+  The skill lives at `skills/variance-authority/`, where skill finders that read
+  `skills/<name>/SKILL.md` see it. Its `SKILL.md` routes each question to one file
+  under `references/`: reading a run, locating a subject, a live run, producers,
+  covering, test selection and its wiring, distillation, the workspace API and
+  MCP. It now also holds the test-selection guidance that shipped in
+  `@variance-authority/sense` and the workspace-API guidance that shipped in
+  `@variance-authority/help`; neither package ships a skill any more.
+
+  `variance doctor` looks in `.agents/skills` and `.claude/skills`, in the project
+  and your home directory, and reports each shipped skill as a link, a matching
+  copy or a stale copy. For a skill it cannot find, it prints the `ln -s` that
+  would serve it. It writes nothing, and the finding never changes the exit code.
+- 9b0c94d: A run of one test file no longer erases every other case from the case index
+
+  `cases.bin` held the last run's cases and nothing else. After `vitest run
+  src/cart.test.ts`, `covering` and both editors marked every region that file did
+  not reach as unwalked, even though the rest of the suite reaches it. The index is
+  now updated the way the snapshot is. A test file that ran to the end has its
+  cases replaced. A file that did not finish keeps its old cases, and the ones that
+  ran again are updated. A test file that is gone from the checkout loses its
+  cases. Every other case is kept. Kept cases are matched to the regions recorded
+  now by name, structural path and kind. A region that no longer matches drops
+  them instead of moving them to a guessed place.
+
+  Two files now sit beside the index. `cases.last.json` names the run that wrote it
+  last: its commit, time, test files and cases. `cases.before.bin` holds what the
+  index had for those test files before the run replaced them.
+- 743385a: A file resolves under the `customConditions` of the `tsconfig` that governs it, added to `source`, `import`, `require` and `default`. A workspace whose packages export source under a condition of their own, such as `"@tanstack/custom-condition": "./src/index.ts"` beside an `import` that names built output the checkout does not hold, now has edges into that source, so `variance reach` walks from a changed package into the packages that import it. `extends` is followed the way TypeScript follows it: a config that sets the option replaces what it inherits, and `null` or `[]` clears it. A named `tsconfig` supplies its own conditions, and `conditionNames` you pass stay the whole set. Stored records are read again once, because the conditions a record was resolved under are part of its key.
+
 ## 0.8.1
 
 ### Patch Changes
