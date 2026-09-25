@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
@@ -38,11 +38,15 @@ const everyLoader = tests('clamp', 'count', 'fill', 'label', 'render', 'slide', 
 
 let directory: string;
 let coverageFile: string;
+/** The fixture as git holds it: the names a copy carries, never what the directory holds right now. */
+let committed: string[];
 const recorded = new Map<string, string>();
 
 beforeAll(async () => {
   directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-usage-'));
   coverageFile = resolve(directory, 'coverage.bin');
+  const { stdout } = await execute('git', ['ls-files', '-z', '--', within], { cwd: repository });
+  committed = stdout.split('\0').filter(Boolean);
   await execute(process.execPath, [vitest, 'run', '--config', resolve(fixture, 'vitest.config.ts')], {
     cwd: fixture,
     env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, XDG_CACHE_HOME: directory },
@@ -61,13 +65,21 @@ const sourceAt = (file: string): string | undefined => {
 };
 
 /**
- * The tree a change makes, and its graph: the fixture copied under the same
- * repository-relative names, with `changes` written over it. `null` removes a
- * file, which is how an edge the scan never saw looks from here.
+ * The tree a change makes, and its graph: the fixture's committed files copied
+ * under the same repository-relative names, with `changes` written over it.
+ * `null` removes a file, which is how an edge the scan never saw looks from here.
+ *
+ * The list is git's, not the directory's: `values.integration.test.ts` runs
+ * Vitest in the same fixture, and Vite writes and deletes a
+ * `vitest.config.ts.timestamp-*.mjs` beside the config while it loads — a walk of
+ * the live directory lists that file and then fails to open it.
  */
 async function treeAfter(changes: Record<string, string | null>): Promise<{ root: string; relations: Relations }> {
   const root = await mkdtemp(resolve(directory, 'tree-'));
-  cpSync(fixture, resolve(root, within), { recursive: true, filter: (path) => !path.includes('node_modules') });
+  for (const file of committed) {
+    mkdirSync(dirname(resolve(root, file)), { recursive: true });
+    copyFileSync(resolve(repository, file), resolve(root, file));
+  }
   for (const [file, text] of Object.entries(changes)) {
     if (text === null) rmSync(resolve(root, file));
     else writeFileSync(resolve(root, file), text);
@@ -117,6 +129,16 @@ describe('a change travels by use', () => {
   it('holds the premise: every test the fixture has loaded a file the next cases reach', () => {
     expect(existsSync(resolve(repository, wrap))).toBe(false);
     expect(recorded.get(slider)).toContain('return value > max ? max : value;');
+  });
+
+  it('copies the fixture as committed, so a file Vite writes beside its config never enters the tree', async () => {
+    const { root } = await treeAfter({});
+    const copied = readdirSync(resolve(root, within), { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(root, resolve(entry.parentPath, entry.name)))
+      .sort();
+    expect(committed).toContain(named('vitest.config.ts'));
+    expect(copied).toEqual([...committed].sort());
   });
 
   it('selects nothing for a new module nothing imports', async () => {

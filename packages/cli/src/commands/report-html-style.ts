@@ -90,6 +90,14 @@ color:var(--quiet);display:flex;align-items:center;gap:.35rem}
 main{display:grid;grid-template-columns:19rem minmax(0,1fr);align-items:start}
 @media (max-width:900px){main{grid-template-columns:1fr}.rail{position:static!important;height:auto!important}
 header{position:static}}
+/* A phone shows each subject and its images; .narrow-note names what it leaves out. */
+.narrow-note{display:none}
+@media (max-width:700px){
+.narrow-note{display:block;margin:0 0 1rem;font-size:12px;color:var(--warm)}
+header .chips,.rail,#Changes,#Presentation-impact,#Composition,#Across-runs,#Settled,#Not-observed,
+#Coverage,table.regions,.cmds-fold,.modes kbd{display:none!important}
+.pane{padding:1rem 1rem 3rem}
+.subject .top{flex-wrap:wrap}.subject .id{flex:1 1 calc(100% - 1.5rem);overflow-wrap:anywhere}}
 .rail{position:sticky;top:5.6rem;height:calc(100vh - 5.6rem);overflow:auto;padding:1rem .75rem 3rem;
 border-right:1px solid var(--hairline)}
 .rail h2{margin:1.25rem 0 .4rem;font-size:10px;letter-spacing:.18em;text-transform:uppercase;

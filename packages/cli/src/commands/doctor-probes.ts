@@ -1,6 +1,7 @@
 import { access, readdir, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
+import { digestOfFileName, type Digest } from '@variance-authority/core/format';
 import type { Renderer } from '@variance-authority/raster';
 import type { BrowserEngine, Config } from '../config.js';
 import { renderCacheRoot } from './resources.js';
@@ -35,7 +36,7 @@ export interface DoctorProbes {
    * baselines — and a doctor that is wrong in the direction of "fine" is worse
    * than no doctor.
    */
-  partitions(root: string): Promise<readonly { identity: string; baselines: number }[]>;
+  partitions(root: string): Promise<readonly PartitionReading[]>;
 
   /**
    * This machine's render cache: where it is, and what each identity holds.
@@ -48,6 +49,20 @@ export interface DoctorProbes {
    * still two different problems.
    */
   renderCache(): Promise<RenderCacheReading>;
+}
+
+/** One machine's baselines under a root, summed over every directory named for it. */
+export interface PartitionReading {
+  readonly identity: Digest;
+  readonly baselines: number;
+  /**
+   * How many of them sit in a directory named with the raw `v1:` digest.
+   *
+   * They still compare — the store reads that name as a fallback — but a colon
+   * is a name NTFS refuses and `actions/upload-artifact` will not carry, so they
+   * are counted to be said. Absent when there are none.
+   */
+  readonly colonSpelled?: number;
 }
 
 /** What a walk of the render cache found, per identity and in total. */
@@ -95,13 +110,17 @@ export function machineProbes(config: Config): DoctorProbes {
     },
     renderCache: async () => readRenderCache(renderCacheRoot(config)),
     partitions: async (root) => {
-      const found = new Map<string, number>();
+      const found = new Map<Digest, { baselines: number; colonSpelled: number }>();
       // A root that cannot be listed is reported by `exists` in the same finding.
       // Two ways to say "there is nothing here" would let the two disagree, and
       // the one with the better sentence should win.
       await collect(root, found);
       return [...found]
-        .map(([identity, baselines]) => ({ identity, baselines }))
+        .map(([identity, { baselines, colonSpelled }]) => ({
+          identity,
+          baselines,
+          ...(colonSpelled === 0 ? {} : { colonSpelled }),
+        }))
         .sort((left, right) => right.baselines - left.baselines);
     },
   };
@@ -122,7 +141,8 @@ async function readRenderCache(root: string): Promise<RenderCacheReading> {
   const identities: { identity: string; entries: number; bytes: number }[] = [];
 
   for (const name of await orNone(root)) {
-    if (!IDENTITY_DIRECTORY.test(name)) continue;
+    const identity = digestOfFileName(name);
+    if (identity === undefined) continue;
     const directory = join(root, name, 'by-document');
     let entries = 0;
     let bytes = 0;
@@ -142,7 +162,7 @@ async function readRenderCache(root: string): Promise<RenderCacheReading> {
       }
     }
 
-    if (entries > 0 || bytes > 0) identities.push({ identity: name, entries, bytes });
+    if (entries > 0 || bytes > 0) identities.push({ identity, entries, bytes });
   }
 
   identities.sort((left, right) => right.bytes - left.bytes);
@@ -161,9 +181,15 @@ async function readRenderCache(root: string): Promise<RenderCacheReading> {
  * partition however many component directories it is spread across — a `beside`
  * root with forty components has forty directories named for the same digest,
  * and reporting forty machines would be the opposite of the sentence this probe
- * exists to produce.
+ * exists to produce. For the same reason both spellings of a digest are one
+ * identity: `digestOfFileName` reads either, and a directory that spells no
+ * digest is descended into rather than counted, so `by-document` is never a
+ * machine.
  */
-async function collect(directory: string, found: Map<string, number>): Promise<void> {
+async function collect(
+  directory: string,
+  found: Map<Digest, { baselines: number; colonSpelled: number }>,
+): Promise<void> {
   let entries: Dirent[];
   try {
     entries = await readdir(directory, { withFileTypes: true });
@@ -174,23 +200,18 @@ async function collect(directory: string, found: Map<string, number>): Promise<v
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const path = join(directory, entry.name);
-    if (IDENTITY_DIRECTORY.test(entry.name)) {
+    const identity = digestOfFileName(entry.name);
+    if (identity !== undefined) {
       const images = (await orNone(path)).filter((name) => name.endsWith('.png')).length;
-      found.set(entry.name, (found.get(entry.name) ?? 0) + images);
+      const sum = found.get(identity) ?? { baselines: 0, colonSpelled: 0 };
+      sum.baselines += images;
+      if (entry.name === identity) sum.colonSpelled += images;
+      found.set(identity, sum);
       continue;
     }
     await collect(path, found);
   }
 }
-
-/**
- * What an identity directory is named, and the reason the walk can recurse at all.
- *
- * `@variance-authority/store` names them for `identityDigest`, which is a `v1:`
- * digest and nothing else is. Without the shape this walk would have to descend
- * into a partition and count `by-document` as a machine.
- */
-const IDENTITY_DIRECTORY = /^v1:[0-9a-f]{32}$/;
 
 async function orNone(directory: string): Promise<readonly string[]> {
   try {

@@ -2,10 +2,11 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadGrammars } from './grammar.js';
-import { pythonRootsOf, readPython, resolvePython } from './python.js';
-import { worldIn } from './world.js';
+import { native } from './native.js';
+import { pythonRootsOf, resolvePython } from './python.js';
+import type { Read } from './read.js';
 import { scanRelations } from './scan.js';
+import { worldIn } from './world.js';
 
 /**
  * What a Python import statement says, and what it only implies.
@@ -21,10 +22,6 @@ import { scanRelations } from './scan.js';
  */
 
 describe('what a Python file asks for', () => {
-  beforeAll(async () => {
-    await loadGrammars();
-  });
-
   it('separates the module a statement writes from the ones it implies', () => {
     const read = readPython('t.py', 'from a.b import c, d as e\n');
     const asked = new Map(read.requests.map((request) => [request.value, request]));
@@ -206,4 +203,11 @@ async function write(root: string, path: string, contents: string): Promise<void
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, contents);
+}
+
+/** What the addon's Python reader answers, which is the only reader there is. */
+function readPython(file: string, contents: string): Read {
+  const answer = native()?.readLanguage('python', file, contents);
+  if (answer == null) throw new Error('these tests read Python through the native addon, built with its grammars');
+  return JSON.parse(answer) as Read;
 }

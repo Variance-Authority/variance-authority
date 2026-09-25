@@ -5,7 +5,8 @@
  * exist under the configured roots, which of them are worth reading at all, and
  * what a name implies about the bytes behind it — the language it is read as,
  * the dialect that language's parser is handed, whether its declarations count
- * as components. [`scan.ts`](./scan.ts) asks; the answers live here because they
+ * as components. [`scan.ts`](./scan.ts) asks, and the walk of a tree Git does
+ * not describe is the addon's (`seed_files` in `native/src/seed.rs`); the answers live here because they
  * are about naming and walking rather than about the graph.
  *
  * The distinction this file draws is the one the parse cache is keyed on. Two
@@ -15,7 +16,6 @@
  * cache exists for ([`cache.ts`](./cache.ts)).
  */
 
-import { readdirSync, type Dirent } from 'node:fs';
 import { basename, extname, isAbsolute, join } from 'node:path';
 import type { Digest } from './digest.js';
 import type { ParseKey } from './cache.js';
@@ -24,20 +24,6 @@ import { EXCLUDE_DIRS, toRepoPath } from './resolve.js';
 
 /** The extensions a scan opens: every language some reader claims. */
 export { READABLE } from './language.js';
-
-/** Every readable file under the configured roots, named the way the scan keys them. */
-export function seedFiles(root: string, dirs: readonly string[]): readonly string[] {
-  const found: string[] = [];
-  for (const dir of dirs) {
-    const absolute = isAbsolute(dir) ? dir : join(root, dir);
-    // The walk descends into known directories, so it can spell the relative
-    // path as it goes instead of deriving it again from every file it finds.
-    const prefix = absolute === root ? '' : toRepoPath(root, absolute);
-    if (prefix !== undefined) walk(absolute, prefix, found);
-  }
-
-  return found;
-}
 
 /** Every Git-visible readable path below the configured roots. */
 export function seedPaths(
@@ -64,43 +50,9 @@ function below(file: string, prefix: string): boolean {
   if (relative === '') return false;
   const directories = relative.split('/').slice(0, -1);
   // A tracked directory named `build` is source by Git's own evidence. The
-  // filesystem walk still excludes generated build output; only a Git-visible
-  // path reaches this predicate.
+  // addon's filesystem walk still excludes generated build output; only a
+  // Git-visible path reaches this predicate.
   return !directories.some((part) => part !== 'build' && EXCLUDE_DIRS.includes(part));
-}
-
-/**
- * Every readable file under one directory, unless it is a repository of its own.
- *
- * A checkout inside a checkout — a worktree cut this morning, a vendored clone —
- * is a different repository that happens to sit at this path. Git tracks not one
- * file of it, so every file misses the digest lookup and is opened and parsed on
- * every run; and its files are another repository's copies of these ones, which
- * doubles every count taken over the walk. Neither is a judgement call, and the
- * directory listing already in hand says which directories those are.
- *
- * A seed is never tested this way, only what is found beneath it: a caller that
- * points the scan at a checkout means that checkout.
- */
-function walk(dir: string, prefix: string, into: string[], seeded = true): void {
-  let entries: readonly Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    // A configured directory that is not there contributes nothing. The refusal
-    // that matters is an empty result, and the caller is the one that can say
-    // whether an empty result is wrong.
-    return;
-  }
-
-  if (!seeded && entries.some((entry) => entry.name === '.git')) return;
-
-  for (const entry of entries) {
-    const at = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
-    if (entry.isDirectory()) {
-      if (!EXCLUDE_DIRS.includes(entry.name)) walk(join(dir, entry.name), at, into, false);
-    } else if (READABLE.has(extname(entry.name))) into.push(at);
-  }
 }
 
 /** Files whose declarations are not components, matching the component index. */

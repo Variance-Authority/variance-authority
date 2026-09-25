@@ -1,7 +1,7 @@
 //! What a Swift file asks for and what it publishes.
 //!
-//! The argument for the shape is [`swift.ts`](../../../src/swift.ts), which this
-//! is a port of and is measured against: `import Core` names a **target**, so an
+//! The argument for the shape is [`swift.ts`](../../../src/swift.ts), and
+//! `swift.test.ts` holds this reader to it: `import Core` names a **target**, so an
 //! import becomes an edge to every file in it and a file's own target becomes
 //! edges to every file beside it. Resolution — the target index and the
 //! projection onto paths — stays in TypeScript, because it reads a tree and not

@@ -11,9 +11,9 @@ import { describe, expect, it } from 'vitest';
  * fail that the rest of the crate does not have. Losing the scanner over them
  * would be the wrong trade — it is mostly oxc, and oxc reads the languages this
  * product is about — so `native/build.mjs` retries a failed build with
- * `--no-default-features` and ships a binary without them. That costs the
- * acceleration of Python, Rust, Java, Kotlin and Swift, which fall back to the
- * JavaScript readers that are the implementation of record anyway.
+ * `--no-default-features` and ships a binary without them. That costs Python,
+ * Rust, Java, Kotlin and Swift, whose files that binary records as unknown with
+ * the missing grammars named as the reason.
  *
  * The arrangement is three edits apart and the failure is silent in the
  * direction that matters: a sixth grammar added as an ordinary dependency
@@ -66,9 +66,8 @@ describe('the tree-sitter grammars', () => {
   });
 
   // The method has to exist on a binary built without them, because `record.ts`
-  // reaches an addon missing it through a different branch than an addon that
-  // answers nothing — and only the second is the branch a machine with no addon
-  // at all has already worn smooth.
+  // calls it unconditionally and turns its `null` into an unknown record with a
+  // reason. A method that is gone is a `TypeError` in the middle of a scan.
   it('leave `readLanguage` answering nothing rather than gone', () => {
     const lib = readFileSync(join(NATIVE, 'src', 'lib.rs'), 'utf8');
     expect(lib).toContain('#[cfg(not(feature = "grammars"))]');

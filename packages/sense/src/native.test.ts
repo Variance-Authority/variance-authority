@@ -15,9 +15,10 @@ import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
  * The scanner in Rust is allowed to be a different program. It is not allowed to
  * be a different *answer*: a digest that disagrees is a file reported still, and
  * a directory digest that disagrees is a record kept that should have been
- * rebuilt. So the JavaScript implementation stays, and stays the oracle — these
- * tests run both over one repository and compare, rather than asserting what
- * either of them should have said.
+ * rebuilt. The JavaScript tree stays because it answers what the native one does
+ * not take — known changed paths, and digests a caller supplies — so these tests
+ * run both over one repository and compare, rather than asserting what either
+ * of them should have said.
  *
  * The corpus is the working tree disagreeing with `HEAD` in every way it can:
  * clean, edited, staged, untracked, deleted, renamed, nested, and non-ASCII.
@@ -179,9 +180,7 @@ describe('the native tree against the JavaScript one', () => {
     expect(await gitDigests(root)).toBeUndefined();
   });
 
-  it('answers through the JavaScript tree when no scanner was built', async () => {
-    // The binary is optional by construction: a checkout without a Rust
-    // toolchain builds everything else and scans at the speed it always did.
+  it('answers through the JavaScript tree over digests a caller supplies', async () => {
     const root = await repository();
     const tree = treeOf((await gitDigests(root))!);
 

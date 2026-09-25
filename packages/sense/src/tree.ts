@@ -302,6 +302,12 @@ export interface Tree {
 /**
  * The tree under `root`, natively when this checkout built the scanner.
  *
+ * The JavaScript tree is not a fallback for the native one. It answers the one
+ * question the native snapshot does not take — a caller that already knows
+ * which paths `changed` (`variance ask --changed-file`) and wants only those
+ * re-hashed instead of a whole `git status` — and it is the tree over digests
+ * a caller supplies ({@link treeOf}).
+ *
  * `undefined` for the same reason `gitDigests` returns it: this is not a
  * checkout, or git could not answer.
  */
@@ -322,7 +328,7 @@ export async function gitTreeOf(
   return digests === undefined ? undefined : treeOf(digests);
 }
 
-/** A tree over digests somebody else computed — a caller's own map, or the oracle's. */
+/** A tree over digests somebody else computed — a caller's own map, or the one `gitDigests` read. */
 export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
   let sorted: readonly string[] | undefined;
   const paths = (): readonly string[] =>

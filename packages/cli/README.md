@@ -1254,8 +1254,11 @@ promoted to `failed` and turns the merged run red** — each shard exits `0`
 because each did exactly what it was told, and the merge is what notices the
 suite is missing a component.
 
-`comment` renders the same report as a pull-request body: causes first,
-collateral counted rather than listed, and **nothing when the check is green** —
+`comment` renders the same report as a pull-request body. The first screen
+holds the count, the leading cause, the report link and how to accept, plus any
+warning that changes whether the images can be trusted. Every cause, the
+collateral count, what was skipped and what painted the images sit under one
+fold. It renders **nothing when the check is green** —
 an empty body, because a bot that comments on every clean pull request teaches
 the team to filter it out, and the filter does not distinguish the clean ones.
 It writes to `--body-file` when given one and to stdout otherwise, and it posts

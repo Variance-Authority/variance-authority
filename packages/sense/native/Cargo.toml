@@ -19,8 +19,7 @@ crate-type = ["cdylib"]
 # that lost Python, Rust, Java, Kotlin and Swift. Off is a fallback the build
 # script reaches for after the default build has already failed
 # (`build.mjs`), and it costs exactly those five languages: `readLanguage`
-# answers nothing, and `record.ts` reads them with the JavaScript oracle it
-# falls back to whenever no addon reached the machine at all.
+# answers nothing, and `record.ts` records every file in them as unknown.
 [features]
 default = ["grammars"]
 grammars = [

@@ -19,7 +19,7 @@ neither past it, so there is nothing to place. Everything below is about
 Whether two images may be compared at all is decided by the **identity
 digest** — a hash of the renderer, browser engine, platform, device scale
 factor and fonts that produced the image, written into paths as the
-`v1:6c1f…` segment you will see throughout this page. Storage has no say in
+`v1-6c1f…` segment you will see throughout this page. Storage has no say in
 it. What placement decides is **who has the bytes when the next run starts**,
 and what that costs.
 
@@ -79,8 +79,8 @@ layout the whole store is one directory per machine identity, and a subject id i
 a file name:
 
 ```
-baselines/v1:6c1f…/src%2Fui%2FButton%2Fprimary.png
-baselines/v1:6c1f…/src%2Fui%2FButton%2Fprimary.json
+baselines/v1-6c1f…/src%2Fui%2FButton%2Fprimary.png
+baselines/v1-6c1f…/src%2Fui%2FButton%2Fprimary.json
 ```
 
 The `.json` sidecar is the attribution — which machine wrote the image, and what
@@ -111,8 +111,8 @@ it:
 
 ```
 src/ui/Button/Button.tsx
-src/ui/Button/v1:6c1f…/primary.png
-src/ui/Button/v1:6c1f…/primary.json
+src/ui/Button/v1-6c1f…/primary.png
+src/ui/Button/v1-6c1f…/primary.json
 ```
 
 The identity directory stays in the path. An image painted under a different
@@ -142,7 +142,7 @@ the directory it names, and the image lands there under the story's whole id.
 
 ```
 src/ui/shell/HatBar.stories.tsx
-src/ui/shell/v1:6c1f…/story%3Ahatbar--accepted-hats.png
+src/ui/shell/v1-6c1f…/story%3Ahatbar--accepted-hats.png
 ```
 
 A story declared at the root of the repository places at the root. A path
@@ -208,7 +208,7 @@ produced the image. That cache is regenerable, it grows with every edit, and it
 lands under the baseline root by default:
 
 ```
-baselines/v1:6c1f…/by-document/v1:a04e….png
+baselines/v1-6c1f…/by-document/v1-a04e….png
 ```
 
 Commit that cache and the repository grows by a render on every edit, so `npx

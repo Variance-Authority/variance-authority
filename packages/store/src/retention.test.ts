@@ -3,9 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Raster, RenderIdentity } from '@variance-authority/core/format';
-import { identityDigest } from '@variance-authority/core/format';
+import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import { createDurableStore } from './durable.js';
 import { sweepRenderCache } from './retention.js';
+
+/** The directory a store names for this identity's partition. */
+const partition = (identity: RenderIdentity): string => digestFileName(identityDigest(identity));
 
 /**
  * The bound on a directory nothing else was ever going to reach.
@@ -45,7 +48,7 @@ async function entry(
   digest: string,
   options: { bytes?: number; agedDays?: number } = {},
 ): Promise<string> {
-  const directory = join(root, identityDigest(identity), 'by-document');
+  const directory = join(root, partition(identity), 'by-document');
   await mkdir(directory, { recursive: true });
   const path = join(directory, digest);
   await writeFile(`${path}.png`, Buffer.alloc(options.bytes ?? 1024));
@@ -109,7 +112,7 @@ describe('a render cache that prunes itself', () => {
     const swept = await sweepRenderCache(root, { maxAgeMs: 14 * DAY });
 
     expect(swept.identities).toBe(1);
-    expect(await readdir(root)).toEqual([identityDigest(MAC)]);
+    expect(await readdir(root)).toEqual([partition(MAC)]);
   });
 
   it('leaves an identity alone while it still holds something', async () => {
@@ -119,7 +122,7 @@ describe('a render cache that prunes itself', () => {
     const swept = await sweepRenderCache(root, { maxAgeMs: 14 * DAY });
 
     expect(swept.removed).toBe(0);
-    expect((await readdir(root)).sort()).toEqual([identityDigest(MAC), identityDigest(OLDER)].sort());
+    expect((await readdir(root)).sort()).toEqual([partition(MAC), partition(OLDER)].sort());
   });
 
   it('takes the directory itself once nothing is left in it', async () => {
@@ -129,7 +132,7 @@ describe('a render cache that prunes itself', () => {
     // never chose, which is the complaint this file answers minus the bytes.
     const home = join(root, 'renders');
     await mkdir(home, { recursive: true });
-    const inside = join(home, identityDigest(MAC), 'by-document');
+    const inside = join(home, partition(MAC), 'by-document');
     await mkdir(inside, { recursive: true });
     const when = new Date(Date.now() - 30 * DAY);
     await writeFile(join(inside, 'v1:old.png'), Buffer.alloc(1024));
@@ -165,7 +168,7 @@ describe('the timestamp the sweep reads', () => {
     };
     await store.renderCache.put(raster);
 
-    const path = join(root, identityDigest(MAC), 'by-document', 'v1:doc');
+    const path = join(root, partition(MAC), 'by-document', 'v1-doc');
     const long = new Date(Date.now() - 30 * DAY);
     await utimes(`${path}.png`, long, long);
     await utimes(`${path}.json`, long, long);

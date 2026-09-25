@@ -1,6 +1,7 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { loadGrammars } from './grammar.js';
-import { isRustRelative, readRust, resolveRust } from './rust.js';
+import { describe, expect, it } from 'vitest';
+import { native } from './native.js';
+import type { Read } from './read.js';
+import { isRustRelative, resolveRust } from './rust.js';
 import { worldIn } from './world.js';
 
 /**
@@ -15,10 +16,6 @@ import { worldIn } from './world.js';
  */
 
 describe('what a Rust file asks for', () => {
-  beforeAll(async () => {
-    await loadGrammars();
-  });
-
   it('declares a module as written fact and asks for an item as a guess', () => {
     const read = readRust('src/lib.rs', 'mod order;\nuse crate::read::Read;\n');
     const asked = new Map(read.requests.map((request) => [request.value, request]));
@@ -128,3 +125,10 @@ describe('where a Rust path lands', () => {
       .toEqual([]);
   });
 });
+
+/** What the addon's Rust reader answers, which is the only reader there is. */
+function readRust(file: string, contents: string): Read {
+  const answer = native()?.readLanguage('rust', file, contents);
+  if (answer == null) throw new Error('these tests read Rust through the native addon, built with its grammars');
+  return JSON.parse(answer) as Read;
+}

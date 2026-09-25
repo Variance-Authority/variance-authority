@@ -1,8 +1,9 @@
 // compass: variance-authority.retention
 
-import { mkdir, readFile, readdir, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, rmdir, stat, utimes, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
+  digestFileName,
   identityDigest,
   occupiesPixels,
   type Digest,
@@ -22,7 +23,8 @@ import {
 } from '@variance-authority/raster';
 import { orAbsent } from './absent.js';
 import { held } from './held.js';
-import { IDENTITY_DIRECTORY, holder, pathFor, type BaselineLayout } from './placement.js';
+import { holder, identityOfPartition, partitionsOf, pathFor } from './placement.js';
+import type { BaselineLayout } from './placement.js';
 
 /**
  * Re-exported rather than moved out of reach: `BaselineLayout` is a word an
@@ -113,25 +115,18 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
   const recordRoot = options.recordRoot ?? root;
   const layout = options.layout ?? 'flat';
   const holderFor = (key: BaselineKey): string => holder(recordRoot, layout, key);
-  const placesFor = (key: BaselineKey, identity: Digest): Places => ({
-    image: pathFor(holder(root, layout, key), identity, key, layout),
-    record: pathFor(holder(recordRoot, layout, key), identity, key, layout),
+  const placesFor = (key: BaselineKey, partition: string): Places => ({
+    image: pathFor(holder(root, layout, key), partition, key, layout),
+    record: pathFor(holder(recordRoot, layout, key), partition, key, layout),
   });
 
   return {
     retention: 'durable',
 
     async find(key, identity): Promise<Found | null> {
-      const mine = identityDigest(identity);
-      const own = await load(placesFor(key, mine));
-      if (own !== null) return { raster: own.raster, comparable: true, storedUnder: own.identity };
-
-      for (const other of await identities(holderFor(key))) {
-        if (other === mine) continue;
-        const found = await load(placesFor(key, other));
-        if (found !== null) {
-          return { raster: found.raster, comparable: false, storedUnder: found.identity };
-        }
+      for await (const { partition, comparable } of searched(holderFor(key), identityDigest(identity))) {
+        const found = await load(placesFor(key, partition));
+        if (found !== null) return { raster: found.raster, comparable, storedUnder: found.identity };
       }
       return null;
     },
@@ -141,53 +136,31 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       // only stat-ing the image. Written out rather than expressed in terms of
       // `find`, because "in terms of `find`" is precisely the megabyte this
       // exists to not spend.
-      const mine = identityDigest(identity);
-      const own = await readSidecar(placesFor(key, mine));
-      if (own !== null) {
+      for await (const { partition, comparable } of searched(holderFor(key), identityDigest(identity))) {
+        const sidecar = await readSidecar(placesFor(key, partition));
+        if (sidecar === null) continue;
         return {
-          documentDigest: own.documentDigest,
-          comparable: true,
-          storedUnder: own.identity,
-          pictured: occupiesPixels(own),
-          missingFonts: own.missingFonts,
-          ...(own.accessibility === undefined ? {} : { accessibility: own.accessibility }),
+          documentDigest: sidecar.documentDigest,
+          comparable,
+          storedUnder: sidecar.identity,
+          pictured: occupiesPixels(sidecar),
+          missingFonts: sidecar.missingFonts,
+          ...(sidecar.accessibility === undefined ? {} : { accessibility: sidecar.accessibility }),
           // Names only. The sidecar carries hashes; a describe that handed them
           // on would invite a caller to settle from them, which is the document
           // digest's job — this list can only answer membership.
-          ...(own.components === undefined
+          ...(sidecar.components === undefined
             ? {}
-            : { components: own.components.map((hash) => hash.component) }),
-          ...(own.findingMarks === undefined ? {} : { findingMarks: own.findingMarks }),
+            : { components: sidecar.components.map((hash) => hash.component) }),
+          ...(sidecar.findingMarks === undefined ? {} : { findingMarks: sidecar.findingMarks }),
         };
-      }
-
-      for (const other of await identities(holderFor(key))) {
-        if (other === mine) continue;
-        const sidecar = await readSidecar(placesFor(key, other));
-        if (sidecar !== null) {
-          return {
-            documentDigest: sidecar.documentDigest,
-            comparable: false,
-            storedUnder: sidecar.identity,
-            pictured: occupiesPixels(sidecar),
-            missingFonts: sidecar.missingFonts,
-            ...(sidecar.accessibility === undefined
-              ? {}
-              : { accessibility: sidecar.accessibility }),
-            ...(sidecar.components === undefined
-              ? {}
-              : { components: sidecar.components.map((hash) => hash.component) }),
-            ...(sidecar.findingMarks === undefined
-              ? {}
-              : { findingMarks: sidecar.findingMarks }),
-          };
-        }
       }
       return null;
     },
 
     async put(key, raster): Promise<void> {
-      const places = placesFor(key, identityDigest(raster.identity));
+      const [written, legacy] = partitionsOf(identityDigest(raster.identity));
+      const places = placesFor(key, written);
       await mkdir(dirname(places.record), { recursive: true });
       // No image for a subject that has none. The sidecar alone is the whole
       // baseline there, and it says so by carrying no dimensions.
@@ -203,6 +176,7 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
         `${JSON.stringify({ ...raster, bytes: undefined }, null, 2)}\n`,
         'utf8',
       );
+      await retire(placesFor(key, legacy));
     },
 
     /**
@@ -214,7 +188,9 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
     async unplanned(keys, identity): Promise<readonly string[]> {
       const digest = identityDigest(identity);
       const planned = new Set(
-        keys.map((key) => `${pathFor(holderFor(key), digest, key, layout)}.json`),
+        keys.flatMap((key) =>
+          partitionsOf(digest).map((partition) => `${pathFor(holderFor(key), partition, key, layout)}.json`),
+        ),
       );
       return held(recordRoot, digest, planned);
     },
@@ -232,19 +208,14 @@ export function createDurableStore(root: string, options: DurableStoreOptions = 
       async get(digest, identity): Promise<Raster | null> {
         // One prefix for both halves. The cache's record is as regenerable as
         // its image, so there is nothing here for a split root to save.
-        const path = join(cacheRoot, identityDigest(identity), 'by-document', digest);
+        const path = cachedAt(cacheRoot, identityDigest(identity), digest);
         const raster = await readRaster({ image: path, record: path });
         if (raster !== null) await touch(path);
         return raster;
       },
 
       async put(raster): Promise<void> {
-        const path = join(
-          cacheRoot,
-          identityDigest(raster.identity),
-          'by-document',
-          raster.documentDigest,
-        );
+        const path = cachedAt(cacheRoot, identityDigest(raster.identity), raster.documentDigest);
         await mkdir(dirname(path), { recursive: true });
         if (raster.bytes !== undefined) {
           await writeFile(`${path}.png`, Buffer.from(raster.bytes, 'base64'));
@@ -322,8 +293,49 @@ async function identities(holder: string): Promise<readonly string[]> {
   const entries = await orAbsent(() => readdir(holder, { withFileTypes: true }), holder);
   if (entries === null) return [];
   return entries
-    .filter((entry) => entry.isDirectory() && IDENTITY_DIRECTORY.test(entry.name))
+    .filter((entry) => entry.isDirectory() && identityOfPartition(entry.name) !== undefined)
     .map((entry) => entry.name);
+}
+
+/**
+ * The partitions a lookup reads, in the order it reads them, and whether each is this machine's.
+ *
+ * This machine's written name first and alone, so a hit costs no `readdir`.
+ * Then the scan, with this machine's raw-digest name ahead of every other
+ * identity: a subject held under both would otherwise answer `incomparable`
+ * from a neighbour while a comparable baseline sat one directory over.
+ */
+async function* searched(
+  holder: string,
+  mine: Digest,
+): AsyncGenerator<{ partition: string; comparable: boolean }> {
+  const [written, legacy] = partitionsOf(mine);
+  yield { partition: written, comparable: true };
+  const scanned = await identities(holder);
+  if (scanned.includes(legacy)) yield { partition: legacy, comparable: true };
+  for (const other of scanned) {
+    if (identityOfPartition(other) !== mine) yield { partition: other, comparable: false };
+  }
+}
+
+/**
+ * Remove the raw-digest pair `put` just superseded, and its directories once empty:
+ * an accept moves a baseline rather than leaving a second copy for the fallback.
+ */
+async function retire(places: Places): Promise<void> {
+  await rm(`${places.image}.png`, { force: true });
+  await rm(`${places.record}.json`, { force: true });
+  for (const directory of new Set([dirname(places.image), dirname(places.record)])) {
+    await rmdir(directory).catch(() => undefined);
+  }
+}
+
+/**
+ * A render cache entry's path. No raw-digest fallback, unlike a baseline: a cache
+ * entry nobody finds costs one render, and `sweepRenderCache` ages the old ones out.
+ */
+function cachedAt(cacheRoot: string, identity: Digest, documentDigest: Digest): string {
+  return join(cacheRoot, digestFileName(identity), 'by-document', digestFileName(documentDigest));
 }
 
 async function load(

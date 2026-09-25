@@ -2,10 +2,10 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadGrammars } from './grammar.js';
 import { grainOf } from './language.js';
-import { native, nativeAvailable } from './native.js';
-import { readSwift, resolveSwift, targetsOf } from './swift.js';
+import { native } from './native.js';
+import type { Read } from './read.js';
+import { resolveSwift } from './swift.js';
 import { worldOn, type TreeWorld } from './world.js';
 
 /**
@@ -19,10 +19,6 @@ import { worldOn, type TreeWorld } from './world.js';
  */
 
 describe('what a Swift file asks for', () => {
-  beforeAll(async () => {
-    await loadGrammars();
-  });
-
   it('asks for the files beside it, which it imports nothing to see', () => {
     expect(readSwift('Sources/Core/Lens.swift', 'struct Lens {}\n').requests[0]?.value).toBe('*');
   });
@@ -71,7 +67,6 @@ describe('where a Swift module name lands', () => {
   let world: TreeWorld;
 
   beforeAll(async () => {
-    await loadGrammars();
     root = await mkdtemp(join(tmpdir(), 'variance-swift-'));
 
     // A `path:` that is not the default, because the default is only a default
@@ -112,7 +107,7 @@ describe('where a Swift module name lands', () => {
       .toEqual(['Tests/CoreTests/LensTests.swift']);
   });
 
-  it('reads the same targets from a manifest with either grammar', () => {
+  it('reads the targets a manifest declares, defaults and all', () => {
     const manifest = [
       'let package = Package(name: "Shadow", targets: [',
       '  .target(name: "Core", path: "Sources/core"),',
@@ -125,8 +120,7 @@ describe('where a Swift module name lands', () => {
       { name: 'CoreTests', path: 'Tests/CoreTests' },
       { name: 'Tool', path: 'Sources/Tool' },
     ];
-    expect(targetsOf(manifest)).toEqual(expected);
-    if (nativeAvailable()) expect(JSON.parse(native()!.swiftTargets!(manifest)!)).toEqual(expected);
+    expect(JSON.parse(native()!.swiftTargets(manifest)!)).toEqual(expected);
   });
 
   it('keeps the manifest out of the graph it describes', () => {
@@ -144,4 +138,11 @@ async function write(root: string, path: string, contents: string): Promise<void
   const absolute = join(root, path);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, contents, 'utf8');
+}
+
+/** What the addon's Swift reader answers, which is the only reader there is. */
+function readSwift(file: string, contents: string): Read {
+  const answer = native()?.readLanguage('swift', file, contents);
+  if (answer == null) throw new Error('these tests read Swift through the native addon, built with its grammars');
+  return JSON.parse(answer) as Read;
 }

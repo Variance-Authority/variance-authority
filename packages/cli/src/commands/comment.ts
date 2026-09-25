@@ -7,8 +7,10 @@ import {
   clamp,
   coverageBlocks,
   driftBlocks,
-  footerBlocks,
-  headingBlocks,
+  foldBlocks,
+  leadBlocks,
+  metaBlocks,
+  skippedBlocks,
   warningBlocks,
   withoutCauseBlocks,
 } from './comment-blocks.js';
@@ -37,11 +39,16 @@ import {
  * moved with these changes" is a fact a reviewer can size, while their absence
  * without a number would be indistinguishable from their non-existence.
  *
- * Exactly one block precedes the causes, and it is the one no reviewer of this
- * pull request could have reached without it: a token's drift is a *sum* across
- * approvals, so it is invisible to the comparison the reviewer is looking at and
- * actionable only by the person about to approve the next step. See
- * {@link driftBlocks}.
+ * The first screen is the count, the leading cause, the report link and how to
+ * accept, and after them only what changes how that count reads: a warning that
+ * the images are of a substituted font, a token's drift, and the subjects the run
+ * could not observe. Drift is there because it is the one finding no reviewer of
+ * this pull request could have reached without it: a *sum* across approvals,
+ * invisible to the comparison they are looking at and actionable only by the
+ * person about to approve the next step. See {@link driftBlocks}. The docket
+ * itself — every cause, the bulk commands, what was skipped, what painted the
+ * images — sits whole under one `<details>`, because a phone is where the
+ * notification is opened and the docket is what a reviewer opens on purpose.
  *
  * **The comment exists exactly when the check is red, and one function decides
  * both.** {@link exitFor} owns the question. A second rule here — say, "comment
@@ -176,14 +183,17 @@ export function renderComment(options: CommentOptions): string {
 
   const blocks = [
     COMMENT_MARKER,
-    ...headingBlocks(report, docket),
-    ...driftBlocks(report, limits),
-    ...causeBlocks(docket, limits),
-    ...bulkBlocks(report, limits),
-    ...withoutCauseBlocks(docket, limits),
-    ...coverageBlocks(report, docket, limits),
+    ...leadBlocks(docket, options),
     ...warningBlocks(report, docket),
-    ...footerBlocks(options),
+    ...driftBlocks(report, limits),
+    ...coverageBlocks(report, docket, limits),
+    ...foldBlocks([
+      ...causeBlocks(docket, limits),
+      ...bulkBlocks(report, limits),
+      ...withoutCauseBlocks(docket, limits),
+      ...skippedBlocks(docket),
+      ...metaBlocks(report),
+    ]),
   ];
 
   return clamp(blocks.join('\n\n'), limits.characters);

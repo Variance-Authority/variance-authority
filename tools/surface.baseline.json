@@ -261,6 +261,8 @@
         "diffEnvironments": "function",
         "digestBytes": "function",
         "digestCombine": "function",
+        "digestFileName": "function",
+        "digestOfFileName": "function",
         "digestOfSha256": "function",
         "digestString": "function",
         "digestValue": "function",

@@ -46,7 +46,7 @@ import type { Digest } from './digest.js';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
+import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt } from './native.js';
 import { adoptNativeParses } from './source-index.js';
 import type { IndexedRecord } from './source-index-format.js';
 import {
@@ -54,11 +54,9 @@ import {
   keyFor,
   languageFor,
   parseWay,
-  seedFiles,
   seedPaths,
   type ParseWay,
 } from './files.js';
-import { loadGrammars } from './grammar.js';
 import { worldIn, worldOn } from './world.js';
 import { recordFor } from './record.js';
 import {
@@ -211,6 +209,9 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   const root = realPath(resolve(options.root));
   const resolvers = resolversFor(options);
   const addon = native();
+  if (addon === undefined) {
+    throw new Error(`sense: scanning ${root} needs the native addon, which did not load: ${nativeRefusal()}`);
+  }
 
   const built = new Map<string, FileRecord>();
   const cache = options.cache ?? memoryParseCache();
@@ -220,11 +221,6 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       : options.digests === undefined
         ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
-
-  // Once, before anything is opened. Every grammar initialises asynchronously
-  // and parses synchronously, and a reader is called from behind a digest-keyed
-  // cache that cannot await — so the awaiting happens here or nowhere.
-  await loadGrammars();
 
   // Every language but JavaScript resolves by asking about the tree rather
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
@@ -250,8 +246,6 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
     ? [...tree.seeds]
     : tree !== undefined
     ? [...seedPaths(root, options.dirs, tree.paths())]
-    : addon === undefined
-    ? [...seedFiles(root, options.dirs)]
     : addon.seedFiles(root, [...options.dirs]);
 
   // Appended rather than merged into the directory seeds: these are exact
@@ -332,9 +326,9 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       }
       // The native side reads modules and nothing else, so what it is handed is
       // named positively rather than as everything that is not a stylesheet: a
-      // language it has never heard of must go down the JavaScript path, not be
-      // passed to it because it failed to be CSS.
-      if (addon !== undefined && languageFor(way) === 'module') {
+      // language it has never heard of must go to `recordFor`, not be passed to
+      // it because it failed to be CSS.
+      if (languageFor(way) === 'module') {
         pending.push(file);
         pendingDigests.push(digest);
         pendingSet.add(file);
@@ -355,63 +349,38 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
       accept(file, way, fresh);
     }
 
-    if (pending.length > 0 && addon !== undefined) {
-      let answers: readonly NativeBuilt[] | undefined;
+    if (pending.length > 0) {
+      const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
+      const nativeOptions = {
+        addon,
+        ...(packed === undefined ? {} : { tree: packed }),
+        root,
+        files: pending,
+        largestFile: options.largestFile ?? LARGEST_FILE,
+        digests: pendingDigests,
+        aliases: shape?.aliases,
+        directories: shape?.shape.directories ?? new Map(),
+        remembering: reuse !== undefined,
+        ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
+        ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
+      };
+      let answers: readonly NativeBuilt[];
       let answeredFiles: readonly string[] = pending;
-      try {
-        const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
-        const nativeOptions = {
-          addon,
-          ...(packed === undefined ? {} : { tree: packed }),
-          root,
-          files: pending,
-          largestFile: options.largestFile ?? LARGEST_FILE,
-          digests: pendingDigests,
-          aliases: shape?.aliases,
-          directories: shape?.shape.directories ?? new Map(),
-          remembering: reuse !== undefined,
-          ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
-          ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
-        };
-        if (useGraph) {
-          const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
-          answers = graph.built;
-          if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
-          nativeGraphUsed = true;
-          answeredFiles = answers.map((answer) => answer.record.file);
-        } else {
-          answers = nativeFrontier(nativeOptions);
-        }
-      } catch {
-        // The per-file path below builds the same records, reading each module
-        // through the same addon, so a batch that failed is retried file by file.
-      }
-      if (answers !== undefined) {
-        const accepting = performance.now();
-        for (const [index, file] of answeredFiles.entries()) {
-          accept(file, parseWay(file), answers[index]!);
-        }
-        if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
-          process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
-        }
+      if (useGraph) {
+        const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
+        answers = graph.built;
+        if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
+        nativeGraphUsed = true;
+        answeredFiles = answers.map((answer) => answer.record.file);
       } else {
-        for (const [index, file] of pending.entries()) {
-          const digest = pendingDigests[index];
-          const way = parseWay(file);
-          const fresh = await recordFor({
-            absolute: join(root, file),
-            file,
-            root,
-            resolvers,
-            cache,
-            aliases: shape?.aliases,
-            directories: shape?.shape.directories ?? new Map(),
-            largestFile: options.largestFile ?? LARGEST_FILE,
-            remembering: reuse !== undefined,
-            ...(digest === undefined ? {} : { digest }),
-          });
-          accept(file, way, fresh);
-        }
+        answers = nativeFrontier(nativeOptions);
+      }
+      const accepting = performance.now();
+      for (const [index, file] of answeredFiles.entries()) {
+        accept(file, parseWay(file), answers[index]!);
+      }
+      if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
+        process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }
     }
 

@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { identityDigest } from '@variance-authority/core/format';
+import { digestFileName, identityDigest } from '@variance-authority/core/format';
 import type {
   Raster,
   RenderDocument,
@@ -261,6 +261,9 @@ describe('formatDiagnosis', () => {
 describe('machineProbes partitions', () => {
   const identity = identityDigest(IDENTITY);
   const other = identityDigest({ ...IDENTITY, platform: 'darwin/arm64' });
+  // What a store writes today. The raw digest is the name an earlier store wrote.
+  const partition = digestFileName(identity);
+  const otherPartition = digestFileName(other);
   const roots: string[] = [];
 
   afterEach(async () => {
@@ -278,7 +281,7 @@ describe('machineProbes partitions', () => {
   }
 
   it('counts a flat root', async () => {
-    const root = await rootWith([`${identity}/a.png`, `${identity}/b.png`, `${other}/a.png`]);
+    const root = await rootWith([`${partition}/a.png`, `${partition}/b.png`, `${otherPartition}/a.png`]);
 
     expect(await machineProbes(configOf()).partitions(root)).toEqual([
       { identity, baselines: 2 },
@@ -291,8 +294,8 @@ describe('machineProbes partitions', () => {
     // baselines, and a doctor that is wrong in the direction of fine is worse
     // than no doctor.
     const root = await rootWith([
-      `src/ui/Button/${identity}/primary.png`,
-      `src/ui/Card/${identity}/wide.png`,
+      `src/ui/Button/${partition}/primary.png`,
+      `src/ui/Card/${partition}/wide.png`,
     ]);
 
     expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 2 }]);
@@ -302,9 +305,20 @@ describe('machineProbes partitions', () => {
     // `by-document` is a directory inside a partition. Counting it would report
     // a second machine that does not exist, on every store whose cache sits
     // beside its baselines.
-    const root = await rootWith([`${identity}/a.png`, `${identity}/by-document/v1:doc.png`]);
+    const root = await rootWith([`${partition}/a.png`, `${partition}/by-document/v1-doc.png`]);
 
     expect(await machineProbes(configOf()).partitions(root)).toEqual([{ identity, baselines: 1 }]);
+  });
+
+  it('sums both spellings of one digest into one machine, and counts the colon-spelled ones', async () => {
+    // One machine, two directory names: a baseline `put` since the rename sits
+    // under `v1-`, one nobody re-accepted still sits under the raw digest. Two
+    // rows would report a second machine that does not exist.
+    const root = await rootWith([`${partition}/a.png`, `${identity}/b.png`, `${identity}/c.png`]);
+
+    expect(await machineProbes(configOf()).partitions(root)).toEqual([
+      { identity, baselines: 3, colonSpelled: 2 },
+    ]);
   });
 
   it('reports nothing for a root that is not there', async () => {
