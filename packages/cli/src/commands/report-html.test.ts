@@ -466,3 +466,17 @@ describe('the defect list says what it is a list of, and whose the defect is', (
     expect(page).not.toContain('arrived with this change');
   });
 });
+
+describe('a narrow screen names what it leaves out', () => {
+  it('lists the parts this page holds, and only those', () => {
+    const html = reportHtml(reportOf({ observations: [CHANGED] }));
+    const note = /<p class="narrow-note">([^<]*)<\/p>/.exec(html)?.[1];
+
+    expect(note).toContain('region tables');
+    expect(note).toContain('commands for a checkout');
+    // Nothing here was settled or went unobserved, so the note must not send a
+    // reader to a wider screen to look for either.
+    expect(note).not.toContain('settled subjects');
+    expect(note).not.toContain('what was not observed');
+  });
+});
