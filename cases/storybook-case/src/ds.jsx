@@ -57,9 +57,11 @@ export function Button({ children, variant = 'primary' }) {
           ? 'calc(var(--case-space) * 1.25) calc(var(--case-space) * 2)'
           : 'var(--case-space) calc(var(--case-space) * 1.5)',
         borderRadius: 'var(--case-radius)',
-        border: '1px solid var(--case-border)',
+        // A secondary action is still an action: outlined in the accent, so it
+        // reads as a button beside a primary one rather than as a caption.
+        border: variant === 'primary' ? '1px solid var(--case-border)' : '1px solid var(--case-accent)',
         background: variant === 'primary' ? 'var(--case-accent)' : 'transparent',
-        color: variant === 'primary' ? '#fff' : 'var(--case-text)',
+        color: variant === 'primary' ? '#fff' : 'var(--case-accent)',
         font: 'inherit',
       }}
     >
