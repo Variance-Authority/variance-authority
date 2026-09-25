@@ -10,6 +10,7 @@ It runs a Maven project's own suite in Docker, under JaCoCo or under the presenc
 - `analyze/` turns each exec file into the methods that class entered. It analyzes only the classes present in each exec, so a full Commons Lang record reads in about a second.
 - `mutate/` holds `JavaTools`, a JavaParser tool with two commands. `members` writes the method and constructor spans of a source tree. `mutate` seeds faults on the given changed lines.
 - `presence/` is our own recorder, a Java agent that replaces JaCoCo. It sets one flag per method on entry, from a fixed `boolean[]` on the boot class path, and writes no branch or line probes. A recorded method carries every line it holds, so a line-grain selection only widens. With the listener beside it, each test class becomes one `record.jsonl` row directly, with no exec file and no analyze step. Synthetic methods other than lambda bodies are not probed. A class is named by the one file that exists as `<root>/<package>/<SourceFile>` under the `sources` roots (default `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin`), or else by the one file of that name under them. A class that names no file or several is `unknown` in the row, and a class that fails to instrument is listed in every later row; `score.mjs` runs a test whose row lists either. A class without a `SourceFile` attribute, such as a proxy or a class a test defines at runtime, is not probed. On Commons Lang a full per-class record adds 1.5% to the test phase, where JaCoCo with the dump adds 5.6% before analysis.
+  When the plan finishes, the agent's `Coverage` writes the same record as `coverage.va`, sense's execution record at function grain, so the product selector reads it as it reads `entries` coverage in JS. Each file gets a module root and one region per method a test entered, spanning that method's line table. Lambda bodies, and methods that share lines with the method around them, charge that method. Constructors and static initializers charge the root, because their line tables carry field initializers from anywhere in the class. A change outside every region charges every test that entered the file. `java -cp va-presence.jar va.presence.Coverage <record.jsonl> <out> [commit] [sources]` writes it for a record already on disk, run from a checkout of the commit the record was made at.
 - `build.sh` compiles all four inside `maven:3.9-eclipse-temurin-21`.
 
 ## Runs
@@ -23,7 +24,7 @@ It runs a Maven project's own suite in Docker, under JaCoCo or under the presenc
   - `shape`: method, plus every test that entered a file whose change falls outside any method body
   - `line`
   - `file`
-  - `record`: the product selector over the record. `coverage.mjs` converts it into sense's execution record at function grain, so the record reads as `entries` coverage does in JS: a module root per file and one region per method a test entered, spanning its line table. Lambda bodies, and methods that share lines with the method around them, charge that method. Constructors and static initializers charge the root, because their line tables carry field initializers from anywhere in the class. A change outside every region charges every test that entered the file. `score.mjs` writes the converted record beside the parent's as `coverage.va`.
+  - `record`: sense's selector over the parent's `coverage.va`
   - `reach`: `variance reach`, the static fallback
 - `mutants-maven.sh` seeds faults on each child's changed lines and runs the full suite per fault with no agent. `run-mutant.sh` runs one of them. The `m0` directory is the unmutated control.
 - `score-mutants.mjs` scores the same selections against the test classes that kill each fault. That truth owes nothing to the recorder.
@@ -33,7 +34,7 @@ It runs a Maven project's own suite in Docker, under JaCoCo or under the presenc
 ```bash
 sh tools/jvm-phase0/build.sh "$WORK"
 sh tools/jvm-phase0/replay-maven.sh "$WORK" "$CLONE" lang 26 '' src/main/java target/classes
-node tools/jvm-phase0/score.mjs "$WORK/replay/lang" "$REACH_CLONE" "$VARIANCE_BIN"
+node tools/jvm-phase0/score.mjs "$WORK/replay/lang" "$REACH_CLONE" "$VARIANCE_BIN" "$WORK/bin/va-presence.jar"
 sh tools/jvm-phase0/mutants-maven.sh "$WORK" "$CLONE" "$WORK/replay/lang" "$WORK/mutants/lang" 4 4
 node tools/jvm-phase0/score-mutants.mjs "$WORK/replay/lang" "$WORK/mutants/lang"
 ```

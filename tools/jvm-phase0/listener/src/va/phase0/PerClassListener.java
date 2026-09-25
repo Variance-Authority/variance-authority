@@ -35,7 +35,8 @@ import org.junit.platform.launcher.TestPlan;
  * line in a run means no class's work could land in another's window.
  *
  * The store is the presence agent's when it is loaded, and JaCoCo's otherwise.
- * Presence rows are appended to `record.jsonl` in the analyzer's format; JaCoCo
+ * Presence rows are appended to `record.jsonl` in the analyzer's format, and when
+ * the plan finishes the agent writes the same record as sense's `coverage.va`; JaCoCo
  * windows are written as `<class>.exec` for the analyzer. Either is reached by
  * reflection: presence through the bootstrap loader, JaCoCo through the system
  * class loader, which is also the check that an agent jar is visible to a
@@ -110,7 +111,19 @@ public final class PerClassListener implements TestExecutionListener {
   @Override
   public void testPlanExecutionFinished(TestPlan testPlan) {
     dump("between-" + between++);
+    if (drain != null) coverage();
     log("plan-end\t" + System.nanoTime());
+  }
+
+  /** The record as sense's execution record, `coverage.va`, written by the presence agent's jar. */
+  private void coverage() {
+    try {
+      Class.forName("va.presence.Coverage", true, ClassLoader.getSystemClassLoader())
+          .getMethod("write", Path.class, Path.class)
+          .invoke(null, out.resolve("record.jsonl"), out.resolve("coverage.va"));
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException("presence agent could not write coverage.va", e);
+    }
   }
 
   /** The class name when this identifier is a class container whose parent is an engine root. */
