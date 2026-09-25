@@ -1,5 +1,37 @@
 # @variance-authority/help
 
+## 0.9.0
+
+### Patch Changes
+
+- aa57273: `ask uses` finds a name your code reads off `import()` or `import * as`. It used to answer that nothing imported `narrowByJourneys` when `select-command.ts` read it as `selection.narrowByJourneys` after `const selection = await import(…)`. Such a site now names the line that loads the module, and an `import()` site says the module loads when that call runs, not when the file loads.
+
+  The parse carries these reads as `members`, apart from each request's `bindings`, so test selection reads exactly what it read before. The source index moves to version 12 and the help snapshot to version 3, and each is rebuilt on the first question after the upgrade.
+- 47e6664: What the CLI, the MCP tools, the servers and the GitHub action print is shorter. An explanation that repeated on every row now prints once, as a header or on the first line that needs it. The reasoning behind an answer stays in the source and is no longer printed. The source snapshot footer is one line, `Snapshot <time>.`
+
+  A changed file in a language the verdict does not read, such as Rust or Python, now reads as `unread (not a JavaScript or TypeScript module)` instead of as a file that does not parse. It is charged the same way.
+- 990ac1a: The agent skills name the commands that ship
+
+  The test-selection skill no longer says there is no command line: it routes
+  to `variance select`, `reach`, `index` and `covering`. The CLI skill lists
+  every command that reads no config, and covers `covering --hops`, `--cases`,
+  the per-file rows, `gained` motion and the `unrecorded` refusal. The workspace
+  skill names `variance ask` as the same six questions.
+- 93d53c8: One `variance-authority` skill ships in `@variance-authority/cli`, with a reference file per question, and `variance doctor` says whether your agent can find it
+
+  The skill lives at `skills/variance-authority/`, where skill finders that read
+  `skills/<name>/SKILL.md` see it. Its `SKILL.md` routes each question to one file
+  under `references/`: reading a run, locating a subject, a live run, producers,
+  covering, test selection and its wiring, distillation, the workspace API and
+  MCP. It now also holds the test-selection guidance that shipped in
+  `@variance-authority/sense` and the workspace-API guidance that shipped in
+  `@variance-authority/help`; neither package ships a skill any more.
+
+  `variance doctor` looks in `.agents/skills` and `.claude/skills`, in the project
+  and your home directory, and reports each shipped skill as a link, a matching
+  copy or a stale copy. For a skill it cannot find, it prints the `ln -s` that
+  would serve it. It writes nothing, and the finding never changes the exit code.
+
 ## 0.8.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
