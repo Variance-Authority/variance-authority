@@ -14,3 +14,5 @@ The comment now fits a phone's first screen: the count, the leading cause and it
 In the HTML report, each subject's commands (`accept`, `again`, `alone`, `report --subject`) sit folded under **Commands for a checkout**, each with a line saying what it does. The mark on a subject whose inspection found nothing reads `no defects found`. On a narrow screen the header scrolls away instead of staying pinned.
 
 On a phone, the HTML report shows each subject with its reason and images, and nothing else. The grouped changes, region tables, commands, composition, history, settled subjects, what was not observed and coverage stay on wider screens. A line at the top names the ones this report holds, so you know there is more.
+
+`variance comment --image-root <url>` shows the leading cause's before and after on the comment's first screen, and each further cause's pair in the fold. The address is where you published the report's directory. The GitHub action takes an `image-branch` input that pushes those images to a branch as one commit and links them by that commit.

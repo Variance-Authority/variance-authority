@@ -77,8 +77,9 @@ on:
     branches: [main]
   pull_request:
     # `labeled` is how a reviewer accepts. Any other label is not a reason to
-    # paint, and the job below skips it.
-    types: [opened, synchronize, reopened, labeled]
+    # paint, and the job below skips it. `closed` paints nothing either: it is
+    # when the pull request's image branch is deleted.
+    types: [opened, synchronize, reopened, labeled, closed]
   workflow_dispatch:
     inputs:
       accept:
@@ -91,20 +92,25 @@ on:
 
 # Read the code, write one comment, take the accept label off. `checks: read` is
 # how a merge to `main` asks whether its pull request was accepted.
-# `contents: write` is deliberately absent: see the commit-baselines note on the
-# action step below.
+#
+# `contents: write` is for one branch per pull request, `<head>--variance`,
+# which holds the images the comment shows and nothing else, and is deleted when
+# the pull request closes. It is not for the contributor's branch: the
+# commit-baselines note on the action step below is why nothing here writes
+# there.
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   checks: read
 
 jobs:
   variance:
     # Labelling a pull request for any other reason starts this workflow too;
-    # only the accept label is a reason to paint.
+    # only the accept label is a reason to paint. Closing one is not either.
     if: >-
-      github.event.action != 'labeled' ||
-      github.event.label.name == 'variance: accept'
+      github.event.action != 'closed' &&
+      (github.event.action != 'labeled' ||
+      github.event.label.name == 'variance: accept')
 
     # One run per branch. The poster looks for its previous comment and then
     # writes, and those two steps are not atomic — two runs racing on the same
@@ -234,6 +240,13 @@ jobs:
           # browser — on a phone as well, which is where a review often happens.
           report-page: 'true'
 
+          # The leading cause's before and after on the comment's first screen,
+          # served from a branch named for the one it describes, so it is found
+          # beside it and removed with it: see `images-cleanup` below. A pull
+          # request from a fork gets a read-only token, and its comment arrives
+          # without pictures.
+          image-branch: ${{ github.event_name == 'pull_request' && format('{0}--variance', github.head_ref) || '' }}
+
           # The step the comment cannot take for the reviewer, in this
           # repository's words. The label starts a run that accepts; see the
           # header for why it is a label and what a merge carries afterwards.
@@ -300,3 +313,31 @@ jobs:
           # with nothing in it.
           include-hidden-files: true
           if-no-files-found: warn
+
+  # The image branch goes when its pull request does, merged or not. Nothing else
+  # removes it, and nothing here reads it afterwards: the comment's pictures stop
+  # loading, and the report page in the run's artifacts still carries them.
+  #
+  # Not found is the answer for a pull request that never had a change to
+  # picture. A fork's is skipped: its run could not push one, and its token
+  # cannot delete one.
+  images-cleanup:
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - name: delete the pull request's image branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.head_ref }}--variance
+        run: |
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" --silent 2> err; then
+            echo "deleted $BRANCH"
+          elif grep -qE 'HTTP (404|422)' err; then
+            echo "$BRANCH was never pushed; nothing to delete"
+          else
+            cat err >&2
+            exit 1
+          fi

@@ -404,6 +404,7 @@ export async function dispatch(
         report,
         ...(parsed.runUrl !== undefined ? { runUrl: parsed.runUrl } : {}),
         ...(parsed.toAccept !== undefined ? { toAccept: parsed.toAccept } : {}),
+        ...(parsed.imageRoot !== undefined ? { imageRoot: parsed.imageRoot } : {}),
       });
 
       // An empty file, never a missing one. The poster has to tell "nothing

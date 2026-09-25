@@ -94,6 +94,22 @@ nobody accepted, and one render cannot separate them from the reviewed ones. In
 that case `main` stays red until somebody dispatches an accept there, and the
 run's log says why.
 
+## The pictures in the comment
+
+The comment shows the leading cause's before and after on its first screen, and
+each further cause's pair inside its fold. The action pushes the report's before
+and after images to a branch named for the pull request's, with `--variance`
+after it: one commit with no parent, replaced by every run that finds a change.
+The comment links that commit rather than the branch, so an image cache never
+shows a previous run's pictures. When the pull request closes, merged or not, a
+second job deletes the branch.
+
+That branch is why `variance.yml` asks for `contents: write`. Anyone who can
+read the repository can read it. A pull request from a fork runs with a
+read-only token, so the push is refused, the step warns, and the comment arrives
+without pictures. To turn this off in your copy, drop the `image-branch` input
+and the `images-cleanup` job.
+
 ## Where the baselines live here
 
 `.variance/` is git-ignored: a report changes whenever the document does, so
