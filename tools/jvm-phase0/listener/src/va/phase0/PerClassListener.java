@@ -7,7 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
@@ -24,6 +27,12 @@ import org.junit.platform.launcher.TestPlan;
  * is hit outside a class (discovery, between classes, after the last) lands
  * in numbered `between-*.exec` files, so spill is counted rather than lost.
  *
+ * A dump credits a probe to whichever window it lands in. The listener runs on
+ * the thread that runs the class, so that thread's hits cannot leave the window;
+ * only other threads can. At each class end it logs every thread the class
+ * started that is still alive, and a common pool that is not quiescent. Neither
+ * line in a run means no class's work could land in another's window.
+ *
  * JaCoCo is reached by reflection through the system class loader, which is
  * also the check that an agent jar is visible to a test's listeners.
  */
@@ -35,6 +44,7 @@ public final class PerClassListener implements TestExecutionListener {
   private Method setSessionId;
   private int between;
   private String open;
+  private Set<Thread> before = new HashSet<>();
 
   @Override
   public void testPlanExecutionStarted(TestPlan testPlan) {
@@ -61,6 +71,7 @@ public final class PerClassListener implements TestExecutionListener {
     dump("between-" + between++);
     session(name);
     open = name;
+    before = new HashSet<>(Thread.getAllStackTraces().keySet());
     log("start\t" + name + "\t" + System.nanoTime());
   }
 
@@ -69,6 +80,7 @@ public final class PerClassListener implements TestExecutionListener {
     String name = topLevelClass(id);
     if (name == null) return;
     dump(name);
+    audit(name);
     session("between");
     open = null;
     log("end\t" + name + "\t" + System.nanoTime() + "\t" + result.getStatus());
@@ -88,6 +100,17 @@ public final class PerClassListener implements TestExecutionListener {
     Optional<TestIdentifier> parent = plan.getParent(id);
     if (!parent.isPresent() || plan.getParent(parent.get()).isPresent()) return null;
     return source.get().getClassName();
+  }
+
+  /** Threads this class started that outlive it, and a busy common pool: work that can land in a later window. */
+  private void audit(String name) {
+    for (Thread t : Thread.getAllStackTraces().keySet()) {
+      if (before.contains(t) || !t.isAlive()) continue;
+      StackTraceElement[] stack = t.getStackTrace();
+      log("survivor\t" + name + "\t" + t.getName() + "\t" + t.getState() + "\t" + (t.isDaemon() ? "daemon" : "user")
+          + "\t" + (stack.length > 0 ? stack[0] : "-"));
+    }
+    if (!ForkJoinPool.commonPool().isQuiescent()) log("pool-busy\t" + name);
   }
 
   private void session(String name) {
