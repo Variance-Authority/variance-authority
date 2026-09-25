@@ -119,15 +119,17 @@ inputs:
     required: false
     default: 'false'
 
-  image-branch:
+  image-ref:
     description: >-
-      A branch to push the report's before and after images to, so the comment
-      can show the leading cause's pair on its first screen. One commit with no
-      parent, replaced by every run that finds a change, and linked by its
-      commit so a reader never sees the previous run's pictures from a cache.
-      Empty is off. Anyone who can read the repository can read the branch, and
-      it needs `contents: write`; deleting it when the pull request closes is
-      the workflow's job, since this action runs on nothing but the change.
+      A ref to push the report's before and after images to, so the comment can
+      show the leading cause's pair on its first screen, such as
+      `refs/variance/<head branch>`. Outside `refs/heads/`, a clone does not
+      fetch it and the branch list does not show it. One commit with no parent,
+      replaced by every run that finds a change, and linked by its commit so a
+      reader never sees the previous run's pictures from a cache. Empty is off.
+      Anyone who can read the repository can read the images, and pushing needs
+      `contents: write`; deleting the ref when the pull request closes is the
+      workflow's job, since this action runs on nothing but the change.
     required: false
     default: ''
 
@@ -251,17 +253,17 @@ runs:
     # comment with no pictures is still the whole verdict.
     - id: images
       name: publish the images the comment shows
-      if: ${{ inputs.image-branch != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
+      if: ${{ inputs.image-ref != '' && inputs.comment == 'true' && steps.run.outputs.exit-code == '1' }}
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
-        VARIANCE_IMAGE_BRANCH: ${{ inputs.image-branch }}
+        VARIANCE_IMAGE_REF: ${{ inputs.image-ref }}
       run: |
         set -uo pipefail
         skip() { echo "::warning::the comment shows no images: $1"; exit 0; }
 
-        [ -n "$GITHUB_TOKEN" ] || skip "no github-token to push $VARIANCE_IMAGE_BRANCH with"
+        [ -n "$GITHUB_TOKEN" ] || skip "no github-token to push $VARIANCE_IMAGE_REF with"
 
         here="$(dirname "$VARIANCE_REPORT")"
         repo="$(mktemp -d)"
@@ -286,13 +288,13 @@ runs:
         tree="$(git write-tree)" || skip "the images could not be written"
         commit="$(git -c user.name='github-actions[bot]' \
           -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-          commit-tree "$tree" -m "variance: images for $VARIANCE_IMAGE_BRANCH")" || skip "the images could not be committed"
+          commit-tree "$tree" -m "variance: images for $VARIANCE_IMAGE_REF")" || skip "the images could not be committed"
 
         auth="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
         echo "::add-mask::$auth"
         git -c http.extraheader="AUTHORIZATION: basic $auth" \
-          push -q --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$commit:refs/heads/$VARIANCE_IMAGE_BRANCH" \
-          || skip "pushing $VARIANCE_IMAGE_BRANCH was refused, which a fork's read-only token does"
+          push -q --force "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" "$commit:$VARIANCE_IMAGE_REF" \
+          || skip "pushing $VARIANCE_IMAGE_REF was refused, which a fork's read-only token does"
 
         echo "root=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/raw/$commit" >> "$GITHUB_OUTPUT"
 
