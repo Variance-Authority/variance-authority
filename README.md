@@ -276,8 +276,9 @@ Two questions meet in this repository — *what did this change look like* and
   [`variance reach`](docs/polyglot.md#walked-from-what-the-edit-changed) walks
   it from what the edit changed, so an edit to a comment or a type selects
   nothing, and a file that imports only an unchanged export of a changed file is
-  left out. Over sixty commits of TanStack Query, that is 704 test files where
-  the file graph selects 2,333.
+  left out. Over sixty commits of TanStack Query, that is 441 test files where
+  the file graph selects 1,470; over sixty of Zod, whose tests import it
+  through one namespace, 4,157 where it selects 4,543.
   [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
   is where a record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),
