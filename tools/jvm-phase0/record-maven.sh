@@ -1,9 +1,11 @@
 #!/bin/sh
 # Runs one Maven project's unit tests in the Maven image, bare or recorded.
-# Usage: record-maven.sh <work dir> <repo dir> <mode: bare|agent|split> <exec out dir> [includes] [maven flags]
-#   bare  — no agent, the baseline
-#   agent — JaCoCo agent only, output=none: the cost of the probes alone
-#   split — JaCoCo agent plus the per-class listener: one exec file per test class
+# Usage: record-maven.sh <work dir> <repo dir> <mode> <exec out dir> [includes] [maven flags]
+#   bare      — no agent, the baseline
+#   agent     — JaCoCo agent only, output=none: the cost of the probes alone
+#   split     — JaCoCo agent plus the per-class listener: one exec file per test class
+#   presence  — the presence agent only: one flag per method, set on entry
+#   pressplit — the presence agent plus the per-class listener: record.jsonl directly, no analyze step
 # Maven flags pass through, e.g. '-DreuseForks=false' records every test class in its own JVM.
 set -eu
 WORK=$1 REPO=$2 MODE=$3 OUT=$4 INCLUDES=${5:-*} FLAGS=${6:-}
@@ -13,6 +15,8 @@ case "$MODE" in
   bare) ;;
   agent) AGENT="-javaagent:/va/lib/org.jacoco.agent-runtime.jar=output=none,includes=$INCLUDES" ;;
   split) AGENT="-javaagent:/va/lib/org.jacoco.agent-runtime.jar=output=none,includes=$INCLUDES -javaagent:/va/bin/va-listener.jar -Dva.out=/out" ;;
+  presence) AGENT="-javaagent:/va/bin/va-presence.jar=includes=$INCLUDES" ;;
+  pressplit) AGENT="-javaagent:/va/bin/va-presence.jar=includes=$INCLUDES -javaagent:/va/bin/va-listener.jar -Dva.out=/out" ;;
   *) echo "unknown mode $MODE" >&2; exit 64 ;;
 esac
 SKIPS="-Drat.skip -Dcheckstyle.skip -Dspotbugs.skip -Dpmd.skip -Djapicmp.skip -Danimal.sniffer.skip \

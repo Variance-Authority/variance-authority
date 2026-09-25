@@ -3,6 +3,7 @@ package va.phase0;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -33,8 +34,12 @@ import org.junit.platform.launcher.TestPlan;
  * started that is still alive, and a common pool that is not quiescent. Neither
  * line in a run means no class's work could land in another's window.
  *
- * JaCoCo is reached by reflection through the system class loader, which is
- * also the check that an agent jar is visible to a test's listeners.
+ * The store is the presence agent's when it is loaded, and JaCoCo's otherwise.
+ * Presence rows are appended to `record.jsonl` in the analyzer's format; JaCoCo
+ * windows are written as `<class>.exec` for the analyzer. Either is reached by
+ * reflection: presence through the bootstrap loader, JaCoCo through the system
+ * class loader, which is also the check that an agent jar is visible to a
+ * test's listeners.
  */
 public final class PerClassListener implements TestExecutionListener {
   private final Path out = Paths.get(System.getProperty("va.out", "va-exec"));
@@ -42,6 +47,8 @@ public final class PerClassListener implements TestExecutionListener {
   private Object agent;
   private Method getExecutionData;
   private Method setSessionId;
+  private Method drain;
+  private Method meta;
   private int between;
   private String open;
   private Set<Thread> before = new HashSet<>();
@@ -50,12 +57,24 @@ public final class PerClassListener implements TestExecutionListener {
   public void testPlanExecutionStarted(TestPlan testPlan) {
     plan = testPlan;
     try {
+      Class<?> presence = Class.forName("va.presence.rt.Presence", true, null);
+      drain = presence.getMethod("drain");
+      meta = presence.getMethod("meta", int.class);
+    } catch (ClassNotFoundException | NoSuchMethodException e) {
+      drain = null;
+    }
+    try {
+      Files.createDirectories(out);
+      if (drain != null) {
+        log("plan-start\t" + System.nanoTime());
+        dump("between-" + between++);
+        return;
+      }
       Class<?> rt = Class.forName("org.jacoco.agent.rt.RT", true, ClassLoader.getSystemClassLoader());
       agent = rt.getMethod("getAgent").invoke(null);
       Class<?> iagent = Class.forName("org.jacoco.agent.rt.IAgent", true, ClassLoader.getSystemClassLoader());
       getExecutionData = iagent.getMethod("getExecutionData", boolean.class);
       setSessionId = iagent.getMethod("setSessionId", String.class);
-      Files.createDirectories(out);
       log("plan-start\t" + System.nanoTime());
     } catch (ReflectiveOperationException | IOException e) {
       throw new IllegalStateException("JaCoCo agent not reachable from the test class loader", e);
@@ -114,6 +133,7 @@ public final class PerClassListener implements TestExecutionListener {
   }
 
   private void session(String name) {
+    if (drain != null) return;
     try {
       setSessionId.invoke(agent, name);
     } catch (ReflectiveOperationException e) {
@@ -122,9 +142,32 @@ public final class PerClassListener implements TestExecutionListener {
   }
 
   private void dump(String name) {
+    if (drain != null) {
+      presence(name);
+      return;
+    }
     try {
       byte[] data = (byte[]) getExecutionData.invoke(agent, true);
       Files.write(out.resolve(name + ".exec"), data);
+    } catch (ReflectiveOperationException e) {
+      throw new IllegalStateException(e);
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  /** One analyzer-format row: the methods whose presence flag was set in this window. */
+  private void presence(String name) {
+    try {
+      int[] hit = (int[]) drain.invoke(null);
+      StringBuilder line = new StringBuilder("{\"owner\":\"").append(name).append("\",\"methods\":[");
+      for (int i = 0; i < hit.length; i++) {
+        if (i > 0) line.append(',');
+        line.append((String) meta.invoke(null, hit[i]));
+      }
+      line.append("]}\n");
+      Files.write(out.resolve("record.jsonl"), line.toString().getBytes(StandardCharsets.UTF_8),
+          StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     } catch (ReflectiveOperationException e) {
       throw new IllegalStateException(e);
     } catch (IOException e) {

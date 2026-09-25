@@ -2,21 +2,22 @@
 
 This harness answers one question before any JVM recorder ships: if you record which methods each test class enters, and select on the next commit's diff, which failing tests do you leave out?
 
-It runs a Maven project's own suite under JaCoCo in Docker, one exec file per test class, and replays that record across real history. Nothing here is imported by a package, and every output lands in a work directory you name, never in the repository.
+It runs a Maven project's own suite in Docker, under JaCoCo or under the presence agent, one record row per test class, and replays that record across real history. Nothing here is imported by a package, and every output lands in a work directory you name, never in the repository.
 
 ## Pieces
 
 - `listener/` is a JUnit Platform listener, loaded as a Java agent next to JaCoCo, that dumps and resets the JaCoCo store at each test class boundary. At each class end it logs, to `events.tsv`, any thread the class started that is still alive (`survivor`) and a busy common pool (`pool-busy`): work that could land in a later class's record.
 - `analyze/` turns each exec file into the methods that class entered. It analyzes only the classes present in each exec, so a full Commons Lang record reads in about a second.
 - `mutate/` holds `JavaTools`, a JavaParser tool with two commands. `members` writes the method and constructor spans of a source tree. `mutate` seeds faults on the given changed lines.
-- `build.sh` compiles all three inside `maven:3.9-eclipse-temurin-21`.
+- `presence/` is our own recorder, a Java agent that replaces JaCoCo. It sets one flag per method on entry, from a fixed `boolean[]` on the boot class path, and writes no branch or line probes. A recorded method carries every line it holds, so a line-grain selection only widens. With the listener beside it, each test class becomes one `record.jsonl` row directly, with no exec file and no analyze step. Synthetic methods other than lambda bodies are not probed; a class from `test-classes` is named under `src/test/java`. On Commons Lang a full per-class record adds 1.5% to the test phase, where JaCoCo with the dump adds 5.6% before analysis.
+- `build.sh` compiles all four inside `maven:3.9-eclipse-temurin-21`.
 
 ## Runs
 
-- `record-maven.sh` runs the suite once, as `bare`, `agent` (probes only) or `split` (probes plus the per-class dump). Extra Maven flags pass through: `-DreuseForks=false` records every test class in its own JVM.
+- `record-maven.sh` runs the suite once, as `bare`, `agent` (JaCoCo probes only), `split` (JaCoCo plus the per-class dump), `presence` (presence probes only) or `pressplit` (presence plus the per-class rows). Extra Maven flags pass through: `-DreuseForks=false` records every test class in its own JVM.
 - `compare-records.mjs` compares two records of one commit class by class, such as the suite against every class alone, and names the methods and files each side lacks.
-- `overhead-maven.sh` compiles once, then alternates the three modes over `surefire:test` alone, so recording cost is measured against the test phase and nothing else.
-- `replay-maven.sh` records a split run at each of the last N first-parent commits.
+- `overhead-maven.sh` compiles once, then alternates the five modes over `surefire:test` alone, so recording cost is measured against the test phase and nothing else.
+- `replay-maven.sh` records a per-class run at each of the last N first-parent commits, under `split` or, with `pressplit` as its last argument, the presence agent.
 - `score.mjs` selects from the parent's record against the child's diff, then scores that selection against the child's own record and failures. It scores five grains:
   - `method`
   - `shape`: method, plus every test that entered a file whose change falls outside any method body

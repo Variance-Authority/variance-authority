@@ -2,7 +2,7 @@
 
 **Missing:** a trustworthy test-attempt-to-source-file record when the test
 driver and the code under test run in different processes. The JVM Phase 0
-harness divides one JaCoCo store at top-level test-class boundaries; it neither
+harness divides one probe store at top-level test-class boundaries; it neither
 attributes service work nor records individual test methods.
 **Built on:** [0036](0036-a-journey-crosses-processes.md) (the observed request
 edge and the second hop), [0029](0029-what-a-run-remembers.md) (an incomplete
@@ -17,19 +17,42 @@ selection accuracy and cost, not this recorder.
 
 A test may make several requests, and one request may pass through several
 services. The useful selection fact is **this test attempt entered this source
-file in this build**. The recorder is JaCoCo: on Commons Lang it costs 6.5% of
-test time, and a dump per test class adds nothing measurable to that. Anything
-that replaces it has to beat that figure first, so this spec keeps JaCoCo and
+file in this build**. The recorder is our own Java agent, and this spec
 arranges the run around its one constraint.
+
+### The recorder
+
+The agent sets one flag per method, on entry: a store into a fixed
+`boolean[]` on the boot class path, with no lookup, branch or line probe. A
+drain returns the methods whose flag is set, clears them, and writes each
+attempt's row in the record format directly, with the file, the method and
+every line the method holds. There is no execution-data file and no analysis
+step. A row names every line of a method it entered, so a line-grain selection
+from it can only widen. Synthetic methods other than lambda bodies are not
+probed: accessors and bridges forward to a method that is.
+
+On Commons Lang, against a bare test phase of 130 s (median of three,
+interleaved):
+
+| Recorder | Test phase |
+| --- | --- |
+| JaCoCo, probes only | +7.0% |
+| JaCoCo, a dump per test class, then analysis | +5.6%, plus the analysis |
+| This agent, probes only | +3.2% |
+| This agent, a row per test class | +1.5% |
+
+Its record holds every method the JaCoCo record holds for every test class.
+The only additions are compiler-generated default constructors and enum
+`values()`, which JaCoCo's analysis filters out.
 
 ### The concurrency problem
 
-JaCoCo's execution data is one set of probe flags for an agent in one JVM. A
-flag records that a probe was hit, once; a second hit leaves no trace. To see
-the next attempt's hits, a recorder must drain the flags and **reset** them:
-`getExecutionData(true)`. Each attempt gets the hits between its reset and its
-dump, its **window**. A session id or an `.exec` filename labels the dump; it
-does not partition the flags.
+The agent's store is one set of flags per JVM. A flag records that a method was
+entered, once; a second entry leaves no trace. To see the next attempt's
+entries, a recorder must drain the flags and **reset** them. JaCoCo is the
+same: `getExecutionData(true)`. Each attempt gets the hits between its reset
+and its drain, its **window**. A label on the drain does not partition the
+flags.
 
 Overlapping windows are not the damage. The two ways a hit can land in the
 wrong window are not equally dangerous:
@@ -129,10 +152,10 @@ code in the changed file:
   into every class that reads it, so the reader never enters the declaring file.
 - **Annotations and reflectively read members.** Jackson, JPA, Spring and
   validation read them without calling the class's code.
-- **Kotlin `inline` functions.** The body is compiled into the caller, and
-  JaCoCo filters those lines out of it.
-- **Classes JaCoCo does not instrument**: excluded packages, the boot class
-  path, classes generated or retransformed at runtime.
+- **Kotlin `inline` functions.** The body is compiled into the caller, so the
+  flag that is set is the caller's.
+- **Classes the agent does not instrument**: excluded packages, the boot class
+  path, classes generated or redefined at runtime.
 - **Files that are not code**: `application.yml`, `.properties`, SQL,
   templates, `META-INF/services`.
 
@@ -190,10 +213,12 @@ than treating a timeout as zero coverage.
 method, shape, line and file selection against seeded faults. The
 implementation measures full test-phase wall time for a bare run and for lane
 recording on the same suite, and the memory and startup the extra lanes cost.
+The agent's cost stays under JaCoCo's on the same suite. A probe that reads
+anything on method entry is measured against that figure before it ships.
 
 ## Acceptance
 
-1. Tests run one at a time per lane, across several lanes. JaCoCo yields each
+1. Tests run one at a time per lane, across several lanes. The agent yields each
    attempt's file set, including a task the attempt queued that finishes after
    its last response: the dump waits for the settle report. A request that
    leaves the lane makes the row incomplete.
@@ -218,7 +243,7 @@ recording on the same suite, and the memory and startup the extra lanes cost.
 
 ## Boundary
 
-This specifies the observation and its trust conditions, not a router. JaCoCo
+This specifies the observation and its trust conditions, not a router. The agent
 is the recorder in both the test JVM and the lane's services. Sharing one
 service instance between concurrent attempts is not supported: it needs an
 identity carried through every async boundary and a probe that reads it on

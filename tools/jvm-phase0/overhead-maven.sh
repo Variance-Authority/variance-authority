@@ -1,6 +1,6 @@
 #!/bin/sh
 # Measures what recording adds to the test phase alone: compile once, then run only
-# surefire:test in bare, agent and split modes, interleaved, R rounds.
+# surefire:test in bare, agent, split, presence and pressplit modes, interleaved, R rounds.
 # Usage: overhead-maven.sh <work dir> <repo dir> <includes> <rounds> <out dir>
 # Prints: mode round wall_seconds surefire_seconds(sum of suite times) tests
 set -eu
@@ -10,15 +10,18 @@ SKIPS="-Drat.skip -Dcheckstyle.skip -Dspotbugs.skip -Dpmd.skip -Djapicmp.skip -D
   -Djacoco.skip -Dmaven.javadoc.skip -Dcyclonedx.skip -Dspdx.skip -Denforcer.skip -Dmoditect.skip \
   -Dbnd.skip -Dmaven.source.skip"
 JACOCO="-javaagent:/va/lib/org.jacoco.agent-runtime.jar=output=none,includes=$INCLUDES"
+PRESENCE="-javaagent:/va/bin/va-presence.jar=includes=$INCLUDES"
 docker run --rm -v "$WORK/m2:/root/.m2" -v "$WORK:/va:ro" -v "$REPO:/repo" -v "$OUT:/out" -w /repo \
   maven:3.9-eclipse-temurin-21 sh -euc "
     mvn -B -q -o test-compile $SKIPS > /out/compile.log 2>&1
     for r in \$(seq 1 $ROUNDS); do
-      for mode in bare agent split; do
+      for mode in bare agent split presence pressplit; do
         case \$mode in
           bare) A='-XX:+EnableDynamicAgentLoading' ;;
           agent) A='-XX:+EnableDynamicAgentLoading $JACOCO' ;;
           split) rm -rf /tmp/x && mkdir -p /tmp/x; A='-XX:+EnableDynamicAgentLoading $JACOCO -javaagent:/va/bin/va-listener.jar -Dva.out=/tmp/x' ;;
+          presence) A='-XX:+EnableDynamicAgentLoading $PRESENCE' ;;
+          pressplit) rm -rf /tmp/x && mkdir -p /tmp/x; A='-XX:+EnableDynamicAgentLoading $PRESENCE -javaagent:/va/bin/va-listener.jar -Dva.out=/tmp/x' ;;
         esac
         rm -rf target/surefire-reports
         s=\$(date +%s%N)
