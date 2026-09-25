@@ -302,7 +302,10 @@ nothing in that service, and a later change there does not select it. Check
 that each service you expect wrote a part before you narrow on the record.
 
 Within a process that did write, what a request with no id ran is charged to
-every test that crossed into that process, never to one of them in particular.
+every test whose id reached that process, never to one of them in particular.
+A process that no id reached is charged to no test at all, even though it wrote
+a part: a gateway that stops forwarding the cookie leaves every service behind
+it unselectable.
 A case that called a service without putting its id on the request is not
 charged for what that request ran, because nothing names the case.
 
