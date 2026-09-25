@@ -160,7 +160,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
-variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [<report>...] | --marker
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
 
 | command | what it does |
@@ -1410,8 +1410,9 @@ owns its own collector, renderer, storage, or review surface:
   the whole change. `project` scopes optional history rows; omit it when no
   history store is supplied.
 - `renderComment` accepts `runUrl` when the published artifact has a reviewable
-  location, `toAccept` for how a reviewer accepts in your repository, and
-  `limits` when a caller needs smaller docket bounds. Limits merge
+  location, `toAccept` for how a reviewer accepts in your repository,
+  `imageRoot` for where the report's images are published, and `limits` when a
+  caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
@@ -1646,6 +1647,15 @@ variance comment --body-file body.md \
   --run-url "$REPORT_URL" \
   --to-accept 'add the **variance: accept** label to this pull request'
 ```
+
+`--image-root` puts pictures in the comment: the leading cause's before and
+after on the first screen, and each further cause's pair in the fold. Give it
+the address you published the report's directory under. The comment joins each
+image path the report records to it, with every segment percent-encoded, so the
+file `images/story%3Abutton.before.png` is asked for as
+`images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
+`https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
+`image-branch` input publishes one.
 
 ## Integration troubleshooting
 

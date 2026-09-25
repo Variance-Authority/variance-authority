@@ -3,6 +3,7 @@ import type { CliRunReport } from './run.js';
 import type { CommentLimits, CommentOptions } from './comment.js';
 import type { CauseEntry, Collateral, Docket } from './docket.js';
 import { code, count } from './comment-text.js';
+import type { Pictures } from './comment-images.js';
 
 /**
  * The docket rendered: every block of the comment body, and every limit it
@@ -30,7 +31,11 @@ import { code, count } from './comment-text.js';
  * the fold under it, and stays there rather than being dropped: a reviewer who
  * wants the whole docket opens one element.
  */
-export function leadBlocks(docket: Docket, options: CommentOptions): readonly string[] {
+export function leadBlocks(
+  docket: Docket,
+  options: CommentOptions,
+  pictures: Pictures,
+): readonly string[] {
   const needing = docket.reviewable + docket.failed.length;
 
   const heading =
@@ -42,7 +47,18 @@ export function leadBlocks(docket: Docket, options: CommentOptions): readonly st
         '## Visual variance — this run cannot claim a clean result'
       : `## Visual variance — ${needing} subject(s) need review`;
 
-  return [heading, ...leadLine(docket), ...footerBlocks(options)];
+  const [first] = docket.causes;
+  const picture =
+    first !== undefined && first.namedIn > 0 && first.subjects[0] !== undefined
+      ? pictures(first.subjects[0])
+      : undefined;
+
+  return [
+    heading,
+    ...leadLine(docket),
+    ...(picture === undefined ? [] : [picture]),
+    ...footerBlocks(options),
+  ];
 }
 
 /**
@@ -163,13 +179,17 @@ function bulkItem(change: Change): string {
   );
 }
 
-export function causeBlocks(docket: Docket, limits: CommentLimits): readonly string[] {
+export function causeBlocks(
+  docket: Docket,
+  limits: CommentLimits,
+  pictures: Pictures,
+): readonly string[] {
   if (docket.causes.length === 0) return [];
 
   const shown = docket.causes.slice(0, limits.causes);
   const hidden = docket.causes.slice(limits.causes);
 
-  const items = shown.map((entry, index) => causeItem(entry, index + 1, limits));
+  const items = shown.map((entry, index) => causeItem(entry, index + 1, limits, pictures));
 
   const omitted =
     hidden.length === 0
@@ -183,7 +203,12 @@ export function causeBlocks(docket: Docket, limits: CommentLimits): readonly str
   return ['### Causes', items.join('\n\n'), ...omitted, ...collateralBlocks(docket.collateral)];
 }
 
-function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): string {
+function causeItem(
+  entry: CauseEntry,
+  position: number,
+  limits: CommentLimits,
+  pictures: Pictures,
+): string {
   const reach =
     entry.namedIn === 0
       ? // Stated in a different voice, because it is a different claim. Area
@@ -209,8 +234,17 @@ function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): 
       ? `seen in ${named}`
       : `seen in ${named} and ${count(rest, 'other subject')} not listed`;
 
+  // The first entry's pictures are already above the fold, under the lead line.
+  const [example] = entry.subjects;
+  const picture = position === 1 || example === undefined ? undefined : pictures(example);
+
   const label = entry.named ? code(entry.label) : entry.label;
-  return [`${position}. **${label}** — ${reach}`, ...place, subjects]
+  return [
+    `${position}. **${label}** — ${reach}`,
+    ...place,
+    subjects,
+    ...(picture === undefined ? [] : [picture]),
+  ]
     .map((line, index) => (index === 0 ? line : `    ${line}`))
     .join('\n');
 }
@@ -390,35 +424,6 @@ export function footerBlocks(options: CommentOptions): readonly string[] {
       ...(options.toAccept === undefined ? [] : [`To accept: ${options.toAccept}`]),
     ].join('  \n'),
   ];
-}
-
-/**
- * Cut the body to fit, and say by how much.
- *
- * GitHub does not truncate an over-long comment, it rejects the request — so the
- * real choice is between a body that states what it dropped and no comment at
- * all. The marker is the first line, so head-truncation always leaves the poster
- * able to find and update this comment on the next run; a tail-truncating
- * implementation would strand it and start duplicating.
- *
- * The room reserved for the notice is computed against the largest number it
- * could ever state, so the notice can only get shorter than the space kept for
- * it. Slightly wasteful and provably safe, which is the correct trade for a
- * length check whose failure mode is a rejected API call nobody sees.
- */
-export function clamp(body: string, characters: number): string {
-  if (body.length <= characters) return body;
-
-  const notice = (dropped: number): string =>
-    `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
-    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
-
-  const room = Math.max(0, characters - notice(body.length).length);
-  const cut = body.slice(0, room);
-  const lastBreak = cut.lastIndexOf('\n');
-  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
-
-  return head + notice(body.length - head.length);
 }
 
 function describeIdentity(report: CliRunReport): string {

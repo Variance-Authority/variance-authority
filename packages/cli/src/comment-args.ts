@@ -9,6 +9,8 @@ export interface ParsedComment {
   readonly runUrl?: string;
   /** `--to-accept`: how a reviewer accepts in this repository, in the operator's words. */
   readonly toAccept?: string;
+  /** `--image-root`: the URL the report's image paths resolve against, where the operator published them. */
+  readonly imageRoot?: string;
   readonly marker: boolean;
   /** Reports to read instead of the configured one. More than one is merged. */
   readonly reports: readonly string[];
@@ -20,18 +22,20 @@ export function parseCommentArgs(flags: Flags, config: string): ParsedComment {
   // as absent rather than as a link to '' or an instruction that says nothing.
   const runUrl = flags.values.get('--run-url') || undefined;
   const toAccept = flags.values.get('--to-accept') || undefined;
+  const imageRoot = flags.values.get('--image-root') || undefined;
   const marker = flags.present.has('--marker');
 
   if (
     marker &&
-    (bodyFile !== undefined || runUrl !== undefined || toAccept !== undefined || flags.positionals.length > 0)
+    (bodyFile !== undefined || runUrl !== undefined || toAccept !== undefined || imageRoot !== undefined ||
+      flags.positionals.length > 0)
   ) {
     // Two different questions, and answering both at once would mean deciding
     // which one the exit code is about. `--marker` is a constant this build
     // carries; the body is a reading of a report that may not exist yet.
     throw new OperatorError(
       '`--marker` prints the marker and nothing else; it does not take --body-file, ' +
-        '--run-url, --to-accept or a report',
+        '--run-url, --to-accept, --image-root or a report',
     );
   }
 
@@ -42,6 +46,7 @@ export function parseCommentArgs(flags: Flags, config: string): ParsedComment {
     ...(bodyFile !== undefined ? { bodyFile } : {}),
     ...(runUrl !== undefined ? { runUrl } : {}),
     ...(toAccept !== undefined ? { toAccept } : {}),
+    ...(imageRoot !== undefined ? { imageRoot } : {}),
     reports: flags.positionals.map((path) => resolve(path)),
   };
 }

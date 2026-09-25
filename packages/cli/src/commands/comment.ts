@@ -4,7 +4,6 @@ import { docketOf } from './docket.js';
 import {
   bulkBlocks,
   causeBlocks,
-  clamp,
   coverageBlocks,
   driftBlocks,
   foldBlocks,
@@ -14,6 +13,7 @@ import {
   warningBlocks,
   withoutCauseBlocks,
 } from './comment-blocks.js';
+import { picturesOf } from './comment-images.js';
 
 /**
  * The run report as a pull-request comment — the docket, put where acting on it
@@ -79,16 +79,17 @@ import {
  * ## Pure, and deliberately so
  *
  * Report in, string out. No network, no octokit, no clock, no filesystem — and no
- * runtime import beyond `../exit.js` and the two siblings this file was cut into,
+ * runtime import beyond `../exit.js` and the siblings this file was cut into,
  * none of which import anything either. That is not tidiness: it is what lets the
  * composite action render the body in a Node process that never loads a browser
  * driver, and what lets every claim above be a unit test over a hand-built report
  * instead of a job on a real pull request.
  *
- * ## The three files
+ * ## The four files
  *
  * `docket.ts` folds the report into review items and counts what it
  * refuses to list; `comment-blocks.ts` turns that docket into markdown;
+ * `comment-images.ts` spells the address of a picture the operator published;
  * `comment-text.ts` holds the two primitives both of them write through, so the
  * fold and the render can never escape a component name differently. This file
  * keeps the one decision the other two must not be allowed to make — whether a
@@ -161,6 +162,15 @@ export interface CommentOptions {
    * the operator states it and nothing here guesses.
    */
   readonly toAccept?: string;
+  /**
+   * The URL the report's image paths resolve against, when the operator
+   * published the images somewhere a comment can show them.
+   *
+   * Absent, the comment carries no picture, because a comment cannot hold an
+   * image of its own and a link to a file nobody published is broken. Where
+   * they go — a branch, a bucket, a CDN — is the operator's, like the report link.
+   */
+  readonly imageRoot?: string;
   readonly limits?: Partial<CommentLimits>;
 }
 
@@ -180,15 +190,16 @@ export function renderComment(options: CommentOptions): string {
 
   const limits: CommentLimits = { ...DEFAULT_LIMITS, ...options.limits };
   const docket = docketOf(report);
+  const pictures = picturesOf(report, options.imageRoot);
 
   const blocks = [
     COMMENT_MARKER,
-    ...leadBlocks(docket, options),
+    ...leadBlocks(docket, options, pictures),
     ...warningBlocks(report, docket),
     ...driftBlocks(report, limits),
     ...coverageBlocks(report, docket, limits),
     ...foldBlocks([
-      ...causeBlocks(docket, limits),
+      ...causeBlocks(docket, limits, pictures),
       ...bulkBlocks(report, limits),
       ...withoutCauseBlocks(docket, limits),
       ...skippedBlocks(docket),
@@ -197,4 +208,33 @@ export function renderComment(options: CommentOptions): string {
   ];
 
   return clamp(blocks.join('\n\n'), limits.characters);
+}
+
+/**
+ * Cut the body to fit, and say by how much.
+ *
+ * GitHub does not truncate an over-long comment, it rejects the request — so the
+ * real choice is between a body that states what it dropped and no comment at
+ * all. The marker is the first line, so head-truncation always leaves the poster
+ * able to find and update this comment on the next run; a tail-truncating
+ * implementation would strand it and start duplicating.
+ *
+ * The room reserved for the notice is computed against the largest number it
+ * could ever state, so the notice can only get shorter than the space kept for
+ * it. Slightly wasteful and provably safe, which is the correct trade for a
+ * length check whose failure mode is a rejected API call nobody sees.
+ */
+function clamp(body: string, characters: number): string {
+  if (body.length <= characters) return body;
+
+  const notice = (dropped: number): string =>
+    `\n\n> ${dropped} character(s) of this docket are not shown: the body exceeded the ` +
+    `${characters}-character comment limit. Nothing was dropped from the run report itself.`;
+
+  const room = Math.max(0, characters - notice(body.length).length);
+  const cut = body.slice(0, room);
+  const lastBreak = cut.lastIndexOf('\n');
+  const head = lastBreak > 0 ? cut.slice(0, lastBreak) : cut;
+
+  return head + notice(body.length - head.length);
 }

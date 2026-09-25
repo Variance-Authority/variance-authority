@@ -27,6 +27,13 @@ describe('comment and report flags for a reviewer away from a checkout', () => {
     expect(parseArgs(['comment', '--to-accept', ''])).not.toHaveProperty('toAccept');
   });
 
+  it('takes --image-root on comment, and drops an empty one', () => {
+    expect(parseArgs(['comment', '--image-root', 'https://example.invalid/raw/abc'])).toMatchObject({
+      imageRoot: 'https://example.invalid/raw/abc',
+    });
+    expect(parseArgs(['comment', '--image-root', ''])).not.toHaveProperty('imageRoot');
+  });
+
   it('refuses --to-accept beside --marker, which renders no body', () => {
     expect(refusal(['comment', '--marker', '--to-accept', 'x'])).toContain(
       'prints the marker and nothing else',

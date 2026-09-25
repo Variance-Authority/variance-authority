@@ -111,7 +111,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: [],
   share: ['--ref', '--publish'],
-  comment: ['--body-file', '--run-url', '--to-accept', '--marker'],
+  comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker'],
 };
 
 export const USAGE = [
@@ -132,7 +132,7 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
-  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [<report>...] | --marker',
+  'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
   '',
   '`--version` prints the version of this tool.',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
