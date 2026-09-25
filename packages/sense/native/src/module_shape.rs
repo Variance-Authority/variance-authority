@@ -29,7 +29,6 @@ use oxc_allocator::{Allocator, TakeIn, Vec as ArenaVec};
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk_mut, VisitMut};
 use oxc_parser::{ParseOptions, Parser};
-use oxc_span::SourceType;
 use oxc_syntax::scope::ScopeFlags;
 
 /// The program, erased and optionally emptied, or nothing when the parser
