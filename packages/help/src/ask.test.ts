@@ -11,7 +11,7 @@ const READING = readHelp(WORKSPACE);
 
 describe('a verb is a tool, not a second implementation of one', () => {
   it('names every tool the server lists, with the wire prefix dropped', () => {
-    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'entrypoint', 'symbol', 'uses', 'search', 'gaps']);
+    expect(verbs().map(([verb]) => verb)).toEqual(['packages', 'entrypoint', 'symbol', 'uses', 'search', 'grep', 'gaps']);
   });
 
   it('dispatches to the same value the server would have called', () => {
@@ -25,7 +25,7 @@ describe('a verb is a tool, not a second implementation of one', () => {
 
   it('names what it answers when a verb is not one of them', () => {
     // A model handed "unknown verb" has one move left, which is to guess again.
-    expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, gaps/);
+    expect(() => toolNamed('symbols')).toThrow(/packages, entrypoint, symbol, uses, search, grep, gaps/);
   });
 });
 

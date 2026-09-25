@@ -10,10 +10,10 @@ itself. Each tool returns the same text as the command, from the same function.
 All of them speak MCP over stdio.
 
 ```bash
-variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools and the six docs_* tools
+variance serve [--config <path>] [--just-answer]    # @variance-authority/cli: the run's variance_* tools and the seven docs_* tools
 variance-authority-mcp <run-report.json>            # @variance-authority/mcp: the report is the argument
 variance-authority-mcp --watch                      # the live run; prints its address to stderr
-variance-authority-help [root] [--just-answer]      # @variance-authority/help: the six docs_* tools only
+variance-authority-help [root] [--just-answer]      # @variance-authority/help: the seven docs_* tools only
 ```
 
 `variance serve` reads the report the config names. `--just-answer` applies to
@@ -51,9 +51,10 @@ published generation. Each tool response prints the generation time.
 
 ## Tool names and arguments
 
-The six workspace tools are `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search` and `docs_gaps`. They take their arguments under
-their schema names (`package`, `subpath`, `name`, `query`, `from`, `to`), not as
+The seven workspace tools are `docs_packages`, `docs_entrypoint`, `docs_symbol`,
+`docs_uses`, `docs_search`, `docs_grep` and `docs_gaps`. They take their
+arguments under their schema names (`package`, `subpath`, `name`, `query`,
+`from`, `to`, `limit`), not as
 positionals. Drop the `docs_` prefix and you have the verb.
 
 A connection also serves questions the CLI does not ask:

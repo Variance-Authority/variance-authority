@@ -32,7 +32,7 @@ import type { Config } from '../config.js';
  *
  * ## One `ask`, and one server behind it
  *
- * The six source questions are on this server too, from the same `HELP_TOOLS`
+ * The seven source questions are on this server too, from the same `HELP_TOOLS`
  * the CLI mounts on `variance ask`. A workspace that has this package needs
  * nothing from `@variance-authority/help`'s binary, over either transport, and
  * that is the point: two servers answering about one checkout is two connections
@@ -48,7 +48,7 @@ import type { Config } from '../config.js';
 /** A run's report, and the workspace reading — whichever of them a question needed. */
 interface Bench {
   readonly report: RunReport;
-  /** Absent until one of the six is asked; nothing else reads it. */
+  /** Absent until one of the seven is asked; nothing else reads it. */
   readonly help?: Help;
 }
 
@@ -93,8 +93,9 @@ const BENCH: Served<Bench> = {
   ],
   instructions: (bench) =>
     `${REPORTS.instructions?.(bench.report) ?? ''} ` +
-    'The same connection answers six questions about the source — what this repository ' +
-    'publishes, where a name is declared, and who imports it — read from the checkout, ' +
+    'The same connection answers seven questions about the source — what this repository ' +
+    'publishes, where a name is declared, who imports it, and which lines match a pattern ' +
+    'in the files a path imports — read from the checkout, ' +
     'with no run required.',
 };
 

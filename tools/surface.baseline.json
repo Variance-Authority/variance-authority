@@ -960,6 +960,7 @@
         "entriesNamed": "function",
         "entrypoint": "const",
         "gaps": "const",
+        "grep": "const",
         "importing": "function",
         "isPackage": "function",
         "line": "function",

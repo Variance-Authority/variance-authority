@@ -1,6 +1,6 @@
 # What a workspace publishes, and where a name is used
 
-Six questions read a workspace's manifests and source and answer what it
+Seven questions read a workspace's manifests and source and answer what it
 publishes. Every answer names the UTC time of the workspace generation it used.
 They describe source, not a build or a generated site, and they need no run and
 no config.
@@ -32,7 +32,7 @@ it:
 | --- | --- | --- |
 | `@variance-authority/help` | the npm package | a manifest, a package runner |
 | `variance-authority-help` | the binary that package installs | a shell, an MCP `command` |
-| `docs_packages` … `docs_gaps` | the six MCP tool names | an MCP client's tool list |
+| `docs_packages` … `docs_gaps` | the seven MCP tool names | an MCP client's tool list |
 | `workspace-api` | the server key you chose | your own MCP config; rename it freely |
 
 The `docs_` prefix is the MCP namespace. Drop it and you have the verb:
@@ -65,7 +65,7 @@ variance-authority-help [root] [--just-answer]            # serve over MCP on st
 variance-authority-help write [root] [--out <dir>] [--base <url>]
 ```
 
-**Any first word that is not one of the six verbs and not `write` is read as a
+**Any first word that is not one of the seven verbs and not `write` is read as a
 root directory, and the binary starts an MCP stdio server on it.** There is no
 "unknown verb" error at this level: `variance-authority-help serve` tries to
 serve a directory named `serve`. That rule is also why the MCP config in
@@ -105,7 +105,7 @@ name's contract, and `uses` for its exact import sites and worked examples.
 This is a module graph, not a call graph. Never turn an import site into a claim
 that one function calls another; open the file or ask a language server.
 
-## The six verbs, in the order to ask them
+## The seven verbs, in the order to ask them
 
 Every block below is real output from the repository that develops this tool,
 shortened only.
@@ -299,7 +299,39 @@ never answered about the whole repository without knowing it. An empty answer
 under a start point is a fact about that area; ask again without it for the
 whole workspace. The answer says how many files it looked in.
 
-### 6. `gaps`
+### 6. `grep <pattern> --from <path> | --to <path>`
+
+ripgrep, run on the files a start point reaches. Use it when there is no name
+to ask for: a string literal, an error message, a comment. The closure is the
+one `search --from` walks, and the pattern goes to `rg` unchanged, so it is a
+regular expression and your ripgrep config applies. `rg` must be on `PATH`.
+
+```
+$ variance ask grep --query 'OperatorError\(' --from packages/cli/src/bin.ts --limit 3
+In 112 file(s) reachable from `packages/cli/src/bin.ts` along the imports, at any depth — 1 named by the path itself.
+
+130 matching lines in 41 files, nearest first.
+
+0 imports away:
+packages/cli/src/bin.ts:63:    if (isOperatorError(error)) {
+
+1 import away:
+packages/cli/src/dispatch.ts:327:        throw new OperatorError(
+packages/cli/src/dispatch.ts:348:        throw new OperatorError(
+
+127 more not shown; a higher `limit` shows them.
+```
+
+Lines are grouped by import distance from the start point, then sorted by path
+and line, so the same question gives the same answer. Each line is
+`path:line:text`, as `rg` prints it. 200 lines are shown unless `--limit` says
+otherwise, and the rest are counted.
+
+A start point is required. Without one, the question is `rg <pattern>`, and the
+refusal says so. A closure of thousands of files is passed to `rg` in several
+calls, each under the operating system's command-line limit.
+
+### 7. `gaps`
 
 Names other packages import with nothing written above the declaration. A work
 queue, not an answer about one name.

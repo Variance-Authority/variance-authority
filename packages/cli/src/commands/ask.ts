@@ -15,7 +15,7 @@ import {
   type Asked,
   type Question,
 } from './asking.js';
-import { HELP_TOOLS, search, type Help } from '@variance-authority/help/tools';
+import { HELP_TOOLS, grep, search, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import {
@@ -25,7 +25,7 @@ import {
   type Tool,
   type Tree,
 } from '@variance-authority/mcp/tools';
-import { readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
+import { grepSource, readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
 import { readVantage } from './watch.js';
 
 /**
@@ -56,7 +56,7 @@ import { readVantage } from './watch.js';
  * `VARIANCE_AUTHORITY_VANTAGE` the suite was started with — the reader asks on
  * the string it already had to set.
  *
- * The checkout is the third. `search`, `symbol`, `uses`, `entrypoint`,
+ * The checkout is the third. `search`, `grep`, `symbol`, `uses`, `entrypoint`,
  * `packages` and `gaps` are the tools `@variance-authority/help` serves, and
  * they read the source tree under the working directory: what each package
  * publishes, who imports a name, where a thing somebody can only describe is
@@ -160,7 +160,7 @@ type Flagged = Pick<
 
 /**
  * What a question about the code takes: every flag `ask` accepts, and nothing
- * about a run. Every flag rather than the six these tools take, so a
+ * about a run. Every flag rather than the seven these tools take, so a
  * `--subject` typed at `search` is refused by name like it is everywhere else,
  * instead of being dropped on the way in and answered around.
  */
@@ -238,9 +238,11 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // `search` opens its own published file in place rather than the whole
   // value, which is most of what a large repository's question costs. The
   // answer is the tool's, over the same generation.
-  const answering = request.source === undefined && tool.name === search.name
-    ? await searchSource(process.cwd(), input, reading)
-    : await wholeSource(request.source ?? readSource, tool, input, reading);
+  const answering =
+    request.source !== undefined ? await wholeSource(request.source, tool, input, reading)
+    : tool.name === search.name ? await searchSource(process.cwd(), input, reading)
+    : tool.name === grep.name ? await grepSource(process.cwd(), input)
+    : await wholeSource(readSource, tool, input, reading);
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where

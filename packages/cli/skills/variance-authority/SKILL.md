@@ -31,7 +31,7 @@ It reads no config and no run, so it is the whole install check.
 |---|---|---|
 | `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left |
 | `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
-| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `gaps`) | none | the checkout |
+| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`) | none | the checkout |
 | `watch`, `distill`, `covering`, `index`, `select`, `reach` | none | see the reference that owns it |
 
 The config is `variance.config.json` in the working directory, or the file
