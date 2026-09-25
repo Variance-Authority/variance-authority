@@ -35,7 +35,10 @@ name: variance
 # - **On `main`, by merging** a pull request whose `variance` check was green at
 #   its head. That acceptance is carried rather than asked for twice — but only
 #   when `main` was green before the merge, so nothing `main` already held
-#   unaccepted is promoted under the pull request's name.
+#   unaccepted is promoted under the pull request's name. A commit before it
+#   that was never judged, because its run was cancelled or it is one of a
+#   rebase merge's earlier commits, counts when an accepted pull request
+#   brought it in.
 # - **By dispatching** this workflow with `accept` ticked: the bootstrap, and the
 #   answer for work that lands on `main` without a pull request.
 #
@@ -181,12 +184,18 @@ jobs:
     # which is exactly the duplication the marker exists to prevent.
     #
     # On the job rather than the workflow, so a label this job skips cannot
-    # cancel a comparison in progress. `cancel-in-progress` on `main` as well,
-    # and that is safe here: a cancelled paint saves no cache, so the previous
-    # store stays the newest one and the next push repaints from the same place.
+    # cancel a comparison in progress.
+    #
+    # A pull request's newer push cancels the run in progress, because only the
+    # newest head matters there. The default branch queues instead: a merge's
+    # run reads the run before it to decide whether the merge's acceptance
+    # carries, and a cancelled run is a question nobody answered. GitHub still
+    # keeps only one queued run per group, so three merges close together can
+    # leave the middle one unrun; `variance-accept.mjs` looks through such a
+    # commit when an accepted pull request brought it in.
     concurrency:
       group: variance-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
 
     runs-on: ubuntu-24.04
     container:
