@@ -26,6 +26,7 @@ for sha in $(cat "$BASE/order.txt"); do
   done > "$dir/status.tsv"
   if [ "$RECORDER" = pressplit ]; then
     mv "$dir/exec/record.jsonl" "$dir/record.jsonl" || echo "no record" >> "$dir/run.txt"
+    mv "$dir/exec/coverage.va" "$dir/coverage.va" || echo "no coverage.va" >> "$dir/run.txt"
     echo "$sha $(cat "$dir/run.txt" | tr '\n' ' ')"
     continue
   fi
