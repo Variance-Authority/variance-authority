@@ -5,6 +5,7 @@ import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,13 +52,15 @@ import va.presence.rt.Presence;
  * only forward, and their callee is probed.
  */
 public final class Agent implements ClassFileTransformer {
+  static final String DEFAULT_SOURCES = "src/main/java:src/test/java:src/main/kotlin:src/test/kotlin";
+  private static volatile List<String> active = Arrays.asList(DEFAULT_SOURCES.split(":"));
   private final List<Pattern> includes = new ArrayList<>();
   private final List<String> roots = new ArrayList<>();
   private final Map<String, String> resolved = new HashMap<>();
   private Map<String, List<String>> byName;
 
   private Agent(String args) {
-    String sources = "src/main/java:src/test/java:src/main/kotlin:src/test/kotlin";
+    String sources = DEFAULT_SOURCES;
     for (String option : (args == null ? "" : args).split(",")) {
       int eq = option.indexOf('=');
       if (eq < 0) continue;
@@ -73,6 +76,12 @@ public final class Agent implements ClassFileTransformer {
     }
     if (includes.isEmpty()) includes.add(glob("*"));
     for (String root : sources.split(":")) roots.add(root);
+    active = roots;
+  }
+
+  /** The source roots classes are resolved under in this JVM. */
+  static List<String> roots() {
+    return active;
   }
 
   public static void premain(String args, Instrumentation inst) {

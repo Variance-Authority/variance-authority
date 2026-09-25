@@ -2,8 +2,8 @@
 //
 // Phase 0 harness. For each first-parent pair (parent -> child):
 //   selected  — from the parent's record, at method, shape, line and file grain; by sense's
-//               selector over the record converted to function regions (`coverage.mjs`);
-//               and by `variance reach` from the static graph;
+//               selector over the parent's `coverage.va`, the record at function grain that
+//               the presence agent writes; and by `variance reach` from the static graph;
 //   forced    — test classes whose own file changed, that the parent never recorded, or whose
 //               parent row names a class it could not resolve to a file (`unknown`);
 //   truth     — test classes whose *child* record enters a changed method (new side),
@@ -11,17 +11,20 @@
 // A miss is a truth test class that a grain neither selected nor forced. A method with no
 // line table has no span, so any change to its file charges it.
 //
-// Usage: node score.mjs <replay dir> <reach clone> <variance bin> [test source root]
+// A record without `coverage.va` (JaCoCo's, or one made before the agent wrote it) is
+// converted by the agent's own writer, run in the Maven image at the parent commit.
+//
+// Usage: node score.mjs <replay dir> <reach clone> <variance bin> <presence jar> [test source root]
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { loadSense, toCoverage } from './coverage.mjs';
+import { basename, dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseDiff } from './diff.mjs';
 
-const [replay, reachClone, varianceBin, testRoot = 'src/test/java'] = process.argv.slice(2);
+const [replay, reachClone, varianceBin, presenceJar, testRoot = 'src/test/java'] = process.argv.slice(2);
 const order = readFileSync(join(replay, 'order.txt'), 'utf8').trim().split('\n');
-const sense = await loadSense(varianceBin);
+const { narrowByExecution } = await import(pathToFileURL(join(varianceBin, '..', '..', '..', 'sense', 'dist', 'test-selection', 'index.js')).href);
 
 function loadRecord(sha) {
   const path = join(replay, sha, 'record.jsonl');
@@ -102,24 +105,27 @@ const fqcn = (path) => path.slice(testRoot.length + 1).replace(/\.(java|kt)$/, '
 
 const testFile = (owner) => `${testRoot}/${owner.replaceAll('.', '/')}.java`;
 
-/** The parent's record as sense's execution record, asked for the diff: entered, plus every test it cannot exclude. */
+/** The parent's `coverage.va`, written by the agent's writer when the run did not leave one. */
+function coverageOf(parent) {
+  const dir = join(replay, parent);
+  const path = join(dir, 'coverage.va');
+  if (existsSync(path)) return path;
+  execFileSync('git', ['-C', reachClone, 'checkout', '-q', '--detach', parent]);
+  execFileSync('docker', ['run', '--rm', '-v', `${dirname(presenceJar)}:/va:ro`, '-v', `${reachClone}:/repo:ro`, '-v', `${dir}:/d`, '-w', '/repo',
+    'maven:3.9-eclipse-temurin-21', 'java', '-cp', `/va/${basename(presenceJar)}`, 'va.presence.Coverage', '/d/record.jsonl', '/d/coverage.va', parent], { stdio: ['ignore', 'ignore', 'inherit'] });
+  return path;
+}
+
+/** Sense's selection from the parent's record: the tests it entered, plus every test it cannot exclude. */
 async function recordSelect(parent, diffText) {
-  const rows = readFileSync(join(replay, parent, 'record.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l));
-  const textOf = (file) => {
-    try {
-      return execFileSync('git', ['-C', reachClone, 'show', `${parent}:${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 1 << 28 });
-    } catch {
-      return undefined;
-    }
-  };
-  const path = join(replay, parent, 'coverage.va');
-  await sense.writeTestCoverage(path, toCoverage({ rows, textOf, testFile, commit: parent, digestString: sense.digestString }));
-  const n = await sense.narrowByExecution(path, diffText);
+  const n = await narrowByExecution(coverageOf(parent), diffText);
   const whole = new Set(n.whole);
   const out = new Set(n.entered);
-  for (const r of rows) if (!r.owner.startsWith('between') && !whole.has(testFile(r.owner))) out.add(testFile(r.owner));
+  for (const t of before(parent)) if (!whole.has(testFile(t))) out.add(testFile(t));
   return new Set([...out].map(fqcn));
 }
+
+const before = (sha) => [...loadRecord(sha).keys()].filter((t) => !t.startsWith('<spill'));
 
 function reach(parent, child) {
   execFileSync('git', ['-C', reachClone, 'checkout', '-q', '--detach', child]);
