@@ -9,10 +9,12 @@ import { withJourneyCoverage } from '@variance-authority/sense/jest';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const journeyFile = process.env['VARIANCE_AUTHORITY_JOURNEYS'];
 const cacheDirectory = process.env['VARIANCE_AUTHORITY_JEST_CACHE'];
-const parts = process.env['VARIANCE_AUTHORITY_PARTS'];
+// The directory the fold reads. The service is told where to write, which is
+// this directory or a receiver that writes into it.
+const parts = process.env['PARTS_DIRECTORY'];
 const head = process.env['VARIANCE_AUTHORITY_HEAD'];
 if (journeyFile === undefined || cacheDirectory === undefined || parts === undefined || head === undefined) {
-  throw new Error('VARIANCE_AUTHORITY_JOURNEYS, _JEST_CACHE, _PARTS and _HEAD are required');
+  throw new Error('VARIANCE_AUTHORITY_JOURNEYS, _JEST_CACHE, _HEAD and PARTS_DIRECTORY are required');
 }
 
 export default withJourneyCoverage(

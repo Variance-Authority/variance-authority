@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
 import { finalizeJestJourneys } from './jest-journey-artifact.js';
 import { selectJourneyFile } from './journey-native.js';
+import { receiveParts } from './parts-receiver.js';
 
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
@@ -21,12 +22,23 @@ afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-describe('a journey across a service boundary', () => {
+// A service with a filesystem writes its parts in place; one without sends
+// them to a receiver that writes the same files. The fold cannot tell.
+const targets = {
+  'into a directory': async (parts: string) => ({ target: parts, close: async () => {} }),
+  'through a receiver': async (parts: string) => {
+    const receiver = await receiveParts(parts);
+    return { target: receiver.url, close: receiver.close };
+  },
+};
+
+describe.each(Object.entries(targets))('a journey across a service boundary, written %s', (_, open) => {
   it('charges what a service ran to the case that called it, joined after the run by the cookie alone', async () => {
     const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-parts-'));
     temporary.push(directory);
     const journeyFile = resolve(directory, 'journeys.bin');
     const parts = resolve(directory, 'parts');
+    const sink = await open(parts);
     // Jest and the service share nothing but the environment the service
     // inherits: a parts directory to write to and a label to build under. Each
     // test file starts its own service, so the two files' requests land in two
@@ -37,12 +49,13 @@ describe('a journey across a service boundary', () => {
         ...process.env,
         VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
         VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
-        VARIANCE_AUTHORITY_PARTS: parts,
+        VARIANCE_AUTHORITY_PARTS: sink.target,
+        PARTS_DIRECTORY: parts,
         VARIANCE_AUTHORITY_HEAD: 'pricing',
         VARIANCE_AUTHORITY_BUILD: resolve(directory, 'build'),
         XDG_CACHE_HOME: directory,
       },
-    });
+    }).finally(sink.close);
     expect(await readdir(parts)).toHaveLength(2);
     await finalizeJestJourneys(journeyFile);
 

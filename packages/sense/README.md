@@ -430,6 +430,37 @@ service's startup is every caller's, so a change to it selects every file that
 called it. A case that called the service without its cookie is not charged at
 all, because nothing names it.
 
+A runtime with no host filesystem, such as a Cloudflare Worker, sends its parts
+to an address instead. Start a receiver on the host before the service, and
+point `parts` at it:
+
+```js
+import { receiveParts } from '@variance-authority/sense/journey';
+
+const receiver = await receiveParts('/tmp/va-parts', { port: 5198 });
+// VARIANCE_AUTHORITY_PARTS=http://127.0.0.1:5198 in the service's environment
+await receiver.close();
+```
+
+Each journey's frame is sent before the promise its scope returned settles, so
+a runtime that ends a request's work with its response still delivers it. A
+receiver that is gone loses that part, never the request.
+
+A bundle evaluates every module before any of its own code can install a head,
+so ask the build to install it first. `testSelectionProbes({ label: 'workers',
+journeys: true })` has its collector import `@variance-authority/sense/journey`
+and install the head under `label`. Each entry's own `collectJourneys()` then
+returns that head:
+
+```js
+const journeys = collectJourneys();
+
+export default {
+  fetch: (request, env, context) =>
+    journeys.enter(request.headers.get('cookie') ?? undefined, () => handle(request, env, context)),
+};
+```
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own

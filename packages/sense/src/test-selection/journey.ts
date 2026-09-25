@@ -98,6 +98,9 @@ export {
  */
 export { JOURNEY_COOKIE };
 
+/** Where a service with no host filesystem sends its parts. */
+export { receiveParts, type PartsReceiver } from './parts-receiver.js';
+
 /**
  * Whether this process reports at all. Absent, a head installs nothing.
  *
@@ -162,7 +165,9 @@ export interface JourneyCollectorOptions {
    */
   readonly enabled?: boolean;
   /**
-   * A directory to write this head's parts to. Defaults to
+   * A directory to write this head's parts to, or the `http(s)://` address of
+   * a {@link receiveParts} that writes them for a runtime with no host
+   * filesystem. Defaults to
    * {@link JOURNEY_PARTS_VARIABLE}. A part is what one journey ran here, as a
    * case frame owned by the journey id alone; the case that handed the id out
    * is joined to it when its run is finalized. Set, it enables the head.
@@ -193,6 +198,8 @@ export interface JourneyCollector {
   readonly close: () => Promise<void>;
 }
 
+const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
+
 /**
  * Install the journey-keyed collector in this process.
  *
@@ -207,8 +214,29 @@ export interface JourneyCollector {
  * One line, and it is the whole of the extra setup a service needs — plus
  * forwarding the cookie on any request it makes onward, which is the only way
  * anything past the first hop is ever attributed.
+ *
+ * A realm holds one collector. A bundle whose build installed it before any
+ * instrumented module (`testSelectionProbes({ journeys: true })`) gets that
+ * one back from this call, options and all, until it is closed.
  */
 export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyCollector {
+  const realm = globalThis as { [INSTALLED]?: JourneyCollector };
+  const installed = realm[INSTALLED];
+  if (installed !== undefined) return installed;
+  const collector = installJourneys(options);
+  if (!collector.collecting) return collector;
+  const held: JourneyCollector = {
+    ...collector,
+    close: async () => {
+      if (realm[INSTALLED] === held) delete realm[INSTALLED];
+      await collector.close();
+    },
+  };
+  realm[INSTALLED] = held;
+  return held;
+}
+
+function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
   if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf);

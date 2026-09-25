@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { executionCollectorSource } from './probes.js';
+import { executionCollectorSource, testSelectionProbes } from './probes.js';
 import { joinObservations, recordExecution } from './journal.js';
 import {
   JOURNEY_COOKIE,
@@ -360,6 +360,39 @@ describe('a process nobody asked to report', () => {
 
       const reports = driven.reports;
       expect(reports.some((report) => report.journey === journey)).toBe(true);
+    });
+  });
+});
+
+describe('a realm holds one head', () => {
+  it('hands the installed head to a second call until it closes', async () => {
+    const first = collectJourneys({ head: 'build', enabled: true });
+    try {
+      const second = collectJourneys({ head: 'service', enabled: true });
+      expect(second).toBe(first);
+      expect(second.head).toBe('build');
+    } finally {
+      await first.close();
+    }
+    const after = collectJourneys({ head: 'service', enabled: true });
+    try {
+      expect(after).not.toBe(first);
+      expect(after.head).toBe('service');
+    } finally {
+      await after.close();
+    }
+  });
+
+  it('installs the head ahead of the page collector when the build asks', async () => {
+    await inRoot(async (root) => {
+      const collector = '\0variance-authority:execution-collector';
+      const source = testSelectionProbes({ root, label: 'workers', journeys: true }).load(collector);
+      expect(source).toBe(
+        'import { collectJourneys } from "@variance-authority/sense/journey";\n' +
+          'collectJourneys({"head":"workers"});\n' +
+          executionCollectorSource(),
+      );
+      expect(testSelectionProbes({ root, label: 'workers' }).load(collector)).toBe(executionCollectorSource());
     });
   });
 });

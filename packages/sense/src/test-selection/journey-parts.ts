@@ -9,33 +9,40 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { randomUUID } from 'node:crypto';
-import { appendFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
 import journalFormat from './journal-format.cjs';
 import type { JourneyCollector } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 
+type Sink = (frames: readonly Uint8Array[]) => Promise<void> | undefined;
+
 /**
  * The head that writes parts instead of reporting them.
  *
  * One file per process, appended a frame at a time as each journey's scopes
- * release: nothing is acknowledged, nothing waits, and a process killed
- * mid-write leaves a torn last frame the fold reads past. A journey's frame is
- * owned by `\0\0\0\0<journey>`. What the process ran outside any journey, and
- * what a module ran while a request was the first to need it evaluated, is
- * every journey's: it goes in frames owned by the empty journey, which the fold
+ * release: nothing is acknowledged, and a process killed mid-write leaves a
+ * torn last frame the fold reads past. A journey's frame is owned by
+ * `\0\0\0\0<journey>`. What the process ran outside any journey, and what a
+ * module ran while a request was the first to need it evaluated, is every
+ * journey's: it goes in frames owned by the empty journey, which the fold
  * charges to every case whose journey this file names.
+ *
+ * `target` is a directory, or an `http(s)://` address that
+ * [`receiveParts`](./parts-receiver.ts) serves for a runtime with no host
+ * filesystem. Over HTTP, a journey's frame is sent before the promise its
+ * scope returned settles, so a runtime that ends a request's work with its
+ * response still delivers it.
  */
 export function writeParts(
   head: string,
-  directory: string,
+  target: string,
   journeyOf: (carried: string | undefined) => string | undefined,
 ): JourneyCollector {
-  mkdirSync(directory, { recursive: true });
-  const file = resolve(directory, `${head.replace(/[^\w.-]/g, '_')}-${process.pid}-${randomUUID()}.vac`);
+  // Named on the first send: a Worker installs this at global scope, where
+  // workerd refuses random values.
+  const append = partSink(target, () => `${head.replace(/[^\w.-]/g, '_')}-${crypto.randomUUID()}.vac`);
+  const sent = new Set<Promise<void>>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
   const store = new AsyncLocalStorage<string>();
   const depth = new Map<string, number>();
@@ -49,7 +56,7 @@ export function writeParts(
       buckets.set(journey, bucket);
       // A promise the handler started and did not return, still running as
       // its request after the scope released: written on the next turn.
-      if (journey !== UNATTRIBUTED && !depth.has(journey)) setImmediate(() => write(journey));
+      if (journey !== UNATTRIBUTED && !depth.has(journey)) setTimeout(() => void write(journey), 0);
     }
     return bucket;
   };
@@ -64,11 +71,6 @@ export function writeParts(
     return lastBucket;
   });
 
-  const append = (frame: Uint8Array): void => {
-    const length = Buffer.alloc(4);
-    length.writeUInt32LE(frame.length);
-    appendFileSync(file, Buffer.concat([length, frame]));
-  };
   const common = new Map<ModuleId, Set<number>>();
   const keep = (id: ModuleId, ordinal: number): void => {
     let ordinals = common.get(id);
@@ -77,7 +79,7 @@ export function writeParts(
   };
   const owner = (journey: string): string =>
     journalFormat.packJourney(journalFormat.packCase('', '', ''), journey);
-  const writeCommon = (): void => {
+  const commonFrame = (): Uint8Array | undefined => {
     const bucket = buckets.get(UNATTRIBUTED);
     if (bucket !== undefined) {
       buckets.delete(UNATTRIBUTED);
@@ -85,7 +87,7 @@ export function writeParts(
         for (const ordinal of module.hits) keep(module.id, ordinal);
       }
     }
-    if (common.size === 0) return;
+    if (common.size === 0) return undefined;
     const counters = new Map<ModuleId, Uint32Array>();
     for (const [id, ordinals] of common) {
       const entered = new Uint32Array(Math.max(...ordinals) + 1);
@@ -93,38 +95,47 @@ export function writeParts(
       counters.set(id, entered);
     }
     common.clear();
-    append(journalFormat.encodeJournal(owner(''), counters));
+    return journalFormat.encodeJournal(owner(''), counters);
   };
-  const write = (journey: string): void => {
-    if (depth.has(journey)) return;
+  const journeyFrame = (journey: string): Uint8Array | undefined => {
     const bucket = buckets.get(journey);
-    if (bucket !== undefined) {
-      buckets.delete(journey);
-      const view = engine.close(bucket);
-      for (const module of engine.lists(view, false)) {
-        for (const ordinal of module.shared) keep(module.id, ordinal);
-      }
-      append(journalFormat.encodeLog(owner(journey), view));
+    if (bucket === undefined) return undefined;
+    buckets.delete(journey);
+    const view = engine.close(bucket);
+    for (const module of engine.lists(view, false)) {
+      for (const ordinal of module.shared) keep(module.id, ordinal);
     }
-    writeCommon();
+    return journalFormat.encodeLog(owner(journey), view);
   };
-  const release = (journey: string): void => {
+  const send = (frames: (Uint8Array | undefined)[]): Promise<void> | undefined => {
+    const written = frames.filter((frame) => frame !== undefined);
+    const pending = written.length === 0 ? undefined : append(written);
+    if (pending === undefined) return undefined;
+    sent.add(pending);
+    return pending.finally(() => sent.delete(pending));
+  };
+  const write = (journey: string): Promise<void> | undefined =>
+    depth.has(journey) ? undefined : send([journeyFrame(journey), commonFrame()]);
+  const release = (journey: string): Promise<void> | undefined => {
     const open = (depth.get(journey) ?? 1) - 1;
     if (open > 0) {
       depth.set(journey, open);
-      return;
+      return undefined;
     }
     depth.delete(journey);
-    write(journey);
+    return write(journey);
   };
   const flush = async (): Promise<void> => {
-    for (const journey of buckets.keys()) {
+    const frames: (Uint8Array | undefined)[] = [];
+    for (const journey of [...buckets.keys()]) {
       if (journey !== UNATTRIBUTED) {
         depth.delete(journey);
-        write(journey);
+        frames.push(journeyFrame(journey));
       }
     }
-    writeCommon();
+    frames.push(commonFrame());
+    send(frames);
+    await Promise.all(sent);
   };
 
   Object.defineProperty(globalThis, '__VA__', {
@@ -145,11 +156,22 @@ export function writeParts(
       try {
         done = store.run(journey, body);
       } catch (error) {
-        release(journey);
+        void release(journey);
         throw error;
       }
-      if (isThenable(done)) return done.finally(() => release(journey)) as Result;
-      release(journey);
+      if (isThenable(done)) {
+        return done.then(
+          async (value) => {
+            await release(journey);
+            return value;
+          },
+          async (error: unknown) => {
+            await release(journey);
+            throw error;
+          },
+        ) as Result;
+      }
+      void release(journey);
       return done;
     },
     flush,
@@ -158,6 +180,55 @@ export function writeParts(
       if (previous === undefined) delete (globalThis as Record<string, unknown>)['__VA__'];
       else Object.defineProperty(globalThis, '__VA__', previous);
     },
+  };
+}
+
+/** Each frame behind its u32 little-endian length, as the fold reads a part. */
+export function lengthPrefixed(frames: readonly Uint8Array[]): Uint8Array {
+  let size = 0;
+  for (const frame of frames) size += 4 + frame.byteLength;
+  const bytes = new Uint8Array(size);
+  const view = new DataView(bytes.buffer);
+  let at = 0;
+  for (const frame of frames) {
+    view.setUint32(at, frame.byteLength, true);
+    bytes.set(frame, at + 4);
+    at += 4 + frame.byteLength;
+  }
+  return bytes;
+}
+
+function partSink(target: string, name: () => string): Sink {
+  if (/^https?:\/\//.test(target)) {
+    let url: string | undefined;
+    // The previous send finishes first, so the receiver appends in order.
+    let last: Promise<void> = Promise.resolve();
+    return (frames) => {
+      const to = (url ??= `${target.replace(/\/+$/, '')}/${encodeURIComponent(name())}`);
+      const body = lengthPrefixed(frames);
+      last = last.then(async () => {
+        try {
+          const response = await fetch(to, { method: 'POST', body });
+          await response.arrayBuffer();
+        } catch {
+          // A receiver that is gone loses this part, never the request.
+        }
+      });
+      return last;
+    };
+  }
+  // A file sink appends in place and holds nothing; `node:fs` is loaded only
+  // here, so a runtime without it reaches this module through the HTTP path.
+  const fs = process.getBuiltinModule('node:fs');
+  const path = process.getBuiltinModule('node:path');
+  let file: string | undefined;
+  return (frames) => {
+    if (file === undefined) {
+      file = path.resolve(target, name());
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+    }
+    fs.appendFileSync(file, lengthPrefixed(frames));
+    return undefined;
   };
 }
 
