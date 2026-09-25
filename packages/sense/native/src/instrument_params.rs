@@ -78,8 +78,9 @@ pub fn plan(params: &FormalParameters, entry: u32, arrow: bool) -> Option<Plan> 
     // parameter does not open with `{`; nothing can run in front of that
     // pattern without a parameter in front of it, or a default on it that
     // changes `length`. So a call that throws while binding it — `f()` or
-    // `f(null)` — is observed only if its body is reached.
-    if first == 0 && matches!(items[0].pattern, BindingPattern::ObjectPattern(_)) {
+    // `f(null)` — is observed only if its body is reached. A list that is only a
+    // destructured rest has no first item: `first` is 0 and `items` is empty.
+    if first == 0 && items.first().is_some_and(|item| matches!(item.pattern, BindingPattern::ObjectPattern(_))) {
         return None;
     }
     // TODO: an arrow whose parameters can throw and that ends in a rest keeps its
