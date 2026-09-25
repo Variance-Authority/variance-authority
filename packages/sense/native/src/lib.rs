@@ -68,10 +68,9 @@ pub fn read_source(file: String, source: String) -> String {
 
 /// What one file of a tree-sitter language asks for and publishes, as JSON.
 ///
-/// The AST does not cross — a `Read` is a handful of specifiers and names, which
-/// is what the JavaScript readers already build per file, so this hands back the
-/// same object graph the oracle would have and no more. `null` means no reader
-/// here claims that language, and the caller falls back to its own.
+/// The AST does not cross — a `Read` is a handful of specifiers and names, the
+/// same object graph every reader answers with, and no more. `null` means no
+/// reader here claims that language, and the caller records the file as unknown.
 #[cfg(feature = "grammars")]
 #[napi(catch_unwind)]
 pub fn read_language(language: String, file: String, source: String) -> Option<String> {
@@ -81,14 +80,11 @@ pub fn read_language(language: String, file: String, source: String) -> Option<S
 
 /// The same method on a build whose grammars did not compile: it claims nothing.
 ///
-/// The method stays rather than disappearing, because `record.ts` reaches an
-/// addon that has it and an addon that does not through two different branches,
-/// and only one of them is the branch every language takes on a machine with no
-/// addon at all. Answering `null` is the branch already worn smooth: the
-/// JavaScript reader is the implementation of record, and the five languages
-/// read exactly as they read where nothing was compiled. Everything else this
-/// crate does — git identity, the path set, the oxc parse, resolution, the
-/// journey fold — is here and is what it was.
+/// The method stays rather than disappearing, so `record.ts` has one branch for
+/// it: `null` makes every file in the five languages *unknown*, with a reason
+/// that names the missing grammars. Everything else this crate does — git
+/// identity, the path set, the oxc parse, resolution, the journey fold — is here
+/// and is what it was.
 #[cfg(not(feature = "grammars"))]
 #[napi(catch_unwind)]
 pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
@@ -98,7 +94,7 @@ pub fn read_language(_language: String, _file: String, _source: String) -> Optio
 /// The targets a `Package.swift` declares, as JSON `[{ name, path }]`.
 ///
 /// `null` when the manifest does not parse, or on a build without the grammars;
-/// either way `swift.ts` reads it with its own grammar instead.
+/// either way `swift.ts` keeps the conventional `Sources/<name>` layout.
 #[cfg(feature = "grammars")]
 #[napi(catch_unwind)]
 pub fn swift_targets(source: String) -> Option<String> {

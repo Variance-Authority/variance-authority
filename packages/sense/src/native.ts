@@ -132,8 +132,8 @@ export interface NativeScanner {
    * binary built without the grammars, which `native/build.mjs` falls back to.
    */
   readLanguage(language: string, file: string, source: string): string | null;
-  /** The targets a `Package.swift` declares, as JSON `[{ name, path }]`; `null` when it does not parse. */
-  swiftTargets?(source: string): string | null;
+  /** A `Package.swift`'s targets as JSON `[{ name, path }]`; `null` unparsed or without grammars. */
+  swiftTargets(source: string): string | null;
   /** One module's parse, as JSON, for source text already in hand. */
   readSource(file: string, source: string): string;
   /**
@@ -428,7 +428,7 @@ function builtFromBatch(
       const kind = kinds[batch.kinds[at + step] ?? -1];
       if (target === '') {
         unresolved.push(value);
-        // The package edge the oracle records beside it ([`record.ts`](./record.ts)).
+        // The package edge [`record.ts`](./record.ts) records beside it for every other language.
         // Without it a bumped package has no importer in a graph this path
         // built, and the install walk selects nothing for it.
         const named = packageOf(request);

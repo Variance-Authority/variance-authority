@@ -1,16 +1,15 @@
 //! One reader per language, each answering the shape [`shape.rs`](./shape.rs) holds.
 //!
-//! The grammars are linked into this binary rather than loaded from disk, which
-//! is the one behavioural difference from the JavaScript readers they replace:
-//! there, a grammar is an optional npm package and an absent one makes a whole
-//! language unreadable ([`grammar.ts`](../../src/grammar.ts) argues why that has
-//! to be *unknown* rather than *edgeless*). Here the grammar cannot be absent —
+//! These are the only readers for these five languages. The grammars are linked
+//! into this binary rather than loaded from disk, so a grammar cannot be absent:
 //! if this addon loaded, every language it claims can be parsed.
 //!
 //! What can be absent is this module. The grammars are the `grammars` feature,
 //! on by default and dropped by `build.mjs` when they are what failed to
-//! compile; a build without them claims no language at all and every one of
-//! these five is read by the JavaScript reader that is the oracle anyway.
+//! compile; a build without them claims no language at all, and
+//! [`record.ts`](../../../src/record.ts) records every file in these five as
+//! *unknown* rather than *edgeless* — a repository whose Python nobody parsed
+//! must not read as a repository with no Python in it.
 
 pub mod jvm;
 pub mod python;
@@ -51,7 +50,7 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
     let grammar = Grammar::of(language)?;
     let Some(tree) = grammar::parse(grammar, source) else {
         // Worded per language, because this string is the whole answer for a
-        // file nothing could read and the JavaScript readers word it per language.
+        // file nothing could read.
         return Some(Read::unreadable(match grammar {
             Grammar::Python => format!("{file} could not be parsed."),
             Grammar::Rust => format!("{file} could not be parsed as Rust."),

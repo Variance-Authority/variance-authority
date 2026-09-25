@@ -50,9 +50,7 @@
  * ordinary import, which under-reports the transitive reach by exactly one hop.
  */
 
-import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
-import { native } from './native.js';
-import type { Export, Read, Request } from './read.js';
+import { native, nativeRefusal } from './native.js';
 import type { TreeWorld } from './world.js';
 
 /** The request a file makes for its own target: the files it sees without asking. */
@@ -60,93 +58,6 @@ const OWN_TARGET = '*';
 
 const SWIFT_FILE = '.swift';
 const MANIFEST = 'Package.swift';
-
-export function readSwift(file: string, source: string): Read {
-  const parser = parserFor('swift');
-  if (parser === undefined) {
-    return { requests: [], unknown: missingGrammar(file, 'swift') };
-  }
-
-  const tree = parser.parse(source);
-  if (tree === null) {
-    return { requests: [], unknown: `${file} could not be parsed as Swift.` };
-  }
-
-  const requests: Request[] = [];
-  const exports: Export[] = [];
-  const seen = new Set<string>();
-  let broken = false;
-
-  const want = (value: string, local: string, line: number): void => {
-    if (value === '' || seen.has(value)) return;
-    seen.add(value);
-    requests.push({
-      value,
-      kind: 'imports',
-      bindings: [{ imported: local, local, type: false, line }],
-      line,
-      // Always. A module name is not a path, `Foundation` and `Core` are written
-      // identically, and the target a name belongs to is a fact about the tree.
-      guessed: true,
-    });
-  };
-
-  // The files beside this one, which it sees with no statement of any kind.
-  want(OWN_TARGET, OWN_TARGET, 1);
-
-  for (const child of tree.rootNode.namedChildren) {
-    const line = child.startPosition.row + 1;
-    // Only at this level, and only inside an import: an error anywhere else in
-    // the file cannot have swallowed one.
-    if (child.type === 'ERROR' || child.isMissing) broken = true;
-    if (child.type === 'import_declaration') {
-      if (child.hasError) broken = true;
-      const name = child.namedChildren.find((part) => part.type === 'identifier');
-      // `import struct Answer.Lens` names the module `Answer`; the rest of the
-      // path is a symbol inside it, and there is no file grain below the module.
-      const module = name?.namedChildren[0]?.text ?? name?.text.split('.')[0];
-      if (module !== undefined) want(module, module, line);
-      continue;
-    }
-    const name = declared(child);
-    if (name !== undefined) exports.push({ exported: name, local: name, type: false, line });
-  }
-
-  return {
-    requests,
-    ...(exports.length === 0 ? {} : { exports }),
-    ...(broken
-      ? { unknown: `${file} did not parse cleanly as Swift, so what it imports may be incomplete.` }
-      : {}),
-  };
-}
-
-/**
- * Top-level declarations this file publishes.
- *
- * `class_declaration` is every nominal type in this grammar — `struct`, `class`,
- * `enum` and `actor` all reach it — and the keyword that separates them is an
- * anonymous node. Nothing here needs to tell them apart.
- */
-const DECLARATIONS = new Set([
-  'class_declaration',
-  'protocol_declaration',
-  'typealias_declaration',
-  'function_declaration',
-  'property_declaration',
-]);
-
-function declared(node: GrammarNode): string | undefined {
-  if (!DECLARATIONS.has(node.type)) return undefined;
-  const name = node.namedChildren.find(
-    (child) => child.type === 'type_identifier' || child.type === 'simple_identifier',
-  );
-  if (name !== undefined) return name.text;
-  // `let value = 1` binds through a pattern rather than naming itself.
-  return node.namedChildren
-    .find((child) => child.type === 'pattern')
-    ?.namedChildren.find((child) => child.type === 'simple_identifier')?.text;
-}
 
 /** Swift requests never name a path, so a Swift request is never a hole. */
 export function isSwiftRelative(): boolean {
@@ -241,77 +152,18 @@ function under(at: string, rest: string): string {
 type Target = { readonly name: string; readonly path: string };
 
 /**
- * The `.target(name:path:)` calls in a manifest, read with the Swift grammar.
+ * The `.target(name:path:)` calls in a manifest, read with the addon's Swift grammar.
  *
- * The addon's grammar first. Node 24 and 25 abort the process with a V8 zone
- * overflow while optimizing the WebAssembly Swift grammar, and a manifest is the
- * last Swift file that grammar reads on a machine with the addon.
+ * Nothing when the addon was built without its grammars: the conventional
+ * layout [`targetIndex`](#targetIndex) laid down first is then the whole answer,
+ * as it is for a manifest that does not parse.
  */
 function declaredTargets(text: string | undefined): readonly Target[] {
   if (text === undefined) return [];
   const addon = native();
-  if (addon?.swiftTargets !== undefined) {
-    try {
-      const answer = addon.swiftTargets(text);
-      if (answer !== null) return JSON.parse(answer) as Target[];
-    } catch {
-      // Left to the grammar below, which reads the same calls.
-    }
+  if (addon === undefined) {
+    throw new Error(`sense: reading Package.swift needs the native addon, which did not load: ${nativeRefusal()}`);
   }
-  return targetsOf(text);
-}
-
-/** The same calls read with the WebAssembly grammar: the answer without the addon. */
-export function targetsOf(text: string): readonly Target[] {
-  const parser = parserFor('swift');
-  if (parser === undefined) return [];
-  const tree = parser.parse(text);
-  if (tree === null) return [];
-
-  const found: { name: string; path: string }[] = [];
-
-  const visit = (node: GrammarNode): void => {
-    if (node.type === 'call_expression') {
-      const callee = calleeOf(node);
-      if (callee !== undefined && callee.toLowerCase().endsWith('target')) {
-        const args = node.namedChildren
-          .find((child) => child.type === 'call_suffix')
-          ?.namedChildren.find((child) => child.type === 'value_arguments');
-        const name = argument(args, 'name');
-        if (name !== undefined) {
-          // SwiftPM's own defaults, which are what a target with no `path:` means.
-          const fallback = callee === 'testTarget' ? `Tests/${name}` : `Sources/${name}`;
-          found.push({ name, path: argument(args, 'path') ?? fallback });
-        }
-      }
-    }
-    for (const child of node.namedChildren) visit(child);
-  };
-
-  visit(tree.rootNode);
-  return found;
-}
-
-/** `.target` parses as a prefix expression: the dot is the prefix and the name follows. */
-function calleeOf(call: GrammarNode): string | undefined {
-  const head = call.namedChildren[0];
-  if (head === undefined) return undefined;
-  if (head.type === 'simple_identifier') return head.text;
-  if (head.type === 'prefix_expression') {
-    return head.namedChildren.find((child) => child.type === 'simple_identifier')?.text;
-  }
-  return undefined;
-}
-
-function argument(args: GrammarNode | undefined, label: string): string | undefined {
-  if (args === undefined) return undefined;
-  for (const value of args.namedChildren) {
-    if (value.type !== 'value_argument') continue;
-    const written = value.namedChildren.find((child) => child.type === 'value_argument_label');
-    if (written?.text !== label) continue;
-    const literal = value.namedChildren.find((child) => child.type === 'line_string_literal');
-    if (literal === undefined) return undefined;
-    return literal.namedChildren.map((part) => part.text).join('');
-  }
-  return undefined;
+  const answer = addon.swiftTargets(text);
+  return answer === null ? [] : JSON.parse(answer) as Target[];
 }

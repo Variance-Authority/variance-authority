@@ -1,9 +1,10 @@
 //! What every language reader answers, in the shape the JavaScript side holds.
 //!
 //! One struct per concept and one order-preserving gathering, because a reader's
-//! output is compared against the JavaScript oracle byte for byte: a `HashMap`
-//! here would reorder requests and make an acceleration look like a different
-//! answer ([`record.ts`](../../src/record.ts) is what consumes this).
+//! requests are one entry per statement in the order the file wrote them, and
+//! the source index is keyed by that alignment: a `HashMap` here would reorder
+//! them and point every target at the wrong line. [`record.ts`](../../../src/record.ts)
+//! is what consumes this.
 
 use std::collections::HashMap;
 

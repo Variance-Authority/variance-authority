@@ -1,4 +1,11 @@
-/** The JavaScript oracle for turning one source file into a reusable record. */
+/**
+ * Turning one source file into a reusable record: read it, resolve what it asks
+ * for, and keep the edges.
+ *
+ * The native batch builds modules' records itself ([`native.ts`](./native.ts)).
+ * Every other language is built here, and so is every module a batch was not
+ * asked for.
+ */
 
 import { readFile, stat } from 'node:fs/promises';
 import { indexSource } from '@variance-authority/core/attribute';
@@ -6,16 +13,12 @@ import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core
 import type { Parsed, ParseCache } from './cache.js';
 import { digestString, type Digest } from './digest.js';
 import { keyFor, languageFor, parseWay, type ParseWay } from './files.js';
-import { readJava, readKotlin } from './jvm.js';
 import { indexesComponents, type LanguageId } from './language.js';
-import { readPython } from './python.js';
-import { native } from './native.js';
+import { native, nativeRefusal } from './native.js';
 import { readModule, type Read } from './read.js';
 import { readStyle } from './style.js';
 import { resolveAll, type Resolvers } from './resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
-import { readRust } from './rust.js';
-import { readSwift } from './swift.js';
 import { witnessesOf, type Aliases } from './witness.js';
 
 export interface RecordSubject {
@@ -207,43 +210,33 @@ function parsedFrom(file: string, contents: string, way: ParseWay, language: Lan
 function readerFor(language: LanguageId): (file: string, contents: string) => Read {
   switch (language) {
     case 'style': return readStyle;
-    case 'python': return accelerated('python', readPython);
-    case 'rust': return accelerated('rust', readRust);
-    case 'java': return accelerated('java', readJava);
-    case 'kotlin': return accelerated('kotlin', readKotlin);
-    case 'swift': return accelerated('swift', readSwift);
+    case 'python':
+    case 'rust':
+    case 'java':
+    case 'kotlin':
+    case 'swift': return (file, contents) => readLanguage(language, file, contents);
     default: return readModule;
   }
 }
 
 /**
- * The same reader, run natively when a binary reached this machine.
+ * A tree-sitter language, read by the grammar linked into the addon.
  *
- * The tree-sitter languages are read by a grammar linked into the addon rather
- * than a WebAssembly build walked node by node from JavaScript, which is what
- * [ADR-0065](../../../docs/context/adr/0065-source-scanning-is-one-native-side.md)
- * asks of every reader: the walk happens where the tree is, and what crosses the
- * boundary is the answer. The JavaScript reader stays and stays the oracle — it
- * is what runs without a toolchain, and what the native answer is compared
- * against.
- *
- * A native answer that does not arrive is the JavaScript one, taken without
- * comment. An acceleration is allowed to disappear and never to change the graph.
+ * The walk happens where the tree is and what crosses the boundary is the
+ * answer ([ADR-0074](../../../docs/context/adr/0074-one-reader-per-tree-sitter-language.md)).
+ * A binary built without the grammars claims no language, and the file is then
+ * unknown with that reason rather than read some other way.
  */
-function accelerated(
-  language: LanguageId,
-  oracle: (file: string, contents: string) => Read,
-): (file: string, contents: string) => Read {
-  return (file, contents) => {
-    const addon = native();
-    if (addon?.readLanguage === undefined) return oracle(file, contents);
-    try {
-      const answer = addon.readLanguage(language, file, contents);
-      if (answer !== null) return JSON.parse(answer) as Read;
-    } catch {
-      // Left to the oracle below, which is the implementation of record.
-    }
-    return oracle(file, contents);
+function readLanguage(language: LanguageId, file: string, contents: string): Read {
+  const addon = native();
+  if (addon === undefined) {
+    throw new Error(`sense: reading ${file} needs the native addon, which did not load: ${nativeRefusal()}`);
+  }
+  const answer = addon.readLanguage(language, file, contents);
+  if (answer !== null) return JSON.parse(answer) as Read;
+  return {
+    requests: [],
+    unknown: `${file} is ${language}, and the native addon on this machine was built without the tree-sitter grammars, so what it asks for is unknown.`,
   };
 }
 

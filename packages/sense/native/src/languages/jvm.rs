@@ -1,8 +1,8 @@
 //! What a Java or Kotlin file asks for and what it publishes.
 //!
 //! One reader for both, because the two grammars answer the same two questions
-//! with nodes that differ only in name ([`jvm.ts`](../../../src/jvm.ts) is the
-//! oracle this is measured against). Resolution — a package name to the
+//! with nodes that differ only in name ([`jvm.ts`](../../../src/jvm.ts) carries
+//! the argument, and `jvm.test.ts` holds this reader to it). Resolution — a package name to the
 //! directories a source root puts it in — stays in TypeScript.
 
 use std::collections::HashSet;
@@ -31,8 +31,7 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
         broken: false,
     };
 
-    // Kotlin wraps its imports in an `import_list`; Java lists them at the top.
-    walk(root, source, true, &mut held);
+    walk(root, source, &mut held);
 
     Read {
         requests: held.requests,
@@ -49,7 +48,12 @@ pub fn read(file: &str, source: &str, tree: &Tree, id: &str) -> Read {
     }
 }
 
-fn walk(node: Node, source: &str, top: bool, held: &mut Gathering) {
+/// Both grammars list the package and the imports as children of the root, and
+/// the node names are those of `tree-sitter-java` and `tree-sitter-kotlin-ng` —
+/// the two this crate links. A name from another Kotlin grammar matches nothing
+/// and reads every file as asking for nothing, which is how Kotlin lost its
+/// imports here once already.
+fn walk(node: Node, source: &str, held: &mut Gathering) {
     for child in named_children(node) {
         let line = line_of(child);
         if child.kind() == "ERROR" || child.is_missing() {
@@ -64,21 +68,23 @@ fn walk(node: Node, source: &str, top: bool, held: &mut Gathering) {
                 }
             }
 
-            "import_list" => walk(child, source, false, held),
-
-            "import_declaration" | "import_header" => {
+            "import_declaration" | "import" => {
                 let Some(name) = dotted(child, source) else {
                     continue;
                 };
-                let parts = named_children(child);
-                // Kotlin gives the `*` a node; Java leaves it anonymous and ends
-                // the statement with a semicolon, so the text is what has to be read.
-                let wide = parts.iter().any(|part| part.kind() == "wildcard_import")
-                    || ends_wide(text_of(child, source));
-                let alias = parts
-                    .iter()
-                    .find(|part| part.kind() == "import_alias")
-                    .and_then(|part| named_children(*part).first().copied())
+                // Kotlin leaves the `*` anonymous and Java may end the statement
+                // with a semicolon after it, so the text is what has to be read.
+                let wide = ends_wide(text_of(child, source));
+                // Kotlin spells the name as a `qualified_identifier` even when it
+                // is one segment, so a bare `identifier` beside it is the `as`
+                // alias. In Java a bare `identifier` is the name itself.
+                let alias = (child.kind() == "import")
+                    .then(|| {
+                        named_children(child)
+                            .into_iter()
+                            .find(|part| part.kind() == "identifier")
+                    })
+                    .flatten()
                     .map(|part| text_of(part, source).to_string());
                 let last = name[name.rfind('.').map_or(0, |at| at + 1)..].to_string();
                 let value = if wide {
@@ -90,9 +96,6 @@ fn walk(node: Node, source: &str, top: bool, held: &mut Gathering) {
             }
 
             _ => {
-                if !top {
-                    continue;
-                }
                 if let Some(name) = declared(child, source) {
                     held.exports.push(Export {
                         exported: Some(name.clone()),
@@ -153,23 +156,34 @@ fn declared(node: Node, source: &str) -> Option<String> {
     if !DECLARATIONS.contains(&node.kind()) {
         return None;
     }
-    // Java names the field; Kotlin does not, so the first identifier-shaped
-    // child is the name. Both are the node's own name and never a nested one.
-    if let Some(field) = node.child_by_field_name("name") {
-        return Some(text_of(field, source).to_string());
-    }
-    named_children(node)
-        .into_iter()
-        .find(|child| child.kind() == "type_identifier" || child.kind() == "simple_identifier")
-        .map(|child| text_of(child, source).to_string())
+    // Both grammars name the field on a class, an interface, an object and a
+    // function. Kotlin's `typealias` puts its name in `type`, and a top-level
+    // `val` or `var` holds it one level down, in its `variable_declaration` —
+    // a destructuring one declares several names and publishes none here.
+    let name = match node.kind() {
+        "type_alias" => node.child_by_field_name("type"),
+        "property_declaration" => named_children(node)
+            .into_iter()
+            .find(|child| child.kind() == "variable_declaration")
+            .and_then(|variable| {
+                named_children(variable)
+                    .into_iter()
+                    .find(|part| part.kind() == "identifier")
+            }),
+        _ => node.child_by_field_name("name"),
+    }?;
+    Some(text_of(name, source).to_string())
 }
 
 /// The dotted name inside a package or import statement, however it is spelled.
 fn dotted(node: Node, source: &str) -> Option<String> {
-    let name = named_children(node)
-        .into_iter()
-        .find(|child| child.kind() == "scoped_identifier" || child.kind() == "identifier")?;
-    // Kotlin's `identifier` holds `simple_identifier` children with the dots
+    let name = named_children(node).into_iter().find(|child| {
+        matches!(
+            child.kind(),
+            "scoped_identifier" | "qualified_identifier" | "identifier"
+        )
+    })?;
+    // Kotlin's `qualified_identifier` holds `identifier` children with the dots
     // between them as anonymous nodes, so its own text is already the dotted
     // name. Java's `scoped_identifier` is the same shape. Whitespace is possible
     // in neither, but a line break inside one would be, so it is taken out.

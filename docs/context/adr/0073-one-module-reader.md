@@ -52,9 +52,12 @@ the oracle: the tests that compared the two readers over this repository, and
 
 Resolution and record construction still have a JavaScript path.
 `native-read.test.ts` holds the native resolver and record builder to it over
-this repository. The tree-sitter languages keep their JavaScript readers behind
-`accelerated()` in `record.ts`. Each of these is a separate decision, made the
-same way once someone measures that its second copy costs more than it catches.
+this repository. The tree-sitter languages kept their JavaScript readers behind
+`accelerated()` in `record.ts` until
+[ADR-0074](0074-one-reader-per-tree-sitter-language.md) removed them, and the
+scan's own JavaScript seeding and per-file retry went with
+[ADR-0075](0075-a-scan-needs-the-addon.md), which also says why the JavaScript
+git tree stays.
 
 ## Cost
 

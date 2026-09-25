@@ -12,9 +12,9 @@ use rayon::ThreadPoolBuilder;
 /// Seeding is where a language enters the graph at all: a file whose extension
 /// is missing here is never opened, never resolved and never reported, and the
 /// scan says nothing about it — the one failure this package exists to refuse.
-/// The native seeder is an acceleration of `seedFiles`, so it has to claim the
-/// same set rather than the set the JavaScript half claimed when this list was
-/// written. `native-readable.check.ts` holds the two lists to each other.
+/// It is the only seeder, so it has to claim the set the readers claim rather
+/// than the set they claimed when this list was written.
+/// `native-readable.check.ts` holds the two lists to each other.
 const EXTENSIONS: &[&str] = &[
     "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "css", "scss", "sass", "less", "py",
     "pyi", "rs", "java", "kt", "kts", "swift",
@@ -84,8 +84,8 @@ struct Found {
     files: Vec<String>,
 }
 
-/// The same seed set as `files.ts`, with independent directory reads fanned over
-/// the filesystem width rather than performed by one JavaScript thread.
+/// Every readable file under the configured roots, for a scan Git does not
+/// describe, with independent directory reads fanned over the filesystem width.
 #[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     let root = PathBuf::from(root);
@@ -125,6 +125,17 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     files
 }
 
+/// Every readable file in one directory, unless it is a repository of its own.
+///
+/// A checkout inside a checkout — a worktree, a vendored clone — is a different
+/// repository that happens to sit at this path. Git tracks none of its files, so
+/// every one misses the digest lookup and is opened and parsed on every run; and
+/// its files are another repository's copies of these ones, which doubles every
+/// count taken over the walk. A seed is never tested this way, only what is found
+/// beneath it: a caller that points the scan at a checkout means that checkout.
+///
+/// A configured directory that is not there contributes nothing; the caller is
+/// the one that can say whether an empty result is wrong.
 fn read(directory: &Directory) -> Option<Found> {
     let entries: Vec<_> = fs::read_dir(&directory.absolute)
         .ok()?

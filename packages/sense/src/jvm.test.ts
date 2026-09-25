@@ -2,8 +2,9 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadGrammars } from './grammar.js';
-import { readJava, readKotlin, resolveJvm } from './jvm.js';
+import { resolveJvm } from './jvm.js';
+import { native } from './native.js';
+import type { Read } from './read.js';
 import { worldOn, type TreeWorld } from './world.js';
 
 /**
@@ -18,10 +19,6 @@ import { worldOn, type TreeWorld } from './world.js';
  */
 
 describe('what a JVM file asks for', () => {
-  beforeAll(async () => {
-    await loadGrammars();
-  });
-
   it('asks for its own package, which nothing in the file imports', () => {
     const java = readJava('Thing.java', 'package a.b;\nclass Thing {}\n');
     const kotlin = readKotlin('thing.kt', 'package a.b\n\nclass Thing\n');
@@ -37,9 +34,11 @@ describe('what a JVM file asks for', () => {
   });
 
   it('reads a wildcard import as the package rather than as a name', () => {
-    const read = readJava('Thing.java', 'import a.c.*;\nclass Thing {}\n');
+    const java = readJava('Thing.java', 'import a.c.*;\nclass Thing {}\n');
+    const kotlin = readKotlin('t.kt', 'import a.c.*\nimport a.d.Named\n');
 
-    expect(read.requests.map((request) => request.value)).toEqual(['a.c.*']);
+    expect(java.requests.map((request) => request.value)).toEqual(['a.c.*']);
+    expect(kotlin.requests.map((request) => request.value)).toEqual(['a.c.*', 'a.d.Named']);
   });
 
   it('binds a Kotlin import under its alias', () => {
@@ -50,10 +49,14 @@ describe('what a JVM file asks for', () => {
 
   it('publishes the top-level declarations of either language', () => {
     const java = readJava('Thing.java', 'package a;\npublic class Thing {}\ninterface Seen {}\n');
-    const kotlin = readKotlin('t.kt', 'package a\n\nclass Thing\nfun parse() {}\n');
+    const kotlin = readKotlin(
+      't.kt',
+      'package a\n\nclass Thing\nfun parse() {}\nobject Registry\ntypealias Name = String\nval version = 1\n',
+    );
 
     expect((java.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing', 'Seen']);
-    expect((kotlin.exports ?? []).map((entry) => entry.exported)).toEqual(['Thing', 'parse']);
+    expect((kotlin.exports ?? []).map((entry) => entry.exported))
+      .toEqual(['Thing', 'parse', 'Registry', 'Name', 'version']);
   });
 
   it('says so when the parser stopped where an import could have been', () => {
@@ -76,7 +79,6 @@ describe('where a JVM import lands', () => {
   let world: TreeWorld;
 
   beforeAll(async () => {
-    await loadGrammars();
     root = await mkdtemp(join(tmpdir(), 'variance-jvm-'));
     await write(root, 'src/main/java/a/b/Thing.java', 'package a.b;\npublic class Thing {}\n');
     await write(root, 'src/main/java/a/b/Other.java', 'package a.b;\nclass Other {}\n');
@@ -130,4 +132,18 @@ async function write(root: string, path: string, contents: string): Promise<void
   const absolute = join(root, path);
   await mkdir(dirname(absolute), { recursive: true });
   await writeFile(absolute, contents, 'utf8');
+}
+
+/** What the addon's Java reader answers, which is the only reader there is. */
+function readJava(file: string, contents: string): Read {
+  const answer = native()?.readLanguage('java', file, contents);
+  if (answer == null) throw new Error('these tests read Java through the native addon, built with its grammars');
+  return JSON.parse(answer) as Read;
+}
+
+/** What the addon's Kotlin reader answers, which is the only reader there is. */
+function readKotlin(file: string, contents: string): Read {
+  const answer = native()?.readLanguage('kotlin', file, contents);
+  if (answer == null) throw new Error('these tests read Kotlin through the native addon, built with its grammars');
+  return JSON.parse(answer) as Read;
 }

@@ -6,17 +6,14 @@ import { describe, expect, it } from 'vitest';
 /**
  * One answer to *which files does a scan open*, held in two languages.
  *
- * `seedFiles` in `files.ts` walks the tree for every extension a reader claims;
- * `seed_files` in `seed.rs` is the same walk, fanned over the filesystem width,
- * and it is the one that runs wherever the addon reached. Neither is checked
- * against the other by anything at run time — the native path is chosen when it
- * is present and its answer is taken.
+ * The reader tables in `language.ts`, `read.ts` and `style.ts` say which
+ * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
+ * native seeder puts in front of them. Nothing compares the two at run time.
  *
- * So a language added to the reader tables and not to the Rust list is read
- * everywhere the addon is missing and nowhere it is not: the tests pass on a
- * checkout with no `cargo`, and every Python file in a shipped install is
- * silently edgeless. That is the shape this file exists to refuse, and it is
- * not hypothetical — it shipped.
+ * So a language added to the reader tables and not to the Rust list is never
+ * seeded: the scan opens none of its files, and every one of them is missing
+ * from the graph without a word. That is the shape this file exists to refuse,
+ * and it is not hypothetical — it shipped.
  *
  * Both lists are read out of their source rather than imported, so this answers
  * on a checkout that has been neither built nor compiled.

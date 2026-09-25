@@ -29,19 +29,18 @@
  * `SENSE_TARGET_CPU` appends a `-C target-cpu`, which is the knob that says so
  * again when a generation lands; `scripts/tuned-cost.mjs` is what drives it.
  *
- * A missing toolchain is not a failure of the build. The JavaScript scanner is
- * the implementation of record and the native one is an acceleration of it, so a
- * checkout without `cargo` builds and scans — it scans slower, and
- * `native.test.ts` says which half ran. What it cannot do is record: the probes
- * are placed by this addon alone, so the suite's own recording and every test of
- * instrumentation fail by name until a toolchain or a prebuilt package provides
- * it. A missing toolchain for a target that was *asked for* is a failure,
- * because somebody asking for one wanted it.
+ * A missing toolchain is not a failure of the build: the TypeScript half compiles
+ * without it, and a prebuilt package under `npm/` may already hold the binary.
+ * What a checkout with neither cannot do is read: seeding, reading, scanning and
+ * recording all need this addon, and each fails by name, quoting the loader's
+ * refusal, until a toolchain or a prebuilt package provides it. A missing
+ * toolchain for a target that was *asked for* is a failure, because somebody
+ * asking for one wanted it.
  *
  * The same argument, one level in: a build that fails on the tree-sitter
  * grammars is retried without them rather than given up on. They are five C
  * parsers this crate did not write, compiled by whatever `cc` is here, and
- * dropping them costs the acceleration of five languages while the scanner —
+ * dropping them costs five languages while the scanner —
  * git identity, the path set, the oxc parse, resolution, the journey fold —
  * still ships. A build that fails again is a build that failed.
  */
@@ -148,10 +147,10 @@ function build(cpu, extra = []) {
  * once again with `--no-default-features`, which drops the grammars and nothing
  * else.
  *
- * What that costs is exactly those five languages, and only their acceleration:
- * `readLanguage` claims nothing, and `record.ts` reads Python, Rust, Java,
- * Kotlin and Swift with the JavaScript oracle — the same readers that run where
- * no addon reached the machine at all. Nothing is skipped and no answer changes.
+ * What that costs is exactly those five languages: `readLanguage` claims
+ * nothing, and `record.ts` records every Python, Rust, Java, Kotlin and Swift
+ * file as unknown, naming the missing grammars as the reason. Nothing is
+ * skipped silently, and every other answer is the same.
  *
  * It is said loudly, because a binary that is quietly a smaller binary is the
  * thing this repository has already been bitten by once. A second failure is a
@@ -165,9 +164,9 @@ function buildScanner(cpu) {
   if (status !== 0) process.exit(status);
 
   console.error(
-    'sense: built WITHOUT the tree-sitter grammars. Python, Rust, Java, Kotlin and Swift',
+    'sense: built WITHOUT the tree-sitter grammars. Python, Rust, Java, Kotlin and Swift files',
   );
-  console.error('sense: are read by the JavaScript readers instead. Everything else is native.');
+  console.error('sense: will be recorded as unknown: no reader here can parse them.');
   return false;
 }
 
