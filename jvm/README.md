@@ -1,57 +1,99 @@
 # Variance Authority for the JVM
 
-A Java agent that records which methods each test entered, including methods
-it reached in a service over HTTP, and writes that record in the format the
-selector reads. When a diff changes a Java method, the tests that entered it
-are the ones selected. That includes a Jest case or a browser spec that only
-reached the method through a request.
+A Java agent that records which methods each test entered, so that a change to
+a Java method runs only the tests that reached it. A test here is a JUnit test
+class, or a Jest case or browser spec that reached the method in a service over
+HTTP. The record is one row per test, and the selector answers a diff from it
+without an import graph, which a request to another process never shows.
 
 The agent sets one flag per method, on entry, and writes no branch or line
 probes. A recorded method carries every line it holds, so a selection at line
-grain only widens. On Commons Lang, a full record with one row per test class
-adds 1.5% to the test phase. JaCoCo, dumped per class, adds 5.6% before its
-analysis runs.
+grain only widens. On Commons Lang, whose bare test phase takes about 130 s, a
+full record with one row per test class adds 1.5% to that phase. JaCoCo, dumped
+per class, adds 5.6% before its analysis runs. Both are medians of three
+interleaved runs of [`measure/overhead-maven.sh`](measure/overhead-maven.sh).
 
-## Build
+## Get the jars
+
+There is no published artifact. Build the jars from this checkout:
 
 ```bash
 sh jvm/build.sh
 ```
 
-It compiles inside `maven:3.9-eclipse-temurin-21`, so Docker is the only thing
-you need installed. It writes three jars to `jvm/dist/bin`:
+It compiles inside `maven:3.9-eclipse-temurin-21` for Java 8 and later, so
+Docker is the only thing you need installed. It writes three jars to
+`jvm/dist/bin`, or to `<dir>/bin` when you pass a directory:
 
 - `variance-agent.jar` is the agent.
-- `variance-agent-rt.jar` is the store it probes into. It goes on the boot
-  class path, and a service compiles against it for `Journey`.
-- `variance-junit.jar` splits the record at each top-level test class.
-
-Pass a directory to build somewhere else.
+- `variance-agent-rt.jar` is the store it probes into. The agent puts it on the
+  boot class path, and a service compiles against it for `Journey`. Keep it next
+  to the agent jar.
+- `variance-junit.jar` is a JUnit Platform listener that starts a new row at each
+  top-level test class. It is loaded as a second `-javaagent` so that it lands on
+  the system class path, where the launcher finds it.
 
 ## Record a JVM suite
 
-Load the agent and the listener into the JVM that runs the tests:
+The suite must run on the JUnit Platform: Jupiter, or JUnit 4 through the
+Vintage engine. With Maven Surefire:
 
-```bash
--javaagent:variance-agent.jar=includes=org.example.* \
--javaagent:variance-junit.jar -Dva.out=target/va
+```xml
+<plugin>
+  <artifactId>maven-surefire-plugin</artifactId>
+  <configuration>
+    <argLine>-javaagent:${va.bin}/variance-agent.jar=includes=org.example.* -javaagent:${va.bin}/variance-junit.jar -Dva.out=${project.build.directory}/va</argLine>
+  </configuration>
+</plugin>
 ```
 
-`includes` is a colon-separated list of class-name globs, as JaCoCo's.
-`sources` is a colon-separated list of source roots, relative to the working
-directory. It defaults to `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin`.
-Keep `variance-agent-rt.jar` next to the agent jar.
+Set `va.bin` to the directory holding the jars. If the pom already sets
+`argLine`, for JaCoCo or for heap flags, append these flags to it rather than
+replacing it. With Gradle:
+
+```kotlin
+tasks.test {
+  useJUnitPlatform()
+  val va = file("/path/to/jvm/dist/bin")
+  jvmArgs(
+    "-javaagent:$va/variance-agent.jar=includes=org.example.*",
+    "-javaagent:$va/variance-junit.jar",
+    "-Dva.out=${layout.buildDirectory.dir("va").get().asFile}",
+  )
+}
+```
 
 Each top-level test class becomes one row of `record.jsonl` in `va.out`. When
-the plan finishes, the agent writes the same record as `coverage.va`, which
-`variance select` reads the way it reads `entries` coverage from a JS runner.
+the test plan finishes, the listener writes the same record as `coverage.va`.
+The listener appends to `record.jsonl`, so record into a fresh directory, such
+as one that `mvn clean` or `gradle clean` removes.
 
-Each source file is a module. Each method a test entered is one region, spanning
-its source from signature to closing brace, read with javac's tree API. Without a
-compiler in the JDK, the region is cut from the method's line table instead. A
-region that ended at its last statement would share that line with the region
-around it, so an edit to it would charge the whole file. Some code charges an
-enclosing region instead of its own:
+| Setting | Where | Default | |
+| --- | --- | --- | --- |
+| `includes` | agent option | `*` | Colon-separated class-name globs, with `*` and `?`, as JaCoCo's. |
+| `sources` | agent option | `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin` | Colon-separated source roots, relative to the test JVM's working directory. |
+| `va.out` | system property | `va-exec` | Where `record.jsonl`, `coverage.va` and `events.tsv` go. |
+| `va.commit` | system property | none | The commit `coverage.va` names as its baseline. |
+| `va.parts` | system property | `VARIANCE_AUTHORITY_PARTS` | A service's parts directory. See below. |
+| `va.presence.capacity` | system property | 4,194,304 | How many methods the store can flag. |
+
+Agent options are comma-separated after the `=`, as in
+`includes=com.acme.*,sources=src/main/java:src/test/java`. Any other option
+fails the JVM at startup.
+
+Scope `includes` to your own packages. With the default `*`, the agent probes
+Surefire, JUnit and every library. None of them has a file under the source
+roots, so each one is `unknown` in every row that entered it, and a row that
+lists an `unknown` class cannot exclude its test. Nothing is ever skipped.
+
+### What a row holds
+
+Each source file is a module. Each method a test entered is one region: the span
+of source from its signature to its closing brace, read with javac's tree API.
+Without a compiler in the JDK, the region is cut from the method's line table
+instead. A region that ended at its last statement would share that line with
+the region around it, so an edit to it would charge the whole file. Some code
+charges an enclosing region instead of its own:
 
 - A lambda body, or a method that shares lines with the method around it,
   charges that method.
@@ -61,18 +103,51 @@ enclosing region instead of its own:
 
 A class is named by the one file under the source roots that exists for its
 package and `SourceFile` attribute, or else by the one file of that name under
-them. A class that names no file or several is `unknown` in its row. A class that
-fails to instrument is listed in every later row. A row that lists either cannot
-exclude its test. A class without a `SourceFile` attribute, such as a proxy or a
-class a test defines at runtime, is not probed: no source file can change it,
-and the code that generates it is.
+them. A class that names no file, or several, is `unknown` in its row. A class
+that fails to instrument is listed in every later row. A row that lists either
+one cannot exclude its test. A class without a `SourceFile` attribute, such as a
+proxy or a class a test defines at runtime, is not probed: no source file can
+change it, and the code that generates it can.
 
-Surefire runs one class at a time per JVM, and that is what keeps each class's
-work inside its row. `forkCount` above one adds JVMs, each with its own store,
-so that parallelism is safe. Parallel classes inside one JVM are not.
+Work is charged to a row by time: whatever the store flagged between one test
+class's start and the next is that class's. Surefire and Gradle run one class
+at a time per JVM, and that keeps each class's work inside its row. Parallel
+classes inside one JVM share their flags, so record with JUnit's parallel
+execution off. Record with one fork too: forks that share a `va.out` each
+rewrite `coverage.va` when their own plan ends, so the file holds only what the
+last fork to finish had seen.
 
-To convert a record already on disk, run this from a checkout of the commit the
-record was made at:
+At each class boundary the listener logs to `events.tsv` whether a thread the
+class started is still alive (`survivor`) or the common pool is still busy
+(`pool-busy`). Either one can land that class's work in the next class's row.
+
+### Select from the record
+
+Pass `coverage.va` and a unified diff to `narrowByExecution` from
+`@variance-authority/sense/test-selection`:
+
+```js
+import { execFileSync } from 'node:child_process';
+import { narrowByExecution } from '@variance-authority/sense/test-selection';
+
+const diff = execFileSync('git', ['diff', 'origin/main'], { encoding: 'utf8' });
+const { whole, entered } = await narrowByExecution('target/va/coverage.va', diff);
+const skip = whole.filter((test) => !entered.includes(test));
+```
+
+`whole` is every test file in the record and `entered` is the ones the diff
+reaches. Tests are named by their source file, such as
+`src/test/java/org/example/AddTest.java`. A test file that is not in the record
+is not in `whole`, so run it. `variance select --execution` does not read
+`coverage.va`.
+
+Paths in `coverage.va` are relative to the test JVM's working directory, which
+Surefire and Gradle set to the module directory. They match a diff taken at the
+checkout root only when the module is the checkout root. In a multi-module
+build, take the diff with `git diff --relative` from inside the module.
+
+To convert a record already on disk, run this from the directory the suite ran
+in, at the commit the record was made at:
 
 ```bash
 java -cp variance-agent.jar dev.varianceauthority.jvm.Coverage <record.jsonl> <out> [commit] [sources] [journeys.tsv]
@@ -81,12 +156,18 @@ java -cp variance-agent.jar dev.varianceauthority.jvm.Coverage <record.jsonl> <o
 ## Record a service a Jest case calls
 
 A Jest case that calls a service over HTTP runs code in another process, and
-nothing in the case's own record says so. The service writes what it ran to
-files, keyed by an id the case put on the request, and the Jest seam joins them
-after the run.
+nothing in the case's own record says so. To join the two, every request
+carries the case's journey, an opaque id the Jest seam mints per case. The
+service writes what it ran under each journey to files in a parts directory.
+After the run, the fold, `variance journeys finalize`, joins those parts to the
+cases in Jest's journey file.
 
-In the service, wrap each request in a journey. Pass the request's `Cookie`
-and `baggage` headers:
+### In the service
+
+Put `variance-agent-rt.jar` on the service's compile and run class path. Without
+the agent, `Journey.enter` returns a scope that does nothing. Wrap each request
+in a journey, passing the request's `Cookie` and `baggage` headers, either of
+which may be null:
 
 ```java
 import dev.varianceauthority.jvm.rt.Journey;
@@ -97,9 +178,37 @@ try (Journey journey = Journey.enter(cookie, baggage)) {
 ```
 
 The journey is the `variance-authority-journey` member of either header. When
-the two disagree, the request is charged to no journey.
+both headers carry one and they disagree, the request is handled as though it
+carried none, and what it ran is charged the way work between journeys is.
 
-In the case, put the journey on the request yourself:
+Start the service with the agent and a parts directory:
+
+```bash
+java -javaagent:/path/to/variance-agent.jar=includes=com.acme.* \
+  -Dva.parts=/abs/path/parts -jar service.jar
+```
+
+`VARIANCE_AUTHORITY_PARTS` works in place of `-Dva.parts`. Start it from its
+module directory inside the checkout, because the `sources` roots are relative
+to that directory. Files are named relative to the nearest directory above it
+that holds `.git`, so they match the names Jest records, and in a container that
+means mounting the checkout rather than only the module.
+
+When the JVM exits, the agent writes two files to the parts directory:
+
+- `jvm-<pid>-<uuid>.vac` holds one frame per journey, plus one frame, with no
+  journey, for what ran between journeys.
+- `jvm-<pid>-<uuid>.rec` holds the regions those frames name, cut as `Coverage`
+  cuts them.
+
+The service must exit through its shutdown hooks, on `SIGTERM` or
+`System.exit`. A `SIGKILL` writes nothing.
+
+### In the Jest suite
+
+Put the journey on each request. `journeyCookie()` returns
+`variance-authority-journey=<id>` inside a case and `''` outside one. Join it to
+any cookie the request already sends:
 
 ```ts
 import { journeyCookie } from '@variance-authority/sense/case-journey';
@@ -107,21 +216,28 @@ import { journeyCookie } from '@variance-authority/sense/case-journey';
 await fetch(`${service}/api/cart`, { headers: { cookie: journeyCookie() } });
 ```
 
-Start the service with the agent and a parts directory, as `-Dva.parts=<dir>` or
-the `VARIANCE_AUTHORITY_PARTS` variable. Give Jest's `withJourneyCoverage` the
-same directory in `parts`. When the JVM exits, the agent writes two files
-there:
+Give `withJourneyCoverage` the same parts directory:
 
-- `jvm-<pid>-<uuid>.vac` holds one frame per journey, plus one frame, with no
-  journey, for what ran between journeys.
-- `jvm-<pid>-<uuid>.rec` holds the regions those frames name, cut as `Coverage`
-  cuts them.
+```js
+// jest.config.mjs
+import { withJourneyCoverage } from '@variance-authority/sense/jest';
 
-Stop the service before Jest's journey file is finalized. The fold then charges
-each journey's frame to the case that minted it, and the between frame to every
-case that crossed into this process. Files are named relative to the nearest
-directory above the working directory that holds `.git`, so they match the names
-Jest records.
+export default withJourneyCoverage(config, {
+  journeyFile: '.variance-authority/journeys.bin',
+  parts: ['/abs/path/parts'],
+});
+```
+
+Run Jest, stop the service, and then fold and select:
+
+```bash
+yarn exec variance journeys finalize .variance-authority/journeys.bin
+git diff origin/main | yarn exec variance select --execution .variance-authority/journeys.bin --diff -
+```
+
+The fold charges each journey's frame to the case that minted it. It charges
+the between frame, which holds the service's startup and anything no journey
+claimed, to every case that sent this process at least one request.
 
 To convert a record already on disk:
 
@@ -129,7 +245,9 @@ To convert a record already on disk:
 java -cp variance-agent.jar dev.varianceauthority.jvm.Parts <record.jsonl> <dir>
 ```
 
-Every journey's enter and close ends a window. The methods drained in a window
+### Concurrent requests
+
+Each journey's enter and close ends a window. The methods drained in a window
 go to each journey that was open during it. So two journeys in flight at once
 share their windows, and each one's row gains what the other ran. That widens
 selection and never drops a method a journey ran. Work that outlives its request
@@ -137,12 +255,13 @@ lands in whichever window drains it.
 
 ## Record a service browser specs drive
 
-When the tests are browser specs that no JS record can join, the driver keeps a
-table instead, `journeys.tsv`, of `<journey>\t<spec file>`. Pass it to
-`Coverage` as its last argument. Each journey row goes to its spec, and each
-between row goes to every spec. `Coverage` fails when the table is not empty and
-the service recorded none of its journeys: a service that was never watched
-looks the same as one that ran nothing.
+When the tests are browser specs that no JS record can join, the driver sets
+the journey cookie itself and keeps a table, `journeys.tsv`, of
+`<journey>\t<spec file>`. Record the service with `-Dva.out` instead of a parts
+directory, and pass the table to `Coverage` as its last argument. Each journey
+row goes to its spec, and each between row goes to every spec. `Coverage` fails
+when the table is not empty and the service recorded none of its journeys: a
+service that was never watched looks the same as one that ran nothing.
 
 ## Tests
 
@@ -153,8 +272,11 @@ file from a test.
 
 ```bash
 node jvm/test/parts.mjs "$WORK/parts" jvm/dist/bin
-node jvm/test/journey.mjs "$WORK/journey" jvm/dist/bin "$VARIANCE_BIN"
+node jvm/test/journey.mjs "$WORK/journey" jvm/dist/bin packages/cli/dist/bin.js
 ```
+
+Both need Docker and a built checkout (`yarn build`). `journey.mjs` also needs
+Playwright's Chromium.
 
 `parts.mjs` runs the shop under the agent with a parts directory, runs Jest in
 band against it, stops the JVM, and then finalizes Jest's journey file. It
