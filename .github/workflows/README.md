@@ -98,17 +98,18 @@ run's log says why.
 
 The comment shows the leading cause's before and after on its first screen, and
 each further cause's pair inside its fold. The action pushes the report's before
-and after images to a branch named for the pull request's, with `--variance`
-after it: one commit with no parent, replaced by every run that finds a change.
-The comment links that commit rather than the branch, so an image cache never
+and after images to `refs/variance/<branch>`, named for the pull request's
+branch: one commit with no parent, replaced by every run that finds a change. It
+is not a branch, so a clone does not fetch it and the branch list does not show
+it. The comment links the commit rather than the ref, so an image cache never
 shows a previous run's pictures. When the pull request closes, merged or not, a
-second job deletes the branch.
+second job deletes the ref.
 
-That branch is why `variance.yml` asks for `contents: write`. Anyone who can
-read the repository can read it. A pull request from a fork runs with a
+That ref is why `variance.yml` asks for `contents: write`. Anyone who can read
+the repository can read the images. A pull request from a fork runs with a
 read-only token, so the push is refused, the step warns, and the comment arrives
-without pictures. To turn this off in your copy, drop the `image-branch` input
-and the `images-cleanup` job.
+without pictures. To turn this off in your copy, drop the `image-ref` input and
+the `images-cleanup` job.
 
 ## Where the baselines live here
 

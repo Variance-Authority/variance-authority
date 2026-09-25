@@ -1655,7 +1655,7 @@ image path the report records to it, with every segment percent-encoded, so the
 file `images/story%3Abutton.before.png` is asked for as
 `images/story%253Abutton.before.png`. On GitHub, a commit's `raw` address works,
 `https://github.com/<owner>/<repo>/raw/<sha>`, and the composite action's
-`image-branch` input publishes one.
+`image-ref` input publishes one.
 
 ## Integration troubleshooting
 

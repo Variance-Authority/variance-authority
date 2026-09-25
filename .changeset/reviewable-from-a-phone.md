@@ -15,4 +15,4 @@ In the HTML report, each subject's commands (`accept`, `again`, `alone`, `report
 
 On a phone, the HTML report shows each subject with its reason and images, and nothing else. The grouped changes, region tables, commands, composition, history, settled subjects, what was not observed and coverage stay on wider screens. A line at the top names the ones this report holds, so you know there is more.
 
-`variance comment --image-root <url>` shows the leading cause's before and after on the comment's first screen, and each further cause's pair in the fold. The address is where you published the report's directory. The GitHub action takes an `image-branch` input that pushes those images to a branch as one commit and links them by that commit.
+`variance comment --image-root <url>` shows the leading cause's before and after on the comment's first screen, and each further cause's pair in the fold. The address is where you published the report's directory. The GitHub action takes an `image-ref` input that pushes those images to a ref outside `refs/heads/`, as one commit, and links them by that commit.
