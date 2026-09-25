@@ -668,9 +668,9 @@ test. This happens in two ways:
 - [**A branch no run has taken.**](#a-branch-no-run-has-taken) A subject that
   has never rendered `Button` is not selected by a change to `Button`, even when
   it would render `Button` now.
-- [**A result a cache returned.**](#a-result-a-cache-returned) A memoized
-  function runs once per cache, so a change to it selects only the case that
-  ran it first.
+- [**A result a cache returned.**](#a-result-a-cache-returned) Memoization
+  changes which code runs, so the record sees nothing in a case the cache
+  answered, and a change to the function selects only the case that ran it.
 
 [The first run](#the-first-run) is the opposite case. Nothing is recorded, so
 nothing is skipped.
@@ -701,12 +701,16 @@ taken, so you can add a subject that takes one.
 
 ### A result a cache returned
 
-The record lists, for each case, the code that case ran. A memoizer such as
-`memoize-one` or lodash's `memoize` returns a cached result without running the
-function it wraps. So the case that filled the cache is recorded as running the
-function, and a case that got the cached result is not. A change to the
-function selects the first case and skips the second, and so does a change to
-anything the function calls.
+Memoization is a side effect. A memoizer such as `memoize-one` or lodash's
+`memoize` keeps the result of a call, and the next call with the same argument
+gets that result without running the function. So the cache changes which code
+runs: what a case runs depends on the cases that ran before it.
+
+Anything that learns what a program does by watching it run sees nothing when
+the cache answers, and the record is one of those. In a case that got a cached
+result, the function and everything it calls did not run, so the record shows
+none of it. A change to the function selects the case that filled the cache and
+skips every case that got the cached result.
 
 ```ts
 // src/price.ts
