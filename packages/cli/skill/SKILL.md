@@ -43,7 +43,7 @@ Check each of these before spending a question:
    a missing file is exit `2` with `cannot read the config file
    variance.config.json`. This is true of the live questions too — `ask self
    --at <address>` loads a config it never reads. Every command below except
-   `watch`, `distill` and `covering` needs one.
+   `watch`, `distill`, `covering`, `index`, `select` and `reach` needs one.
 3. **A run has finished.** `variance ask` reads the file the run left at the
    config's `report` path, which defaults to `.variance/report.json`. No question
    re-runs anything, so an absent report is an absent answer, not a stale one.
@@ -60,8 +60,8 @@ Check each of these before spending a question:
 7. **The suite is React**, for update initiators and `createdBy`. Search is
    absent altogether on a raster-only capture and on a suite that is not React.
 
-`watch`, `distill`, `covering` and `select` are the exceptions: they read no
-project configuration at all.
+`watch`, `distill`, `covering`, `index`, `select` and `reach` are the
+exceptions: they read no project configuration at all.
 
 `locate --from` and `locate --to` additionally need **`@variance-authority/sense`**
 installed — a start point is a path in the source tree, and that is the package
@@ -506,7 +506,7 @@ is at `https://variance-authority.dev/agents/questions`.
 `variance covering` is the question to ask before changing a line, and the one
 to ask about a test that may no longer earn its place. It reads the per-case
 execution index and names the tests that went through a file, a line or a
-function, nearest first.
+function.
 
 ```bash
 npx variance covering --file src/checkout/total.ts --line 48
@@ -514,6 +514,20 @@ npx variance covering --file src/checkout/total.ts --function applyDiscount --fo
 npx variance covering --file src/checkout/total.ts        # per recorded range
 npx variance covering --file src/checkout/total.ts --format refs  # each case once, ranges by number
 ```
+
+A line or a function is answered per test file first: `total.test.ts — 2/3`
+says two of that file's three cases went through it, and the cases follow. Add
+`--hops` to put each file's import hops beside it and sort nearest first; it
+costs a scan of the tree, so ask for it when the list is long, not on every
+edit.
+
+```bash
+npx variance covering --file src/checkout/total.ts --line 48 --hops
+npx variance covering --file src/checkout/total.ts --line 48 --cases last
+```
+
+`--cases last` answers from the cases the last run recorded; `--cases
+<test file>` from the ones one test file declares.
 
 Read with `--format refs`: it numbers each case once in a table at the end and
 names every range's cases by those numbers, so a module whose eleven cases all
@@ -524,7 +538,9 @@ the whole command; `--execution <path>` names one recorded elsewhere and
 `--root <path>` the project root it was recorded against. None of it is a
 verdict — execution says where a test went, never why the trip was worth
 taking. A missing index is refused rather than answered empty, because an empty
-list reads as *no test covers this line*.
+list reads as *no test covers this line*: exit `2`, and under `--format json`
+stdout carries `{"refused":"unrecorded"}`, so a caller tells *nothing recorded*
+from a failed question without reading the sentence.
 
 Two flags narrow the same answer to the tests that sit nearby, which is what
 you want when the list is long for structural reasons:
@@ -596,8 +612,35 @@ npx variance covering --since origin/main --against base/coverage.bin.cases.bin 
 Report a **lost** region as a regression: cases walked it at the base, none do
 now, and every case that could have reached it finished. Report a **hidden**
 region as unknown, naming the stopped case, never as lost. A **thinned** region
-is one case away from unwalked. Regions the base's branch changed after the
+is one case away from unwalked. A **gained** region is one no case walked at
+the base and one now does. Regions the base's branch changed after the
 base was recorded are left out and named; do not charge them to the change.
+
+Without a base record, `--cases last` compares the last run with the one before
+it, which is the answer to *what did my last change do to the cases*:
+
+```bash
+npx variance covering --file src/checkout/total.ts --cases last --format refs
+```
+
+## Which tests a change reaches
+
+These answer before a run, and none of them reads a config. `index` writes the
+file graph the other two read, so a pipeline pays for it once.
+
+```bash
+npx variance index
+npx vitest run $(npx variance select --format vitest)  # skip what the change cannot reach
+npx variance reach --since origin/main                  # every file the diff reaches over imports
+```
+
+`select` prints a **skip list**, never a run list: a test the recording has not
+seen stays in the run. An empty stdout skips nothing, and why it declined to
+narrow is a sentence on stderr; `--format json` carries it as `widened`.
+`reach` needs no recording, and prints a run list, so every reading that
+cannot produce one exits `2` with nothing on stdout rather than a short list.
+`--whole-files` walks from each changed file whole, the answer
+`jest --changedSince` gives, which is how you check what the reading saved.
 
 ## Distill, then verify
 
@@ -658,10 +701,10 @@ needs `kind`, `name` (empty for a module root), `path`, `startLine`, `endLine`,
 }
 ```
 
-**Nothing in this repository produces `execution.json`.** See the *Runtime
-journey* bullet above: the query contract ships and the per-test producer does
-not. You supply it from a runner, debugger, editor integration or collector that
-already owns per-test crossings, or you run `distill` with `--eyes` alone.
+Under Vitest, a run wrapped in `withTestSelection` writes the index `covering`
+reads, and `--execution` takes that file as it is. Outside Vitest you supply it
+from a runner, debugger, editor integration or collector that already owns
+per-test crossings, or you run `distill` with `--eyes` alone.
 
 The two files above, run through the command above, answer:
 

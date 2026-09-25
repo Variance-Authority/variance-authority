@@ -22,9 +22,9 @@ first that fails is the whole answer.
 1. **Node >= 22.15.** `@variance-authority/sense` declares that engine.
 2. **The package is installed.** `node -e "import('@variance-authority/sense/test-selection').then(()=>console.log('ok'))"`
    from the repository root. If it fails, install it as a devDependency —
-   `yarn add -D @variance-authority/sense` (or `npm i -D`). It ships no binary:
-   `package.json` has no `bin`, so there is nothing to `npx`. Every use is an
-   import from `@variance-authority/sense/test-selection`.
+   `yarn add -D @variance-authority/sense` (or `npm i -D`). This package has no
+   binary. The commands below come from `@variance-authority/cli`, which reads
+   the same snapshot; check for it with `npx --no-install variance --version`.
 3. **The runner is wrapped.** `withTestSelection` from
    `@variance-authority/sense/vitest`, or the Jest seam from
    `@variance-authority/sense/jest`, must already be in the runner config.
@@ -60,6 +60,45 @@ directory and reads both layers.
   snapshot is treated as absent — the suite runs whole, which cannot produce a
   wrong skip. To force that deliberately, delete the digest directory
   `testCoverageFile(root)` names and run the suite once.
+
+## From the command line
+
+When `@variance-authority/cli` is installed, these answer without a script. None
+of them reads `variance.config.json`.
+
+```bash
+variance index                                  # publish the file graph the others read
+vitest run $(variance select --format vitest)   # skip what the change cannot reach
+variance reach --since origin/main              # files a diff reaches over imports alone
+variance covering --file src/total.ts --line 48 --hops    # the cases that entered one line
+variance covering --since origin/main --format refs       # every changed region and its cases
+```
+
+- **`select` prints a skip list, never a run list.** An empty stdout runs the
+  whole suite. Every sentence about the reading goes to stderr, so `$(...)` only
+  ever picks up paths. `--format json` gives the counts and the reason a
+  reading widened.
+- **`reach` needs no recording**, and reads JavaScript, TypeScript, Python, Rust,
+  Java, Kotlin and Swift. It prints a run list, so it exits `2` with an empty
+  stdout rather than print a short one.
+- **`covering` answers per case.** A line answer names each test file once, as
+  `total.test.ts — 2/3`: two of its three cases entered the line. `--hops` adds
+  each test file's import hops and sorts nearest first. It costs a scan of the
+  tree, so ask for it per question, not per edit.
+- **`covering` says what a change moved.** `--since <ref> --against <record>`
+  compares the case index a base recorded; `--cases last` compares the last run
+  with the one before it. A region is `lost` when no case walks it any more,
+  `hidden` when the case that could have reached it stopped, `thinned` when one
+  case walks it where several did, and `gained` when a case walks it where none
+  did.
+- **`--format refs`** numbers each case once and names every range's cases by
+  number. It is the shortest answer to hand another agent.
+- **Nothing recorded** is refused with exit `2`, and under `--format json`
+  stdout carries `{"refused":"unrecorded"}`. Asking again changes nothing until
+  a wrapped run has happened.
+
+Use the API below for what the commands do not print: a distance per test, the
+`because` trail, or a diff that is not a ref.
 
 ## Establish whether the project has an execution entry point
 

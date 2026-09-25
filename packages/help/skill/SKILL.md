@@ -63,6 +63,15 @@ variance-authority-help search viewport --from packages/app/ --just-answer
 
 Add `--root <dir>` when you are not standing in the workspace.
 
+Where `@variance-authority/cli` is installed, the same six are questions on
+`variance ask`, with no report and no config:
+
+```bash
+npx variance ask search --query viewport
+```
+
+Use whichever binary the workspace already has; the answers are the same code.
+
 ### Two argument shapes, and the trap between them
 
 `--root` is for the **verbs**. The other two forms take the root as a **bare
