@@ -17,20 +17,33 @@ observers of one module, within one recording).
 
 Two readings of one case over the same source should run the same regions. When
 they do not, the case reads state it did not set, and its record cannot be
-trusted to skip it. That is the whole test. No order has to be recorded and
-nothing has to be shuffled, because the second reading already happens:
+trusted to skip it. That is the whole test. No order has to be recorded; any
+second reading will do, and there are two:
 
 - **A focused run.** Case selection runs only the affected cases, so each of
   them runs without the cases that ran before it in the full run.
-- **A run with the runner's per-case isolation on, and one with it off.** The
-  isolated reading is the clean one; the shared reading is the one a cache or a
-  leftover mock can change.
+- **Another order, through the runner's own option.**
 
-The second source is also where the performance is. Per-case isolation is paid
-on every case, and most suites switch it on for a few cases that need it. A file
-whose cases read the same with isolation off does not need it, and the record
-can say so with evidence. A file whose cases differ is the finding, with the
-regions that differ, and the fix is guided rather than rinsed.
+| Runner | Another order |
+|---|---|
+| Vitest | `--sequence.shuffle.tests --sequence.seed=N`; without a seed the shuffle falls back to `Date.now()` and prints nothing |
+| Jest | `--randomize --seed=N`, which shuffles within each `describe` block; there is no reverse |
+| Rstest | none; `--testNamePattern` runs a case alone |
+| Playwright | none; `--grep` or `--test-list` runs a case alone |
+
+A case run alone is the strongest second reading: nothing ran before it.
+
+Module state is not reset for the user. A module registry reset per case hides
+the dependency this spec exists to show, and nothing here turns one on, reads
+one, or recommends one.
+
+Per-case isolation that is not module state is where the performance is.
+Playwright opens a fresh context and page for every test by default, and that
+costs 2.3x to 6.4x the subject it isolates
+([journal 0036](../context/journal/0036-the-model-picks-the-engine.md)). A file whose cases read the same on one
+shared page does not need the fresh one, and the record can say so with
+evidence. A file whose cases differ is the finding, with the regions that
+differ, and the fix is guided rather than rinsed.
 
 Files are not in scope. The runners here isolate test files by default, so the
 state that leaks is within a file.
@@ -49,46 +62,35 @@ replacing it.
 
 **3. Unequal readings make a case unstable.** The verdict names each region only
 one reading ran, and says how each reading was made: a full run or a focused
-one, with per-case isolation on or off, and the seed when the runner shuffled.
+one, the seed when the runner shuffled, and for a browser case whether its page
+was its own.
 The index keeps the union of both readings, so a later change to either region
 selects the case. Case selection answers a file holding an unstable case at file
 grain, because a third reading may show a region neither of these ran. The mark
 stays until the object name of the test file, or of a module holding a named
 region, changes.
 
-**4. Per-case isolation is derived, not read from configuration.** A module whose
-top level runs again while a case is open was evaluated for that case. The
-recording already knows which regions ran at load time; it records, per case,
-whether the module graph was fresh. That covers Jest's `resetModules`, a
-`vi.resetModules()` in a `beforeEach`, and `jest.isolateModules`, without asking
-which one the suite used. For a browser case, the collector reports whether the
-page it read was one the case opened.
+**4. A browser case says whether its page was its own.** The collector reports
+whether the case read a page it opened or one a worker-scoped fixture shared.
+That is the one per-case isolation this spec compares, and the user chooses it
+in their own fixtures.
 
-| Runner | Per-case isolation the user already controls |
-|---|---|
-| Jest | `resetModules`, `jest.isolateModules`; `restoreMocks`, `resetMocks`, `clearMocks` |
-| Vitest | `vi.resetModules()` in a hook; `restoreMocks`, `mockReset`, `clearMocks`, `unstubGlobals`, `unstubEnvs` |
-| Rstest | `restoreMocks`, `resetMocks`, `clearMocks`, `unstubGlobals`; `isolate` is per file |
-| Playwright | a fresh context and page per test by default; a worker-scoped fixture shares one |
+**5. `variance journeys` lists unstable cases, and says where a fresh page can
+go.** Every unstable case is listed with the regions only one reading ran. For
+each Playwright file read on its own pages and on a shared one, it adds one of
+two things:
 
-The mock options cost little and are out of this spec's interest. Module reset
-and a fresh page are the expensive ones, and a mock restore does not empty a
-cache: the memoized fixture fails with `vi.restoreAllMocks` after every case.
-
-**5. `variance journeys` says where isolation can go.** For each file read both
-ways, it lists one of two things:
-
-- **Removable:** every case read the same regions with per-case isolation on and
-  off. It shows the wall time of the file under each reading, as measured, and
+- **Removable:** every case read the same regions on its own page and on the
+  shared one. It shows the wall time of the file under each reading, as measured, and
   gates on neither.
-- **Needed:** the unstable cases, with the regions only the isolated reading ran.
-  That is the state the isolation is hiding, and removing the dependency is the
-  fix.
+- **Needed:** the unstable cases, with the regions only the reading on its own
+  page ran. That is the state the fresh page is hiding, and removing the
+  dependency is the fix.
 
-Nothing changes the user's configuration. The user turns isolation off in their
-own command, and the record says what that did.
+Nothing changes the user's configuration or fixtures. The user shares the page
+in their own fixture, and the record says what that did.
 
-**Acceptance, as scenarios**, over the memoized fixture and a Jest twin of it:
+**Acceptance, as scenarios**, over the memoized fixture:
 
 - `cart.case.ts` recorded whole, then only `reads the price again`, as case
   selection would run it: the case is unstable on the price body, and
@@ -96,11 +98,11 @@ own command, and the record says what that did.
 - `checkout.mocked.ts` recorded whole, then only `prices in dollars`: the case is
   unstable on the price body and on the locale line, and a change to the locale
   afterwards selects it.
-- The Jest twin, whose cases require the price module inside themselves, with
-  `resetModules` on and then off: `reads the price again` is
-  unstable, and the file is listed as needing its isolation.
-- A Jest file with no module-level state, with `resetModules` on and then off:
-  the file is listed as removable, with both wall times.
+- `cart.case.ts` recorded whole, then with `--sequence.shuffle.tests` under a
+  seed that runs `reads the price again` first: the same verdict, and the run
+  names the seed.
+- A Playwright file whose cases share no state, read on their own pages and then
+  on a worker-scoped one: the file is listed as removable, with both wall times.
 - A reading after an edit to `price.ts` compares nothing for the cases that ran
   it, and says so.
 
