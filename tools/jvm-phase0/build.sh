@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the Phase 0 listener, analyzer and source tools inside the Maven image.
+# Builds the Phase 0 listener, analyzer, presence agent and source tools inside the Maven image.
 # Usage: build.sh <work dir>  — jars and the Maven cache land under it, never in the repo.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -29,5 +29,12 @@ docker run --rm -v "$WORK/m2:/root/.m2" -v "$WORK/lib:/lib-out" -v "$HERE:/src:r
     jar cf /bin-out/va-analyze.jar -C /tmp/a .
     javac -d /tmp/m -cp '/lib-out/*' \$(find /src/mutate/src -name '*.java')
     jar cf /bin-out/va-mutate.jar -C /tmp/m .
+    rm -rf /tmp/pr /tmp/pa && mkdir -p /tmp/pr /tmp/pa
+    javac --release 8 -nowarn -d /tmp/pr \$(find /src/presence/rt -name '*.java')
+    jar cf /bin-out/va-presence-rt.jar -C /tmp/pr .
+    javac --release 8 -nowarn -d /tmp/pa -cp '/tmp/pr:/lib-out/asm.jar:/lib-out/asm-tree.jar' \$(find /src/presence/src -name '*.java')
+    (cd /tmp/pa && jar xf /lib-out/asm.jar && jar xf /lib-out/asm-tree.jar && rm -rf META-INF module-info.class)
+    printf 'Premain-Class: va.presence.Agent\nBoot-Class-Path: va-presence-rt.jar\n' > /tmp/presence.mf
+    jar cfm /bin-out/va-presence.jar /tmp/presence.mf -C /tmp/pa .
   "
 ls -la "$WORK/bin" "$WORK/lib"
