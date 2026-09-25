@@ -3,12 +3,13 @@
 **Missing:** a trustworthy test-attempt-to-source-file record when the test
 driver and the code under test run in different processes. The JVM Phase 0
 harness divides one JaCoCo store at top-level test-class boundaries; it neither
-attributes concurrent service work nor records individual test methods.
+attributes service work nor records individual test methods.
 **Built on:** [0036](0036-a-journey-crosses-processes.md) (the observed request
 edge and the second hop), [0029](0029-what-a-run-remembers.md) (an incomplete
 observation cannot justify a skip), and
 [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) (presence,
-not a count or a trace). The
+not a count or a trace), and [changes before and beyond](../changes-before-and-beyond.md)
+(what a change no record can name selects). The
 [Phase 0 harness](../../tools/jvm-phase0/README.md) is an experiment for
 selection accuracy and cost, not this recorder.
 
@@ -16,9 +17,10 @@ selection accuracy and cost, not this recorder.
 
 A test may make several requests, and one request may pass through several
 services. The useful selection fact is **this test attempt entered this source
-file in this build**. The driver owns the test identity. A service can report
-only the execution identity it received and the files its own code entered; it
-cannot infer which test caused a request from the time the request arrived.
+file in this build**. The recorder is JaCoCo: on Commons Lang it costs 6.5% of
+test time, and a dump per test class adds nothing measurable to that. Anything
+that replaces it has to beat that figure first, so this spec keeps JaCoCo and
+arranges the run around its one constraint.
 
 ### The concurrency problem
 
@@ -45,18 +47,6 @@ both rows; the reset turns it into a miss. So under reset, the record is
 sound only when one attempt at a time owns the flags, and every attempt's work
 is **contained** in its window. Health checks, scheduled jobs and other
 unrelated traffic do not break containment; they only widen rows.
-
-A read that erases nothing removes the reset, and with it the need for
-exclusive ownership. Each probe stores the epoch of its last hit in place of a
-flag; the driver advances the epoch at attempt boundaries. At its end, an
-attempt reads the probes stamped since its start. A later hit by another
-attempt overwrites the stamp with a later epoch, which is still inside the
-first attempt's range if it happened before that attempt ended. Nothing is
-cleared, so concurrent attempts each get a superset of their own hits:
-concurrency costs precision, not soundness. It still needs containment, since
-a task that outlives its attempt stamps a later epoch. JaCoCo has no such
-probe; it is a store of one long in place of one boolean, and the cost is
-measured under item 7, not assumed.
 
 ### Why a test JVM survives the reset
 
@@ -118,112 +108,95 @@ same report apply. Item 2 charges process initialization to every attempt.
 
 A service JVM serves attempts concurrently, so a reset for one attempt erases
 another's hits. Surefire avoids that for tests by never resetting while another
-class runs, and a service can do the same: **one attempt at a time per service
-instance, and parallelism by instances.** The driver resets and dumps the
-service's agent at the attempt's boundaries, as the test listener does
-in-process. Extra
-instances cost memory and startup; for a suite whose selection skips most of
-it, that is the smaller price, and it is where recording starts.
+class runs, and a service does the same: **one attempt at a time per service
+instance, and parallelism by instances.** Each parallel worker gets its own
+lane: one instance of every service the tests call, used by that worker alone.
+The driver resets and dumps the lane's agents at the attempt's boundaries, as
+the test listener does in-process. Nothing is carried in a request, because
+the lane is the attempt. Extra instances cost memory and startup; for a suite
+whose selection skips most of it, that is the smaller price.
 
-What an instance cannot give by itself is the thread fact: the driver does not
-see when a service's asynchronous tail has finished. The service must report
-it (item 3).
+What a lane cannot give by itself is the thread fact: the driver does not see
+when a service's asynchronous tail has finished. The service must report it
+(item 3).
 
-Two modes remove the reset, and with it the need for exclusive instances.
-Epoch-stamped probes (item 4) let attempts share an instance and cost only
-precision: a row widens by whatever ran beside it. Identity-keyed presence
-(item 5) makes each probe write under the attempt's execution identity, which
-keeps rows exact at the price of carrying the identity through every runtime
-boundary. All three produce the same selection fact; none is assumed to have
-the lower cost before measurement.
+### What no probe sees
+
+A probe fires when code runs. Some changes alter behaviour without running any
+code in the changed file:
+
+- **Compile-time constants.** javac copies a `static final` primitive or String
+  into every class that reads it, so the reader never enters the declaring file.
+- **Annotations and reflectively read members.** Jackson, JPA, Spring and
+  validation read them without calling the class's code.
+- **Kotlin `inline` functions.** The body is compiled into the caller, and
+  JaCoCo filters those lines out of it.
+- **Classes JaCoCo does not instrument**: excluded packages, the boot class
+  path, classes generated or retransformed at runtime.
+- **Files that are not code**: `application.yml`, `.properties`, SQL,
+  templates, `META-INF/services`.
+
+The first four are named by the files that use them, so the static `reach` walk
+finds their users: a changed constant, annotation, `inline` function or
+uninstrumented class selects by reach rather than by the record. The kind is
+read from both texts of the change, not declared. The last is named by a path
+string at most, so it is before reach: it is declared under `before`, and a
+change to it runs the suite.
 
 ## What would discharge it
 
-**1. The driver names an attempt and accounts for its calls.** A runner seam
-mints an opaque identity for each test attempt, including a retry, and retains
-the mapping to the runner's test identity. A browser driver installs the carrier
-before the first product request; an HTTP driver attaches it to its requests.
-The driver observes the outbound request edge as in [0036](0036-a-journey-crosses-processes.md).
-The carrier may be a cookie, a header or an existing request-context field;
-which one works is established at each boundary. A cookie on the first request
-does not prove that a service forwarded it to the next service. The service
-reports only the opaque identity and never the test name.
+**1. The driver names an attempt and owns its lane.** A runner seam names each
+test attempt, including a retry, and knows which lane it ran in. The driver
+records the outbound request edge as in [0036](0036-a-journey-crosses-processes.md),
+so a request that left the lane is seen rather than assumed away.
 
 **2. Every participating service reports file presence and its scope.** A JVM
 participant maps an entered class to a source file in a known build inventory,
-then emits a set of file identities for each execution identity. A class's
+then emits a set of file identities for each attempt. A class's
 `SourceFile` basename alone is not a unique source path. The record names the
-build, participant, attempt, watched origins or service boundary, and whether
-every claimed execution was observed. A file hit by an unclaimed request is
-kept separate. Process initialization and other work shared by all attempts
+build, participant, attempt, and whether the attempt's window closed after a
+settle report. Process initialization and other work shared by all attempts
 may be charged to all of them. Work with an unknown owner may widen a row by
 time, never complete one: hits between two windows are added to the attempt
 before them.
 
-**3. Exclusive-instance recording is the first mode.** Each service instance
-serves one attempt at a time, and the suite runs in parallel across instances,
-as Surefire forks run test classes. A router that binds all requests of an
-attempt to its instance, or identifies and merges the instances that served
-them, satisfies this. The driver resets each participating agent before the
-attempt and dumps it after, and records the gap between windows as its own
-dump. Before the dump, the service reports that the attempt's work has
-settled: no request in flight, no task it queued still pending, no thread it
-started still running. That report is the service's side of the listener's
-thread audit. A service that cannot report it gives rows that are partial, and
-a partial row cannot exclude a test. Unrelated traffic in a window only widens
-the row; it does not make it partial.
+**3. Each lane serves one attempt at a time.** The suite runs in parallel
+across lanes, as Surefire forks run test classes. The driver resets each agent
+in the lane before the attempt and dumps it after, and records the gap between
+windows as its own dump. Before the dump, the service reports that the
+attempt's work has settled: no request in flight, no task it queued still
+pending, no thread it started still running. That report is the service's side
+of the listener's thread audit. A service that cannot report it gives rows that
+are partial, and a partial row cannot exclude a test. Unrelated traffic in a
+window only widens the row; it does not make it partial.
 
-**4. Epoch-stamped recording shares an instance without a reset.** A JVM
-instrument stores, per probe, the epoch of its last hit. The driver advances the
-epoch at each attempt's start on every participating instance and records the
-epoch it got back. At the attempt's end, after the settle report of item 3,
-each participant returns the files whose probes carry an epoch at or after that
-start. Nothing is cleared. Attempts that overlap on one instance each receive
-their own hits plus their neighbours'; the report counts how many attempts
-overlapped each row, so the widening is visible. A task that outlives its
-attempt is caught by the settle report, as in item 3.
+**4. A change no probe sees selects by reach.** The change reader classifies a
+changed constant, annotation, `inline` function or uninstrumented class, and
+the selector answers it with the static walk instead of the record. A changed
+file under `before` runs the suite. Neither is an unmeasured file that selects
+nothing: that rule is for a file nothing connects to, and these are connected
+by use or by the runtime.
 
-**5. Identity-keyed recording is the exact mode.** A purpose-built JVM
-instrument may mark source-file presence at class or method entry into a
-concurrent set keyed by execution identity, so no read clears another
-attempt's presence. The request adapter establishes the identity at ingress. Each async
-or reactive boundary must carry it into the code where probes run; each
-outbound boundary must forward it to declared participants. An existing
-carrier, such as the OpenTelemetry Java agent's context and W3C baggage, is
-ridden rather than rebuilt. A thread-local alone covers only work that stays
-on that thread. Background work without a causal identity remains unclaimed.
-The instrument records the file grain the selector needs; it need not write
-one JaCoCo `.exec` per attempt or convert those files through a coverage
-report. This mode permits interleaved attempts
-in one JVM, but only where the carrier and runtime scope have been verified.
-
-**6. The join refuses silence.** The driver joins participant reports by its
-attempt identity and retains the observed call edges. A declared participant
-that fails to report, a missing build inventory, a lost report, an unverified
-hop, a still-running async tail or a worker the driver cannot account for
-makes the affected observation incomplete. Absence of a file from such a row
+**5. The join refuses silence.** The driver joins the lane's reports by
+attempt and retains the observed call edges. A participant that fails to
+report, a missing build inventory, a lost report, a request that left the lane,
+or a still-running async tail makes the affected observation incomplete. Absence of a file from such a row
 cannot justify skipping that test. The report distinguishes a complete empty
 file set from no file set, and tells the operator which boundary prevented a
 narrower selection. This follows [0029](0029-what-a-run-remembers.md), rather
 than treating a timeout as zero coverage.
 
-**7. Cost and correctness are measured separately.** The Phase 0 harness may
-continue to compare method, shape, line and file selection against faults.
-The implementation must also measure full test-phase wall time and artifact
-size for a bare run, exclusive-instance JaCoCo recording, epoch-stamped
-recording, and identity-keyed file recording on the same suite, and, for the
-epoch mode, how much rows widen at each level of overlap. It must count
-incomplete rows and attribution errors under concurrent load. The
-exclusive-instance mode is acceptable even if it is slower; the measurement
-makes that price visible instead of ruling it out by architecture.
+**6. Cost is measured, not assumed.** The Phase 0 harness keeps comparing
+method, shape, line and file selection against seeded faults. The
+implementation measures full test-phase wall time for a bare run and for lane
+recording on the same suite, and the memory and startup the extra lanes cost.
 
 ## Acceptance
 
-1. Tests run one at a time per service instance, across several instances.
-   JaCoCo yields each attempt's file set, including a task the attempt queued
-   that finishes after its last response: the dump waits for the settle report.
-   A second request from one test, routed to another instance, is merged into
-   that test's row or makes it incomplete.
+1. Tests run one at a time per lane, across several lanes. JaCoCo yields each
+   attempt's file set, including a task the attempt queued that finishes after
+   its last response: the dump waits for the settle report. A request that
+   leaves the lane makes the row incomplete.
 2. A health request or a scheduled job inside a window adds its files to that
    row and nothing else. A service that cannot report settling produces
    partial rows, and their tests run.
@@ -233,16 +206,10 @@ makes that price visible instead of ruling it out by architecture.
    reading, the static initializers a class entered only when it ran first are
    reported by name, as [0038](0038-a-journey-is-read-against-the-committed-tree.md)
    reports a place that moved with its inputs fixed.
-5. Two tests whose requests interleave in one JVM enter different source files.
-   A reset between them is refused: a JaCoCo dump taken while another attempt
-   is open is marked unsuitable for per-attempt exclusion. Epoch-stamped
-   recording returns each attempt both files and counts the overlap.
-   Identity-keyed recording returns each file only for its own attempt, even
-   when both requests resume on different threads.
-6. A browser's first request, a service-to-service call, and an asynchronous
-   continuation retain one attempt identity wherever the deployment claims
-   coverage. Removing the carrier at any hop produces an incomplete row and
-   runs the potentially affected test.
+5. Changing a compile-time constant selects every test class whose closure
+   reads it, including those whose rows lack the declaring file. The same holds
+   for an annotation read by reflection and for a Kotlin `inline` function.
+6. A changed `application.yml` declared under `before` runs the suite.
 7. An unknown binary class, a missing participant and a failed report cannot
    create a complete negative observation.
 8. A changed source file selects the test that entered it in another process;
@@ -251,12 +218,12 @@ makes that price visible instead of ruling it out by architecture.
 
 ## Boundary
 
-This specifies the observation and its trust conditions, not a single agent or
-router. JaCoCo serves the exclusive-instance mode, which comes first, and the
-Phase 0 selection experiment. The epoch-stamped and keyed collectors are more
-broadly applicable because they never reset, so they do not require exclusive
-service ownership; the keyed one still requires real
-propagation through every runtime boundary it claims. A request edge without
-an instrumented participant can narrow only to tests that called the observed
-endpoint, under [0036](0036-a-journey-crosses-processes.md); it cannot claim
-that a particular source file executed.
+This specifies the observation and its trust conditions, not a router. JaCoCo
+is the recorder in both the test JVM and the lane's services. Sharing one
+service instance between concurrent attempts is not supported: it needs an
+identity carried through every async boundary and a probe that reads it on
+every method entry, and nothing measured so far says the extra lanes cost
+more. A request edge without an instrumented participant can narrow only to
+tests that called the observed endpoint, under
+[0036](0036-a-journey-crosses-processes.md); it cannot claim that a particular
+source file executed.
