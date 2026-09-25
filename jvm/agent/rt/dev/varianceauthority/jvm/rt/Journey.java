@@ -57,6 +57,10 @@ public final class Journey implements AutoCloseable {
   }
 
   /** Opens a scope for the journey the request carried, in either header; both may be null. */
+  // FIXME: a journey the application's tracing carries (the trace id, as the
+  // Node head reads it through `sentry(Sentry)`/`openTelemetry(api)`) never
+  // reaches a JVM behind a traced service: take an `enter(String journey)` the
+  // service feeds from its own tracer's current trace id.
   public static Journey enter(String cookie, String baggage) {
     if (!Presence.on) return OFF;
     String fromCookie = member(cookie, ';', false);

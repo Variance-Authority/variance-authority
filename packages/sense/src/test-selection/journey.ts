@@ -72,7 +72,8 @@ import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLog from '../instrument/probe-log.cjs';
-import { isThenable, writeParts } from './journey-parts.js';
+import { isThenable, TOLD, writeParts } from './journey-parts.js';
+import journeyTrace from './journey-trace.cjs';
 
 /**
  * The join, re-exported so one import serves a driver: a participant that
@@ -173,7 +174,58 @@ export interface JourneyCollectorOptions {
    * is joined to it when its run is finalized. Set, it enables the head.
    */
   readonly parts?: string;
+  /**
+   * The application's own tracing, which carries the journey as its trace id:
+   * `sentry(Sentry)` or `openTelemetry(api)`, handed the SDK the application
+   * initialized. Set, the head asks it which journey is running wherever
+   * {@link JourneyCollector.enter} did not say, so a service whose tracing
+   * already continues the incoming trace needs no `enter` at all. The test
+   * side runs each case inside that trace with `carryJourneys` from
+   * `@variance-authority/sense/case-journey`.
+   *
+   * A trace carries an id and no way home, so this writes {@link parts}.
+   */
+  readonly trace?: JourneyTrace;
 }
+
+/**
+ * Who carries a journey across a fence, and how to ask it which one is running:
+ * `sentry(Sentry)` or `openTelemetry(api)`, or anything else that can.
+ */
+export interface JourneyTrace {
+  /** What the trace is, for a message that has to name it. */
+  readonly name: string;
+  /** Run a case's body inside a trace whose id is `journey`, 32 lowercase hex digits. */
+  carry<Result>(journey: string, name: string, body: () => Result): Result;
+  /** The trace id running now, or `undefined` where there is none. */
+  current(): string | undefined;
+}
+
+/** The part of `@sentry/node`, or any Sentry SDK from 8 on, a journey reads. */
+export interface SentrySdk {
+  getActiveSpan(): { spanContext(): { traceId: string } } | undefined;
+  getCurrentScope(): { getPropagationContext(): { traceId: string } };
+  continueTrace<Result>(headers: { sentryTrace?: string }, callback: () => Result): Result;
+  startSpan<Result>(options: { name: string; forceTransaction?: boolean }, callback: () => Result): Result;
+}
+
+/** The part of `@opentelemetry/api` a journey reads. */
+export interface OpenTelemetryApi {
+  context: {
+    active(): object;
+    with<Result>(context: never, body: () => Result): Result;
+  };
+  trace: {
+    getSpanContext(context: never): { traceId: string } | undefined;
+    setSpanContext(
+      context: never,
+      span: { traceId: string; spanId: string; traceFlags: number; isRemote?: boolean },
+    ): object;
+  };
+}
+
+/** The application's tracing, as a journey carrier. */
+export const { sentry, openTelemetry } = journeyTrace;
 
 /** A head's participation in a run, or its cheap absence. */
 export interface JourneyCollector {
@@ -200,6 +252,12 @@ export interface JourneyCollector {
 
 const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
 
+type Told = JourneyCollector & { readonly [TOLD]?: (trace: JourneyTrace) => void };
+
+const untraceable = (trace: JourneyTrace): string =>
+  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts: ` +
+  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}`;
+
 /**
  * Install the journey-keyed collector in this process.
  *
@@ -220,12 +278,19 @@ const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
  * one back from this call, options and all, until it is closed.
  */
 export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyCollector {
-  const realm = globalThis as { [INSTALLED]?: JourneyCollector };
+  const realm = globalThis as { [INSTALLED]?: Told };
   const installed = realm[INSTALLED];
-  if (installed !== undefined) return installed;
+  if (installed !== undefined) {
+    if (options.trace !== undefined) {
+      const tell = installed[TOLD];
+      if (tell === undefined) throw new Error(untraceable(options.trace));
+      tell(options.trace);
+    }
+    return installed;
+  }
   const collector = installJourneys(options);
   if (!collector.collecting) return collector;
-  const held: JourneyCollector = {
+  const held: Told = {
     ...collector,
     close: async () => {
       if (realm[INSTALLED] === held) delete realm[INSTALLED];
@@ -239,8 +304,9 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
 function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
-  if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf);
+  if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
   const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
+  if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
       collecting: false,

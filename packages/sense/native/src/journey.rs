@@ -292,10 +292,14 @@ impl Visitor for FoldVisitor<'_> {
             let journey = journey_journal::journey_of(packed);
             self.test_first = 0;
             self.test_last = 0;
+            // A journey no case handed out is work the writer did for nobody in
+            // particular: a trace its tracer started at import, or a request
+            // from outside the run. That is every case it served, the same as
+            // work under no journey at all.
             self.targets = if journey.is_empty() {
                 &run.part_tests[part]
             } else {
-                run.journey_tests.get(journey).map_or(&[], Vec::as_slice)
+                run.journey_tests.get(journey).map_or(&run.part_tests[part], Vec::as_slice)
             };
             return Ok(());
         }

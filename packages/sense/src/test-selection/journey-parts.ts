@@ -12,10 +12,17 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ModuleId } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
 import journalFormat from './journal-format.cjs';
-import type { JourneyCollector } from './journey.js';
+import type { JourneyCollector, JourneyTrace } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 
-type Sink = (frames: readonly Uint8Array[]) => Promise<void> | undefined;
+/**
+ * How a collector a build installed learns the trace afterwards: the build runs
+ * before the application's tracing exists, and the application's own
+ * `collectJourneys({ trace })` is the first place that can name it.
+ */
+export const TOLD: unique symbol = Symbol.for('variance-authority.journeys.trace');
+
+type Sink =(frames: readonly Uint8Array[]) => Promise<void> | undefined;
 
 /**
  * The head that writes parts instead of reporting them.
@@ -38,7 +45,11 @@ export function writeParts(
   head: string,
   target: string,
   journeyOf: (carried: string | undefined) => string | undefined,
-): JourneyCollector {
+  told?: JourneyTrace,
+): JourneyCollector & { readonly [TOLD]: (trace: JourneyTrace) => void } {
+  // Asked wherever `enter` did not say, which is every crossing when the
+  // application's tracing continues the incoming trace on its own.
+  let trace = told;
   // Named on the first send: a Worker installs this at global scope, where
   // workerd refuses random values.
   const append = partSink(target, () => `${head.replace(/[^\w.-]/g, '_')}-${crypto.randomUUID()}.vac`);
@@ -63,7 +74,7 @@ export function writeParts(
   let lastJourney = UNATTRIBUTED;
   let lastBucket = bucketFor(UNATTRIBUTED);
   engine.scope((): Bucket => {
-    const journey = store.getStore() ?? UNATTRIBUTED;
+    const journey = store.getStore() ?? trace?.current() ?? UNATTRIBUTED;
     if (journey !== lastJourney || lastBucket.closed) {
       lastJourney = journey;
       lastBucket = bucketFor(journey);
@@ -148,8 +159,11 @@ export function writeParts(
   return {
     collecting: true,
     head,
+    [TOLD]: (by: JourneyTrace) => {
+      trace = by;
+    },
     enter: <Result,>(carried: string | undefined, body: () => Result): Result => {
-      const journey = journeyOf(carried);
+      const journey = journeyOf(carried) ?? trace?.current();
       if (journey === undefined) return body();
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
       let done: Result;

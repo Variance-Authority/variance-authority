@@ -399,6 +399,24 @@ the first time the running case asks, and later asks in the same case get the
 same one. `caseJourney()` returns the bare id if you carry it some other way,
 such as trace baggage. Outside a case, both return nothing.
 
+If your application already runs Sentry or OpenTelemetry, the id is the trace
+id and your tracing carries it through every hop. Hand the SDK over once, in a
+`setupFilesAfterEnv` file after your own initialization, and leave the requests
+alone:
+
+```js
+const Sentry = require('@sentry/node');
+const { carryJourneys, sentry } = require('@variance-authority/sense/case-journey');
+
+carryJourneys(sentry(Sentry));
+```
+
+With OpenTelemetry, pass the API your provider registered with:
+`carryJourneys(openTelemetry(require('@opentelemetry/api')))`. Each case then
+runs inside a trace whose id is its journey, and the service is told the same
+SDK: `collectJourneys({ head: 'pricing', parts, trace: sentry(Sentry) })`. It
+asks the trace wherever a request did not name a journey.
+
 The service wraps its requests with `collectJourneys`, as in
 [the next section](#follow-one-execution-into-a-service), and adds `parts`:
 
@@ -428,7 +446,9 @@ A journey's frame is charged to the case that minted the id and to no other. The
 no-journey frame is charged to every case the same file served. A shared
 service's startup is every caller's, so a change to it selects every file that
 called it. A case that called the service without its cookie is not charged at
-all, because nothing names it.
+all, because nothing names it. Under a tracer, a trace no case started (a
+`beforeAll` call, a background job) is charged the same way as the no-journey
+frame.
 
 A runtime with no host filesystem, such as a Cloudflare Worker, sends its parts
 to an address instead. Start a receiver on the host before the service, and

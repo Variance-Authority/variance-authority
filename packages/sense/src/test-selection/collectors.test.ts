@@ -236,5 +236,41 @@ describe('how a case settles', () => {
     // A part frame has no case and no settling, and names the journey in the same field.
     expect(journals.journeyOf(journals.packJourney(journals.packCase('', '', ''), journey!))).toBe(journey);
   });
+
+  it('runs every case inside the trace it was told, whose id is the journey its frame names', () => {
+    const holder: Record<PropertyKey, unknown> = {};
+    const collector = collectors.scoped(holder, true);
+    const scope = holder[CASE_SCOPE] as Scope & {
+      journey(): string | undefined;
+      carry(trace: { name: string; carry: (journey: string, name: string, body: () => unknown) => unknown }): void;
+    };
+    const carried: { journey: string; name: string }[] = [];
+    let running: string | undefined;
+    scope.carry({
+      name: 'tracer',
+      carry: (journey, name, body) => {
+        carried.push({ journey, name });
+        running = journey;
+        try {
+          return body();
+        } finally {
+          running = undefined;
+        }
+      },
+    });
+    let inside: string | undefined;
+    // The case never asks for its journey: the trace is what carries it.
+    expect(scope.enter(journals.packCase(FILE, 'quotes', 'quotes'), () => {
+      inside = running;
+      return 'answered';
+    })).toBe('answered');
+
+    expect(carried).toHaveLength(1);
+    expect(carried[0]!.name).toBe('quotes');
+    expect(carried[0]!.journey).toMatch(/^[0-9a-f]{32}$/);
+    expect(inside).toBe(carried[0]!.journey);
+    const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
+    expect(journals.journeyOf(journals.decodeJournal(frame!).testFile)).toBe(carried[0]!.journey);
+  });
 });
 

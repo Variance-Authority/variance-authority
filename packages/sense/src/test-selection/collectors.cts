@@ -18,6 +18,7 @@ import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import type { ModuleId } from '../instrument/index.js';
+import type { JourneyTrace } from './journey.js';
 
 type Engine = ReturnType<typeof probeLog.createEngine>;
 type Bucket = ReturnType<Engine['open']>;
@@ -181,6 +182,20 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   // case asks, so a case that never crosses a fence carries nothing. A late
   // bucket under the same key is the same case and names the same journey.
   const journeys = new Map<string, string>();
+  // The trace a journey rides, once the test's own setup names one. Then every
+  // case runs inside a trace whose id is its journey, so the id is minted as
+  // the case starts rather than the first time the case asks.
+  let trace: JourneyTrace | undefined;
+  const journeyOf = (key: string): string => {
+    let id = journeys.get(key);
+    if (id === undefined) {
+      // 32 hex digits: a trace id as W3C and every tracer spell it, and a
+      // cookie value no engine encodes differently.
+      id = crypto.randomUUID().replaceAll('-', '');
+      journeys.set(key, id);
+    }
+    return id;
+  };
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
@@ -274,10 +289,14 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     }
     const bucket = bucketFor(key);
     bucket.open = true;
-    if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, body));
+    const carried = trace;
+    const run = carried === undefined
+      ? body
+      : (): Result => carried.carry(journeyOf(key), nameOf(key), body);
+    if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, run));
     current = bucket;
     engine.use(bucket);
-    return settling(bucket, body);
+    return settling(bucket, run);
   };
   // The case running now, asked from inside it: the async store where there is
   // one, the variable where there is not, and no case at all in the ambient
@@ -286,14 +305,12 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     if (tangled) return undefined;
     const bucket = scopes === undefined ? current : scopes.getStore();
     if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
-    let id = journeys.get(bucket.key);
-    if (id === undefined) {
-      id = crypto.randomUUID();
-      journeys.set(bucket.key, id);
-    }
-    return id;
+    return journeyOf(bucket.key);
   };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
+  const carry = (by: JourneyTrace): void => {
+    trace = by;
+  };
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey, carry };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

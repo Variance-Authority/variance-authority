@@ -50,8 +50,8 @@ A **fence** here is any boundary a test's execution crosses that the graph
 does not: a network hop, a process, a runtime. To follow one execution past a
 fence you need a key the far side can read and the near side can later match.
 Variance Authority uses a **journey**: one opaque id per execution of one test.
-It is a UUID and nothing else, minted by the process that runs the test, which
-this page calls the **driver**.
+It is a random id and nothing else, minted by the process that runs the test,
+which this page calls the **driver**.
 
 The id crosses the fence, and the test's name does not. The processes on the far
 side never learn which test they served. Each one writes down what it ran under
@@ -63,8 +63,8 @@ serving. [A carried value joins; a derived one
 drifts](observability.md#a-carried-value-joins-a-derived-one-drifts) states the
 general rule.
 
-**You put the id on the request.** Nothing patches `fetch`, `http` or your
-client library. A patch would have to guess which clients your tests use and
+**You put the id on the request, or your tracing does.** Nothing patches
+`fetch`, `http` or your client library. A patch would have to guess which clients your tests use and
 would change the system under test in a way your production code never sees. A
 Jest case asks for its own id:
 
@@ -84,8 +84,33 @@ call of its own, because the driver sets the same cookie on the browser context
 before the first navigation and the browser sends it on every same-origin
 request.
 
+**If your application runs Sentry or OpenTelemetry, the journey is the trace
+id.** Those SDKs already forward a trace across every hop your system makes,
+because that is their whole job. Instead of putting a cookie on each request,
+you run each case inside a trace whose id is its journey, and every service
+asks its own SDK which trace is running. You hand Variance Authority the SDK
+instance your application initialized, so it reads the trace your tracing
+already carries and never parses a header for it. In a Jest
+`setupFilesAfterEnv` file, after your own `Sentry.init`:
+
+```js
+const Sentry = require('@sentry/node');
+const { carryJourneys, sentry } = require('@variance-authority/sense/case-journey');
+
+carryJourneys(sentry(Sentry));
+```
+
+With OpenTelemetry, pass the API your provider registered with:
+`carryJourneys(openTelemetry(require('@opentelemetry/api')))`. Each case then
+runs inside `Sentry.startSpan`, or under a sampled OpenTelemetry parent, whose
+trace id is its journey. Your `fetch` instrumentation propagates it like any
+other trace. The case's code and the services' request handling do not change.
+Sentry carries the id whether tracing is on, sampled out or off. With no span it
+carries the id on the scope's propagation context.
+
 **Past the first hop, the id travels the way your system already forwards
-context.** The gateway has to pass it to the notes service. Copy the cookie onto
+context.** With a tracer, the tracer forwards it. Otherwise the gateway has to
+pass it to the notes service. Copy the cookie onto
 the onward request, or let W3C `baggage` carry a `variance-authority-journey`
 member if your tracing already propagates baggage between services. The JVM
 head reads either header. When both are present and name different ids, the
@@ -188,6 +213,24 @@ builds gave `testSelectionProbes()`, so the fold can find the inventories their
 frames name. [Follow a Jest case into a service it
 calls](../packages/sense/README.md#follow-a-jest-case-into-a-service-it-calls)
 has the details.
+
+When your tracing carries the journey, a Node service hands the head the same
+SDK and needs no `enter` at all:
+
+```js
+import * as Sentry from '@sentry/node';
+import { collectJourneys, sentry } from '@variance-authority/sense/journey';
+
+collectJourneys({ head: 'gateway', parts: '/tmp/va-parts', trace: sentry(Sentry) });
+```
+
+Every probe that runs outside an `enter` asks the SDK which trace is running,
+and a request your tracing continued is charged to the case that started the
+trace. It does not matter how many services away that request is. `openTelemetry(api)` does
+the same with the API your OpenTelemetry provider registered with. A head a
+build installed before your application initialized its tracing learns the SDK
+from this call. A trace has no return address, so a head that is handed a trace
+writes parts. A head that reports to a driver refuses one.
 
 A JVM service wraps each request in `Journey.enter(cookie, baggage)` and runs
 with the agent and `-Dva.parts=<dir>` (or `VARIANCE_AUTHORITY_PARTS`). At exit
@@ -303,6 +346,8 @@ that each service you expect wrote a part before you narrow on the record.
 
 Within a process that did write, what a request with no id ran is charged to
 every test whose id reached that process, never to one of them in particular.
+A trace that no case started counts as no id. That covers a trace your tracer
+opened at startup and a call a `beforeAll` made outside any case.
 A service that no id reached is charged to no test, and a change there selects
 none. Its modules leave the journey file, and `variance journeys finalize` counts
 fewer modules than the run before: behind a gateway that stopped forwarding the
@@ -335,6 +380,16 @@ charged for what that request ran, because nothing names the case.
   method, so each selects every test that entered the file.
 - **Coarser than the page.** A JVM head records methods, not branches, and a
   recorded method carries every line in it. At line grain it only widens.
+- **A tracer is asked at every probe.** A head that is handed a trace asks it
+  which trace is running at every probe outside an `enter`. On an M4 Max each
+  ask costs about 34 ns through Sentry and 15 ns through OpenTelemetry, against
+  5 ns for the async context `enter` reads. A request that runs a thousand
+  probes pays about 34 µs through Sentry.
+- **Every case carries its journey under a tracer.** A case cannot know ahead
+  of time whether its tracing will send the trace anywhere, so under a tracer
+  every case writes a frame naming its journey, including a case that crossed
+  nothing. Such a case is listed in the record and reaches nothing beyond its
+  own process.
 
 Most suites need none of this. A Storybook preview or a Vitest file runs in one
 process, so the process that executes is the process that is watched and no
