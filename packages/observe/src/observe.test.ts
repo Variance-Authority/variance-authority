@@ -146,6 +146,21 @@ describe('a durable observation above 1x', () => {
     expect(observation.because).toContain('rendered by playwright-chromium (chromium@131.0.0, darwin/arm64, 1x,');
   });
 
+  it('gives every subject without a baseline the same reason, so a docket groups them', async () => {
+    // The report already names the subject on every line. A reason that named
+    // it again made each one unique, and a first run's comment listed 300
+    // subjects as 300 separate causes instead of one.
+    const store = createDurableStore(root);
+    const renderer = fakeRenderer();
+    const reasons = await Promise.all(
+      ['a', 'b'].map(async (subject) =>
+        (await observeAgainstBaseline(documentAt(1), { subject }, { renderer, store })).because,
+      ),
+    );
+
+    expect(reasons[0]).toBe(reasons[1]);
+  });
+
   it('reuses a 2x render instead of paying for it twice', async () => {
     // The same key mismatch on the cache half. The store writes a render under
     // the raster's identity and is asked for it under the renderer's, so above

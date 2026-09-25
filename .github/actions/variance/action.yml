@@ -14,8 +14,8 @@ description: >-
 # operator's workflow, next to the baselines, not hidden inside an action.
 #
 # So this is bash around `variance run`. Every decision it makes is a decision the
-# CLI already made, and the two things it adds — a comment and an optional commit
-# — are the two things a command line cannot do for itself.
+# CLI already made, and the three things it adds — a comment, an optional commit
+# and an optional upload — are the three a command line cannot do for itself.
 #
 # ## The check's colour comes from the exit code, and from nothing else
 #
@@ -104,8 +104,27 @@ inputs:
   run-url:
     description: >-
       Link printed in the comment for the full report. Empty by default and
-      deliberately not inferred: this action uploads nothing, so a link is only
-      honest if the operator published something to link to.
+      deliberately not inferred: a link is only honest if something was
+      published to link to. `report-page` supplies its own and takes precedence.
+    required: false
+    default: ''
+
+  report-page:
+    description: >-
+      Write the HTML report as one file with its images inside it, upload it
+      unzipped as the `variance-report.html` artifact, and link that from the
+      comment. The artifact opens in the browser, a phone's included. Off by
+      default, because it is the one thing this action would publish: the images
+      are pixels of your product, kept for your artifact retention period.
+    required: false
+    default: 'false'
+
+  to-accept:
+    description: >-
+      How a reviewer accepts in this repository, printed at the foot of the
+      comment as `To accept: <this>`. Markdown. Empty prints nothing: whether it
+      is a workflow to dispatch, a label or a command is your policy, and this
+      action does not guess it.
     required: false
     default: ''
 
@@ -173,6 +192,39 @@ runs:
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
         node "$here/locate-artifacts.mjs" "$VARIANCE_CONFIG" >> "$GITHUB_OUTPUT"
 
+    # Beside the report rather than in `RUNNER_TEMP`: in a container job the
+    # runner's temp path is the host's spelling, and the upload runs inside the
+    # container. The report directory is resolved in here, so it is the right one.
+    - id: page
+      name: write the report page
+      if: ${{ inputs.report-page == 'true' && steps.run.outputs.exit-code != '2' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+        VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
+      run: |
+        set -euo pipefail
+        page="$(dirname "$VARIANCE_REPORT")/variance-report.html"
+        # `--exit-zero-on-changes`: this step writes a page, and the verdict is
+        # the run step's. It suppresses 1 and never 2.
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND report --config "$VARIANCE_CONFIG" --format html --embed-images \
+          --exit-zero-on-changes > "$page"
+        echo "path=$page" >> "$GITHUB_OUTPUT"
+
+    # `archive: false` uploads the one file as it is, named for the file, so the
+    # link opens the page instead of downloading a zip.
+    - id: upload
+      name: upload the report page
+      if: ${{ steps.page.outputs.path != '' }}
+      uses: actions/upload-artifact@v7
+      with:
+        path: ${{ steps.page.outputs.path }}
+        archive: false
+        if-no-files-found: error
+
     - id: render
       name: render the docket
       if: ${{ inputs.comment == 'true' && steps.run.outputs.exit-code != '2' }}
@@ -181,7 +233,8 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
-        VARIANCE_RUN_URL: ${{ inputs.run-url }}
+        VARIANCE_RUN_URL: ${{ steps.upload.outputs.artifact-url || inputs.run-url }}
+        VARIANCE_TO_ACCEPT: ${{ inputs.to-accept }}
       run: |
         set -euo pipefail
 
@@ -197,13 +250,15 @@ runs:
 
         # The body, written even when it is empty — the poster distinguishes
         # "nothing needs review" from "the render never ran", and only the first
-        # may clear a previous docket. An empty --run-url reads as absent, so a
-        # workflow that published nothing gets no link rather than a broken one.
+        # may clear a previous docket. An empty --run-url or --to-accept reads as
+        # absent, so a workflow that published nothing gets no link rather than a
+        # broken one.
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND comment \
           --config "$VARIANCE_CONFIG" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
-          --run-url "$VARIANCE_RUN_URL"
+          --run-url "$VARIANCE_RUN_URL" \
+          --to-accept "$VARIANCE_TO_ACCEPT"
 
     - name: post the docket
       if: ${{ inputs.comment == 'true' && steps.run.outputs.exit-code != '2' }}

@@ -148,7 +148,7 @@ variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
-variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
+variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
 variance watch
@@ -160,7 +160,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
-variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker
+variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [<report>...] | --marker
 ```
 
 | command | what it does |
@@ -852,6 +852,19 @@ remain separate files.
 `--subject` is refused for HTML so the page retains the whole run's coverage
 accounting.
 
+When the page will be opened somewhere its images are not, add
+`--embed-images` and it carries every picture inside it:
+
+```bash
+variance report --format html --embed-images > variance-report.html
+```
+
+One file then opens anywhere, including a phone. On GitHub Actions, upload it
+with `actions/upload-artifact@v7` and `archive: false`, and the artifact link
+opens the page in the browser instead of downloading a zip. The file grows
+with the images: a subject with a baseline and a change carries three
+pictures.
+
 ### Detect instability with `run --flakes`
 
 Every run reads a *changed* subject a second time before believing its verdict.
@@ -1394,7 +1407,8 @@ owns its own collector, renderer, storage, or review surface:
   the whole change. `project` scopes optional history rows; omit it when no
   history store is supplied.
 - `renderComment` accepts `runUrl` when the published artifact has a reviewable
-  location and `limits` when a caller needs smaller docket bounds. Limits merge
+  location, `toAccept` for how a reviewer accepts in your repository, and
+  `limits` when a caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
 - The executable's `config` path selects the source; `parseConfig` takes that
   value and `baseDir` through `ParseOptions`. Relative paths resolve against
@@ -1616,6 +1630,19 @@ The YAML is a platform example. Its `script` invokes the same `variance` binary
 used locally, while `after-script` owns the platform-specific API call that
 publishes the body. This package renders the body and marker but does not post
 anything.
+
+Two flags make the body something a reviewer can act on from a phone.
+`--run-url` links the report you published, and
+`variance report --format html --embed-images` makes that report one file a
+browser opens. `--to-accept` says how accepting works in your repository,
+because the comment cannot know whether that is a workflow to dispatch, a
+label, or `variance accept` on a checkout:
+
+```bash
+variance comment --body-file body.md \
+  --run-url "$REPORT_URL" \
+  --to-accept 'run the `variance` workflow on `main` with **accept** ticked'
+```
 
 ## Integration troubleshooting
 

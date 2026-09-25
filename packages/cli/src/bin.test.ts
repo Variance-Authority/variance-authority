@@ -333,6 +333,7 @@ describe('parseArgs', () => {
       config: resolve('variance.config.json'),
       format: 'text',
       exitZeroOnChanges: false,
+      embedImages: false,
       reports: [resolve('a.json'), resolve('b.json')],
     });
 

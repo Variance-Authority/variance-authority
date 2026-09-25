@@ -86,7 +86,7 @@ export async function observeCaptureAgainstBaseline(
     return {
       subject: artifact.subject.id,
       verdict: 'new',
-      because: `no baseline for \`${key.subject}\` under this renderer; nothing to compare against`,
+      because: 'no baseline under this renderer; nothing to compare against',
       regions: [],
       rendered: false,
       missingFonts: candidate.missingFonts,
@@ -99,7 +99,7 @@ export async function observeCaptureAgainstBaseline(
       subject: artifact.subject.id,
       verdict: 'incomparable',
       because:
-        `a baseline for \`${key.subject}\` exists but was rendered by ` +
+        'a baseline exists but was rendered by ' +
         `${describeIdentity(found.storedUnder)}, and this run is ` +
         `${describeIdentity(candidate.identity)}; pixels are machine-bound, so the two are not comparable`,
       regions: [],

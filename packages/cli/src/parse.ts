@@ -13,6 +13,7 @@ import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
+import { parseCommentArgs, type ParsedComment } from './comment-args.js';
 
 export { USAGE } from './usage.js';
 /**
@@ -96,6 +97,8 @@ export type Parsed =
       readonly format: ReportFormat;
       readonly subject?: string;
       readonly exitZeroOnChanges: boolean;
+      /** `--embed-images`: the HTML page carries its pictures instead of naming them. */
+      readonly embedImages: boolean;
       /** Reports to read instead of the configured one. More than one is merged. */
       readonly reports: readonly string[];
     }
@@ -177,15 +180,7 @@ export type Parsed =
   | { readonly command: 'watch' }
   | { readonly command: 'serve'; readonly config: string; readonly justAnswer?: boolean }
   | { readonly command: 'doctor'; readonly config: string }
-  | {
-      readonly command: 'comment';
-      readonly config: string;
-      readonly bodyFile?: string;
-      readonly runUrl?: string;
-      readonly marker: boolean;
-      /** Reports to read instead of the configured one. More than one is merged. */
-      readonly reports: readonly string[];
-    }
+  | ParsedComment
   | {
       readonly command: 'help';
       /**
@@ -270,6 +265,13 @@ export function parseArgs(argv: readonly string[]): Parsed {
         throw new OperatorError(`--format must be text, json or html, not \`${format}\``);
       }
       const subject = flags.values.get('--subject');
+      const embedImages = flags.present.has('--embed-images');
+      if (embedImages && format !== 'html') {
+        throw new OperatorError(
+          `--embed-images puts the pictures inside an HTML page; add --format html, ` +
+            `or drop it for --format ${format}`,
+        );
+      }
 
       return {
         command: 'report',
@@ -277,6 +279,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         format,
         ...(subject !== undefined ? { subject } : {}),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
+        embedImages,
         // Named paths, not the configured one. A shard writes where its job told
         // it to, so `report` has to be able to read reports the config has never
         // heard of — and once it names them, adding the configured report to the
@@ -458,32 +461,6 @@ export function parseArgs(argv: readonly string[]): Parsed {
       noPositionals(flags.positionals, 'doctor');
       return { command: 'doctor', config };
 
-    case 'comment': {
-      const bodyFile = flags.values.get('--body-file');
-      const runUrl = flags.values.get('--run-url');
-      const marker = flags.present.has('--marker');
-
-      if (marker && (bodyFile !== undefined || runUrl !== undefined || flags.positionals.length > 0)) {
-        // Two different questions, and answering both at once would mean
-        // deciding which one the exit code is about. `--marker` is a constant
-        // this build carries; the body is a reading of a report that may not
-        // exist yet.
-        throw new OperatorError(
-          '`--marker` prints the marker and nothing else; it does not take --body-file, ' +
-            '--run-url or a report',
-        );
-      }
-
-      return {
-        command: 'comment',
-        config,
-        marker,
-        ...(bodyFile !== undefined ? { bodyFile } : {}),
-        // An empty `--run-url` is the workflow's "the operator published
-        // nothing", which must read as absent rather than as a link to ''.
-        ...(runUrl !== undefined && runUrl !== '' ? { runUrl } : {}),
-        reports: flags.positionals.map((path) => resolve(path)),
-      };
-    }
+    case 'comment': return parseCommentArgs(flags, config);
   }
 }

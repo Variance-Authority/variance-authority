@@ -392,7 +392,7 @@ export async function observeAgainstBaseline(
     return {
       subject: document.subject.id,
       verdict: 'new',
-      because: `no baseline for \`${key.subject}\` under this renderer; nothing to compare against`,
+      because: 'no baseline under this renderer; nothing to compare against',
       regions: [],
       rendered: fresh.rendered,
       missingFonts: fresh.raster.missingFonts,
@@ -405,7 +405,7 @@ export async function observeAgainstBaseline(
       subject: document.subject.id,
       verdict: 'incomparable',
       because:
-        `a baseline for \`${key.subject}\` exists but was rendered by ` +
+        'a baseline exists but was rendered by ' +
         `${describeIdentity(found.storedUnder)}, and this run is ${describeIdentity(identity)}; ` +
         'pixels are machine-bound, so the two are not comparable',
       regions: [],
