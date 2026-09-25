@@ -164,7 +164,14 @@ runs:
       env:
         VARIANCE_CONFIG: ${{ inputs.config }}
       run: |
-        node "${{ github.action_path }}/locate-artifacts.mjs" "$VARIANCE_CONFIG" >> "$GITHUB_OUTPUT"
+        # In a container job `github.action_path` is the runner's host path; the
+        # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
+        # mounted spelling and `github.workspace` the host's, so the prefix swap
+        # is a no-op on a job that runs on the host.
+        here="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
+        node "$here/locate-artifacts.mjs" "$VARIANCE_CONFIG" >> "$GITHUB_OUTPUT"
 
     - id: render
       name: render the docket
@@ -208,7 +215,11 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
       run: |
-        node "${{ github.action_path }}/post-comment.mjs" \
+        # The host path, spelled the way the container mounts it: see `locate`.
+        here="${{ github.action_path }}"
+        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
+        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
+        node "$here/post-comment.mjs" \
           --body-file "$RUNNER_TEMP/variance-comment.md" \
           --marker "$VARIANCE_MARKER"
 

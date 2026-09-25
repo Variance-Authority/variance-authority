@@ -13,6 +13,7 @@ import {
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { covering, formatCovering } from './covering.js';
+import { indexOutput } from './index-command.js';
 
 const DISCOUNTS = { id: 'total.test.ts > discounts', file: 'total.test.ts', name: 'discounts', stopped: false };
 const CHECKS_OUT = { id: 'flow.test.tsx > checks out', file: 'flow.test.tsx', name: 'checks out', stopped: false };
@@ -105,6 +106,8 @@ describe('what a change moved against the base', () => {
     await writeFile(caseLayerFiles(against).last, JSON.stringify({ commit, at: '2026-09-25T00:00:00.000Z', files: [], cases: [] }));
     const execution = join(dir, 'cases.bin');
     await writeFile(execution, encodeExecutionIndex(now));
+    // The pipeline step a CI run needs before `--since`, taken the way a pipeline takes it.
+    await indexOutput({ cwd: process.cwd() });
     return { against, execution };
   }
 

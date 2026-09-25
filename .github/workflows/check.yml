@@ -132,6 +132,7 @@ jobs:
       # 2026-08-04 and now run in the step above. It records which case entered
       # which region, at this commit, which is what the review below reads.
       - name: test
+        id: test
         shell: bash
         run: yarn test
 
@@ -144,8 +145,11 @@ jobs:
       #
       # `HEAD^1` is the base tip the merge was made against, so the change is the
       # pull request's own and not whatever `main` gained since it branched.
+      #
+      # It runs when the suite failed too: a red case still recorded what it
+      # walked, and the review is what a reviewer reads to see why.
       - name: review what the suite walked
-        if: github.event_name == 'pull_request'
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.test.outcome != 'skipped' }}
         shell: bash
         # The source index reads what each changed region is; under CI a reader
         # refuses to build it on demand, so publishing it is a step here. It sits
