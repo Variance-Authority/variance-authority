@@ -17,6 +17,12 @@
  *   ran while its module evaluated — the file records which case loaded it
  *   first, which is an import order and not a test, so the graph answers it.
  *
+ * A file whose two texts were read is charged by what the reading proved
+ * (`read`): `none` charges nothing, and `bodies` charges the regions its lines
+ * fall in without the module's own, because nothing it does as it loads moved.
+ * A comment above a function sits in the module's region, and without the
+ * reading it is charged to every file that imports the module.
+ *
  * A changed test file selects itself. A path neither the record nor the graph
  * knows selects nothing and is named in `unread`, by the rule the snapshot
  * reader applies (`ExecutionNarrowing.unread`).
@@ -43,7 +49,12 @@ export interface JourneySelectionOptions {
   readonly relations?: Relations;
   /** Packages whose installed version moved, by name. Heard only with `relations`. */
   readonly packages?: readonly string[];
+  /** What reading a changed file's two texts proved, by path (`readJourneyChange`). */
+  readonly read?: ReadonlyMap<string, JourneyRead>;
 }
+
+/** What a reading proved about a changed file: nothing at runtime moved, or nothing at load. */
+export type JourneyRead = 'none' | 'bodies';
 
 /**
  * Narrow a change against a journey file, in the shape the snapshot reader
@@ -90,11 +101,14 @@ export function narrowByJourneys(
       continue;
     }
 
+    const read = options.read?.get(file);
+    if (read === 'none') continue;
     const own = ownedIn(index, module, owned);
     let loaded = false;
     for (const range of ranges) {
       for (let line = range.start; line <= range.end; line += 1) {
         for (const block of innermostAt(module.blocks, line)) {
+          if (read === 'bodies' && block.kind === 'module') continue;
           if (block.loaded === true) loaded = true;
           for (const crossing of block.crossings) {
             if (own(crossing)) entered.add(index.tests[crossing.test]!.file);

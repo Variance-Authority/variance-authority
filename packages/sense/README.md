@@ -362,6 +362,16 @@ yarn exec variance journeys stitch \
   --into journeys.bin
 ```
 
+`variance select --execution journeys.bin` answers a patch from that file. To
+do the same from code, pass the changed lines to `narrowByJourneys`, and pass
+`read` from `readJourneyChange(diff, before, { root, relations })`, where
+`before` returns the text the patch was written against. A journey file carries
+no source text, so without `read` a line is charged to the region it falls in,
+and a comment above a function falls in the module's own region, which every
+file that imports the module ran. With `read`, a file whose change runs nothing
+charges nothing, and a file whose load-time behaviour did not change charges
+only the functions its lines fall in.
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own

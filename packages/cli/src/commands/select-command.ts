@@ -38,7 +38,14 @@
 import { readFile, stat } from 'node:fs/promises';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor } from './execution-input.js';
-import { installDiff, installDiffOfPatch, movedPackages, withMovedPackages, withoutManifests } from './installed.js';
+import {
+  installDiff,
+  installDiffOfPatch,
+  movedPackages,
+  patchPreimages,
+  withMovedPackages,
+  withoutManifests,
+} from './installed.js';
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
@@ -162,7 +169,10 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
  * A journey file names no commit, so it never looks for its own change: it is
  * given one, as a patch, on stdin, or as whatever `--since` measures. Each
  * changed line goes to the innermost region holding it, and only the cases that
- * entered that region run. A list of paths is refused: it carries no line, so
+ * entered that region run. Each changed file is read first from both of its
+ * texts, the old one from the blob the patch names, so a comment or a new
+ * function between two declarations is not charged to the module's importers.
+ * A list of paths is refused: it carries no line, so
  * the only answer it can have is the import graph's, and that is `reach`.
  *
  * The lockfile is read as an install, not as a changed file. A handed-in patch
@@ -201,11 +211,19 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   // A package whose manifest moved is every file of it, changed whole.
   const moved = movedPackages(relations, installed);
   const changed = selection.changedLines(withMovedPackages(text, moved.files));
-  const options = { relations, packages: installed?.packages ?? [] };
+  const preimages = await patchPreimages(text, request.cwd);
+  const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
+    root: request.cwd,
+    relations,
+  });
+  const options = { relations, packages: installed?.packages ?? [], read };
   const narrowing = await selection.selectJourneyFile(request.execution, changed, options)
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...moved.unplaced].sort();
-  return said({ at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread } } }, request);
+  return said(
+    { at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } },
+    request,
+  );
 }
 
 async function stdin(): Promise<string> {

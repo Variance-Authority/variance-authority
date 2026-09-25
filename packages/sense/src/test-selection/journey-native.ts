@@ -43,7 +43,7 @@ export async function selectJourneyFile(
   const select = native()?.selectJourneys;
   if (select === undefined || (await headerVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
   const graph = options.relations === undefined ? undefined : flatten(options.relations);
-  const selected = select(file, nativeChange(changed), graph, [...(options.packages ?? [])]);
+  const selected = select(file, nativeChange(changed, options.read), graph, [...(options.packages ?? [])]);
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
     entered: [...selected.entered].sort(codeUnitOrder),
@@ -68,8 +68,15 @@ function flatten(relations: Relations): NativeJourneyGraph {
   };
 }
 
-function nativeChange(changed: ReadonlyMap<string, readonly LineRange[]>): NativeJourneyChange[] {
-  return [...changed].map(([path, ranges]) => ({ file: path, ranges: ranges.flatMap((range) => [range.start, range.end]) }));
+function nativeChange(
+  changed: ReadonlyMap<string, readonly LineRange[]>,
+  read?: JourneySelectionOptions['read'],
+): NativeJourneyChange[] {
+  return [...changed].map(([path, ranges]) => ({
+    file: path,
+    ranges: ranges.flatMap((range) => [range.start, range.end]),
+    ...(read?.has(path) === true ? { read: read.get(path)! } : {}),
+  }));
 }
 
 /**

@@ -50,7 +50,8 @@ export {
   type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
-export { narrowByJourneys, type JourneySelectionOptions } from './execution-select.js';
+export { narrowByJourneys, type JourneyRead, type JourneySelectionOptions } from './execution-select.js';
+export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { formatCoveringChange, type CoveringChangeHeading } from './covering-change-text.js';
 export {
