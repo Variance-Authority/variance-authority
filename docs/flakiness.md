@@ -223,7 +223,7 @@ named, not left to be inferred:
 **`unentered` is the weaker sibling finding**: regions with source of their own
 that *no* observer in the pool covered. Not "these two renders disagree" but
 "this run never went here at all", which is the same absence
-[`selecting.md`](selecting.md#what-the-record-does-not-show) cannot select on — and
+[`selecting.md`](selecting.md#a-branch-no-run-has-taken) cannot select on — and
 naming where it is does not close it.
 
 ### Stability is required inside the boundary, not outside it

@@ -487,7 +487,7 @@ never more than one commit old.
 It does not see through a cache. A memoized function is credited to the case
 that ran it first. A later case that got the cached result is not recorded as
 reading the function, or anything the function calls, so a change to either does
-not select it. [What the record does not show](selecting.md#what-the-record-does-not-show)
+not select it. [A result a cache returned](selecting.md#a-result-a-cache-returned)
 says when that happens and when it does not.
 
 ## Start

@@ -317,6 +317,14 @@ Runtime selection does not walk them by default: every compiler erases
 `import type`, so a change connected only through a type edge reaches no
 importer, test or rendered subject unless another runtime edge also connects it.
 
+The same holds for an edit. Each changed JavaScript or TypeScript file is read
+from both of its texts before anything is walked, the way the
+[execution record reads it](#what-a-change-to-a-modules-top-level-runs), and a file whose edit
+was a comment, a type outside a decorated class or formatting seeds nothing. It
+reaches no component and does not force the whole suite, with a graph or
+without one, and the run names it in the sentence under its answer. A file that
+was added, deleted or does not parse is a change whatever the edit was.
+
 The graph trusts the text, and the text is wrong in one known way: a test that
 calls `vi.mock('./api')` imports `./api` by the letter and runs none of it. The
 scan reads those calls off test, story and setup files as it goes, and the
@@ -652,71 +660,99 @@ reader or a table. With one side alone there is nothing to disagree with.
 
 ## What the record does not show
 
-**A fork that has never gone the other way.** Rendering is a series of choices —
-this branch, that child, or none — and a baseline records the ones that were
-made. The graph answers *which components a change reaches*; the subject side of
-the question is still what the last run painted. So a subject that would
-**newly** render `Button` after this change — a branch no run has taken — is not
-selected by a change to `Button`, because a component that has never appeared is
-in no baseline to be matched against. `relations` does not change it: the graph
-widens what a change reaches, and never what a subject is known to have rendered.
-No observation closes that, however closely a run is watched — a record shows
-what happened, and this render did not. A bundler graph over stories selects it,
-because on the subject side it too reads imports rather than a record, and this
-does not. What covers this gap is the row above it: a change the selection
-cannot attribute runs everything, and a new branch usually arrives with an edit
-to the file that decides it.
+Selection skips a test when the record shows that the test did not run the code
+you changed. The record lists what ran. It cannot list code that would run now
+but did not run when the test was recorded, so a change to that code skips the
+test. This happens in two ways:
 
-[`unentered`](#what-a-record-knows-that-no-graph-can) names where those forks
-are, in the modules something did load: a region with source of its own that no
-subject in the pool went into. It closes nothing: a region no run has covered is
-exactly the one no record can rule out, and the list is only as wide as what was
-instrumented and observed. But *nothing here has ever been in this branch* is a
-sentence somebody can act on, and the alternative is inferring it from a report
-that cannot mention it.
+- [**A branch no run has taken.**](#a-branch-no-run-has-taken) A subject that
+  has never rendered `Button` is not selected by a change to `Button`, even when
+  it would render `Button` now.
+- [**A result a cache returned.**](#a-result-a-cache-returned) A memoized
+  function runs once per cache, so a change to it selects only the case that
+  ran it first.
 
-**A function a cache answered instead of running.** The record names a case as
-a reader of the code it ran. When a memoizer such as `memoize-one` or lodash's
-`memoize` returns a cached result, the function it wraps does not run. So the
-record credits that function to the case that filled the cache, not to the case
-that read it, and a change to the function selects the first case and skips the
-second. Which cases share a cache depends on how long the cache lives:
+[The first run](#the-first-run) is the opposite case. Nothing is recorded, so
+nothing is skipped.
+
+### A branch no run has taken
+
+A subject's baseline lists the components it rendered in the last approved run,
+so it has only the branches that run took. Suppose that after your change a
+subject would render `Button` through a branch no run has taken. `Button` is not
+in that subject's baseline, so a change to `Button` does not select it.
+
+A closer recording does not fix this: the record shows what ran, and this render
+has not run. Turning on `source.relations` does not fix it either, because the
+file graph adds files a change reaches, not components a subject rendered. A
+selector that reads imports instead of a record, such as a bundler graph over
+stories, does select the subject, because the story imports `Button` whether it
+renders it or not.
+
+Usually the edit that adds the branch protects you. It changes the component
+that decides to render `Button`, that component is in the subject's baseline,
+and so that edit selects the subject. What is left is a branch that no run
+takes at all.
+
+To find those branches, read [`unentered`](#what-a-record-knows-that-no-graph-can).
+It lists the regions, in modules a subject loaded, that no subject in the pool
+ran. It selects nothing. It shows you the branches your subjects have never
+taken, so you can add a subject that takes one.
+
+### A result a cache returned
+
+The record lists, for each case, the code that case ran. A memoizer such as
+`memoize-one` or lodash's `memoize` returns a cached result without running the
+function it wraps. So the case that filled the cache is recorded as running the
+function, and a case that got the cached result is not. A change to the
+function selects the first case and skips the second, and so does a change to
+anything the function calls.
+
+```ts
+// src/price.ts
+export const formatPrice = memoizeOne((cents) => `${locale.symbol()}${(cents / 100).toFixed(2)}`);
+
+// test/cart.test.ts
+it('computes the price', () => expect(formatPrice(1234)).toBe('$12.34'));
+it('reads the price again', () => expect(formatPrice(1234)).toBe('$12.34'));
+```
+
+Only `computes the price` is recorded as running `formatPrice` and
+`locale.symbol`. A change to either one skips `reads the price again`.
+
+Which cases share a cache depends on how long the cache lives:
 
 - **Cases in one file share it.** Only the first case that calls with a given
-  argument runs the function. Every case after it is recorded without the
-  function, and without anything the function calls.
-- **Files that share one module graph share it.** This is Vitest with
-  `--no-isolate`, or any runner that evaluates a module once per process. A
-  later file that calls only the wrapper runs no code in the module that the
-  record instruments, so the record credits nothing in that module to any of
-  its cases.
-- **A file that evaluates its own modules starts empty.** This is the default
-  in Vitest and Jest. The first case in each file runs the function.
+  argument runs the function.
+- **Files in one module graph share it.** This is Vitest with `--no-isolate`,
+  or any runner that evaluates a module once per process. A later file calls
+  only the memoizer, which the record does not instrument, so nothing in the
+  module is recorded for its cases.
+- **A file with its own module graph starts empty.** This is the default in
+  Vitest and Jest. The first case in each file runs the function.
+- **A cache per render or per request starts empty for each case.** React's
+  `useMemo`, `memo` and `cache` are empty when a case renders, so the function
+  runs and the record shows it.
 
-A cache that lives for one mount or one request, such as React's `useMemo`,
-`memo` or `cache`, is empty again when a case renders. The function runs, and
-the record sees it.
+**A mocked result stays in the cache.** If the case that filled the cache
+mocked something the function calls, the cache keeps the mocked result. A later
+case with the same argument gets that result without mocking anything. It is
+not recorded as running the function, so a change to the real function does not
+select it. It can also fail, because it expects the real value and gets the
+mocked one. The record shows neither case running the mocked function: one
+case mocked it, and the other got a cached result.
 
-**A cache also keeps what the function was given while it ran.** If the case
-that filled the cache had mocked something the function calls, the cached
-result is the mocked one. Every later case with the same argument gets that
-result without mocking anything, and none of them is recorded as a reader of
-the function or of what it calls. The case that mocked is not either, because a
-mocked function does not run. Nothing in the record connects the later case to
-the value it got, so a change to the real function selects none of them. The
-later case can also fail: it asserts on the real value and gets the mocked one.
+**The record does not look inside the cache, and does not clear it.** Either
+would change the code you are testing. A case that got a cached result depends
+on the case that ran before it: run it alone and it runs the function. That is
+order dependence, and [test order and shared state](flakiness.md#test-order-and-shared-state)
+is where you find and fix it.
 
-The record does not look inside the cache. To do that it would have to patch the
-library, or clear the cache between cases, and both change the code you are
-testing. A case the record misses this way is a case whose result depends on
-what ran before it. Run it alone and it runs the function, which the recorded
-run did not. That is the same order dependence that makes a test pass in one
-order and fail in another, and [test order and shared state](flakiness.md#test-order-and-shared-state)
-is where it is found and fixed.
+### The first run
 
-**A first run.** Nothing has baselines, so nothing can be ruled out, and the
-whole suite runs. That is correct and worth expecting: `--since` pays from the
-second run onward.
+No test has a record and no subject has a baseline yet, so nothing can be ruled
+out and the whole suite runs. Selection starts to skip tests from the second
+run.
 
 ---
 
