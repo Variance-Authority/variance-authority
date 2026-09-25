@@ -1,5 +1,16 @@
 # @variance-authority/sense
 
+## 0.10.0
+
+### Minor Changes
+
+- 75417b5: Python, Rust, Java, Kotlin and Swift are read only by the grammars built into the native addon, and a scan needs the addon to start. The WebAssembly readers are gone, and so are `web-tree-sitter` and the grammar packages that came with them. On a machine where the addon does not load, a scan stops before it opens a file and says why the addon did not load. It no longer lists files it cannot read. If the addon is built without the grammars, files in those five languages are recorded as unknown, with that reason. A scan whose native batch fails now fails with that error. It used to retry file by file without saying so.
+
+  Kotlin files now read their package and imports. Until now the addon's Kotlin reader looked for node names from a different Kotlin grammar, so every Kotlin file was recorded as asking for nothing. It also publishes a top-level `typealias` and `val` now.
+- 7b431e0: `variance review` says what a change did, after the suite ran it: how each changed module was edited, the changed regions no case covered and those only tests further than one import away covered, the cases added and removed, the changed files the tests declare as preconditions, and the installed packages the lockfile changed. It prints `text`, `markdown` or `json`, and `--out <dir>` also writes `review.json` and `review.md`. The markdown starts with a hidden marker line, so a pipeline edits its own pull request comment instead of posting another.
+
+  Every run of the suite now writes `coverage.runs.json` beside the recording: the commit it ran at, the commit the recording stood at before the runs at that commit, and the test files they ran. A retry or a second shard at the same commit keeps that starting point. `variance review` with no `--since` starts there. `commitRunsFile`, `readCommitRuns` and `landRun` read and write it from `@variance-authority/sense/test-selection`, and `testsGovernedBy`, which names the test files that declare a given file as a precondition, is exported beside them.
+
 ## 0.9.0
 
 ### Minor Changes
