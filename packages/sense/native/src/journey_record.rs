@@ -174,6 +174,24 @@ pub fn read_records(
     wanted: &HashSet<ModuleId>,
     instrumentation: &str,
 ) -> Result<HashMap<ModuleId, Module>, String> {
+    read_held(stores, wanted, Some(instrumentation))
+}
+
+/// Read the inventories a part names, whatever recipe cut them: a service
+/// beyond the fence records under its own instrument, and the part frame names
+/// each module by the checkout's number or by its path.
+pub fn read_part_records(
+    stores: &[String],
+    wanted: &HashSet<ModuleId>,
+) -> Result<HashMap<ModuleId, Module>, String> {
+    read_held(stores, wanted, None)
+}
+
+fn read_held(
+    stores: &[String],
+    wanted: &HashSet<ModuleId>,
+    instrumentation: Option<&str>,
+) -> Result<HashMap<ModuleId, Module>, String> {
     let held: Vec<HashMap<ModuleId, Module>> = stores
         .iter()
         .map(|store| read_store(Path::new(store), wanted, instrumentation))
@@ -200,10 +218,11 @@ pub fn read_records(
     Ok(found)
 }
 
+/// With no `instrumentation`, a segment under any recipe is read.
 fn read_store(
     store: &Path,
     wanted: &HashSet<ModuleId>,
-    instrumentation: &str,
+    instrumentation: Option<&str>,
 ) -> Result<HashMap<ModuleId, Module>, String> {
     let mut files = segment_files(store)?;
     files.sort_by(|left, right| {
@@ -263,14 +282,16 @@ fn segment_files(store: &Path) -> Result<Vec<(u128, PathBuf)>, String> {
     Ok(files)
 }
 
-fn segment_header(raw: &[u8], instrumentation: &str) -> Option<usize> {
+fn segment_header(raw: &[u8], instrumentation: Option<&str>) -> Option<usize> {
     if raw.get(0..MAGIC.len())? != MAGIC {
         return None;
     }
     let length = word(raw, MAGIC.len()).ok()? as usize;
     let end = MAGIC.len() + 4 + length;
     let recipe = std::str::from_utf8(raw.get(MAGIC.len() + 4..end)?).ok()?;
-    (recipe == instrumentation).then_some(aligned(end, 8))
+    instrumentation
+        .is_none_or(|wanted| recipe == wanted)
+        .then_some(aligned(end, 8))
 }
 
 fn frames(raw: &[u8], mut at: usize) -> Vec<Frame> {

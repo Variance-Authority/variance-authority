@@ -36,6 +36,7 @@ import {
   moduleNamesFile,
   projectPath,
   readRecords,
+  recordStores,
   type CapturedModule,
   type ReadJournal,
 } from './instrumented-modules.js';
@@ -75,6 +76,8 @@ interface JourneyReporterConfig {
   readonly journeyFile: string;
   readonly mode?: Parameters<typeof instrumentationId>[0];
   readonly continuations?: boolean;
+  readonly parts?: readonly string[];
+  readonly heads?: readonly string[];
 }
 
 type JestReporterConfig = SelectionReporterConfig | JourneyReporterConfig;
@@ -123,6 +126,11 @@ class JestCoverageReporter {
         root,
         stores,
         instrumentation,
+        parts: this.#config.parts ?? [],
+        partStores: [
+          ...(this.#config.parts ?? []),
+          ...(this.#config.heads ?? []).flatMap((label) => recordStores(root, label)),
+        ],
       });
       return;
     }

@@ -356,6 +356,64 @@ yarn exec variance journeys stitch \
   --into journeys.bin
 ```
 
+### Follow a Jest case into a service it calls
+
+A case that calls a service over HTTP runs code in another process, and that
+code is invisible to the case's own record. Change a branch in the service and
+nothing selects the case that exercised it. The join has to happen somewhere,
+and while Jest is still running is the wrong place: shards finish at different
+times, and a service answers several cases at once.
+
+So the service writes what it ran to files, keyed by an id the case put on
+the request, and the finalize step joins them after the run. Nothing goes over
+the network during the run, and nothing waits for the service.
+
+The case hands the id over itself. Nothing touches your requests:
+
+```ts
+import { journeyCookie } from '@variance-authority/sense/case-journey';
+
+const response = await fetch(`${service}/quote?currency=eur`, {
+  headers: { cookie: journeyCookie() },
+});
+```
+
+`journeyCookie()` returns `variance-authority-journey=<id>`. The id is minted
+the first time the running case asks, and later asks in the same case get the
+same one. `caseJourney()` returns the bare id if you carry it some other way,
+such as trace baggage. Outside a case, both return nothing.
+
+The service wraps its requests with `collectJourneys`, as in
+[the next section](#follow-one-execution-into-a-service), and adds `parts`:
+
+```ts
+const journeys = collectJourneys({ head: 'pricing', parts: '/tmp/va-parts' });
+```
+
+`parts` defaults to `VARIANCE_AUTHORITY_PARTS`. With it set, each process
+appends frames to its own file in that directory: one frame per journey as its
+scope settles, plus one frame for what ran outside any journey (startup, a
+request with no cookie). If the process is killed mid-write, the fold reads past
+the torn last frame. Then tell the Jest seam where the parts are and which
+builds cut them:
+
+```js
+withJourneyCoverage(config, {
+  journeyFile: '.variance-authority/journeys.bin',
+  parts: ['/tmp/va-parts'],
+  heads: ['pricing'],
+});
+```
+
+`heads` are the `label`s the service's build gave `testSelectionProbes()`. The
+fold reads their inventories under whatever recipe cut them.
+
+A journey's frame is charged to the case that minted the id and to no other. The
+no-journey frame is charged to every case the same file served. A shared
+service's startup is every caller's, so a change to it selects every file that
+called it. A case that called the service without its cookie is not charged at
+all, because nothing names it.
+
 ## Cut a Jest run down to a diff
 
 Wrap the configuration once. Each `transform` entry is wrapped so your own
@@ -1634,6 +1692,7 @@ same under all five:
 | `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
+| `@variance-authority/sense/case-journey` | the running case's journey id, to put on a request to a service | a case recorded by `withJourneyCoverage` |
 | `@variance-authority/sense/rstest` | the same as an Rspack loader and a reporter, for a suite Rstest bundles | Rstest `^0.12.0` and product tests |
 | `@variance-authority/sense/rstest-loader` | the loader `withTestSelection` names by path, for a configuration assembled by hand | Rstest `^0.12.0` |
 | `@variance-authority/sense/test-selection` | selecting from a diff, placing a selection by distance, reading, folding and writing the snapshot, measuring deviation, and `coveringTests` | the snapshot a runner or journal seam wrote; an import graph for the distance and asset walks |

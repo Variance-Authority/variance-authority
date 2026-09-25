@@ -82,7 +82,8 @@
       "default": "./dist/test-selection/jest-reporter.js"
     },
     "./jest-setup": "./dist/test-selection/jest-setup.cjs",
-    "./jest-globals": "./dist/test-selection/jest-globals.cjs"
+    "./jest-globals": "./dist/test-selection/jest-globals.cjs",
+    "./case-journey": "./dist/test-selection/case-journey.cjs"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

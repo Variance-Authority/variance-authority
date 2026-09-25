@@ -2290,7 +2290,8 @@
           "default": "./dist/test-selection/jest-reporter.js"
         },
         "./jest-setup": "./dist/test-selection/jest-setup.cjs",
-        "./jest-globals": "./dist/test-selection/jest-globals.cjs"
+        "./jest-globals": "./dist/test-selection/jest-globals.cjs",
+        "./case-journey": "./dist/test-selection/case-journey.cjs"
       },
       "files": [
         "dist",
@@ -2555,6 +2556,7 @@
       "./journey": {
         "JOURNEY_COOKIE": "const",
         "JOURNEY_HEAD_VARIABLE": "const",
+        "JOURNEY_PARTS_VARIABLE": "const",
         "JOURNEY_VARIABLE": "const",
         "JourneyAccount": "interface",
         "JourneyCollector": "interface",

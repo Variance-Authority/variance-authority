@@ -14,6 +14,7 @@
  */
 
 import async_hooks = require('node:async_hooks');
+import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import type { ModuleId } from '../instrument/index.js';
@@ -168,11 +169,16 @@ function scoped(holder: Holder, continuations: boolean): Collector {
   // `afterAll`.
   const union: Presence = new Map();
   const frames: Uint8Array[] = [];
+  // The journey id a case handed out, by case key: minted the first time the
+  // case asks, so a case that never crosses a fence carries nothing. A late
+  // bucket under the same key is the same case and names the same journey.
+  const journeys = new Map<string, string>();
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     const view = engine.close(bucket);
-    if (view.rows.length === 0) return undefined;
-    frames.push(journals.encodeLog(name, view));
+    const journey = journeys.get(bucket.key);
+    if (view.rows.length === 0 && journey === undefined) return undefined;
+    frames.push(journals.encodeLog(journey === undefined ? name : journals.packJourney(name, journey), view));
     foldInto(union, view);
     return view;
   };
@@ -259,7 +265,21 @@ function scoped(holder: Holder, continuations: boolean): Collector {
     engine.use(bucket);
     return settling(bucket, body);
   };
-  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter };
+  // The case running now, asked from inside it: the async store where there is
+  // one, the variable where there is not, and no case at all in the ambient
+  // bucket or once the file is tangled.
+  const journey = (): string | undefined => {
+    if (tangled) return undefined;
+    const bucket = scopes === undefined ? current : scopes.getStore();
+    if (bucket === undefined || bucket === ambient || bucket.key === AMBIENT) return undefined;
+    let id = journeys.get(bucket.key);
+    if (id === undefined) {
+      id = crypto.randomUUID();
+      journeys.set(bucket.key, id);
+    }
+    return id;
+  };
+  (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = { enter, journey };
 
   const ambientKey = (testFile: string): string => journals.packCase(testFile, '', '');
   return {

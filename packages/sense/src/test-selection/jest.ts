@@ -102,6 +102,17 @@ export interface JestJourneyCoverageOptions {
   readonly mode?: InstrumentMode;
   /** Follow deliberately concurrent tests through their async contexts. */
   readonly continuations?: boolean;
+  /**
+   * Directories where processes beyond a fence write what they ran under a
+   * case's journey id: part frames (`.vac`) and the inventories they name
+   * (`.rec`). Read when the run is finalized, never while it runs.
+   */
+  readonly parts?: readonly string[];
+  /**
+   * Labels of Node services instrumented with `testSelectionProbes`, whose
+   * inventories sit in the checkout's record store under that label.
+   */
+  readonly heads?: readonly string[];
 }
 
 /** The subset of a Jest configuration this seam reads and rewrites. */
@@ -148,6 +159,8 @@ interface JourneyReporterConfig {
   readonly journeyFile: string;
   readonly mode?: InstrumentMode;
   readonly continuations?: boolean;
+  readonly parts?: readonly string[];
+  readonly heads?: readonly string[];
 }
 
 /** The variable the reporter sets before workers fork, and the setup file reads. */
@@ -272,6 +285,8 @@ export function withJourneyCoverage(
     journeyFile: resolve(rootDir, options.journeyFile),
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
+    ...(options.parts === undefined ? {} : { parts: options.parts.map((part) => resolve(rootDir, part)) }),
+    ...(options.heads === undefined ? {} : { heads: [...options.heads] }),
   };
 
   return {

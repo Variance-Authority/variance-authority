@@ -414,6 +414,23 @@ function unpackCase(packed: string): { file: string; name: string; id: string } 
 }
 
 /**
+ * A coordinate that handed out a journey id, as a fourth field.
+ *
+ * A reader that knows three fields reads the first three and the case is the
+ * same case. The fold reads the fourth to join what ran beyond a fence under
+ * that id — a part frame is owned by `\0\0\0<journey>`, no case of its own —
+ * back to the case that sent it.
+ */
+function packJourney(packed: string, journey: string): string {
+  return `${packed}\u0000${journey}`;
+}
+
+/** The journey a frame owner carries; empty when it carries none. */
+function journeyOf(packed: string): string {
+  return packed.split('\u0000')[3] ?? '';
+}
+
+/**
  * Case frames as one file, each behind its own length.
  *
  * A frame must be read to its exact end or it is refused, so frames cannot be
@@ -449,4 +466,15 @@ function unpackFrames(raw: Uint8Array): readonly Uint8Array[] {
   return frames;
 }
 
-export = { encodeJournal, encodeLog, decodeJournal, scanJournal, packCase, unpackCase, packFrames, unpackFrames };
+export = {
+  encodeJournal,
+  encodeLog,
+  decodeJournal,
+  scanJournal,
+  packCase,
+  unpackCase,
+  packJourney,
+  journeyOf,
+  packFrames,
+  unpackFrames,
+};

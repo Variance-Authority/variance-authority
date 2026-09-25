@@ -28,28 +28,27 @@ pub struct CaseRun {
     pub frame_tests: Vec<u32>,
     pub wanted: HashSet<ModuleId>,
     pub tests_by_file: HashMap<String, (u32, u32)>,
+    /// Frames written beyond a fence, one file per writer, read after the run.
+    pub parts: Vec<PathBuf>,
+    /// The cases that handed out each journey id.
+    pub journey_tests: HashMap<String, Vec<u32>>,
+    /// Per part file, every case one of its journeys belongs to: what that
+    /// writer ran outside any journey is charged to all of them.
+    pub part_tests: Vec<Vec<u32>>,
+    /// The modules parts name, looked up by path in any store.
+    pub part_wanted: HashSet<ModuleId>,
 }
 
 struct Coordinate {
     file: String,
     name: String,
     id: String,
+    journey: String,
     frame: usize,
 }
 
-pub fn inspect(directory: &Path, root: &Path) -> Result<CaseRun, String> {
-    let mut paths: Vec<PathBuf> = match fs::read_dir(directory) {
-        Ok(entries) => entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .collect(),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(error.to_string()),
-    };
-    paths.sort_unstable_by(|left, right| {
-        order::code_unit(&left.to_string_lossy(), &right.to_string_lossy())
-    });
-
+pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRun, String> {
+    let paths = listed(directory, None)?;
     let mut visitor = InspectVisitor {
         root,
         coordinates: Vec::new(),
@@ -65,9 +64,13 @@ pub fn inspect(directory: &Path, root: &Path) -> Result<CaseRun, String> {
 
     let mut frame_tests = vec![0; visitor.coordinates.len()];
     let mut repeated: HashMap<String, u32> = HashMap::new();
+    let mut journey_tests: HashMap<String, Vec<u32>> = HashMap::new();
     let mut tests = Vec::with_capacity(visitor.coordinates.len());
     for (at, coordinate) in visitor.coordinates.into_iter().enumerate() {
         frame_tests[coordinate.frame] = at as u32;
+        if !coordinate.journey.is_empty() {
+            journey_tests.entry(coordinate.journey).or_default().push(at as u32);
+        }
         let name = format!("{} > {}", coordinate.file, coordinate.name);
         let repeat = repeated.entry(name.clone()).or_default();
         let id = if *repeat == 0 {
@@ -92,6 +95,30 @@ pub fn inspect(directory: &Path, root: &Path) -> Result<CaseRun, String> {
         tests_by_file.insert(tests[first].file.clone(), (first as u32, last as u32));
         first = last;
     }
+
+    let mut part_paths = Vec::new();
+    for directory in parts {
+        part_paths.extend(listed(Path::new(directory), Some("vac"))?);
+    }
+    let mut part_tests = Vec::with_capacity(part_paths.len());
+    let mut part_wanted = HashSet::new();
+    for path in &part_paths {
+        let mut visitor = PartInspectVisitor {
+            journeys: HashSet::new(),
+            wanted: &mut part_wanted,
+        };
+        replay_part(path, &mut visitor)?;
+        let mut claimed: Vec<u32> = visitor
+            .journeys
+            .iter()
+            .filter_map(|journey| journey_tests.get(journey))
+            .flatten()
+            .copied()
+            .collect();
+        claimed.sort_unstable();
+        claimed.dedup();
+        part_tests.push(claimed);
+    }
     Ok(CaseRun {
         root: root.to_path_buf(),
         paths,
@@ -99,7 +126,51 @@ pub fn inspect(directory: &Path, root: &Path) -> Result<CaseRun, String> {
         frame_tests,
         wanted: visitor.wanted,
         tests_by_file,
+        parts: part_paths,
+        journey_tests,
+        part_tests,
+        part_wanted,
     })
+}
+
+fn listed(directory: &Path, extension: Option<&str>) -> Result<Vec<PathBuf>, String> {
+    let mut paths: Vec<PathBuf> = match fs::read_dir(directory) {
+        Ok(entries) => entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| {
+                extension.is_none_or(|wanted| path.extension().and_then(|value| value.to_str()) == Some(wanted))
+            })
+            .collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error.to_string()),
+    };
+    paths.sort_unstable_by(|left, right| {
+        order::code_unit(&left.to_string_lossy(), &right.to_string_lossy())
+    });
+    Ok(paths)
+}
+
+struct PartInspectVisitor<'a> {
+    journeys: HashSet<String>,
+    wanted: &'a mut HashSet<ModuleId>,
+}
+
+impl Visitor for PartInspectVisitor<'_> {
+    fn test(&mut self, packed: &str) -> Result<(), String> {
+        let journey = journey_of(packed);
+        if !journey.is_empty() {
+            self.journeys.insert(journey.to_owned());
+        }
+        Ok(())
+    }
+
+    fn wants(&mut self, id: &ModuleId) -> bool {
+        self.wanted.insert(id.clone());
+        false
+    }
+
+    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32]) {}
 }
 
 struct InspectVisitor<'a> {
@@ -117,6 +188,7 @@ impl Visitor for InspectVisitor<'_> {
                 file: project_path(self.root, file),
                 name: name.to_owned(),
                 id: id.to_owned(),
+                journey: journey_of(packed).to_owned(),
                 frame: self.frame,
             });
             self.frame += 1;
@@ -141,14 +213,30 @@ pub trait Visitor {
 pub fn replay(paths: &[PathBuf], visitor: &mut impl Visitor) -> Result<(), String> {
     for path in paths {
         let raw = fs::read(path).map_err(|error| error.to_string())?;
-        frames(&raw, |frame| scan_journal(frame, visitor))?;
+        frames(&raw, false, |frame| scan_journal(frame, visitor))?;
     }
     Ok(())
 }
 
-fn frames(raw: &[u8], mut visit: impl FnMut(&[u8]) -> Result<(), String>) -> Result<(), String> {
+/// Read one part file. Its writer may have been killed mid-append, so a torn
+/// last frame ends the file instead of failing the run.
+pub fn replay_part(path: &Path, visitor: &mut impl Visitor) -> Result<(), String> {
+    let raw = fs::read(path).map_err(|error| error.to_string())?;
+    frames(&raw, true, |frame| scan_journal(frame, visitor))
+}
+
+fn frames(
+    raw: &[u8],
+    torn_tail: bool,
+    mut visit: impl FnMut(&[u8]) -> Result<(), String>,
+) -> Result<(), String> {
     let mut at = 0;
     while at < raw.len() {
+        let torn = at + 4 > raw.len()
+            || at + 4 + word(raw, at)? as usize > raw.len();
+        if torn && torn_tail {
+            return Ok(());
+        }
         let length = word(raw, at)? as usize;
         let from = at + 4;
         let to = from.checked_add(length).ok_or_else(damaged_cases)?;
@@ -274,6 +362,12 @@ pub fn unpack_case(packed: &str) -> (&str, &str, &str) {
         parts.next().unwrap_or(""),
         parts.next().unwrap_or(""),
     )
+}
+
+/// The journey a frame belongs to: the fourth field of its owner, empty when
+/// the case never handed one out.
+pub fn journey_of(packed: &str) -> &str {
+    packed.splitn(4, '\0').nth(3).unwrap_or("")
 }
 
 pub fn project_path(root: &Path, file: &str) -> String {

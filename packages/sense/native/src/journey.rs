@@ -48,6 +48,8 @@ pub fn fold_journey(
         &stores,
         &instrumentation,
         budget_megabytes,
+        &[],
+        &[],
     )
     .map_err(napi::Error::from_reason)?;
     Ok(JourneyFold {
@@ -71,9 +73,16 @@ fn answer(
     stores: &[String],
     instrumentation: &str,
     budget_megabytes: Option<u32>,
+    parts: &[String],
+    part_stores: &[String],
 ) -> Result<FoldAnswer, String> {
-    let run = journey_journal::inspect(Path::new(case_directory), Path::new(root))?;
-    let found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
+    let run = journey_journal::inspect(Path::new(case_directory), Path::new(root), parts)?;
+    let mut found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
+    if !run.part_wanted.is_empty() {
+        for (id, module) in journey_record::read_part_records(part_stores, &run.part_wanted)? {
+            found.entry(id).or_insert(module);
+        }
+    }
     let folded = fold(
         &run,
         found,
@@ -86,6 +95,9 @@ fn answer(
 }
 
 /// Fold one run and write its compressed artifact without transferring it through V8.
+///
+/// `parts` are directories of frames written beyond a fence, joined to the
+/// cases by journey id; `part_stores` hold the inventories those frames name.
 #[napi]
 pub fn fold_journey_to(
     case_directory: String,
@@ -94,6 +106,8 @@ pub fn fold_journey_to(
     instrumentation: String,
     output: String,
     budget_megabytes: Option<u32>,
+    parts: Option<Vec<String>>,
+    part_stores: Option<Vec<String>>,
 ) -> napi::Result<JourneyFoldResult> {
     let answered = answer(
         &case_directory,
@@ -101,6 +115,8 @@ pub fn fold_journey_to(
         &stores,
         &instrumentation,
         budget_megabytes,
+        parts.as_deref().unwrap_or_default(),
+        part_stores.as_deref().unwrap_or_default(),
     )
     .map_err(napi::Error::from_reason)?;
     journey_output::replace(&output, &answered.folded.bytes).map_err(napi::Error::from_reason)?;
@@ -198,11 +214,17 @@ fn fold(
             case_frame: 0,
             test_first: 0,
             test_last: 0,
+            targets: &[],
+            part: None,
             module_row: 0,
         };
         journey_journal::replay(&run.paths, &mut visitor)?;
         if visitor.case_frame != run.frame_tests.len() {
             return Err("case journal replay changed while it was being folded".to_owned());
+        }
+        for (at, path) in run.parts.iter().enumerate() {
+            visitor.part = Some(at);
+            journey_journal::replay_part(path, &mut visitor)?;
         }
         passes += 1;
 
@@ -256,11 +278,27 @@ struct FoldVisitor<'a> {
     case_frame: usize,
     test_first: u32,
     test_last: u32,
+    /// The cases a part frame is charged to; cases themselves use the range.
+    targets: &'a [u32],
+    /// The part file being replayed, once the case frames are done.
+    part: Option<usize>,
     module_row: usize,
 }
 
 impl Visitor for FoldVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
+        if let Some(part) = self.part {
+            let run = self.run;
+            let journey = journey_journal::journey_of(packed);
+            self.test_first = 0;
+            self.test_last = 0;
+            self.targets = if journey.is_empty() {
+                &run.part_tests[part]
+            } else {
+                run.journey_tests.get(journey).map_or(&[], Vec::as_slice)
+            };
+            return Ok(());
+        }
         let (file, name, id) = journey_journal::unpack_case(packed);
         if name.is_empty() && id.is_empty() {
             let normalized = journey_journal::project_path(&self.run.root, file);
@@ -285,7 +323,10 @@ impl Visitor for FoldVisitor<'_> {
         let Some(row) = self.row_of.get(id).copied() else {
             return false;
         };
-        if row < self.first || row >= self.last || self.test_first == self.test_last {
+        if row < self.first
+            || row >= self.last
+            || (self.test_first == self.test_last && self.targets.is_empty())
+        {
             return false;
         }
         self.module_row = row;
@@ -322,12 +363,11 @@ impl Visitor for FoldVisitor<'_> {
                 continue;
             }
             for block in targets {
-                mark_range(
-                    self.called,
-                    (base + *block as usize) * self.words,
-                    self.test_first as usize,
-                    self.test_last as usize,
-                );
+                let at = (base + *block as usize) * self.words;
+                mark_range(self.called, at, self.test_first as usize, self.test_last as usize);
+                for test in self.targets {
+                    self.called[at + (*test as usize >> 5)] |= 1 << (test & 31);
+                }
             }
         }
     }

@@ -164,6 +164,8 @@ export interface NativeScanner {
     instrumentation: string,
     output: string,
     budgetMegabytes?: number,
+    parts?: string[],
+    partStores?: string[],
   ): NativeJourneyFoldResult;
   /** Union compressed journey artifacts while their crossing relation stays native. */
   stitchJourneys?(files: string[]): NativeJourneyStitch;
