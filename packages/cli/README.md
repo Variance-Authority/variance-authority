@@ -1641,7 +1641,7 @@ label, or `variance accept` on a checkout:
 ```bash
 variance comment --body-file body.md \
   --run-url "$REPORT_URL" \
-  --to-accept 'run the `variance` workflow on `main` with **accept** ticked'
+  --to-accept 'add the **variance: accept** label to this pull request'
 ```
 
 ## Integration troubleshooting

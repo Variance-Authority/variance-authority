@@ -372,13 +372,19 @@ runs:
       shell: bash
       env:
         CODE: ${{ steps.run.outputs.exit-code }}
+        # Where the reader goes next. A push has no pull request, so pointing at
+        # a comment there sends them looking for something that was never written.
+        WHERE: >-
+          ${{ inputs.comment == 'true' && 'the docket is in the pull request comment' ||
+          steps.upload.outputs.artifact-url && format('the report is at {0}', steps.upload.outputs.artifact-url) ||
+          'the report is in the variance run step above' }}
       run: |
         case "${CODE:-}" in
           0)
             echo "nothing needs review."
             ;;
           1)
-            echo "::error::variance found changes that need review; the docket is in the pull request comment."
+            echo "::error::variance found changes that need review; $WHERE."
             exit 1
             ;;
           2)
