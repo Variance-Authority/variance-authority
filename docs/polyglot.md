@@ -49,40 +49,51 @@ that changes nothing that runs selects nothing.
 
 The [Zod](selection-zod.md) and [TanStack Query](selection-tanstack-query.md)
 case studies each start from sixty commits made before the instrumentation
-landed. On each of those commits, you can ask three selectors which test files
-to run, and count the answers in one unit: the test files the suite held at the
-commit's parent, where the suite was recorded. A file selected on five commits
-counts five times. The first row is the baseline, every test file on every
-commit:
+landed. Each commit is checked against a record made at its parent commit: you
+ask four selectors which test files to run, and count the answers in one unit,
+the test files in the parent's record. A file selected on five commits counts
+five times. The first row is the baseline, every test file on every commit. On
+Zod, which has one package, the package graph is read from the workspace
+manifests:
 
 | | TanStack Query | Zod |
 | --- | --- | --- |
 | every test file on every commit | 11,280 | 12,120 |
-| the file graph, `variance reach --whole-files` | 1,470 | 4,543 |
-| walked from what the edit changed, `variance reach` | 441 | 4,157 |
-| the [execution record](execution-record.md), `variance select` | 910 | 3,125 |
+| the package graph (`nx affected` on TanStack Query) | 3,464 | 8,047 |
+| the file graph, `variance reach --whole-files` | 1,470 | 4,531 |
+| walked from what the edit changed, `variance reach` | 441 | 4,142 |
+| the [execution record](execution-record.md), `variance select` | 775 | 5,592 |
 
 On TanStack Query the default walk selects 1,029 fewer test files than the file
 graph. 885 of them come from edits that change nothing that runs, and 717 of
 those from five commits that edit comments in `types.ts`, which nearly every
 test imports. The other 144 come from changed exports: an edit to
 `streamedQuery` selects 9 test files, where the file graph selects 143. On Zod
-the walk selects 386 fewer, because most of Zod's tests import the library
+the walk selects 389 fewer, because most of Zod's tests import the library
 through one namespace, `import * as z`, and the walk is whole wherever an import
 names no export.
 
 The record answers from which lines each test ran, so a namespace import does
-not widen it. On Zod it selects fewer test files than the walk on 16 of the
-sixty commits, 1,045 fewer in all. On most other commits the two agree. Both
-totals come mostly from commits that change Zod's core, which nearly every test
-runs: 19 commits select 120 or more from the record, 2,477 of its 3,125.
+not widen it. On Zod it selects fewer test files than the walk on 12 of the
+sixty commits, 798 fewer in all, and on TanStack Query it selects as few as 23
+where the walk selects 143. Those are commits that change the inside of a
+function: the record knows which of the files that load the module ran it.
 
-The record also selects tests that neither walk can. Of its 910 on TanStack
-Query, 747 come from four commits that edit package manifests. Each project's
-Vite configuration imports its own `package.json`, and the record reruns a test
-when the configuration it ran under changes. Neither walk treats a manifest as
-a changed file, so both select nothing on those commits. Without them the
-record selects 163, against the walk's 441.
+The record also selects tests that neither walk can, because it knows what
+each test ran under as well as what it imported. Zod runs its main package's
+tests a second time under a compile-mode project whose setup file imports the
+core, so code that runs as the core loads, such as a regular expression
+constant or the locale index, runs in every test in that project, including the
+ones that import none of it. On ten commits that change such code the record
+selects 200 or more where the walks select about 130.
+
+Configuration is read per project. Each TanStack Query project's Vite
+configuration imports its own `package.json`, and a change to a file that a
+project's configuration reads reruns that project's tests and no other
+project's: a commit that edits the four devtools manifests reruns 14 test files
+of 188. Four commits that edit package manifests are 553 of the record's 775.
+Neither walk treats a manifest as a changed file, so both select nothing on
+those commits. Without them the record selects 222, against the walk's 441.
 
 A changed JavaScript or TypeScript file is read from both of its texts before the
 walk starts. When the edit is a comment, a type or formatting, the file runs

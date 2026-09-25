@@ -278,7 +278,7 @@ Two questions meet in this repository — *what did this change look like* and
   nothing, and a file that imports only an unchanged export of a changed file is
   left out. Over sixty commits of TanStack Query, that is 441 test files where
   the file graph selects 1,470; over sixty of Zod, whose tests import it
-  through one namespace, 4,157 where it selects 4,543.
+  through one namespace, 4,142 where it selects 4,531.
   [What a record knows that no graph can](docs/selecting.md#what-a-record-knows-that-no-graph-can)
   is where a record's answer differs from any graph's.
 - [**Nx affected**](https://nx.dev/), [**Turborepo**](https://turborepo.com/),

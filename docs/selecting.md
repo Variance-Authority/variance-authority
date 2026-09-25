@@ -386,7 +386,7 @@ repository runs `nx affected` on every pull request, so the graph there is not
 hypothetical. A one-line change inside `query-core` marks the 24 packages that
 depend on it, which is 168 of the 188 test files. Asked which tests covered
 that line, the record answers 10. Across sixty commits, `nx affected` selects
-10,207 test file runs and the record selects at most 2,355.
+3,464 test file runs and the record selects 775.
 
 Nx is not wrong about any of it: every one of those 168 files sits in a package
 that depends on the edited one. Only 149 of them load the edited module at all,
