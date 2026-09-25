@@ -11,6 +11,10 @@ interface PendingJourneyRun {
   readonly root: string;
   readonly stores: readonly string[];
   readonly instrumentation: string;
+  /** Directories of part frames written beyond a fence; absent in a run that has none. */
+  readonly parts?: readonly string[];
+  /** Where the inventories those parts name are kept. */
+  readonly partStores?: readonly string[];
 }
 
 /**
@@ -71,7 +75,16 @@ export async function finalizeJestJourneys(journeyFile: string): Promise<Journey
       `finalizing journey coverage requires the Sense native addon: ${whyAbsent('foldJourneyTo')}`,
     );
   }
-  const result = foldTo(cases, manifest.root, [...manifest.stores], manifest.instrumentation, output);
+  const result = foldTo(
+    cases,
+    manifest.root,
+    [...manifest.stores],
+    manifest.instrumentation,
+    output,
+    undefined,
+    [...manifest.parts ?? []],
+    [...manifest.partStores ?? []],
+  );
   await rm(pending, { recursive: true, force: true });
   return result;
 }

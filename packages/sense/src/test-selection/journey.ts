@@ -72,6 +72,7 @@ import { idOrder } from './instrumented-modules.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLog from '../instrument/probe-log.cjs';
+import { isThenable, writeParts } from './journey-parts.js';
 
 /**
  * The join, re-exported so one import serves a driver: a participant that
@@ -107,6 +108,13 @@ export const JOURNEY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
 
 /** What a head calls itself, when the process is started rather than configured. */
 export const JOURNEY_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
+
+/**
+ * The directory a head writes its parts to, when the process is started rather
+ * than configured. Set, the head writes what each journey ran there and says
+ * nothing over the wire.
+ */
+export const JOURNEY_PARTS_VARIABLE = 'VARIANCE_AUTHORITY_PARTS';
 
 /**
  * How many journeys a head remembers the way home for after their scopes
@@ -153,6 +161,13 @@ export interface JourneyCollectorOptions {
    * survives being left in a production build.
    */
   readonly enabled?: boolean;
+  /**
+   * A directory to write this head's parts to. Defaults to
+   * {@link JOURNEY_PARTS_VARIABLE}. A part is what one journey ran here, as a
+   * case frame owned by the journey id alone; the case that handed the id out
+   * is joined to it when its run is finalized. Set, it enables the head.
+   */
+  readonly parts?: string;
 }
 
 /** A head's participation in a run, or its cheap absence. */
@@ -195,6 +210,8 @@ export interface JourneyCollector {
  */
 export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
+  const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
+  if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf);
   const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
   if (!enabled) {
     return {
@@ -432,13 +449,4 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
       else Object.defineProperty(globalThis, '__VA__', previous);
     },
   };
-}
-
-function isThenable(value: unknown): value is Promise<unknown> {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as { then?: unknown }).then === 'function' &&
-    typeof (value as { finally?: unknown }).finally === 'function'
-  );
 }
