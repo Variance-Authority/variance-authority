@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { decodeTestCoverage } from './format.js';
 import { statusesComplete } from './finished-files.js';
 import { runOf } from './selection-run.js';
 import { SELECTION_LOADER, withTestSelection } from './rstest.js';
@@ -103,6 +104,36 @@ describe('what a wrapped Rstest configuration becomes', () => {
     expect(config.setupFiles).toBeUndefined();
     expect(config.tools).toBeUndefined();
     expect((config.reporters as readonly unknown[])).toHaveLength(2);
+  });
+
+  it('rests a named project\'s tests on its own setup files and not on another project\'s', async () => {
+    const directory = await root();
+    const coverageFile = resolve(directory, 'coverage.bin');
+    for (const project of ['node', 'dom']) {
+      await mkdir(resolve(directory, project));
+      for (const file of ['setup.ts', 'a.test.ts']) {
+        await writeFile(resolve(directory, project, file), `// ${project}/${file}\n`, 'utf8');
+      }
+    }
+    const described = withTestSelection({ root: directory, projects: ['./node', './dom'] }, { coverageFile });
+    for (const project of ['node', 'dom']) {
+      withTestSelection({ root: resolve(directory, project), name: project, setupFiles: ['./setup.ts'] }, { coverageFile });
+    }
+    const reporter = (described.reporters as ReadonlyArray<{ onTestRunEnd?: (payload: object) => Promise<void> }>)[1]!;
+
+    await reporter.onTestRunEnd!({
+      results: ['node', 'dom'].map((project) => ({
+        testPath: resolve(directory, project, 'a.test.ts'),
+        status: 'pass',
+        results: [{ status: 'pass' }],
+        project,
+      })),
+    });
+
+    const preconditions = new Map(decodeTestCoverage(await readFile(coverageFile)).tests
+      .map((test) => [test.file, test.preconditions.map((precondition) => precondition.name).sort()]));
+    expect(preconditions.get('node/a.test.ts')).toEqual(['node/a.test.ts', 'node/setup.ts']);
+    expect(preconditions.get('dom/a.test.ts')).toEqual(['dom/a.test.ts', 'dom/setup.ts']);
   });
 });
 

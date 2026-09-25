@@ -150,6 +150,7 @@ describe('withTestSelection for Jest', () => {
           '/repo/test/setup.ts',
           '/repo/tsconfig.json',
         ],
+        declared: ['/repo/tsconfig.json'],
       }],
     ]);
     expect(configured.transform).toEqual({

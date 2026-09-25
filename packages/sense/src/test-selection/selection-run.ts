@@ -26,8 +26,15 @@ export interface SelectionRun {
   /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
   readonly caseDirectory: string;
   readonly modules: Map<ModuleId, CapturedModule>;
-  /** Union over the projects: every file whose text every observation depended on. */
+  /** Every file whose text every observation depended on, whichever configuration ran it. */
   readonly preconditions: Set<string>;
+  /**
+   * What each configuration's own tests depended on, keyed by the config file
+   * Vite loaded — see `governing-config.ts`.
+   */
+  readonly configs: Map<string, Set<string>>;
+  /** The configuration that describes the run, once the runner has said which. */
+  runConfig: string | undefined;
   readonly names: ModuleNames;
   readonly mode: InstrumentMode;
   /**
@@ -76,6 +83,8 @@ export function newRun(coverageFile: string, root: string, mode: InstrumentMode)
     caseDirectory: `${runDirectory}-cases`,
     modules: new Map<ModuleId, CapturedModule>(),
     preconditions: new Set<string>(),
+    configs: new Map<string, Set<string>>(),
+    runConfig: undefined,
     // Once per process, before any module is transformed: the table this run
     // reads is the one the last fold published, and this run's own fold grows it.
     names: readModuleNames(openModuleNames(root)),

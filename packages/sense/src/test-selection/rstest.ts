@@ -98,11 +98,14 @@ export interface RstestFileResult {
   readonly results?: ReadonlyArray<{ readonly status: string }>;
   /** What the file's own `afterAll` put on its context, carried from wherever it ran. */
   readonly meta?: object;
+  /** The name of the project that ran it. */
+  readonly project?: string;
 }
 
 /** The subset of an Rstest configuration this seam reads and rewrites. */
 export interface RstestConfig {
   readonly root?: string;
+  readonly name?: string;
   readonly globals?: boolean;
   readonly setupFiles?: string | readonly string[];
   readonly globalSetup?: string | readonly string[];
@@ -110,6 +113,11 @@ export interface RstestConfig {
   readonly projects?: unknown;
   readonly tools?: { readonly rspack?: unknown; readonly [key: string]: unknown };
   readonly [key: string]: unknown;
+}
+
+/** A project's own preconditions, under the name Rstest reports it by. */
+function projectKey(name: string): string {
+  return `project:${name}`;
 }
 
 /** The loader an Rstest configuration names, by absolute path. */
@@ -164,10 +172,22 @@ export function withTestSelection(
   // A setup entry may be a package — `dotenv/config` — rather than a file of
   // the project's; a package is no precondition a diff can carry, and read as a
   // path it is a missing file that fails the reporter and loses the snapshot.
+  //
+  // A project's setup files govern that project's tests, the way
+  // `governing-config.ts` says for Vitest. Rstest names the project a file ran
+  // under, and a project's name is the one its configuration gives, so a named
+  // project keeps its own; one Rstest names by default is named after this
+  // runs, and its files govern every test, as they did before anybody asked.
+  const own = typeof config.name === 'string' && config.projects === undefined
+    ? run.configs.get(projectKey(config.name)) ?? new Set<string>()
+    : run.preconditions;
+  if (own !== run.preconditions) run.configs.set(projectKey(config.name as string), own);
   for (const file of [
     ...setupFiles.filter((file) => existsSync(resolve(configRoot, file))),
     ...(options.preconditions ?? []),
-  ]) run.preconditions.add(resolve(configRoot, file));
+  ]) own.add(resolve(configRoot, file));
+  // The configuration that lists the projects is what every test rests on.
+  if (config.projects !== undefined) run.runConfig = '';
 
   const executionFile = options.executionFile === undefined
     ? `${coverageFile}.cases.bin`
@@ -179,6 +199,7 @@ export function withTestSelection(
         filepath: file.testPath,
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status)),
         ...carriedJournal(file.testPath, file.meta),
+        ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),
       })),
     ),
   };

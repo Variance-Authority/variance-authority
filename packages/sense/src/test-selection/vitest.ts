@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, relative, resolve, sep } from 'node:path';
 import type { Reporter } from 'vitest/reporters';
@@ -17,6 +17,13 @@ import {
 } from './finished-files.js';
 import { browserSetupSource, caseRunnerSource, setupSource } from './worker-source.js';
 import { foldRun } from './selection-fold.js';
+import {
+  declareConfig,
+  noteRunner,
+  projectConfig,
+  type ResolvedViteConfig,
+  type RunnerContext,
+} from './governing-config.js';
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { testCoverageFile } from './index.js';
 import { repositoryRoot } from './repository-root.js';
@@ -81,12 +88,6 @@ export interface TestSelectionOptions {
   readonly executionFile?: string;
 }
 
-/** What Vite resolved, as far as the seam reads it. */
-interface ResolvedViteConfig {
-  readonly configFile: string | undefined;
-  readonly configFileDependencies: readonly string[];
-}
-
 interface ConfigPlugin {
   readonly name: string;
   readonly configResolved: (config: ResolvedViteConfig) => void;
@@ -149,13 +150,9 @@ export function withTestSelection(
   const chosen = options.include ?? defaultInclude;
   const include = (file: string): boolean => !globalSetup.has(file) && chosen(file);
   const setupFiles = array(config.test?.setupFiles);
-  // A setup entry may be a package — `dotenv/config` — rather than a file of
-  // the project's; a package is no precondition a diff can carry, and read as a
-  // path it is a missing file that fails the reporter and loses the snapshot.
-  for (const file of [
-    ...setupFiles.filter((file): file is string => typeof file === 'string' && existsSync(resolve(configRoot, file))),
-    ...(options.preconditions ?? []),
-  ]) run.preconditions.add(resolve(configRoot, file));
+  // What the author declared is declared for the tests this configuration
+  // governs, which for the one that describes the run is every test.
+  const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
   const executionFile = options.executionFile === undefined
     ? `${coverageFile}.cases.bin`
@@ -177,13 +174,13 @@ export function withTestSelection(
       ...config,
       plugins: [...array(config.plugins), {
         name: 'variance-authority:test-selection-config',
-        configResolved: declareConfig(run.preconditions),
+        configResolved: declareConfig(run, declared, [setupId, runnerId]),
       } satisfies ConfigPlugin],
       test: { ...config.test, reporters: [...reporters, reporter] },
     };
   }
 
-  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode);
+  const plugin = selectionPlugin(root, setupId, runnerId, run, include, mode, declared);
   return {
     ...config,
     plugins: [...array(config.plugins), plugin],
@@ -254,25 +251,6 @@ function runnerImport(root: string, runnerId: string, specifier: string): string
   }
 }
 
-/**
- * Declare the configuration Vite loaded as a precondition of every test, the
- * way a setup file is declared.
- *
- * Asked of Vite, which read the file, rather than of the command line or a
- * list of likely names: `configFile` is the file it loaded, and
- * `configFileDependencies` the local modules it bundled into that file — the
- * set Vite restarts the server over. A package the config imports stays
- * outside it, as it does when Vite bundles, and is read as the install. A
- * configuration handed to Vitest inline has no file, and declares nothing.
- */
-function declareConfig(preconditions: Set<string>): (config: ResolvedViteConfig) => void {
-  return ({ configFile, configFileDependencies }) => {
-    for (const file of [...(configFile === undefined ? [] : [configFile]), ...configFileDependencies]) {
-      preconditions.add(resolve(file));
-    }
-  };
-}
-
 function selectionPlugin(
   root: string,
   setupId: string,
@@ -280,8 +258,9 @@ function selectionPlugin(
   run: SelectionRun,
   include: (file: string) => boolean,
   mode: InstrumentMode,
+  declared: readonly string[],
 ): VitePlugin {
-  const { modules, names, preconditions } = run;
+  const { modules, names } = run;
   return {
     name: 'variance-authority:test-selection',
     enforce: 'post',
@@ -305,7 +284,7 @@ function selectionPlugin(
         );
       }
     },
-    configResolved: declareConfig(preconditions),
+    configResolved: declareConfig(run, declared, [setupId, runnerId]),
     transform(code, id) {
       // The setup module installs the probe log; instrumented, its own header
       // would ask for the log's root before the module has installed it.
@@ -367,7 +346,16 @@ function selectionReporter(
   // is a reporter that never objects. A suite would go green and write no
   // snapshot. Both hooks are declared, both narrow to the same two facts, and
   // whichever the runner calls first is the one that counts.
+  //
+  // Each file also carries the configuration it ran under, as the runner
+  // resolved it: Vitest 3 and 4 hand the project over, and Vitest 2 hands its
+  // name, which `onInit` has already mapped to the project.
+  let byName = new Map<string, string>();
+  const configsOf = (config: string | undefined) => (config === undefined ? {} : { configs: [config] });
   return {
+    onInit: (context: RunnerContext) => {
+      byName = noteRunner(run, context);
+    },
     onFinished: (files: readonly RunnerTask[]) => settle(
       files.flatMap((file) => file.filepath === undefined
         ? []
@@ -375,6 +363,7 @@ function selectionReporter(
           filepath: file.filepath,
           complete: taskComplete(file),
           ...carriedJournal(file.filepath, file.meta),
+          ...configsOf(byName.get(file.projectName ?? '')),
         }]),
     ),
     onTestRunEnd: (reported: readonly ReportedModule[]) => settle(
@@ -382,6 +371,7 @@ function selectionReporter(
         filepath: module.moduleId,
         complete: reportedComplete(module),
         ...carriedJournal(module.moduleId, module.meta?.()),
+        ...configsOf(projectConfig(module.project)),
       })),
     ),
   } as Reporter;

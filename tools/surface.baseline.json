@@ -2622,6 +2622,7 @@
       },
       "./jest-reporter": {
         "JestRunResults": "interface",
+        "JestTest": "interface",
         "JestTestContext": "interface",
         "default": "class"
       },

@@ -207,4 +207,37 @@ describe('the Jest integration', () => {
       at('test/delta.case.ts > takes the delta path with registrars it imported'),
     ]);
   }, 120_000);
+
+  it('rests each test on its own inline project\'s setup and environment files, and on no other project\'s', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-projects-'));
+    temporary.push(directory);
+    const coverageFile = resolve(directory, 'coverage.bin');
+    await execute(
+      process.execPath,
+      [jest, '--config', resolve(fixture, 'jest.projects.config.mjs'), '--watchman=false'],
+      {
+        cwd: fixture,
+        env: {
+          ...process.env,
+          VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+          VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+          XDG_CACHE_HOME: directory,
+        },
+      },
+    );
+
+    const preconditions = new Map(decodeTestCoverage(await readFile(coverageFile)).tests
+      .map((test) => [test.file, test.preconditions.map((precondition) => precondition.name)]));
+    const alpha = preconditions.get(at('test/alpha.case.ts'));
+    const beta = preconditions.get(at('test/beta.case.ts'));
+
+    expect(alpha).toEqual(expect.arrayContaining([at('test/polyfill.cjs'), at('test/setup.cjs')]));
+    expect(alpha).not.toContain(at('test/environment.ts'));
+    expect(beta).toContain(at('test/environment.ts'));
+    expect(beta).not.toContain(at('test/polyfill.cjs'));
+    expect(beta).not.toContain(at('test/setup.cjs'));
+    // What the author declared is declared for every project.
+    expect(alpha).toContain(at('jest.projects.config.mjs'));
+    expect(beta).toContain(at('jest.projects.config.mjs'));
+  }, 120_000);
 });

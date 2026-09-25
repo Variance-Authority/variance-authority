@@ -37,6 +37,7 @@ import {
 } from './finished-files.js';
 import { noteABusyIndex, withIndexLock } from './index-lock.js';
 import type { SelectionRun } from './selection-run.js';
+import { governingPreconditions } from './governing-config.js';
 import {
   seedTestCoverage,
   writeCoverageBytes,
@@ -114,7 +115,7 @@ export function foldRun(
     // by path.
     const tests = await Promise.all(
       oneRowPerFile(files, root).map((file) =>
-        coverageTest(file, root, [...run.preconditions], journals, modules),
+        coverageTest(file, root, governingPreconditions(run, file.configs), journals, modules),
       ),
     );
     const commit = await commitOf(root);

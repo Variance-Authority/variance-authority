@@ -17,7 +17,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { readFile, readdir, rm } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
@@ -45,6 +45,8 @@ import {
   CONTINUATIONS_VARIABLE,
   jestStore,
   RUN_DIRECTORY_VARIABLE,
+  SELECTION_GLOBALS,
+  SELECTION_SETUP,
   type SelectionReporterConfig,
 } from './jest.js';
 import {
@@ -67,7 +69,20 @@ export interface JestRunResults {
 
 /** The field of a Jest test context this reads. */
 export interface JestTestContext {
-  readonly config: { readonly cacheDirectory: string; readonly id?: string };
+  readonly config: {
+    readonly cacheDirectory: string;
+    readonly id?: string;
+    /** Resolved by Jest: a path for a file of the project's, and for a package, into its install. */
+    readonly setupFiles?: readonly string[];
+    readonly setupFilesAfterEnv?: readonly string[];
+    readonly testEnvironment?: string;
+  };
+}
+
+/** A test file Jest ran, and the project configuration it ran under. */
+export interface JestTest {
+  readonly path: string;
+  readonly context: JestTestContext;
 }
 
 interface JourneyReporterConfig {
@@ -85,8 +100,20 @@ class JestCoverageReporter {
   /** Beside the run directory rather than inside it: the fold there reads every name it finds. */
   #caseDirectory: string | undefined;
 
+  /**
+   * The files each test file's own project rests on, as Jest resolved that
+   * project — see {@link projectPreconditions}.
+   */
+  readonly #governing = new Map<string, Set<string>>();
+
   constructor(_globalConfig: unknown, config: JestReporterConfig) {
     this.#config = config;
+  }
+
+  onTestFileResult(test: JestTest): void {
+    const own = this.#governing.get(test.path) ?? new Set<string>();
+    for (const file of projectPreconditions(test.context.config)) own.add(file);
+    this.#governing.set(test.path, own);
   }
 
   onRunStart(): void {
@@ -140,7 +167,13 @@ class JestCoverageReporter {
     const early = loadedOf(rows);
 
     const tests = await Promise.all(
-      results.testResults.map((result) => coverageTest(result, selection, journals, modules)),
+      results.testResults.map((result) => coverageTest(
+        result,
+        selection,
+        [...(selection.declared ?? []), ...(this.#governing.get(result.testFilePath) ?? selection.preconditions)],
+        journals,
+        modules,
+      )),
     );
     const commit = await commitOf(root);
     const current: TestCoverage = {
@@ -223,12 +256,13 @@ async function records(
 async function coverageTest(
   result: JestRunResults['testResults'][number],
   config: SelectionReporterConfig,
+  governing: readonly string[],
   journals: readonly ReadJournal[],
   modules: ReadonlyMap<ModuleId, CapturedModule>,
 ): Promise<CoverageTest> {
   const file = projectPath(config.root, result.testFilePath);
   const preconditions: CoveragePrecondition[] = [];
-  for (const input of [result.testFilePath, ...config.preconditions]) {
+  for (const input of new Set([result.testFilePath, ...governing])) {
     preconditions.push({
       name: projectPath(config.root, input),
       digest: digestString(await readFile(input, 'utf8')),
@@ -269,6 +303,30 @@ async function coverageTest(
       (assertion) => assertion.status === 'passed' || assertion.status === 'pending' || assertion.status === 'todo',
     );
   return { file, complete, preconditions };
+}
+
+/**
+ * The setup and environment files one Jest project rests on, as Jest resolved
+ * them for the test it ran.
+ *
+ * A project of an inline `projects` list governs its own tests: a change to a
+ * browser project's environment does not change what a node project's test
+ * ran. So each test is charged its own project's files, asked of the context
+ * Jest ran it in rather than matched back to a project here. A package — the
+ * environment `node`, `jest-canvas-mock` — resolves into the install, which is
+ * no file a diff of the project can carry, and this seam's own two files are no
+ * precondition of anybody's.
+ */
+function projectPreconditions(config: JestTestContext['config']): readonly string[] {
+  return [
+    ...(config.testEnvironment === undefined ? [] : [config.testEnvironment]),
+    ...(config.setupFiles ?? []),
+    ...(config.setupFilesAfterEnv ?? []),
+  ].filter((file) =>
+    isAbsolute(file) &&
+    !file.split(sep).includes('node_modules') &&
+    file !== SELECTION_GLOBALS &&
+    file !== SELECTION_SETUP);
 }
 
 async function readJournals(directory: string): Promise<readonly ReadJournal[]> {
