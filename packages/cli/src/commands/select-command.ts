@@ -206,6 +206,13 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
   if (text === undefined) {
     return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
   }
+  if (!/^diff --git /mu.test(text) && /^@@ /mu.test(text)) {
+    throw new OperatorError(
+      '`--execution` reads the lines a change moved from the blobs `git diff` names on its `index` ' +
+        `line, and the patch handed in is a plain unified diff, starting \`${text.trimStart().split('\n')[0] ?? ''}\`, ` +
+        'which names none. Hand in `git diff` of the change, committed or in the working tree.',
+    );
+  }
   if (!/^diff --git /mu.test(text)) {
     throw new OperatorError(
       `\`--execution\` selects by changed lines, and the change handed in is a list of paths, ` +
