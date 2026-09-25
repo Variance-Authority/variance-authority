@@ -57,9 +57,9 @@ wins, so each link is one axis, which is the only reason the difference across i
 is worth reading. A separator is required, so `checkout` is not the parent of
 `checkouts`.
 
-This works exactly as well as your names do, and the constraint has a name.
-English will not let you say *green great dragon*: adjective order is fixed, so
-one dragon has one name. Fix your axis order the same way — scheme before
+This works exactly as well as your names do, and the constraint has a name: the
+**great green dragon rule**. English will not let you say *green great dragon*:
+adjective order is fixed, so one dragon has one name. Fix your axis order the same way — scheme before
 viewport before flag, or whatever order you like, as long as it is the same one
 every time — and every subject has exactly one name and exactly one parent, found
 by dropping what was added last.

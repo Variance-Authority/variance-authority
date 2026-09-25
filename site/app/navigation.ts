@@ -219,6 +219,11 @@ export const NAVIGATION = [
         cluster: "Explain variance",
       },
       {
+        href: "/docs/a-b-testing",
+        label: "Compare A with B",
+        cluster: "Explain variance",
+      },
+      {
         href: "/docs/parting",
         label: "Find where two readings part",
         cluster: "Explain variance",

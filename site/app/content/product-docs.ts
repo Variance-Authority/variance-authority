@@ -82,6 +82,7 @@ import understandExecution from "../../../docs/understand-execution.md?raw";
 import understandInterface from "../../../docs/understand-interface.md?raw";
 import vantage from "../../../docs/vantage.md?raw";
 import variations from "../../../docs/variations.md?raw";
+import aBTesting from "../../../docs/a-b-testing.md?raw";
 
 export interface ProductDocument {
   slug: string;
@@ -132,6 +133,7 @@ const documents = [
   ["ignores", ignores, "docs/ignores.md"],
   ["sensitivity", sensitivity, "docs/sensitivity.md"],
   ["variations", variations, "docs/variations.md"],
+  ["a-b-testing", aBTesting, "docs/a-b-testing.md"],
   ["composition", composition, "docs/composition.md"],
   ["changelog", changelog, "docs/changelog.md"],
   ["placement", placement, "docs/placement.md"],
