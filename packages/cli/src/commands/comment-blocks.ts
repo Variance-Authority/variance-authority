@@ -20,7 +20,17 @@ import { code, count } from './comment-text.js';
  * artifact a human actually looks at.
  */
 
-export function headingBlocks(report: CliRunReport, docket: Docket): readonly string[] {
+/**
+ * What a reviewer reads before deciding whether to open anything: the count, the
+ * leading cause, and where to go.
+ *
+ * Kept to lines a phone shows without scrolling, because that is where a
+ * pull-request notification is opened. Everything that qualifies the count —
+ * every cause, the collateral, what was skipped, what painted the images — is in
+ * the fold under it, and stays there rather than being dropped: a reviewer who
+ * wants the whole docket opens one element.
+ */
+export function leadBlocks(docket: Docket, options: CommentOptions): readonly string[] {
   const needing = docket.reviewable + docket.failed.length;
 
   const heading =
@@ -32,14 +42,53 @@ export function headingBlocks(report: CliRunReport, docket: Docket): readonly st
         '## Visual variance — this run cannot claim a clean result'
       : `## Visual variance — ${needing} subject(s) need review`;
 
-  const meta = [
-    describeIdentity(report),
-    `${report.retention} retention`,
-    report.at,
-    ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
-  ].join(' · ');
+  return [heading, ...leadLine(docket), ...footerBlocks(options)];
+}
 
-  return [heading, meta];
+/**
+ * The first cause, in the voice the docket gives it, or the first reason nothing
+ * could be compared.
+ *
+ * An entry the semantic tier did not name is left out rather than printed here:
+ * "the largest region" is a size, and a size on the first line reads as a cause.
+ */
+function leadLine(docket: Docket): readonly string[] {
+  const [first] = docket.causes;
+  if (first !== undefined && first.namedIn > 0) {
+    const label = first.named ? code(first.label) : first.label;
+    const at = first.files[0] === undefined ? '' : ` at ${code(first.files[0])}`;
+    const more =
+      docket.causes.length > 1 ? `, and ${count(docket.causes.length - 1, 'more cause')}` : '';
+    return [`Cause: **${label}**${at}${more}`];
+  }
+  const [group] = docket.withoutCause;
+  if (group !== undefined) {
+    return [`**${group.verdict}** — ${count(group.subjects.length, 'subject')}: ${group.because}`];
+  }
+  return [];
+}
+
+/**
+ * Everything the lead summarised, inside one element a reviewer opens on purpose.
+ *
+ * `<details>` rather than a second comment or a shorter docket: the docket's rule
+ * is that nothing is capped silently, and folding keeps every line of it in the
+ * body while taking it out of the first screen.
+ */
+export function foldBlocks(inner: readonly string[]): readonly string[] {
+  return ['<details><summary>Causes, coverage and what painted the images</summary>', ...inner, '</details>'];
+}
+
+/** Which run this is and what painted it, which the reviewer needs only when a render is in doubt. */
+export function metaBlocks(report: CliRunReport): readonly string[] {
+  return [
+    [
+      describeIdentity(report),
+      `${report.retention} retention`,
+      report.at,
+      ...(report.intent !== undefined ? [`intent: ${report.intent}`] : []),
+    ].join(' · '),
+  ];
 }
 
 /**
@@ -246,11 +295,12 @@ export function withoutCauseBlocks(docket: Docket, limits: CommentLimits): reado
 /**
  * What the run did not look at, and what that does to the sentence above.
  *
- * `failed` entries are listed, because each has its own reason and a count of
- * them tells a reviewer nothing they can act on. `excluded` entries are counted
- * only: the operator already decided, in a file that was already reviewed, and
- * re-litigating that decision on every pull request is how an exclusion list ends
- * up deleted rather than read.
+ * `failed` entries are listed, and above the fold, because each has its own
+ * reason, a count of them tells a reviewer nothing they can act on, and the
+ * heading counts them among what needs review. `excluded` and unreached entries
+ * are counted in the fold by {@link skippedBlocks}: the operator already decided,
+ * in a file that was already reviewed, and re-litigating that decision on every
+ * pull request is how an exclusion list ends up deleted rather than read.
  */
 export function coverageBlocks(
   report: CliRunReport,
@@ -265,29 +315,25 @@ export function coverageBlocks(
     ];
   }
 
-  if (docket.failed.length === 0 && docket.excluded === 0) return [];
+  if (docket.failed.length === 0) return [];
 
   const shown = docket.failed.slice(0, limits.notObserved);
   const hidden = docket.failed.length - shown.length;
 
-  // Separate blocks rather than one joined string: a bare sentence on the line
-  // after a list item is absorbed into that item by every markdown renderer, and
-  // the excluded count would then read as a property of whichever subject
-  // happened to be last.
   return [
     '### Not observed',
-    ...(docket.failed.length === 0
-      ? []
-      : [
-          [
-            `${count(docket.failed.length, 'subject')} the run meant to observe and could not — ` +
-              'not a pass:',
-            ...shown.map((entry) => `- ${code(entry.subject)} — ${entry.because}`),
-            ...(hidden === 0
-              ? []
-              : [`- ${hidden} more in the run report.`]),
-          ].join('\n'),
-        ]),
+    [
+      `${count(docket.failed.length, 'subject')} the run meant to observe and could not — ` +
+        'not a pass:',
+      ...shown.map((entry) => `- ${code(entry.subject)} — ${entry.because}`),
+      ...(hidden === 0 ? [] : [`- ${hidden} more in the run report.`]),
+    ].join('\n'),
+  ];
+}
+
+/** What the run chose not to render, counted: neither is a gap in the answer. */
+export function skippedBlocks(docket: Docket): readonly string[] {
+  return [
     ...(docket.excluded === 0
       ? []
       : [
@@ -316,13 +362,17 @@ export function coverageBlocks(
 export function warningBlocks(report: CliRunReport, docket: Docket): readonly string[] {
   const fonts = [...docket.missingFonts.entries()].map(
     ([font, subjects]) =>
-      `- the renderer lacked ${code(font)} in ${count(subjects, 'subject')}; those images ` +
+      `the renderer lacked ${code(font)} in ${count(subjects, 'subject')}; those images ` +
       "are of a substituted font and their metrics are not the product's",
   );
-  const stated = (report.warnings ?? []).map((warning) => `- ${warning}`);
+  const stated = report.warnings ?? [];
 
+  // An alert rather than a section, and above the fold: it decides whether the
+  // images under it can be trusted at all.
   const lines = [...fonts, ...stated];
-  return lines.length === 0 ? [] : ['### Warnings', lines.join('\n')];
+  if (lines.length === 0) return [];
+  const listed = lines.length === 1 ? lines : lines.map((line) => `- ${line}`);
+  return [['> [!WARNING]', ...listed.map((line) => `> ${line}`)].join('\n')];
 }
 
 /**
@@ -336,7 +386,7 @@ export function footerBlocks(options: CommentOptions): readonly string[] {
     [
       options.runUrl === undefined
         ? 'Per subject: `variance report --subject <id>`'
-        : `Full report and images: ${options.runUrl}`,
+        : `[Full report and images](${options.runUrl})`,
       ...(options.toAccept === undefined ? [] : [`To accept: ${options.toAccept}`]),
     ].join('  \n'),
   ];

@@ -157,6 +157,19 @@ describe('renderComment', () => {
     expect(body).toContain('in `main → list item 2 of 3`');
   });
 
+  it('shows the count and the leading cause first, and folds the docket whole', () => {
+    // A notification is opened on a phone. The first screen answers what moved
+    // and why; every cause and what painted the images stay in the body, one
+    // element away, because nothing here is capped silently.
+    const body = renderComment({ report: tokenChange(1) });
+    const fold = body.indexOf('<details>');
+
+    expect(body.indexOf('Cause: **`Toggle`** at `src/ds/components.tsx:107`')).toBeLessThan(fold);
+    expect(body.indexOf('### Causes')).toBeGreaterThan(fold);
+    expect(body.indexOf('playwright-chromium')).toBeGreaterThan(fold);
+    expect(body.trimEnd().endsWith('</details>')).toBe(true);
+  });
+
   it('carries a stable marker so the poster updates its own comment', () => {
     // Without it the poster cannot tell its previous comment from anyone else's,
     // and a new comment per run buries the current state under a history nobody
@@ -391,16 +404,17 @@ describe('renderComment', () => {
     expect(renderComment({ report: tokenChange(1) })).not.toContain('Full report and images');
   });
 
-  it('ends on the step the reviewer takes next, in the operator\'s words', () => {
+  it('states the step the reviewer takes next above the fold, in the operator\'s words', () => {
     // A reviewer on a pull request has no report on disk, so the command-line
     // fallback gives way to the link, and accepting is where this repository
-    // says it is.
+    // says it is. Both come before the docket, which is folded.
     const body = renderComment({
       report: tokenChange(1),
       runUrl: 'https://example.invalid/page',
       toAccept: 'dispatch **variance** on `main`',
     });
     expect(body).toContain('To accept: dispatch **variance** on `main`');
+    expect(body.indexOf('To accept')).toBeLessThan(body.indexOf('<details>'));
     expect(body).not.toContain('variance report --subject');
     expect(renderComment({ report: tokenChange(1) })).toContain('variance report --subject');
     expect(renderComment({ report: tokenChange(1) })).not.toContain('To accept');
