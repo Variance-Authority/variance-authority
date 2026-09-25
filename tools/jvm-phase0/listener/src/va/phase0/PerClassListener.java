@@ -49,6 +49,7 @@ public final class PerClassListener implements TestExecutionListener {
   private Method setSessionId;
   private Method drain;
   private Method meta;
+  private Method failed;
   private int between;
   private String open;
   private Set<Thread> before = new HashSet<>();
@@ -60,6 +61,7 @@ public final class PerClassListener implements TestExecutionListener {
       Class<?> presence = Class.forName("va.presence.rt.Presence", true, null);
       drain = presence.getMethod("drain");
       meta = presence.getMethod("meta", int.class);
+      failed = presence.getMethod("failed");
     } catch (ClassNotFoundException | NoSuchMethodException e) {
       drain = null;
     }
@@ -156,16 +158,34 @@ public final class PerClassListener implements TestExecutionListener {
     }
   }
 
-  /** One analyzer-format row: the methods whose presence flag was set in this window. */
+  /**
+   * One analyzer-format row: the methods whose presence flag was set in this window.
+   * {@code unknown} names the classes entered whose source file the agent could not
+   * resolve, and every class that failed to instrument before the row closed; either
+   * makes the row unable to exclude its test.
+   */
   private void presence(String name) {
     try {
       int[] hit = (int[]) drain.invoke(null);
       StringBuilder line = new StringBuilder("{\"owner\":\"").append(name).append("\",\"methods\":[");
+      StringBuilder unknown = new StringBuilder();
+      boolean first = true;
       for (int i = 0; i < hit.length; i++) {
-        if (i > 0) line.append(',');
-        line.append((String) meta.invoke(null, hit[i]));
+        String m = (String) meta.invoke(null, hit[i]);
+        if (m.startsWith("{\"unknown\":")) {
+          unknown.append(unknown.length() > 0 ? "," : "").append(m, 11, m.length() - 1);
+          continue;
+        }
+        if (!first) line.append(',');
+        first = false;
+        line.append(m);
       }
-      line.append("]}\n");
+      for (String f : (String[]) failed.invoke(null)) {
+        unknown.append(unknown.length() > 0 ? "," : "").append('"').append(f).append('"');
+      }
+      line.append(']');
+      if (unknown.length() > 0) line.append(",\"unknown\":[").append(unknown).append(']');
+      line.append("}\n");
       Files.write(out.resolve("record.jsonl"), line.toString().getBytes(StandardCharsets.UTF_8),
           StandardOpenOption.CREATE, StandardOpenOption.APPEND);
     } catch (ReflectiveOperationException e) {

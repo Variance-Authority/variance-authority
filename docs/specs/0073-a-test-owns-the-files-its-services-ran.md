@@ -31,6 +31,15 @@ step. A row names every line of a method it entered, so a line-grain selection
 from it can only widen. Synthetic methods other than lambda bodies are not
 probed: accessors and bridges forward to a method that is.
 
+A class's file is found, not assumed: the one path under the source roots that
+exists for its package and `SourceFile`, or the one file of that name under
+them. A class that names no file or several is recorded as unknown, and one
+that fails to instrument is listed in every later row; a row that lists either
+cannot exclude its test. On Commons Lang that is one test class, whose fixture
+loads two precompiled classes from `src/test/resources`. A class without a
+`SourceFile` attribute, a proxy or a class a test defines at runtime, is not
+probed: no source file can change it, and the code that generates it is.
+
 On Commons Lang, against a bare test phase of 130 s (median of three,
 interleaved):
 
