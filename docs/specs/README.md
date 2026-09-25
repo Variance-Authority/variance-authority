@@ -68,6 +68,7 @@ hiding it.
 | [A change runs the cases that ran it](0059-a-change-runs-the-cases-that-ran-it.md) | The per-case record from every seam, and `narrowByJourneys` joining regions to cases. | **The case as the unit.** Every selection answers test files, and no runner is handed the cases it selected. |
 | [A `/// <depends>` directive takes a glob](0061-a-depends-directive-takes-a-glob.md) | A directive that names one file, and a `depends` edge the scan draws to it. | **Many files from one line.** A glob resolves to nothing and is reported; nothing matches it against the tracked files or notices a file added under it. |
 | [A suite says which files reach it](0062-a-suite-says-which-files-reach-it.md) | `asset` and `depends` edges, walked by every selection as runtime edges. | **A suite that declines a kind of change.** A changed image runs every unit test of every module that imports it, and no configuration says a suite never reads those bytes. |
+| [A test owns the files its services ran](0063-a-test-owns-the-files-its-services-ran.md) | The Phase 0 harness divides JaCoCo probe state per top-level test class in one JVM. | **An attempt-scoped service observation.** No recorder joins a test's requests to source files entered across service processes, or proves that an isolated or concurrent recording is complete enough to exclude a test. |
 
 ## Discharged
 
