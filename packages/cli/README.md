@@ -1033,7 +1033,7 @@ are not that kind of edit, because the compiler writes both into what runs. A
 file whose edit changed only some of its exports is walked from those exports:
 a file that imports `label` from it is left out when only `total` changed, and
 stderr names `total`.
-[How different languages are handled](../../docs/polyglot.md#why-an-import-graph-is-the-safe-half)
+[How different languages are handled](../../docs/polyglot.md#walked-from-what-the-edit-changed)
 says where the walk stays whole. Everything else a person needs goes there too,
 including how many files were reached from how many. `--format json` gives
 the same facts for something that wants to decide for itself.
