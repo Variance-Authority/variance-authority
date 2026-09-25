@@ -16,6 +16,10 @@ name: variance
 #
 # ## Where the baselines come from, since nothing here is committed
 #
+# That is a choice, `VARIANCE_REVIEW` below, and this section describes the
+# `cache` answer this repository runs. The other two, `git` and `tribunal`, are
+# described where they are chosen.
+#
 # `.variance/` is ignored, on purpose: a record changes whenever the document
 # does, so records beside their images would make a diff out of every edit that
 # moved no pixel. So the store is the runner's cache. Every run restores it and
@@ -96,8 +100,8 @@ on:
 # `contents: write` is for one ref per pull request, `refs/variance/<head>`,
 # which holds the images the comment shows and nothing else, and is deleted when
 # the pull request closes. It is not a branch, so a clone does not fetch it, and
-# it is not the contributor's branch: the commit-baselines note on the action
-# step below is why nothing here writes there.
+# it is not the contributor's branch. Only `VARIANCE_REVIEW: git` writes there,
+# with its own token, and only when somebody added the accept label.
 permissions:
   contents: write
   pull-requests: write
@@ -133,7 +137,33 @@ permissions:
 #
 # Whichever you choose, it holds one commit with no parent, replaced by every run
 # that finds a change, so nothing accumulates under it while it exists.
+#
+# ## Who accepts a change: `VARIANCE_REVIEW`
+#
+# Where an accepted baseline lives decides who accepts a change and how, so this
+# one value switches the steps below between three arrangements. Each needs a
+# matching `baselines` section in the config; `docs/placement.md` compares them.
+#
+# - `cache`: the store is this runner's Actions cache, and nothing is committed.
+#   A reviewer accepts with the `variance: accept` label, and a merge promotes
+#   the same pixels on `main` (the header says when). A later push does not
+#   dismiss anybody's pull-request approval, and it does not need to: a push
+#   that changes a pixel turns the check red again. The store lasts as long as
+#   GitHub keeps the cache entry.
+# - `git`: the store is committed, as files or through git-LFS. The label makes
+#   this job commit the accepted images to the pull request's branch, so they
+#   arrive in the diff a reviewer approves, and the repository's branch rules
+#   decide whether that push dismisses an approval. The config's baseline root
+#   has to be tracked, and `VARIANCE_PUSH_TOKEN` set (see the checkout step).
+# - `tribunal`: the store is a `@variance-authority/tribunal` deployment. Every
+#   run is pushed to it, a person approves or rejects each subject on its
+#   review page, and the label accepts nothing. The config needs a `remote`
+#   store and a `review` section, and `VARIANCE_INGEST_TOKEN` is a secret.
+#
+# `cache` here, because the case writes its store under `.variance/`, which
+# this repository ignores.
 env:
+  VARIANCE_REVIEW: cache
   VARIANCE_IMAGE_REF: ${{ github.event_name == 'pull_request' && format('refs/variance/{0}', github.head_ref) || '' }}
 
 jobs:
@@ -167,7 +197,27 @@ jobs:
       options: --ipc=host
 
     steps:
+      # Under `cache` and `tribunal`, the default: the merge of the pull request
+      # into its base, which is what `main` becomes.
+      #
+      # Under `git`, the pull request's own branch, because the accept commits to
+      # it and the action refuses to push a merge commit onto somebody's branch.
+      # The token is the one that push uses. A push made with `GITHUB_TOKEN`
+      # starts no workflow, so the new commit would get no `variance` check at
+      # all, and a branch rule that requires one would block the merge. A GitHub
+      # App token or a fine-grained token with `contents: write`, saved as the
+      # `VARIANCE_PUSH_TOKEN` secret, starts the run that checks the commit.
+      # A fork's pull request gets no secrets, so there the label cannot commit:
+      # the contributor commits the baselines themselves.
+      #
+      # For `lfs`, add `lfs: true` here and install git-lfs in a step before this
+      # one: the Playwright image has no git-lfs, and the store refuses to read
+      # a pointer file as an image.
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.VARIANCE_REVIEW == 'git' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ env.VARIANCE_REVIEW == 'git' && github.head_ref || '' }}
+          token: ${{ env.VARIANCE_REVIEW == 'git' && secrets.VARIANCE_PUSH_TOKEN || github.token }}
 
       # Before anything is built, because it answers from the event and the API
       # alone, and because the label it removes should come off while the person
@@ -179,6 +229,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VARIANCE_ACCEPT_LABEL: 'variance: accept'
           VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
+          VARIANCE_PUSH_TOKEN_SET: ${{ secrets.VARIANCE_PUSH_TOKEN != '' }}
         run: node .github/scripts/variance-accept.mjs
 
       - shell: bash
@@ -207,7 +258,8 @@ jobs:
       # `container.image` above without bumping it here would restore baselines
       # painted by the old Chromium; they would be reported `incomparable` rather
       # than diffed, which is the safety net and not a reason to skip the edit.
-      - name: restore the newest accepted baselines
+      - if: ${{ env.VARIANCE_REVIEW == 'cache' }}
+        name: restore the newest accepted baselines
         uses: actions/cache/restore@v4
         with:
           path: cases/storybook-case/.variance/baselines
@@ -230,7 +282,10 @@ jobs:
       # `accept --all` promotes both the new and the changed, which is what spec
       # 0023 is about and why this is behind a human. Read the report from the
       # run that went red before accepting.
-      - if: ${{ steps.accept.outputs.promote == 'true' }}
+      #
+      # Not under `git`: there the action accepts and commits in one step, so
+      # the commit message can name what was accepted.
+      - if: ${{ steps.accept.outputs.promote == 'true' && env.VARIANCE_REVIEW != 'git' }}
         name: promote what this run proposes
         shell: bash
         env:
@@ -283,42 +338,59 @@ jobs:
           # repository's words. The label starts a run that accepts; see the
           # header for why it is a label and what a merge carries afterwards.
           to-accept: >-
-            check the report, then add the **variance: accept** label to this
-            pull request.
+            ${{
+              env.VARIANCE_REVIEW == 'tribunal'
+              && 'approve or reject each subject on the review service, then re-run this check.'
+              || env.VARIANCE_REVIEW == 'git'
+              && 'check the report, then add the **variance: accept** label. The accepted images are committed to this branch, and the next run compares against them.'
+              || 'check the report, then add the **variance: accept** label to this pull request.'
+            }}
 
-          # OFF, and it stays off unless somebody decides otherwise on purpose.
+          # On under `git`, and only on the run the label started: it accepts
+          # every changed subject and pushes the images to the pull request's
+          # branch as `github-actions[bot]`. The commit is the review. It is in
+          # the pull request's diff beside the change that caused it, a branch
+          # rule such as dismissing stale approvals on a push decides whether an
+          # earlier approval still stands, and the merge takes the images to
+          # `main` with the code. That run itself stays red, because it found the
+          # change it then committed; the push starts the run that checks the
+          # new commit.
           #
-          # Turning this on makes a bot push a commit to the *contributor's*
-          # branch. That is not a formatting nit: it rewrites work in progress
-          # under somebody who did not ask for it, it invalidates whatever they
-          # had checked out locally, and on a fork it cannot work at all because
-          # the token is read-only. A tool that rewrites branches without being
-          # asked is a tool people disable.
-          #
-          # Worse, and specific to this action: the CLI's `accept` takes `--all`,
-          # so enabling this accepts *changed* subjects as well as new ones. The
-          # regression the check was added to catch gets promoted to the baseline
-          # by the same run that found it, and the next run is green. Turned on,
-          # this check has stopped being a gate and has become a recorder.
-          #
-          # It also needs `permissions: contents: write` above, and a checkout
-          # given `ref: ${{ github.head_ref }}` — without which the action refuses
-          # rather than pushing the merge commit onto somebody's branch.
-          #
-          # This repository does not need it. Baselines here live in the cache
-          # below, which no contributor has checked out and nobody has to review.
-          commit-baselines: 'false'
+          # Off otherwise, and never on for every run. Without a person behind
+          # it, `accept --all` promotes the regression the check was added to
+          # catch, in the same run that found it, and the next run is green: the
+          # check has stopped being a gate and has become a recorder.
+          commit-baselines: ${{ env.VARIANCE_REVIEW == 'git' && steps.accept.outputs.promote == 'true' }}
 
       # Saved under this commit and this run, so the next comparison restores
       # this store and not an older one. A key that already exists is not
       # overwritten, which is why the key names the run: accepting the same
       # commit twice must keep the second.
-      - if: ${{ steps.accept.outputs.promote == 'true' && success() }}
+      - if: ${{ env.VARIANCE_REVIEW == 'cache' && steps.accept.outputs.promote == 'true' && success() }}
         name: keep it for every run after this one
         uses: actions/cache/save@v4
         with:
           path: cases/storybook-case/.variance/baselines
           key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Under `tribunal`, the build goes to the service whatever the verdict, red
+      # or green: a red one is what a person decides on there, and a green one
+      # is history the service keeps for the subjects in it. Not after exit 2,
+      # which wrote no report worth deciding on.
+      - if: >-
+          ${{
+            !cancelled() && env.VARIANCE_REVIEW == 'tribunal' &&
+            (steps.variance.outputs.exit-code == '0' || steps.variance.outputs.exit-code == '1')
+          }}
+        name: put the build in front of a reviewer
+        shell: bash
+        env:
+          VARIANCE_INGEST_TOKEN: ${{ secrets.VARIANCE_INGEST_TOKEN }}
+          VARIANCE_BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          node packages/cli/dist/bin.js push \
+            --config cases/storybook-case/variance.config.json \
+            --branch "$VARIANCE_BRANCH"
 
       # Everything the run wrote, for a reviewer who wants the files rather than
       # the page: the report JSON, every image and sidecar, and the baselines.

@@ -81,11 +81,13 @@ inputs:
   commit-baselines:
     description: >-
       Accept every changed subject and push the regenerated baselines to the pull
-      request's head branch, as a bot. OFF by default, and read the note in
-      `.github/workflows/variance.yml` before turning it on: it rewrites a
-      contributor's branch, and because the CLI's `accept` takes `--all`, it
-      accepts changed subjects as well as new ones — which means the check stops
-      being a gate on the very changes it was added to gate.
+      request's head branch, as a bot. This is how a committed store accepts a
+      change: the images arrive in the pull request's diff, and its review is
+      the approval. Turn it on only for a run a person asked for, such as one
+      started by a label, as `.github/workflows/variance.yml` does under
+      `VARIANCE_REVIEW: git`. On every run, `accept --all` promotes the
+      regression the check was added to catch, in the run that found it. Needs
+      `contents: write` and a checkout of the head branch. Off by default.
     required: false
     default: 'false'
 

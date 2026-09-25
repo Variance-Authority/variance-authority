@@ -60,12 +60,42 @@ image is keyed by the identity of the machine that painted it, so a moving runne
 image means baselines invalidated on somebody else's schedule. Pin the image, and
 put its tag in the cache key.
 
+## Who accepts a change
+
+Accepting a change writes a new baseline, so where the baselines live decides
+who accepts and how. `variance.yml` chooses with one value at the top of the
+file, `VARIANCE_REVIEW`, and this repository runs `cache`.
+[`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
+three arrangements. This is what each one needs in your copy:
+
+| `VARIANCE_REVIEW` | `baselines` in the config | the baseline root | secret |
+|---|---|---|---|
+| `cache` | `directory` | ignored by git | none |
+| `git` | `directory` or `lfs` | tracked | `VARIANCE_PUSH_TOKEN` |
+| `tribunal` | `remote`, and a `review` section | not in the work tree | `VARIANCE_INGEST_TOKEN` |
+
+- **`cache`** is what the rest of this page describes: a label accepts, the
+  store is saved to the runner's cache, and a merge accepts the same pixels on
+  `main`.
+- **`git`** checks out the pull request's branch instead of the merge, skips the
+  cache, and turns on the action's `commit-baselines` for the run the label
+  started. That run stays red, because it found the change it then committed.
+  The push starts the run that checks the new commit, which is why the token
+  has to be one whose push starts a workflow. The first baseline comes from the
+  label on the pull request that adds the suite: a dispatch with `accept` is
+  refused, because it has no branch to commit to. For `lfs`, add `lfs: true` to
+  the checkout and install git-lfs in a step before it.
+- **`tribunal`** skips the cache and sends every run to the service with
+  `variance push`, red or green. The label accepts nothing, and the comment
+  sends the reviewer to the service's page. A dispatch with `accept` writes
+  through to the service, which is how it gets a first baseline.
+
 ## Getting a first baseline
 
 The first run of any subject reports `new` and exits `1`. An image nobody has
 approved is not a pass, and nothing in these files promotes one on its own.
 
-To end that state here: run `variance.yml` from the Actions tab on `main`, tick
+To end that state under `cache`: run `variance.yml` from the Actions tab on `main`, tick
 `accept: true`, and let it finish. That run executes
 `variance run --exit-zero-on-changes`, then `variance accept --all`, compares
 again, and saves the baseline store to the runner cache. Every run after it
@@ -175,14 +205,14 @@ What differs is what reaching `1` *means*:
 
 ## Two things none of these files does
 
-**Post anything you did not configure.** The only network call any of them makes
-beyond the checkout is to the GitHub API of the instance already running the job,
-with the token the workflow passed in. No command in the CLI posts anywhere;
+**Post anything you did not configure.** Beyond the checkout, they call the
+GitHub API of the instance already running the job, with the token the workflow
+passed in, and under `VARIANCE_REVIEW: tribunal` the service your config names. No command in the CLI posts anywhere;
 [`../actions/variance`](../actions/variance) is what sends the body, and it is
 bash around the same binary.
 
-**Approve on the branch being reviewed.** `commit-baselines` is off in both files
-that offer it, and the comments say why at the point where somebody would turn it
-on: a run that accepts what it just found has stopped being a gate. Turning it on
-also makes a bot push to the contributor's branch, which a fork's read-only token
-cannot do at all.
+**Accept without a person.** Every accept is a label, a dispatch, or a decision
+on the service. `commit-baselines` is on only in `variance.yml` under
+`VARIANCE_REVIEW: git`, and only for the run a label started. On every run it
+would accept what the run just found, and a check that does that has stopped
+being a gate.

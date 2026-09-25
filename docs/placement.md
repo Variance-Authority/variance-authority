@@ -31,13 +31,19 @@ There are three answers and no default. Set `baselines.kind` explicitly.
 | `lfs` | the same files, through the LFS filter | `git lfs install` | LFS storage and bandwidth |
 | `remote` | nothing in the repository | a deployment and a token | a network hop, and a run that cannot call it stops |
 
+`directory` has one more arrangement: a root git ignores, which your CI keeps in
+its cache between runs. Nothing is committed, so nothing lands in git history,
+and the cache decides how long the baselines last. [Who accepts a
+change](#who-accepts-a-change) compares all three arrangements by who approves.
+
 ## Committed means committed
 
 `directory` and `lfs` both put baselines in your work tree, and both depend on
 one thing nothing in this tool can check for you: **the root is tracked, and it
-is pushed.** A run that cannot read what the last run wrote does not fail. It
-finds no baseline, reports every subject `new`, records what is on screen as the
-new truth, and exits 0 — green, forever, comparing nothing.
+is pushed**, or your CI restores it from its cache before every run. A run that
+cannot read what the last run wrote does not stop. It finds no baseline and
+reports every subject `new`, which looks the same as a first run. Whoever
+accepts it records what is on screen as the new truth, compared with nothing.
 
 The trap is a wildcard. `.variance/` is the conventional output directory, it
 contains a report and images that genuinely are per-run junk, and a repository
@@ -200,6 +206,90 @@ The serving half is `serveRasterStore` from
 loopback; a deployment CI can call is either that behind a proxy you run, or
 the [`tribunal`](../packages/tribunal/README.md) Worker, which serves the same
 paths on D1 and R2.
+
+## Who accepts a change
+
+A red run asks a person to look. Accepting what they saw writes a new baseline
+into the baseline root, the directory `baselines.root` names, or into the
+service. So where the baselines live decides who accepts and how. There are three
+arrangements, and each puts the approval somewhere else:
+
+| baselines live in | config | a change is accepted by | the record of it is |
+|---|---|---|---|
+| the CI cache | `directory`, root ignored by git | a label on the pull request | the label in the pull request's timeline |
+| git | `directory` or `lfs`, root tracked | a commit on the pull request's branch, reviewed with the code | the commit and the pull-request review |
+| a review service | `remote` | an approval or a rejection per subject, on the service's page | the service's decisions |
+
+The [workflow recipe](../.github/workflows/variance.yml) runs any of the three,
+and one value chooses: `VARIANCE_REVIEW`, set to `cache`, `git` or `tribunal`.
+The config's `baselines` section has to agree with it. The
+[workflows README](../.github/workflows/README.md#who-accepts-a-change) lists
+what each value needs.
+
+### The CI cache
+
+The baseline root is ignored by git on purpose, and the CI job restores it from
+the runner's cache before every run. Without the restore, a run starts with an
+empty root and reports every subject `new`, as [Committed means
+committed](#committed-means-committed) describes.
+
+A reviewer reads the report and adds the `variance: accept` label. That starts a
+run that accepts every changed subject, compares again, and saves the baseline
+root into the pull request's own cache scope. When the pull request merges, the
+run on `main` renders the merge and accepts what it rendered, if the pull request's check was green at its
+head and `main` was green before the merge. When either was red, `main` stays
+red until somebody dispatches the workflow with `accept` ticked.
+
+Nothing lands in git history, and approval is a label rather than a review of a
+diff. A push after an accept does not dismiss a reviewer's approval of the pull
+request, and it does not need to: a push that changes a pixel turns the check red again. The
+store lasts as long as GitHub keeps the cache entry. GitHub removes an entry
+nothing has restored for seven days, and after that every subject reports `new`
+until somebody accepts again. A pull request from a fork runs with a read-only
+token: the label run still accepts, but it cannot take the label off again, and
+the pull request gets no comment.
+
+### Git
+
+The root is tracked, as plain files or through git-LFS. Accepting is a commit:
+the label starts a run that accepts every changed subject and pushes the images
+to the pull request's branch as `github-actions[bot]`. The images are then in
+the pull request's diff beside the change that caused them, and the merge takes
+them to `main` with the code. Nothing runs on `main` to accept them again.
+
+The approval is the pull-request review you already require. Whether the bot's
+push dismisses an earlier approval is a branch rule, set in GitHub rather than
+here: turn on *Dismiss stale pull request approvals when new commits are
+pushed*, and name the baseline root in `CODEOWNERS` when one team approves
+images.
+
+Three things this needs from the repository:
+
+- **A token whose push starts a workflow.** A push made with `GITHUB_TOKEN`
+  starts none, so the commit with the accepted images gets no check, and a rule
+  that requires the check blocks the merge. Save a GitHub App token or a
+  fine-grained token with `contents: write` as the `VARIANCE_PUSH_TOKEN` secret.
+- **A branch in this repository.** A pull request from a fork runs with no
+  secrets and a read-only token, so its label run cannot push. Its baselines are
+  committed by hand.
+- **git-lfs in the job, for `lfs`.** The Playwright image has none. Install it
+  and fetch LFS objects in the checkout, or the store stops on a pointer file
+  where it expected an image.
+
+### A review service
+
+`remote`, pointed at a [Tribunal](../packages/tribunal/README.md) deployment: a
+review service you host, with a database of builds and decisions and a review
+page. Every run's report and images are sent there with `npx variance push`, and a person approves or
+rejects each subject on the service's review page. Approving makes that build's
+image the baseline in the service, so the next run compares against it. Nothing
+in git or in the CI cache changes, and the label accepts nothing.
+
+The service keeps the decisions: who approved which subject and when, each
+rejection, and every subject's history across builds. The check does not run
+again on its own after a decision. Re-run it, and the pull request goes green
+once every change in it is approved. A pull request from a fork runs with no
+secrets, so it has no ingest token and its runs are not sent.
 
 ## What does not belong in the tracked root
 

@@ -16,6 +16,18 @@
 //   bootstrap, and the answer for work that lands on `main` without a pull
 //   request.
 //
+// Which of those three applies depends on `VARIANCE_REVIEW`, the workflow's
+// choice of where an accepted baseline lives:
+//
+// - `cache`: all three, as above.
+// - `git`: the label, and nothing else. The accepted images are committed to
+//   the pull request's branch, so they merge with the code and there is nothing
+//   to promote on `main`. A dispatch has no branch to commit to, and is refused
+//   rather than promoting images that no commit would keep.
+// - `tribunal`: the dispatch alone, which writes through to the service. A
+//   subject is decided on the service's review page, one at a time, and a
+//   label here would be a second place deciding the same thing.
+//
 // The merge carries only when `main` was green before it. A red parent means
 // `main` already held pixels nobody accepted, and the merge's render cannot tell
 // those apart from the ones the pull request's reviewer saw; promoting would
@@ -37,6 +49,10 @@ const api = (process.env['GITHUB_API_URL'] ?? 'https://api.github.com').replace(
 const sha = required('GITHUB_SHA');
 const event = JSON.parse(readFileSync(required('GITHUB_EVENT_PATH'), 'utf8'));
 const pull = event.pull_request;
+const review = process.env['VARIANCE_REVIEW'] || 'cache';
+if (!['cache', 'git', 'tribunal'].includes(review)) {
+  fail(`VARIANCE_REVIEW is '${review}'; it is one of cache, git or tribunal`);
+}
 
 const decision = await decide(process.env['GITHUB_EVENT_NAME']);
 const title = pull?.title ?? `main at ${sha}`;
@@ -48,20 +64,47 @@ console.log(`${decision.promote ? 'accepting' : 'comparing only'}: ${decision.be
 
 async function decide(name) {
   if (name === 'workflow_dispatch') {
-    return process.env['VARIANCE_DISPATCH_ACCEPT'] === 'true'
-      ? { promote: true, because: `dispatched by @${event.sender.login}` }
-      : { promote: false, because: 'dispatched without accept' };
+    if (process.env['VARIANCE_DISPATCH_ACCEPT'] !== 'true') {
+      return { promote: false, because: 'dispatched without accept' };
+    }
+    if (review === 'git') {
+      fail(
+        'baselines are committed here (VARIANCE_REVIEW is git), and a dispatch has no pull ' +
+          'request branch to commit them to; add the accept label on a pull request instead',
+      );
+    }
+    return { promote: true, because: `dispatched by @${event.sender.login}` };
   }
 
   if (name === 'pull_request') {
     if (event.action !== 'labeled' || event.label?.name !== label) {
       return { promote: false, because: `pull request ${event.action}` };
     }
+    if (review === 'tribunal') {
+      return {
+        promote: false,
+        because: `\`${label}\` accepts nothing here; decide each subject on the review service`,
+      };
+    }
+    if (review === 'git' && process.env['VARIANCE_PUSH_TOKEN_SET'] !== 'true') {
+      // Not refused: the commit still lands, and a repository that requires no
+      // `variance` check loses nothing. One that requires it waits for a run
+      // that `GITHUB_TOKEN`'s push never starts.
+      console.log(
+        '::warning::VARIANCE_PUSH_TOKEN is not set, so the accepted images are pushed with ' +
+          'GITHUB_TOKEN, which starts no workflow; the new commit gets no `variance` check ' +
+          'until somebody pushes again',
+      );
+    }
     await removeLabel(pull.number);
     return { promote: true, because: `labelled \`${label}\` by @${event.sender.login}` };
   }
 
-  if (name === 'push') return carried();
+  if (name === 'push') {
+    if (review === 'git') return { promote: false, because: 'the accepted baselines merged with the code' };
+    if (review === 'tribunal') return { promote: false, because: 'the review service stores the baselines' };
+    return carried();
+  }
 
   return { promote: false, because: `${name} never accepts` };
 }
