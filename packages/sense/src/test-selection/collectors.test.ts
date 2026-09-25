@@ -218,5 +218,23 @@ describe('how a case settles', () => {
     // a frame is how a reader learns the journey was cut short.
     expect(settled).toEqual([['threw', true], ['rejected', true], ['abandoned', true]]);
   });
+
+  it('names a case that handed out a journey by both its settling and its journey', () => {
+    const holder: Record<PropertyKey, unknown> = {};
+    const collector = collectors.scoped(holder, true);
+    const scope = holder[CASE_SCOPE] as Scope & { journey(): string | undefined };
+    let journey: string | undefined;
+    // Nothing crossed in-process: the journey alone is what makes the frame.
+    scope.enter(journals.packCase(FILE, 'called', 'called'), () => {
+      journey = scope.journey();
+    });
+
+    const [frame] = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
+    const owner = journals.decodeJournal(frame!).testFile;
+    expect(journals.unpackCase(owner)).toMatchObject({ name: 'called', stopped: false });
+    expect(journals.journeyOf(owner)).toBe(journey);
+    // A part frame has no case and no settling, and names the journey in the same field.
+    expect(journals.journeyOf(journals.packJourney(journals.packCase('', '', ''), journey!))).toBe(journey);
+  });
 });
 

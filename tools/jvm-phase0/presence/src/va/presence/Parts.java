@@ -153,7 +153,8 @@ public final class Parts {
   private static byte[] frame(String journey, List<Coverage.Module> modules) {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     out.write(PART_MAGIC, 0, PART_MAGIC.length);
-    text(out, "\0\0\0" + journey);
+    // No case, no settling, then the journey: `packJourney` in sense's journal-format.cts.
+    text(out, "\0\0\0\0" + journey);
     List<Coverage.Module> entered = new ArrayList<>();
     List<List<Integer>> hits = new ArrayList<>();
     for (Coverage.Module module : modules) {
