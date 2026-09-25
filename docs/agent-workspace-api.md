@@ -284,15 +284,15 @@ that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 
-The skill that drives these calls, `variance-workspace-api`, ships in
+The skill that drives these calls is `variance-authority`, which ships in
 `@variance-authority/cli` at
-`node_modules/@variance-authority/cli/skills/variance-workspace-api`, beside the
-skills for the rest of the CLI. Your agent reads skills from `.agents/skills` or
+`node_modules/@variance-authority/cli/skills/variance-authority` and covers the
+rest of the CLI too. Your agent reads skills from `.agents/skills` or
 `.claude/skills`, in the project or your home directory. Link the skill there
 rather than copying it, so it follows every update:
 
 ```bash
-mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-workspace-api .agents/skills/variance-workspace-api
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
 ```
 
 `variance doctor` reports whether your agent can find it.

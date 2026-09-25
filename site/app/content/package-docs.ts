@@ -2,6 +2,7 @@ import cli from "../../../packages/cli/README.md?raw";
 import core from "../../../packages/core/README.md?raw";
 import distill from "../../../packages/distill/README.md?raw";
 import dom from "../../../packages/dom/README.md?raw";
+import editors from "../../../packages/editors/README.md?raw";
 import event from "../../../packages/event/README.md?raw";
 import eyes from "../../../packages/eyes/README.md?raw";
 import help from "../../../packages/help/README.md?raw";
@@ -45,6 +46,7 @@ const packages = [
   ["core", core],
   ["distill", distill],
   ["dom", dom],
+  ["editors", editors],
   ["event", event],
   ["eyes", eyes],
   ["help", help],

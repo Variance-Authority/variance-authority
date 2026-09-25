@@ -75,6 +75,10 @@ const PACKAGES: {
         role: "which source regions each test entered, and which tests a change reaches. Install this one to run fewer Vitest or Jest tests after a change",
       },
       {
+        name: "editors",
+        role: "the VS Code and JetBrains plugins, built: which test cases went through each line, in the gutter, from a run the CLI recorded",
+      },
+      {
         name: "vitest-browser",
         role: "the mounted component read and judged inside a browser-mode test",
       },

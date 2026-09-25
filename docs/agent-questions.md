@@ -6,10 +6,9 @@ you have:
 
 - the CLI reads files and live watchers from a shell;
 - MCP exposes the same readings when a producer already owns a connection;
-- the `variance-authority` skill chooses the next question and, for test
-  reduction, runs the counterfactual verification loop;
-- the `variance-workspace-api` skill routes the source-reading questions, which
-  need no run and no evidence at all.
+- the `variance-authority` skill chooses the next question, runs the
+  counterfactual verification loop for test reduction, and routes the
+  source-reading questions, which need no run and no evidence at all.
 
 A missing domain is unavailable, never an empty measurement.
 

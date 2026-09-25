@@ -17,6 +17,7 @@
   },
   "categories": ["Testing", "Visualization"],
   "main": "./extension.js",
+  "files": ["extension.js", "record.js", "media", "LICENSE", "README.md"],
   "activationEvents": [
     "onLanguage:javascript",
     "onLanguage:javascriptreact",

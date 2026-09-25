@@ -5,7 +5,7 @@ changed, and a symbol you cannot name. Only the last can be answered without
 a run behind it. Each is matched below to the reading it needs and the guide
 that sets that reading up.
 
-The CLI and MCP expose the readings. The shipped skills guide how an agent
+The CLI and MCP expose the readings. The shipped skill guides how an agent
 uses them alongside its own editor, shell, and test runner. In the
 [test reduction workflow](distill.md#the-agent-loop), the agent tries one
 reversible substitution, reruns the exact test, and compares what it still

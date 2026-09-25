@@ -234,9 +234,8 @@ launches from a config file that belongs to the client. A CI job, a sandboxed
 agent, a container with no editor in it, somebody else's harness: all of them
 have a shell, and many of them cannot add a server. The skill this package ships
 at `skills/variance-authority/SKILL.md` routes an agent through these questions in order.
-Link it, and its two neighbours under `skills/`, into your agent's skills
-directory rather than copying them; `variance doctor` says which ones an agent
-can find and prints the link for any it cannot.
+Link it into your agent's skills directory rather than copying it; `variance
+doctor` says whether an agent can find it and prints the link when it cannot.
 
 Every answer exits `0`, including one that describes changes. `ask` reads; it
 does not decide. The verdict stays with `run`, `report` and `adjudicate`, which

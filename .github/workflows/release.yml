@@ -189,12 +189,59 @@ jobs:
           retention-days: 1
 
   # ---------------------------------------------------------------------------
+  # On the button: build the editor plugins `@variance-authority/editors` carries.
+  #
+  # The WebStorm plugin compiles against an IDE's own jars with that IDE's own
+  # compiler, so the runner fetches one: the oldest release `plugin.xml` accepts,
+  # because what compiles against the floor loads on everything above it. Both
+  # plugins are stamped with the version this release publishes.
+  # ---------------------------------------------------------------------------
+  editors:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: corepack enable
+
+      - run: yarn install --immutable
+
+      # Only used when the IDE's bundled runtime carries no compiler.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: The oldest IDE the plugin declares
+        run: |
+          curl -fsSL https://download.jetbrains.com/webstorm/WebStorm-2025.1.tar.gz | tar -xz -C "$RUNNER_TEMP"
+          echo "IDE=$(ls -d "$RUNNER_TEMP"/WebStorm-*)" >> "$GITHUB_ENV"
+
+      - run: node packages/editors/scripts/build.mjs "$IDE"
+
+      # The same refusal `prepack` makes at publish, made where the plugins were built.
+      - run: node packages/editors/scripts/verify-pack.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: editors
+          path: |
+            packages/editors/variance-authority.vsix
+            packages/editors/variance-authority.jar
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
   # On the button: publish what the manifests already carry.
   # ---------------------------------------------------------------------------
   publish:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    needs: native
+    needs: [native, editors]
     # The environment name is load-bearing three times over: GitHub can hold the
     # run here for a reviewer, `NPM_TOKEN` is a secret of this environment and
     # of nothing wider, and the trusted publisher each package will name spells
@@ -240,14 +287,14 @@ jobs:
             exit 1
           fi
 
-          # And one version across all thirty-eight, which is what the `fixed`
+          # And one version across every package, which is what the `fixed`
           # group in `.changeset/config.json` promises. Disagreement here means
           # something wrote a version outside `changeset version`, and half a
           # product published at a version its siblings will never reach is the
           # failure this whole job is arranged around.
           node tools/released.mjs --lockstep
 
-      # `dist` is gitignored and the only `prepack` any package declares refuses
+      # `dist` is gitignored and the `prepack` scripts packages declare refuse
       # a missing binary rather than producing one, so this is what makes the
       # tarballs non-empty. A publish from a clean checkout without it ships
       # empty packages.
@@ -261,6 +308,12 @@ jobs:
         with:
           pattern: scan-*
           path: native-artifacts
+
+      # Into the package that carries them; its `prepack` refuses to publish without them.
+      - uses: actions/download-artifact@v4
+        with:
+          name: editors
+          path: packages/editors
 
       - name: Every platform package carries its binaries
         run: |
@@ -295,7 +348,7 @@ jobs:
           # authentication, so the exchange this workflow was written for has
           # nothing to exchange with yet. Yarn attempts OIDC only when no
           # credential is set, which means this line is what turns it off:
-          # remove it on the day `npm trust` has run for all 38 names.
+          # remove it on the day `npm trust` has run for every name.
           #
           # It is a deadline and not a preference. Tokens that bypass two-factor
           # lose the ability to publish directly in January 2027.

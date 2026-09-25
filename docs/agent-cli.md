@@ -197,13 +197,13 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Point an agent at it
 
-`@variance-authority/cli` ships three skills under
-`node_modules/@variance-authority/cli/skills/`: `variance-authority` for reports,
-watchers and connections, `variance-test-selection` for choosing which tests to
-run, and `variance-workspace-api` for what a workspace publishes. Installing the
-package puts them on disk; your agent reads them only from its own skills
-directory, `.agents/skills` or `.claude/skills` in the project or your home
-directory. Link each one there rather than copying it, so it follows every
+`@variance-authority/cli` ships one skill, `variance-authority`, at
+`node_modules/@variance-authority/cli/skills/variance-authority`. It covers
+reports, watchers and connections, choosing which tests to run, and what a
+workspace publishes, and opens a reference file for each only when the question
+needs it. Installing the package puts it on disk; your agent reads it only from
+its own skills directory, `.agents/skills` or `.claude/skills` in the project or
+your home directory. Link it there rather than copying it, so it follows every
 update:
 
 ```bash

@@ -1,0 +1,42 @@
+{
+  "name": "@variance-authority/editors",
+  "version": "0.8.1",
+  "description": "The Variance Authority plugins for VS Code and JetBrains IDEs, built and ready to install: which test cases went through each line, in the gutter.",
+  "keywords": [
+    "variance-authority",
+    "vscode",
+    "webstorm",
+    "jetbrains",
+    "coverage",
+    "gutter"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/editors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/editors"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "bin": {
+    "variance-authority-editors": "./src/bin.mjs"
+  },
+  "files": [
+    "src/bin.mjs",
+    "src/where.mjs",
+    "variance-authority.vsix",
+    "variance-authority.jar",
+    "mark.svg"
+  ],
+  "scripts": {
+    "prepack": "node scripts/verify-pack.mjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^4.0.0"
+  }
+}

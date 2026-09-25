@@ -14,7 +14,7 @@ beforeEach(async () => {
   project = join(base, 'project');
   shipped = join(project, 'node_modules/@variance-authority/cli/skills');
   home = join(base, 'home');
-  for (const name of ['variance-authority', 'variance-test-selection']) {
+  for (const name of ['variance-authority', 'variance-second']) {
     await mkdir(join(shipped, name), { recursive: true });
     await writeFile(join(shipped, name, 'SKILL.md'), `---\nname: ${name}\n---\n`);
   }
@@ -30,7 +30,7 @@ afterEach(async () => {
 describe('agentSkills', () => {
   it('lists every shipped skill, and on a miss prints the link rather than a copy', () => {
     const finding = agentSkills(project, shipped, home);
-    expect(finding.skills.map((skill) => skill.name)).toEqual(['variance-authority', 'variance-test-selection']);
+    expect(finding.skills.map((skill) => skill.name)).toEqual(['variance-authority', 'variance-second']);
     expect(finding.skills.every((skill) => skill.found.length === 0)).toBe(true);
 
     const text = formatSkills(finding).join('\n');
@@ -45,7 +45,7 @@ describe('agentSkills', () => {
     await mkdir(join(project, '.agents/skills'), { recursive: true });
     await symlink(join(shipped, 'variance-authority'), join(project, '.agents/skills/variance-authority'));
     await mkdir(join(home, '.claude/skills'), { recursive: true });
-    await symlink(join(shipped, 'variance-test-selection'), join(home, '.claude/skills/variance-test-selection'));
+    await symlink(join(shipped, 'variance-second'), join(home, '.claude/skills/variance-second'));
 
     const finding = agentSkills(project, shipped, home);
     expect(finding.skills.map((skill) => skill.found.map((found) => found.as))).toEqual([['linked'], ['linked']]);
@@ -56,12 +56,24 @@ describe('agentSkills', () => {
     const dir = join(project, '.claude/skills');
     await mkdir(join(dir, 'variance-authority'), { recursive: true });
     await writeFile(join(dir, 'variance-authority', 'SKILL.md'), '---\nname: variance-authority\n---\n');
-    await mkdir(join(dir, 'variance-test-selection'), { recursive: true });
-    await writeFile(join(dir, 'variance-test-selection', 'SKILL.md'), 'last month\n');
+    await mkdir(join(dir, 'variance-second'), { recursive: true });
+    await writeFile(join(dir, 'variance-second', 'SKILL.md'), 'last month\n');
 
     const text = formatSkills(agentSkills(project, shipped, home)).join('\n');
     expect(text).toContain('variance-authority: ' + join(dir, 'variance-authority') + ' — a copy, matching this version');
-    expect(text).toContain('variance-test-selection: ' + join(dir, 'variance-test-selection') + ' — a copy that differs');
+    expect(text).toContain('variance-second: ' + join(dir, 'variance-second') + ' — a copy that differs');
+  });
+
+  it('calls a copy stale when a reference beside its SKILL.md fell behind', async () => {
+    await mkdir(join(shipped, 'variance-authority', 'references'), { recursive: true });
+    await writeFile(join(shipped, 'variance-authority', 'references', 'a.md'), 'now\n');
+    const copy = join(project, '.agents/skills/variance-authority');
+    await mkdir(join(copy, 'references'), { recursive: true });
+    await writeFile(join(copy, 'SKILL.md'), '---\nname: variance-authority\n---\n');
+    await writeFile(join(copy, 'references', 'a.md'), 'last month\n');
+
+    const [skill] = agentSkills(project, shipped, home).skills;
+    expect(skill!.found.map((found) => found.as)).toEqual(['stale']);
   });
 
   it('says so when the install carries no skills directory', () => {

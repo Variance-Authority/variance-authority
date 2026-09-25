@@ -71,19 +71,39 @@ export function agentSkills(
     shipped,
     skills: names.map((name) => {
       const source = join(shipped, name);
-      const text = readFileSync(join(source, 'SKILL.md'), 'utf8');
       const found: FoundSkill[] = [];
       for (const dir of homes) {
         const at = join(dir, name);
         if (!existsSync(join(at, 'SKILL.md'))) continue;
         const as = realpathSync(at) === realpathSync(source)
           ? 'linked'
-          : readFileSync(join(at, 'SKILL.md'), 'utf8') === text ? 'same' : 'stale';
+          : sameTree(at, source) ? 'same' : 'stale';
         found.push({ at: said(at), as });
       }
       return { name, found };
     }),
   };
+}
+
+/**
+ * Whether a copied skill holds the shipped files and nothing else. A skill is
+ * its whole directory, since `SKILL.md` routes to the references beside it, so
+ * a copy whose `SKILL.md` matches and whose references do not is stale.
+ */
+function sameTree(copy: string, source: string): boolean {
+  const files = (root: string): string[] =>
+    readdirSync(root, { recursive: true, withFileTypes: true })
+      .filter((entry) => entry.isFile())
+      .map((entry) => relative(root, join(entry.parentPath, entry.name)))
+      .sort();
+  const shipped = files(source);
+  const copied = files(copy);
+  return (
+    shipped.length === copied.length &&
+    shipped.every(
+      (file, i) => copied[i] === file && readFileSync(join(copy, file)).equals(readFileSync(join(source, file))),
+    )
+  );
 }
 
 export function formatSkills(finding: SkillsFinding): readonly string[] {

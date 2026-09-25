@@ -38,13 +38,23 @@ The plugin works in WebStorm and in every other JetBrains IDE from 2025.1 on.
 
 The plugin asks the project's own `node_modules/.bin/variance`, or the
 `variance` on your shell's `PATH`, so install the CLI and record a run first;
-the [CLI README](../../packages/cli/README.md) shows both. Then build the
-plugin against the IDE you have:
+the [CLI README](../../packages/cli/README.md) shows both. Then print the path
+of the built plugin that
+[`@variance-authority/editors`](../../packages/editors/README.md) carries:
+
+```bash
+npx @variance-authority/editors webstorm
+```
+
+Install that file from **Settings → Plugins → ⚙ → Install Plugin from Disk…**
+and restart the IDE.
+
+To build the plugin yourself, build it against the IDE you have:
 
 ```bash
 editors/webstorm/build.sh /Applications/WebStorm.app
 ```
 
 The build uses that IDE's own compiler and libraries, so nothing is downloaded.
-It writes `editors/webstorm/dist/variance-authority.jar`. Install that file from
-**Settings → Plugins → ⚙ → Install Plugin from Disk…** and restart the IDE.
+It writes `editors/webstorm/dist/variance-authority.jar`, which installs the
+same way.

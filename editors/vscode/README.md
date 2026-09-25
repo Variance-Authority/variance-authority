@@ -35,14 +35,22 @@ window does the same.
 
 The extension asks the `variance` CLI of your workspace, so install the CLI
 and record a run first; the [CLI README](../../packages/cli/README.md) shows
-both. Then package and install the extension from this directory:
+both. Then install the built extension that
+[`@variance-authority/editors`](../../packages/editors/README.md) carries:
 
 ```bash
-npx @vscode/vsce package
+code --install-extension "$(npx @variance-authority/editors vscode)"
+```
+
+Cursor, Windsurf and VSCodium take the same file through their own
+`--install-extension`. To build it from this directory instead:
+
+```bash
+npx @vscode/vsce package --out variance-authority.vsix
 ```
 
 ```bash
-code --install-extension variance-authority-0.8.1.vsix
+code --install-extension variance-authority.vsix
 ```
 
 `variance.command` names a different CLI when the workspace's own

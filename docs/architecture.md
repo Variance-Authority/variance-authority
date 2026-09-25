@@ -228,6 +228,7 @@ before anything else.**
 | `observe` | the three it composes | one composition, shipped as an example |
 | `tribunal` | a database, a bucket, and a runtime to deploy into | baselines, history, and the review-and-approve surface, in an account the operator controls |
 | `cli` | all of it | the workflow, which is the one place a workflow belongs |
+| `editors` | VS Code or a JetBrains IDE, and the `cli` in the project | the two editor plugins, built: which test cases went through each line, painted in the gutter |
 
 Four boxes require nothing at all, and `hash`, `compare` and `isolate` — the
 three kinds that need nothing — all live in one of them. Running the ephemeral

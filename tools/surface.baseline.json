@@ -726,6 +726,25 @@
       }
     }
   },
+  "@variance-authority/editors": {
+    "declared": {
+      "type": "module",
+      "files": [
+        "src/bin.mjs",
+        "src/where.mjs",
+        "variance-authority.vsix",
+        "variance-authority.jar",
+        "mark.svg"
+      ],
+      "bin": {
+        "variance-authority-editors": "./src/bin.mjs"
+      },
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {}
+  },
   "@variance-authority/event": {
     "declared": {
       "type": "module",
