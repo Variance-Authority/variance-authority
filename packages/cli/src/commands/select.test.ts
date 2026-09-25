@@ -300,6 +300,40 @@ describe('reading this checkout', () => {
     expect(said.err).not.toContain('recorded from a different text');
   });
 
+  it('reads a snapshot named by path, as a recorder in another runtime writes one', async () => {
+    // The JVM agent writes `coverage.va` under the build's own output, never
+    // into this repository's cache, and the run hands its path over.
+    const { root, head } = checkout();
+    const at = join(root, 'target/coverage.va');
+    mkdirSync(join(at, '..'), { recursive: true });
+    await writeTestCoverage(at, snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: at });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
+  });
+
+  it('reads a snapshot named by path against a patch handed in', async () => {
+    const { root, head } = checkout();
+    const at = join(root, 'target/coverage.va');
+    mkdirSync(join(at, '..'), { recursive: true });
+    await writeTestCoverage(at, snapshot(head));
+    writeFileSync(join(root, 'src/widget.ts'), SOURCE.replace("return 'b';", "return 'c';"));
+    const patch = join(root, 'change.patch');
+    writeFileSync(patch, execFileSync('git', ['diff'], { cwd: root, encoding: 'utf8' }));
+    execFileSync('git', ['checkout', '--', 'src/widget.ts'], { cwd: root });
+    process.chdir(root);
+
+    await indexOutput({ cwd: root });
+    const said = await selectOutput({ cwd: root, format: 'plain', execution: at, diff: patch });
+
+    expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
+  });
+
   it('charges every region of a module whose recorded text is not the text at its commit', async () => {
     // The check `sourceAt` exists for, end to end. The snapshot is labelled with
     // a commit but describes a text that commit does not hold — a suite recorded

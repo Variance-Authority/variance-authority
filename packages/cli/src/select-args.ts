@@ -40,12 +40,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
       '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',
     );
   }
-  if (execution !== undefined && diff === undefined && since === undefined) {
-    throw new OperatorError(
-      'a journey file names no commit, so the change has to be given: pass `--diff <patch>` ' +
-        '(`-` reads stdin) or `--since <ref>`',
-    );
-  }
   if (diff !== undefined && since !== undefined) {
     throw new OperatorError('`--diff` and `--since` both name the change; pass one');
   }

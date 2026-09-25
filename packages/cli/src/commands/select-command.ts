@@ -86,9 +86,17 @@ export interface SelectOutput {
 
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
-  if (request.execution !== undefined) return await journeyOutput({ ...request, execution: request.execution });
   const selection = await import('@variance-authority/sense/test-selection');
-  const at = selection.testCoverageFile(request.cwd);
+  // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
+  // way this checkout's own is. Anything else `--execution` names is a journey
+  // file.
+  if (
+    request.execution !== undefined &&
+    !((await exists(request.execution)) && selection.isTestCoverageFile(request.execution))
+  ) {
+    return await journeyOutput({ ...request, execution: request.execution });
+  }
+  const at = request.execution ?? selection.testCoverageFile(request.cwd);
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to
@@ -104,13 +112,13 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // here and throws by name a moment later, where the message belongs.
   const commit = await selection.recordedCommit(at);
   const from = commit ?? request.since;
-  if (from === undefined) {
+  if (from === undefined && request.diff === undefined) {
     // `recordedCommit` answers `undefined` for two different files: one that
     // names no commit, and one this build cannot read at all. Those are an
     // operator's two different afternoons, and the reader is what tells them
     // apart — asked here for the empty diff, so an unreadable snapshot is
     // refused by name instead of being reported as a missing coordinate.
-    await journeyAgainst(request.cwd, '');
+    await journeyAgainst(request.cwd, '', undefined, [], at);
     throw new OperatorError(
       `the execution journal at ${at} names no commit, so there is no coordinate to measure a ` +
         'diff from. Pass `--since <ref>` to name one, or record the suite again from a git ' +
@@ -122,10 +130,14 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // The journal's own commit wins whenever it has one, `--since` or not: its
   // line ranges are coordinates in that commit's text and nothing else's, and a
   // diff read from anywhere further back lands its hunks on regions belonging
-  // to other tests. `--since` names the base only when the journal cannot.
-  const diff = await diffSince(request.since ?? from, [], commit);
+  // to other tests. `--since` names the base only when the journal cannot. A
+  // patch handed in with `--diff` is the change as given.
+  const base = from ?? 'HEAD';
+  const diff = request.diff === undefined
+    ? await diffSince(request.since ?? base, [], commit)
+    : await handedDiff(request.diff);
   if (diff === undefined) {
-    const ground: SelectGround = { kind: 'no-diff', from };
+    const ground: SelectGround = { kind: 'no-diff', from: base };
     return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
   }
 
@@ -134,7 +146,9 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   // `main` made since. `undefined` is no lockfile to compare, which moves
   // nothing; a comparison that could not be made declines before the graph is
   // scanned for an answer nobody will read.
-  const installed = await installDiff(await diffPoint(from), [...selection.changedLines(diff).keys()]);
+  const installed = request.diff === undefined
+    ? await installDiff(await diffPoint(base), [...selection.changedLines(diff).keys()])
+    : await installDiffOfPatch(diff);
   if (installed !== undefined && 'whole' in installed) {
     const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
     return said({ at, ...(commit === undefined ? {} : { commit }), ground }, request);
@@ -146,7 +160,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   }, request.noGit);
   // A package whose manifest moved is every file of it, changed whole.
   const moved = movedPackages(relations, installed);
-  const narrowing = await journeyAgainst(request.cwd, withMovedPackages(diff, moved.files), relations, installed?.packages);
+  const narrowing = await journeyAgainst(request.cwd, withMovedPackages(diff, moved.files), relations, installed?.packages, at);
   // The lockfile and the manifests beside it are unread by the journal and
   // answered by the comparison above, which has already said what moved.
   const ground: SelectGround =
@@ -181,12 +195,14 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
  */
 async function journeyOutput(request: SelectRequest & { readonly execution: string }): Promise<SelectOutput> {
   const selection = await import('@variance-authority/sense/test-selection');
+  if (request.diff === undefined && request.since === undefined) {
+    throw new OperatorError(
+      'a journey file names no commit, so the change has to be given: pass `--diff <patch>` ' +
+        '(`-` reads stdin) or `--since <ref>`',
+    );
+  }
   const from = request.since ?? 'HEAD';
-  const text = request.diff === undefined
-    ? await diffSince(from)
-    : request.diff === '-'
-      ? await stdin()
-      : await readFile(request.diff, 'utf8');
+  const text = request.diff === undefined ? await diffSince(from) : await handedDiff(request.diff);
   if (text === undefined) {
     return said({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request);
   }
@@ -224,6 +240,11 @@ async function journeyOutput(request: SelectRequest & { readonly execution: stri
     { at: request.execution, given: true, ground: { kind: 'read', narrowing: { ...narrowing, unread, readings } } },
     request,
   );
+}
+
+/** A patch handed in by `--diff`: a file, or `-` for stdin. */
+async function handedDiff(diff: string): Promise<string> {
+  return diff === '-' ? await stdin() : await readFile(diff, 'utf8');
 }
 
 async function stdin(): Promise<string> {

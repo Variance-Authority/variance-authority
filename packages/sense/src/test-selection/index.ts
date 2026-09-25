@@ -113,7 +113,7 @@ export { layerTestCoverage, layeredCoverage } from './format-layer.js';
 // A snapshot read where it lies, for a caller asking several questions of one
 // file and not wanting the seventy megabytes the answers do not touch. The
 // file-taking queries below are this plus a `finally`.
-export { askCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
+export { askCoverageFile, isTestCoverageFile, openCoverageFile, type CoverageFile } from './coverage-file.js';
 export { testsGovernedBy } from './lookup.js';
 // The runs that wrote the case index and the snapshot, and what they were laid over.
 export { caseLayerFiles, type LastCaseRun } from './case-fold.js';

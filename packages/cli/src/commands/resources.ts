@@ -143,9 +143,11 @@ export async function journeyAgainst(
   diff: string,
   relations?: Relations,
   packages: readonly string[] = [],
+  /** A snapshot somewhere other than this repository's cache — one named by `--execution`. */
+  at?: string,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = selection.testCoverageFile(root);
+  const file = at ?? selection.testCoverageFile(root);
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
 
   try {

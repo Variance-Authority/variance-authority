@@ -123,23 +123,22 @@ class started is still alive (`survivor`) or the common pool is still busy
 
 ### Select from the record
 
-Pass `coverage.va` and a unified diff to `narrowByExecution` from
-`@variance-authority/sense/test-selection`:
+Name `coverage.va` with `--execution`:
 
-```js
-import { execFileSync } from 'node:child_process';
-import { narrowByExecution } from '@variance-authority/sense/test-selection';
-
-const diff = execFileSync('git', ['diff', 'origin/main'], { encoding: 'utf8' });
-const { whole, entered } = await narrowByExecution('target/va/coverage.va', diff);
-const skip = whole.filter((test) => !entered.includes(test));
+```bash
+yarn exec variance select --execution target/va/coverage.va
 ```
 
-`whole` is every test file in the record and `entered` is the ones the diff
-reaches. Tests are named by their source file, such as
-`src/test/java/org/example/AddTest.java`. A test file that is not in the record
-is not in `whole`, so run it. `variance select --execution` does not read
-`coverage.va`.
+It prints the test files the change since the record's commit (`va.commit`)
+cannot reach, one per line: those are the ones you may skip. Tests are named by
+their source file, such as `src/test/java/org/example/AddTest.java`. A test file
+that is not in the record is never printed, so it runs. A record made without
+`va.commit` names no commit to diff from, so pass `--since <ref>`, or hand the
+change in with `--diff <patch>` (`-` reads stdin).
+
+From a script, `narrowByExecution('target/va/coverage.va', diff)` from
+`@variance-authority/sense/test-selection` returns `whole`, every test file in
+the record, and `entered`, the ones the diff reaches.
 
 Paths in `coverage.va` are relative to the test JVM's working directory, which
 Surefire and Gradle set to the module directory. They match a diff taken at the

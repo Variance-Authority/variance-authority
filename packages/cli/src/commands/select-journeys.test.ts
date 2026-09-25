@@ -69,6 +69,11 @@ describe('selecting from a journey file', () => {
     expect(said.out).toBe('');
   });
 
+  it('refuses a journey file with no change given, since it names no commit to diff from', async () => {
+    await expect(selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', noGit: true }))
+      .rejects.toThrow(/a journey file names no commit/);
+  });
+
   it('refuses a list of paths, which carries no line to select by', async () => {
     writeFileSync(join(root, 'names.txt'), 'src/decide.ts\n');
     await expect(selectOutput({ cwd: root, format: 'plain', execution: 'journeys.bin', diff: 'names.txt', noGit: true }))
