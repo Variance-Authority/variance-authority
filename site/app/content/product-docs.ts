@@ -1,3 +1,4 @@
+import acrossDimensions from "../../../docs/across-dimensions.md?raw";
 import architecture from "../../../docs/architecture.md?raw";
 import agentCli from "../../../docs/agent-cli.md?raw";
 import agentCodeReview from "../../../docs/agent-code-review.md?raw";
@@ -163,6 +164,7 @@ const documents = [
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],
   ["journeys", journeys, "docs/journeys.md"],
+  ["across-dimensions", acrossDimensions, "docs/across-dimensions.md"],
   ["locate", locate, "docs/locate.md"],
   ["lexicon", lexicon, "docs/lexicon.md"],
   ["polyglot", polyglot, "docs/polyglot.md"],

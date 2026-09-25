@@ -260,4 +260,5 @@ than a list of paths.
 Below the graph, `variance select` answers from what runs recorded — a narrower
 list, and one that exists only where a run has been recorded. The graph needs no
 history, so it is the answer available on the first day, in any of the languages
-above.
+above. A test that reaches a service over HTTP has no edge in this graph at
+all; [testing across dimensions](across-dimensions.md) follows it there.

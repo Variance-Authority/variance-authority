@@ -187,6 +187,11 @@ export const NAVIGATION = [
         cluster: "Understand an execution",
       },
       {
+        href: "/docs/across-dimensions",
+        label: "Follow a test into other services",
+        cluster: "Understand an execution",
+      },
+      {
         href: "/docs/scenarios",
         label: "Compare state transitions",
         cluster: "Understand an execution",
