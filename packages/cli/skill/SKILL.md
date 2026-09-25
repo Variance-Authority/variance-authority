@@ -585,6 +585,20 @@ diff is measured from the commit the record was written at, so record before
 you read. `variance_changed_tests` is the same answer over MCP, taking the
 unified diff as an argument.
 
+A review agent reads the same answer with `--format refs`, and adds the base
+branch's case index to see what the change moved in files the diff does not
+name:
+
+```bash
+npx variance covering --since origin/main --against base/coverage.bin.cases.bin --format refs
+```
+
+Report a **lost** region as a regression: cases walked it at the base, none do
+now, and every case that could have reached it finished. Report a **hidden**
+region as unknown, naming the stopped case, never as lost. A **thinned** region
+is one case away from unwalked. Regions the base's branch changed after the
+base was recorded are left out and named; do not charge them to the change.
+
 ## Distill, then verify
 
 `variance distill` reads no config and no report — the two paths are its whole

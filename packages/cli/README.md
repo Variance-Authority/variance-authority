@@ -578,7 +578,8 @@ The base is the record your base branch made, restored in CI into a directory
 of its own before this run writes. It names the commit it was made at. When
 that commit is behind the merge base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
-doing, not yours. `--against` answers in `text` and `json`.
+doing, not yours. `--against` answers in `text`, `refs` and `json`; `refs`
+names the moved regions' cases by the numbers of its case table.
 
 ### Watch: ask about a suite that has not finished
 

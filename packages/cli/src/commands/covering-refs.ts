@@ -21,13 +21,14 @@ type Case = Pick<ExecutionTest, 'id' | 'file' | 'name'>;
 export function formatCoveringRefs(answer: Covering): string {
   const table = new Table(everyCase(answer));
   const body = answer.frame === 'stale' ? [staleText(answer)] : bodyOf(answer, table);
-  // TODO: the motion names each region's cases by id in full, as `text` does, rather than by number.
+  // Numbered before the table is read, which is when it knows every case it holds.
+  const motion = motionText(answer.motion, (tests) => table.refs(tests));
   return `${[
     ...scopeText(answer),
     ...body,
     ...narrowedText(answer),
     ...table.lines(),
-    ...motionText(answer.motion),
+    ...motion,
   ].join('\n')}\n`;
 }
 
@@ -96,6 +97,7 @@ function everyCase(answer: Covering): readonly Case[] {
     cases.push(...file.cases);
     for (const region of file.regions) cases.push(...region.tests, ...region.stopped ?? [], ...region.passengers ?? []);
   }
+  for (const region of answer.motion?.moved?.regions ?? []) cases.push(...region.before, ...region.now, ...region.stopped ?? []);
   return cases;
 }
 

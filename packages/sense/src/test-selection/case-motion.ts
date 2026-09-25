@@ -28,10 +28,10 @@ export interface MovedRegion {
 /** One region whose cases moved, with the cases at each end. */
 export interface RegionMotion extends MovedRegion {
   readonly motion: RegionMotionKind;
-  /** The ids of the cases that called into it at the base. */
-  readonly before: readonly string[];
-  /** The ids of the cases that call into it now. */
-  readonly now: readonly string[];
+  /** The cases that called into it at the base, as the base records them. */
+  readonly before: readonly ExecutionTest[];
+  /** The cases that call into it now. */
+  readonly now: readonly ExecutionTest[];
   /**
    * On `hidden`: the stopped cases that could have reached it. Absent when the
    * record cannot say which could have, which is not the same as none.
@@ -104,7 +104,7 @@ export function caseMotion(base: ExecutionIndex, now: ExecutionIndex, options: C
       const is = filesOf(after);
       for (const file of is) if (!was.has(file)) reachOf(file).entered.push(region);
       for (const file of was) if (!is.has(file)) reachOf(file).left.push(region);
-      const moved = { ...region, before: before.map((test) => test.id), now: after.map((test) => test.id) };
+      const moved = { ...region, before, now: after };
       if (before.length > 0 && after.length === 0) {
         if (stopped === null) stopped = stoppedIn(now, module, options.relations);
         const cases = stopped === undefined ? undefined : [...stopped].sort((left, right) => left - right);

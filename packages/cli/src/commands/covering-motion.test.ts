@@ -125,6 +125,22 @@ describe('what a change moved against the base', () => {
     expect(JSON.parse(formatCovering(answer, 'json')).motion.moved.regions[0].name).toBe('round');
   });
 
+  it('names the moved regions\' cases by the numbers of the refs table, and each case once', async () => {
+    const { root, first } = await checkout();
+    git(root, ['checkout', '--quiet', '-b', 'change']);
+    await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { /* no round */ });\n');
+    const { against, execution } = await recorded(index([0, 1], [0]), index([0, 1], []), first);
+
+    const refs = formatCovering(
+      await covering(parse(['--since', 'main', '--against', against, '--execution', execution])),
+      'refs',
+    );
+
+    expect(refs).toContain('  lost     src/total.ts 30-34 function round — was 1\n');
+    expect(refs.split(DISCOUNTS.name)).toHaveLength(2);
+    expect(refs).not.toContain(DISCOUNTS.id);
+  });
+
   it('says no region moved in those words', async () => {
     const { root, first } = await checkout();
     await writeFile(join(root, 'total.test.ts'), 'it("discounts", () => { });\n');

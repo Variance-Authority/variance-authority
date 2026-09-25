@@ -22,6 +22,7 @@ import {
   recordedCommit,
   type CaseMotion,
   type ExecutionIndex,
+  type ExecutionTest,
   type LastCaseRun,
   type MovedRegion,
 } from '@variance-authority/sense/test-selection';
@@ -120,8 +121,14 @@ export async function motionAgainst(
   return { base, moved: caseMotion(held, now, { ...(await graphFor(now, root)), exclude }) };
 }
 
-/** The motion, in words, after the answer it was compared for. */
-export function motionText(motion: CoveringMotion | undefined): readonly string[] {
+/**
+ * The motion, in words, after the answer it was compared for. Cases are named
+ * by id unless the caller numbers them.
+ */
+export function motionText(
+  motion: CoveringMotion | undefined,
+  named: (tests: readonly ExecutionTest[]) => string = (tests) => tests.map((test) => test.id).join(', '),
+): readonly string[] {
   if (motion === undefined) return [];
   const { base, moved } = motion;
   const against = base.kind === 'before'
@@ -148,14 +155,14 @@ export function motionText(motion: CoveringMotion | undefined): readonly string[
     );
     for (const region of moved.regions) {
       const why = region.motion === 'gained'
-        ? `now ${region.now.join(', ')}`
+        ? `now ${named(region.now)}`
         : region.motion === 'thinned'
-          ? `was ${region.before.length} cases, now only ${region.now[0]}`
+          ? `was ${region.before.length} cases, now only ${named(region.now)}`
           : region.motion === 'lost'
-            ? `was ${region.before.join(', ')}`
+            ? `was ${named(region.before)}`
             : region.stopped === undefined
-              ? `was ${region.before.join(', ')}; a case that could have reached it stopped, and the record cannot say which`
-              : `was ${region.before.join(', ')}; stopped: ${region.stopped.map((test) => test.id).join(', ')}`;
+              ? `was ${named(region.before)}; a case that could have reached it stopped, and the record cannot say which`
+              : `was ${named(region.before)}; stopped: ${named(region.stopped)}`;
       lines.push(`  ${region.motion.padEnd(8)} ${place(region)} — ${why}`);
     }
   }
