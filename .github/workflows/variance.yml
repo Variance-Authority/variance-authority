@@ -286,13 +286,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: variance-files
-          path: cases/storybook-case/.variance/
+          # The baselines stay out. The report page already carries each
+          # baseline beside its render, so the reviewer sees what the comparison
+          # was made against; and the store names a machine's partition by its
+          # digest, `v1:<hex>`, whose colon this action refuses — every run that
+          # restored a baseline would fail here, after its verdict.
+          path: |
+            cases/storybook-case/.variance/
+            !cases/storybook-case/.variance/baselines/
           # Without this the artifact is empty and nothing says so. `.variance` is
           # a dotted directory, and this action skips hidden files by default —
           # so the upload would succeed and the reviewer would download a zip
           # with nothing in it.
           include-hidden-files: true
-          # The baselines are in here too, and that is deliberate: an artifact a
-          # reviewer downloads should contain what the comparison was made
-          # against, not only its result.
           if-no-files-found: warn

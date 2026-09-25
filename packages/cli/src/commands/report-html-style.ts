@@ -59,7 +59,7 @@ h1 .more{font-size:11px;font-weight:400;color:var(--warm)}
 .intent{margin:.35rem 0 0;font-size:15px;color:var(--ivory)}
 .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.5rem}
 .chip{font-family:var(--mono);font-size:10.5px;color:var(--quiet);border:1px solid var(--hairline);
-border-radius:3px;padding:.1rem .4rem;white-space:nowrap}
+border-radius:3px;padding:.1rem .4rem;max-width:100%;overflow-wrap:anywhere}
 .chip b{font-weight:400;color:var(--warm);margin-right:.4rem}
 .census{margin-top:.6rem}
 .bar{display:flex;height:4px;border-radius:2px;overflow:hidden;background:var(--charcoal)}
@@ -88,7 +88,8 @@ color:var(--quiet);display:flex;align-items:center;gap:.35rem}
 
 /* frame */
 main{display:grid;grid-template-columns:19rem minmax(0,1fr);align-items:start}
-@media (max-width:900px){main{grid-template-columns:1fr}.rail{position:static!important;height:auto!important}}
+@media (max-width:900px){main{grid-template-columns:1fr}.rail{position:static!important;height:auto!important}
+header{position:static}}
 .rail{position:sticky;top:5.6rem;height:calc(100vh - 5.6rem);overflow:auto;padding:1rem .75rem 3rem;
 border-right:1px solid var(--hairline)}
 .rail h2{margin:1.25rem 0 .4rem;font-size:10px;letter-spacing:.18em;text-transform:uppercase;
@@ -166,6 +167,15 @@ cursor:pointer;color:var(--quiet);font:inherit;text-align:left;position:relative
 .cmd code{font-size:11px;color:var(--ivory)}
 .cmd .lbl{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--warm);
 margin-right:.4rem}
+.cmd code{overflow-wrap:anywhere}
+/* A subject's commands: one quiet line until opened, then one row each, the
+   sentence above the command it names. */
+.cmds-fold{margin-top:.5rem}
+.cmds-fold>summary{cursor:pointer;padding:.2rem 0;font-size:11.5px;color:var(--warm)}
+.cmds-fold[open]>summary{color:var(--ivory)}
+.cmds-fold .cmds{flex-direction:column;margin-top:.25rem}
+.cmds-fold .cmd{display:flex;flex-direction:column;gap:.15rem}
+.cmds-fold .lbl{font-size:11px;letter-spacing:0;text-transform:none;margin:0}
 .copied::after{content:"copied";position:absolute;inset-inline-start:50%;bottom:100%;
 transform:translateX(-50%);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
 color:var(--green);padding-bottom:2px}
