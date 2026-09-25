@@ -51,6 +51,7 @@
  */
 
 import { missingGrammar, parserFor, type GrammarNode } from './grammar.js';
+import { native } from './native.js';
 import type { Export, Read, Request } from './read.js';
 import type { TreeWorld } from './world.js';
 
@@ -237,12 +238,33 @@ function under(at: string, rest: string): string {
   return at === '' ? rest : `${at}/${rest}`;
 }
 
-/** The `.target(name:path:)` calls in a manifest, read with the Swift grammar. */
-function declaredTargets(
-  text: string | undefined,
-): readonly { readonly name: string; readonly path: string }[] {
+type Target = { readonly name: string; readonly path: string };
+
+/**
+ * The `.target(name:path:)` calls in a manifest, read with the Swift grammar.
+ *
+ * The addon's grammar first. Node 24 and 25 abort the process with a V8 zone
+ * overflow while optimizing the WebAssembly Swift grammar, and a manifest is the
+ * last Swift file that grammar reads on a machine with the addon.
+ */
+function declaredTargets(text: string | undefined): readonly Target[] {
+  if (text === undefined) return [];
+  const addon = native();
+  if (addon?.swiftTargets !== undefined) {
+    try {
+      const answer = addon.swiftTargets(text);
+      if (answer !== null) return JSON.parse(answer) as Target[];
+    } catch {
+      // Left to the grammar below, which reads the same calls.
+    }
+  }
+  return targetsOf(text);
+}
+
+/** The same calls read with the WebAssembly grammar: the answer without the addon. */
+export function targetsOf(text: string): readonly Target[] {
   const parser = parserFor('swift');
-  if (text === undefined || parser === undefined) return [];
+  if (parser === undefined) return [];
   const tree = parser.parse(text);
   if (tree === null) return [];
 

@@ -28,6 +28,7 @@
 
 ### Patch Changes
 
+- A scan of a Swift package no longer crashes Node 24 and 25. `Package.swift` is now read by the addon's Swift grammar. The WebAssembly grammar made V8 abort with `Fatal process out of memory: Zone` while it compiled.
 - fce1fd6: `variance covering --format refs` numbers each case once and names every range's cases by number
 
   The table at the end lists each test file once with its cases under it, and a

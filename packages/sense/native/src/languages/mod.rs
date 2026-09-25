@@ -69,3 +69,9 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         Grammar::Kotlin => jvm::read(file, source, &tree, "kotlin"),
     })
 }
+
+/// The targets a `Package.swift` declares, or nothing when it does not parse.
+pub fn swift_targets(source: &str) -> Option<Vec<swift::Target>> {
+    let tree = grammar::parse(Grammar::Swift, source)?;
+    Some(swift::targets(source, &tree))
+}

@@ -95,6 +95,24 @@ pub fn read_language(_language: String, _file: String, _source: String) -> Optio
     None
 }
 
+/// The targets a `Package.swift` declares, as JSON `[{ name, path }]`.
+///
+/// `null` when the manifest does not parse, or on a build without the grammars;
+/// either way `swift.ts` reads it with its own grammar instead.
+#[cfg(feature = "grammars")]
+#[napi(catch_unwind)]
+pub fn swift_targets(source: String) -> Option<String> {
+    let targets = languages::swift_targets(&source)?;
+    serde_json::to_string(&targets).ok()
+}
+
+/// The same method on a build whose grammars did not compile: it claims nothing.
+#[cfg(not(feature = "grammars"))]
+#[napi(catch_unwind)]
+pub fn swift_targets(_source: String) -> Option<String> {
+    None
+}
+
 /// Every tracked path under a root, and the digest of the bytes on disk.
 ///
 /// The paths are held here, sorted by code unit, and the object names as twenty

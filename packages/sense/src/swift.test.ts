@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadGrammars } from './grammar.js';
 import { grainOf } from './language.js';
-import { readSwift, resolveSwift } from './swift.js';
+import { native, nativeAvailable } from './native.js';
+import { readSwift, resolveSwift, targetsOf } from './swift.js';
 import { worldOn, type TreeWorld } from './world.js';
 
 /**
@@ -109,6 +110,23 @@ describe('where a Swift module name lands', () => {
   it('falls back to SwiftPM defaults for a target that spells no path', () => {
     expect(resolveSwift({ from: 'Sources/core/Lens.swift', request: 'CoreTests', world }))
       .toEqual(['Tests/CoreTests/LensTests.swift']);
+  });
+
+  it('reads the same targets from a manifest with either grammar', () => {
+    const manifest = [
+      'let package = Package(name: "Shadow", targets: [',
+      '  .target(name: "Core", path: "Sources/core"),',
+      '  .testTarget(name: "CoreTests", dependencies: ["Core"]),',
+      '  .executableTarget(name: "Tool"),',
+      '])',
+    ].join('\n');
+    const expected = [
+      { name: 'Core', path: 'Sources/core' },
+      { name: 'CoreTests', path: 'Tests/CoreTests' },
+      { name: 'Tool', path: 'Sources/Tool' },
+    ];
+    expect(targetsOf(manifest)).toEqual(expected);
+    if (nativeAvailable()) expect(JSON.parse(native()!.swiftTargets!(manifest)!)).toEqual(expected);
   });
 
   it('keeps the manifest out of the graph it describes', () => {
