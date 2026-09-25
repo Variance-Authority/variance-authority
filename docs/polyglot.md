@@ -62,7 +62,7 @@ manifests:
 | the package graph (`nx affected` on TanStack Query) | 3,464 | 8,047 |
 | the file graph, `variance reach --whole-files` | 1,470 | 4,531 |
 | walked from what the edit changed, `variance reach` | 441 | 4,142 |
-| the [execution record](execution-record.md), `variance select` | 775 | 5,592 |
+| the [execution record](execution-record.md), `variance select` | 775 | 5,196 |
 
 On TanStack Query the default walk selects 1,029 fewer test files than the file
 graph. 885 of them come from edits that change nothing that runs, and 717 of

@@ -1,4 +1,4 @@
-# Zod: 54% fewer test file runs
+# Zod: 57% fewer test file runs
 
 [Zod](https://github.com/colinhacks/zod) is one package, and 196 of its 202 test
 files reach the code they exercise through a single barrel. A selector that
@@ -12,14 +12,14 @@ because the record knows which of the files that *reach* a module covered the
 > **TLDR**
 >
 > - Over the sixty commits before it landed, each checked against a record made
->   at its parent commit, the record selects **5,592 test file runs of 12,120,
->   54% fewer** than running everything, which is what Zod does. A package graph
+>   at its parent commit, the record selects **5,196 test file runs of 12,120,
+>   57% fewer** than running everything, which is what Zod does. A package graph
 >   selects 8,047.
 > - The walk from what the edit changed selects **4,142**, and the file graph
 >   4,531. The record selects fewer than the walk where a commit changes the
 >   inside of a function, and more where it changes code that runs as the core
 >   loads, which Zod's compile-mode setup runs for every test. Manifest,
->   lockfile and build commits are 2,214 of the record's 5,592.
+>   lockfile and build commits are 1,818 of the record's 5,196.
 > - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
 >   instead of 8.2s**, an **82%** shorter run. A package graph would still run
 >   201 of the 202 files.
@@ -140,7 +140,7 @@ xychart-beta horizontal
   y-axis "test file runs" 0 --> 12500
   bar [4142, 0, 0, 0, 0]
   bar [0, 4531, 0, 0, 0]
-  bar [0, 0, 5592, 0, 0]
+  bar [0, 0, 5196, 0, 0]
   bar [0, 0, 0, 8047, 0]
   bar [0, 0, 0, 0, 12120]
 ```
@@ -151,7 +151,7 @@ xychart-beta horizontal
 | package graph | 8,047 | 201 | 202 | 20 |
 | the file graph | 4,531 | 130 | 134 | 22 |
 | the walk from what changed | **4,142** | 127 | 134 | 26 |
-| the record | **5,592** | 79 | 202 | 0 |
+| the record | **5,196** | 67 | 202 | 0 |
 
 The two walks sit close together because most of Zod's tests import the library
 through one namespace, `import * as z`, and the walk is whole wherever an import
@@ -173,8 +173,9 @@ where the walks select 128 to 135.
 
 Eleven commits change a manifest, the lockfile or the build, and neither walk
 treats those as changed files. The record reruns the tests whose install or
-configuration changed, which here is nearly all of them: each of the six release
-commits selects 201, and the eleven together are 2,214 of the record's 5,592.
+configuration changed: each of the six release commits selects 201, the two
+that only refresh the lockfile select 4, and the eleven together are 1,818 of
+the record's 5,196.
 
 The record selects at least four files on every commit, because four files
 run every time. On the commits that change only prose or a benchmark it selects
