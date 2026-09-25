@@ -131,11 +131,11 @@ selected: nothing it ran reads `LIMIT`.
 
 | The edit | What it selects |
 |---|---|
-| A comment that sets no JSX pragma, a type, formatting | Nothing |
+| A comment that sets no JSX pragma, a type outside a decorated class, formatting | Nothing |
 | A new function | Nothing, until a change calls it |
 | A function body | The subjects that entered the changed regions |
 | A top-level value, such as `LIMIT = 10` becoming `20` | Those, and every subject that entered a function reading `LIMIT`, in the file or in a file that imports it |
-| Anything that runs as the module loads, and a JSX pragma such as `@jsxImportSource`, which decides what every element compiles to | Every subject that loaded the file |
+| Anything that runs as the module loads, a JSX pragma such as `@jsxImportSource`, which decides what every element compiles to, and a type in a decorated class, which `emitDecoratorMetadata` writes into the class as it is defined | Every subject that loaded the file |
 
 A read is followed one file deep, through each file that imports the value, and
 further only through a re-export. A file that imports the module as a namespace

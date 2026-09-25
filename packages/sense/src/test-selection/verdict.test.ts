@@ -69,6 +69,35 @@ describe.runIf(nativeAvailable())('a module verdict', () => {
     expect(verdictOf(before, after)).toMatchObject({ kind: 'values', exports: ['wrap'] });
   });
 
+  describe('a type in a decorated class, which `emitDecoratorMetadata` emits', () => {
+    const service = (injected: string) =>
+      `@Injectable()\nexport class Checkout {\n  constructor(private readonly prices: ${injected}) {}\n}\n`;
+
+    it("reads a constructor parameter's type as load, because the class records it when it is defined", () => {
+      expect(verdictOf(service('PriceService'), service('DiscountedPrices'))?.kind).toBe('load');
+    });
+
+    it("reads a decorated property's type as load", () => {
+      const view = (type: string) => `export class View {\n  @Input() total: ${type};\n}\n`;
+      expect(verdictOf(view('number'), view('string'))?.kind).toBe('load');
+    });
+
+    it('reads a changed parameter decorator as load, because it runs when the class is defined', () => {
+      const before = 'export class Checkout {\n  constructor(@Inject(PRICES) prices: unknown) {}\n}\n';
+      expect(verdictOf(before, before.replace('PRICES', 'DISCOUNTS'))?.kind).toBe('load');
+    });
+
+    it('reads a type inside a method body of a decorated class as nothing', () => {
+      const before = '@Injectable()\nexport class Checkout {\n  total() {\n    const sum: number = 1;\n    return sum;\n  }\n}\n';
+      expect(verdictOf(before, before.replace('sum: number', 'sum: 1'))?.kind).toBe('none');
+    });
+
+    it('reads a type in a class nothing decorates as nothing', () => {
+      const plain = (injected: string) => `export class Checkout {\n  constructor(private readonly prices: ${injected}) {}\n}\n`;
+      expect(verdictOf(plain('PriceService'), plain('DiscountedPrices'))?.kind).toBe('none');
+    });
+  });
+
   describe('a comment that sets a JSX pragma', () => {
     const view = (before: string, after: string) => native()!.moduleVerdict!('src/view.tsx', before, after);
     const body = 'export const View = () => <div />;\n';
