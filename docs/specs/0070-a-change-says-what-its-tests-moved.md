@@ -4,8 +4,8 @@
 --against <record>` compares two case indexes region by region and names each
 region lost, hidden, thinned or gained, in `text`, `refs` and `json`. No
 editor marks a lost region.
-**Built on:** [0069](0069-the-case-index-layers-each-run.md) (a case index that
-holds the whole suite) and [0067](0067-a-case-carries-its-outcome.md) (a region a
+**Built on:** `layerCaseIndex` in `packages/sense/src/test-selection/case-layer.ts`
+(a case index that holds the whole suite) and [0067](0067-a-case-carries-its-outcome.md) (a region a
 stopped case did not reach is a hole, not a loss).
 
 ## Purpose

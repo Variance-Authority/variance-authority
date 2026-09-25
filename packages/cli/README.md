@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -392,6 +392,13 @@ plain question does not; that is why it is a flag.
 
 `--in-package` keeps the tests whose file is under the same `package.json` as
 the file you asked about.
+
+A line or function answer names each test file once, with how many of its cases
+went through the line out of how many it declares: `total.test.ts — 2/3`.
+`--hops` adds each file's import hops and orders the files nearest first, a file
+the walk could not place last. It narrows nothing, and it costs the same scan
+`--at-distance` does, which is why an editor asks for it on a click and not on
+every keystroke.
 
 The counts are printed whichever way the answer went, because a filtered list
 and a short list read identically and lead to opposite decisions. A test the

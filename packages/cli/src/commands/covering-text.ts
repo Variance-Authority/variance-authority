@@ -11,6 +11,7 @@ import {
   type CoveringTest,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
+import type { CoveringFile } from './covering-files.js';
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
@@ -42,7 +43,7 @@ function text(answer: Covering): string {
     `${tests.length} named test${tests.length === 1 ? '' : 's'} covered ${where} of ${answer.file}${
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
-    ...caseLines(tests, '  '),
+    ...caseLines(tests, '  ', answer.files),
     ...narrowedText(answer),
   ].join('\n');
 }
@@ -171,18 +172,33 @@ function sinceText(answer: Covering, changed: readonly StatedChange[]): string {
  * A case's id is its file and its name, so a line carrying all three said the
  * file twice, and a range walked by eleven cases of one file said it
  * twenty-two times. An id that is not that — a project's, say — is printed.
+ *
+ * Given the answer's file rows, each file says how many of its cases went
+ * there out of how many it has, and how far it is under `--hops`, and the
+ * files come in the rows' order: nearest first.
  */
-function caseLines(tests: readonly CoveringTest[], indent: string): readonly string[] {
-  const byFile = new Map<string, CoveringTest[]>();
+function caseLines(
+  tests: readonly CoveringTest[],
+  indent: string,
+  files: readonly CoveringFile[] = [],
+): readonly string[] {
+  const byFile = new Map<string, CoveringTest[]>(files.map((row) => [row.file, []]));
   for (const test of tests) {
     const held = byFile.get(test.file);
     if (held === undefined) byFile.set(test.file, [test]);
     else held.push(test);
   }
+  const rows = new Map(files.map((row) => [row.file, row]));
   return [...byFile].flatMap(([file, cases]) => [
-    `${indent}${file}`,
+    `${indent}${file}${fileCount(rows.get(file))}`,
     ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`),
   ]);
+}
+
+function fileCount(row: CoveringFile | undefined): string {
+  if (row === undefined) return '';
+  const hops = row.hops === undefined ? '' : `, ${row.hops} hop${row.hops === 1 ? '' : 's'} away`;
+  return ` — ${row.cases}/${row.of}${hops}`;
 }
 
 /** A case's name, with its id when the id is not its file and its name. */

@@ -38,6 +38,12 @@ export interface CoveringAt extends CoveringSource {
   /** `--in-package`: keep only witnesses whose test file shares the subject's package. */
   readonly inPackage?: true;
   /**
+   * `--hops`: measure import hops from the file to each test file whose cases
+   * reached the line or function, and order the files nearest first. It reads
+   * the file graph, which the plain question does not.
+   */
+  readonly hops?: true;
+  /**
    * `--text <path>`: the text the file holds now, when it is not the file on
    * disk — `-` reads it from standard input, which is how an editor asks about
    * a buffer it has not saved. Line numbers are asked and answered in it.
@@ -95,7 +101,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
           'asking it about one more is either the same question or a different one answered quietly.',
       );
     }
-    for (const other of ['--at-distance', '--in-package'] as const) {
+    for (const other of ['--at-distance', '--in-package', '--hops'] as const) {
       if (!flags.present.has(other)) continue;
       throw new OperatorError(
         `\`--since\` and \`${other}\` do not compose. A diff is many origins, so a test has a ` +
@@ -140,6 +146,13 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
 
   const atDistance = parseAtDistance(flags);
   const text = flags.values.get('--text');
+  if (flags.present.has('--hops') && line === undefined && functionName === undefined) {
+    throw new OperatorError(
+      '`--hops` measures how far each test file whose cases reached a line or function is from ' +
+        'it, so it takes `--line` or `--function`; a whole file is answered as ranges, one list of ' +
+        'test files per range.',
+    );
+  }
 
   return {
     ...executionAnd(flags),
@@ -148,6 +161,7 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     ...(functionName === undefined ? {} : { function: functionName }),
     ...(atDistance === undefined ? {} : { atDistance }),
     ...(flags.present.has('--in-package') ? { inPackage: true as const } : {}),
+    ...(flags.present.has('--hops') ? { hops: true as const } : {}),
     ...(text === undefined ? {} : { text }),
   };
 }

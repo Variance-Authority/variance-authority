@@ -3,9 +3,16 @@
 See which test cases went through each line of the file you are editing,
 without leaving it. After your suite runs with the recorder on, the gutter
 beside every line it ran shows one of five marks, and hovering the mark names
-the cases. The marks and their meanings are the ones the
+the test files that went through it. The marks and their meanings are the ones the
 [VS Code client](../vscode/README.md) paints, and so are the colours on the
 scrollbar.
+
+Click a mark to list every case behind it. Each test file shows how many of its
+cases went through the line out of how many it has, `reset.test.ts 9/20 · 1 hop`,
+nearest file by imports first. Type to filter, choose a file to see its cases,
+and choose a case to open the file at its title. The click asks the CLI for the
+distances, so the list takes a moment on a large project, and the hover does not
+wait for it.
 
 A hole is not the same as untested. A case that failed, or a flake your CI
 suppressed, stopped before the end, so the record cannot tell whether it would

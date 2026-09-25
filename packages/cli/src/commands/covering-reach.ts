@@ -111,11 +111,20 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
  * Keyed by test file, because that is what the record places. A test file the
  * walk reached is a number; one it could not is present with `undefined`, so a
  * caller can tell *far away* from *unmeasured* — the distinction the note above
- * exists to print.
+ * exists to print. Measured once per question: `--at-distance` and `--hops`
+ * read the same walk.
  */
-async function hopsToTests(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
+export function hopsToTests(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
+  let measured = MEASURED.get(request);
+  if (measured === undefined) MEASURED.set(request, (measured = measureHops(request)));
+  return measured;
+}
+
+const MEASURED = new WeakMap<CoveringAt, Promise<ReadonlyMap<string, number | undefined>>>();
+
+async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, number | undefined>> {
   const relations = await relationsFor(request.root, ['.'], [], [], {
-    why: '`--at-distance` counts import hops and the hops are in the file graph',
+    why: 'import hops are counted over the file graph',
     fix: 'Install `@variance-authority/sense`, which is what reads the tree.',
   });
 
@@ -132,7 +141,7 @@ async function hopsToTests(request: CoveringAt): Promise<ReadonlyMap<string, num
   );
   if (!audience.recorded) {
     throw new OperatorError(
-      `\`--at-distance\` reads the coverage snapshot at \`${testCoverageFile(request.root)}\`, ` +
+      `import hops are read from the coverage snapshot at \`${testCoverageFile(request.root)}\`, ` +
         `which holds no instrumented row for \`${request.file}\`. The per-case index and the ` +
         'snapshot are written by the same run, so a file in one and not the other means the two ' +
         'are from different runs; record once and ask again.',

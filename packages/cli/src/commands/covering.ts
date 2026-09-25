@@ -55,7 +55,8 @@ import {
 import type { Relations } from '@variance-authority/core/relate';
 import { OperatorError } from '../exit.js';
 import { defaultExecutionFile, readExecutionFor } from './execution-input.js';
-import { nearbyWitnesses, type Narrowing } from './covering-reach.js';
+import { hopsToTests, nearbyWitnesses, type Narrowing } from './covering-reach.js';
+import { coveringFiles, type CoveringFile } from './covering-files.js';
 import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
@@ -93,6 +94,8 @@ export interface Covering {
   readonly target?: { readonly line: number } | { readonly function: string };
   /** Present when the question named a line or a function. */
   readonly tests?: readonly CoveringTest[];
+  /** With `tests`: the same cases gathered by test file, nearest first under `--hops`. */
+  readonly files?: readonly CoveringFile[];
   /**
    * Present with `tests`, when it could be told: the cases that could have
    * reached the line or function and stopped before entering it. With no
@@ -145,15 +148,27 @@ export interface Covering {
 export async function covering(request: ParsedCovering): Promise<Covering> {
   let scope: CoveringScope | undefined;
   let full: ExecutionIndex | undefined;
+  let whole: ExecutionIndex | undefined;
   const answer = await ask(request, async (from, changed) => {
     const read = await readIndex(from, changed);
+    whole = read.index;
     if (request.cases === undefined) return read;
     const cut = await scopeCases((full = read.index), from, request.cases, request.root);
     scope = cut.scope;
     return { index: cut.index, files: read.files };
   });
   const motion = await motionFor(request, answer.from, scope, full);
-  return { ...answer, ...(scope === undefined ? {} : { scope }), ...(motion === undefined ? {} : { motion }) };
+  const files = answer.tests === undefined || whole === undefined
+    ? undefined
+    : coveringFiles(answer.tests, whole, request.since === undefined && request.hops === true
+      ? await hopsToTests(request)
+      : undefined);
+  return {
+    ...answer,
+    ...(files === undefined ? {} : { files }),
+    ...(scope === undefined ? {} : { scope }),
+    ...(motion === undefined ? {} : { motion }),
+  };
 }
 
 async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Covering> {

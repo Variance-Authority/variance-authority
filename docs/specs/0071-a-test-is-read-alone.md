@@ -4,7 +4,7 @@
 last|<test file>` answers from the chosen cases rather than the suite, and with
 `last` says what moved against the cases the run replaced. Both editors paint
 only the suite's answer.
-**Built on:** [0069](0069-the-case-index-layers-each-run.md) (the index names
+**Built on:** `layerCaseIndex` in `packages/sense/src/test-selection/case-layer.ts` (the index names
 the cases of the last run, and keeps the layer that run retired),
 [0065](0065-the-record-in-webstorm.md) item 2 (*show only this case's lines*),
 and [0070](0070-a-change-says-what-its-tests-moved.md) (what moved, per region).

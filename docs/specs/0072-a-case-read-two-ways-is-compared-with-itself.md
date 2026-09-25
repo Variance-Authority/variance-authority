@@ -2,7 +2,7 @@
 
 **Missing:** a second reading of a case, and anything that compares it with the
 first. The case index (`<coverage file>.cases.bin`) keeps the test files a run
-did not reach ([0069](0069-the-case-index-layers-each-run.md)), but a case the
+did not reach (`layerCaseIndex`), but a case the
 run did reach replaces its old reading unread, and the index does not say what
 source it was recorded over. So a case whose journey
 depends on state something else left behind is recorded once and trusted. The

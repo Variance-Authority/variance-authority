@@ -42,6 +42,7 @@ export const BOOLEAN = new Set([
   '--flakes',
   '--publish',
   '--in-package',
+  '--hops',
   '--just-answer',
   '--no-git',
   '--whole-files',

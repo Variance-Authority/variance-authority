@@ -24,10 +24,19 @@ import java.util.List;
  */
 final class Record {
   /** One recorded range where it stands in the held text. */
-  record Range(int startLine, int endLine, String state, boolean moved, List<String> cases, List<String> stopped) {}
+  record Range(int startLine, int endLine, String state, boolean moved, List<Case> cases, List<String> stopped) {}
 
   /** The answer about one file: its ranges and the frame they stand in, or the CLI's refusal. */
   record Answer(List<Range> ranges, String frame, String refusal) {}
+
+  /** One test file among the cases that went through a line: how many of its cases did, of how many. */
+  record TestFile(String file, int cases, int of, Integer hops) {}
+
+  /** One case by the file that declares it. */
+  record Case(String file, String name) {}
+
+  /** The answer about one line: its test files nearest first, and their cases, or the CLI's refusal. */
+  record Line(List<TestFile> files, List<Case> cases, String refusal) {}
 
   private Record() {}
 
@@ -42,23 +51,64 @@ final class Record {
   }
 
   static Answer ask(String root, String file, String text) {
-    GeneralCommandLine command = new GeneralCommandLine(
-        commandFor(root), "covering", "--file", file, "--root", root, "--text", "-", "--format", "json")
+    Asked asked = run(root, text, "covering", "--file", file, "--root", root, "--text", "-", "--format", "json");
+    return asked.refusal() != null ? refused(asked.refusal()) : read(asked.answer());
+  }
+
+  /**
+   * Ask about one line of the held text, with the import hops from the file to
+   * each test file. The hops cost the CLI a scan of the tree, so this is asked
+   * when somebody clicks, never on an edit.
+   */
+  static Line askLine(String root, String file, String text, int line) {
+    Asked asked = run(root, text, "covering", "--file", file, "--line", Integer.toString(line), "--hops",
+        "--root", root, "--text", "-", "--format", "json");
+    if (asked.refusal() != null) return new Line(List.of(), List.of(), asked.refusal());
+    JsonObject answer = asked.answer();
+    List<TestFile> files = new ArrayList<>();
+    if (answer.has("files")) {
+      for (JsonElement element : answer.getAsJsonArray("files")) {
+        JsonObject row = element.getAsJsonObject();
+        files.add(new TestFile(
+            row.get("file").getAsString(),
+            row.get("cases").getAsInt(),
+            row.get("of").getAsInt(),
+            row.has("hops") ? row.get("hops").getAsInt() : null));
+      }
+    }
+    List<Case> cases = new ArrayList<>();
+    if (answer.has("tests")) {
+      for (JsonElement element : answer.getAsJsonArray("tests")) {
+        JsonObject test = element.getAsJsonObject();
+        if (test.has("loaded") && test.get("loaded").getAsBoolean()) continue;
+        cases.add(new Case(test.get("file").getAsString(), test.get("name").getAsString()));
+      }
+    }
+    return new Line(files, cases, null);
+  }
+
+  private record Asked(JsonObject answer, String refusal) {}
+
+  private static Asked run(String root, String text, String... arguments) {
+    List<String> command = new ArrayList<>();
+    command.add(commandFor(root));
+    command.addAll(List.of(arguments));
+    GeneralCommandLine line = new GeneralCommandLine(command)
         .withWorkDirectory(root)
         .withCharset(StandardCharsets.UTF_8)
         // The shell's environment, so `node` is found the way a terminal finds it.
         .withParentEnvironmentType(GeneralCommandLine.ParentEnvironmentType.CONSOLE);
     try {
-      CapturingProcessHandler handler = new CapturingProcessHandler(command);
+      CapturingProcessHandler handler = new CapturingProcessHandler(line);
       try (OutputStream input = handler.getProcessInput()) {
         input.write(text.getBytes(StandardCharsets.UTF_8));
       }
       ProcessOutput output = handler.runProcess(30_000);
-      if (output.isTimeout()) return refused("variance did not answer within 30 seconds.");
-      if (output.getExitCode() != 0) return refused(firstParagraph(output.getStderr()));
-      return read(JsonParser.parseString(output.getStdout()).getAsJsonObject());
+      if (output.isTimeout()) return new Asked(null, "variance did not answer within 30 seconds.");
+      if (output.getExitCode() != 0) return new Asked(null, firstParagraph(output.getStderr()));
+      return new Asked(JsonParser.parseString(output.getStdout()).getAsJsonObject(), null);
     } catch (Exception error) {
-      return refused("variance could not be asked: " + error.getMessage());
+      return new Asked(null, "variance could not be asked: " + error.getMessage());
     }
   }
 
@@ -67,11 +117,11 @@ final class Record {
     JsonArray found = answer.has("ranges") ? answer.getAsJsonArray("ranges") : new JsonArray();
     for (JsonElement element : found) {
       JsonObject range = element.getAsJsonObject();
-      List<String> cases = new ArrayList<>();
+      List<Case> cases = new ArrayList<>();
       for (JsonElement test : range.getAsJsonArray("tests")) {
         JsonObject named = test.getAsJsonObject();
         if (named.has("loaded") && named.get("loaded").getAsBoolean()) continue;
-        cases.add(named.get("name").getAsString() + " — " + named.get("file").getAsString());
+        cases.add(new Case(named.get("file").getAsString(), named.get("name").getAsString()));
       }
       List<String> stopped = new ArrayList<>();
       if (range.has("stopped")) {
