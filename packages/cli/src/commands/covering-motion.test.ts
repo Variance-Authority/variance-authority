@@ -159,8 +159,7 @@ describe('what a change moved against the base', () => {
       .rejects.toThrow(/restore it from the cache/);
   });
 
-  it('refuses `--against` without a diff, and on a code host', () => {
+  it('refuses `--against` without a diff', () => {
     expect(() => parse(['--file', 'src/total.ts', '--against', 'base.bin'])).toThrow(/takes `--since <ref>`/);
-    expect(() => parse(['--since', 'main', '--against', 'base.bin', '--format', 'github'])).toThrow(/`text` and `json`/);
   });
 });

@@ -29,8 +29,6 @@ surface).
 **Callers:** [0064](0064-the-record-in-vs-code.md),
 [0065](0065-the-record-in-webstorm.md) and
 [0068](0068-an-edit-runs-what-it-reaches-from-the-editor.md).
-[0066](0066-the-record-on-a-bitbucket-pull-request.md) reads the same facets
-for a commit through the one-shot command.
 
 ## Purpose
 

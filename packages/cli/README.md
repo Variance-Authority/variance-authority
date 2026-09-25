@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json|github|bitbucket-report|bitbucket-annotations|markdown]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
 variance report  [--config <path>] [--format text|json|html] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]
@@ -449,9 +449,7 @@ src/checkout/total.ts — 4 recorded ranges, 3 named tests
 test file is every case the index holds for it. The five words mean the same
 thing measured against those cases: `unwalked` is *no case you chose entered
 it*, not *no test does*. The answer starts by saying which cases it was read
-from, and `--format json` names each one under `scope`. A code host's review
-format refuses `--cases`, because the host would show a few cases' answer as
-the suite's.
+from, and `--format json` names each one under `scope`.
 
 A run of one file does not change the suite's answer: the index keeps every
 case the run did not replace.
@@ -581,73 +579,6 @@ of its own before this run writes. It names the commit it was made at. When
 that commit is behind the merge base, the files the base branch changed in
 between are left out and named, because what moved in them is that branch's
 doing, not yours. `--against` answers in `text` and `json`.
-
-#### On the pull request itself
-
-A reviewer reads the diff on the code host, not in a terminal. GitHub and
-Bitbucket Cloud both already draw annotations beside a changed line, so the
-same answer can be printed in the shape each host reads, with no extension to
-install:
-
-```bash
-variance covering --since origin/main --format github
-variance covering --since origin/main --format bitbucket-report
-variance covering --since origin/main --format bitbucket-annotations
-variance covering --since origin/main --format markdown
-```
-
-Every host gets the same regions in the same order. Holes come first, then
-regions nothing entered, then regions one case entered alone. A hole is the one
-finding the diff cannot show you, and a host that caps its annotations drops
-the tail, not the head. A walked region is not annotated: a pull request
-painted over all of its tested code hides the lines that need a reader. The
-regions of one function that share a state are one annotation, listing each
-region's lines, so a function with a branch and a callback left unentered is
-one thing to read, not two. `markdown` prints the whole review as a table, with
-nothing cut, for a step summary or a pull request comment.
-
-These formats answer `--since` and nothing narrower. The record must have been
-written at the commit under review, which is what a CI step that runs the suite
-first gives you; any other record is refused, because its line numbers are not
-the ones the host draws.
-
-On GitHub, the step prints workflow commands and the host draws them. A pull
-request is checked out as the merge of its head into the base, so the merge's
-first parent is the base it is reviewed against, and a checkout two commits deep
-holds it:
-
-```yaml
-- uses: actions/checkout@v4
-  with:
-    fetch-depth: 2
-- run: yarn test
-- run: npx variance index
-- run: npx variance covering --since HEAD^1 --format github
-- run: npx variance covering --since HEAD^1 --format markdown >> "$GITHUB_STEP_SUMMARY"
-```
-
-GitHub draws at most ten notices and ten warnings from one step, so the step
-summary is where a reader finds the rest. In CI, `variance index` publishes the
-source index the review reads; outside CI it is built when first asked for.
-
-On Bitbucket Cloud, the report and its annotations are two requests to the Code
-Insights API, through the proxy a pipeline already has:
-
-```bash
-api="http://api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_FULL_NAME/commit/$BITBUCKET_COMMIT/reports/variance"
-npx variance covering --since origin/main --format bitbucket-report > report.json
-npx variance covering --since origin/main --format bitbucket-annotations > annotations.jsonl
-curl --proxy http://localhost:29418 -X PUT "$api" -H 'Content-Type: application/json' -d @report.json
-while read -r batch; do
-  curl --proxy http://localhost:29418 -X POST "$api/annotations" -H 'Content-Type: application/json' -d "$batch"
-done < annotations.jsonl
-```
-
-Bitbucket takes 100 annotations per request and keeps 1000 per report. Each
-line of `annotations.jsonl` is one request, holes first, and the lines stop at
-1000. When a change has more, the report's details say how many were left off,
-so a pull request with 1400 findings never reads as one with 1000. The proxy
-authenticates the requests, so you create and store no token.
 
 ### Watch: ask about a suite that has not finished
 

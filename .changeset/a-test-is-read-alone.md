@@ -7,6 +7,5 @@
 
 `last` is the run that wrote the case index last. A test file is every case the
 index holds for it. The answer starts by saying which cases it was read from,
-and `--format json` names them under `scope`. The review formats refuse
-`--cases`. `caseLayerFiles` in `@variance-authority/sense/test-selection` names
+and `--format json` names them under `scope`. `caseLayerFiles` in `@variance-authority/sense/test-selection` names
 the files beside the index that record the last run and what that run replaced.

@@ -84,10 +84,6 @@ describe('a test read alone', () => {
       .rejects.toThrow(OperatorError);
   });
 
-  it('refuses a scope on a review, which a code host would show as the suite', () => {
-    expect(() => parse(['--since', 'main', '--cases', 'last', '--format', 'github'])).toThrow(/takes no `--cases`/);
-  });
-
   it('renumbers the crossings of the cases it keeps', () => {
     const kept = keepCases(INDEX, new Set(['flow.test.tsx > checks out']));
 

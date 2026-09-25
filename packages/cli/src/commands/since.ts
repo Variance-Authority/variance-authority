@@ -129,7 +129,7 @@ export async function diffSince(
   }
 }
 
-export type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
+type Run = (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>;
 
 /**
  * Configuration a diff is read under, whatever the operator's own says.
@@ -141,8 +141,8 @@ export type Run = (file: string, args: readonly string[], options: object) => Pr
  * tool's. Each turns every changed file into one the selector cannot read,
  * which widens the run and never says why.
  */
-export const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
-export const NO_DECORATION = ['--no-color', '--no-ext-diff'];
+const PLAIN = ['-c', 'core.quotePath=false', '-c', 'diff.noprefix=false', '-c', 'diff.mnemonicPrefix=false'];
+const NO_DECORATION = ['--no-color', '--no-ext-diff'];
 
 /** Files a diff from `base` to the working tree names, one per record. */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
@@ -186,7 +186,7 @@ async function diffOfNew(run: Run, repository: string, file: string): Promise<st
  * Where `ref` and `HEAD` part: the commit a two-dot diff from it measures the
  * same distance as `ref...HEAD`, with the working tree included.
  */
-export async function mergeBase(run: Run, ref: string, repository: string): Promise<string> {
+async function mergeBase(run: Run, ref: string, repository: string): Promise<string> {
   const { stdout } = await run('git', ['merge-base', ref, 'HEAD'], { cwd: repository });
   return stdout.trim();
 }
@@ -204,7 +204,7 @@ export async function mergeBase(run: Run, ref: string, repository: string): Prom
  * untouched for the reader to decode; it is repository-relative then, which is
  * the run's coordinate only when the run is at the top level.
  */
-export function inCoordinates(diff: string, here: string, repository: string): string {
+function inCoordinates(diff: string, here: string, repository: string): string {
   const move = (path: string): string => relative(here, join(repository, path));
   return diff
     .split('\n')
@@ -366,7 +366,7 @@ async function fileAt(
  * with a sentence naming the ref the operator actually typed, which is the more
  * useful of the two.
  */
-export async function topLevel(
+async function topLevel(
   run: (file: string, args: readonly string[], options: object) => Promise<{ stdout: string }>,
   from: string,
 ): Promise<string> {

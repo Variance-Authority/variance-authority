@@ -2,8 +2,8 @@
  * The answer to `variance covering`, written for whoever asked.
  *
  * Split from the reading because the reading is one and the shapes are many:
- * a person reads the text, an editor and an agent read the JSON, and a code
- * host reads its own format, which `covering-review.ts` writes.
+ * a person reads the text, an editor reads the JSON, and an agent reads the
+ * refs, which `covering-refs.ts` writes.
  */
 
 import {
@@ -14,15 +14,13 @@ import {
 import type { CoveringRange } from './covering-frame.js';
 import { motionText } from './covering-motion.js';
 import { formatCoveringRefs } from './covering-refs.js';
-import { formatReview } from './covering-review.js';
 import type { Covering, CoveringFormat, StatedChange } from './covering.js';
 
 /** Say the answer in the shape the caller asked for. */
 export function formatCovering(answer: Covering, format: CoveringFormat): string {
   if (format === 'refs') return formatCoveringRefs(answer);
   if (format === 'json') return `${JSON.stringify(answer, undefined, 2)}\n`;
-  if (format === 'text') return `${[...scopeText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
-  return formatReview(answer, format);
+  return `${[...scopeText(answer), text(answer), ...motionText(answer.motion)].join('\n')}\n`;
 }
 
 function text(answer: Covering): string {

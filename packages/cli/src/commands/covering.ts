@@ -60,21 +60,14 @@ import { motionFor, type CoveringMotion } from './covering-motion.js';
 import { scopeCases, type CoveringScope } from './covering-scope.js';
 import { placeRanges, placementFor, regionState, type CoveringRange } from './covering-frame.js';
 import { diffSince } from './since.js';
-import { diffAtTip, headCommit, repositoryDirectory } from './since-tip.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt, ParsedCovering } from '../covering-args.js';
 
 /**
- * How the answer is written. `text` reads; `json` is for whatever asks next.
- * The others are a review of a diff: `github` prints workflow commands a pull
- * request shows beside the lines, the two `bitbucket-` formats print one Code
- * Insights request body each, and `markdown` prints the whole review uncut, for
- * a step summary or a comment.
+ * How the answer is written. `text` reads; `refs` names every case once, for an
+ * agent that pays per token; `json` is for whatever asks next.
  */
-export type CoveringFormat = 'text' | 'refs' | 'json' | ReviewFormat;
-
-/** The formats a code host reads, each answering `--since` on the commit it reviews. */
-export type ReviewFormat = 'github' | 'bitbucket-report' | 'bitbucket-annotations' | 'markdown';
+export type CoveringFormat = 'text' | 'refs' | 'json';
 
 export { formatCovering } from './covering-text.js';
 
@@ -96,11 +89,6 @@ export interface Covering {
   readonly since?: string;
   /** Present when the question named a diff: one entry per changed file. */
   readonly changed?: readonly StatedChange[];
-  /**
-   * Where the run's directory sits under the repository's top, present with
-   * `changed`. Paths here are the run's; a code host names them from the top.
-   */
-  readonly directory?: string;
   /** The line or function the question named, absent when it named neither. */
   readonly target?: { readonly line: number } | { readonly function: string };
   /** Present when the question named a line or a function. */
@@ -178,9 +166,7 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
     const at = from.startsWith(testCoverageFile(request.root))
       ? await recordedCommit(testCoverageFile(request.root))
       : undefined;
-    const review = request.format !== 'text' && request.format !== 'refs' && request.format !== 'json';
-    if (review) await onTip(request.format, at);
-    const changed = await changeSince(request.since, request.root, at, review);
+    const changed = await changeSince(request.since, request.root, at);
     const { index } = await readIndex(from, changed);
     // The graph carries the mocks: a case whose file mocked the changed module
     // is not listed under it, whatever it crossed there.
@@ -188,7 +174,6 @@ async function ask(request: ParsedCovering, readIndex: IndexReader): Promise<Cov
     return {
       since: request.since,
       changed: answer.map((file) => ({ ...file, regions: file.regions.map(stated) })),
-      directory: await repositoryDirectory(await realpath(request.root)),
       ...(at === undefined ? {} : { at }),
       from,
     };
@@ -311,25 +296,6 @@ function stated(region: CoveringRegion): StatedRegion {
 }
 
 /**
- * Refuse a review whose record is not of the commit under review.
- *
- * A host paints each region on the lines of the commit it shows, and the record
- * numbers them in the text the suite ran over. The two are the same text only
- * when the suite ran on that commit, and a region placed from another one lands
- * on whatever code holds its numbers there.
- */
-async function onTip(format: ReviewFormat, at: string | undefined): Promise<void> {
-  const head = await headCommit();
-  if (at !== undefined && at === head) return;
-  throw new OperatorError(
-    `\`--format ${format}\` places each region on the lines of the commit under review, ` +
-      `and the record ${at === undefined ? 'names no commit' : `stands at ${at.slice(0, 12)}`} while ` +
-      `the checkout is at ${head === undefined ? 'no commit' : head.slice(0, 12)}. Run the suite on this ` +
-      'commit, then ask again.',
-  );
-}
-
-/**
  * Re-fold ranges a filter has just changed the answer of.
  *
  * `coveringTestsInFile` folds adjacent lines whose witness lists are identical,
@@ -392,7 +358,7 @@ function countOf(
  *
  * `git` names files from the repository root and the index names them from the
  * run's, so the paths are brought into the index's coordinates before anything
- * is looked up. Unmatched paths are reported rather than dropped: a review that
+ * is looked up. Unmatched paths are reported rather than dropped: an answer that
  * silently left out half a diff is worse than one that says it cannot speak to
  * it.
  */
@@ -400,9 +366,8 @@ async function changeSince(
   since: string,
   root: string,
   at: string | undefined,
-  review: boolean,
 ): Promise<ReadonlyMap<string, readonly LineRange[]>> {
-  const diff = review ? await diffAtTip(since) : await diffSince(since, [], at);
+  const diff = await diffSince(since, [], at);
   if (diff === undefined) {
     throw new OperatorError(
       `\`--since ${since}\` could not be read as a diff. Check the ref exists and that this is a ` +

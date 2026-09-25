@@ -585,15 +585,6 @@ diff is measured from the commit the record was written at, so record before
 you read. `variance_changed_tests` is the same answer over MCP, taking the
 unified diff as an argument.
 
-In CI, the same answer can be put on the pull request itself.
-`--format github` prints workflow commands. `--format bitbucket-report` and
-`--format bitbucket-annotations` print the two Code Insights bodies, the
-annotations as one request body per line, at most 100 to a line.
-`--format markdown` prints the whole review uncut, for a step summary. Holes
-come first, walked regions are left out, and one function's regions that share
-a state are one annotation. These formats refuse any record not
-written at `HEAD`, so run the suite in the same job first.
-
 ## Distill, then verify
 
 `variance distill` reads no config and no report — the two paths are its whole

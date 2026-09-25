@@ -71,7 +71,7 @@ export type ParsedCovering = CoveringAt | CoveringSince;
  * function, which is the line's answer with a longer command line — so the
  * second flag is refused rather than ignored.
  *
- * `--since <ref>` is the third alternative and the one a review asks: a diff is
+ * `--since <ref>` is the third alternative: a diff is
  * a wider target than a line, not a different question, so it takes the place of
  * `--file` rather than filtering it. Combined with any of the other three it is
  * refused — a diff already names its own files, and a `--file` beside it would
@@ -105,23 +105,12 @@ export function parseCoveringArgs(flags: Flags): ParsedCovering {
     }
     const against = flags.values.get('--against');
     if (against === '') throw new OperatorError('`--against` takes the case index the base recorded.');
-    if (against !== undefined && REVIEW.has(flags.values.get('--format') ?? 'text')) {
-      // TODO: the review formats carry motion on the test file and on each lost region — spec 0070 item 3.
-      throw new OperatorError('`--against` answers in `text` and `json`; a code host is not shown what moved yet.');
-    }
     return { ...executionAnd(flags), since, ...(against === undefined ? {} : { against }) };
   }
   if (flags.values.get('--against') !== undefined) {
     throw new OperatorError(
       '`--against` compares two records of one change, so it takes `--since <ref>`; ' +
         '`--cases last` compares the last run with the one before it without it.',
-    );
-  }
-
-  const review = flags.values.get('--format');
-  if (review !== undefined && REVIEW.has(review)) {
-    throw new OperatorError(
-      `\`--format ${review}\` is a code host's review of a diff, so it answers \`--since <ref>\` and nothing narrower.`,
     );
   }
 
@@ -189,20 +178,12 @@ function parseAtDistance(
 /** Where to read the index, where the run was rooted, and how to write the answer. */
 function executionAnd(flags: Flags): CoveringSource {
   const format = flags.values.get('--format') ?? 'text';
-  if (format !== 'text' && format !== 'refs' && format !== 'json' && !REVIEW.has(format)) {
-    throw new OperatorError(
-      `--format must be text, refs, json, github, bitbucket-report, bitbucket-annotations or markdown, not \`${format}\``,
-    );
+  if (format !== 'text' && format !== 'refs' && format !== 'json') {
+    throw new OperatorError(`--format must be text, refs or json, not \`${format}\``);
   }
   const execution = flags.values.get('--execution');
   const cases = flags.values.get('--cases');
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
-  if (cases !== undefined && REVIEW.has(format)) {
-    throw new OperatorError(
-      `\`--format ${format}\` reviews a commit with the whole suite's answer, so it takes no \`--cases\`: ` +
-        'a code host would show a few cases\' answer as the suite\'s.',
-    );
-  }
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
@@ -212,4 +193,3 @@ function executionAnd(flags: Flags): CoveringSource {
   };
 }
 
-const REVIEW: ReadonlySet<string> = new Set(['github', 'bitbucket-report', 'bitbucket-annotations', 'markdown']);
