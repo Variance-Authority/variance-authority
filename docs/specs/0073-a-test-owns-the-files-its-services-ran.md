@@ -3,8 +3,7 @@
 **Missing:** a trustworthy test-attempt-to-source-file record when the test
 driver and the code under test run in different processes. The JVM Phase 0
 harness divides one JaCoCo store at top-level test-class boundaries; it neither
-attributes concurrent service work nor records individual test methods, and it
-credits work done once per JVM to whichever class ran first.
+attributes concurrent service work nor records individual test methods.
 **Built on:** [0036](0036-a-journey-crosses-processes.md) (the observed request
 edge and the second hop), [0029](0029-what-a-run-remembers.md) (an incomplete
 observation cannot justify a skip), and
@@ -92,30 +91,28 @@ up. The same suite run twice records identically.
 
 ### Work done once per JVM
 
-Concurrency is not the larger loss. A static initializer, a lazy singleton or
-a cache runs for the first attempt that touches it and never again in that
-JVM. The first attempt's window holds it; every later attempt depends on its
-result without entering it.
+A static initializer, a lazy singleton or a cache runs for the first attempt
+that touches it and never again in that JVM. This is memoization as a side
+effect the record sees, and it is not new to the JVM: cache warmth is part of
+the key two readings compare under, `alone` is a key, and a place entered in one
+reading and missed in another under one input is reported by name
+([0038](0038-a-journey-is-read-against-the-committed-tree.md), items 2 and 3;
+[0012](0012-order-dependence-in-a-run.md) for the `alone` pass). A JVM record
+takes the same reading. Surefire's `-DreuseForks=false` is the `alone` pass for
+a test class, and `compare-records.mjs` is the comparison.
 
-On Commons Lang this is most of the difference between the suite record and
-each class alone: 312 of 316 test classes lack 11,688 methods in total, 1,710
-of them static initializers. The main chain is one line of test code.
-`AbstractLangTest.after()` checks the `ToStringStyle` registry after every
-test; the first class to do so runs `ToStringStyle`'s static initializer, which
-builds the style singletons and initializes `ObjectUtils`. In the suite record,
-210 test classes never enter `ObjectUtils.java`. A change there does not select
-them at file grain, although every one of them ran on its initialized state.
-The seeded faults did not expose this because none was planted in code that
-runs once.
+On Commons Lang it names one warmer. `AbstractLangTest.after()` checks the
+`ToStringStyle` registry after every test; the first class to do so runs
+`ToStringStyle`'s static initializer, which builds the style singletons and
+initializes `ObjectUtils`. Read alone, 312 of 316 test classes enter 11,688
+more methods, 1,710 of them static initializers; in the shared reading 210 of
+them never enter `ObjectUtils.java`. The shared reading costs 143 s and the
+alone reading 336 s.
 
-The loss follows execution order, not concurrency, so exclusive instances do
-not remove it: an instance that serves attempts one after another has warm
-caches and initialized classes for all but the first. A service instance adds
-more of it: framework startup, lazy beans, connection pools. Item 2 charges
-process initialization to every attempt; lazy work needs the same treatment,
-and a window record cannot tell it apart from the attempt's own work. A record
-made with a fresh JVM per test class has none of this loss; on Commons Lang it
-takes 336 s against 143 s for the suite in one JVM.
+A service instance has more of it: framework startup, lazy beans, connection
+pools. Exclusive instances do not change that, since an instance serving
+attempts one after another is warm for all but the first; the same key and the
+same report apply. Item 2 charges process initialization to every attempt.
 
 ### The same fix for a service
 
@@ -232,10 +229,10 @@ makes that price visible instead of ruling it out by architecture.
    partial rows, and their tests run.
 3. In a test JVM, a class whose started thread outlives it, or classes that
    overlap under parallel execution, produce incomplete rows for those classes.
-4. Work done once per JVM is charged to every later attempt that depends on it,
-   or the record is made in a fresh JVM per class. On Commons Lang, a change to
-   `ObjectUtils`' static initializer selects the 210 test classes that ran on
-   it without entering it.
+4. A JVM record carries its warmth as a key. Compared against an `alone`
+   reading, the static initializers a class entered only when it ran first are
+   reported by name, as [0038](0038-a-journey-is-read-against-the-committed-tree.md)
+   reports a place that moved with its inputs fixed.
 5. Two tests whose requests interleave in one JVM enter different source files.
    A reset between them is refused: a JaCoCo dump taken while another attempt
    is open is marked unsuitable for per-attempt exclusion. Epoch-stamped
