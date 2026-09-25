@@ -65,32 +65,46 @@ put its tag in the cache key.
 The first run of any subject reports `new` and exits `1`. An image nobody has
 approved is not a pass, and nothing in these files promotes one on its own.
 
-To end that state here: run `variance.yml` from the Actions tab with
-`workflow_dispatch`, tick `accept: true`, and let it finish. That run executes
-`variance run --exit-zero-on-changes`, then `variance accept --all`, then saves
-the baseline store to the runner cache. Every run after it restores that store
-and compares against it.
+To end that state here: run `variance.yml` from the Actions tab on `main`, tick
+`accept: true`, and let it finish. That run executes
+`variance run --exit-zero-on-changes`, then `variance accept --all`, compares
+again, and saves the baseline store to the runner cache. Every run after it
+restores that store and compares against it.
 
 `accept --all` promotes every candidate the run produced — both the subjects
 nobody has ever reviewed and the subjects whose component just changed. The CLI
 cannot yet tell those two apart, so a job that ran it on a schedule or a push
-would promote the regression it was added to catch. That is why the dispatch is a
-person clicking a button. Read the report from the run that went red before you
-tick it.
+would promote the regression it was added to catch. That is why every accept is
+a person's act. Read the report from the run that went red first.
+
+## Accepting a change on a pull request
+
+A pull request that moves pixels is red, and its comment links the report. To
+accept, add the `variance: accept` label. That starts a run on the pull request
+that promotes what it rendered, compares again, and saves the store into the
+pull request's own cache scope, which its later runs read before `main`'s. The
+run takes the label off again, so a later push that moves pixels needs a new
+label, and the timeline keeps who accepted and when.
+
+Merging carries the acceptance to `main`. The push run finds the merged pull
+request, reads its `variance` check at its head commit, and when that was green
+it promotes the same pixels on `main`, so nobody accepts twice. It does so only
+when `main` itself was green before the merge: a red `main` already held pixels
+nobody accepted, and one render cannot separate them from the reviewed ones. In
+that case `main` stays red until somebody dispatches an accept there, and the
+run's log says why.
 
 ## Where the baselines live here
 
 `.variance/` is git-ignored: a report changes whenever the document does, so
 reports beside their images would make a diff out of every edit that moved no
-pixel. The store is the runner's cache instead, written by `variance.yml` under
-`accept: true` and by nothing else.
+pixel. The store is the runner's cache instead, written by `variance.yml` only
+on a run that accepts, and only after a comparison against it came back green.
 
-Every run restores it and none of them writes it. A pull request and a push to
-`main` are both gates, both red when a subject moved, and the way to answer a red
-one is to look at the comment and then dispatch an accept. A cache key that does
-not match the renderer cannot produce a wrong diff: a baseline whose identity
-differs from the run's is reported `incomparable` and no image is produced, so
-the worst a stale key does is make a check loud.
+A pull request and a push to `main` are both gates, both red when a subject
+moved. A cache key that does not match the renderer cannot produce a wrong diff:
+a baseline whose identity differs from the run's is reported `incomparable` and
+no image is produced, so the worst a stale key does is make a check loud.
 
 The three are not a ladder. A repository can run all of them, and most that shard
 also want the sweep — the sweep asks something no verdict can reach, and sharding

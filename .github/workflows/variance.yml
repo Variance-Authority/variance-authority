@@ -18,30 +18,33 @@ name: variance
 #
 # `.variance/` is ignored, on purpose: a record changes whenever the document
 # does, so records beside their images would make a diff out of every edit that
-# moved no pixel. So the store is the runner's cache, and three events read it
-# while exactly one writes it.
+# moved no pixel. So the store is the runner's cache. Every run restores it and
+# compares against it; a run that accepts first promotes what it rendered, then
+# compares again, and saves the store only when that comparison is green.
 #
-# - **`pull_request`** and **`push` to `main`** compare. Both restore the newest
-#   store and gate on the CLI's exit code. Both are red when pixels moved, and
-#   neither promotes anything.
-# - **`workflow_dispatch` with `accept: true`** promotes. It runs with
-#   `--exit-zero-on-changes`, accepts what that run proposed, and saves the store.
+# A run accepts when a person said so, in the place they already are
+# (`.github/scripts/variance-accept.mjs` decides, and says which):
 #
-# That third one is a person clicking a button, and it is a person on purpose.
-# `accept --all` cannot yet tell a subject nobody has ever reviewed from a subject
-# whose component just changed (spec 0023), so a job that ran it on its own would
-# promote the regression it was added to catch and go green on the next run —
-# which is the tool becoming a recorder, the failure the exit codes exist to
-# prevent. Spec 0016 says it does not belong in an unattended job, and this is
-# what not-unattended looks like.
+# - **On a pull request**, by adding the `variance: accept` label. The run saves
+#   into the pull request's own cache scope, which its later runs read first, and
+#   takes the label off again so the next change needs the next press.
+# - **On `main`, by merging** a pull request whose `variance` check was green at
+#   its head. That acceptance is carried rather than asked for twice — but only
+#   when `main` was green before the merge, so nothing `main` already held
+#   unaccepted is promoted under the pull request's name.
+# - **By dispatching** this workflow with `accept` ticked: the bootstrap, and the
+#   answer for work that lands on `main` without a pull request.
 #
-# It also has to be a separate act *here* specifically: work in this repository
-# lands on `main` directly, so "the pull request already reviewed it" is not a
-# thing that can be assumed.
+# Every one of those is a person, on purpose. `accept --all` cannot yet tell a
+# subject nobody has ever reviewed from a subject whose component just changed
+# (spec 0023), so a job that ran it on its own would promote the regression it
+# was added to catch and go green on the next run — which is the tool becoming a
+# recorder, the failure the exit codes exist to prevent. Spec 0016 says it does
+# not belong in an unattended job. The merge is not unattended: it carries a
+# label somebody added after reading the report.
 #
-# The bootstrap is honest rather than hidden: before anybody has dispatched an
-# accept, every subject is `new`, every run is red, and the first dispatch ends
-# that permanently.
+# The bootstrap is honest rather than hidden: before anybody has accepted, every
+# subject is `new`, every run is red, and the first dispatch on `main` ends that.
 #
 # A cache that does not match the renderer cannot produce a wrong diff. A baseline
 # whose identity differs from the run's is reported `incomparable` and no image is
@@ -73,36 +76,49 @@ on:
   push:
     branches: [main]
   pull_request:
+    # `labeled` is how a reviewer accepts. Any other label is not a reason to
+    # paint, and the job below skips it.
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
     inputs:
       accept:
         description: >-
-          Promote what this run proposes to the baseline store, and keep it for
-          every run after. Off by default: this is the only switch in this
-          repository that decides what a future regression is measured against.
+          Promote what this run renders to the baseline store, and keep it for
+          every run after. Off by default. On a pull request, the
+          `variance: accept` label does the same.
         type: boolean
         default: false
 
-# Read the code, write one comment. `contents: write` is deliberately absent: see
-# the commit-baselines note on the action step below.
+# Read the code, write one comment, take the accept label off. `checks: read` is
+# how a merge to `main` asks whether its pull request was accepted.
+# `contents: write` is deliberately absent: see the commit-baselines note on the
+# action step below.
 permissions:
   contents: read
   pull-requests: write
-
-# One run per branch. The poster looks for its previous comment and then writes,
-# and those two steps are not atomic — two runs racing on the same branch can both
-# conclude there is no previous comment and both create one, which is exactly the
-# duplication the marker exists to prevent.
-#
-# `cancel-in-progress` on `main` as well, and that is safe here: a cancelled paint
-# saves no cache, so the previous store stays the newest one and the next push
-# repaints from the same place.
-concurrency:
-  group: variance-${{ github.ref }}
-  cancel-in-progress: true
+  checks: read
 
 jobs:
   variance:
+    # Labelling a pull request for any other reason starts this workflow too;
+    # only the accept label is a reason to paint.
+    if: >-
+      github.event.action != 'labeled' ||
+      github.event.label.name == 'variance: accept'
+
+    # One run per branch. The poster looks for its previous comment and then
+    # writes, and those two steps are not atomic — two runs racing on the same
+    # branch can both conclude there is no previous comment and both create one,
+    # which is exactly the duplication the marker exists to prevent.
+    #
+    # On the job rather than the workflow, so a label this job skips cannot
+    # cancel a comparison in progress. `cancel-in-progress` on `main` as well,
+    # and that is safe here: a cancelled paint saves no cache, so the previous
+    # store stays the newest one and the next push repaints from the same place.
+    concurrency:
+      group: variance-${{ github.ref }}
+      cancel-in-progress: true
+
     runs-on: ubuntu-24.04
     container:
       image: mcr.microsoft.com/playwright:v1.62.1-noble
@@ -113,6 +129,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      # Before anything is built, because it answers from the event and the API
+      # alone, and because the label it removes should come off while the person
+      # who added it is still looking.
+      - name: decide whether this run accepts
+        id: accept
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VARIANCE_ACCEPT_LABEL: 'variance: accept'
+          VARIANCE_DISPATCH_ACCEPT: ${{ inputs.accept }}
+        run: node .github/scripts/variance-accept.mjs
 
       - shell: bash
         run: corepack enable && yarn install --immutable
@@ -140,33 +168,64 @@ jobs:
       # `container.image` above without bumping it here would restore baselines
       # painted by the old Chromium; they would be reported `incomparable` rather
       # than diffed, which is the safety net and not a reason to skip the edit.
-      - name: restore the baselines main last painted
+      - name: restore the newest accepted baselines
         uses: actions/cache/restore@v4
         with:
           path: cases/storybook-case/.variance/baselines
-          # Exact on a repaint of this very commit; otherwise the newest prefix
-          # match, which on a pull request is whatever main painted last.
+          # Saved keys end in the run, so no key is ever exact and the newest
+          # prefix match wins — this commit's accept first, then any. A pull
+          # request searches its own scope before `main`'s, which is how an
+          # accept made on it outranks whatever `main` painted since.
           key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
           restore-keys: |
+            variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}-
             variance-baselines-playwright-v1.62.1-noble-
 
-      # The gate, on both events that are not an acceptance. It exits 1 when a
-      # subject moved and nothing here suppresses that, on `main` as much as on a
-      # branch: a red `main` is the tool saying the pixels are not the ones
-      # anybody approved, and the way to answer it is to look and then dispatch an
-      # accept — not to make the check quieter.
+      # The acceptance, and the only step in this repository that writes a
+      # baseline. Reached only when the step above found a person who said so.
+      #
+      # `--exit-zero-on-changes` because this run is not asking: the person has
+      # already decided. It suppresses 1 and never 2, so a run whose browser did
+      # not launch still fails here rather than accepting an empty report.
+      #
+      # `accept --all` promotes both the new and the changed, which is what spec
+      # 0023 is about and why this is behind a human. Read the report from the
+      # run that went red before accepting.
+      - if: ${{ steps.accept.outputs.promote == 'true' }}
+        name: promote what this run proposes
+        shell: bash
+        env:
+          VARIANCE_BECAUSE: ${{ steps.accept.outputs.because }}
+        run: |
+          set -euo pipefail
+
+          node packages/cli/dist/bin.js run \
+            --config cases/storybook-case/variance.config.json \
+            --profile chromium \
+            --exit-zero-on-changes \
+            --intent "accepted at ${{ github.sha }}: $VARIANCE_BECAUSE"
+
+          node packages/cli/dist/bin.js accept \
+            --config cases/storybook-case/variance.config.json \
+            --all
+
+      # The gate, on every run — after the promotion when there was one, so an
+      # accept is only kept once a comparison against it came back green. It
+      # exits 1 when a subject moved and nothing here suppresses that, on `main`
+      # as much as on a branch: a red `main` is the tool saying the pixels are
+      # not the ones anybody approved, and the way to answer it is to look and
+      # then accept — not to make the check quieter.
       #
       # `comment` is on only where there is a pull request to comment on. On a
       # push the action would render a docket, find no issue number, and warn.
-      - if: ${{ !inputs.accept }}
-        id: variance
+      - id: variance
         uses: ./.github/actions/variance
         with:
           config: cases/storybook-case/variance.config.json
           profile: chromium
           command: node packages/cli/dist/bin.js
           comment: ${{ github.event_name == 'pull_request' }}
-          intent: ${{ github.event.pull_request.title || format('main at {0}', github.sha) }}
+          intent: ${{ steps.accept.outputs.intent }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
           # The comment counts collateral instead of listing it, so the reader
@@ -175,15 +234,12 @@ jobs:
           # browser — on a phone as well, which is where a review often happens.
           report-page: 'true'
 
-          # The step the comment cannot take for the reviewer, and where it lives
-          # here: the dispatch below, on `main`. The cache a dispatch saves on a
-          # branch is invisible to that branch's pull request runs, which read
-          # the merge ref's scope and `main`'s, so an accept anywhere else would
-          # be kept where no comparison ever reads it.
+          # The step the comment cannot take for the reviewer, in this
+          # repository's words. The label starts a run that accepts; see the
+          # header for why it is a label and what a merge carries afterwards.
           to-accept: >-
-            check the report, then run
-            [variance](${{ github.server_url }}/${{ github.repository }}/actions/workflows/variance.yml)
-            on `main` with **accept** ticked.
+            check the report, then add the **variance: accept** label to this
+            pull request.
 
           # OFF, and it stays off unless somebody decides otherwise on purpose.
           #
@@ -208,44 +264,16 @@ jobs:
           # below, which no contributor has checked out and nobody has to review.
           commit-baselines: 'false'
 
-      # The acceptance, and the only step in this repository that writes a
-      # baseline. Reached only when somebody dispatched this workflow and ticked
-      # the box.
-      #
-      # `--exit-zero-on-changes` because this run is not asking: the person who
-      # started it has already decided. It suppresses 1 and never 2, so a run
-      # whose browser did not launch still fails here rather than accepting an
-      # empty report.
-      #
-      # `accept --all` promotes both the new and the changed, which is what spec
-      # 0023 is about and why this is behind a human. Read the docket from the
-      # run that went red before ticking it.
-      - if: ${{ inputs.accept }}
-        name: promote what this run proposes
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          node packages/cli/dist/bin.js run \
-            --config cases/storybook-case/variance.config.json \
-            --profile chromium \
-            --exit-zero-on-changes \
-            --intent "accepted at ${{ github.sha }} by ${{ github.actor }}"
-
-          node packages/cli/dist/bin.js accept \
-            --config cases/storybook-case/variance.config.json \
-            --all
-
-      # Saved under this commit's sha, so the next pull request restores this run
-      # and not an older one. A key that already exists is not overwritten, which
-      # is why the key is the sha and not a constant — a constant would pin the
-      # store to the first paint that ever happened and never move again.
-      - if: ${{ inputs.accept && success() }}
+      # Saved under this commit and this run, so the next comparison restores
+      # this store and not an older one. A key that already exists is not
+      # overwritten, which is why the key names the run: accepting the same
+      # commit twice must keep the second.
+      - if: ${{ steps.accept.outputs.promote == 'true' && success() }}
         name: keep it for every run after this one
         uses: actions/cache/save@v4
         with:
           path: cases/storybook-case/.variance/baselines
-          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
+          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       # Everything the run wrote, for a reviewer who wants the files rather than
       # the page: the report JSON, every image and sidecar, and the baselines.
