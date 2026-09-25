@@ -304,9 +304,9 @@ that each service you expect wrote a part before you narrow on the record.
 Within a process that did write, what a request with no id ran is charged to
 every test whose id reached that process, never to one of them in particular.
 A service that no id reached is charged to no test, and a change there selects
-none. That change is not silent: the coverage reporter shows the changed code as
-covered by no journey, which is where a gateway that stopped forwarding the
-cookie shows up.
+none. Its modules leave the journey file, and `variance journeys finalize` counts
+fewer modules than the run before: behind a gateway that stopped forwarding the
+cookie, three Workers' 10 modules become the gateway's 4.
 A case that called a service without putting its id on the request is not
 charged for what that request ran, because nothing names the case.
 
