@@ -12,7 +12,7 @@ import { isAbsolute, relative } from 'node:path';
  * part about somebody's home directory to get back the path it already knew.
  *
  * So a path leaves as it arrived: `variance.config.json`, or
- * `node_modules/@variance-authority/cli/skill/SKILL.md`. That spelling opens
+ * `node_modules/@variance-authority/cli/skills/variance-authority/SKILL.md`. That spelling opens
  * from where the command ran, survives being copied into a note or a log, and
  * says nothing about whose checkout it was.
  *

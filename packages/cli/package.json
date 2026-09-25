@@ -40,7 +40,7 @@
     "!dist/**/*.d.ts.map",
     "mark.svg",
     "schema",
-    "skill"
+    "skills"
   ],
   "scripts": {
     "build": "tsc --build"

@@ -17,11 +17,11 @@ rerun tests: that is an experiment you run, and its evidence comes back through
 the same read-only commands.
 
 Choosing which tests to run after an edit, and which of them to run first, is a
-different question with its own skill: `variance-test-selection`, shipped at
-`packages/sense/skill/SKILL.md`. What a workspace publishes, where a symbol is
-declared and which story already calls it is a third: `variance-workspace-api`,
-shipped at `packages/help/skill/SKILL.md`. Neither reads a run, and neither of
-those questions is answered from evidence.
+different question with its own skill: `variance-test-selection`, shipped
+beside this one. What a workspace publishes, where a symbol is declared and
+which story already calls it is a third: `variance-workspace-api`, shipped
+beside it too. Neither reads a run, and neither of those questions is answered
+from evidence.
 
 ## Before the first command
 

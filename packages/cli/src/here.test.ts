@@ -6,8 +6,8 @@ import { said } from './here.js';
 describe('a path said from where the reader is', () => {
   it('drops the part about whose machine it is', () => {
     expect(said(resolve(process.cwd(), 'variance.config.json'))).toBe('variance.config.json');
-    expect(said(resolve(process.cwd(), 'node_modules/@variance-authority/cli/skill/SKILL.md'))).toBe(
-      'node_modules/@variance-authority/cli/skill/SKILL.md',
+    expect(said(resolve(process.cwd(), 'node_modules/@variance-authority/cli/skills/variance-authority/SKILL.md'))).toBe(
+      'node_modules/@variance-authority/cli/skills/variance-authority/SKILL.md',
     );
   });
 

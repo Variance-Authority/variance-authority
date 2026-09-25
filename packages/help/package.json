@@ -42,8 +42,7 @@
   "files": [
     "dist",
     "!dist/**/*.d.ts.map",
-    "mark.svg",
-    "skill"
+    "mark.svg"
   ],
   "scripts": {
     "build": "tsc --build"

@@ -197,16 +197,22 @@ reading and the skill's counterfactual verification loop are described in
 
 ## Point an agent at it
 
-For Codex, install the `variance-authority` skill from this repository:
+`@variance-authority/cli` ships three skills under
+`node_modules/@variance-authority/cli/skills/`: `variance-authority` for reports,
+watchers and connections, `variance-test-selection` for choosing which tests to
+run, and `variance-workspace-api` for what a workspace publishes. Installing the
+package puts them on disk; your agent reads them only from its own skills
+directory, `.agents/skills` or `.claude/skills` in the project or your home
+directory. Link each one there rather than copying it, so it follows every
+update:
 
-```text
-$skill-installer install https://github.com/Variance-Authority/variance-authority/tree/main/packages/cli/skill as variance-authority
+```bash
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority .agents/skills/variance-authority
 ```
 
-Invoke it as `$variance-authority`, or let Codex select it when a Variance
-Authority report, watcher or connection is in scope. Installing
-`@variance-authority/cli` supplies the commands and the same skill source, but
-does not register the skill with Codex; skill installation is a separate step.
+`variance doctor` lists which skills your agent can find, says whether each is a
+link or a copy that has fallen behind, and prints the link for any it cannot
+find. It never writes the link for you.
 
 An MCP connection serves the same report questions as `variance_*` tools, and
 `variance-authority-mcp --watch` is the watcher above over stdio. A connection

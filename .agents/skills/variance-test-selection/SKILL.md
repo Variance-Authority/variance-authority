@@ -1,1 +1,0 @@
-../../../packages/sense/skill/SKILL.md

@@ -32,7 +32,7 @@ export const SKILL_NAME = 'variance-authority';
  * a file that is not there is worse than no line at all.
  */
 export function skillPath(): string | undefined {
-  const at = fileURLToPath(new URL('../skill/SKILL.md', import.meta.url));
+  const at = fileURLToPath(new URL(`../skills/${SKILL_NAME}/SKILL.md`, import.meta.url));
   return existsSync(at) ? at : undefined;
 }
 

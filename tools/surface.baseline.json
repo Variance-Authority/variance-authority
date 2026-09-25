@@ -16,7 +16,7 @@
         "!dist/**/*.d.ts.map",
         "mark.svg",
         "schema",
-        "skill"
+        "skills"
       ],
       "bin": {
         "variance": "./dist/bin.js"
@@ -891,8 +891,7 @@
       "files": [
         "dist",
         "!dist/**/*.d.ts.map",
-        "mark.svg",
-        "skill"
+        "mark.svg"
       ],
       "bin": {
         "variance-authority-help": "./dist/bin.js"
@@ -2304,8 +2303,7 @@
         "!dist/native",
         "mark.svg",
         "scripts/overhead.mjs",
-        "scripts/probe-write.mjs",
-        "skill"
+        "scripts/probe-write.mjs"
       ],
       "engines": {
         "node": ">=22.15"

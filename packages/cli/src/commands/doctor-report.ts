@@ -1,5 +1,6 @@
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import type { CachedIdentity, Diagnosis, FontFinding, Partition, RenderCacheFinding } from './doctor.js';
+import { formatSkills } from './doctor-skills.js';
 
 /**
  * A diagnosis as the two things a caller does with one: an integer, and a page.
@@ -93,6 +94,8 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     '',
     `history: ${diagnosis.history.configured ? 'configured' : 'none'}`,
     `  ${diagnosis.history.because}`,
+    '',
+    ...formatSkills(diagnosis.skills),
   ].join('\n');
 }
 

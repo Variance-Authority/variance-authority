@@ -284,21 +284,18 @@ that distance costs, is [`@variance-authority/sense`](distance.md).
 
 ## Point an agent at it
 
-The skill that drives these calls ships inside the package. After
-`npm install --save-dev @variance-authority/help`, its source is on disk at
-`node_modules/@variance-authority/help/skill`, and the same directory is
-published at
-<https://github.com/Variance-Authority/variance-authority/tree/main/packages/help/skill>.
+The skill that drives these calls, `variance-workspace-api`, ships in
+`@variance-authority/cli` at
+`node_modules/@variance-authority/cli/skills/variance-workspace-api`, beside the
+skills for the rest of the CLI. Your agent reads skills from `.agents/skills` or
+`.claude/skills`, in the project or your home directory. Link the skill there
+rather than copying it, so it follows every update:
 
-Installing the package supplies the server. Registering the skill with your
-agent is a separate step. For Codex:
-
-```text
-$skill-installer install https://github.com/Variance-Authority/variance-authority/tree/main/packages/help/skill as variance-workspace-api
+```bash
+mkdir -p .agents/skills && ln -s ../../node_modules/@variance-authority/cli/skills/variance-workspace-api .agents/skills/variance-workspace-api
 ```
 
-Invoke it as `$variance-workspace-api`, or let Codex select it when a question
-is about what a workspace publishes.
+`variance doctor` reports whether your agent can find it.
 
 The full tool and source-reading contract is in the
 [`@variance-authority/help` package

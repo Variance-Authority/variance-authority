@@ -33,13 +33,13 @@ the same code.
 ## Preconditions
 
 - **Node 22 or later.** Both the package and the workspace declare `>=22`.
-- **The package installed.** `@variance-authority/help` provides the binary
-  `variance-authority-help`. It is a devDependency of this workspace, so
-  `node_modules/.bin/variance-authority-help` already exists and the binary is on
-  the path of any script or shell the package manager set up. If your shell does
-  not find it, run it as `npx variance-authority-help …` — see the npx rule
-  below — or `yarn add -D @variance-authority/help` where you will ask more than
-  once.
+- **One of the two binaries installed.** This skill ships in
+  `@variance-authority/cli`, so wherever you found it, `variance ask` answers the
+  same questions — see *Ask* below. Without the CLI,
+  `@variance-authority/help` provides the binary `variance-authority-help`. If
+  your shell does not find it, run it as `npx variance-authority-help …` — see
+  the npx rule below — or `yarn add -D @variance-authority/help` where you will
+  ask more than once.
 - **In this checkout, `dist` must be built.** The workspace link points at
   `packages/help/dist/bin.js`. If it is missing, `yarn build` (or `tsc --build`
   in `packages/help`). An installed copy from the registry ships `dist` and needs

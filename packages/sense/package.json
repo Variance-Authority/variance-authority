@@ -96,8 +96,7 @@
     "!dist/native",
     "mark.svg",
     "scripts/overhead.mjs",
-    "scripts/probe-write.mjs",
-    "skill"
+    "scripts/probe-write.mjs"
   ],
   "scripts": {
     "build": "tsc --build && node native/build.mjs",

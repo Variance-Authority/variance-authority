@@ -9,6 +9,7 @@ import { SUBJECT_PATH, type Renderer } from '@variance-authority/raster';
 import { said } from '../here.js';
 import type { Config } from '../config.js';
 import type { DoctorProbes } from './doctor-probes.js';
+import { agentSkills, type SkillsFinding } from './doctor-skills.js';
 
 /**
  * `variance doctor` — what *this* machine can observe, and nothing else.
@@ -57,6 +58,7 @@ export interface Diagnosis {
   readonly baselines: BaselineFinding;
   readonly renders: RenderCacheFinding;
   readonly history: HistoryFinding;
+  readonly skills: SkillsFinding;
 }
 
 /**
@@ -193,6 +195,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       baselines: await baselines(config, probes, undefined),
       renders: await renders(probes, undefined),
       history: history(config),
+      skills: agentSkills(process.cwd()),
     };
   }
 
@@ -226,6 +229,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
       baselines: await baselines(config, probes, rendererFinding.identity),
       renders: await renders(probes, rendererFinding.identity),
       history: history(config),
+      skills: agentSkills(process.cwd()),
     };
   } finally {
     // Closed here rather than left to the process: doctor is often the last thing
