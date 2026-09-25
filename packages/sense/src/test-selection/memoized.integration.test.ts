@@ -119,4 +119,4 @@ describe('a cache filled while a case mocked what the function calls', () => {
   }, 20_000);
 });
 
-it.todo('a case recorded in order and again alone is named order-dependent on the price body, with `computes the price` as the candidate that ran before it — needs the case index to record each case\'s predecessors and each module\'s git object name, and the fold to compare the previous reading before it replaces it (spec 0063)');
+it.todo('a case recorded whole and then alone, as case selection runs it, is named unstable on the price body, and the cases the focused run skipped keep their readings — needs the case index to record each module\'s git object name, and the fold to compare a case\'s previous reading before it replaces only the cases it ran (spec 0063)');
