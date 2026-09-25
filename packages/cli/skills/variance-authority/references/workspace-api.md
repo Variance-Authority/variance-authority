@@ -193,9 +193,9 @@ and an `import()` loads it only when that call runs.
 ```
 $ variance-authority-help uses digestValue --from packages/cli/src/run.ts
 `digestValue` is imported in 16 places.
-Nearest first, by how much of the path each shares with packages/cli/src/run.ts.
+Nearest to packages/cli/src/run.ts first.
 
-Tests — written to pin what it does:
+Tests:
 
 packages/mcp/src/presentation.test.ts:2 — @variance-authority/mcp
 packages/report/src/file.test.ts:5 — @variance-authority/report

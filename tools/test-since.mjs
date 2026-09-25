@@ -16,7 +16,7 @@ import {
 import { sourceStem } from './page-side.mjs';
 import { inSnapshotCoordinates } from './since-diff.mjs';
 import { importGraph, isManifest, movedManifests, movedPackageFiles, movedPackages } from './since-graph.mjs';
-import { describeRange, distanceLines, explain, findingLines, helpLines, readingLines } from './since-report.mjs';
+import { describeRange, distanceLines, explain, findingLines, helpLines, readingLines, runningLines } from './since-report.mjs';
 
 /**
  * Run the tests a change reached, from the suite's own record of itself.
@@ -63,8 +63,9 @@ import { describeRange, distanceLines, explain, findingLines, helpLines, reading
  * a failure at one hop has one explanation where a failure at four has a chain
  * of them. `--at-distance` takes those hop counts, so a loop can find out it was
  * wrong in six seconds rather than find out it was right in eleven minutes. Each
- * leg is a smaller claim than the last, and the report names the files it left
- * for a later one so the two are never confused.
+ * leg is a smaller claim than the last, and the report counts the files it left
+ * for a later one so the two are never confused. A green leg is not a green
+ * suite, which `--help` and AGENTS.md say once rather than every run.
  *
  * ## Two shapes it reports whether or not anything failed
  *
@@ -210,6 +211,12 @@ async function main() {
    * repository, under a directory keyed by this checkout's absolute path:
    * `git clean` does not reach it, and two checkouts of the same repository do
    * not share one.
+   *
+   * The message says only to record again. A recording run layers onto
+   * whatever it finds and treats bytes it cannot decode as nothing to layer
+   * onto, so it replaces this file rather than failing on it and there is
+   * nothing to delete first. Nothing is narrowed on a file this cannot read: a
+   * run that ignored it would look exactly like a run with nothing recorded.
    */
   let coverage;
   try {
@@ -226,14 +233,7 @@ async function main() {
     say(
       `test:since: the execution snapshot is not one this build can read: ${error?.message ?? error}.`,
       `  at ${snapshotFile}`,
-      '  Run `yarn test` once. A recording run layers onto whatever it finds here and',
-      '  treats bytes it cannot decode as nothing to layer onto, so it replaces this file',
-      '  rather than failing on it; there is nothing to delete first.',
-      '  The file is outside the repository, under a directory keyed by this checkout\'s',
-      '  absolute path, so `git clean` does not reach it and another checkout has its own.',
-      '  Nothing is narrowed on a file this cannot read — a run that ignored it would look',
-      '  exactly like a run that had nothing recorded, and that is the answer this tool is',
-      '  built not to give.',
+      '  Run `yarn test` once to replace it.',
     );
     return 1;
   }
@@ -307,7 +307,7 @@ async function main() {
       changed.length === 0
         ? `test:since: nothing has changed since ${base.slice(0, 12)}.`
         : `test:since: ${changed.length} changed manifest(s), and the install they record did not change.`,
-      '  Nothing to run. `yarn test` is still the gate.',
+      '  Nothing to run.',
     );
     return 0;
   }
@@ -415,7 +415,6 @@ async function main() {
 
   const running = atDistance(reading, range.from, range.to);
   const left = remaining(reading, range.from, range.to);
-  const width = Math.max(...running.slice(0, 25).map((file) => file.length), 0);
   const at = (file) => {
     const group = groups.find((candidate) => candidate.tests.includes(file));
     return group === undefined || group.unplaced ? '  ·' : `${`${group.hops}`.padStart(3)}`;
@@ -425,11 +424,11 @@ async function main() {
     `test:since: ${selected.length} of ${suite.length} files, at ${groups.length} distance(s).`,
     `  base     ${base.slice(0, 12)}${ref === undefined ? ' — where the snapshot was recorded' : ' — merged with HEAD'}`,
     `  changed  ${changed.length} path(s): ${touched.length} test file(s), ${changed.length - consequential.length} manifest(s), ${unentered.length} unlisted`,
-    `  skipped  ${suite.length - selected.length} file(s) the snapshot saw whole and which entered none of it`,
+    `  skipped  ${suite.length - selected.length} file(s): recorded whole, ran nothing that changed`,
     ...(narrowing.stale.length === 0
       ? []
       : [
-          `  stale    ${narrowing.stale.length} recorded name(s) cut from other text, charged every region rather than read by line`,
+          `  stale    ${narrowing.stale.length} recorded name(s) cut from other text: every region charged`,
         ]),
     ...readingLines(narrowing.readings ?? []),
     '',
@@ -439,10 +438,9 @@ async function main() {
       ? []
       : [
           `  ${range.from}${range.to === range.from ? '' : `-${range.to === Number.MAX_SAFE_INTEGER ? '' : range.to}`} hops: running ${running.length}, leaving ${left.length} for a later leg.`,
-          '  A green leg is not a green suite, and `yarn test` is still the gate.',
           '',
         ]),
-    ...running.slice(0, 25).map((file) => `  ${at(file)}  ${file.padEnd(width)}  ${why(file)}`),
+    ...runningLines(running.slice(0, 25), at, why),
     ...(running.length > 25 ? [`  … and ${running.length - 25} more`] : []),
     '',
     ...findingLines(reading),
@@ -455,14 +453,15 @@ async function main() {
     // change would be a different and false sentence.
     say(
       asked === undefined
-        ? '  Nothing entered what changed. `yarn test` is still the gate.'
-        : `  No selected test is ${describeRange(range)} from the change. ${left.length} file(s) are further out; \`yarn test\` is still the gate.`,
+        ? '  No test ran what changed.'
+        : `  No selected test is ${describeRange(range)} from the change. ${left.length} file(s) are further out.`,
     );
     return 0;
   }
   const result = spawnSync('yarn', ['vitest', 'run', ...running], { cwd: ROOT, stdio: 'inherit' });
   if (left.length > 0) {
-    say('', `test:since: ${left.length} selected file(s) were not in this leg:`, ...left.map((file) => `  ${file}`));
+    const further = range.to === Number.MAX_SAFE_INTEGER ? '' : `; \`--at-distance ${range.to + 1}-\` runs those further out`;
+    say('', `test:since: ${left.length} selected file(s) were not in this leg${further}.`);
   }
   return result.status ?? 1;
 }

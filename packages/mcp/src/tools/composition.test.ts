@@ -232,7 +232,7 @@ describe('the suite compared to itself', () => {
     const answer = composition.run(REPORT, {});
 
     expect(answer).toContain('Chip (style) — 2 rendering(s) from one props digest');
-    expect(answer).toContain('there is no baseline anywhere in this');
+    expect(answer).toContain('same props, different renderings; not a regression');
     // The split, not just the total. Which subjects agreed with each other is
     // the only part of a divergence a reader can act on.
     expect(answer).toContain('2 subject(s): page/all, page/active');

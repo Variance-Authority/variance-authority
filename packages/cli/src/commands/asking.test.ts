@@ -42,7 +42,7 @@ describe('the question a tool answers', () => {
     expect(questionFor('locate').source).toBeUndefined();
   });
 
-  it('refuses a name nobody has, by listing the names somebody does', () => {
+  it('refuses a name nobody has, and names the nearest one somebody does', () => {
     expect(() => questionFor('run-signal')).toThrow('`run-signal` is not a question');
     expect(() => questionFor('run-signal')).toThrow('run-signals');
   });

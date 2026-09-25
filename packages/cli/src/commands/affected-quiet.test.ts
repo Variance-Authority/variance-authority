@@ -40,7 +40,7 @@ describe('the files a diff reaches', () => {
     if (refused(affected)) throw new Error(affected.whole);
 
     expect(affected.files).toEqual(['src/ds/Clock.tsx']);
-    expect(affected.how).toMatch(/src\/ds\/tokens\.ts changes nothing that runs, so it seeds nothing/);
+    expect(affected.how).toMatch(/\(src\/ds\/tokens\.ts: no runtime change\)/);
   });
 
   it('refuses a diff every file of which runs what it ran before, and says why', () => {
@@ -119,7 +119,7 @@ describe('a changed file read by the exports it changed', () => {
     if (refused(affected)) throw new Error(affected.whole);
 
     expect(affected.files).toEqual(['src/ds/Button.tsx', 'src/ds/Label.tsx', 'src/ds/index.ts', 'src/ds/tokens.ts']);
-    expect(affected.how).toMatch(/src\/ds\/tokens\.ts changes color; only files that import a changed export are walked/);
+    expect(affected.how).toMatch(/\(src\/ds\/tokens\.ts changes color\)/);
   });
 
   it('walks whole from a file the reading named no exports for', () => {

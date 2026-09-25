@@ -168,7 +168,7 @@ describe('a subject that does not read the same way twice', () => {
     // reason order dependence leaves it standing. What is added is that the
     // verdict was decided by whichever of two disagreeing readings came first.
     expect(observation?.verdict).toBe('changed');
-    expect(observation?.unstable?.because).toContain('the two readings disagree');
+    expect(observation?.unstable?.because).toContain('two readings seconds apart, with nothing changed between, differ');
 
     // The whole ordering argument, as an assertion. A clean-world answer here
     // would compare two readings that do not agree in *any* world, and would have
@@ -189,7 +189,7 @@ describe('a subject that does not read the same way twice', () => {
     // short list — a clock, a seed, a counter, a request that had not landed.
     expect(report.observations[0]?.unstable?.components).toEqual([{ name: 'Clock' }]);
     expect(report.observations[0]?.unstable?.bands).toEqual(['content']);
-    expect(report.observations[0]?.unstable?.because).toContain('Clock read differently (content)');
+    expect(report.observations[0]?.unstable?.because).toContain('differ: Clock (content)');
   });
 
   it('resolves the component to the file an editor opens, when the collector knows one', async () => {
@@ -220,7 +220,7 @@ describe('a subject that does not read the same way twice', () => {
     });
 
     expect(report.observations[0]?.unstable?.components).toEqual([]);
-    expect(report.observations[0]?.unstable?.because).toContain('no snapshot was collected');
+    expect(report.observations[0]?.unstable?.because).toContain('no snapshot collected; component unknown');
   });
 
   it('leaves a stable subject to the clean-world pass, which still runs', async () => {

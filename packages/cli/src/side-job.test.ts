@@ -94,7 +94,7 @@ describe('--exit-zero-on-changes', () => {
     const { err } = await report(await repo(CHANGED), ['--exit-zero-on-changes']);
 
     expect(err).toContain('changes need review');
-    expect(err).toContain('reporting, not gating');
+    expect(err).toContain('--exit-zero-on-changes exits 0, not 1');
   });
 
   it('leaves an operator error at 2 — which is what `|| true` cannot do', async () => {

@@ -1,5 +1,7 @@
 import { notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
+import { didYouMean } from '../nearest.js';
+import { listed } from './reach.js';
 import type { CliRunReport } from './run.js';
 import { reportHtml } from './report-html.js';
 import { describeRecipe, recipeOf } from '@variance-authority/core/format';
@@ -260,7 +262,9 @@ function unknownSubject(report: CliRunReport, subject: string): OperatorError {
     ...(report.notObserved ?? []).map((entry) => entry.subject),
   ];
 
+  // Three names and a count rather than the whole suite: the report itself
+  // lists every subject, and a typo is answered by the nearest one.
   return new OperatorError(
-    `this run has no subject \`${subject}\`; it has: ${known.join(', ')}`,
+    `this run has no subject \`${subject}\`; it has ${listed(known)}${didYouMean(subject, known)}`,
   );
 }

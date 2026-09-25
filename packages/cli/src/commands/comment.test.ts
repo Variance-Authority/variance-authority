@@ -296,7 +296,7 @@ describe('renderComment', () => {
     );
 
     const body = renderComment({ report: many, limits: { causes: 5 } });
-    expect(body).toContain('20 further cause(s) reaching 20 subject(s)');
+    expect(body).toContain('20 more cause(s) reaching 20 subject(s)');
   });
 
   it('cuts an over-long body to fit and states how much it cut', () => {
@@ -448,6 +448,6 @@ describe('renderComment', () => {
       limits: { drift: 4 },
     });
 
-    expect(body).toContain('8 further drifted token(s) are not listed here');
+    expect(body).toContain('8 more drifted token(s) in the run report');
   });
 });

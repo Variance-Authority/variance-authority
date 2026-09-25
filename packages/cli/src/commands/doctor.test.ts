@@ -165,7 +165,7 @@ describe('doctor', () => {
     const diagnosis = await doctor(configOf(), probesWith([]));
 
     expect(diagnosis.history.configured).toBe(false);
-    expect(diagnosis.history.because).toContain('not evidence of stability');
+    expect(diagnosis.history.because).toContain('drift is unknown, not stable');
   });
 
   it('reports a configured history store without contacting it', async () => {
@@ -196,14 +196,13 @@ describe('fontProbeDocument', () => {
 });
 
 describe('formatDiagnosis', () => {
-  it('prints the font probe’s known limit whenever a probe actually ran', async () => {
+  it('prints the font probe’s known limit under a missing family', async () => {
     // The limit is the reason a missing font here is not a build failure, so it
     // has to travel with the finding rather than live only in a doc comment.
     const text = formatDiagnosis(await doctor(configOf(), probesWith(['Inter'])));
 
-    expect(text).toContain('known limit');
     expect(text).toContain('Liberation Sans');
-    expect(text).toContain('does not change the exit code');
+    expect(text).toContain('exit code unaffected');
   });
 
   it('does not claim a limit for a probe that never ran', async () => {
@@ -211,7 +210,7 @@ describe('formatDiagnosis', () => {
 
     expect(text).toContain('NOT AVAILABLE');
     expect(text).toContain('fonts: not probed');
-    expect(text).not.toContain('known limit');
+    expect(text).not.toContain('exit code unaffected');
   });
 
   it('names the render cache, where it is, and whose renders fill it', async () => {

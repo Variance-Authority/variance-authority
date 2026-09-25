@@ -150,7 +150,7 @@ describe('reading a workspace through the source index', () => {
       expect(tree?.files).toEqual(treeOf(records, root).files);
       expect(workspaceGeneration(recorded)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
-      expect(tool.run(recorded, { query: 'measure' })).toContain('Source snapshot generated ');
+      expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');
 
       const snapshot = await readFile(workspaceSnapshotPath(at), 'utf8');
       const digest = /"graphDigest":"([^"]+)"/u.exec(snapshot)?.[1];

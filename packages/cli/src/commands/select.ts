@@ -172,20 +172,16 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (input.ground.kind === 'no-journal') {
     return {
       ...base,
-      widened:
-        `no execution journal has been recorded for this checkout (${input.at}), so nothing ` +
-        'here knows which test covered which line',
-      because: 'there is nothing to narrow by, and every test file stays in the run',
+      widened: `no execution journal at ${input.at}`,
+      because: 'nothing to narrow by, so every test file runs',
     };
   }
 
   if (input.ground.kind === 'no-diff') {
     return {
       ...base,
-      widened:
-        `what has changed since ${input.ground.from} could not be read, and an empty diff and ` +
-        'an unobtainable one look exactly alike',
-      because: 'the diff could not be read, and one of its two readings is “skip everything”',
+      widened: `cannot read what changed since ${input.ground.from}`,
+      because: 'no diff, so every test file runs',
     };
   }
 
@@ -193,7 +189,7 @@ export function skippableTests(input: SelectInput): TestSelection {
     return {
       ...base,
       widened: input.ground.whole,
-      because: 'a package bump shows in no line a test covered, so every test file stays in the run',
+      because: 'a package bump shows in no covered line, so every test file runs',
     };
   }
 
@@ -211,10 +207,8 @@ export function skippableTests(input: SelectInput): TestSelection {
   if (whole.length === 0) {
     return {
       ...measured,
-      widened:
-        'the journal holds no whole observation of any test file, so no absence from it is ' +
-        'evidence of anything',
-      because: 'the execution journal recorded nothing it can speak for',
+      widened: 'the journal holds no whole observation of any test file',
+      because: 'nothing recorded whole, so every test file runs',
     };
   }
 
@@ -225,9 +219,8 @@ export function skippableTests(input: SelectInput): TestSelection {
     ...measured,
     skip,
     because:
-      `${skip.length} of the ${many(whole.length, 'test file')} the journal recorded whole ` +
-      'covered none of the changed lines, and are skipped; every test file it does not speak ' +
-      'for still runs',
+      `skipping ${skip.length} of ${many(whole.length, 'test file')} recorded whole: none ` +
+      'covered a changed line; every other test file runs',
   };
 }
 
@@ -378,10 +371,12 @@ function jsonOf(selection: TestSelection): object {
  * rather than a report.
  */
 export function selectionNotes(selection: TestSelection): string {
+  // A widened answer is said once: `because` restates "every test file runs",
+  // which `skipping nothing` already says. `json` keeps both fields.
   const lines =
     selection.widened === undefined
       ? [`${selection.because}.`]
-      : [`skipping nothing: ${selection.widened}.`, `${selection.because}.`];
+      : [`skipping nothing: ${selection.widened}.`];
 
   for (const note of selection.notes) lines.push(`${note}.`);
   lines.push(...readingLines(selection.readings ?? []));

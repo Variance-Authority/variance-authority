@@ -1671,7 +1671,7 @@ case has settled is that case still working, and the file prints the cases that
 did it when it finishes:
 
 ```text
-variance-authority: work outlived its case in test/checkout.test.tsx:
+variance-authority: async work still running after its case finished in test/checkout.test.tsx (recorded against the case that started it):
   checkout > submits
 ```
 

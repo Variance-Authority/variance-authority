@@ -101,7 +101,7 @@ readings are two documents, and a document includes its component hashes, so the
 answer is a component and a band:
 
 ```
-[unstable] story:checkout--summary — Clock read differently (content)
+[unstable] story:checkout--summary: … differ: Clock (content)
 ```
 
 `content` is data, `geometry` is layout that has not settled, `token` is a style
@@ -295,7 +295,7 @@ travels in the report, so the summary, the pull-request comment and an agent all
 read one sentence:
 
 ```
-UNSTABLE: 1 subject(s) were read twice, seconds apart …
+UNSTABLE: 1 subject(s) read twice seconds apart, nothing changed between, …
     story:checkout--summary — Clock (content)
       read differently in 6 run(s), 50% of the 12 sweep(s) that asked, and the most recent
       sweep still saw it
@@ -316,8 +316,8 @@ a suite that stopped running would look increasingly healthy the longer nobody
 looked at it.
 
 **Silence from the record is printed as silence.** A subject with no history
-entry prints *that is silence, not a first occurrence* — because the reader most
-wants the opposite to be true, and nothing in a single run supports it.
+entry prints *No history record: recurrence unknown* — because the reader most
+wants it to be a first occurrence, and nothing in a single run supports that.
 
 What it takes to have one: a `history` block in the config pointing at a service
 you run, and a run that can name itself — `--run` and `--commit`, or the pair the

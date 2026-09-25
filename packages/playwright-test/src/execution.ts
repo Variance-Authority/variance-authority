@@ -462,13 +462,14 @@ export function createExecutionRecorder(
     // exists for: a process running by itself sees the whole run and merging
     // for itself is exactly right. Playwright names its workers in the
     // environment, so the difference is readable without asking the runner.
+    // Without the reporter each worker merges the index on its own, and a spec
+    // two of them shared keeps only the later half of what it walked.
     if (!announced && process.env.TEST_WORKER_INDEX !== undefined) {
       announced = true;
       process.stderr.write(
-        'variance-authority: execution recording is on without the reporter that folds it — ' +
-          'add `@variance-authority/playwright-test/reporter` to `reporter` in this ' +
-          "project's configuration. Without it each worker merges the index on its own, " +
-          'and a spec two of them shared keeps only the later half of what it walked\n',
+        'variance-authority: execution recording is on without its reporter; add ' +
+          '`@variance-authority/playwright-test/reporter` to `reporter`, or a spec two workers ' +
+          'shared keeps only the later worker\'s half.\n',
       );
     }
     const record = await recordExecution({

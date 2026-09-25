@@ -84,15 +84,13 @@ export interface ReportedModule {
 export function noteAnEmptyRecord(
   testFiles: number,
   instrumented: number,
-  unreached = 'The plugin did not reach the modules under test: check `include`, and — if this ' +
-    'configuration uses `projects` — that the plugin and the setup file are inside each project ' +
-    'rather than beside them, since a project does not inherit either.',
+  unreached = 'Check `include`, and with `projects`, that the plugin and the setup file are ' +
+    'inside each project rather than beside them: a project inherits neither.',
 ): void {
   if (instrumented > 0 || testFiles === 0) return;
   console.warn(
-    `variance-authority instrumented 0 modules across ${testFiles} test file(s). The snapshot ` +
-      'about to be written therefore says no test reaches any source, and every selection made ' +
-      `from it will narrow to nothing rather than to the tests a change needs. ${unreached}`,
+    `variance-authority instrumented 0 modules across ${testFiles} test file(s); ` +
+      `selection from this snapshot will select nothing. ${unreached}`,
   );
 }
 

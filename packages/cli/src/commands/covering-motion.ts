@@ -150,9 +150,10 @@ export function motionText(
   const { counts } = moved;
   if (moved.regions.length === 0) lines.push(`Against ${against}, no region moved.`);
   else {
-    lines.push(
-      `Against ${against}: ${counts.lost} lost, ${counts.hidden} hidden, ${counts.thinned} thinned, ${counts.gained} gained.`,
-    );
+    const said = (['lost', 'hidden', 'thinned', 'gained'] as const)
+      .filter((motion) => counts[motion] > 0)
+      .map((motion) => `${counts[motion]} ${motion}`);
+    lines.push(`Against ${against}: ${said.join(', ')}.`);
     for (const region of moved.regions) {
       const why = region.motion === 'gained'
         ? `now ${named(region.now)}`

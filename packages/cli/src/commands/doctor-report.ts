@@ -72,13 +72,9 @@ export function formatDiagnosis(diagnosis: Diagnosis): string {
     '',
     `fonts: ${fontHeadline(diagnosis.fonts)}`,
     `  ${diagnosis.fonts.because}`,
-    ...(diagnosis.fonts.probed
-      ? [
-          '  known limit: a family that is metric-compatible with a generic — Arimo, ' +
-            'Liberation Sans, the substitutes a container ships so layout does not move —',
-          '  is reported missing by this probe. It reports a doubt rather than swallowing ' +
-            'one, and does not change the exit code.',
-        ]
+    // Only under a finding: the limit explains a missing family, and nothing else.
+    ...(diagnosis.fonts.probed && diagnosis.fonts.missing.length > 0
+      ? ['  exit code unaffected; a metric-compatible substitute (Arimo, Liberation Sans) also reads as missing']
       : []),
     '',
     `baselines: ${diagnosis.baselines.kind}${

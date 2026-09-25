@@ -18,9 +18,9 @@ const READINGS: readonly FileReading[] = [
 ];
 
 const PRINTED = [
-  'read src/Button.tsx: values — SIZE changed; their readers and the changed regions are charged',
-  'unseen fixture:b: loaded src/Button.tsx through an import the file graph does not list; named, not selected',
-  'read src/Clock.tsx: unread — the diff does not apply to the recorded text, so its changed lines are charged',
+  'read src/Button.tsx: values (SIZE) — the readers of the changed values and the changed regions are charged',
+  'unseen fixture:b: loaded src/Button.tsx by an import the file graph does not list; named, not selected',
+  'read src/Clock.tsx: unread (the diff does not apply to the recorded text) — its changed lines are charged',
 ];
 
 describe('`variance run --since` prints how it read each changed file', () => {

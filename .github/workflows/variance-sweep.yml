@@ -213,7 +213,8 @@ jobs:
               exit 1
               ;;
             2)
-              echo "::error::variance could not run as configured. This is not a finding about stability: no subject was collected twice, and nothing here says anything about the suite."
+              # Not a finding about stability: no subject was collected twice.
+              echo "::error::variance could not run (exit 2); see the variance run --flakes step."
               exit 2
               ;;
             '')

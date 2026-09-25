@@ -188,7 +188,7 @@ describe('a changed file that runs what it ran before', () => {
 
     expect(said.code).toBe(EXIT_CLEAN);
     expect(said.out.trim().split('\n').sort()).toEqual(['src/cart.test.ts', 'src/cart.ts']);
-    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs/);
+    expect(said.err).toMatch(/\(src\/limits\.ts: no runtime change\)/);
   });
 
   it('exits 2 and writes nothing to stdout when every changed file runs what it ran before', async () => {
@@ -203,7 +203,7 @@ describe('a changed file that runs what it ran before', () => {
 
     expect(said.code).toBe(EXIT_OPERATOR);
     expect(said.out).toBe('');
-    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs, so it seeds nothing/);
+    expect(said.err).toMatch(/src\/limits\.ts changes nothing that runs/);
   });
 });
 
@@ -235,7 +235,7 @@ describe('a changed file read by the exports it changed', () => {
       'test/total.test.ts',
       'test/whole.test.ts',
     ]);
-    expect(said.err).toMatch(/src\/cart\.ts changes total; only files that import a changed export are walked/);
+    expect(said.err).toMatch(/\(src\/cart\.ts changes total\)/);
   });
 
   it('names the changed exports in the JSON it prints', async () => {

@@ -98,10 +98,6 @@ source, so it cannot disagree with the code:
 ```
 unrun: 57 gaps in 46 files
 
-  todo   a claim that would hold if something ran
-  TODO   a limb that is not written
-  FIXME  a defect in code that ships
-
 @variance-authority/case-storybook
   cases/storybook-case/src/cli.chromium.test.js:409  todo
       a `run` over an unmodified build records a quiet run, so `Button`'s churn over the
@@ -332,8 +328,8 @@ five hops or further out, and every test the reading could not place, to
 `yarn verify` — which is the gate, and runs them. When you do want a partition,
 it is `0-2` then `3-`: a leg whose range is open at the top carries the tests
 with no measurable distance, so those two legs together run every selected file
-exactly once. Either way, every run prints the files the leg it took left
-behind.
+exactly once. Either way, every run prints how many selected files the leg it
+took left behind, and the range that runs those further out.
 
 `--at-distance` narrows a reading; it cannot narrow a widening. When the reading
 could not be made the run is the whole suite and the flag is never consulted —

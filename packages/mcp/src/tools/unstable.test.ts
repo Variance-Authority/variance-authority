@@ -90,13 +90,13 @@ describe('a subject that did not agree with itself', () => {
     expect(answer).toContain('a clock, a random seed, an id counter');
   });
 
-  it('offers a mask second and says why it is second', () => {
+  it('offers a mask last, and on the element rather than the subject', () => {
     // A clock genuinely is a clock, and an ignore is the right answer for one.
     // Leading with it is how a suite ends up green over a surface nobody watches.
     const answer = summary(reportWith(UNSTABLE));
 
-    expect(answer).toContain('mask the *element*');
-    expect(answer).toContain('hides the next regression that lands in the same place');
+    expect(answer).toContain('mask the element named above, not the subject');
+    expect(answer.indexOf('mask the element')).toBeGreaterThan(answer.indexOf('content — text or data moved'));
   });
 
   it('outranks the clean-world answer, which was never taken', () => {
@@ -191,7 +191,7 @@ describe('a subject that did not agree with itself', () => {
 
     expect(answer).toContain('No history record answered for this subject');
     expect(answer).toContain('not a first occurrence');
-    expect(summary(reportWith(UNSTABLE))).toContain('That is silence, not a first occurrence.');
+    expect(summary(reportWith(UNSTABLE))).toContain('No history record: recurrence unknown.');
   });
 
   it('gives the one command that answers whether a fix worked', () => {

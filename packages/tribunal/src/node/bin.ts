@@ -87,27 +87,28 @@ export interface TribunalConfig {
  * tested once, by hand, before it is weakened.
  */
 export function readConfig(env: Readonly<Record<string, string | undefined>>): TribunalConfig {
+  // The project scopes every row and every object key, so one deployment can
+  // serve several repositories without their `story:card` colliding. There is no
+  // default on purpose: an invented one puts two projects' baselines in one
+  // namespace, and the first symptom is every subject reporting `changed` at once.
   const project = (env[PROJECT_VARIABLE] ?? '').trim();
   if (project === '') {
     throw new Error(
-      `${PROJECT_VARIABLE} is not set. It scopes every row and every object key, so one ` +
-        'deployment can serve several repositories without their `story:card` colliding. There ' +
-        'is no default on purpose: an invented one puts two projects\' baselines in one ' +
-        'namespace, and the first symptom is every subject reporting `changed` at once.',
+      `${PROJECT_VARIABLE} is not set. It scopes every row and every object key, and has no default.`,
     );
   }
 
   const host = orDefault(env[HOST_VARIABLE], DEFAULT_HOST);
   const loopback = LOOPBACK.has(host);
+  // This service has bearer tokens and no accounts, no TLS and no rate limit, so
+  // a network bind is a decision somebody should have typed. The review surface
+  // is not served on one, because nothing would stand between it and an approve
+  // button on the internet.
   if (!loopback && orDefault(env[TRUST_NETWORK_VARIABLE], '') === '') {
     throw new Error(
-      `${HOST_VARIABLE} is "${host}", which is reachable from outside this machine, and ` +
-        `${TRUST_NETWORK_VARIABLE} is not set. This service has bearer tokens and no accounts, ` +
-        'no TLS and no rate limit, so a network bind is a decision somebody should have typed. ' +
-        `Set ${TRUST_NETWORK_VARIABLE}=1 to confirm it — and read what it costs: the review ` +
-        'surface is not served on a network bind, because there would be nothing between it and ' +
-        'an approve button on the internet. Put the Next.js adapter behind your own sign-in ' +
-        'instead, or leave this on loopback behind a reverse proxy that authenticates.',
+      `${HOST_VARIABLE}=${host} is not loopback; set ${TRUST_NETWORK_VARIABLE}=1 to allow it. ` +
+        'The review UI is not served on a network bind: put the Next.js adapter behind your own ' +
+        'sign-in, or stay on loopback behind a reverse proxy that authenticates.',
     );
   }
 
@@ -296,15 +297,12 @@ export function readArguments(argv: readonly string[]): string | null {
   const flag = given.split('=')[0] as string;
   const variable = AS_VARIABLE[flag];
 
+  // Configured by environment, because a service is started by a supervisor, a
+  // unit file or a container, and all three pass one.
   throw new Error(
     variable === undefined
-      ? `this service takes no arguments and received \`${given}\`. It is configured by ` +
-          `environment, because a service is started by a supervisor, a unit file or a ` +
-          `container, and all three pass one.\n\n${USAGE}`
-      : `\`${flag}\` is ${variable}, and this service is configured by environment rather ` +
-          `than by flags. Accepting the flag and ignoring it would start the service against ` +
-          `the default instead — for ${DATABASE_VARIABLE}, an empty database in the working ` +
-          `directory, reported as a successful start.\n\n${USAGE}`,
+      ? `this service takes no arguments and received \`${given}\`; it is configured by environment.\n\n${USAGE}`
+      : `\`${flag}\` is ${variable}; this service is configured by environment, not flags.\n\n${USAGE}`,
   );
 }
 

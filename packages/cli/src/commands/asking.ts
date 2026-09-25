@@ -96,12 +96,9 @@ export function questionFor(asked: string): Question {
   const found = QUESTIONS.find((question) => questionOf(question.tool) === asked);
   if (found !== undefined) return found;
 
+  // The names are not listed here: `variance ask` lists them with what each answers.
   const names = QUESTIONS.map((question) => questionOf(question.tool));
-  throw new OperatorError(
-    `\`${asked}\` is not a question; there is ${names.join(', ')}. ` +
-      'Run `variance ask` with no question for what each one answers.' +
-      didYouMean(asked, names),
-  );
+  throw new OperatorError(`\`${asked}\` is not a question.${didYouMean(asked, names)}\n\`variance ask\` lists them.`);
 }
 
 /** One argument a question takes, in the spelling a reader has to type. */

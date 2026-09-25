@@ -178,10 +178,8 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
         available: false,
         checked: false,
         because:
-          `rendering is configured at ${config.renderer.endpoint}, and deliberately not ` +
-          'contacted — doctor makes no network calls, so this reports what the config says ' +
-          'and not whether that machine is up. Nothing local is required, and nothing local ' +
-          'was checked: the identity a baseline is partitioned by belongs to the far end',
+          `remote ${config.renderer.endpoint}, not contacted; baselines use the far end's ` +
+          'identity, and nothing local was checked',
       },
       fonts: {
         probed: false,
@@ -203,10 +201,7 @@ export async function doctor(config: Config, probes: DoctorProbes): Promise<Diag
     renderer = await probes.renderer();
     rendererFinding = {
       available: true,
-      because:
-        'a renderer opened on this machine; the identity below is what a durable baseline ' +
-        'written here is partitioned by, and any baseline stored under a different one is ' +
-        'reported incomparable rather than compared',
+      because: 'a renderer opened here; baselines written here use the identity below',
       identity: renderer.identity,
     };
   } catch (error) {
@@ -262,11 +257,8 @@ async function renders(
         ? 'nothing is cached here yet. Renders land in this directory so that a document ' +
           'that has not changed is not repainted, and it is outside the work tree so that ' +
           'no repository ever carries them'
-        : 'images already painted on this machine, keyed by the document that produced ' +
-          'them. Every run that stores baselines in a directory prunes this one — entries ' +
-          'nothing has asked for in a fortnight, then oldest-first down to the ceiling — ' +
-          'so the size below is bounded and deleting the directory costs renders and ' +
-          'nothing else',
+        : 'painted here, keyed by document; pruned by each directory-store run (unused 14 days, ' +
+          'then oldest first); deleting it costs only renders',
   };
 }
 
@@ -373,10 +365,7 @@ async function baselines(
   if (store.kind === 'remote') {
     return {
       kind: 'remote',
-      because:
-        `configured at ${store.endpoint}, and deliberately not contacted — doctor makes no ` +
-        'network calls, so this line reports what the config says and not whether the ' +
-        'service is up',
+      because: `remote ${store.endpoint}, not contacted`,
     };
   }
 
@@ -433,13 +422,8 @@ async function baselines(
       kind: store.kind,
       comparable: true,
       because:
-        `${ours.baselines} baseline(s) in ${said(store.root)} were painted by a machine matching ` +
-        `this one (${mine.slice(0, 12)}…), so a run here compares rather than reports ` +
-        `\`incomparable\`${
-          partitions.length > 1
-            ? `. The other ${partitions.length - 1} identit(ies) in the store belong to other ` +
-              'machines and are left alone'
-            : ''
+        `${ours.baselines} baseline(s) in ${said(store.root)} match this machine${
+          partitions.length > 1 ? `; ${partitions.length - 1} other identit(ies) left alone` : ''
         }`,
       partitions,
     };
@@ -470,18 +454,13 @@ function history(config: Config): HistoryFinding {
       // operator reads it: nobody is keeping a record, which is a different
       // sentence from "nothing has drifted".
       configured: false,
-      because:
-        'no history store is configured, so nothing is being recorded. Drift questions — ' +
-        'how often a component changes, what a token has moved to — cannot be answered ' +
-        'from this machine, and their absence is not evidence of stability',
+      because: 'nothing recorded; drift is unknown, not stable',
     };
   }
 
   return {
     configured: true,
-    because:
-      `configured at ${config.history.endpoint}, and deliberately not contacted; whether ` +
-      'it accepts this project\'s writes is decided at run time, by the token',
+    because: `remote ${config.history.endpoint}, not contacted; the token decides writes at run time`,
   };
 }
 

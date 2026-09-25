@@ -79,8 +79,8 @@ function listed(sites: readonly Use[], heading: string): readonly string[] {
 function held(use: Use): string {
   if (use.through === undefined) return '';
   return use.through.kind === 'dynamic'
-    ? ` (through import() on line ${use.through.line}, loaded when that call runs)`
-    : ` (through the namespace imported on line ${use.through.line})`;
+    ? ` (import() on line ${use.through.line})`
+    : ` (namespace, line ${use.through.line})`;
 }
 
 /** Every site of one name, across every door it is published from, without duplicates. */
@@ -102,10 +102,9 @@ function sitesOf(found: readonly (readonly [Documented, Opening, Entry])[]): rea
 export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
-    'Every place in the workspace that imports one exported name, with the file and line to ' +
-    'open, including a read through `import()` or `import * as`, which is marked with the line ' +
-    'that loads the module. Stories and tests are listed separately as worked examples. Pass `from` — the file ' +
-    'you are working in — to order the sites by how much of their path they share with it.',
+    'Every file:line in the workspace that imports one exported name, including reads through ' +
+    '`import()` or `import * as`, marked with the line that loads the module. Stories and tests ' +
+    'are listed apart. `from`, the file you are in, sorts sites by shared path.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -147,18 +146,16 @@ export const uses: Tool<Help> = {
 
     const nearest =
       from === undefined
-        ? 'In path order; pass `from` to put the sites nearest your file first.'
-        : `Nearest first, by how much of the path each shares with ${from}.`;
+        ? 'Path order; `from` sorts nearest first.'
+        : `Nearest to ${from} first.`;
 
     const dynamic = sites.filter((use) => use.through?.kind === 'dynamic').length;
+    const loaded = dynamic === 0 ? '.' : `, ${dynamic} through import(), which loads the module when the call runs.`;
     return [
-      `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}.`,
-      ...(dynamic === 0
-        ? []
-        : [`${sites.length === 1 ? 'It is' : dynamic === sites.length ? 'Every one is' : `${dynamic} of them are`} read off import(), which loads the module when that call runs, not when the file loads.`]),
+      `\`${name}\` is imported in ${sites.length} ${sites.length === 1 ? 'place' : 'places'}${loaded}`,
       nearest,
-      ...listed(stories, 'Stories — written to show it in use:'),
-      ...listed(tests, 'Tests — written to pin what it does:'),
+      ...listed(stories, 'Stories:'),
+      ...listed(tests, 'Tests:'),
       ...listed(source, 'Source:'),
     ].join('\n');
   },

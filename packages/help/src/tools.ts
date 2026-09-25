@@ -35,7 +35,7 @@ function dated(tool: Tool<Help>): Tool<Help> {
     run(subject, input, invocation) {
       const answer = tool.run(subject, input, invocation);
       const at = workspaceGeneration(subject);
-      return at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`;
+      return at === undefined ? answer : `${answer}\nSnapshot ${at}.`;
     },
   };
 }

@@ -291,9 +291,7 @@ IGNORED — 1284 pixel(s) absorbed by 3 rule(s); 12 subject(s) differed only the
   dashboard-clock — 1284px in 12 subject(s): renders wall time
   [dead] hero-carousel — excluded a subtree in 40 subject(s), 40 of them compared,
     and absorbed nothing (auto-advances on a 4s timer)
-  [dead] support-widget — matched nothing in any subject (vendor iframe); either it
-    is no longer needed, or its selector stopped matching and something you believe
-    is silenced is being reported
+  [dead] support-widget — matched nothing in any subject (vendor iframe)
 ```
 
 Each line asks for a different action:

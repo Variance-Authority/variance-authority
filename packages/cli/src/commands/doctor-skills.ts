@@ -118,7 +118,7 @@ export function formatSkills(finding: SkillsFinding): readonly string[] {
   const missing = finding.skills.filter((skill) => skill.found.length === 0);
   const lines = [
     `skills: ${finding.skills.length - missing.length} of ${finding.skills.length} where an agent reads them`,
-    `  shipped in ${said(shipped)}; an agent looks in ${SKILL_HOMES.join(' or ')}, here or in your home directory`,
+    `  shipped in ${said(shipped)}; agents read ${SKILL_HOMES.join(' or ')}, in the project or the home directory`,
   ];
   for (const skill of finding.skills) {
     if (skill.found.length === 0) {
@@ -135,7 +135,7 @@ export function formatSkills(finding: SkillsFinding): readonly string[] {
 }
 
 const WORDS: Record<FoundSkill['as'], string> = {
-  linked: 'linked, follows every update',
-  same: 'a copy, matching this version; it will not follow the next update',
-  stale: 'a copy that differs from this version; link the shipped one instead',
+  linked: 'linked',
+  same: 'copy, current; a link follows updates',
+  stale: 'copy, stale; link the shipped one',
 };

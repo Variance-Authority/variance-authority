@@ -58,7 +58,7 @@ describe('what the last run moved', () => {
 
     expect(answer.motion?.moved?.regions.map((region) => [region.name, region.motion])).toEqual([['round', 'lost']]);
     const text = formatCovering(answer, 'text');
-    expect(text).toContain('Against the run before it: 1 lost, 0 hidden, 0 thinned, 0 gained.');
+    expect(text).toContain('Against the run before it: 1 lost.');
     expect(text).toContain('  lost     src/total.ts 30-34 function round — was total.test.ts > discounts');
     expect(text).toContain('total.test.ts now enters 0 regions it did not, and no longer enters 1.');
   });

@@ -87,8 +87,7 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
     shown.map(bulkItem).join('\n\n'),
     ...(bulk.length > shown.length
       ? [
-          `${bulk.length - shown.length} further shape(s) are also acceptable in bulk and are ` +
-            'not listed here; the run report is not truncated.',
+          `${count(bulk.length - shown.length, 'more shape')} acceptable in bulk in the run report.`,
         ]
       : []),
     ...(ungrouped.length > 0
@@ -101,7 +100,7 @@ export function bulkBlocks(report: CliRunReport, limits: CommentLimits): readonl
 }
 
 function bulkItem(change: Change): string {
-  const who = change.component ?? 'grouped by pixel shape; no component was resolved';
+  const who = change.component ?? 'no component';
   const partial =
     change.subjects.length === change.settles.length
       ? ''
@@ -127,10 +126,9 @@ export function causeBlocks(docket: Docket, limits: CommentLimits): readonly str
     hidden.length === 0
       ? []
       : [
-          `${hidden.length} further cause(s) reaching ` +
+          `${hidden.length} more cause(s) reaching ` +
             `${hidden.reduce((sum, entry) => sum + entry.subjects.length, 0)} subject(s) ` +
-            `(${hidden.reduce((sum, entry) => sum + entry.pixels, 0)}px) are not listed here; ` +
-            'they are in the run report, which is not truncated.',
+            `(${hidden.reduce((sum, entry) => sum + entry.pixels, 0)}px) in the run report.`,
         ];
 
   return ['### Causes', items.join('\n\n'), ...omitted, ...collateralBlocks(docket.collateral)];
@@ -143,9 +141,8 @@ function causeItem(entry: CauseEntry, position: number, limits: CommentLimits): 
         // ranks the displaced above the displacer, so this is "the biggest thing
         // that moved", and calling it the cause would be a confident attribution
         // nobody made.
-        `largest changed region in ${count(entry.subjects.length, 'subject')}, ` +
-        `${entry.pixels}px — no cause was named for ${entry.subjects.length === 1 ? 'it' : 'these'}, ` +
-        'so this is ranked by area, which ranks the displaced above the displacer'
+        `largest region in ${count(entry.subjects.length, 'subject')}, ` +
+        `${entry.pixels}px; no cause named, ranked by area`
       : entry.namedIn === entry.subjects.length
         ? `the cause in ${count(entry.subjects.length, 'subject')}, ${entry.pixels}px`
         : `the cause in ${entry.namedIn} of ${count(entry.subjects.length, 'subject')}, ` +
@@ -191,6 +188,7 @@ function locationLine(
   return [`${prefix}${code(first)}${others}`];
 }
 
+/** Collateral is counted and not listed: displacement is not an edit, and a line each would bury the causes. */
 function collateralBlocks(collateral: Collateral): readonly string[] {
   const lines: string[] = [];
 
@@ -204,9 +202,7 @@ function collateralBlocks(collateral: Collateral): readonly string[] {
     lines.push(
       `Collateral: ${count(collateral.regions, 'further region')} ` +
         `(${collateral.pixels}px) ${within}` +
-        `across ${count(collateral.subjects, 'subject')} moved with the changes above. ` +
-        'Counted and not listed — displacement is not an edit, and a line each would ' +
-        'bury the causes.',
+        `across ${count(collateral.subjects, 'subject')} moved with the changes above.`,
     );
   }
 
@@ -265,7 +261,7 @@ export function coverageBlocks(
     return [
       '### Coverage',
       'This report does not state which subjects it did not observe, so silence about a ' +
-        'subject here cannot be read as a pass. That alone is why this comment exists.',
+        'subject here cannot be read as a pass.',
     ];
   }
 
@@ -289,14 +285,13 @@ export function coverageBlocks(
             ...shown.map((entry) => `- ${code(entry.subject)} — ${entry.because}`),
             ...(hidden === 0
               ? []
-              : [`- and ${count(hidden, 'other')} not listed; the run report has all of them.`]),
+              : [`- ${hidden} more in the run report.`]),
           ].join('\n'),
         ]),
     ...(docket.excluded === 0
       ? []
       : [
-          `${count(docket.excluded, 'subject')} excluded by configuration and not listed; ` +
-            'an exclusion is a decision that was already made.',
+          `${count(docket.excluded, 'subject')} excluded by configuration and not listed.`,
         ]),
     // Stated as work avoided rather than coverage lost, because that is what it
     // is: the run read the diff and every stored baseline and concluded these
@@ -336,8 +331,7 @@ export function footerBlocks(options: CommentOptions): readonly string[] {
       ...(options.runUrl === undefined
         ? []
         : [`Full report and images: ${options.runUrl}`]),
-      '`variance report --subject <id>` answers about any one subject from the same artifact, ' +
-        'without re-running — including the collateral this comment only counted.',
+      'Per subject: `variance report --subject <id>`',
     ].join('  \n'),
   ];
 }
@@ -411,8 +405,7 @@ export function driftBlocks(report: CliRunReport, limits: CommentLimits): readon
     items.join('\n'),
     ...(moved.length > shown.length
       ? [
-          `${count(moved.length - shown.length, 'further drifted token')} are not listed here; ` +
-            'the run report has all of them.',
+          `${count(moved.length - shown.length, 'more drifted token')} in the run report.`,
         ]
       : []),
   ];

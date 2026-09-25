@@ -360,7 +360,10 @@ jobs:
               echo "nothing needs review, across every shard."
               ;;
             1)
-              echo "::error::variance found changes that need review; the docket is in the pull request comment. A subject listed as failed with no diff is one that every shard filtered out — that is a hole in the globs, not a change in the product."
+              # A subject listed as failed with no diff is one every shard filtered
+              # out: a hole in the globs, not a change in the product. The docket
+              # lists it; packages/cli/README.md explains it.
+              echo "::error::variance found changes that need review; the docket is in the pull request comment."
               exit 1
               ;;
             2)

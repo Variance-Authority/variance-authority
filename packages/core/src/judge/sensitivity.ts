@@ -210,8 +210,7 @@ export function summarizeSensitivity(register: SensitivityRegister): readonly st
     if (entry.absorbed === 0) {
       lines.push(
         `  [dead] ${entry.rule} — asserts on ${entry.level} across ` +
-          `${entry.subjects.length} subject(s) and absorbed nothing (${entry.reason}); ` +
-          'nothing here needed relaxing',
+          `${entry.subjects.length} subject(s) and absorbed nothing (${entry.reason})`,
       );
       continue;
     }

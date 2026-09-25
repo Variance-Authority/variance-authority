@@ -43,7 +43,7 @@ describe('what a foreign runner may skip', () => {
 
     expect(skip).toEqual(['test/alpha.test.ts', 'test/gamma.test.ts']);
     expect(widened).toBeUndefined();
-    expect(because).toContain('every test file it does not speak for still runs');
+    expect(because).toContain('every other test file runs');
   });
 
   it('skips every recorded test file when the diff entered none, and never says run nothing', () => {
@@ -264,7 +264,7 @@ describe('reading this checkout', () => {
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     expect(said.out).toBe('');
-    expect(said.err).toContain('no execution journal has been recorded');
+    expect(said.err).toContain('skipping nothing: no execution journal at');
     expect(said.err).toContain(testCoverageFile(root));
   });
 
@@ -294,7 +294,7 @@ describe('reading this checkout', () => {
     const said = await selectOutput({ cwd: root, format: 'plain' });
 
     expect(said.out).toBe('test/alpha.test.ts\ntest/gamma.test.ts\n');
-    expect(said.err).toContain('2 of the 3 test files the journal recorded whole');
+    expect(said.err).toContain('skipping 2 of 3 test files recorded whole');
     // The frame check ran and agreed: the module was read at its line ranges
     // rather than charged whole for being unrecognisable.
     expect(said.err).not.toContain('recorded from a different text');
@@ -385,7 +385,7 @@ describe('reading this checkout', () => {
     );
     expect(said.err).not.toContain('skipping nothing');
     expect(said.err).not.toContain('records nothing about');
-    expect(said.err).toContain('3 of the 3 test files the journal recorded whole');
+    expect(said.err).toContain('skipping 3 of 3 test files recorded whole');
   });
 });
 

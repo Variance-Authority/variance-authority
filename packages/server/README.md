@@ -55,7 +55,7 @@ It prints what it bound, what it opened, and not the token:
 ```text
 variance-authority history service listening on http://127.0.0.1:7788
   database: /srv/variance/history.db
-  storage:  node:sqlite on 26.7.0 — a built-in, nothing was compiled to install it
+  storage:  node:sqlite (Node 26.7.0)
   auth:     bearer token from VARIANCE_HISTORY_TOKEN
 ```
 

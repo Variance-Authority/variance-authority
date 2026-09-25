@@ -111,11 +111,8 @@ afterAll(async () => {
   const outlived = runaways();
   if (outlived.length > 0) {
     console.warn(
-      'variance-authority: work outlived its case in ' + testFile + ':\\n  ' +
-      outlived.join('\\n  ') +
-      '\\nEach of these made a crossing after it had settled. The record is right — ' +
-      'the crossing went to the case that made it — but the case is not over when ' +
-      'the runner says it is, which is what a flaky neighbour is made of.',
+      'variance-authority: async work still running after its case finished in ' + testFile +
+      ' (recorded against the case that started it):\\n  ' + outlived.join('\\n  '),
     );
   }
 ${caseWriterSource(caseDirectory)}});`;

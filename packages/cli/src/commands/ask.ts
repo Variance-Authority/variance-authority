@@ -255,7 +255,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
       return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at }) }, undefined, 2)}\n`;
     }
     const answer = answering.answer();
-    return `${at === undefined ? answer : `${answer}\n\nSource snapshot generated ${at}.`}\n`;
+    return `${at === undefined ? answer : `${answer}\nSnapshot ${at}.`}\n`;
   } catch (refusal) {
     throw new OperatorError(refusal instanceof Error ? refusal.message : String(refusal), { cause: refusal });
   }
@@ -421,9 +421,7 @@ function flagged(request: Flagged): Readonly<Record<string, unknown>> {
  */
 export function questions(): string {
   return [
-    'Ask a question about a visual run, or about the code. Each answer is the answer',
-    '`variance serve` or the workspace API server gives an MCP client for the same',
-    'question, from the same function, without the client.',
+    'Ask about a visual run, a running suite, or the code.',
     '',
     'ABOUT THE LAST RUN',
     '',

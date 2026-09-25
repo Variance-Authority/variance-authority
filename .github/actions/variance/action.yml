@@ -327,7 +327,9 @@ runs:
             exit 1
             ;;
           2)
-            echo "::error::variance could not run as configured. This is not a finding about the change: no verdict was reached and no subject was observed. See the run step's output."
+            # Not a finding about the change: no verdict was reached and no
+            # subject was observed.
+            echo "::error::variance could not run (exit 2); see the variance run step."
             exit 2
             ;;
           '')

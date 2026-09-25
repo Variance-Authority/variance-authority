@@ -273,8 +273,9 @@ export async function shareLines(
   );
   if (found === null) {
     return [
-      `no mainline evaluation found in ${where}.`,
-      'This run derives its own, which is what every run did before a share was configured.',
+      config.share === undefined
+        ? 'no share is configured; this run derives its own mainline evaluation.'
+        : `no mainline evaluation found in ${where}; this run derives its own.`,
     ];
   }
 

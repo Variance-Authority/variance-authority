@@ -461,10 +461,7 @@ function sideJob(
   streams: { err(text: string): void },
 ): ExitCode {
   if (!suppress || code !== EXIT_REVIEW) return code;
-  streams.err(
-    'changes need review, and --exit-zero-on-changes suppressed the exit code. ' +
-      'This job is reporting, not gating. Operator errors are still exit 2.\n',
-  );
+  streams.err('changes need review; --exit-zero-on-changes exits 0, not 1.\n');
   return EXIT_CLEAN;
 }
 

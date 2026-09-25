@@ -34,12 +34,8 @@ export async function loadConfig(path: string): Promise<Config> {
     // A file that is not there is said once. The system's own message repeats the
     // path in full, which on an installed consumer is a second line about
     // somebody's home directory and nothing about what to do.
-    const because = missing(error) ? 'there is no file there' : messageOf(error);
-    throw new OperatorError(
-      `cannot read the config file ${source}: ${because}. ` +
-        'Nothing about a run is inferred, so there is no default to fall back to.',
-      { cause: error },
-    );
+    const because = missing(error) ? 'no such file' : messageOf(error);
+    throw new OperatorError(`cannot read the config file ${source}: ${because}`, { cause: error });
   }
 
   let value: unknown;

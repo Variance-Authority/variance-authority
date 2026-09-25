@@ -327,15 +327,16 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       flakiness: {},
       churn: {},
       drift: {},
+      // A later drift or flakiness answer is computed over a window missing this run.
       warnings: [
-        `nothing was recorded to the history service: ${messageOf(error)}. This run's verdicts ` +
-          'are unaffected, and its rows are lost — a later drift or flakiness answer will be ' +
-          'computed over a window with this run missing from it',
+        `nothing recorded to the history service: ${messageOf(error)}; verdicts unaffected, this run's rows are lost`,
       ],
     };
   }
 
   const flakiness: Record<string, Flakiness> = {};
+  // Questions the service failed to answer, said once per error rather than once per name.
+  const failed = new Failures();
   const since = new Date(Date.parse(at) - WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   // Asked only about the subjects this run has something to say about. A report
@@ -350,11 +351,7 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       if (isKept(answer)) flakiness[subject.subject] = answer;
       else warnings.push(answer.because);
     } catch (error) {
-      warnings.push(
-        `the history service could not say how often \`${subject.subject}\` has read differently ` +
-          `from itself: ${messageOf(error)}. Absence of an answer is not evidence that this is ` +
-          'the first time',
-      );
+      failed.add(messageOf(error), 'flakiness', subject.subject);
     }
   }
 
@@ -375,10 +372,7 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       const found = detectDrift(journey);
       if (found !== null) drift[row.token] = found;
     } catch (error) {
-      warnings.push(
-        `the history service could not say what \`${row.token}\` has drifted to: ` +
-          `${messageOf(error)}. Absence of an answer is not evidence that it has held still`,
-      );
+      failed.add(messageOf(error), 'drift', row.token);
     }
   }
 
@@ -395,18 +389,15 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
       if (isKept(answer)) churn[component] = answer;
       else warnings.push(answer.because);
     } catch (error) {
-      warnings.push(
-        `the history service could not say how often \`${component}\` changes: ` +
-          `${messageOf(error)}. Absence of an answer is not evidence that it is stable`,
-      );
+      failed.add(messageOf(error), 'churn', component);
     }
   }
 
+  warnings.push(...failed.lines());
   if (components.length > MAX_CHURN_QUESTIONS) {
     warnings.push(
-      `${components.length - MAX_CHURN_QUESTIONS} component(s) were not asked about: this run ` +
-        `named ${components.length} causes and asks the record about ${MAX_CHURN_QUESTIONS}. ` +
-        'Their absence from the report is a cap, not a finding',
+      `churn not asked for ${components.length - MAX_CHURN_QUESTIONS} of ${components.length} ` +
+        `causes: the cap is ${MAX_CHURN_QUESTIONS}`,
     );
   }
 
@@ -419,6 +410,30 @@ export async function recordRun(input: RecordRunInput): Promise<RecordedRun> {
     movedTokens: moved.map((row) => row.token).sort(),
     warnings,
   };
+}
+
+/**
+ * The questions the service failed, grouped by its error.
+ *
+ * Each name is stated as unknown, never dropped: an unanswered flakiness
+ * question is not a first occurrence, and an unanswered drift or churn question
+ * is not a token that held still or a component that is stable.
+ */
+class Failures {
+  private readonly byError = new Map<string, Map<'flakiness' | 'drift' | 'churn', string[]>>();
+
+  add(error: string, question: 'flakiness' | 'drift' | 'churn', name: string): void {
+    const questions = this.byError.get(error) ?? new Map<'flakiness' | 'drift' | 'churn', string[]>();
+    this.byError.set(error, questions);
+    questions.set(question, [...(questions.get(question) ?? []), name]);
+  }
+
+  lines(): readonly string[] {
+    return [...this.byError].map(([error, questions]) =>
+      `history service failed (${error}); unknown: ${
+        [...questions].map(([question, names]) => `${question} of ${names.join(', ')}`).join('; ')
+      }`);
+  }
 }
 
 function messageOf(error: unknown): string {

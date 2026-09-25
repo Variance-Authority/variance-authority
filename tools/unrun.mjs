@@ -181,12 +181,6 @@ export function markers() {
   });
 }
 
-const LEGEND = {
-  todo: 'a claim that would hold if something ran',
-  TODO: 'a limb that is not written',
-  FIXME: 'a defect in code that ships',
-};
-
 function wrap(text, width) {
   const lines = [];
   let line = '';
@@ -202,10 +196,9 @@ function wrap(text, width) {
 
 export function report(found) {
   const files = new Set(found.map((marker) => marker.file));
-  const out = [`unrun: ${found.length} gaps in ${files.size} files`, ''];
-  for (const [kind, meaning] of Object.entries(LEGEND)) {
-    out.push(`  ${kind.padEnd(6)} ${meaning}`);
-  }
+  // No legend: AGENTS.md defines the three markers, and a reader of this report
+  // is one who has already written them.
+  const out = [`unrun: ${found.length} gaps in ${files.size} files`];
 
   const owners = [...new Set(found.map((marker) => ownerOf(marker.file)))].sort((one, two) =>
     one < two ? -1 : one > two ? 1 : 0,

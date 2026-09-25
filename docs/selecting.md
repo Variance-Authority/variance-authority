@@ -206,8 +206,7 @@ It is in the report, with the sentence that skipped it:
 
 ```
 [not observed] story:checkout--summary
-not affected by the diff against origin/main: its baseline records 4 component(s)
-and this diff touched none of them (Button, Badge, Toggle)
+not affected by the diff against origin/main: none of its 4 components touched
 ```
 
 That is the same `excluded` state a shard filter produces, and it behaves the

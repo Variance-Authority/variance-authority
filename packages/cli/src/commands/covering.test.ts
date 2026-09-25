@@ -267,7 +267,7 @@ describe('narrowing the witnesses to what is nearby', () => {
     expect(answer.tests?.map((test) => test.id)).toEqual(['here']);
     expect(answer.narrowed).toMatchObject({ kept: 1, of: 2 });
     expect(formatCovering(answer, 'text'))
-      .toContain('1 of 2 named tests that covered it are inside the narrowing');
+      .toContain('1 of 2 named tests kept.');
   });
 
   it('prints no depth beside a witness', async () => {
@@ -337,7 +337,7 @@ describe('asking who loaded a region that ran while its module evaluated', () =>
     const answer = await covering(parse(['--file', 'src/total.ts', '--line', '3', '--root', root, '--execution', execution]));
 
     expect(answer.tests?.map((test) => [test.id, test.loaded])).toEqual([['near', true]]);
-    expect(formatCovering(answer, 'text')).toContain('its file imports the module; ran while it evaluated');
+    expect(formatCovering(answer, 'text')).toContain('* ran only while the module evaluated (its file imports it)');
   });
 
   it('carries the same loaders into a change', async () => {

@@ -213,19 +213,16 @@ function poolSentence(pool: JourneyPool, recorded: RecordedJourneys): string {
     case 'run':
       return `${whole}, out of ${many(pool.named, 'subject')} the report names`;
 
+    // Both widened pools are the accumulated record, not this run, and say so:
+    // a subject deleted two commits ago is still a party to every parting it
+    // was recorded in.
     case 'all':
-      return (
-        `${whole} — every one in the journal, because --all asked for the accumulated ` +
-        'record rather than this run: a subject deleted two commits ago is still a party ' +
-        'to every parting it was recorded in'
-      );
+      return `${whole}: the whole journal, as --all asked, so a deleted subject still counts`;
 
     case 'unasked':
       return (
-        `${whole} — every one in the journal, because there is no report at ${pool.report} ` +
-        "to name this run's subjects. That is the accumulated record and not a run: a " +
-        'subject deleted two commits ago is still a party to every parting it was recorded ' +
-        'in. Run once, or pass --all to ask for the record on purpose'
+        `${whole}: the whole journal, because there is no report at ${pool.report}, so a ` +
+        'deleted subject still counts; run once to narrow it to this run, or pass --all'
       );
   }
 }
@@ -270,8 +267,8 @@ function notesFor(
     // observers of one module, so a pool that cannot hold two has not found
     // nothing — it has not been able to look.
     notes.push(
-      'a parting is two observers of one module taking different paths through it, and this ' +
-        'pool cannot hold two, so nothing above is an absence of partings',
+      'a parting needs two observers of one module and this pool has fewer, so finding none ' +
+        'is not an absence of partings',
     );
   }
 

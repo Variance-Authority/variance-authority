@@ -5,7 +5,7 @@ import { USAGE, main, parseArgs } from './bin.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
 import { QUESTIONS, argumentsOf, questionOf } from './commands/asking.js';
-import { helpFor } from './usage.js';
+import { flagsFor, helpFor, isCommand } from './usage.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {
@@ -25,26 +25,34 @@ describe('parseArgs', () => {
     );
   });
 
-  it('refuses an unknown flag instead of ignoring it, and lists the ones that exist', () => {
+  it('refuses an unknown flag instead of ignoring it, and shows the ones that exist', () => {
     // The failure this parser exists to prevent: `--subject` where `--subjects`
     // was meant runs the whole suite and reports success, while the operator's
     // shell history shows the flag they intended.
     const error = attempt(['run', '--subject', 'story:button']);
 
-    expect(error.message).toContain('`--subject` is not a flag `variance run` accepts');
-    expect(error.message).toContain('--profile, --subjects, --intent');
+    expect(error.message).toContain('`--subject` is not a `variance run` flag');
+    expect(error.message).toContain('[--profile jsdom|chromium] [--subjects <glob>] [--intent <text>]');
   });
 
   it('refuses a flag that belongs to another command', () => {
     // `--format json` on `run` is meaningless, and accepting it would teach a
     // false model of what the command does.
-    expect(attempt(['run', '--format', 'json']).message).toContain('not a flag');
+    expect(attempt(['run', '--format', 'json']).message).toContain('is not a `variance run` flag');
   });
 
-  it('refuses an unknown command and prints the usage', () => {
+  it('refuses an unknown command and prints the synopsis of the one it probably meant', () => {
     const error = attempt(['rin']);
     expect(error.message).toContain('unknown command `rin`');
-    expect(error.message).toContain(USAGE);
+    expect(error.message).toContain('Did you mean `run`?');
+    expect(error.message).toContain('variance run     [--config <path>]');
+    expect(error.message).not.toContain('variance distill');
+  });
+
+  it('refuses a word close to no command with the list of commands', () => {
+    const error = attempt(['elephant']);
+    expect(error.message).toContain('this tool has run, index, select');
+    expect(error.message).not.toContain('variance run ');
   });
 
   it('refuses a value-taking flag with nothing after it', () => {
@@ -227,7 +235,7 @@ describe('parseArgs', () => {
     // and never read, which is worse than a refusal.
     expect(parseArgs(['watch'])).toEqual({ command: 'watch' });
     expect(attempt(['watch', '--config', 'variance.config.json']).message).toContain(
-      'is not a flag `variance watch` accepts; it takes none',
+      'is not a `variance watch` flag; it takes none',
     );
   });
 
@@ -275,8 +283,7 @@ describe('parseArgs', () => {
   it('answers help about a command with that command and its flags', () => {
     const help = helpFor('run');
 
-    expect(help).toContain('variance run     [--config <path>]');
-    expect(help).toContain('flags: --config, --profile');
+    expect(help).toContain('variance run     [--config <path>] [--profile jsdom|chromium]');
     expect(help).not.toContain('variance distill');
   });
 
@@ -284,7 +291,7 @@ describe('parseArgs', () => {
     // `watch`'s synopsis is the bare `variance watch`. Falling back to the whole
     // table here would answer a reader who asked about one command with fifteen.
     expect(helpFor('watch')).toContain('variance watch');
-    expect(helpFor('watch')).toContain('flags: none');
+    expect(helpFor('watch')).toContain('exit codes: 0 done, 2 operator error.');
     expect(helpFor('watch')).not.toContain('variance run');
   });
 
@@ -473,19 +480,10 @@ describe('opening a renderer', () => {
   });
 });
 
-/**
- * What a command accepts, read out of its own refusal.
- *
- * The parser prints the accepted set when it rejects a flag, so this asks the
- * code path an operator actually hits rather than keeping a second copy of the
- * table. Only that one sentence is read: the refusal also names a nearest match
- * and prints the command's synopsis, and matching flags in either would make the
- * assertion vacuous.
- */
+/** What a command accepts, read from the table the parser refuses against. */
 function flagsOf(command: string): readonly string[] {
-  const sentence = /it takes ([^\n]+)/.exec(attempt([command, '--not-a-flag']).message)?.[1];
-  if (sentence === undefined || sentence === 'none') return [];
-  return sentence.split(',').map((flag) => flag.trim());
+  if (!isCommand(command)) throw new Error(`\`${command}\` is not a command`);
+  return flagsFor(command);
 }
 
 function attempt(argv: readonly string[]): OperatorError {

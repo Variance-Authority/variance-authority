@@ -89,13 +89,9 @@ export async function nearbyWitnesses(request: CoveringAt): Promise<Narrowing> {
     const { from, to } = request.atDistance;
     const hops = await hopsToTests(request);
     const unplaced = [...hops.values()].filter((distance) => distance === undefined).length;
-    if (unplaced > 0) {
-      notes.push(
-        `${unplaced} test file${unplaced === 1 ? '' : 's'} could not be placed on the import ` +
-          'graph and are left out of the band rather than carried into it; an unmeasured ' +
-          'distance is not a short one',
-      );
-    }
+    // A file the graph cannot place is left out of the band, not carried into
+    // it: an unmeasured distance is not a short one.
+    if (unplaced > 0) notes.push(`${unplaced} test file${unplaced === 1 ? '' : 's'} not on the import graph; left out`);
     filters.push((test) => {
       const distance = hops.get(test.file);
       return distance !== undefined && distance >= from && distance <= to;

@@ -273,9 +273,9 @@ npx variance-authority-help uses collect --from packages/cli/src/index.ts
 
 ```
 `collect` is imported in 24 places.
-Nearest first, by how much of the path each shares with packages/cli/src/index.ts.
+Nearest to packages/cli/src/index.ts first.
 
-Tests — written to pin what it does:
+Tests:
 
 examples/todomvc/src/changeset.test.tsx:13 — @variance-authority/example-todomvc
 examples/todomvc/src/closure.test.tsx:6 — @variance-authority/example-todomvc

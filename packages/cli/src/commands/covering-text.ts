@@ -44,6 +44,7 @@ function text(answer: Covering): string {
       answer.state === 'alone' ? ', and it is the only case that could have' : ''
     }:`,
     ...caseLines(tests, '  ', answer.files),
+    ...legend(tests),
     ...narrowedText(answer),
   ].join('\n');
 }
@@ -91,8 +92,11 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
     }`);
     const key = range.tests.map((test) => `${test.id}\0${test.loaded === true}`).join('\n');
     if (range.tests.length === 0) {
-      lines.push(`  no named test covered this range${unentered(range.stopped)}`);
-      lines.push(...(range.stopped ?? []).map((test) => `    stopped: ${test.file} > ${caseName(test)}`));
+      // The header already says `unwalked` or `hole`; the stopped cases are the rest of a hole.
+      const said = range.state === 'unwalked' || range.state === 'hole';
+      if (!said) lines.push(`  no named test covered this range${unentered(range.stopped)}`);
+      lines.push(...(range.stopped ?? []).map((test) =>
+        said ? `  stopped first: ${test.file} > ${caseName(test)}` : `    stopped: ${test.file} > ${caseName(test)}`));
     } else if (printed.has(key)) {
       lines.push(`  the same ${range.tests.length === 1 ? 'named test' : `${range.tests.length} named tests`} as ${printed.get(key)}`);
     } else {
@@ -100,6 +104,7 @@ function wholeFile(answer: Covering, ranges: readonly CoveringRange[]): string {
       printed.set(key, place);
     }
   }
+  lines.push(...legend(ranges.flatMap((range) => range.tests)));
   lines.push(...narrowedText(answer));
   return lines.join('\n');
 }
@@ -143,8 +148,7 @@ export function narrowedText(answer: Covering): readonly string[] {
   const narrowed = answer.narrowed;
   if (narrowed === undefined) return [];
   return [
-    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} that covered ` +
-      'it are inside the narrowing.',
+    `${narrowed.kept} of ${narrowed.of} named test${narrowed.of === 1 ? '' : 's'} kept.`,
     ...narrowed.notes.map((note) => `  ${note}`),
   ];
 }
@@ -191,8 +195,21 @@ function caseLines(
   const rows = new Map(files.map((row) => [row.file, row]));
   return [...byFile].flatMap(([file, cases]) => [
     `${indent}${file}${fileCount(rows.get(file))}`,
-    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? ' (its file imports the module; ran while it evaluated)' : ''}`),
+    ...cases.map((test) => `${indent}  ${caseName(test)}${test.loaded === true ? '*' : ''}`),
   ]);
+}
+
+/**
+ * The one line that says what `*` means, printed once under the cases.
+ *
+ * A starred case's file imports the module, and the case ran only while the
+ * module evaluated. Said once per answer, because on a module every test file
+ * imports it is most of the cases.
+ */
+function legend(tests: readonly CoveringTest[]): readonly string[] {
+  return tests.some((test) => test.loaded === true)
+    ? ['* ran only while the module evaluated (its file imports it)']
+    : [];
 }
 
 function fileCount(row: CoveringFile | undefined): string {

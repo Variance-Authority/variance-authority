@@ -202,8 +202,7 @@ describe('what `variance share` says', () => {
   it('reports a miss as the thing that happens next', async () => {
     const lines = await shareLines(configOf({}), { publish: false, ref: 'HEAD' });
 
-    expect(lines[0]).toBe('no mainline evaluation found in no share (none is configured).');
-    expect(lines[1]).toContain('derives its own');
+    expect(lines).toEqual(['no share is configured; this run derives its own mainline evaluation.']);
   });
 });
 

@@ -143,16 +143,6 @@ export function formatChangelog(
         (commit.record.by === undefined ? '' : ` ${commit.record.by}`),
       ...(commit.record.intent === undefined ? [] : [`  ${commit.record.intent}`]),
       ...entries.map((entry) => `  ${describe(entry)}`),
-      // A shape promoted in some of the subjects it reached is the one line that
-      // must not be summarised away: the rest of that shape is still a difference
-      // somebody will meet in a later run, and this is where it was decided.
-      ...entries
-        .filter((entry) => entry.reached > entry.subjects.length)
-        .map(
-          (entry) =>
-            `    (${String(entry.subjects.length)} of ${String(entry.reached)} subject(s) this ` +
-            'shape reached were promoted here)',
-        ),
       ...(commit.record.ungrouped === 0
         ? []
         : [
@@ -161,11 +151,11 @@ export function formatChangelog(
           ]),
       // Phrased here rather than stored: the record carries the token and the two
       // values, so this sentence can be rewritten in any release without going
-      // back to rewrite history.
+      // back to rewrite history. The total is one no single review saw.
       ...(commit.record.drift ?? []).map(
         (drift) =>
           `  drift: ${drift.token} ${drift.from} -> ${drift.to} across ` +
-          `${String(drift.steps)} approved change(s); no single review saw the total`,
+          `${String(drift.steps)} approved change(s)`,
       ),
     ];
     blocks.push(lines.join('\n'));
@@ -185,7 +175,13 @@ export function formatChangelog(
   return [...blocks, ...result.bounded.map((sentence) => `note: ${sentence}`)].join('\n\n');
 }
 
-/** One promoted shape, on one line, in the commit message's columns. */
+/**
+ * One promoted shape, on one line, in the commit message's columns.
+ *
+ * `11/14` is promoted-of-reached, and is never summarised away: the rest of that
+ * shape is still a difference somebody will meet in a later run, and this is
+ * where it was decided. A bare number means the shape reached exactly those.
+ */
 function describe(entry: ChangelogEntry): string {
   const where = [entry.component, entry.file].filter((part) => part !== undefined).join(' ');
   const subjects =

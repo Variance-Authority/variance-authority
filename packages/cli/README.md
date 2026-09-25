@@ -383,7 +383,7 @@ variance covering --file src/checkout/total.ts --line 48 --in-package
 2 named tests covered line 48 of src/checkout/total.ts:
   applies a percentage discount — src/checkout/total.test.ts [total.test.ts::applies a percentage discount]
   renders a cart with a coupon — src/checkout/Cart.test.tsx [Cart.test.tsx::renders a cart with a coupon]
-2 of 3 named tests that covered it are inside the narrowing.
+2 of 3 named tests kept.
 ```
 
 `--at-distance` counts **import hops** from the file to the test's own file,
@@ -468,7 +468,7 @@ cases it replaced, so each region those cases entered before and do not enter
 now is listed, and so is each region they entered for the first time:
 
 ```text
-Against the run before it: 1 lost, 0 hidden, 0 thinned, 0 gained.
+Against the run before it: 1 lost.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
 src/checkout/total.test.ts now enters 0 regions it did not, and no longer enters 1.
 ```
@@ -566,7 +566,7 @@ variance covering --since origin/main --against base/coverage.bin.cases.bin
 ```
 
 ```text
-Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 0 thinned, 2 gained.
+Against base/coverage.bin.cases.bin at 3f9e21c07a44: 1 lost, 1 hidden, 2 gained.
   lost     src/checkout/total.ts 62-66 branch applyDiscount — was total.test.ts > applies a cap
   hidden   src/checkout/tax.ts 12-30 function taxFor — was tax.test.ts > rounds; stopped: tax.test.ts > rounds
   ...
@@ -733,7 +733,6 @@ variance changelog --component Card --limit 50
 a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
   tighten the card
   v1:2c4f9a1e0b7d3856a91c4e2f8b06d735 Card src/Card.tsx 11/14
-    (11 of 14 subject(s) this shape reached were promoted here)
 ```
 
 A change line leads with the fingerprint because that string is what
@@ -1079,8 +1078,8 @@ stderr names it beside the answer, as `json` does under `unread`:
 
 ```
 $ variance select
-212 of the 240 test files the journal recorded whole covered none of the changed
-lines, and are skipped; every test file it does not speak for still runs.
+skipping 212 of 240 test files recorded whole: none covered a changed line;
+every other test file runs.
 the journal records nothing about 1 changed file (fixtures/cart.json), so it
 keeps no test in the run; a file the suite reads without importing it is
 declared as a precondition.
@@ -1095,9 +1094,9 @@ it, or why it could not, and `json` lists the same readings under `readings`.
 `variance run --since` adds the same lines to the run's warnings:
 
 ```
-read src/limits.ts: values — LIMIT changed; their readers and the changed regions are charged
-unseen test/fill.test.ts: loaded src/limits.ts through an import the file graph does not list; named, not selected
-read src/cart.ts: unread — the diff does not apply to the recorded text, so its changed lines are charged
+read src/limits.ts: values (LIMIT) — the readers of the changed values and the changed regions are charged
+unseen test/fill.test.ts: loaded src/limits.ts by an import the file graph does not list; named, not selected
+read src/cart.ts: unread (the diff does not apply to the recorded text) — its changed lines are charged
 ```
 
 An `unseen` test loaded the file through an import the file graph is missing.

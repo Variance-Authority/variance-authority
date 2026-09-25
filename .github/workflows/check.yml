@@ -124,4 +124,4 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "::notice::Browser suites did not run: no Chromium is installed. Every measurement in this repository comes from one Mac and one Chromium, and re-measuring on Linux is docker/linux-verify.sh, which has never been executed."
+          echo "::notice::Browser suites skipped: no Chromium installed."

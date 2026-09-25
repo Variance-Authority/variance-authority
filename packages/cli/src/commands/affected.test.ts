@@ -45,7 +45,7 @@ describe('choosing what to observe from a diff', () => {
     expect(answer.whole).toBeUndefined();
     // The skip carries its own reason, because a subject absent from a report is
     // a subject nobody can ask about.
-    expect(answer.skipped[0]?.because).toContain('touched none of them');
+    expect(answer.skipped[0]?.because).toContain('none of its');
   });
 
   it('observes a subject that has no baseline, because nothing is known about it', () => {
@@ -93,7 +93,7 @@ describe('choosing what to observe from a diff', () => {
 
     expect(answer.observe).toEqual(['story:button', 'story:clock']);
     expect(answer.whole).toContain('no component');
-    expect(answer.because).toContain('every subject was observed');
+    expect(answer.because).toContain('observing all');
   });
 
   it('ignores a change outside the scanned roots rather than widening to everything', () => {

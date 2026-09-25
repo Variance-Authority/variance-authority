@@ -199,11 +199,10 @@ export function summarizeLedger(ledger: IgnoreLedger | undefined): readonly stri
       continue;
     }
     if (state === 'unresolved') {
-      lines.push(
-        `  [dead] ${entry.rule} — matched nothing in any subject (${entry.reason}); either it ` +
-          'is no longer needed, or its selector stopped matching and something you believe is ' +
-          'silenced is being reported',
-      );
+      // Either the rule is no longer needed, or its selector stopped matching
+      // and something the operator believes is silenced is being reported. The
+      // tag says which action is owed; `docs/ignores.md` names both readings.
+      lines.push(`  [dead] ${entry.rule} — matched nothing in any subject (${entry.reason})`);
       continue;
     }
     if (state === 'untested') {

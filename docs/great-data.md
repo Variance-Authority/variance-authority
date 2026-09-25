@@ -49,8 +49,7 @@ and showing that the diff touched none of them:
 
 ```text
 [not observed] story:checkout--summary
-not affected by the diff against origin/main: its baseline records 4 component(s)
-and this diff touched none of them (Button, Badge, Toggle)
+not affected by the diff against origin/main: none of its 4 components touched
 ```
 
 How much that saves is decided by where your diff sits, not by how large it is.

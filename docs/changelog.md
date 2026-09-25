@@ -110,18 +110,15 @@ npx variance changelog --component Card --limit 50
 a1b2c3d4e5f6  2026-08-21T10:14:02+10:00  run 4242 @ 9f8e7d6c5b4a --shape
   tighten the card
   v1:2c4f9a1e0b7d3856a91c4e2f8b06d735 Card src/Card.tsx 11/14
-    (11 of 14 subject(s) this shape reached were promoted here)
-  drift: --va-space-3 12px -> 20px across 11 approved change(s); no single review saw the total
+  drift: --va-space-3 12px -> 20px across 11 approved change(s)
 ```
 
 The reading is over the whole message rather than a trailer block at the end, so
 a squash merge that folds three commits into one still yields three records
 instead of none.
 
-The two extra lines are the same facts spelled out; a terminal has room for a
-sentence that a commit written on every update does not. Both are rendered from
-the record rather than stored in it, so a later release can reword them without
-rewriting history.
+The `drift` line is rendered from the record rather than stored in it, so a
+later release can reword it without rewriting history.
 
 **A partial promotion is the finding.** A shape that reached fourteen subjects
 and was promoted in eleven means three were left changed — either the promotion

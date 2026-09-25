@@ -150,7 +150,7 @@ describe('a store this machine wrote', () => {
       { identity: THEIRS, baselines: 900, mine: false },
       { identity: MINE, baselines: 4, mine: true },
     ]);
-    expect(diagnosis.baselines.because).toContain('other 1 identit(ies)');
+    expect(diagnosis.baselines.because).toContain('1 other identit(ies) left alone');
   });
 });
 
@@ -200,6 +200,6 @@ describe('states that are not a wrong machine', () => {
       probesOf([]),
     );
     expect(remote.baselines.partitions).toBeUndefined();
-    expect(remote.baselines.because).toContain('deliberately not contacted');
+    expect(remote.baselines.because).toContain('not contacted');
   });
 });

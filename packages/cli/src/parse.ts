@@ -3,8 +3,8 @@ import { asksForHelp, countOf, noPositionals, readFlags } from './args.js';
 import type { ProfileId } from '@variance-authority/core/format';
 import { OperatorError } from './exit.js';
 import type { ReportFormat } from './commands/report.js';
-import { COMMANDS, DEFAULT_CONFIG, USAGE, flagsFor, isCommand, synopsisFor } from './usage.js';
-import { didYouMean } from './nearest.js';
+import { COMMANDS, DEFAULT_CONFIG, flagsFor, isCommand, synopsisFor } from './usage.js';
+import { didYouMean, nearest } from './nearest.js';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
@@ -214,9 +214,14 @@ export function parseArgs(argv: readonly string[]): Parsed {
   }
 
   if (!isCommand(first)) {
+    // A likely match gets that command's synopsis; otherwise the list of
+    // commands, and the table stays behind `--help` rather than printed twice.
+    const meant = nearest(first, COMMANDS);
     throw new OperatorError(
-      `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}.` +
-        `${didYouMean(first, COMMANDS)}\n\n${USAGE}`,
+      meant === undefined || !isCommand(meant)
+        ? `unknown command \`${first}\`; this tool has ${COMMANDS.join(', ')}. ` +
+            '`variance --help` prints the flags of each.'
+        : `unknown command \`${first}\`${didYouMean(first, COMMANDS)}\n\n${synopsisFor(meant)}`,
     );
   }
 

@@ -236,35 +236,29 @@ export function startPointArg(
  * One rule about what a path means, said once. Two servers that each wrote
  * their own paragraph would drift, and the drift lands on the model as
  * `app/billing/` meaning one thing in one tool and another in the next.
+ *
+ * The text is sent in every `tools/list`, so it states the rule and not the
+ * argument for it. A path is read from the root down, whole segment for whole
+ * segment, case included, against the files the repository holds; nothing is
+ * looked for inside it, so `Badge.tsx` is a file at the root and not the one
+ * under `apps/web`, and a path that is not there is rejected as not found
+ * (`refusalFor`). A `*` anywhere but the last segment is a pattern and is
+ * refused. One string is one path, spaces and all; an array is several entry
+ * points taken together. Nothing outside the closure is answered from.
  */
 export const START_POINT_SCHEMA = {
   from: {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
-      'Optional. Where to start, as a real path in the source tree and only a real path: ' +
-      "`app/dispatch/page.tsx` is that file, `app/dispatch/*` that folder's own files, " +
-      '`app/dispatch/` everything under it. Those three forms and no others — a `*` ' +
-      'anywhere but the last segment is a pattern, not a path. A path exists or it does ' +
-      'not: read from the root down, segment for whole segment, case included, against the ' +
-      'files the repository actually holds. Nothing is looked for inside a path, so ' +
-      '`Badge.tsx` is not the file under `apps/web` — it is a file at the root, and where ' +
-      'none is there the start point is rejected as not found. Say `apps/web/Badge.tsx`. ' +
-      'One string is one path, spaces and all; several paths are said as an array, and are ' +
-      'several entry points taken together. The path names the entry points and the import ' +
-      'graph decides the scope: every file reachable from them along the imports, at any ' +
-      'depth. One way only — what an entry point imports is in, what imports it is not; ' +
-      'say `to` for the other direction. Nothing outside that is ever answered from.',
+      'Optional. Repo-relative path, or an array of them: `app/dispatch/page.tsx` a file, ' +
+      "`app/dispatch/*` that folder's own files, `app/dispatch/` everything under it. Exact " +
+      'case, from the root, no other globs; a path the repository does not hold is rejected. ' +
+      'Scope: everything it imports, transitively. `to` is the other direction.',
   },
   to: {
     oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
     description:
-      'Optional. Where to arrive, as a real path in the source tree and only a real path, ' +
-      'read under the same rules as `from`: `components/user-select.tsx` is that file, ' +
-      '`components/*` that folder\'s own files, `components/` everything under it, and a ' +
-      'path the repository does not hold is rejected as not found. The path names the ' +
-      'destination and the import graph decides the scope: every file that reaches it ' +
-      'along the imports, at any depth. One way only, against the arrows — what imports ' +
-      'the destination is in, what the destination imports is not. Said together with ' +
-      '`from`, the two closures are answered side by side, not crossed.',
+      'Optional. Same path forms as `from`. Scope: everything that imports it, transitively. ' +
+      'With `from`, the two scopes are answered side by side, not intersected.',
   },
 } as const;

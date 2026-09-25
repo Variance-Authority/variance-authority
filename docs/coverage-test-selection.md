@@ -399,7 +399,7 @@ export function Header() {
 ```
 
 ```
-read limits.ts: values — MAX_ITEMS changed; their readers and the changed regions are charged
+read limits.ts: values (MAX_ITEMS) — the readers of the changed values and the changed regions are charged
 ```
 
 The addon looks for reads of the changed name in the oxc syntax tree, first in

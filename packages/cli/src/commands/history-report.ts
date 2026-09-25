@@ -71,10 +71,9 @@ export async function recordIfConfigured(input: {
   if (identity === undefined) {
     return {
       warnings: [
-        `a history service is configured at ${config.history.endpoint} and nothing was recorded: ` +
-          'this run has no id and commit. Pass `--run` and `--commit`, or run inside a CI system ' +
-          'that exports them (GitHub, GitLab, Bitbucket are recognised). A run recorded under an ' +
-          'invented id could never be joined to what was shipped, so none was invented',
+        // An invented id could never be joined to what was shipped, so none is invented.
+        `history not recorded to ${config.history.endpoint}: this run has no id and commit. ` +
+          'Pass `--run` and `--commit`, or run in CI (GitHub, GitLab, Bitbucket)',
       ],
     };
   }

@@ -130,7 +130,7 @@ Each file ends by turning that integer into a line in the job log:
 ```
 nothing needs review.
 ::error::variance found changes that need review; the docket is in the pull request comment.
-::error::variance could not run as configured. This is not a finding about the change: no verdict was reached and no subject was observed.
+::error::variance could not run (exit 2); see the variance run step.
 ```
 
 What differs is what reaching `1` *means*:

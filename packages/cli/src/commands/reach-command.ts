@@ -45,7 +45,7 @@
  */
 
 import { OperatorError } from '../exit.js';
-import { affectedFiles, refused } from './reach.js';
+import { affectedFiles, listed, refused } from './reach.js';
 import { relationsFor } from './source-graph.js';
 import { changedSince, diffPoint, movedSince } from './since.js';
 
@@ -81,11 +81,9 @@ export interface ReachOutput {
 export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
   const changed = await changedSince(request.since);
   if (changed.length === 0) {
-    throw new OperatorError(
-      `nothing has changed since \`${request.since}\`, so there is nothing to walk from. A run ` +
-        'list is not the answer to an empty diff — an empty one would read as `run nothing`, ' +
-        'and a whole checkout would read as `run everything`; neither is what you asked.',
-    );
+    // A refusal, not an empty list: an empty run list reads as `run nothing`,
+    // and a whole checkout would read as `run everything`; neither was asked.
+    throw new OperatorError(`nothing has changed since \`${request.since}\`; there is nothing to walk from`);
   }
 
   const relations = await relationsFor(request.cwd, ['.'], [], [], {
@@ -117,9 +115,7 @@ export async function reachOutput(request: ReachRequest): Promise<ReachOutput> {
     ...(unread.length === 0
       ? []
       : [
-          `${unread.length} changed ${unread.length === 1 ? 'path is' : 'paths are'} in no ` +
-            `language this build reads and ${unread.length === 1 ? 'was' : 'were'} left out of ` +
-            `the walk: ${unread.join(', ')}`,
+          `${unread.length} left out of the walk, in no language this build reads: ${listed(unread)}`,
         ]),
   ];
 

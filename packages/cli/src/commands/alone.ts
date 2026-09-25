@@ -71,9 +71,8 @@ export async function alone(
     return {
       alone: {
         reproduced: true,
-        because:
-          'not re-collected: this collector supplies no `collectAlone`, so there is no ' +
-          'clean world to compare against and the change is reported as it was observed',
+        // No clean world to compare against, so the change stands as observed.
+        because: 'not re-run alone: collector has no `collectAlone`',
       },
     };
   }
@@ -82,9 +81,7 @@ export async function alone(
     return {
       alone: {
         reproduced: true,
-        because:
-          `not re-collected: the run's budget of ${limit} subjects was already spent, ` +
-          'so this change was not checked against a clean world',
+        because: `not re-run alone: budget of ${limit} subjects spent`,
       },
     };
   }
@@ -99,7 +96,7 @@ export async function alone(
     return {
       alone: {
         reproduced: true,
-        because: `not re-collected: collecting it in a clean world failed: ${fresh.because}`,
+        because: `not re-run alone: collecting it failed: ${fresh.because}`,
       },
     };
   }
@@ -122,9 +119,7 @@ export async function alone(
       return {
         alone: {
           reproduced: true,
-          because:
-            'not re-collected: ephemeral retention compares two documents and the clean ' +
-            'collection supplied only one',
+          because: 'not re-run alone: ephemeral retention compares two documents, and the clean collection gave one',
         },
       };
     }
@@ -137,10 +132,7 @@ export async function alone(
     return {
       alone: {
         reproduced: false,
-        because:
-          `re-collected alone, ${planned.subject.id} matches its baseline: the difference ` +
-          'is gone when nothing else has run, so this is order dependence in the suite ' +
-          'rather than a change to the component',
+        because: 'matches its baseline when run alone; a subject that ran before it causes the change',
       },
     };
   }
@@ -154,9 +146,8 @@ export async function alone(
       reproduced: true,
       because:
         clean.verdict === 'changed'
-          ? 'the change is still there with nothing else in the world, so it is the component'
-          : `re-collected alone and the clean comparison was \`${clean.verdict}\`, which ` +
-            'neither confirms nor clears the change',
+          ? 'still there when run alone; the component changed'
+          : `run alone, the comparison was \`${clean.verdict}\`; change neither confirmed nor cleared`,
     },
   };
 }

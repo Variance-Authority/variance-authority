@@ -84,7 +84,7 @@ export function asksForHelp(argv: readonly string[]): boolean {
 export function readFlags(
   argv: readonly string[],
   command: string,
-  /** Every flag this command takes, global ones included. Refusals print it. */
+  /** Every flag this command takes, global ones included. */
   accepted: readonly string[],
   /**
    * Appended to an unknown-flag refusal: the synopsis of *this* command.
@@ -120,9 +120,11 @@ export function readFlags(
     const name = equals === -1 ? argument : argument.slice(0, equals);
 
     if (!accepted.includes(name)) {
+      // The synopsis names every accepted flag (`bin.test.ts` holds it to that),
+      // so the refusal does not list them a second time.
       throw new OperatorError(
-        `\`${name}\` is not a flag \`variance ${command}\` accepts; it takes ` +
-          `${accepted.length === 0 ? 'none' : accepted.join(', ')}` +
+        `\`${name}\` is not a \`variance ${command}\` flag` +
+          `${accepted.length === 0 ? '; it takes none' : ''}` +
           `${didYouMean(name, accepted)}\n\n${usage}`,
       );
     }
@@ -144,10 +146,8 @@ export function readFlags(
 
     // `-` alone is stdin, by the convention every shell tool shares, and never a flag.
     if (value === undefined || (inline === undefined && value.startsWith('-') && value !== '-')) {
-      throw new OperatorError(
-        `\`${name}\` needs a value; nothing followed it. A missing value is a mistake, ` +
-          'not a request for the default.',
-      );
+      // A missing value is a mistake, not a request for the default.
+      throw new OperatorError(`\`${name}\` needs a value; nothing followed it.`);
     }
     if (inline === undefined) index += 1;
     values.set(name, value);

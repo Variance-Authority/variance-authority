@@ -134,9 +134,8 @@ export const USAGE = [
   'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [<report>...] | --marker',
   '',
-  '`--version` prints this tool. `push` also prints the deployment it reached, and says so when the two disagree.',
+  '`--version` prints the version of this tool.',
   'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.',
-  'A verdict and a crash never share a code.',
 ].join('\n');
 
 /**
@@ -202,16 +201,19 @@ const REVIEWS: readonly string[] = ['run', 'report', 'adjudicate'];
  * to the codes *this* command can return, for the reason {@link REVIEWS} gives.
  */
 export function helpFor(command: (typeof COMMANDS)[number]): string {
+  // No flag list: the synopsis names every flag, and `bin.test.ts` holds it to
+  // that. The two flags whose name does not say what they change get one line
+  // each; the README section for each command has the rest — Git still names
+  // every blob under `--no-git`, and `--whole-files` is the file-by-file graph.
   const flags = flagsFor(command);
   return [
     synopsisFor(command),
     '',
-    `flags: ${flags.length === 0 ? 'none' : flags.join(', ')}`,
     ...(flags.includes('--no-git')
-      ? ['--no-git: read file contents from the working tree, not from Git\'s object store. Git still lists the files and names each file\'s blob, so the source index is the same one and unchanged files are not read again.']
+      ? ['--no-git: read file contents from the working tree, not Git\'s object store; the index is the same.']
       : []),
     ...(flags.includes('--whole-files')
-      ? ['--whole-files: walk from every changed file whole, without reading what the edit changed. The list is never shorter than the default one; it is the list a file-by-file import graph gives.']
+      ? ['--whole-files: walk from every changed file whole, without reading the edit; the list is never shorter.']
       : []),
     REVIEWS.includes(command)
       ? 'exit codes: 0 nothing needs review, 1 changes need review, 2 operator error.'
