@@ -120,13 +120,22 @@ export function sourceLines(
  * charged, the tests kept, and the module named in `ExecutionNarrowing.stale`
  * where a reader can see which build has no map to give.
  *
+ * A transform that leaves no text is not that case. A module of nothing but
+ * types arrives empty, with a map whose mappings are empty because there is no
+ * position to give an origin to — the map is exact, not missing. Digesting the
+ * empty text records a module no commit ever held, and every change to the file
+ * is then read as a stale frame: every loader charged over an edit to a comment.
+ * An empty text has no line a block could be counted in, so the frame is the
+ * file itself, and the one region such a module has — loading it — spans all of
+ * it.
+ *
  * `original` is called with the file the lines landed in, which is usually the
  * one the host named and is {@link originalFile} when the map points somewhere
- * else. It is called only when there is a map worth reading back through, and a
- * seam whose id is not a file on disk may throw rather than answer. That is the
- * untranslatable case again and it is recorded the same way, under the host's
- * name: a frame reports one file or none, never a name from one text and a
- * digest from another.
+ * else. It is called only when there is a map worth reading back through or no
+ * text to read, and a seam whose id is not a file on disk may throw rather than
+ * answer. That is the untranslatable case again and it is recorded the same way,
+ * under the host's name: a frame reports one file or none, never a name from one
+ * text and a digest from another.
  */
 export interface RecordedFrame {
   /** A region of the transformed text, as lines of the digested text. */
@@ -144,6 +153,10 @@ export function recordedFrame(
   original: (path: string) => string,
 ): RecordedFrame {
   const translated = map !== undefined && map.mappings !== '';
+  if (!translated && code.trim() === '') {
+    const whole = wholeFile(file, original);
+    if (whole !== undefined) return whole;
+  }
   const candidate = originalFile(map, file) ?? file;
   let text: string | undefined;
   let named = file;
@@ -161,6 +174,20 @@ export function recordedFrame(
     extentOf: sourceLines(code, map, file),
     sourceDigest: digestString(text ?? code),
   };
+}
+
+/** The frame of a module whose transformed text is empty: the file, every line of it. */
+function wholeFile(file: string, original: (path: string) => string): RecordedFrame | undefined {
+  let text: string;
+  try {
+    text = original(file);
+  } catch {
+    return undefined;
+  }
+  const starts = lineStarts(text);
+  // A newline ends the line it is on; it does not open one nothing is written on.
+  const lines = Math.max(1, text.endsWith('\n') ? starts.length - 1 : starts.length);
+  return { file, extentOf: () => [1, lines], sourceDigest: digestString(text) };
 }
 
 /**
