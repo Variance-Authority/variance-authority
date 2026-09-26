@@ -1,15 +1,16 @@
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
+import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
-import { mainlineIndex, mainlinesOf, publishedLine, publishRun, shareLines } from './share.js';
+import { mainlineIndex, mainlineSuite, mainlinesOf, publishedLine, publishRun, shareLines } from './share.js';
 
 /**
  * A run publishes to the line it belongs to, and a reader reads its mainline.
@@ -93,6 +94,25 @@ describe('publishing a run', () => {
 
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
     expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
+  });
+
+  it('carries a suite\'s record when the config gives it to the share, and a reader reads it back', async () => {
+    const repository = await repositoryOf(2);
+    const config = { ...configOf({ root: join(home, 'share'), mainlines: ['main'] }), suites: [{ name: 'unit', carry: 'share' }] } as Config;
+    await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    const record = testCoverageFile(repository.dir, { suite: 'unit' });
+    await mkdir(dirname(record), { recursive: true });
+    await writeFile(record, 'record');
+    await writeFile(`${record}.cases.bin`, 'cases');
+
+    const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
+    expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'suite-v1/unit'] } });
+
+    const found = await mainlineSuite(config, 'unit', { env: LOCAL, cwd: repository.dir });
+    expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[0], distance: 1 });
+    const text = (bytes: Uint8Array | undefined): string => new TextDecoder().decode(bytes);
+    expect('coverage' in found && [text(found.coverage), text(found.cases)]).toEqual(['record', 'cases']);
+    expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' } });
   });
 
   it('writes a branch line from a pull request, with the head it pointed at', async () => {

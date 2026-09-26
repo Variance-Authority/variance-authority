@@ -18,7 +18,7 @@ import {
   type SuiteIndex,
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
-import { reportEntryOf, suiteEntryOf, type NamedImage } from '../share-entries.js';
+import { readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import {
   descendsOf,
   distanceFrom,
@@ -147,20 +147,25 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
   return 'kind' in published ? { line: run.line, miss: published } : { line: run.line, published };
 }
 
-/** A mainline's suite index, where it was read from, and how far it is from this checkout. */
-export interface MainlineIndex {
+/** Why the reader's mainline did not answer: the share's own account, or that nothing names a mainline or a share. */
+export type MainlineMiss = ShareMiss | { readonly kind: 'unconfigured'; readonly detail: string };
+
+/** Which mainline a read was about, and where its entry was derived. */
+export interface MainlineAt {
   readonly mainline: string;
   readonly commit: string;
-  /** Commits the index is behind `HEAD`'s merge base with the mainline; negative when ahead. */
+  /** Commits the entry is behind `HEAD`'s merge base with the mainline; negative when ahead. */
   readonly distance?: number;
+}
+
+/** A mainline's suite index, where it was read from, and how far it is from this checkout. */
+export interface MainlineIndex extends MainlineAt {
   readonly from: 'local' | 'share';
   readonly index: SuiteIndex;
 }
 
 /** A mainline index, or which mainline was asked and why it did not answer. */
-export type MainlineRead =
-  | MainlineIndex
-  | { readonly mainline?: string; readonly miss: ShareMiss | { readonly kind: 'unconfigured'; readonly detail: string } };
+export type MainlineRead = MainlineIndex | { readonly mainline?: string; readonly miss: MainlineMiss };
 
 /**
  * The suite index the reader's mainline holds.
@@ -173,44 +178,97 @@ export async function mainlineIndex(
   config: Config,
   options: Here & { readonly mainline?: string } = {},
 ): Promise<MainlineRead> {
+  const found = await mainlineEntry(config, SUITE_INDEX_ENTRY, options);
+  if ('miss' in found) return found;
+  const { bytes, ...at } = found;
+  const local = await readSuiteIndex(suiteIndexPath(config, at.commit)).catch(() => null);
+  if (local !== null) return { ...at, from: 'local', index: local };
+
+  const read = await bytes();
+  if (!(read instanceof Uint8Array)) return { mainline: at.mainline, miss: read };
+  let index: SuiteIndex;
+  try {
+    index = decodeSuiteIndex(read);
+  } catch (error) {
+    return { mainline: at.mainline, miss: { kind: 'unreadable', detail: (error as Error).message } };
+  }
+  try {
+    await writeSuiteIndex(suiteIndexPath(config, at.commit), index);
+  } catch {
+    // A read-only cache directory costs one fetch per command and nothing else.
+  }
+  return { ...at, from: 'share', index };
+}
+
+/** One suite's record as the reader's mainline holds it: the coverage record, and its per-case index when it had one. */
+export interface MainlineSuite extends MainlineAt {
+  readonly coverage: Uint8Array;
+  readonly cases?: Uint8Array;
+}
+
+/**
+ * The record `suite` published to the reader's mainline, in the bytes the
+ * suite's seam wrote.
+ *
+ * Nothing is kept on this machine: where a record is layered is the reader's
+ * to say, and a copy written here would be a layer nobody asked for.
+ */
+export async function mainlineSuite(
+  config: Config,
+  suite: string,
+  options: Here & { readonly mainline?: string } = {},
+): Promise<MainlineSuite | { readonly mainline?: string; readonly miss: MainlineMiss }> {
+  const found = await mainlineEntry(config, suiteEntry(suite), options);
+  if ('miss' in found) return found;
+  const { bytes, ...at } = found;
+  const read = await bytes();
+  if (!(read instanceof Uint8Array)) return { mainline: at.mainline, miss: read };
+  const parts = readSuiteEntry(read);
+  if (typeof parts === 'string') return { mainline: at.mainline, miss: { kind: 'unreadable', detail: parts } };
+  return { ...at, ...parts };
+}
+
+/**
+ * Where the reader's mainline holds `name`, and a way to read its bytes.
+ *
+ * The mainline is the one named, or else the one `readerMainline` chooses. The
+ * bytes are read only when asked, because a commit this machine already holds
+ * is answered from disk.
+ */
+async function mainlineEntry(
+  config: Config,
+  name: string,
+  options: Here & { readonly mainline?: string },
+): Promise<
+  | (MainlineAt & { readonly bytes: () => Promise<Uint8Array | ShareMiss> })
+  | { readonly mainline?: string; readonly miss: MainlineMiss }
+> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
-  let name = options.mainline;
-  if (name === undefined) {
+  let mainline = options.mainline;
+  if (mainline === undefined) {
     const chosen = await readerMainline(config, env, cwd);
     if ('missing' in chosen) {
       return { miss: { kind: 'unconfigured', detail: `nothing answered from ${chosen.missing.join(', ')}` } };
     }
-    name = chosen.name;
+    mainline = chosen.name;
   }
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
-  if (cell === undefined) return { mainline: name, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
-  if ('kind' in cell) return { mainline: name, miss: cell };
+  if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
+  if ('kind' in cell) return { mainline, miss: cell };
 
-  const held = await readLine(cell, { kind: 'mainline', name });
-  if ('kind' in held) return { mainline: name, miss: held };
-  const entry = findEntry(held.manifest, SUITE_INDEX_ENTRY);
-  if ('kind' in entry) return { mainline: name, miss: entry };
+  const held = await readLine(cell, { kind: 'mainline', name: mainline });
+  if ('kind' in held) return { mainline, miss: held };
+  const entry = findEntry(held.manifest, name);
+  if ('kind' in entry) return { mainline, miss: entry };
 
-  const distance = await distanceFrom(config, name, entry.commit, cwd);
-  const found = { mainline: name, commit: entry.commit, ...(distance !== undefined ? { distance } : {}) };
-  const local = await readSuiteIndex(suiteIndexPath(config, entry.commit)).catch(() => null);
-  if (local !== null) return { ...found, from: 'local', index: local };
-
-  const bytes = await held.entry(entry);
-  if (!(bytes instanceof Uint8Array)) return { mainline: name, miss: bytes };
-  let index: SuiteIndex;
-  try {
-    index = decodeSuiteIndex(bytes);
-  } catch (error) {
-    return { mainline: name, miss: { kind: 'unreadable', detail: (error as Error).message } };
-  }
-  try {
-    await writeSuiteIndex(suiteIndexPath(config, entry.commit), index);
-  } catch {
-    // A read-only cache directory costs one fetch per command and nothing else.
-  }
-  return { ...found, from: 'share', index };
+  const distance = await distanceFrom(config, mainline, entry.commit, cwd);
+  return {
+    mainline,
+    commit: entry.commit,
+    ...(distance !== undefined ? { distance } : {}),
+    bytes: () => held.entry(entry),
+  };
 }
 
 /**
@@ -275,7 +333,7 @@ function describeShare(config: Config): string {
   return `${share.namespace ?? 'refs/variance'} on ${share.remote ?? 'origin'}`;
 }
 
-function describeMiss(miss: ShareMiss | { readonly kind: 'unconfigured'; readonly detail: string }): string {
+function describeMiss(miss: MainlineMiss): string {
   switch (miss.kind) {
     case 'absent':
       return 'nothing is published there';
