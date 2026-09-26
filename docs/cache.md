@@ -129,11 +129,10 @@ Without it, the path is `~/.cache/variance-authority`. The
 in the key.
 
 To review a pull request against its base, save the cache only from your main
-branch, and copy `coverage.bin.cases.bin` aside after the restore and before the
-suite runs, because the suite replaces the cases it runs. That copy is what
-`variance review --against` reads. A pull request that saved its own cache
-would restore it on its next push, and its review would compare the change with
-itself.
+branch. The suite keeps the cases it replaces beside the case index, with the
+commit they were recorded at, and that is what `variance review` compares with.
+A pull request that saved its own cache would restore it on its next push, and
+its review would compare the change with itself.
 
 ## Start cold
 

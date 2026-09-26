@@ -679,26 +679,31 @@ after a `yarn test` on a branch, `variance review` alone answers for everything
 since the previous run. A retry or a second shard at the same commit keeps the
 same starting commit and adds its test files to the list.
 
-`--against <record>` is a case index recorded at the base, as in
-[What a change moved](#what-a-change-moved), and adds the regions whose cases
-changed. `--out <dir>` writes `review.json` and `review.md` beside what is
+The review also lists the regions whose cases changed. It compares them with
+the cases the runs at this commit replaced, which the suite keeps beside its
+case index with the commit they were recorded at. What the base's branch changed
+after that commit is left out and named, as in
+[What a change moved](#what-a-change-moved). `--against <record>` compares with
+a case index you hold instead. `--out <dir>` writes `review.json` and `review.md` beside what is
 printed. The markdown starts with a hidden marker line, so a pipeline finds its
 own pull request comment and edits it instead of posting another.
 
 In CI, restore the recording directory your base branch saved to the runner
-cache (`$RECORDING` below, the directory [the cache](../../docs/cache.md)
-describes), copy its case index aside before the suite runs, and review after
-it:
+cache (the directory [the cache](../../docs/cache.md) describes), run the
+suite, and review after it:
 
 ```yaml
-- run: cp "$RECORDING/coverage.bin.cases.bin" "$RUNNER_TEMP/base.cases.bin"
 - run: yarn test
 - if: ${{ !cancelled() }}
   run: |
     npx variance index
-    npx variance review --since "$BASE" --against "$RUNNER_TEMP/base.cases.bin" \
-      --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
+    npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
+
+A suite split over several invocations at one commit keeps the base's cases for
+every file any of them ran. Once an invocation runs a file a second time, that
+file's replaced cases are this commit's own, and the review no longer names a
+commit for them.
 
 `variance index` comes first because the review asks the file graph which tests
 import each changed file, and under CI the graph is read from what `index`

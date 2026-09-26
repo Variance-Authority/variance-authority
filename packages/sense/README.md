@@ -1721,7 +1721,10 @@ snapshot's bytes do not depend on the index, so CI reads the same file to select
 test files. A run of some files replaces the cases of those files and keeps the
 rest, as the snapshot does. Beside the index, `cases.last.json` names the run
 that wrote it last, and `cases.before.bin` holds what the index had for that
-run's files before it. `caseMotion(base, now)` compares two indexes region by
+run's files before it. Runs at one commit add to `cases.before.bin` rather than
+replace it, so a suite split over several invocations keeps every file's
+replaced cases. `cases.last.json` names the commit those cases were recorded
+at under `before`, until a run at the same commit runs a file again. `caseMotion(base, now)` compares two indexes region by
 region and names each region whose cases moved: lost, hidden, thinned or
 gained. `relations` lets it name the stopped case behind a hidden region, and
 `exclude` leaves out modules whose motion belongs to another change. Pass

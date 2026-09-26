@@ -195,7 +195,7 @@ export async function review(request: ParsedReview): Promise<Review> {
     ? await motionAgainst(from, request.against, ref, root)
     : runs === undefined
       ? undefined
-      : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root);
+      : await motionOfLast(full, from, full.tests.filter((test) => runs.files.includes(test.file)).map((test) => test.id), root, undefined, ref);
 
   return {
     from: point.base,

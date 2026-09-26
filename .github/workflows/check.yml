@@ -143,21 +143,6 @@ jobs:
           restore-keys: |
             variance-${{ runner.os }}-${{ runner.arch }}-
 
-      # The suite below replaces the cases it runs, so the base's are copied
-      # aside first, and only when the restored recording was made at the base
-      # itself: a newer or older one would count as this change's cases that
-      # `main` gained or lost on its own.
-      - name: keep the base's cases
-        if: ${{ steps.restore.outputs.cache-hit == 'true' }}
-        shell: bash
-        env:
-          DIR: ${{ steps.recording.outputs.dir }}
-        run: |
-          if [ -f "$DIR/coverage.bin.cases.bin" ]; then
-            mkdir -p "$RUNNER_TEMP/variance-base"
-            cp "$DIR/coverage.bin.cases.bin" "$RUNNER_TEMP/variance-base/"
-          fi
-
       # `vitest run` is the unit suites and the corpus. The package boundary
       # rules (ADR-0013) and the documentation rules (ADR-0014) ran here until
       # 2026-08-04 and now run in the step above. It records which case ran
@@ -173,6 +158,10 @@ jobs:
       # this repository's own code. It runs when the suite failed too: a red case
       # still recorded what it ran, and the review is where a reviewer reads why.
       #
+      # The suite kept the cases it replaced, and the commit they were recorded
+      # at, so what `main` moved after that commit is left out of the comparison
+      # whichever recording the restore found.
+      #
       # The source index is published first. Under CI a reader refuses to build
       # it on demand, and the review asks it which tests import each changed file.
       - name: review the change
@@ -183,11 +172,7 @@ jobs:
           BASE: ${{ steps.recording.outputs.base }}
         run: |
           node packages/cli/dist/bin.js index
-          against=()
-          if [ -f "$RUNNER_TEMP/variance-base/coverage.bin.cases.bin" ]; then
-            against=(--against "$RUNNER_TEMP/variance-base/coverage.bin.cases.bin")
-          fi
-          node packages/cli/dist/bin.js review --since "$BASE" "${against[@]}" \
+          node packages/cli/dist/bin.js review --since "$BASE" \
             --out "$RUNNER_TEMP/variance-review" --format markdown >> "$GITHUB_STEP_SUMMARY"
 
       - name: keep the review
