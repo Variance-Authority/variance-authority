@@ -55,7 +55,35 @@ import { repositoryRoot } from './repository-root.js';
 /** The file a repository names its cache directory in, at its root. */
 export const CACHE_CONFIG = 'variance.config.json';
 
-const configured = new Map<string, string | undefined>();
+const configs = new Map<string, RootConfig | undefined>();
+
+/**
+ * The {@link CACHE_CONFIG} at a repository's root, parsed.
+ *
+ * `file` is carried so a reader that refuses a value can name where it came
+ * from. `value` is the object the file holds; a file that holds anything else
+ * sets nothing, and the CLI, which owns the whole file, says why.
+ */
+export interface RootConfig {
+  readonly file: string;
+  readonly value: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The root config of the repository `root` is in, or undefined when there is none.
+ *
+ * Read once per process: every seam asks it per module, and the file does not
+ * change under a run. Only this module and `suites.ts` read it, each for its own
+ * key; the rest of the file is the CLI's, and the CLI refuses what it does not
+ * know. A file that is not JSON is an error rather than no file, because the
+ * setting it would have made is one the reader never sees.
+ */
+export function rootConfig(root: string): RootConfig | undefined {
+  const repository = repositoryRoot(root);
+  if (!configs.has(repository)) configs.set(repository, readRootConfig(repository));
+
+  return configs.get(repository);
+}
 
 /**
  * The directory everything variance-authority caches for `root` lives in.
@@ -70,22 +98,29 @@ const configured = new Map<string, string | undefined>();
  * requires an absolute path, and a relative one would resolve against
  * whichever directory the run started in.
  *
- * Only `cacheRoot` is read here. The rest of the file is the CLI's, and the
- * CLI refuses what it does not know; a file this cannot parse, or a
- * `cacheRoot` that is not a path, is an error rather than a default, because
+ * A `cacheRoot` that is not a path is an error rather than a default, because
  * the cache a run would fall back to is one the reader never sees.
  */
 export function cacheRootFor(root: string): string {
-  const repository = repositoryRoot(root);
-  if (!configured.has(repository)) configured.set(repository, readCacheRoot(repository));
-  const named = configured.get(repository);
+  const config = rootConfig(root);
+  const named = config === undefined ? undefined : cacheRootIn(config);
   if (named !== undefined) return named;
   const xdg = process.env['XDG_CACHE_HOME'];
 
   return resolve(xdg !== undefined && isAbsolute(xdg) ? xdg : resolve(homedir(), '.cache'), 'variance-authority');
 }
 
-function readCacheRoot(repository: string): string | undefined {
+function cacheRootIn({ file, value: config }: RootConfig): string | undefined {
+  const value = config['cacheRoot'];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value === '') {
+    throw new Error(`${file}: "cacheRoot" must be a directory path, not ${JSON.stringify(value)}`);
+  }
+
+  return resolve(dirname(file), value);
+}
+
+function readRootConfig(repository: string): RootConfig | undefined {
   const file = resolve(repository, CACHE_CONFIG);
   let text: string;
   try {
@@ -96,16 +131,17 @@ function readCacheRoot(repository: string): string | undefined {
   }
   let value: unknown;
   try {
-    value = (JSON.parse(text) as { cacheRoot?: unknown } | null)?.cacheRoot;
+    value = JSON.parse(text);
   } catch (error) {
-    throw new Error(`${file} is not JSON, so the cache directory it names cannot be read: ${(error as Error).message}`);
-  }
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string' || value === '') {
-    throw new Error(`${file}: "cacheRoot" must be a directory path, not ${JSON.stringify(value)}`);
+    throw new Error(`${file} is not JSON, so the settings it holds cannot be read: ${(error as Error).message}`);
   }
 
-  return resolve(repository, value);
+  return {
+    file,
+    value: typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {},
+  };
 }
 
 /**

@@ -27,7 +27,7 @@ import {
   type RunnerContext,
 } from './governing-config.js';
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { testCoverageFile } from './index.js';
+import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
 export interface TestSelectionOptions {
@@ -39,6 +39,12 @@ export interface TestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /** Decide which transformed modules are product source. */
   readonly include?: (file: string) => boolean;
   /**
@@ -125,9 +131,7 @@ export function withTestSelection(
 ): UserConfig {
   const configRoot = resolve(options.root ?? config.root ?? process.cwd());
   const root = repositoryRoot(configRoot);
-  const coverageFile = options.coverageFile === undefined
-    ? testCoverageFile(root)
-    : resolve(configRoot, options.coverageFile);
+  const coverageFile = recordFileFor(root, configRoot, options);
   const mode = options.mode ?? 'presence';
   const run = runFor(coverageFile, root, mode);
   // Named for the run rather than for the seam. These are files on disk now, so

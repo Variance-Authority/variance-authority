@@ -54,6 +54,40 @@ Delete any of it and you pay one full run. A missing, foreign or corrupt file is
 read as an absent record rather than an empty one, so a selector widens to the
 whole suite instead of narrowing on damage.
 
+### One record for each suite
+
+If your repository runs more than one test suite, declare each one, with its
+kind, under `suites` in the `variance.config.json` at the repository root:
+
+```json
+{
+  "suites": {
+    "unit": { "kind": "unit" },
+    "stories": { "kind": "visual" },
+    "checkout": { "kind": "e2e" }
+  }
+}
+```
+
+The kind is one of `unit`, `integration`, `e2e` and `visual`. Nothing infers it
+from the runner, because a Playwright suite can be `e2e` or `visual` and only
+you know which one you meant.
+
+Each declared suite has its own record, at
+`<repository-digest>/suites/<name>/coverage.bin`, with its `.cases.bin` and its
+runs log beside it. Name the suite in the runner integration with the `suite`
+option, and `testCoverageFile(root, { suite })` returns its path. A Playwright
+run then never replaces what the unit suite recorded, and each record keeps the
+commit its own suite last ran at. The module names table and the [source index](source-index.md)
+stay at the top of the directory, because they describe the checkout and not a
+run. A worktree seeds each suite's record from the same suite in the primary
+checkout, never from another suite's.
+
+Once `suites` is declared, a run stops before it starts when its integration
+names no suite, names one the file does not declare, or names a suite and a
+`coverageFile` together. A repository that declares no suites keeps the one
+`coverage.bin` described above.
+
 ## What each host records
 
 Five hosts write this file, and they write the same structures into it. What

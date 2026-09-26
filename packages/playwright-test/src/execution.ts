@@ -56,6 +56,8 @@ export interface ExecutionRecording {
   readonly cacheRoot?: string;
   /** The coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
+  readonly suite?: string;
   /**
    * Services that report their own crossings, by the name each one collects
    * under.
@@ -478,6 +480,7 @@ export function createExecutionRecorder(
       ...(recording.label === undefined ? {} : { label: recording.label }),
       ...(recording.cacheRoot === undefined ? {} : { cacheRoot: recording.cacheRoot }),
       ...(recording.coverageFile === undefined ? {} : { coverageFile: resolve(start, recording.coverageFile) }),
+      ...(recording.suite === undefined ? {} : { suite: recording.suite }),
       ...(recording.mode === undefined ? {} : { mode: recording.mode }),
       ...(recording.preconditions === undefined
         ? {}

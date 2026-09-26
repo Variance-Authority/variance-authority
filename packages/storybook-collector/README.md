@@ -374,7 +374,9 @@ export default storybookCollector({
 `tests` accepts `true` or an options object: `label` must match the one the
 preview's `testSelectionProbes()` was given, and `cacheRoot` and `coverageFile`
 override the repository-keyed cache paths for the block records and the coverage
-index. `root` is the directory Storybook ran in, the cwd by default: story paths
+index. `suite` names the suite this run is, when the root `variance.config.json`
+declares its suites under `suites`; it is required once any suite is declared,
+and cannot be combined with `coverageFile`. `root` is the directory Storybook ran in, the cwd by default: story paths
 and a relative `coverageFile` or `executionFile` are read from it, and every
 path the run records is relative to the repository that contains it.
 Without a collector in the page, the run says so on stderr and records nothing.

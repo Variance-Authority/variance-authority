@@ -164,6 +164,22 @@ only the files that differ between the two. Pass `coverageFile` in the options t
 it somewhere you name instead — a CI job that uploads the file as an artifact
 wants that.
 
+A repository that runs more than one test suite declares each of them, with its
+kind, under `suites` in the root `variance.config.json`:
+
+```json
+{ "suites": { "unit": { "kind": "unit" }, "stories": { "kind": "visual" } } }
+```
+
+The kind is one of `unit`, `integration`, `e2e` and `visual`. Each declared
+suite records on its own, at `<digest>/suites/<name>/coverage.bin`, and every
+seam takes a `suite` option that names the one it runs. A run under one suite
+never replaces what another suite recorded. Once any suite is declared, a seam
+that names none, or names one the file does not declare, stops before the run
+starts. `declaredSuites(root)` returns what the file declares, and
+`testCoverageFile(root, { suite })` the path of one suite's record. A
+repository that declares no suites keeps the one `coverage.bin` above.
+
 **Built** as a side effect of a wrapped run: every test file writes a journal,
 the reporter folds them when the run completes, and the result is landed over
 whatever was there before. There is no separate build step and no `test:since`
@@ -263,12 +279,13 @@ and each name selects the tests recorded under it.
 
 ### Options on the Vitest seam
 
-The optional second argument accepts `root`, `coverageFile`, `include`,
-`preconditions`, `mode`, `continuations`, and `executionFile`.
+The optional second argument accepts `root`, `suite`, `coverageFile`,
+`include`, `preconditions`, `mode`, `continuations`, and `executionFile`.
 
 | option | default | use it when |
 |---|---|---|
 | `root` | the configuration root, then the current directory | the configuration is evaluated outside the checkout it records. Recorded paths are relative to the checkout that contains `root`, never to `root` itself, so a package-level configuration and a repository-level one name a file the same way. Relative option paths resolve against `root` |
+| `suite` | none; required once the root config declares `suites` | the repository declares its suites, and this configuration runs one of them. It cannot be combined with `coverageFile` |
 | `coverageFile` | the cache path above | CI needs a named artifact |
 | `include` | JavaScript and TypeScript modules, less test, spec, dependency and built-output files | restricting instrumentation to product source; it receives each absolute module path after Vitest transforms it |
 | `preconditions` | the config file Vite loaded, the local modules it imports, and the configured setup files | naming a file the runner reads without Vite knowing, such as compiler settings or a fixture read with `fs` |
@@ -512,8 +529,8 @@ export default withTestSelection({
 });
 ```
 
-The second argument accepts `root`, `coverageFile`, `preconditions`, `mode`,
-`continuations`, and `executionFile`, with the meanings above. Jest
+The second argument accepts `root`, `suite`, `coverageFile`, `preconditions`,
+`mode`, `continuations`, and `executionFile`, with the meanings above. Jest
 does not say which config file it loaded, so name it in `preconditions`. There
 is no `include`: product source is every
 JavaScript and TypeScript module the configuration's `testMatch` or `testRegex`
@@ -606,9 +623,9 @@ export default defineConfig(withTestSelection({
 }));
 ```
 
-The second argument accepts `root`, `coverageFile`, `include`, `preconditions`,
-`mode`, `continuations`, and `executionFile`, with the meanings above.
-Rstest does not say which config file it loaded, so name it in `preconditions`.
+The second argument accepts `root`, `suite`, `coverageFile`, `include`,
+`preconditions`, `mode`, `continuations`, and `executionFile`, with the meanings
+above. Rstest does not say which config file it loaded, so name it in `preconditions`.
 The loader runs
 at `enforce: 'post'`, after SWC, and reads the block extents back through the
 map the bundler already made, so the lines a record carries are the ones you
@@ -692,8 +709,8 @@ process.exitCode = failed ? 1 : 0;
 Each function has one place in your runner:
 
 - **`startRecording` goes in the process that starts the run.** It takes
-  `root`, `coverageFile`, `preconditions`, `mode`, `continuations` and
-  `executionFile`, with the meanings they have on the Vitest seam. Name your
+  `root`, `suite`, `coverageFile`, `preconditions`, `mode`, `continuations`
+  and `executionFile`, with the meanings they have on the Vitest seam. Name your
   runner's own files and configuration in `preconditions`: nothing loads them
   through a transform, so nothing else can tell a test's outcome depends on
   them. The call sets `VARIANCE_AUTHORITY_RECORDING`, which every child
@@ -790,7 +807,7 @@ To drive it yourself: evaluate `executionCollectorSource()` in the page if the
 build does not hoist it, call `drainExecution(page)` to close one **subject**'s
 window — one named UI state you asked for and can ask for again, such as
 `cart/empty` — and hand the journals to `recordExecution`. It takes the same
-`root`, `label`, and `cacheRoot`, plus `coverageFile` and `subjects`: one entry
+`root`, `label`, and `cacheRoot`, plus `suite`, `coverageFile` and `subjects`: one entry
 per window the driver closed, each an `owner`, the drained `journal`, optional
 `preconditions`, and `complete`, which is false for a subject that did not
 finish and keeps it from ever justifying a skip. `heads` names other builds the

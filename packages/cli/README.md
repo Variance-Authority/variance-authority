@@ -1652,6 +1652,7 @@ The remaining top-level keys:
 | `decoder` | which PNG implementation to use |
 | `concurrency` | how many subjects may be in flight at once |
 | `intent` | the default `--intent` label |
+| `suites` | each test suite the repository runs, and its kind: `unit`, `integration`, `e2e` or `visual`. Each suite records on its own. Read only from the file at the repository root, as the [execution record](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite) page describes |
 | `alone.limit` | how many changed subjects a run re-collects in isolation to confirm the change reproduces — the same budget `run --flakes` ignores, above |
 
 `history.token`, and `baselines.token` on a remote store, take either a literal

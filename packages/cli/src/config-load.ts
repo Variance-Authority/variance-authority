@@ -7,9 +7,10 @@
  * parse, which are the only two steps that can fail before a rule ever runs.
  */
 
+import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import { cacheRootFor } from '@variance-authority/sense/test-selection';
+import { cacheRootFor, declaredSuites, repositoryRoot } from '@variance-authority/sense/test-selection';
 import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
@@ -59,7 +60,18 @@ export async function loadConfig(path: string): Promise<Config> {
         'looks for it; this file is not that one, so set it there',
     );
   }
-  return { ...config, cacheRoot };
+  // The same rule for `suites`, compared by file rather than by value: two files
+  // declaring the same suites today are two places to change tomorrow.
+  if (config.suites !== undefined && realpathSync(baseDir) !== realpathSync(repositoryRoot(baseDir))) {
+    throw new ConfigError(
+      source,
+      'suites',
+      'is read from the variance.config.json at the repository root, where every test runner ' +
+        'looks for it; this file is not that one, so declare them there',
+    );
+  }
+  const suites = declaredSuites(baseDir);
+  return { ...config, cacheRoot, ...(suites === undefined ? {} : { suites }) };
 }
 
 /** Whether a failed read is the file simply not being there. */

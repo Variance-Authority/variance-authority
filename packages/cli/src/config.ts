@@ -34,15 +34,9 @@ import { parseSource, type ChangeConfig, type SourceConfig } from './config-sour
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
 import { parseNames, type NamesConfig } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
+import { parseSuitesAt, type DeclaredSuite } from './config-suites.js';
 
-export type {
-  BlankConfig,
-  ChangeConfig,
-  IgnoreConfig,
-  NamesConfig,
-  SensitivityConfig,
-  SourceConfig,
-};
+export type { BlankConfig, ChangeConfig, IgnoreConfig, NamesConfig, SensitivityConfig, SourceConfig };
 export type { AxisConfig } from './config-names.js';
 
 /**
@@ -315,6 +309,9 @@ export interface Config {
    * costs and never what it says.
    */
   readonly concurrency?: number;
+
+  /** The suites the repository runs, and their kinds; read from the root file only. */
+  readonly suites?: readonly DeclaredSuite[];
 }
 
 /**
@@ -354,6 +351,7 @@ const TOP_LEVEL = [
   'decoder',
   'concurrency',
   'cacheRoot',
+  'suites',
 ] as const;
 
 /**
@@ -424,6 +422,7 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
   const images = path(root, 'images', options);
   const intent = optionalText(root, 'intent', options);
   const cacheRoot = path(root, 'cacheRoot', options);
+  const suites = root['suites'] === undefined ? undefined : parseSuitesAt(root['suites'], options);
   const alone = root['alone'] === undefined ? undefined : parseAlone(root['alone'], options);
   const ignore = root['ignore'] === undefined ? undefined : parseIgnores(root['ignore'], options);
   const blank = root['blank'] === undefined ? undefined : parseBlanks(root['blank'], options);
@@ -493,5 +492,6 @@ export function parseConfig(value: unknown, options: ParseOptions): Config {
     ...(names !== undefined ? { names } : {}),
     ...(decoder === undefined ? {} : { decoder: decoder as NonNullable<Config['decoder']> }),
     ...(concurrency === undefined ? {} : { concurrency: concurrency as number }),
+    ...(suites === undefined ? {} : { suites }),
   };
 }

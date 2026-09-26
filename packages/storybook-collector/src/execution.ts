@@ -42,6 +42,8 @@ export interface StoryExecutionOptions {
   readonly cacheRoot?: string;
   /** Coverage index. Defaults to the repository-keyed cache the runner seams share. */
   readonly coverageFile?: string;
+  /** The suite this run is, as the root `variance.config.json` declares it under `suites`. */
+  readonly suite?: string;
   /**
    * Where the execution index — which individual story entered which region —
    * goes. Defaults beside the snapshot, as the Vitest seam's does.
@@ -176,6 +178,7 @@ export async function createStoryRecorder(
           ...(options.coverageFile === undefined
             ? {}
             : { coverageFile: resolve(ran, options.coverageFile) }),
+          ...(options.suite === undefined ? {} : { suite: options.suite }),
           ...(options.mode === undefined ? {} : { mode: options.mode }),
           ...(options.preconditions === undefined
             ? {}

@@ -26,7 +26,7 @@ import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
-import { testCoverageFile } from './index.js';
+import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
 
 export interface JestTestSelectionOptions {
@@ -38,6 +38,12 @@ export interface JestTestSelectionOptions {
   readonly root?: string;
   /** Persisted coverage index. Defaults to the repository's cache. */
   readonly coverageFile?: string;
+  /**
+   * The suite this run is, as the root `variance.config.json` declares it under
+   * `suites`. Required once any suite is declared, and refused beside
+   * `coverageFile`.
+   */
+  readonly suite?: string;
   /**
    * Additional files whose contents are preconditions of every test observation.
    * Jest transforms these files normally but Sense does not place probes in them,
@@ -253,9 +259,7 @@ export function withTestSelection(
 ): JestConfig {
   const rootDir = resolve(options.root ?? config.rootDir ?? process.cwd());
   const root = repositoryRoot(rootDir);
-  const coverageFile = options.coverageFile === undefined
-    ? testCoverageFile(root)
-    : resolve(rootDir, options.coverageFile);
+  const coverageFile = recordFileFor(root, rootDir, options);
   const inline = inlineProjects(config);
   const mode = options.mode;
   const declared = (options.preconditions ?? []).map((file) => resolve(rootDir, file));

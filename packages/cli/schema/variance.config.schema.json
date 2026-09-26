@@ -95,6 +95,23 @@
       "type": "string",
       "minLength": 1,
       "description": "The directory variance-authority caches in, relative to this file. Read only from the variance.config.json at the repository root, by the CLI and every test runner alike. Without it the cache is the default described at https://variance-authority.dev/docs/cache."
+    },
+    "suites": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "enum": ["unit", "integration", "e2e", "visual"],
+            "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide."
+          }
+        }
+      },
+      "description": "Every test suite the repository runs, by name, with its kind. Each suite records separately, and names itself with the suite option of its test runner integration. Read only from the variance.config.json at the repository root."
     }
   },
   "$defs": {
