@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rmdir, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, normalize, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import {
@@ -53,6 +53,10 @@ const LOCK_STALE_MS = 60_000;
  * operation that is atomic on every filesystem an operator might point this at,
  * NFS included. A writer that dies holding it leaves a lock the next writer
  * takes over after a minute.
+ *
+ * A line's directory keeps the case of its name, so on a volume that folds case
+ * two lines can be one directory. That line is refused and read as absent, never
+ * merged (see {@link foldOf}).
  */
 export function createDirectoryLineCell(root: string): LineCell {
   const lineDir = (line: ShareLine): string => pathIn(root, linePath(line), `${line.kind} ${line.name}`);
@@ -61,17 +65,35 @@ export function createDirectoryLineCell(root: string): LineCell {
       ? pathIn(root, path, `image path ${path}`)
       : pathIn(root, `${linePath(line)}/${path}`, `entry path ${path} on ${line.kind} ${line.name}`);
 
-  async function load(line: ShareLine): Promise<{ manifest: Uint8Array; version: string } | ShareMiss> {
-    const held = await readHeld(join(lineDir(line), 'manifest.json'));
+  async function read(dir: string): Promise<{ manifest: Uint8Array; version: string } | ShareMiss> {
+    const held = await readHeld(join(dir, 'manifest.json'));
     if (!(held instanceof Uint8Array)) return held;
     return { manifest: held, version: createHash('sha256').update(held).digest('hex') };
   }
 
+  /**
+   * What a read found, or `absent` when it reached the line's directory only
+   * through another spelling. Asked only after a read succeeds: a read that
+   * fails reached nothing under any spelling.
+   */
+  async function own<T>(line: ShareLine, found: T): Promise<T | ShareMiss> {
+    try {
+      return (await foldOf(root, line)) === undefined ? found : { kind: 'absent' };
+    } catch (error) {
+      return missOf(join(root, line.kind), error);
+    }
+  }
+
   return {
-    load,
+    async load(line) {
+      const held = await read(lineDir(line));
+      return 'manifest' in held ? own(line, held) : held;
+    },
     async blob(line, path) {
       try {
-        return await readHeld(where(line, path));
+        const held = await readHeld(where(line, path));
+        // An image is kept once for every line, outside any line's directory, so no line's spelling decides it.
+        return held instanceof Uint8Array && !path.startsWith('images/') ? await own(line, held) : held;
       } catch (error) {
         return missOf(path, error);
       }
@@ -81,12 +103,27 @@ export function createDirectoryLineCell(root: string): LineCell {
       const lock = join(dir, '.lock');
       try {
         await mkdir(dir, { recursive: true });
+        // After the mkdir, so it holds against a writer in any process: once the
+        // directory exists its spelling is fixed, and the writer whose mkdir
+        // found it made under another spelling sees that spelling here.
+        const fold = await foldOf(root, line);
+        if (fold !== undefined) {
+          return {
+            kind: 'refused',
+            detail:
+              `${line.kind} ${line.name} names ${JSON.stringify(fold.segment)} in ${fold.directory}, and this ` +
+              `volume stores ${JSON.stringify(fold.stored)} there. The two names differ only by case and this ` +
+              'volume treats them as one name, so this write would change another line. Put the share on a ' +
+              'case-sensitive volume, or give the two branches names that differ by more than case',
+          };
+        }
         if (!(await acquire(lock))) return 'conflict';
       } catch (error) {
         return missOf(dir, error);
       }
       try {
-        const held = await load(line);
+        // The spelling was checked above and cannot change, so the manifest is read without asking again.
+        const held = await read(dir);
         const version = 'version' in held ? held.version : undefined;
         if (!('version' in held) && held.kind !== 'absent') return held;
         if (version !== write.expected) return 'conflict';
@@ -102,6 +139,48 @@ export function createDirectoryLineCell(root: string): LineCell {
       }
     },
   };
+}
+
+/** The first segment of a line's name that the volume stores under another spelling. */
+interface Fold {
+  /** The directory the segment was looked up in. */
+  readonly directory: string;
+  /** The segment as the line spells it. */
+  readonly segment: string;
+  /** The segment as the volume stores it. */
+  readonly stored: string;
+}
+
+/**
+ * Where a line's directory resolves only through a segment the volume stores
+ * under another spelling, or `undefined` when every segment is stored as the
+ * line spells it.
+ *
+ * `linePath` keeps a branch name's case, and the default volumes on macOS and
+ * Windows fold it, so `Feature` and `feature` are two lines and one directory.
+ * Escaping cannot keep them apart: an encoding that survives a folding volume
+ * has to fold case itself, and so loses the name. The collision is detected
+ * instead, on the name's segments only: the root is the operator's path, and
+ * the kind is spelled by this code.
+ *
+ * Asked only of a directory known to exist, after a read that succeeded or a
+ * `mkdir`, so every segment resolves and a segment its parent does not list is
+ * one the volume answered under another spelling. The listing is compared
+ * exactly. On a case-sensitive volume `Feature` and `feature` are two
+ * directories, correctly, and a comparison that lowercased would refuse the
+ * second on exactly the volume that keeps them apart.
+ */
+async function foldOf(root: string, line: ShareLine): Promise<Fold | undefined> {
+  let directory = join(root, line.kind);
+  for (const segment of linePath(line).split('/').slice(1)) {
+    const listed = await readdir(directory);
+    if (!listed.includes(segment)) {
+      const lower = segment.toLowerCase();
+      return { directory, segment, stored: listed.find((name) => name.toLowerCase() === lower) ?? segment };
+    }
+    directory = join(directory, segment);
+  }
+  return undefined;
 }
 
 async function acquire(lock: string): Promise<boolean> {

@@ -1,8 +1,8 @@
-import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
+import { findEntry, publishLine, readLine, type LineCell, type ShareEntry, type ShareLine } from '@variance-authority/core/share';
 import { createDirectoryLineCell } from './share.js';
 
 const MAIN = { kind: 'mainline', name: 'main' } as const;
@@ -106,5 +106,103 @@ describe('createDirectoryLineCell', () => {
     await publishLine(cell, MAIN, [entry('report-v1', 'r')], { descends, image });
     await chmod(root, 0o000);
     expect(await readLine(cell, MAIN)).toMatchObject({ kind: 'refused' });
+  });
+
+  describe('two lines one volume folds into one directory', () => {
+    const branch = (name: string): ShareLine => ({ kind: 'branch', name });
+    const digest = 'e'.repeat(64);
+
+    /**
+     * Whether the temporary directory's volume treats two spellings as one name.
+     * Asked of the volume, so every test below asserts what is true on it: a
+     * case-sensitive volume keeps two lines apart and must go on doing so, and a
+     * folding one must refuse or miss rather than answer another line's entries.
+     */
+    async function volumeFolds(): Promise<boolean> {
+      await writeFile(join(root, 'Probe'), '');
+      return (await stat(join(root, 'pROBE')).catch(() => null)) !== null;
+    }
+
+    /** The text of the line's `report-v1`, or the kind of miss that stood in the way. */
+    async function report(cell: LineCell, line: ShareLine): Promise<string> {
+      const read = await readLine(cell, line);
+      if ('kind' in read) return read.kind;
+      const found = findEntry(read.manifest, 'report-v1');
+      if ('kind' in found) return found.kind;
+      const bytes = await read.entry(found);
+      return bytes instanceof Uint8Array ? String.fromCharCode(...bytes) : bytes.kind;
+    }
+
+    const publish = (cell: LineCell, name: string): ReturnType<typeof publishLine> =>
+      publishLine(cell, branch(name), [entry('report-v1', name, [digest])], { descends, image });
+
+    it.each([
+      ['Feature', 'feature'],
+      ['feat/X', 'feat/x'],
+    ])('keeps %s and %s apart, or refuses the second and reads it as absent', async (first, second) => {
+      const share = join(root, 'share');
+      const cell = createDirectoryLineCell(share);
+      expect(await publish(cell, first)).toMatchObject({ written: ['report-v1'] });
+      const published = await publish(cell, second);
+
+      if (!(await volumeFolds())) {
+        expect(published).toMatchObject({ written: ['report-v1'] });
+        expect([await report(cell, branch(first)), await report(cell, branch(second))]).toEqual([first, second]);
+        return;
+      }
+      const [segment, stored] = [second, first].map((name) => name.split('/').at(-1));
+      expect(published).toEqual({
+        kind: 'refused',
+        detail:
+          `branch ${second} names "${segment}" in ${dirname(join(share, 'branch', second))}, and this volume ` +
+          `stores "${stored}" there. The two names differ only by case and this volume treats them as one name, ` +
+          'so this write would change another line. Put the share on a case-sensitive volume, or give the two ' +
+          'branches names that differ by more than case',
+      });
+      expect([await report(cell, branch(first)), await report(cell, branch(second))]).toEqual([first, 'absent']);
+
+      const held = await readLine(cell, branch(first));
+      if ('kind' in held) throw new Error(held.kind);
+      expect(await cell.load(branch(second))).toEqual({ kind: 'absent' });
+      expect(await cell.blob(branch(second), `entries/${held.manifest.entries[0]!.digest}`)).toEqual({ kind: 'absent' });
+      // An image is every line's, whichever spelling asks for it.
+      expect(await cell.blob(branch(second), `images/${digest}`)).toEqual(ascii('png'));
+    });
+
+    it('never merges lines whose names differ only by case when they are published at once', async () => {
+      const cell = createDirectoryLineCell(join(root, 'share'));
+      const pairs = Array.from({ length: 8 }, (_, index) => [`Line${String(index)}`, `line${String(index)}`] as const);
+      const names = pairs.flat();
+      const results = await Promise.all(names.map((name) => publish(cell, name)));
+      const reports = await Promise.all(names.map((name) => report(cell, branch(name))));
+
+      if (!(await volumeFolds())) {
+        expect(results.every((result) => 'written' in result)).toBe(true);
+        expect(reports).toEqual(names);
+        return;
+      }
+      for (const [index] of pairs.entries()) {
+        const pair = [results[index * 2]!, results[index * 2 + 1]!];
+        const written = pair.map((result) => 'written' in result);
+        // One spelling makes the directory and is written; the other finds it and is refused.
+        expect(written.filter(Boolean)).toHaveLength(1);
+        expect(pair[written.indexOf(false)]).toMatchObject({ kind: 'refused' });
+        expect(reports.slice(index * 2, index * 2 + 2)).toEqual(
+          names.slice(index * 2, index * 2 + 2).map((name, at) => (written[at] ? name : 'absent')),
+        );
+      }
+      const kept = (await readdir(join(root, 'share', 'branch'))).map((name) => name.toLowerCase()).sort();
+      expect(kept).toEqual(pairs.map(([, lower]) => lower).sort());
+    });
+
+    it('publishes, reads and republishes a line no other line folds into', async () => {
+      const cell = createDirectoryLineCell(join(root, 'share'));
+      for (const line of [branch('feature'), branch('release/2.0')]) {
+        expect(await publishLine(cell, line, [entry('report-v1', 'r1')], { descends, image })).toMatchObject({ written: ['report-v1'] });
+        expect(await report(cell, line)).toBe('r1');
+        expect(await publishLine(cell, line, [entry('report-v1', 'r2')], { descends, image })).toMatchObject({ written: ['report-v1'] });
+        expect(await report(cell, line)).toBe('r2');
+      }
+    });
   });
 });
