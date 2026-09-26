@@ -10,7 +10,7 @@ import type { CliRunReport } from './run.js';
 /**
  * What a reader does with a report it did not write: the configured one wins
  * whenever it is on disk, and an image is fetched only for a subject a question
- * names, only to a path inside the kept report's directory, and only when its
+ * names, only to a path inside the kept entry's directory, and only when its
  * bytes are the ones its digest names.
  *
  * `share.test.ts` asks through `variance ask` against real lines; these are the
@@ -32,7 +32,8 @@ const digestOf = (text: string): string => createHash('sha256').update(text).dig
 function sourceOf(images: Record<string, string>, held: Record<string, string>): SharedReport & { readonly asked: string[] } {
   const asked: string[] = [];
   return {
-    path: join(home, 'kept', 'run.json'),
+    path: join(home, 'kept', '.variance', 'report.json'),
+    entryDir: join(home, 'kept'),
     line: { kind: 'mainline', name: 'main' },
     commit: 'c0ffee',
     images,
@@ -69,15 +70,27 @@ describe('the images of a report read from a line', () => {
     const report = { ...a, observations: [...a.observations, ...reportNaming('page/b', { after: 'images/b.png' }).observations] };
 
     expect(await openImages(source, report, ['page/a'])).toEqual([]);
-    expect(await readFile(join(home, 'kept', 'images', 'a.png'), 'utf8')).toBe('a');
-    await expect(stat(join(home, 'kept', 'images', 'b.png'))).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(await readFile(join(home, 'kept', '.variance', 'images', 'a.png'), 'utf8')).toBe('a');
+    await expect(stat(join(home, 'kept', '.variance', 'images', 'b.png'))).rejects.toMatchObject({ code: 'ENOENT' });
 
     // Kept, so asking again fetches nothing.
     await openImages(source, report, ['page/a']);
     expect(source.asked).toEqual([digestOf('a')]);
   });
 
-  it('says why an image was not fetched: not published, outside the report, or not the bytes its digest names', async () => {
+  it('fetches an image beside the report\'s directory, and one whose name only begins with two dots', async () => {
+    const source = sourceOf(
+      { '../artifacts/a.png': digestOf('a'), '..b.png': digestOf('b') },
+      { [digestOf('a')]: 'a', [digestOf('b')]: 'b' },
+    );
+    const report = reportNaming('page/a', { after: '../artifacts/a.png', diff: '..b.png' });
+
+    expect(await openImages(source, report, ['page/a'])).toEqual([]);
+    expect(await readFile(join(home, 'kept', 'artifacts', 'a.png'), 'utf8')).toBe('a');
+    expect(await readFile(join(home, 'kept', '.variance', '..b.png'), 'utf8')).toBe('b');
+  });
+
+  it('says why an image was not fetched: not published, outside the entry, or not the bytes its digest names', async () => {
     const source = sourceOf(
       { 'images/forged.png': digestOf('real'), '../../escape.png': digestOf('x') },
       { [digestOf('real')]: 'forged', [digestOf('x')]: 'x' },
@@ -87,14 +100,14 @@ describe('the images of a report read from a line', () => {
     expect(await openImages(source, report, ['page/a'])).toEqual([
       'image images/missing.png: it was not published with the report.',
       'image images/forged.png: the bytes the line holds do not match their digest.',
-      'image ../../escape.png: it names a path outside the report, so it is not fetched.',
+      `image ../../escape.png: it names a path outside ${join(home, 'kept')}, so it is not fetched.`,
     ]);
-    await expect(stat(join(home, 'kept', 'images', 'forged.png'))).rejects.toMatchObject({ code: 'ENOENT' });
-    await expect(stat(join(home, '..', 'escape.png'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(join(home, 'kept', '.variance', 'images', 'forged.png'))).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(join(home, 'escape.png'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('says what the line answered when it does not hold an image it tables', async () => {
-    await mkdir(join(home, 'kept'), { recursive: true });
+    await mkdir(join(home, 'kept', '.variance'), { recursive: true });
     const source = sourceOf({ 'images/a.png': digestOf('a') }, {});
     expect(await openImages(source, reportNaming('page/a', { after: 'images/a.png' }), ['page/a']))
       .toEqual(['image images/a.png: nothing is published there.']);

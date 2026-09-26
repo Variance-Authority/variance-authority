@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { ShareLine, ShareMiss } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
+import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
@@ -23,6 +24,11 @@ import { describeDistance, describeMiss, lineEntry, mainlineEntry, type Here, ty
  * path is where this checkout's own run writes, and CI's record put there would
  * be read back as a run made here.
  *
+ * Under the digest the record keeps the checkout's layout: it sits at the
+ * configured report's path relative to the repository, so every image path the
+ * report names resolves to the same place under the digest as it does in a
+ * checkout — an image directory beside the report's directory included.
+ *
  * Every answer from a line carries {@link SharedReport.says}: the line, the
  * commit it was evaluated at and how it stands to `HEAD`. A branch record whose
  * commit `HEAD` does not contain is said to be another run of the branch,
@@ -32,8 +38,14 @@ import { describeDistance, describeMiss, lineEntry, mainlineEntry, type Here, ty
 
 /** A report read from a line, where it is kept, and the sentence every answer from it carries. */
 export interface SharedReport {
-  /** `<cache>/report/<entry digest>/run.json`. */
+  /**
+   * `<cache>/report/<entry digest>/` and the configured report's path relative
+   * to the repository, or `run.json` there when the configured report is
+   * outside the repository.
+   */
   readonly path: string;
+  /** `<cache>/report/<entry digest>`: nothing kept for this entry is written outside it. */
+  readonly entryDir: string;
   readonly line: ShareLine;
   readonly commit: string;
   readonly head?: string;
@@ -72,12 +84,12 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
   const branch = await lineOfReader(config, env, cwd);
   if ('line' in branch) {
     const found = await lineEntry(config, branch.line, REPORT_ENTRY, cwd);
-    const kept = 'miss' in found ? describeMiss(found.miss, found.holds) : await keep(config, found);
+    const kept = 'miss' in found ? describeMiss(found.miss, found.holds) : await keep(config, found, cwd);
     if (typeof kept === 'string') asked.push(`branch ${branch.line.name}: ${kept}`);
     else {
       const says = `report: read from branch ${branch.line.name}, ${await standing(kept.entry, branch.line.name, cwd)}; kept at ${kept.path}.`;
-      const { path, images, image, entry } = kept;
-      return { path, images, image, line: branch.line, commit: entry.commit, ...headOf(entry), says };
+      const { path, entryDir, images, image, entry } = kept;
+      return { path, entryDir, images, image, line: branch.line, commit: entry.commit, ...headOf(entry), says };
     }
   } else asked.push(`branch: not asked, because ${branch.none}`);
 
@@ -87,7 +99,7 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
     asked.push(`${line}: ${describeMiss(main.miss, main.holds)}`);
   } else {
     const line = `mainline ${main.at.mainline}`;
-    const kept = await keep(config, main.held);
+    const kept = await keep(config, main.held, cwd);
     if (typeof kept === 'string') asked.push(`${line}: ${kept}`);
     else {
       // A branch that was asked and did not answer is said too: a refusal
@@ -98,7 +110,8 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
         ...asked.filter((one) => one.startsWith('branch ')).map((one) => `${one}.`),
       ];
       const at = { kind: 'mainline', name: main.at.mainline } as const;
-      return { path: kept.path, images: kept.images, image: kept.image, line: at, commit: main.at.commit, says: says.join('\n') };
+      const { path, entryDir, images, image } = kept;
+      return { path, entryDir, images, image, line: at, commit: main.at.commit, says: says.join('\n') };
     }
   }
   throw new OperatorError(`${absent}, and the share holds none for this checkout:\n${asked.map((one) => `  ${one}`).join('\n')}`);
@@ -145,8 +158,9 @@ export async function readingFor(
  *
  * One subject at a time rather than the whole report, because an image is
  * what a line holds most of and a reader opens the few an answer names. A
- * path that would land outside the kept report's directory is not written:
- * the table came from whoever could write the line.
+ * path is resolved against the kept report, as a checkout resolves it, and one
+ * that would land outside {@link SharedReport.entryDir} is not written: the
+ * table came from whoever could write the line.
  */
 export async function openImages(source: SharedReport, report: CliRunReport, subjects: readonly string[]): Promise<readonly string[]> {
   const dir = dirname(source.path);
@@ -156,10 +170,9 @@ export async function openImages(source: SharedReport, report: CliRunReport, sub
     for (const named of Object.values(observation.images ?? {})) {
       if (named === undefined) continue;
       const target = resolve(dir, named);
-      const inside = relative(dir, target);
       const digest = source.images[named];
       const why =
-        inside.startsWith('..') || isAbsolute(inside) ? 'it names a path outside the report, so it is not fetched'
+        leaves(relative(source.entryDir, target)) ? `it names a path outside ${source.entryDir}, so it is not fetched`
         : digest === undefined ? 'it was not published with the report'
         : await fetched(source, digest, target);
       if (why !== undefined) failed.push(`image ${named}: ${why}.`);
@@ -196,18 +209,60 @@ async function standing(entry: { readonly commit: string; readonly head?: string
 }
 
 /**
- * The entry's report and image table under `<cache>/report/<digest>/`, or why
- * it could not be read. The digest is the manifest's, so a second read of the
- * same entry opens the kept files and fetches nothing.
+ * Whether a relative path leaves the directory it is relative to: `..` as a
+ * segment, or a path on another root. A name that only begins with two dots,
+ * such as `..a.png`, stays inside.
+ */
+function leaves(path: string): boolean {
+  return isAbsolute(path) || path.split(sep).includes('..');
+}
+
+/**
+ * Where under its entry's directory the record is kept: the configured
+ * report's path relative to the repository this checkout is in, so the
+ * checkout's layout is repeated under the digest. A configured report outside
+ * that repository has no such path, and is kept as `run.json`.
+ *
+ * Git names the repository, asked from `cwd` because the report's own
+ * directory need not exist yet in a checkout that has never run. Both paths
+ * are compared as the filesystem spells them, so a checkout reached through a
+ * symbolic link is not taken for a report outside it.
+ */
+async function keptName(report: string, cwd: string): Promise<string> {
+  const inside = relative(await spelled(repositoryRoot(cwd)), await spelled(report));
+  return inside === '' || leaves(inside) ? 'run.json' : inside;
+}
+
+/** `path` with its nearest existing ancestor spelled by `realpath`, and the rest as given. */
+async function spelled(path: string): Promise<string> {
+  const rest: string[] = [];
+  for (let at = resolve(path); ; at = dirname(at)) {
+    const real = await realpath(at).catch(() => undefined);
+    if (real !== undefined) return join(real, ...rest.reverse());
+    if (dirname(at) === at) return resolve(path);
+    rest.push(basename(at));
+  }
+}
+
+/**
+ * The entry's report under `<cache>/report/<digest>/`, its image table at
+ * `<cache>/report/<digest>.images.json`, or why they could not be read. The
+ * digest is the manifest's, so a second read of the same entry opens the kept
+ * files and fetches nothing.
+ *
+ * The table sits beside the digest's directory rather than in it, because
+ * that directory repeats the checkout's layout and any name in it can be a
+ * path the report or its images use.
  */
 async function keep(
   config: Config,
   found: LineEntry,
-): Promise<(Pick<SharedReport, 'path' | 'images' | 'image'> & { readonly entry: LineEntry['entry'] }) | string> {
-  const dir = join(sharedReportRoot(config), found.entry.digest);
-  const path = join(dir, 'run.json');
-  const tabled = join(dir, 'images.json');
-  const kept = { path, entry: found.entry, image: found.image };
+  cwd: string,
+): Promise<(Pick<SharedReport, 'path' | 'entryDir' | 'images' | 'image'> & { readonly entry: LineEntry['entry'] }) | string> {
+  const entryDir = join(sharedReportRoot(config), found.entry.digest);
+  const path = join(entryDir, await keptName(config.report, cwd));
+  const tabled = `${entryDir}.images.json`;
+  const kept = { path, entryDir, entry: found.entry, image: found.image };
   const held = await readFile(tabled, 'utf8')
     .then(async (text) => (await stat(path), JSON.parse(text) as Record<string, string>))
     .catch(() => undefined);
@@ -217,7 +272,7 @@ async function keep(
   if (!(bytes instanceof Uint8Array)) return describeMiss(bytes);
   const parts = readReportEntry(bytes);
   if (typeof parts === 'string') return parts;
-  // The table before the report: a directory holding `run.json` is complete.
+  // The table before the report: a kept report is a complete entry.
   const failed = (await settle(tabled, new TextEncoder().encode(JSON.stringify(parts.images)))) ?? (await settle(path, parts.report));
   return failed ?? { ...kept, images: parts.images };
 }

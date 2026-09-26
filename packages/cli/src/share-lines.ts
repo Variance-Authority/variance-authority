@@ -119,9 +119,7 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
     if (event === 'merge_group') return { none: 'a merge-queue run publishes nothing; its branch is temporary' };
     if (event === 'pull_request' || event === 'pull_request_target') {
       const pull = (await eventOf(env))?.pull_request;
-      if (pull?.head?.repo?.full_name !== undefined && pull.head.repo.full_name !== pull.base?.repo?.full_name) {
-        return { none: 'a pull request from a fork publishes nothing; its token is read-only' };
-      }
+      if (fromFork(pull)) return { none: 'a pull request from a fork publishes nothing; its token is read-only' };
       const name = env['GITHUB_HEAD_REF'];
       if (name === undefined || name === '') return { none: 'the pull request names no head branch' };
       const head = pull?.head?.sha;
@@ -147,17 +145,29 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
 /**
  * The branch line a reader reads, or why it reads none.
  *
- * Not {@link lineOfRun}: every refusal there is about who may write, and a
- * reader of a fork's pull request or of a merge-queue branch reads whatever
- * its branch holds. The name is the one the host gives a pull request's head,
- * or the one it gives a pushed branch, or the branch this checkout is on. A
- * mainline is read as a mainline, so it is never asked for as a branch.
+ * Not {@link lineOfRun}, whose refusals are about who may write: a
+ * merge-queue branch is asked for, and holds nothing. A pull request from a
+ * fork is the one refusal both share, for a different reason here. Its head
+ * branch is named in the fork, and the line of that name in this share is a
+ * branch of the base repository, so a fork's reader goes to the mainline
+ * rather than read another branch's record as its own. The fork is told the
+ * way `lineOfRun` tells it, by the event's head and base repositories.
+ *
+ * The name is the one the host gives a pull request's head, or the one it
+ * gives a pushed branch, or the branch this checkout is on. A mainline is read
+ * as a mainline, so it is never asked for as a branch.
  */
 export async function lineOfReader(
   config: Pick<Config, 'share'>,
   env: Env = process.env,
   cwd: string = process.cwd(),
 ): Promise<{ readonly line: ShareLine } | { readonly none: string }> {
+  const event = env['GITHUB_EVENT_NAME'];
+  if (env['GITHUB_ACTIONS'] === 'true' && (event === 'pull_request' || event === 'pull_request_target')) {
+    if (fromFork((await eventOf(env))?.pull_request)) {
+      return { none: 'this pull request is from a fork, and a branch line of its name here is a branch of the base repository' };
+    }
+  }
   const pushed = env['GITHUB_ACTIONS'] === 'true' && env['GITHUB_REF_TYPE'] === 'branch' ? env['GITHUB_REF_NAME'] : undefined;
   const name = [env['GITHUB_HEAD_REF'], pushed].find((one) => one !== undefined && one !== '')
     ?? (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], cwd))?.trim();
@@ -348,6 +358,11 @@ interface GitHubEvent {
     readonly head?: { readonly sha?: unknown; readonly repo?: { readonly full_name?: string } };
     readonly base?: { readonly repo?: { readonly full_name?: string } };
   };
+}
+
+/** Whether a pull request's head is in another repository than its base. An event that names no head repository is not a fork. */
+function fromFork(pull: GitHubEvent['pull_request']): boolean {
+  return pull?.head?.repo?.full_name !== undefined && pull.head.repo.full_name !== pull.base?.repo?.full_name;
 }
 
 async function eventOf(env: Env): Promise<GitHubEvent | undefined> {

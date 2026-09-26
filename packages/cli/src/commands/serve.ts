@@ -53,7 +53,12 @@ interface Bench {
   readonly help?: Help;
   /** The line and commit the report was read from, when it came from the share. */
   readonly says?: string;
+  /** `<kind> <name> at <commit>`: the line the report was read from, when it came from the share. */
+  readonly from?: string;
 }
+
+/** The one tool whose answer is about the previous request's report as well as this one's. */
+const COMPARES_PREVIOUS = 'variance_diff';
 
 const SOURCE_QUESTIONS: ReadonlySet<string> = new Set(HELP_TOOLS.map((tool) => tool.name));
 
@@ -90,10 +95,17 @@ const BENCH: Served<Bench> = {
     ...over(REPORTS.tools, (bench) => bench.report, 'no run report was read').map((tool) => ({
       ...tool,
       // Every answer from a line says which line and commit it is about, so an
-      // agent never mistakes CI's run for one made in this checkout.
+      // agent never mistakes CI's run for one made in this checkout. A
+      // comparison made after this checkout's own run replaced a line's record
+      // says what it compared with, because the other side is not this
+      // checkout's.
       run: (bench: Bench, input: Readonly<Record<string, unknown>>, invocation?: Parameters<Tool<Bench>['run']>[2]): string => {
         const answer = tool.run(bench, input, invocation);
-        return bench.says === undefined ? answer : `${bench.says}\n\n${answer}`;
+        if (bench.says !== undefined) return `${bench.says}\n\n${answer}`;
+        const before = tool.name === COMPARES_PREVIOUS ? invocation?.previous?.from : undefined;
+        return before === undefined
+          ? answer
+          : `report: this checkout's own run, compared with the report the previous answer read from ${before}.\n\n${answer}`;
       },
     })),
     ...over(
@@ -132,6 +144,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   const source = options.report === undefined ? await reportSource(config, { cwd: root }) : { local: options.report };
   let path = 'local' in source ? source.local : source.path;
   let says = 'local' in source ? undefined : source.says;
+  let from = 'local' in source ? undefined : `${source.line.kind} ${source.line.name} at ${source.commit}`;
   if (says !== undefined) process.stderr.write(`variance: ${says}\n`);
 
   // Read once before serving, so a path that is not a run report fails at
@@ -147,10 +160,11 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     output: process.stdout,
     served: BENCH,
     tree: () => tree,
-    // Only the report. `previous` serves the one tool that compares this request
-    // with the last one, and it compares reports; cloning a whole workspace
-    // reading on every successful call would buy that comparison nothing.
-    remember: (bench) => ({ report: structuredClone(bench.report) }),
+    // Only the report, and the line it came from. `previous` serves the one
+    // tool that compares this request with the last one, and it compares
+    // reports; cloning a whole workspace reading on every successful call would
+    // buy that comparison nothing.
+    remember: (bench) => ({ report: structuredClone(bench.report), ...(bench.from === undefined ? {} : { from: bench.from }) }),
     subject: async (asked) => {
       if (says !== undefined) {
         // A line's record does not change under its digest. The checkout's own
@@ -160,6 +174,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           report = own;
           path = config.report;
           says = undefined;
+          from = undefined;
         }
       } else {
         try {
@@ -194,7 +209,12 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           if (help === undefined) process.stderr.write(`variance: ${failure instanceof Error ? failure.message : String(failure)}\n`);
         }
       }
-      return { report, ...(help === undefined ? {} : { help }), ...(says === undefined ? {} : { says }) };
+      return {
+        report,
+        ...(help === undefined ? {} : { help }),
+        ...(says === undefined ? {} : { says }),
+        ...(from === undefined ? {} : { from }),
+      };
     },
   });
 }

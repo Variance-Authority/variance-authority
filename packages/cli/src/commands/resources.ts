@@ -118,7 +118,10 @@ export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
 
 /**
  * Where a report read from a share is kept: one directory per entry digest,
- * holding `run.json` and whatever the reader opened beside it.
+ * holding the report at its path in the repository, or at `run.json` when the
+ * configured report is outside the repository, and the images a reader opened
+ * at the paths the report names them by. The entry's image table sits beside
+ * that directory as `<digest>.images.json`.
  *
  * In the cache and never at `config.report`, because the configured path is
  * where this checkout's own run writes, and a record from CI put there would be
