@@ -18,7 +18,7 @@
  * compiled to.
  */
 
-import type { JourneyTrace, OpenTelemetryApi, SentrySdk } from './journey.js';
+import type { JourneyTrace, OpenTelemetryApi, SentrySdk } from './journey-carrier.js';
 
 const INVALID_TRACE = '00000000000000000000000000000000';
 

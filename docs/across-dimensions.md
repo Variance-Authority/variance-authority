@@ -5,9 +5,9 @@ gateway it calls, the services behind that gateway, a JVM backend, a Worker
 behind a service binding. Each process, runtime or language one test passes
 through is a **dimension** of that test. This page is for a suite whose tests
 cross them. It explains why no import graph can tell which of those tests a
-change beyond the first process reaches, and how Variance Authority follows each
-test's execution into the other processes and joins what they ran back to the
-test after the run.
+change beyond the first process reaches, and how
+[Variance Authority](README.md) follows each test's execution into the other
+processes and joins what they ran back to the test after the run.
 
 ## Why the import graph cannot see it
 
@@ -37,8 +37,8 @@ This is measured. The JVM agent's tests drive a small Java shop through
 browser specs, seed six backend changes, and score two selectors against the
 specs that fail. [`variance reach`](polyglot.md) reads Java as well as it
 reads TypeScript and still selects no spec for any of the four breaking
-changes, because no spec imports the service. The execution record
-selects 9 of 18 spec runs and misses none of the failures. [The JVM agent's
+changes, because no spec imports the service. The
+[execution record](execution-record.md) selects 9 of 18 spec runs and misses none of the failures. [The JVM agent's
 README](../jvm/README.md#tests) has the setup.
 
 What the graph lacks is not a better parser. It lacks the fact that *this*

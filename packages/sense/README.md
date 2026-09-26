@@ -429,7 +429,7 @@ Sentry.init({ dsn: process.env.SENTRY_DSN });
 module.exports = sentry(Sentry);
 ```
 
-Name it as `trace: './test/trace.cjs'` to `withJourneyCoverage`. With
+Name that module as `withJourneyCoverage`'s `trace`: `trace: './test/trace.cjs'`. With
 OpenTelemetry, register your provider and export
 `openTelemetry(require('@opentelemetry/api'))`. Jest requires the module once
 per worker, outside every test file's sandbox, and your `testEnvironment`
@@ -492,9 +492,10 @@ a runtime that ends a request's work with its response still delivers it. A
 receiver that is gone loses that part, never the request.
 
 A bundle evaluates every module before any of its own code can install a head,
-so ask the build to install it first. `testSelectionProbes({ label: 'workers',
-journeys: true })` has its collector import `@variance-authority/sense/journey`
-and install the head under `label`. Each entry's own `collectJourneys()` then
+so ask the build to install it first. With `journeys` set, as in
+`testSelectionProbes({ label: 'workers', journeys: true })`, the collector
+imports `@variance-authority/sense/journey` and installs the head under
+`label`. Each entry's own `collectJourneys()` then
 returns that head:
 
 ```js
