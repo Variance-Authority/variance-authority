@@ -880,9 +880,9 @@ the deployment is older, it names each thing the deployment lacks that the push
 uses: before API 2, a push uploads every image it has rather than naming the
 ones already there, and that looks like a slow network until something says
 otherwise. When the deployment is newer, it says this CLI is the older half.
-Called from your own code with the project's `share`, `push` also names a
-deployment older than API 3 when that share is an `http` share under the
-deployment's endpoint, because such a deployment answers 404 under `/share/`.
+When the project's `share` is an `http` share under the deployment's endpoint,
+`push` also names a deployment older than API 3, because such a deployment
+answers 404 under `/share/`.
 `variance --version` prints this tool alone.
 
 While it works, `push` writes its phase to stderr: one line rewritten in place
