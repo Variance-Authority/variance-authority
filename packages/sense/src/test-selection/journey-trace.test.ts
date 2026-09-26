@@ -41,6 +41,10 @@ describe.each(tracers)('a journey carried by %s', (_, make) => {
     expect(trace.current()).not.toBe(id);
   });
 
+  it('names no journey where no trace arrived', () => {
+    expect(make().current()).toBeUndefined();
+  });
+
   it('keeps two cases apart while they interleave', async () => {
     const trace = make();
     const [first, second] = [journey(), journey()];

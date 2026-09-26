@@ -170,10 +170,10 @@ export interface JourneyCollectorOptions {
    * `sentry(Sentry)` or `openTelemetry(api)`, handed the SDK the application
    * initialized. Set, the head asks it which journey is running wherever
    * {@link JourneyCollector.enter} did not say, so a service whose tracing
-   * already continues the incoming trace needs no `enter` at all. The test
-   * side runs each case inside that trace: the same SDK named as `trace` to
-   * `withJourneyCoverage`, exported from a module the way
-   * `@variance-authority/sense/case-journey` shows.
+   * continues the incoming trace needs no `enter` when its parts go to a
+   * directory. Over HTTP, `enter(undefined, ...)` holds each request open until
+   * its frame is sent. Each case runs inside that trace: the same SDK named as
+   * `trace` to `withJourneyCoverage`, as `sense/case-journey` shows.
    *
    * A trace carries an id and no way home, so this writes {@link parts}.
    */

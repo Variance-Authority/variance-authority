@@ -44,8 +44,14 @@ function sentry(sdk: SentrySdk): JourneyTrace {
     carry: (journey, name, body) =>
       sdk.continueTrace({ sentryTrace: `${journey}-${spanId()}` }, () =>
         sdk.startSpan({ name, forceTransaction: true }, body)),
-    current: () =>
-      sdk.getActiveSpan()?.spanContext().traceId ?? sdk.getCurrentScope().getPropagationContext().traceId,
+    current: () => {
+      const span = sdk.getActiveSpan();
+      if (span !== undefined) return span.spanContext().traceId;
+      // Without a span, the scope holds a trace id whether or not one arrived:
+      // the SDK makes one up at startup. Only an arrived trace has a parent.
+      const { traceId, parentSpanId } = sdk.getCurrentScope().getPropagationContext();
+      return parentSpanId === undefined ? undefined : traceId;
+    },
   };
 }
 

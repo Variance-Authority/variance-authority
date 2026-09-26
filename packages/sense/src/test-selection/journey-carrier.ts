@@ -41,7 +41,7 @@ export interface JourneyTrace {
 /** The part of `@sentry/node`, or any Sentry SDK from 8 on, a journey reads. */
 export interface SentrySdk {
   getActiveSpan(): { spanContext(): { traceId: string } } | undefined;
-  getCurrentScope(): { getPropagationContext(): { traceId: string } };
+  getCurrentScope(): { getPropagationContext(): { traceId: string; parentSpanId?: string } };
   continueTrace<Result>(headers: { sentryTrace?: string }, callback: () => Result): Result;
   startSpan<Result>(options: { name: string; forceTransaction?: boolean }, callback: () => Result): Result;
 }

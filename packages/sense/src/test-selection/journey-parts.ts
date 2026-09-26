@@ -37,9 +37,13 @@ type Sink =(frames: readonly Uint8Array[]) => Promise<void> | undefined;
  *
  * `target` is a directory, or an `http(s)://` address that
  * [`receiveParts`](./parts-receiver.ts) serves for a runtime with no host
- * filesystem. Over HTTP, a journey's frame is sent before the promise its
- * scope returned settles, so a runtime that ends a request's work with its
- * response still delivers it.
+ * filesystem. Over HTTP, a journey's frame is sent before what its scope
+ * returned is handed back, so a runtime that ends a request's work with its
+ * response still delivers it: a plain value comes back as a promise of itself.
+ * A journey no scope holds, one the trace named where no `enter` ran, is sent
+ * with the next scope's frame; a head that no `enter` ever holds sends
+ * nothing, and a run that declares it declines to skip rather than read it
+ * as empty.
  */
 export function writeParts(
   head: string,
@@ -53,6 +57,10 @@ export function writeParts(
   // Named on the first send: a Worker installs this at global scope, where
   // workerd refuses random values.
   const append = partSink(target, () => `${head.replace(/[^\w.-]/g, '_')}-${crypto.randomUUID()}.vac`);
+  // A runtime with no filesystem ends a request's work with its response, so
+  // nothing sent from a timer is sure to arrive: there a journey no scope holds
+  // waits for the next send a scope awaits.
+  const remote = isRemote(target);
   const sent = new Set<Promise<void>>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
   const store = new AsyncLocalStorage<string>();
@@ -66,8 +74,9 @@ export function writeParts(
       bucket = engine.open(journey);
       buckets.set(journey, bucket);
       // A promise the handler started and did not return, still running as
-      // its request after the scope released: written on the next turn.
-      if (journey !== UNATTRIBUTED && !depth.has(journey)) setTimeout(() => void write(journey), 0);
+      // its request after the scope released, or a request no `enter` held:
+      // written on the next turn, or over HTTP with the next scope's frame.
+      if (!remote && journey !== UNATTRIBUTED && !depth.has(journey)) setTimeout(() => void write(journey), 0);
     }
     return bucket;
   };
@@ -125,8 +134,16 @@ export function writeParts(
     sent.add(pending);
     return pending.finally(() => sent.delete(pending));
   };
+  const unheld = (): (Uint8Array | undefined)[] => {
+    const frames: (Uint8Array | undefined)[] = [];
+    if (!remote) return frames;
+    for (const journey of buckets.keys()) {
+      if (journey !== UNATTRIBUTED && !depth.has(journey)) frames.push(journeyFrame(journey));
+    }
+    return frames;
+  };
   const write = (journey: string): Promise<void> | undefined =>
-    depth.has(journey) ? undefined : send([journeyFrame(journey), commonFrame()]);
+    depth.has(journey) ? undefined : send([journeyFrame(journey), ...unheld(), commonFrame()]);
   const release = (journey: string): Promise<void> | undefined => {
     const open = (depth.get(journey) ?? 1) - 1;
     if (open > 0) {
@@ -185,8 +202,10 @@ export function writeParts(
           },
         ) as Result;
       }
-      void release(journey);
-      return done;
+      // Over HTTP the frame is on its way, and a plain value would end the
+      // request before it lands: the value comes back once it has.
+      const sending = release(journey);
+      return sending === undefined ? done : (sending.then(() => done) as Result);
     },
     flush,
     close: async () => {
@@ -213,7 +232,7 @@ export function lengthPrefixed(frames: readonly Uint8Array[]): Uint8Array {
 }
 
 function partSink(target: string, name: () => string): Sink {
-  if (/^https?:\/\//.test(target)) {
+  if (isRemote(target)) {
     let url: string | undefined;
     // The previous send finishes first, so the receiver appends in order.
     let last: Promise<void> = Promise.resolve();
@@ -244,6 +263,10 @@ function partSink(target: string, name: () => string): Sink {
     fs.appendFileSync(file, lengthPrefixed(frames));
     return undefined;
   };
+}
+
+function isRemote(target: string): boolean {
+  return /^https?:\/\//.test(target);
 }
 
 export function isThenable(value: unknown): value is Promise<unknown> {
