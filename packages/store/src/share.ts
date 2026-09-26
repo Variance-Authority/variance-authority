@@ -18,14 +18,20 @@ import {
  * a manifest meet a write, and a `..` that escaped here would write outside a
  * directory the operator scoped on purpose. Refused rather than sanitized,
  * because a path that means somewhere else has nothing in it to salvage.
+ *
+ * `what` names the path in the line's own terms — a line, an entry path, an
+ * image path — because that is what a caller passed and what they can look for.
  */
-function pathIn(root: string, key: string): string {
-  const path = join(root, normalize(key));
+function pathIn(root: string, relative: string, what: string): string {
+  const path = join(root, normalize(relative));
   if (path !== root && !path.startsWith(root.endsWith(sep) ? root : root + sep)) {
-    throw new Error(`share key leaves its root: ${key}`);
+    throw new OutsideRoot(`${what} resolves outside the share root ${root}`);
   }
   return path;
 }
+
+/** A path {@link pathIn} refused, which a cell answers as `refused` rather than as an outage. */
+class OutsideRoot extends Error {}
 
 /** How long a writer waits for another to finish with a line before calling it a conflict. */
 const LOCK_WAIT_MS = 5_000;
@@ -49,9 +55,11 @@ const LOCK_STALE_MS = 60_000;
  * takes over after a minute.
  */
 export function createDirectoryLineCell(root: string): LineCell {
-  const lineDir = (line: ShareLine): string => pathIn(root, linePath(line));
+  const lineDir = (line: ShareLine): string => pathIn(root, linePath(line), `${line.kind} ${line.name}`);
   const where = (line: ShareLine, path: BlobPath): string =>
-    path.startsWith('images/') ? pathIn(root, path) : pathIn(root, `${linePath(line)}/${path}`);
+    path.startsWith('images/')
+      ? pathIn(root, path, `image path ${path}`)
+      : pathIn(root, `${linePath(line)}/${path}`, `entry path ${path} on ${line.kind} ${line.name}`);
 
   async function load(line: ShareLine): Promise<{ manifest: Uint8Array; version: string } | ShareMiss> {
     const held = await readHeld(join(lineDir(line), 'manifest.json'));
@@ -62,7 +70,11 @@ export function createDirectoryLineCell(root: string): LineCell {
   return {
     load,
     async blob(line, path) {
-      return readHeld(where(line, path));
+      try {
+        return await readHeld(where(line, path));
+      } catch (error) {
+        return missOf(path, error);
+      }
     },
     async store(line, write) {
       const dir = lineDir(line);
@@ -130,6 +142,7 @@ async function readHeld(path: string): Promise<Uint8Array | ShareMiss> {
 }
 
 function missOf(path: string, error: unknown): ShareMiss {
+  if (error instanceof OutsideRoot) return { kind: 'refused', detail: error.message };
   const code = (error as NodeJS.ErrnoException).code;
   if (code === 'ENOENT' || code === 'ENOTDIR') return { kind: 'absent' };
   if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {

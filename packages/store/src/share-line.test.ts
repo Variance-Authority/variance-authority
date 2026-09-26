@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -66,6 +66,38 @@ describe('createDirectoryLineCell', () => {
     const { utimes } = await import('node:fs/promises');
     await utimes(join(root, 'mainline', 'main', '.lock'), old, old);
     expect(await publishLine(cell, MAIN, [entry('report-v1', 'r')], { descends, image })).toMatchObject({ written: ['report-v1'] });
+  });
+
+  it('refuses an entry or an image path that climbs out of the root, and writes nothing outside it', async () => {
+    const inside = join(root, 'share');
+    const cell = createDirectoryLineCell(inside);
+    const climbing = [
+      ['entries/../../../../outside', 'entry path entries/../../../../outside on mainline main'],
+      ['images/../../outside-image', 'image path images/../../outside-image'],
+    ] as const;
+
+    for (const [path, named] of climbing) {
+      const stored = await cell.store(MAIN, { manifest: ascii('{"format":1,"entries":[]}'), blobs: new Map([[path, ascii('x')]]) });
+      expect(stored).toEqual({ kind: 'refused', detail: `${named} resolves outside the share root ${inside}` });
+    }
+    expect((await readdir(root)).sort()).toEqual(['share']);
+    // Refused before the manifest, so the line was never written either.
+    expect(await cell.load(MAIN)).toEqual({ kind: 'absent' });
+
+    await writeFile(join(root, 'outside'), 'not the share\'s');
+    expect(await cell.blob(MAIN, 'entries/../../../../outside')).toMatchObject({ kind: 'refused' });
+    expect(await readFile(join(root, 'outside'), 'utf8')).toBe('not the share\'s');
+  });
+
+  it('leaves no staged file behind when a write finishes', async () => {
+    const cell = createDirectoryLineCell(root);
+    const digest = 'd'.repeat(64);
+    await publishLine(cell, MAIN, [entry('report-v1', 'r', [digest])], { descends, image });
+    await publishLine(cell, MAIN, [entry('report-v1', 'r2', [digest])], { descends, image });
+
+    const files = (await readdir(root, { recursive: true })).map(String);
+    expect(files.filter((file) => file.endsWith('.part'))).toEqual([]);
+    expect(files).toContain(join('mainline', 'main', 'manifest.json'));
   });
 
   it('tells nothing published from a directory it may not read', async () => {
