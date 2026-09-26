@@ -278,7 +278,7 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
   `variance_diff` after `serve` changes to it names the line and commit it
   compares with. `report`, `adjudicate`, `comment` and `push` do not read the
   share: they gate a run, and this checkout made none.
-- **Images are fetched by digest, for the subjects a question names.** `ask
+- **`ask` fetches images by digest, for the subjects a question names.** `ask
   describe --subject story:card` fetches that subject's images to the paths the
   report names them by, relative to the kept report, so the paths the answer
   prints open. A path that would land outside the record's digest directory is
@@ -286,8 +286,8 @@ report: read from branch feat/cart, evaluated at 51ab09e… for pull request hea
 - **A share with no record for you is a refusal that lists what it asked.**
   Each line gets its own line in the message, with what it answered: nothing
   published, a credential refused, a store that did not answer, a format this
-  version does not read. A branch line that refused you or could not be reached
-  is named the same way under a mainline answer.
+  version does not read. A mainline answer names the branch line asked before
+  it the same way, with what that line answered.
 
 ### Distill: find a smaller test boundary
 

@@ -66,6 +66,20 @@ describe('a report read from a line', () => {
     expect(KEPT.exec(await asked(config, repository.dir))![1]).toBe(kept);
   });
 
+  it('is kept at one path whichever directory you ask from', async () => {
+    const repository = await repositoryOf();
+    const config = configOf(repository, { kind: 'directory', root: join(home, 'share'), mainlines: ['main'] });
+    await publishRun(config, await reportAt(repository.commit), { env: PUSH, cwd: repository.dir });
+    const nested = join(repository.dir, 'packages', 'app');
+    await mkdir(nested, { recursive: true });
+
+    const kept = KEPT.exec(await asked(config, repository.dir))![1]!;
+
+    expect(kept).toMatch(/\/report\/[0-9a-f]{64}\/\.variance\/report\.json$/);
+    expect(KEPT.exec(await asked(config, nested))![1]).toBe(kept);
+    expect(KEPT.exec(await asked(config, home))![1]).toBe(kept);
+  });
+
   it('is the mainline\'s for a pull request from a fork, even when a branch of the same name is published', async () => {
     const repository = await repositoryOf();
     const config = configOf(repository, { kind: 'directory', root: join(home, 'share'), mainlines: ['main'] });

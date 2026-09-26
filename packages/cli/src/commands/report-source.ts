@@ -1,9 +1,9 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { ShareLine, ShareMiss } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
-import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
@@ -84,7 +84,7 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
   const branch = await lineOfReader(config, env, cwd);
   if ('line' in branch) {
     const found = await lineEntry(config, branch.line, REPORT_ENTRY, cwd);
-    const kept = 'miss' in found ? describeMiss(found.miss, found.holds) : await keep(config, found, cwd);
+    const kept = 'miss' in found ? describeMiss(found.miss, found.holds) : await keep(config, found);
     if (typeof kept === 'string') asked.push(`branch ${branch.line.name}: ${kept}`);
     else {
       const says = `report: read from branch ${branch.line.name}, ${await standing(kept.entry, branch.line.name, cwd)}; kept at ${kept.path}.`;
@@ -99,7 +99,7 @@ export async function sharedReport(config: Config, here: Here = {}): Promise<Sha
     asked.push(`${line}: ${describeMiss(main.miss, main.holds)}`);
   } else {
     const line = `mainline ${main.at.mainline}`;
-    const kept = await keep(config, main.held, cwd);
+    const kept = await keep(config, main.held);
     if (typeof kept === 'string') asked.push(`${line}: ${kept}`);
     else {
       // A branch that was asked and did not answer is said too: a refusal
@@ -223,14 +223,34 @@ function leaves(path: string): boolean {
  * checkout's layout is repeated under the digest. A configured report outside
  * that repository has no such path, and is kept as `run.json`.
  *
- * Git names the repository, asked from `cwd` because the report's own
- * directory need not exist yet in a checkout that has never run. Both paths
- * are compared as the filesystem spells them, so a checkout reached through a
- * symbolic link is not taken for a report outside it.
+ * Git names the repository, asked from the report's nearest directory that
+ * exists, because the report's own directory need not exist yet in a checkout
+ * that has never run. Asking from the report rather than from where the
+ * command runs keeps one record at one path, whichever directory you ask
+ * from. Both paths are compared as the filesystem spells them, so a checkout
+ * reached through a symbolic link is not taken for a report outside it.
  */
-async function keptName(report: string, cwd: string): Promise<string> {
-  const inside = relative(await spelled(repositoryRoot(cwd)), await spelled(report));
+async function keptName(report: string): Promise<string> {
+  const top = await checkoutOf(await existing(dirname(resolve(report))));
+  const inside = top === undefined ? '' : relative(await spelled(top), await spelled(report));
   return inside === '' || leaves(inside) ? 'run.json' : inside;
+}
+
+/** The top of the checkout `dir` sits in, or undefined when git names none. */
+function checkoutOf(dir: string): Promise<string | undefined> {
+  return new Promise((done) => {
+    execFile('git', ['rev-parse', '--show-toplevel'], { cwd: dir }, (error, stdout) =>
+      done(error === null && stdout.trim() !== '' ? stdout.trim() : undefined),
+    );
+  });
+}
+
+/** The nearest directory at or above `path` that exists. */
+async function existing(path: string): Promise<string> {
+  for (let at = path; ; at = dirname(at)) {
+    if (await stat(at).then((held) => held.isDirectory(), () => false)) return at;
+    if (dirname(at) === at) return at;
+  }
 }
 
 /** `path` with its nearest existing ancestor spelled by `realpath`, and the rest as given. */
@@ -257,10 +277,9 @@ async function spelled(path: string): Promise<string> {
 async function keep(
   config: Config,
   found: LineEntry,
-  cwd: string,
 ): Promise<(Pick<SharedReport, 'path' | 'entryDir' | 'images' | 'image'> & { readonly entry: LineEntry['entry'] }) | string> {
   const entryDir = join(sharedReportRoot(config), found.entry.digest);
-  const path = join(entryDir, await keptName(config.report, cwd));
+  const path = join(entryDir, await keptName(config.report));
   const tabled = `${entryDir}.images.json`;
   const kept = { path, entryDir, entry: found.entry, image: found.image };
   const held = await readFile(tabled, 'utf8')
