@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { findEntry, httpLineCell, publishLine, readLine, type ShareLine } from '@variance-authority/core/share';
 import { CHURN_PATH } from '@variance-authority/history';
+import { FoldedKey } from './worker-http.js';
 import { createTribunal, type Tribunal } from './worker.js';
 import { createMemoryR2, createSqliteD1, type MemoryR2 } from './testing.js';
 
@@ -197,6 +198,21 @@ describe('a tribunal as the store of an http share', () => {
       }),
     );
     expect(response.status).toBe(400);
+  });
+
+  it('refuses a key its store will not hold, and the publisher is told why rather than that the store failed', async () => {
+    const put = bucket.put.bind(bucket);
+    vi.spyOn(bucket, 'put').mockImplementation(async (key, ...rest) => {
+      if (key.endsWith('/manifest.json')) throw new FoldedKey('the object key names "feature" where this store holds "Feature"');
+      return put(key, ...rest);
+    });
+
+    expect(await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image })).toEqual({
+      kind: 'refused',
+      detail:
+        `${ORIGIN}/share/mainline/release/2.0/manifest.json: HTTP 422: ` +
+        'the object key names "feature" where this store holds "Feature"',
+    });
   });
 
   it('answers only the verbs the client uses', async () => {

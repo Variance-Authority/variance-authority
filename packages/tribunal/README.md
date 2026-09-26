@@ -302,7 +302,8 @@ configuration serves every machine and only the variable's value differs:
   `GET /version` answers it as it answers every token. Every other route
   answers 403 before it checks the method, so the machine cannot push a build
   or decide one. A path this deployment does not serve answers 404, as it does
-  for every token.
+  for every token. A path under `/share/` that is not a line's manifest, one
+  of its entries or an image answers 400 and names the three it could be.
 
 The review token is refused under `/share/`, because it is held by people and by
 the browser drawing the review page.
@@ -682,6 +683,14 @@ every Worker instance. That is why `R2Like.put` takes `onlyIf`, with
 `etagMatches` and `etagDoesNotMatch` as R2 spells them, and answers `null` when
 the condition fails. `createDirectoryBucket` compares and writes inside one
 process, which is the whole of a Node deployment.
+
+**The Node store keeps two keys apart only where its volume does.** On a
+volume that treats two spellings as one name, such as the default APFS on
+macOS, `branch/Feature` and `branch/feature` are one directory.
+`createDirectoryBucket` refuses a write to the spelling the volume did not keep
+with 422, naming the one it holds, and reads under that spelling answer 404, so
+one line never reads or replaces the other. Put `VARIANCE_TRIBUNAL_STORAGE` on
+a case-sensitive volume to keep both.
 
 **A build's images are as large as the run kept.** Nothing here compresses,
 resizes, or deduplicates across builds.

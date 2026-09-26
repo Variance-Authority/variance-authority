@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import type { R2Like, R2ObjectLike, R2PutOptions, R2Written } from '../bindings.js';
+import { FoldedKey } from '../worker-http.js';
 
 /**
  * R2, as a directory somebody owns.
@@ -116,8 +117,6 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
    * into place.
    */
   const write = async (target: string, value: ArrayBuffer): Promise<R2Written> => {
-    await mkdir(join(target, '..'), { recursive: true });
-
     const bytes = new Uint8Array(value);
     const staging = `${target}.${process.pid}.${writes++}.part`;
     try {
@@ -133,19 +132,34 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
   /** Whether the key's path lands only on objects stored under another spelling. */
   const folded = async (key: string): Promise<boolean> => (await foldOf(base, segmentsOf(key))) !== undefined;
 
-  // FIXME: the check and the write are two steps. Two keys that differ only by
-  // case, written at the same moment, can both pass it before either directory
-  // exists, and the volume then puts both in one directory.
+  // The message names the key's own directory, never this machine's path: it
+  // reaches the caller that sent the key.
   const refuseFold = async (key: string): Promise<void> => {
     const fold = await foldOf(base, segmentsOf(key));
     if (fold === undefined) return;
-    throw new Error(
+    throw new FoldedKey(
       `the object key ${JSON.stringify(key)} names ${JSON.stringify(fold.segment)} in ` +
-        `${fold.directory}, and this volume stores ${JSON.stringify(fold.stored)} there. The two ` +
-        'names differ only by case and this volume treats them as one name, so the write would ' +
-        'change the objects of another key. Put the object store on a case-sensitive volume, or ' +
-        'give the two keys names that differ by more than case',
+        `${JSON.stringify(fold.directory)}, where this store holds ${JSON.stringify(fold.stored)}. ` +
+        'The two names differ only by case and the volume this store is on treats them as one ' +
+        'name, so the write would change the objects of another key. Put the object store on a ' +
+        'case-sensitive volume, or give the two keys names that differ by more than case',
     );
+  };
+
+  /**
+   * Make the key's directory, refusing a key that reaches another key's
+   * directory before and after.
+   *
+   * Before, so a key that folds onto an existing directory creates nothing
+   * inside it. After, because two keys that differ only by case, written at the
+   * same moment, both pass the first check while neither directory exists. A
+   * directory's spelling is fixed by the `mkdir` that made it, so the write that
+   * lost sees the winner's spelling and is refused, in this process or another.
+   */
+  const prepare = async (key: string, target: string): Promise<void> => {
+    await refuseFold(key);
+    await mkdir(join(target, '..'), { recursive: true });
+    await refuseFold(key);
   };
 
   return {
@@ -180,17 +194,20 @@ export function createDirectoryBucket(root: string): DirectoryBucket {
      */
     async put(key: string, value: ArrayBuffer, options?: R2PutOptions): Promise<R2Written | null> {
       const target = pathOf(key);
-      // Before the condition is read: a folded path would compare against the
-      // other key's version and answer a stale write rather than the collision.
-      await refuseFold(key);
       const onlyIf = options?.onlyIf;
-      if (onlyIf === undefined) return write(target, value);
+      if (onlyIf === undefined) {
+        await prepare(key, target);
+        return write(target, value);
+      }
 
       // A condition is a read and a write that must not interleave with another
       // conditional write to the same key, so those are queued per key. The
       // queue is this process's; see the FIXME above for two processes.
       const before = pending.get(target) ?? Promise.resolve();
       const turn = before.then(async () => {
+        // Before the condition is read: a folded path would compare against the
+        // other key's version and answer a stale write rather than the collision.
+        await prepare(key, target);
         const current = await readFile(target).catch(absentAsNull);
         const etag = current === null ? undefined : etagOf(current);
         const matches = (wanted: string): boolean => etag !== undefined && (wanted === '*' || wanted === etag);
@@ -256,7 +273,7 @@ function segmentsOf(key: string): readonly string[] {
 
 /** The first segment of a key that the volume holds under another spelling. */
 interface Fold {
-  /** The directory the segment was looked up in. */
+  /** The key's own directory the segment was looked up in, empty at the root. */
   readonly directory: string;
   /** The segment as the key spells it. */
   readonly segment: string;
@@ -286,7 +303,7 @@ async function foldOf(base: string, segments: readonly string[]): Promise<Fold |
   for (const [index, stored] of spellings.entries()) {
     if (stored === null) return undefined;
     const segment = segments[index]!;
-    if (stored !== segment) return { directory: directories[index]!, segment, stored };
+    if (stored !== segment) return { directory: segments.slice(0, index).join('/'), segment, stored };
   }
   return undefined;
 }

@@ -27,6 +27,7 @@ import { VERSION_PATH, serviceVersion } from './version.js';
 import { UNAUTHENTICATED, grant, readable, refuseWeakTokens, requires, type Granted } from './worker-auth.js';
 import {
   BadRequest,
+  FoldedKey,
   Forbidden,
   MethodNotAllowed,
   asRecordBody,
@@ -199,11 +200,9 @@ export function createTribunal(options: TribunalOptions): Tribunal {
       } catch (error) {
         if (error instanceof BadRequest) return json(400, { error: error.message });
         if (error instanceof Forbidden) return json(403, { error: error.message });
-        if (error instanceof MethodNotAllowed) {
-          return json(405, { error: error.message }, { allow: error.allow });
-        }
+        if (error instanceof MethodNotAllowed) return json(405, { error: error.message }, { allow: error.allow });
         if (error instanceof HistoryWriteConflict) return json(409, { error: error.message });
-        if (error instanceof ReviewError) return json(422, { error: error.message });
+        if (error instanceof ReviewError || error instanceof FoldedKey) return json(422, { error: error.message });
         // Reported as a failure and never as an empty answer. Every client in
         // this project turns a non-2xx into a thrown error precisely so that a
         // broken service cannot become the sentence "no baseline" or "nothing has

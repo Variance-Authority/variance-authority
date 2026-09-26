@@ -2,7 +2,7 @@ import { linePath, type ShareLine } from '@variance-authority/core/share';
 import type { R2Like, R2PutOptions, R2Written } from './bindings.js';
 import { digestOf } from './objects.js';
 import { sharable, type Granted } from './worker-auth.js';
-import { BadRequest, MethodNotAllowed, json } from './worker-http.js';
+import { BadRequest, FoldedKey, MethodNotAllowed, json } from './worker-http.js';
 
 /**
  * A share, served: the store an `http` share with this deployment as its
@@ -203,12 +203,15 @@ function versionOf(header: string, name: string): string {
  *
  * The router answers anything it does not recognise with a 500, and a 500 is
  * what `httpLineCell` reads as *unreachable* — a miss that costs the reader a
- * derivation, never a wrong answer.
+ * derivation, never a wrong answer. A key the bucket refused because it folds
+ * onto another passes through as it is: the router answers it with a 422,
+ * which the publisher reads as *refused*, with the bucket's reason.
  */
 async function stored<T>(where: string, call: () => Promise<T>): Promise<T> {
   try {
     return await call();
   } catch (error) {
+    if (error instanceof FoldedKey) throw error;
     throw new Error(
       `the share could not reach its bucket for ${where}: ` +
         (error instanceof Error ? error.message : String(error)),

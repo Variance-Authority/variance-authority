@@ -2,6 +2,7 @@ import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FoldedKey } from '../worker-http.js';
 import { createDirectoryBucket, type DirectoryBucket } from './bucket.js';
 
 /**
@@ -175,6 +176,33 @@ describe('two names one volume folds into one file', () => {
     // A file the other line never wrote, under the folded directory, is refused too.
     await expect(bucket.put('p/share/branch/feature/entries/0a', bytes(3))).rejects.toThrow(/only by case/);
     expect(await read(upper)).toEqual([1]);
+  });
+
+  it('lets one of two lines created at once by spellings that fold take the directory, and refuses the other', async () => {
+    const upper = 'p/share/branch/Feature/manifest.json';
+    const lower = 'p/share/branch/feature/manifest.json';
+    const [first, second] = await Promise.allSettled([
+      bucket.put(upper, bytes(1), { onlyIf: { etagDoesNotMatch: '*' } }),
+      bucket.put(lower, bytes(2), { onlyIf: { etagDoesNotMatch: '*' } }),
+    ]);
+
+    if (!(await volumeFolds())) {
+      expect([first.status, second.status]).toEqual(['fulfilled', 'fulfilled']);
+      expect([await read(upper), await read(lower)]).toEqual([[1], [2]]);
+      return;
+    }
+    const held = await readdir(join(bucket.root, 'p', 'share', 'branch'));
+    expect(held).toHaveLength(1);
+    const [won, lost, winner] = held[0] === 'Feature' ? [first, second, upper] : [second, first, lower];
+    expect(won.status).toBe('fulfilled');
+    expect(lost.status).toBe('rejected');
+    const reason = (lost as PromiseRejectedResult).reason as Error;
+    // A folded key is its own class, which the worker answers 422 rather than 500.
+    expect(reason).toBeInstanceOf(FoldedKey);
+    expect(reason.message).toMatch(/only by case/);
+    // The message goes back to whoever sent the key, so it names the key's directory, not this machine's.
+    expect(reason.message).not.toContain(directory);
+    expect(await read(winner)).toEqual(winner === upper ? [1] : [2]);
   });
 
   it('answers nothing for a key that reaches an object only through another spelling', async () => {

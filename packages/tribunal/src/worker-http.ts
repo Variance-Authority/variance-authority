@@ -1,7 +1,7 @@
 /**
  * What a request is refused with, how one is read, and how an answer is written.
  *
- * Apart from the routing so that a route reads as a route. The three classes here
+ * Apart from the routing so that a route reads as a route. The four classes here
  * *are* the status codes — [`worker.ts`](./worker.ts) is the only place they
  * become numbers, and the only place that decides whether a failure was the
  * caller's or the platform's — and the readers below are the vocabulary every
@@ -20,6 +20,15 @@ export class BadRequest extends Error {
 /** A valid token that is not the one this route wants. Never a 401 and never a 404. */
 export class Forbidden extends Error {
   override readonly name = 'Forbidden';
+}
+
+/**
+ * A key the storage behind this deployment cannot hold apart from another,
+ * because the volume it is on treats two spellings as one name. The request is
+ * well formed and the deployment is up, so it is neither a 400 nor a 500.
+ */
+export class FoldedKey extends Error {
+  override readonly name = 'FoldedKey';
 }
 
 export class MethodNotAllowed extends Error {
