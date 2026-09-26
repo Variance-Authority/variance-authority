@@ -28,6 +28,8 @@ import {
   readerMainline,
   READ_REUSE_MS,
   type Env,
+  type MainlinesMissing,
+  type Unconfigured,
 } from '../share-lines.js';
 import { suiteIndexRoot } from './resources.js';
 import { readCliRunReport } from './run.js';
@@ -95,11 +97,23 @@ export interface Here {
   readonly cwd?: string;
 }
 
-/** What a publish did: the line it wrote and the core's account of it, or why it wrote nothing. */
+/**
+ * What a publish did: the line it wrote and the core's account of it, or why it
+ * wrote nothing.
+ *
+ * `noMainline` names the answers that were missing when no mainline is known,
+ * which is why the line is a branch's. `leftOut` is present when the report was
+ * carried, and names each image the report names that this machine could not
+ * read, as the absolute path it was looked for at.
+ */
 export type RunPublish =
-  | { readonly line: ShareLine; readonly published: Published }
-  | { readonly line: ShareLine; readonly miss: ShareMiss }
+  | ({ readonly line: ShareLine; readonly published: Published; readonly leftOut?: readonly string[] } & NoMainline)
+  | ({ readonly line: ShareLine; readonly miss: MainlineMiss } & NoMainline)
   | { readonly none: string };
+
+interface NoMainline {
+  readonly noMainline?: MainlinesMissing;
+}
 
 /**
  * Publish this run's record to the line it belongs to.
@@ -120,15 +134,18 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
   if (cell === undefined) return { none: 'no share is configured' };
   const run = await lineOfRun(config, env, cwd);
   if ('none' in run) return run;
-  if ('kind' in cell) return { line: run.line, miss: cell };
+  const noMainline = run.noMainline !== undefined ? { noMainline: run.noMainline } : {};
+  if ('kind' in cell) return { line: run.line, miss: cell, ...noMainline };
 
   const at = { commit: kept.commit, ...(run.head !== undefined ? { head: run.head } : {}) };
   const entries: ShareEntry[] = [{ name: SUITE_INDEX_ENTRY, ...at, bytes: encodeSuiteIndex(kept.index) }];
   let images: readonly NamedImage[] = [];
+  let leftOut: readonly string[] | undefined;
   if (config.reportCarry === 'share') {
     const carried = await reportEntryOf(reportPath, at);
     entries.push(carried.entry);
     images = carried.images;
+    leftOut = carried.leftOut;
   }
   for (const suite of config.suites ?? []) {
     if (suite.carry !== 'share') continue;
@@ -145,11 +162,15 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
       return new Uint8Array(await readFile(path));
     },
   });
-  return 'kind' in published ? { line: run.line, miss: published } : { line: run.line, published };
+  if ('kind' in published) return { line: run.line, miss: published, ...noMainline };
+  return { line: run.line, published, ...(leftOut !== undefined ? { leftOut } : {}), ...noMainline };
 }
 
-/** Why the reader's mainline did not answer: the share's own account, or that nothing names a mainline or a share. */
-export type MainlineMiss = ShareMiss | { readonly kind: 'unconfigured'; readonly detail: string };
+/**
+ * Why the reader's mainline did not answer: the share's own account, or that
+ * nothing names a mainline, a share, or the credential the share was given.
+ */
+export type MainlineMiss = ShareMiss | Unconfigured;
 
 /** Which mainline a read was about, and where its entry was derived. */
 export interface MainlineAt {
@@ -320,10 +341,17 @@ export async function shareLines(
     const done = await publishRun(config, options.report ?? config.report, here);
     if ('none' in done) return [`nothing published: ${done.none}.`];
     const line = `${done.line.kind} ${done.line.name}`;
-    if ('miss' in done) return [`nothing published to ${line} in ${where}: ${describeMiss(done.miss)}.`];
+    // The reader's wording for the same absence, so both halves name it alike.
+    const why =
+      done.noMainline === undefined
+        ? []
+        : [`no mainline: nothing answered from ${done.noMainline.join(', ')}, so this run's line is ${line}.`];
+    if ('miss' in done) return [`nothing published to ${line} in ${where}: ${describeMiss(done.miss)}.`, ...why];
     const { written, kept, unanswered } = done.published;
+    const leftOut = done.leftOut ?? [];
     return [
       written.length === 0 ? `nothing written to ${line} in ${where}.` : `wrote ${written.join(', ')} to ${line} in ${where}.`,
+      ...why,
       ...kept.map((held) =>
         held.because === 'newer-commit'
           ? `kept ${held.name}: the line holds it at ${held.commit}, which descends from this run's commit.`
@@ -332,6 +360,11 @@ export async function shareLines(
       ...(unanswered.length === 0
         ? []
         : [`replaced ${unanswered.join(', ')} without knowing whether the held commit was newer: git could not answer.`]),
+      ...(leftOut.length === 0
+        ? []
+        : [
+            `left out ${String(leftOut.length)} image(s) the report names and this machine could not read, the first at ${leftOut[0]!}.`,
+          ]),
     ];
   }
 

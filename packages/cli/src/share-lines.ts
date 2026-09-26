@@ -27,6 +27,7 @@ import {
 } from '@variance-authority/core/share';
 import { createDirectoryLineCell, createGitLineCell, gitDescends } from '@variance-authority/store/share';
 import type { Config } from './config.js';
+import { ConfigError } from './config-values.js';
 import { shareRoot } from './commands/resources.js';
 
 /** The environment a CI host describes the run in. `process.env` unless a caller says otherwise. */
@@ -43,8 +44,10 @@ export type Mainlines =
  * two.
  *
  * `actions/checkout` usually leaves no `<remote>/HEAD`, which is why the event
- * is asked at all. With none of the three, nothing is published or saved, and
- * the caller says which answers were missing.
+ * is asked at all. With none of the three there is no mainline: a reader has
+ * none to read, and {@link lineOfRun} writes every run to its branch's line — a
+ * push to the branch you meant as the mainline included. Each caller says which
+ * answers were missing.
  */
 export async function mainlinesOf(
   config: Pick<Config, 'share'> | undefined,
@@ -64,10 +67,17 @@ export async function mainlinesOf(
   return { missing: ['config', 'remote-head', 'event'] };
 }
 
-/** The line a publish from this run writes, and the head a pull request pointed at; or why it writes none. */
+/**
+ * The line a publish from this run writes and the head a pull request pointed
+ * at, or why it writes none. `noMainline` is present when no mainline is known,
+ * and names the answers that were missing.
+ */
 export type RunLine =
-  | { readonly line: ShareLine; readonly head?: string }
+  | { readonly line: ShareLine; readonly head?: string; readonly noMainline?: MainlinesMissing }
   | { readonly none: string };
+
+/** The mainline answers nobody gave. */
+export type MainlinesMissing = Extract<Mainlines, { missing: unknown }>['missing'];
 
 /**
  * Where this run's record belongs.
@@ -79,6 +89,10 @@ export type RunLine =
  * Any other run on a mainline writes nothing either: only a push to it
  * describes it. Off CI, the checked-out branch is the line, and a checkout of
  * a mainline writes nothing for the same reason.
+ *
+ * When no mainline is known, no branch is one, so a push to the branch you
+ * meant as the mainline writes `branch/<name>`. The line says which answers
+ * were missing, so the publish can say why.
  */
 export async function lineOfRun(
   config: Pick<Config, 'share'>,
@@ -86,9 +100,20 @@ export async function lineOfRun(
   cwd: string = process.cwd(),
 ): Promise<RunLine> {
   const mainlines = await mainlinesOf(config, env, cwd);
+  const line = await runLineOf(mainlines, env, cwd);
+  return 'missing' in mainlines && 'line' in line ? { ...line, noMainline: mainlines.missing } : line;
+}
+
+async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<RunLine> {
   const isMainline = (name: string): boolean => 'names' in mainlines && mainlines.names.includes(name);
   const queued = (name: string): boolean => name.startsWith('gh-readonly-queue/');
 
+  // TODO: only GitHub Actions describes a CI run here. GitLab CI (CI_COMMIT_BRANCH,
+  // CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, CI_MERGE_REQUEST_TARGET_BRANCH_NAME,
+  // CI_DEFAULT_BRANCH) and Bitbucket Pipelines (BITBUCKET_BRANCH, BITBUCKET_PR_ID,
+  // BITBUCKET_PR_DESTINATION_BRANCH) are not read: a detached checkout on either
+  // publishes nothing, and one on a branch is taken for a run off CI.
+  // `mainlinesOf`'s event and `readerMainline`'s base are GitHub's alone too.
   if (env['GITHUB_ACTIONS'] === 'true') {
     const event = env['GITHUB_EVENT_NAME'];
     if (event === 'merge_group') return { none: 'a merge-queue run publishes nothing; its branch is temporary' };
@@ -164,23 +189,42 @@ export async function headPast(commit: string, cwd: string = process.cwd()): Pro
 export const READ_REUSE_MS = 60_000;
 
 /**
+ * A share this environment was not given what it needs: the config names a
+ * credential and the environment does not hold it.
+ */
+export interface Unconfigured {
+  readonly kind: 'unconfigured';
+  readonly detail: string;
+}
+
+/**
  * The cell the configured share kind keeps its lines in.
  *
  * `git` needs the remote's URL, which is your clone's to answer; a clone with
  * no such remote is a share that cannot be reached, not a share that is empty.
+ * `http` needs its token only here, so a job without the variable the config
+ * names — a pull request from a fork — gets a miss that names it, and every
+ * other command in that job runs.
  */
 export async function lineCellOf(
   config: Pick<Config, 'share' | 'cacheRoot'>,
   options: { readonly cwd?: string; readonly reuseMs?: number } = {},
-): Promise<LineCell | ShareMiss | undefined> {
+): Promise<LineCell | ShareMiss | Unconfigured | undefined> {
   const share = config.share;
   if (share === undefined) return undefined;
   if (share.kind === 'directory') return createDirectoryLineCell(share.root);
   if (share.kind === 'http') {
+    let token: string | undefined;
+    try {
+      token = share.token?.();
+    } catch (error) {
+      if (!(error instanceof ConfigError)) throw error;
+      return { kind: 'unconfigured', detail: error.message };
+    }
     return httpLineCell({
       endpoint: share.endpoint,
       ...(share.method !== undefined ? { method: share.method } : {}),
-      ...(share.token !== undefined ? { headers: { authorization: `Bearer ${share.token}` } } : {}),
+      ...(token !== undefined ? { headers: { authorization: `Bearer ${token}` } } : {}),
     });
   }
   const remote = await remoteOfClone(config, options.cwd ?? process.cwd());

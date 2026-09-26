@@ -52,29 +52,34 @@ export interface NamedImage {
 }
 
 /**
- * The report at `reportPath` as a `report-v1` entry, and the images it names.
+ * The report at `reportPath` as a `report-v1` entry, the images it names, and
+ * the ones it names that this machine could not read.
  *
  * An image the report names and the disk does not hold is left out of the
  * table rather than failing the publish: the report is still worth reading,
  * and a reader told nothing about a path says *not published* for it, which is
- * true.
+ * true. `leftOut` names each such image once, as the absolute path it was
+ * looked for at, in the order the report names them, so the publish can say
+ * what it did not carry.
  */
 export async function reportEntryOf(
   reportPath: string,
   at: Derived,
-): Promise<{ readonly entry: ShareEntry; readonly images: readonly NamedImage[] }> {
+): Promise<{ readonly entry: ShareEntry; readonly images: readonly NamedImage[]; readonly leftOut: readonly string[] }> {
   const bytes = await readFile(reportPath);
   const report = await readCliRunReport(reportPath);
   const table: Record<string, string> = {};
   const images = new Map<string, NamedImage>();
+  const leftOut = new Map<string, string>();
   for (const observation of report.observations) {
     for (const named of Object.values(observation.images ?? {})) {
-      if (named === undefined || named in table) continue;
+      if (named === undefined || named in table || leftOut.has(named)) continue;
       const path = resolve(dirname(reportPath), named);
       let held: Buffer;
       try {
         held = await readFile(path);
       } catch {
+        leftOut.set(named, path);
         continue;
       }
       const digest = createHash('sha256').update(held).digest('hex');
@@ -96,6 +101,7 @@ export async function reportEntryOf(
       ]),
     },
     images: held,
+    leftOut: [...leftOut.values()],
   };
 }
 

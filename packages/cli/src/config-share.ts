@@ -1,4 +1,5 @@
 import {
+  declaredSecret,
   fail,
   kindOf,
   nonEmpty,
@@ -6,7 +7,6 @@ import {
   optionalText,
   quote,
   resolveFrom,
-  secret,
   strings,
   url,
   type ParseOptions,
@@ -63,7 +63,14 @@ export interface DirectoryShare extends SharedFields {
 export interface HttpShare extends SharedFields {
   readonly kind: 'http';
   readonly endpoint: string;
-  readonly token?: string;
+  /**
+   * The bearer token, read from the environment when the share is used rather
+   * than when the file is parsed — see {@link declaredSecret}. It throws a
+   * `ConfigError` naming the variable when that variable is unset or empty, and
+   * every caller turns that into a share miss: a share never fails a run, so a
+   * missing share secret must not refuse the whole config.
+   */
+  readonly token?: () => string;
   /** The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it. */
   readonly method?: 'PUT' | 'POST';
 }
@@ -102,11 +109,12 @@ export function parseShare(value: unknown, options: ParseOptions): ShareConfig {
 
   if (kind === 'http') {
     const source = object(value, 'share', [...COMMON, 'endpoint', 'token', 'method'], options);
-    // Through `secret` for the same reason the baseline store's is: the value
-    // belongs to somebody's deployment and therefore to the environment, while
-    // the decision to send it belongs in the file.
+    // A declaration for the same reason the baseline store's token is one: the
+    // value belongs to somebody's deployment and therefore to the environment,
+    // while the decision to send it belongs in the file. Resolved late, because
+    // a job with no such secret — a pull request from a fork — still runs.
     const token =
-      source['token'] === undefined ? undefined : secret(source, 'token', options, 'share.token');
+      source['token'] === undefined ? undefined : declaredSecret(source, 'token', options, 'share.token');
     const method = source['method'];
     if (method !== undefined && method !== 'PUT' && method !== 'POST') {
       fail('share.method', `must be "PUT" or "POST", not ${quote(method)}`, options);

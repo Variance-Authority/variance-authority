@@ -46,10 +46,11 @@ describe('a report as a `report-v1` entry', () => {
     await writeFile(at, text);
     await writeFile(join(dir, 'out', 'images', 'card.png'), PNG);
 
-    const { entry, images } = await reportEntryOf(at, AT);
+    const { entry, images, leftOut } = await reportEntryOf(at, AT);
 
     expect(entry).toMatchObject({ name: REPORT_ENTRY, commit: AT.commit, head: AT.head, images: [sha(PNG)] });
     expect(images).toEqual([{ digest: sha(PNG), path: join(dir, 'out', 'images', 'card.png') }]);
+    expect(leftOut).toEqual([join(dir, 'out', 'images', 'card.before.png')]);
     const read = readReportEntry(entry.bytes);
     if (typeof read === 'string') throw new Error(read);
     expect(new TextDecoder().decode(read.report)).toBe(text);

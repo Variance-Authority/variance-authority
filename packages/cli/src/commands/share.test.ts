@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
+import { parseShare } from '../config-share.js';
 import type { Env } from '../share-lines.js';
 import { ask, type AskRequest } from './ask.js';
 import { reportsFor } from './report-read.js';
@@ -188,6 +189,54 @@ describe('what a run and `variance share` say', () => {
       .toEqual(['mainline main: no share is configured.']);
     expect(await shareLines(configOf({ root: join(home, 'share') }), { publish: false, mainline: 'main' }, { env: LOCAL, cwd: repository.dir }))
       .toEqual(['mainline main: nothing is published there.']);
+  });
+
+  it('says a push with no mainline known went to its branch\'s line, and which answers were missing', async () => {
+    const repository = await repositoryOf(1);
+    await git(repository.dir, 'remote', 'set-head', 'origin', '--delete');
+    const root = join(home, 'share');
+    const report = await reportAt(repository.commits[0]!);
+
+    expect(await shareLines(configOf({ root }), { publish: true, report }, { env: PUSH, cwd: repository.dir })).toEqual([
+      `wrote suite-index-v1 to branch main in the directory ${root}.`,
+      "no mainline: nothing answered from config, remote-head, event, so this run's line is branch main.",
+    ]);
+  });
+
+  it('says how many images the carried report names and this machine could not read, and names the first', async () => {
+    const repository = await repositoryOf(1);
+    const root = join(home, 'share');
+    const written = join(home, 'ci');
+    await mkdir(join(written, 'images'), { recursive: true });
+    await writeFile(join(written, 'images', 'after.png'), 'pixels');
+    const images = { before: 'images/before.png', after: 'images/after.png', diff: 'images/diff.png' };
+    const observed = { subject: 'page/footer', verdict: 'changed', because: 'it changed', changedPixels: 1, regions: [], images };
+    await writeFile(join(written, 'run.json'), JSON.stringify({ ...reportOf(repository.commits[0]!), observations: [observed] }));
+    const config = carrying(configOf({ root, mainlines: ['main'] }));
+
+    expect(await shareLines(config, { publish: true, report: join(written, 'run.json') }, { env: PUSH, cwd: repository.dir })).toEqual([
+      `wrote suite-index-v1, report-v1 to mainline main in the directory ${root}.`,
+      `left out 2 image(s) the report names and this machine could not read, the first at ${join(written, 'images', 'before.png')}.`,
+    ]);
+  });
+
+  it('says a share token the environment does not hold is missing, and a run never asks for it', async () => {
+    delete process.env['VARIANCE_TEST_SHARE_TOKEN'];
+    const repository = await repositoryOf(1);
+    const endpoint = 'http://127.0.0.1:9/share';
+    const share = parseShare(
+      { kind: 'http', endpoint, token: { env: 'VARIANCE_TEST_SHARE_TOKEN' }, mainlines: ['main'] },
+      { source: 'variance.config.json', baseDir: home },
+    );
+    const config = { ...configOf({}), share } as Config;
+    const unset =
+      'variance.config.json: `share.token` names the environment variable "VARIANCE_TEST_SHARE_TOKEN", and it is not set. ' +
+      'The config is right and the value is missing, so nothing was substituted here';
+
+    expect(await publishedLine(config, reportOf(repository.commits[0]!))).toMatch(/^suite index: /);
+    expect(await shareLines(config, { publish: true, report: await reportAt(repository.commits[0]!) }, { env: PUSH, cwd: repository.dir }))
+      .toEqual([`nothing published to mainline main in the endpoint ${endpoint}: ${unset}.`]);
+    expect(await shareLines(config, { publish: false }, { env: LOCAL, cwd: repository.dir })).toEqual([`mainline main: ${unset}.`]);
   });
 });
 
