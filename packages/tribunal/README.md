@@ -280,14 +280,32 @@ ingest token's because its caller is a run deciding what to write.
 share reads and writes when its endpoint is this deployment:
 
 ```json
-{ "share": { "kind": "http", "endpoint": "https://variance.example.com/share" } }
+{
+  "share": {
+    "kind": "http",
+    "endpoint": "https://variance.example.com/share",
+    "token": { "env": "VARIANCE_SHARE_TOKEN" }
+  }
+}
 ```
 
-The ingest token publishes and reads it, so the CI job that runs the suite needs
-nothing new. The share token only reads it, and every other route refuses it
-with 403: hand it to a machine that should read what CI derived and should not be
-able to push a build or decide one. The review token is refused under `/share/`,
-because it is held by people and by the browser drawing the review page.
+`token` names the environment variable the CLI reads the token from, so one
+configuration serves every machine and only the variable's value differs:
+
+- **In CI, where a run publishes**, set `VARIANCE_SHARE_TOKEN` to the ingest
+  token. The ingest token publishes and reads the share, so the job that runs
+  the suite needs no new secret.
+- **On a machine that only reads what CI published**, such as a laptop running
+  `variance ask` or `variance serve`, set it to the share token: the value of
+  `VARIANCE_TRIBUNAL_SHARE_TOKEN` on the Node deployment, or of `SHARE_TOKEN`
+  on Cloudflare. With the share token a machine reads `/share/`, and
+  `GET /version` answers it as it answers every token. Every other route
+  answers 403 before it checks the method, so the machine cannot push a build
+  or decide one. A path this deployment does not serve answers 404, as it does
+  for every token.
+
+The review token is refused under `/share/`, because it is held by people and by
+the browser drawing the review page.
 
 Two writers publishing to one line do not lose each other's entries. Each writes
 the manifest against the version it read, the one that lost answers 412, and
@@ -663,10 +681,7 @@ On Cloudflare the comparison is R2's own conditional `put`, so it holds across
 every Worker instance. That is why `R2Like.put` takes `onlyIf`, with
 `etagMatches` and `etagDoesNotMatch` as R2 spells them, and answers `null` when
 the condition fails. `createDirectoryBucket` compares and writes inside one
-process, which is the whole of a Node deployment; two processes pointed at one
-storage directory can both win a race and one line loses the other's entries.
-Share objects are never removed: a line outlives its branch, and an image no
-manifest names stays in the bucket.
+process, which is the whole of a Node deployment.
 
 **A build's images are as large as the run kept.** Nothing here compresses,
 resizes, or deduplicates across builds.

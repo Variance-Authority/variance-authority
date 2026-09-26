@@ -254,6 +254,12 @@ describe('who opens the share', () => {
       );
       expect([path, response.status]).toEqual([path, 403]);
     }
+    const get = (path: string) =>
+      worker.fetch(new Request(`${ORIGIN}${path}`, { headers: { authorization: `Bearer ${SHARE}` } }));
+    expect((await get('/review/builds')).status).toBe(403);
+    // The two answers it shares with every token: the version, and a path nothing serves.
+    expect((await get('/version')).status).toBe(200);
+    expect((await get('/nothing/here')).status).toBe(404);
   });
 
   it('refuses to start with a share token that is short, or is another token', async () => {
