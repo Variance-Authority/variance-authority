@@ -361,9 +361,8 @@ every test whose id reached that process, never to one of them in particular.
 A trace that no case started counts as no id. That covers a trace your tracer
 opened at startup and a call a `beforeAll` made outside any case.
 A service that no id reached is charged to no test, and a change there selects
-none. Its modules leave the journey file, and `variance journeys finalize` counts
-fewer modules than the run before: behind a gateway that stopped forwarding the
-cookie, three Workers' 10 modules become the gateway's 4.
+none. `variance journeys finalize` names its part file, so check that the hop
+in front of that service forwards the id.
 A case that called a service without putting its id on the request is not
 charged for what that request ran, because nothing names the case.
 
@@ -387,7 +386,9 @@ charged for what that request ran, because nothing names the case.
   a class the agent could not name, or a service built without probes gives the
   record nothing to charge. Tests recorded partially cannot be excluded by it.
   A changed file the record says nothing about is named in the output and keeps
-  no test in the run on its own. On a JVM, constructors and static
+  no test in the run on its own. On the parts path, `variance journeys
+  finalize` names every module a case ran that no record holds, such as a JVM
+  class compiled from outside your source roots. On a JVM, constructors and static
   initializers charge the whole file, and so does a change outside every
   method, so each selects every test that entered the file.
 - **Coarser than the page.** A JVM head records methods, not branches, and a
