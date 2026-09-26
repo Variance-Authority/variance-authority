@@ -5,13 +5,12 @@ MCP tools, `variance serve` and both editors read the local filesystem only.
 None of them takes a commit, a branch or a URL. So when a laptop has no run
 report, no images and no coverage record, the answer is *nothing here*, even
 though CI derived all three minutes ago.
-**Built on:** `SharedCache`, `shareKey` and `firstShared` in
-`packages/core/src/share/index.ts`, which give a key per commit, a lookup along
-a lineage, and `behind`. Also `lineageOf` in `packages/cli/src/commands/share.ts`,
-the `directory` and `http` share kinds in `packages/cli/src/config-share.ts`, and
-the image ref `refs/variance/<branch>` that the composite action pushes.
-ADR-0077 decides that placement is declared per artifact in the config, and it
-cites this spec for the git carrier.
+**Built on:** `SharedCache` and `shareKey` in `packages/core/src/share/index.ts`,
+the `directory` and `http` share kinds in `packages/cli/src/config-share.ts`,
+the image ref `refs/variance/<branch>` that the composite action pushes, and the
+local cache layers `yarn test:since` already reads over a recording made at
+another commit. ADR-0077 decides that placement is declared per artifact in the
+config, and it cites this spec for the git carrier.
 
 ## Purpose
 
@@ -21,92 +20,100 @@ falls short in its own way:
 | Placement | What CI derived lives in | What a checkout can fetch today |
 |---|---|---|
 | `git` / `lfs` | Baselines: committed. Report and records: the job's work tree. | The baselines. The report and records go when the job ends. |
-| `cache` | The Actions cache and a run artifact. | Only the changed before/after images on `refs/variance/<branch>`, and only while the pull request is open. The cache is unreachable outside a job, and the artifact expires. |
-| `tribunal` | The service: builds, images, decisions. | Nothing through the CLI. `GET /review/builds` has no commit or branch filter, and no route returns a raw report. |
+| `cache` | The Actions cache and a run artifact. | Only the changed before/after images on `refs/variance/<branch>`, and only while the pull request is open. |
+| `tribunal` | The service: builds, images, decisions. | Nothing through the CLI. No route returns a raw report or a record. |
 
-The share kinds already solve the lookup: a key per commit, and the newest one
-found along the lineage. What is missing is a carrier every placement can
-reach. The repository itself is one: every checkout already has credentials for
-it and already runs `git fetch`.
+A checkout does not need history. Work branches off a mainline and is brought up
+to date with it before it merges: that is what a merge queue, a required
+up-to-date branch or a rebase is for. So the question a checkout asks is never
+*what was mainline at the commit I left from*. It is *what is mainline now*,
+plus the local difference, which the cache layers already answer. We store the
+latest, and we rely on engineers keeping their branches current.
 
 ## What would discharge it
 
-**1. `refs/variance/` is ours, one ref per branch.** A branch's derived state
-lives at `refs/variance/<branch>`, and the default branch's ref is the mainline
-store. There is one namespace, one rule, and no second name to configure. The
-share kind is `{ "kind": "git" }`, and `namespace` changes the prefix for a
-repository that already uses `refs/variance/`. The default branch is the one
-`share.mainline` names. The image ref's cleanup job never deletes it: that job
-deletes a pull request's ref, and the default branch is not a pull request's
-branch. The kind implements `SharedCache`:
+**1. One record per mainline, the latest one.** `share.mainline` names one
+mainline or a few, such as `main` and a release branch. Each has a store at
+`refs/variance/<mainline>` holding what the newest published run on that
+mainline derived, and nothing older. There is no window, no delta and no lookup
+along a lineage. A branch reads the mainline it left from, the one with the
+nearest merge base. The share kind is `{ "kind": "git" }`, and `namespace`
+changes the prefix for a repository that already uses `refs/variance/`.
 
-- `get` fetches the ref once per lookup and reads `git cat-file blob
-  <fetched>:<key>`.
-- `put` writes the blob, the tree and the commit with plumbing, and pushes.
+**2. A publish replaces, and never goes backwards.** Every publish writes one
+parentless commit and force-pushes it with a lease. It replaces the held record
+only when the run's commit descends from the held record's commit, so a slow
+run of an older commit cannot overwrite a newer one. A publish that loses the
+lease reads the ref again and decides again, once. Nothing sits under
+`refs/heads/`, so a clone does not fetch these refs and the branch list does
+not show them.
 
-Keys are `shareKey`'s, so a lookup through `firstShared` is the same over
-`git`, `directory` and `http`.
+**3. Metadata and images follow different rules.**
 
-**2. No ref grows.** Every publish writes one parentless commit and
-force-pushes it with a lease. A branch's ref holds its newest run, as the image
-ref does today. The mainline ref holds the keys for the newest `share.depth`
-commits of the default branch and nothing older. So a ref is always one commit,
-a fetch costs one tree, and nothing accumulates, which honours *never store
-pixels in anything that accumulates*. A publish that loses the lease reads the
-ref again and retries once. After that it is a miss, as every share failure is.
-Runs on the default branch queue instead of cancelling, so the retry is rare.
-Nothing sits under `refs/heads/`, so a clone does not fetch these refs, the
-branch list does not show them, and *records are not part of git* holds for
-anyone who does not ask.
+- **Metadata** is one bundle per publish: the run report, the verdict it
+  reached, the coverage record with paths rewritten repo-relative at publish,
+  and its names table. Its artifact name carries a version, `bundle-v1`. It is
+  fetched whole, because it is one record. Its size is the encoding's job, and
+  no key or blob may contain the digest that keys the local cache layer, which
+  is this machine's absolute path.
+- **Images** are already compressed, so the only savings are storing each once
+  and fetching only what is looked at. The bundle names each image by its pixel
+  digest. The images sit under that digest, beside the bundle, so one that did
+  not change costs nothing on the next publish. A reader fetches one image when
+  it opens it, into its own git directory under the cache and never through the
+  user's clone. Approved baselines stay where the review flow puts them.
 
-**3. Three artifacts, each with its own version.** `run-report-v1`, `images-v1`
-and `coverage-v1`, next to the existing `suite-index-v1`. A reader that cannot
-decode a version treats it as a miss and keeps walking. The coverage record
-travels as one blob with its names table. The alternative is rewriting every
-path to be repo-relative at publish. Either way, no key and no blob may contain
-the digest that keys the local cache layer, because that digest is this
-machine's absolute path.
+**4. A branch's own run goes on the branch's ref.** A branch run publishes its
+bundle and its changed images to `refs/variance/<branch>` on every run, not only
+a red one, keyed by the pull request's head commit, never by the merge commit
+CI checks out. The ref is still deleted when the pull request closes. A pull
+request from a fork holds a read-only token and publishes nothing, which is a
+position: its reader still gets the mainline.
 
-**4. Who publishes what, and where a lookup starts.**
+**5. A reader says what it read, against what.** When a command finds no local
+report, it fetches the branch's ref, then the mainline's, before it answers
+*nothing here*. This covers `variance ask`, the report-reading MCP tools, and
+`variance serve`. A hit names its commit, and where that commit sits relative to
+the checkout: the branch head itself, or so many commits before or after the
+merge base. The local difference is read the way the cache layers read it
+today. A bundle far from the merge base is still an answer, and the distance is
+the instruction to update the branch. A miss says which of these it is, because
+they need different actions:
 
-- Only the default branch publishes records and the suite index. A branch's
-  coverage describes code that may never merge.
-- A record lookup starts at the merge base, which is what `lineageOf` already
-  does.
-- The report and the images also start at the branch head. A branch run
-  publishes them to its own ref on every run, not only on a red one, and the
-  ref is still deleted when the pull request closes.
-- A lookup reads the branch's ref first, then the default branch's ref.
+- nothing published on that ref;
+- a bundle in a newer format, so upgrade the CLI;
+- no credentials for the store;
+- no merge base with any mainline, as in a shallow clone.
 
-**5. `tribunal` serves the same keys.** `GET` and `PUT /share/<key>` on the
-worker, backed by the bucket it already owns, so an `http` share pointed at a
-deployment works unchanged. The ingest token writes. Reading needs a token of
-its own, a read-only share token. The review token grants approval, and a
-laptop that only reads should not hold that. `ReviewConfig` holds the ingest
-token alone, so the share token is read from the environment, like the rest.
+**6. `tribunal` serves the same records.** `GET` and `PUT /share/<key>` on the
+worker, for the bundle of each mainline and branch and for images by digest,
+backed by the bucket it already owns. An `http` share pointed at a deployment
+then works unchanged. The ingest token writes. A read-only share token, read
+from the environment, reads. The review token grants approval and is not the
+key to reading.
 
-**6. Readers ask the share when the disk has nothing.** When a command finds no
-local report, it runs the lookup before it answers *nothing here*. This covers
-`variance ask`, the report-reading MCP tools, and `variance serve`. A hit is
-written to the local cache, as `mainlineIndex` already does for the suite
-index. Every answer from a hit names the commit it came from and `behind`. A
-miss names the ref and the depth it walked, so *not published* and *not found
-within 50 commits* are two different sentences. A miss is never an empty
-report.
+**7. Who can write is a stated position.** GitHub rulesets cover branches and
+tags, so nothing protects `refs/variance/*`: anyone with write access can
+replace a mainline record. The damage is bounded because selection is advisory
+off the mainline. A poisoned record costs a branch a wrong selection, and the
+mainline's own run records afresh. That position goes in `docs/placement.md`
+when this lands.
 
 ## Acceptance
 
 1. On a pull request under `cache`, CI goes red. Then, in a fresh clone of that
-   branch with no `.variance/`, `variance ask` names the changed subjects, the
-   commit CI ran at, and `behind: 0`.
-2. The same on a branch whose last three commits were never run: the answer
-   names the run's commit and `behind: 3`.
-3. After a hundred merges to the default branch, the mainline ref is still one
-   commit, and its tree holds exactly `share.depth` commits' keys.
-4. A coverage record published by CI and fetched into a checkout at a different
+   branch with no `.variance/`, `variance ask` names the changed subjects and the
+   head commit CI ran at.
+2. On a branch with no run of its own, the same command answers from the
+   mainline record and says how far its commit is from the branch's merge base.
+3. After a hundred merges, each mainline ref is one commit holding one bundle,
+   and an image unchanged across all of them was pushed once.
+4. A run of an older mainline commit that finishes last leaves the newer record
+   in place.
+5. A coverage record published by CI and fetched into a checkout at a different
    absolute path selects the same tests as it does in CI.
-5. A share holding only `run-report-v2` is reported as not found. The reader
-   does not fail to parse it.
-6. Pointing the same lookup at a tribunal deployment returns the same bytes as
+6. A ref holding only `bundle-v2` is reported as a newer format, not as nothing
+   published.
+7. Pointing the same reader at a tribunal deployment returns the same bytes as
    the git ref. It is refused without the share token, and a review token does
    not open it.
