@@ -101,9 +101,8 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 The [execution record](execution-record.md) page describes `coverage.bin`, the
 [source index](source-index.md) page describes `source-index.bin`, the
 [test stories](test-stories.md) page describes `coverage.stories/`, the
-[sharing](sharing.md) page describes `suite/`, `share/` and `report/`, and the
-[CLI reference](../packages/cli/README.md) describes when `select` and `review`
-read `share/read/`.
+[sharing](sharing.md) page describes `suite/`, `share/` and `report/`, and
+[when `select` and `review` read `share/read/`](sharing.md#a-suite-your-checkout-has-not-recorded).
 
 ## Worktrees
 
