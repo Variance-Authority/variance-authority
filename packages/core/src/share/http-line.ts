@@ -10,8 +10,8 @@
 
 import { linePath, type BlobPath, type LineCell, type ShareLine, type ShareMiss } from './line.js';
 
-// Declared rather than imported, as in `index.ts`: `core` takes no platform's
-// types. Only the members used are named.
+// Declared rather than imported, as elsewhere in this package: `core` takes no
+// platform's types. Only the members used are named.
 declare const fetch: (
   url: string,
   init?: {

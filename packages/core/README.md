@@ -157,7 +157,7 @@ specifier exports only the capture artifact.
 | `core/plan` | the whole configuration of a run — profile, ruleset version, viewport, policy, interventions — as one value, plus the identity digest derived from it |
 | `core/relate` | what rests on what: a file graph in adjacency form, the components a change reaches, and a closure digest over each one |
 | `core/segment` | columnar bytes: named columns, interned strings, and the validation a decode performs before it believes a file |
-| `core/share` | leaving those bytes where another machine finds them, under a key that is a commit |
+| `core/share` | leaving those bytes where another machine finds them, as the latest of a mainline or a branch |
 
 Five of those are the order an answer travels through: `format`, `rules`,
 `compare`, `attribute`, `judge`. `plan` and `relate` are asked before anything
@@ -292,64 +292,56 @@ run that recorded no component provenance gets `unread` instead.
 
 What a suite is made of is a fact about a commit rather than about a run.
 `core/segment` writes such a thing as columns — equal facts encode to equal
-bytes, which is what lets a transport skip an upload — and `core/share` moves
-the bytes.
+bytes, which is what lets a transport skip an upload — and `core/share` keeps
+the latest of those bytes on a line. A checkout asks *what is mainline now*,
+and a line answers that: one mainline or one branch, holding the latest entry
+of each kind — the run report, one record per suite — and the images those
+entries name, by digest.
 
-Excerpt: `token` is your store's credential and `bytes` is what `core/segment`
-encoded.
+Excerpt: `token` is your store's credential, `report` is what `core/segment`
+encoded, and `digests` are the images it names.
 
 ```ts
-import { httpShare, shareKey } from '@variance-authority/core/share';
+import { findEntry, httpLineCell, publishLine, readLine } from '@variance-authority/core/share';
 
-const share = httpShare({
+const cell = httpLineCell({
   endpoint: 'https://objects.example.com/variance',
   headers: { authorization: `Bearer ${token}` },
   method: 'PUT',
 });
+const main = { kind: 'mainline', name: 'main' } as const;
 
-await share.put(shareKey({ project: 'web', artifact: 'suite-index-v1', commit }), bytes);
-```
-
-`endpoint` is a base URL a key is appended to. `headers` is sent on every
-request, which is where a bucket's `Authorization` or a deployment's token goes.
-`method` is the verb a write uses — `PUT` for a bucket, `POST` for a deployment
-that routes on it. A presigned base needs only the endpoint.
-
-**A share never throws.** A miss, an outage, a permission error and a body
-nobody can parse are one outcome: `get` answers `null` and `put` resolves.
-Everything a share stores can be derived again, so a broken share costs you the
-derivation — and is indistinguishable from a cold one except by the wall clock.
-[Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
-operator's side of it.
-
-### Keep the latest of a line
-
-A key per commit answers *what was derived here*. A checkout usually asks *what
-is mainline now*, and a line answers that: one mainline or one branch, holding
-the latest entry of each kind — the run report, one record per suite — and the
-images those entries name, by digest.
-
-```ts
-import { publishLine, readLine, findEntry } from '@variance-authority/core/share';
-
-await publishLine(cell, { kind: 'mainline', name: 'main' }, [
+await publishLine(cell, main, [
   { name: 'report-v1', commit, bytes: report, images: digests },
 ], { descends, image: (digest) => readImage(digest) });
+
+const held = await readLine(cell, main);
+const entry = 'manifest' in held ? findEntry(held.manifest, 'report-v1') : held;
 ```
 
 `cell` is the backend: a manifest it replaces only against the version you
-read, and the blobs the manifest names. `descends` is git's answer to whether
-one commit strictly descends from another, and `undefined` when the history is
-not at hand. `image` supplies the bytes of an image the line does not hold yet,
-so an unchanged image is sent once. `attempts` bounds how many times a publish
-re-reads a line other writers keep moving.
+read, and the blobs the manifest names. `httpLineCell` writes the manifest with
+`If-Match`, which S3, GCS and R2 honour. `endpoint` is a base URL every path is
+appended to. `headers` is sent on every request, which is where a bucket's
+`Authorization` or a deployment's token goes. `method` is the verb a write uses
+— `PUT` for a bucket, `POST` for a deployment that routes on it. A presigned
+base needs only the endpoint. `memoryLineCell()` holds a line in this process,
+for tests and for a run that shares with itself.
+
+`descends` is git's answer to whether one commit strictly descends from
+another, and `undefined` when the history is not at hand. `image` supplies the
+bytes of an image the line does not hold yet, so an unchanged image is sent
+once. `attempts` bounds how many times a publish re-reads a line other writers
+keep moving.
 
 A publish replaces only the entries it carries, so suites from different jobs
 land on one line. On a mainline, a held entry whose commit descends from yours
 stays: that is an older run finishing last. A held entry in a newer format stays
-on any line. Unlike `SharedCache`, a line reports why it missed — `absent`,
-`newer`, `refused`, `unreachable` or `unreadable` — because each asks you for a
-different action.
+on any line. A line reports why it missed — `absent`, `newer`, `refused`,
+`unreachable` or `unreadable` — because each asks you for a different action.
+Everything a line holds can be derived again, so a miss costs you the
+derivation. [Sharing an evaluation](https://variance-authority.dev/docs/sharing)
+is the operator's side of it.
 
 ## What it refuses
 

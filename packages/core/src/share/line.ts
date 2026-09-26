@@ -1,12 +1,12 @@
 /**
  * A line: the latest of what CI derived on one mainline or one branch.
  *
- * A {@link SharedCache} answers *what was derived at this commit*, and a reader
- * walks history to find a commit anybody published. A line answers the question
- * a checkout actually has — *what is mainline now* — by holding one version and
- * replacing it. Work is branched off a mainline and brought up to date with it
- * before it merges, so the latest is the right answer, and the distance from a
- * checkout to it is the instruction when it is not.
+ * A line answers the question a checkout actually has — *what is mainline now*
+ * — by holding one version and replacing it, rather than keeping one artifact
+ * per commit for a reader to walk history in search of. Work is branched off a
+ * mainline and brought up to date with it before it merges, so the latest is
+ * the right answer, and the distance from a checkout to it is the instruction
+ * when it is not.
  *
  * A line holds **entries**, each a versioned artifact derived at one commit: the
  * run report, one record per suite, the suite index. They are entries rather
@@ -14,10 +14,10 @@
  * only what it carries. It also holds the **images** its entries name, by digest,
  * because an image does not compress and costs nothing to keep once.
  *
- * Unlike a `SharedCache`, nothing here collapses a failure into a miss. A reader
- * has to be told whether nothing was published, it lacks the credentials, the
- * store could not be reached, or a newer writer left a format it cannot read,
- * because each of those asks for a different action.
+ * Nothing here collapses a failure into a miss. A reader has to be told whether
+ * nothing was published, it lacks the credentials, the store could not be
+ * reached, or a newer writer left a format it cannot read, because each of those
+ * asks for a different action.
  */
 
 import { sha256HexBytes } from '../format/sha256.js';
@@ -139,8 +139,8 @@ export function sameSlot(a: EntryName, b: EntryName): boolean {
 /**
  * The path of a line inside a store, `mainline/release/2.0`.
  *
- * Each segment of the branch name is folded to key characters, the same
- * many-to-one mapping `shareKey` makes. Two branches whose names differ only in
+ * Each segment of the branch name is folded to key characters, a
+ * deliberately many-to-one mapping. Two branches whose names differ only in
  * folded characters share a line, and a reader tells them apart by whether its
  * `HEAD` contains the commit the line names.
  */

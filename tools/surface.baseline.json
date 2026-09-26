@@ -307,7 +307,6 @@
         "HeldEntry": "interface",
         "HeldLine": "interface",
         "HttpLineOptions": "interface",
-        "HttpShareOptions": "interface",
         "LineCell": "interface",
         "LineManifest": "interface",
         "PublishOptions": "interface",
@@ -315,26 +314,19 @@
         "ShareEntry": "interface",
         "ShareLine": "interface",
         "ShareMiss": "type",
-        "SharedCache": "interface",
-        "SharedHit": "interface",
         "decodeManifest": "function",
         "encodeManifest": "function",
         "entryDigest": "function",
         "entryProblem": "function",
         "findEntry": "function",
-        "firstShared": "function",
         "httpLineCell": "function",
-        "httpShare": "function",
         "linePath": "function",
         "manifestPaths": "function",
         "memoryLineCell": "function",
-        "memoryShare": "function",
-        "neverFails": "function",
         "parseEntryName": "function",
         "publishLine": "function",
         "readLine": "function",
-        "sameSlot": "function",
-        "shareKey": "function"
+        "sameSlot": "function"
       },
       "./segment": {
         "Column": "type",
@@ -2902,7 +2894,6 @@
       "./share": {
         "GitLineOptions": "interface",
         "createDirectoryLineCell": "function",
-        "createDirectoryShare": "function",
         "createGitLineCell": "function",
         "gitDescends": "function"
       },

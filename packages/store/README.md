@@ -423,41 +423,27 @@ The reading is over the whole commit message rather than a trailer block at the
 end, so a squash merge that folds three baseline commits into one yields three
 records instead of none.
 
-## A directory other machines may read
+## A line other machines may read
 
-`./share` is not a baseline store. `createDirectoryShare(root)` gives you a
-`get`/`put` pair over bytes that a run *derived* — a suite index, and whatever
-comes after it — under a key that is a commit. Neither call ever throws.
-Everything in it can be derived again from the tree it was derived at, which is
-why losing it costs a rebuild and losing a baseline costs the comparison.
+`./share` is not a baseline store. It gives you two cells for `publishLine` and
+`readLine` in `@variance-authority/core/share`, which keep the latest of what a
+run *derived* on one mainline or one branch — a run report, one record per
+suite — and the images those name. Everything on a line can be derived again
+from the commit it names, which is why losing it costs a rebuild and losing a
+baseline costs the comparison. [Sharing an
+evaluation](https://variance-authority.dev/docs/sharing) is the operator's side
+of it.
 
-```js
-import { createDirectoryShare } from '@variance-authority/store/share';
-
-const share = createDirectoryShare('.variance/share');
-
-await share.put('9f8e7d6c5b4a', new TextEncoder().encode('{"suite":[]}'));
-console.log(new TextDecoder().decode(await share.get('9f8e7d6c5b4a')));
-```
-
-A directory is what every transport already is on the machine using it:
-`actions/cache` restores one, `aws s3 sync` mirrors one, an NFS mount is one,
-and a laptop has one. Writes land through a temporary file in the same directory
-and a rename, so two jobs publishing at once cannot leave half a segment behind.
-[Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
-operator's side of it.
-
-### A line: the latest a mainline or a branch published
-
-The same export gives you two cells for `publishLine` and `readLine` in
-`@variance-authority/core/share`. A cell stores one manifest per line and
-replaces it only when it still holds the version it was read at, so two jobs
-publishing at once keep both entries rather than the last one.
+A cell stores one manifest per line and replaces it only when it still holds
+the version it was read at, so two jobs publishing at once keep both entries
+rather than the last one.
 
 `createDirectoryLineCell(root)` keeps `<kind>/<name>/manifest.json` and the
 line's entries under `root`, and every image once under `root/images/`. A lock
 directory holds the condition, because `mkdir` is atomic on NFS as well as on a
-local disk.
+local disk. A directory is what every transport already is on the machine using
+it: `actions/cache` restores one, `aws s3 sync` mirrors one, an NFS mount is
+one, and a laptop has one.
 
 `createGitLineCell(options)` keeps each line as one commit under a ref in the
 repository that hosts your code, so any checkout that can fetch its branch can
