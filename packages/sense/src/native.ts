@@ -285,6 +285,8 @@ export interface NativeJourneyFold {
   readonly unrecorded: readonly string[];
   /** Part files that ran code under no journey a case handed out. */
   readonly unclaimed: readonly string[];
+  /** Heads that wrote parts in the run before and none in this one; absent with no run before. */
+  readonly silent?: readonly string[];
 }
 
 export type NativeJourneyFoldResult = Omit<NativeJourneyFold, 'bytes'>;
@@ -297,6 +299,12 @@ export interface NativeJourneyStitch {
   readonly shards: number;
   /** Files two shards cut into different regions, read at the regions both hold. */
   readonly renumbered: readonly string[];
+  /** Over every shard; absent when a shard does not carry them. */
+  readonly unrecorded?: readonly string[];
+  /** Over every shard; absent when a shard does not carry them. */
+  readonly unclaimed?: readonly string[];
+  /** Over every shard; absent when a shard had no run before to compare with. */
+  readonly silent?: readonly string[];
 }
 
 export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;

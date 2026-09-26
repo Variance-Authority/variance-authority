@@ -96,7 +96,7 @@ try {
 }
 assert.equal(jest.status, 0, `jest failed\n${jest.stdout}\n${jest.stderr}`);
 const written = readdirSync(parts).sort();
-assert.deepEqual(written.map((f) => f.replace(/^jvm-\d+-[0-9a-f-]+/, 'jvm')), ['jvm.rec', 'jvm.vac']);
+assert.deepEqual(written.map((f) => f.replace(/^jvm-[0-9a-f-]+/, 'jvm')), ['jvm.rec', 'jvm.vac']);
 
 // Regroup: the run finished, the service finished, now the fold.
 const finalized = await finalizeJestJourneys(journeyFile);

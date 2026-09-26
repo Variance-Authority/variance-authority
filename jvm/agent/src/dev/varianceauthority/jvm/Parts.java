@@ -24,11 +24,11 @@ import java.util.UUID;
  * A Jest run that hands its cases' journeys to this service reads
  * two files from the parts directory it was given, and nothing else:
  * <ul>
- * <li>{@code jvm-<pid>-<uuid>.vac}: sense's part frames. A {@code journey:<id>} row
+ * <li>{@code <head>-<uuid>.vac}: sense's part frames. A {@code journey:<id>} row
  * is a frame owned by that journey; a {@code between-journey-<n>} row, a window no
  * journey was open for, is a frame owned by no journey, which the fold charges to
  * every case that crossed into this process. Modules are named by path.
- * <li>{@code jvm-<pid>-<uuid>.rec}: the inventory those names resolve to, one record
+ * <li>{@code <head>-<uuid>.rec}: the inventory those names resolve to, one record
  * per source file under the recipe {@value #RECIPE}, cut the way {@link Coverage}
  * cuts it: the file is the root, each method a journey entered is a region.
  * </ul>
@@ -117,7 +117,7 @@ public final class Parts {
     }
 
     Files.createDirectories(directory);
-    String base = "jvm-" + pid() + "-" + UUID.randomUUID();
+    String base = head() + "-" + UUID.randomUUID();
     // The inventory first: a fold that finds the frames finds what they name.
     publish(directory.resolve(base + ".rec"), inventory.toByteArray());
     publish(directory.resolve(base + ".vac"), part.toByteArray());
@@ -300,9 +300,13 @@ public final class Parts {
     return ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array();
   }
 
-  private static String pid() {
-    String name = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-    int at = name.indexOf('@');
-    return at < 0 ? name : name.substring(0, at);
+  /**
+   * The label the parts are named under: {@code VARIANCE_AUTHORITY_HEAD}, as a Node
+   * head's are, or {@code jvm}. A finalize compares the labels that wrote parts from
+   * one run to the next, so the label must not change between runs.
+   */
+  private static String head() {
+    String label = System.getenv("VARIANCE_AUTHORITY_HEAD");
+    return label == null || label.isEmpty() ? "jvm" : label.replaceAll("[^\\w.-]", "_");
   }
 }

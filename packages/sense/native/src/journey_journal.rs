@@ -60,6 +60,8 @@ pub struct CaseRun {
     /// The part files that ran code under no journey a case handed out, by
     /// file name: what they ran is charged to nobody.
     pub unclaimed: Vec<String>,
+    /// The heads that wrote a part file, by the label its name opens with.
+    pub heads: Vec<String>,
 }
 
 struct Coordinate {
@@ -128,6 +130,9 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
     let mut part_tests = Vec::with_capacity(part_paths.len());
     let mut part_wanted = HashSet::new();
     let mut unclaimed = Vec::new();
+    let mut heads: Vec<String> = part_paths.iter().map(|path| head_of(path)).collect();
+    heads.sort_unstable_by(|left, right| order::code_unit(left, right));
+    heads.dedup();
     for path in &part_paths {
         let mut visitor = PartInspectVisitor {
             journeys: HashSet::new(),
@@ -162,7 +167,27 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
         part_tests,
         part_wanted,
         unclaimed,
+        heads,
     })
+}
+
+/// The head a part file came from: its name without the `-<uuid>.vac` every
+/// writer appends, which is what makes two processes' files distinct.
+fn head_of(path: &Path) -> String {
+    let stem = path.file_stem().map_or_else(|| path.to_string_lossy(), |stem| stem.to_string_lossy());
+    let at = stem.len().saturating_sub(37);
+    match (stem.get(..at), stem.get(at..)) {
+        (Some(head), Some(tail)) if tail.starts_with('-') && is_uuid(&tail[1..]) => head.to_owned(),
+        _ => stem.into_owned(),
+    }
+}
+
+fn is_uuid(text: &str) -> bool {
+    text.len() == 36
+        && text.char_indices().all(|(at, character)| match at {
+            8 | 13 | 18 | 23 => character == '-',
+            _ => character.is_ascii_hexdigit(),
+        })
 }
 
 fn listed(directory: &Path, extension: Option<&str>) -> Result<Vec<PathBuf>, String> {

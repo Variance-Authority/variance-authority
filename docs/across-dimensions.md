@@ -353,8 +353,11 @@ names journeys and the service recorded none of them.
 On the parts path, a part is evidence and its absence is not. A missing parts
 directory reads as empty, and a case whose journey no part names is folded from
 its own frames alone. So a Jest case whose service wrote no part is charged
-nothing in that service, and a later change there does not select it. Check
-that each service you expect wrote a part before you narrow on the record.
+nothing in that service, and a later change there does not select it.
+`variance journeys finalize` reads the artifact it replaces and names each
+service that wrote parts in that run and none in this one. The first run has
+nothing to compare with, so on it, check that each service you expect wrote a
+part before you narrow on the record.
 
 Within a process that did write, what a request with no id ran is charged to
 every test whose id reached that process, never to one of them in particular.

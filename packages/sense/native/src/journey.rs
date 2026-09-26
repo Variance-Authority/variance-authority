@@ -1,13 +1,16 @@
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::path::Path;
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::journey_format::{self, EncodedModule, SetPool};
+use crate::journey_columns;
+use crate::journey_format::{self, EncodedModule, Gaps, SetPool};
 use crate::journey_journal::{self, CaseRun, ModuleId, Visitor};
 use crate::journey_output;
 use crate::journey_record::{self, Module};
+use crate::journey_stitch;
 use crate::order;
 
 const DEFAULT_BUDGET: usize = 512 * 1_048_576;
@@ -25,6 +28,9 @@ pub struct JourneyFold {
     pub unrecorded: Vec<String>,
     /// Part files that ran code under no journey a case handed out.
     pub unclaimed: Vec<String>,
+    /// Heads that wrote parts in the run before and none in this one; absent
+    /// when there was no run before to compare with.
+    pub silent: Option<Vec<String>>,
 }
 
 #[napi(object)]
@@ -39,6 +45,9 @@ pub struct JourneyFoldResult {
     pub unrecorded: Vec<String>,
     /// Part files that ran code under no journey a case handed out.
     pub unclaimed: Vec<String>,
+    /// Heads that wrote parts in the run before and none in this one; absent
+    /// when there was no run before to compare with.
+    pub silent: Option<Vec<String>>,
 }
 
 /// Read, fold, and encode one run's case journals without crossing per-row objects into V8.
@@ -58,6 +67,7 @@ pub fn fold_journey(
         budget_megabytes,
         &[],
         &[],
+        None,
     )
     .map_err(napi::Error::from_reason)?;
     Ok(JourneyFold {
@@ -67,16 +77,16 @@ pub fn fold_journey(
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
         renumbered: answered.folded.renumbered,
-        unrecorded: answered.unrecorded,
-        unclaimed: answered.unclaimed,
+        unrecorded: answered.gaps.unrecorded,
+        unclaimed: answered.gaps.unclaimed,
+        silent: answered.gaps.silent,
     })
 }
 
 struct FoldAnswer {
     folded: Folded,
     tests: u32,
-    unrecorded: Vec<String>,
-    unclaimed: Vec<String>,
+    gaps: Gaps,
 }
 
 fn answer(
@@ -87,6 +97,7 @@ fn answer(
     budget_megabytes: Option<u32>,
     parts: &[String],
     part_stores: &[String],
+    previous: Option<&str>,
 ) -> Result<FoldAnswer, String> {
     let run = journey_journal::inspect(Path::new(case_directory), Path::new(root), parts)?;
     let mut found = journey_record::read_records(stores, &run.wanted, instrumentation)?;
@@ -95,18 +106,36 @@ fn answer(
             found.entry(id).or_insert(module);
         }
     }
-    let unrecorded = unrecorded(&run, &found)?;
+    let silent = previous.and_then(previous_heads).map(|before| {
+        before.into_iter().filter(|head| run.heads.binary_search_by(|now| order::code_unit(now, head)).is_err()).collect()
+    });
+    let gaps = Gaps {
+        unrecorded: unrecorded(&run, &found)?,
+        unclaimed: run.unclaimed.clone(),
+        heads: run.heads.clone(),
+        silent,
+    };
     let folded = fold(
         &run,
         found,
         budget_megabytes.map_or(DEFAULT_BUDGET, |value| value as usize * 1_048_576),
+        &gaps,
     )?;
     Ok(FoldAnswer {
         folded,
         tests: run.tests.len() as u32,
-        unrecorded,
-        unclaimed: run.unclaimed,
+        gaps,
     })
+}
+
+/// The heads the artifact already at `output` saw write parts. None when
+/// nothing is there, or what is there does not carry them: with no run before
+/// to compare with, no head can be said to have gone quiet.
+fn previous_heads(output: &str) -> Option<Vec<String>> {
+    let bytes = fs::read(output).ok()?;
+    let decoded = journey_columns::decode(&bytes, journey_format::FORMAT).ok()?;
+    let strings = journey_stitch::strings(&decoded).ok()?;
+    Some(journey_format::read_gaps(&decoded, &strings).ok()??.heads)
 }
 
 /// The modules a case ran that no record holds, by name: what ran there is
@@ -161,6 +190,7 @@ pub fn fold_journey_to(
         budget_megabytes,
         parts.as_deref().unwrap_or_default(),
         part_stores.as_deref().unwrap_or_default(),
+        Some(&output),
     )
     .map_err(napi::Error::from_reason)?;
     journey_output::replace(&output, &answered.folded.bytes).map_err(napi::Error::from_reason)?;
@@ -170,8 +200,9 @@ pub fn fold_journey_to(
         crossings: answered.folded.crossings as f64,
         passes: answered.folded.passes,
         renumbered: answered.folded.renumbered,
-        unrecorded: answered.unrecorded,
-        unclaimed: answered.unclaimed,
+        unrecorded: answered.gaps.unrecorded,
+        unclaimed: answered.gaps.unclaimed,
+        silent: answered.gaps.silent,
     })
 }
 
@@ -187,6 +218,7 @@ fn fold(
     run: &CaseRun,
     found: HashMap<ModuleId, Module>,
     budget: usize,
+    gaps: &Gaps,
 ) -> Result<Folded, String> {
     let mut modules: Vec<Module> = found.into_values().collect();
     modules.sort_by(|left, right| {
@@ -217,7 +249,7 @@ fn fold(
     called_sets.fill(empty);
     if block_count == 0 || run.tests.is_empty() {
         return Ok(Folded {
-            bytes: journey_format::encode(&run.tests, &[], &sets)?,
+            bytes: journey_format::encode(&run.tests, &[], &sets, Some(gaps))?,
             modules: 0,
             crossings: 0,
             passes: 0,
@@ -288,7 +320,7 @@ fn fold(
         .collect();
     let module_count = encoded.len() as u32;
     Ok(Folded {
-        bytes: journey_format::encode(&run.tests, &encoded, &sets)?,
+        bytes: journey_format::encode(&run.tests, &encoded, &sets, Some(gaps))?,
         modules: module_count,
         crossings,
         passes,

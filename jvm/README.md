@@ -201,13 +201,17 @@ means mounting the checkout rather than only the module.
 
 When the JVM exits, the agent writes two files to the parts directory:
 
-- `jvm-<pid>-<uuid>.vac` holds one frame per journey, plus one frame, with no
+- `<head>-<uuid>.vac` holds one frame per journey, plus one frame, with no
   journey, for what ran between journeys.
-- `jvm-<pid>-<uuid>.rec` holds the regions those frames name, cut as `Coverage`
+- `<head>-<uuid>.rec` holds the regions those frames name, cut as `Coverage`
   cuts them.
 
 The service must exit through its shutdown hooks, on `SIGTERM` or
 `System.exit`. A `SIGKILL` writes nothing.
+
+`<head>` is `VARIANCE_AUTHORITY_HEAD` when the service's environment sets it, and
+`jvm` otherwise. `variance journeys finalize` compares the heads that wrote parts
+with the run before, so give each service its own.
 
 ### In the Jest suite
 

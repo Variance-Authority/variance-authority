@@ -145,11 +145,42 @@ export function decodeSetExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   };
 }
 
-function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
+/**
+ * What a finalize could not charge to a case, as the artifact carries it: the
+ * finalize's own answer, read by a process that runs after it.
+ */
+export interface JourneyGaps {
+  /** Modules a case ran that no record holds: a change there selects nothing. */
+  readonly unrecorded: readonly string[];
+  /** Part files that ran code under no journey a case handed out. */
+  readonly unclaimed: readonly string[];
+  /** Heads that wrote at least one part in the run. */
+  readonly heads: readonly string[];
+  /** Heads that wrote parts in the run before and none in this one; absent with no run before. */
+  readonly silent?: readonly string[];
+}
+
+/**
+ * The gaps a journey artifact carries, or nothing when it was written without
+ * them: an artifact that was never asked is not one that found nothing.
+ */
+export function journeyGaps(bytes: Uint8Array): JourneyGaps | undefined {
+  const opened = sectionsOf(bytes);
   const version = opened.header.version;
-  const words = (name: string): Uint32Array => columnWords(opened, name);
-  const flags = (name: string): Uint8Array => columnBytes(opened, name);
-  const stringOffsets = words('strings.off');
+  if (version !== SET_EXECUTION_FORMAT && version !== LOADED_SETS_FORMAT) return undefined;
+  if (!opened.found.has('gaps.unrecorded')) return undefined;
+  const strings = stringsOf(opened);
+  const named = (name: string): string[] => Array.from(columnWords(opened, name), (id) => strings[id] ?? fail());
+  return {
+    unrecorded: named('gaps.unrecorded'),
+    unclaimed: named('gaps.unclaimed'),
+    heads: named('gaps.heads'),
+    ...(opened.found.has('gaps.silent') ? { silent: named('gaps.silent') } : {}),
+  };
+}
+
+function stringsOf(opened: OpenedSections): string[] {
+  const stringOffsets = columnWords(opened, 'strings.off');
   const stringBlob = columnBlob(opened, 'strings.blob', stringOffsets);
   const decoder = new TextDecoder();
   const strings: string[] = [];
@@ -159,6 +190,14 @@ function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
     if (to < from || to > stringBlob.length) throw invalid();
     strings.push(decoder.decode(stringBlob.subarray(from, to)));
   }
+  return strings;
+}
+
+function openedSets(opened: OpenedSections): OpenedSetExecutionIndex {
+  const version = opened.header.version;
+  const words = (name: string): Uint32Array => columnWords(opened, name);
+  const flags = (name: string): Uint8Array => columnBytes(opened, name);
+  const strings = stringsOf(opened);
   const string = (id: number): string => strings[id] ?? fail();
 
   const testId = words('tests.id');

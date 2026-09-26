@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { decodeTestCoverage } from './format.js';
 import { selectTestFiles } from './index.js';
 import { decodeExecutionIndex } from './execution-format.js';
+import { journeyGaps } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
 const execute = promisify(execFile);
@@ -145,7 +146,12 @@ describe('the Jest integration', () => {
     ]);
 
     const assembled = resolve(directory, 'journeys.bin');
-    await stitchJourneyArtifacts(journeyFiles, assembled);
+    const stitched = await stitchJourneyArtifacts(journeyFiles, assembled);
+    // The shards named nothing missing, and the stitch carries that forward
+    // rather than dropping the names a shard held.
+    expect(stitched).toMatchObject({ unrecorded: [], unclaimed: [] });
+    expect(stitched.silent).toBeUndefined();
+    expect(journeyGaps(await readFile(assembled))).toEqual({ unrecorded: [], unclaimed: [], heads: [] });
     const reversed = resolve(directory, 'journeys-reversed.bin');
     await stitchJourneyArtifacts([...journeyFiles].reverse(), reversed);
     await expect(readFile(reversed)).resolves.toEqual(await readFile(assembled));

@@ -1,11 +1,12 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
+import { journeyGaps } from './execution-set-format.js';
 import { finalizeJestJourneys } from './jest-journey-artifact.js';
 import { selectJourneyFile } from './journey-native.js';
 import { receiveParts } from './parts-receiver.js';
@@ -17,6 +18,25 @@ const fixture = resolve(repository, 'packages/sense/test/fixtures/journey-parts'
 const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 const jest = resolve(repository, 'node_modules/jest/bin/jest.js');
 const temporary: string[] = [];
+
+// Jest and the service share nothing but the environment the service inherits:
+// a parts directory to write to and a label to build under. Each test file
+// starts its own service, so the three files' requests land in three processes
+// and three part files.
+const jestRun = (directory: string, journeyFile: string, parts: string, target: string) =>
+  execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false'], {
+    cwd: fixture,
+    env: {
+      ...process.env,
+      VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
+      VARIANCE_AUTHORITY_PARTS: target,
+      PARTS_DIRECTORY: parts,
+      VARIANCE_AUTHORITY_HEAD: 'pricing',
+      VARIANCE_AUTHORITY_BUILD: resolve(directory, 'build'),
+      XDG_CACHE_HOME: directory,
+    },
+  });
 
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
@@ -39,23 +59,7 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     const journeyFile = resolve(directory, 'journeys.bin');
     const parts = resolve(directory, 'parts');
     const sink = await open(parts);
-    // Jest and the service share nothing but the environment the service
-    // inherits: a parts directory to write to and a label to build under. Each
-    // test file starts its own service, so the three files' requests land in
-    // three processes and three part files.
-    await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false'], {
-      cwd: fixture,
-      env: {
-        ...process.env,
-        VARIANCE_AUTHORITY_JOURNEYS: journeyFile,
-        VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'cache'),
-        VARIANCE_AUTHORITY_PARTS: sink.target,
-        PARTS_DIRECTORY: parts,
-        VARIANCE_AUTHORITY_HEAD: 'pricing',
-        VARIANCE_AUTHORITY_BUILD: resolve(directory, 'build'),
-        XDG_CACHE_HOME: directory,
-      },
-    }).finally(sink.close);
+    await jestRun(directory, journeyFile, parts, sink.target).finally(sink.close);
     const written = await readdir(parts);
     expect(written).toHaveLength(3);
     const finalized = await finalizeJestJourneys(journeyFile);
@@ -64,6 +68,14 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     expect(finalized.unclaimed).toHaveLength(1);
     expect(written).toContain(finalized.unclaimed![0]);
     expect(finalized.unrecorded).toEqual([]);
+    // No artifact was there before this one, so no head can have gone quiet.
+    expect(finalized.silent).toBeUndefined();
+    // The artifact carries what the finalize named, for a reader after it.
+    expect(journeyGaps(await readFile(journeyFile))).toEqual({
+      unrecorded: [],
+      unclaimed: finalized.unclaimed,
+      heads: ['pricing'],
+    });
 
     const index = decodeExecutionIndex(await readFile(journeyFile));
     const pricing = index.modules.find((module) => module.file === at('service/pricing.mjs'));
@@ -97,5 +109,15 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     expect((await selectJourneyFile(journeyFile, change("return '9,00 €'")))?.entered).toEqual([at('test/quote.case.ts')]);
     expect((await selectJourneyFile(journeyFile, change("return 'refunded'")))?.entered).toEqual([at('test/refund.case.ts')]);
     expect((await selectJourneyFile(journeyFile, change("return 'review'")))?.entered).toEqual([]);
+
+    // The next run's service writes where the fold does not read: the finalize
+    // reads the artifact it replaces and names the head that wrote parts then
+    // and none now.
+    const nowhere = resolve(directory, 'nowhere');
+    await mkdir(nowhere);
+    await jestRun(directory, journeyFile, nowhere, resolve(directory, 'elsewhere'));
+    const quiet = await finalizeJestJourneys(journeyFile);
+    expect(quiet.silent).toEqual(['pricing']);
+    expect(journeyGaps(await readFile(journeyFile))).toMatchObject({ heads: [], silent: ['pricing'] });
   }, 120_000);
 });

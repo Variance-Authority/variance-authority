@@ -22,8 +22,7 @@ export async function runJourneyArtifactCommand(
       `journeys: wrote ${parsed.journeyFile} (${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings)\n`,
     );
     streams.out(renumbered(result));
-    streams.out(unclaimed(result));
-    streams.out(unrecorded(result));
+    streams.out(gaps(result));
     return EXIT_CLEAN;
   }
 
@@ -32,6 +31,7 @@ export async function runJourneyArtifactCommand(
     `journeys: stitched ${result.shards} shards into ${parsed.into} (${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings)\n`,
   );
   streams.out(renumbered(result));
+  streams.out(gaps(result));
   return EXIT_CLEAN;
 }
 
@@ -51,6 +51,26 @@ function renumbered(result: JourneyArtifactResult): string {
     `journeys: ${count} cut into different regions by different transforms; ` +
     'crossings there are credited to the regions every transform shares:\n' +
     files.map((file) => `  ${file}\n`).join('')
+  );
+}
+
+/** Everything the artifact could not charge to a case, each named. */
+function gaps(result: JourneyArtifactResult): string {
+  return silent(result) + unclaimed(result) + unrecorded(result);
+}
+
+/**
+ * The heads that wrote parts in the run before and none in this one, by name:
+ * a service that stopped being reached, or stopped writing. Nothing of it is
+ * charged, so a change to what only it ran selects nothing.
+ */
+function silent(result: JourneyArtifactResult): string {
+  const heads = result.silent ?? [];
+  if (heads.length === 0) return '';
+  const count = heads.length === 1 ? '1 head' : `${heads.length} heads`;
+  return (
+    `journeys: ${count} wrote parts in the run before and none in this one, so a change to what only they ran selects nothing:\n` +
+    heads.map((head) => `  ${head}\n`).join('')
   );
 }
 
