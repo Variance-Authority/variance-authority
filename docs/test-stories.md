@@ -40,6 +40,9 @@ at the line the story names.
 
 ## When to read one
 
+Most tests you can follow by reading them and the code they call. Record a
+story when that reading leaves your question open:
+
 - **You are about to change code you do not know.** Reading the source does not
   always say which code runs: a call through an interface, a plugin, or a
   handler registered in another file. Ask which tests run the function, and
