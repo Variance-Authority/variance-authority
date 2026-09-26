@@ -6,7 +6,7 @@
  * to five levels, each finer than the one before: the packages it went
  * through, the files, the declarations in each file, the steps with other
  * packages passed through, and every step. The reading is the finest level that
- * fits in {@link BUDGET} lines, so a short case is read step by step and a long
+ * fits in {@link BUDGET} characters, so a short case is read step by step and a long
  * one opens on its table of contents. A reader who wants finer narrows the part
  * with `--in` or `--around`, which picks again inside it, or asks for every
  * step with `--whole`. The level is named in the reading, with the size of the
@@ -27,8 +27,12 @@
 import type { Place } from '@variance-authority/sense/story';
 import { overview, type FileVisits, type Gap, type Line } from './story-view.js';
 
-/** Lines a reading is held to before it is drawn one level coarser. */
-export const BUDGET = 60;
+/**
+ * Characters a reading is held to before it is drawn one level coarser. A
+ * page is counted in characters, not lines, because what a reader pays for is
+ * text, and a step drawn with the arms it took is several short lines.
+ */
+export const BUDGET = 5000;
 
 /** Consecutive steps inside a package the reading passes through. */
 export interface Through {
@@ -86,7 +90,7 @@ export function drawings(
   return [
     ...(packages.length > 1 ? [{ level: 'packages' as const, packages }] : []),
     { level: 'files', files },
-    { level: 'declarations', visits: overview(stops) },
+    { level: 'declarations', visits: overview(lines) },
     ...(passed.length > 0 ? [{ level: 'steps' as const, lines: passing, passed }] : []),
     { level: 'every step', lines },
   ];

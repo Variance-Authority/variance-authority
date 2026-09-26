@@ -25,31 +25,34 @@ variance story --file src/cart.test.ts --name "removes" --format json
 When they match several stories, the answer lists them with their visit counts
 and prints no route; narrow the text and ask again.
 
-The answer fits a page. It is drawn at the finest level that fits in 60 lines —
-every step, then steps with other workspace packages passed through, then
-declarations, files, packages — and the header names the level and how long
-the next one down would be. A short case comes back step by step:
+The answer fits a page. It is drawn at the finest level that fits in 5,000
+characters — every step, then steps with other workspace packages passed
+through, then declarations, files, packages — and the header names the level
+and how long the next one down would be. A short case comes back step by step,
+with a key for the marks and each step's branches and loops drawn as the code
+nests them:
 
 ```text
-story  src/cart.test.ts > cart > removes the last item
-  goes through 4 files in 7 steps
-
   before the case
-  1  src/cart.test.ts:3-8  beforeEach.arg0
+  1  beforeEach.arg0  cart.test.ts:3-8
   the case
-  2  loaded 3 files: src/cart.ts, src/price.ts, src/format.ts
-  3  src/cart.ts:12-30  Cart/removeItem  if#0/else 16-17, for#0/body 18-22 ×2
-     repeats ×2
-  4    src/price.ts:6-8  applyTier ×2  if#0/then 7
-  5    src/format.ts:14-19  formatPrice ×2
-  6  src/cart.ts:12-30  Cart/removeItem  for#0/after 24-29
-  7  src/cart.ts:33-35  Cart/notify
+  2  loaded 3 files: cart.ts, price.ts, format.ts
+  3  Cart/removeItem  cart.ts:12-30
+       if 14  then ✗  else ×1
+       for 18 ×2
+     steps 4-5 ran 2 times in all:
+  4    applyTier  price.ts:6-8 ×2
+         if 7  then ×1  else ×1
+  5    formatPrice  format.ts:14-19 ×2
+  6  Cart/removeItem  cart.ts:12-30
+       if 14  then ✗
+  7  Cart/notify  cart.ts:33-35
 ```
 
 A long one opens coarser, and the header says how to go finer:
 
 ```text
-  drawn by declarations: by every step it is 145 lines, over the 60 a reading is held to;
+  drawn by declarations, because by every step it would be 11712 characters, over the 5000 a reading is held to;
   narrow it with --in <package or file> or --around <step>, or read every step with --whole
 ```
 
@@ -62,27 +65,32 @@ variance story --name "removes the last item" --around 6      # three steps eith
 variance story --name "removes the last item" --whole         # every step, however long
 ```
 
-- A step is a declaration — a function, a handler, a module's top level — at
-  `file:start-end`, named by its path in the file. Consecutive visits inside
-  one declaration are one step; a return to the caller is a step of its own.
-- After the declaration come the arms it took, with their lines and `×N` when
-  more than once: `if#0/else 16-17, for#0/body 18-22 ×2`. `×N` after the
-  declaration itself is how many times it was entered.
-- `never if#0/then 14-15`, on the first step a declaration is drawn at, is what
-  it holds that the case went into nowhere, before the case or during it. Only
-  the two levels that draw steps show it. This is where the case does not
-  protect the code it visited, and `never if#0/else` is a condition that held
-  every time.
-- `repeats ×N` is a loop, drawn once; the arms and counts under it are all its
-  passes added together.
+- A step is a declaration — a function, a handler, a module's top level — named
+  by its path in the file, then `file:start-end`. Consecutive visits inside one
+  declaration are one step; a return to the caller is a step of its own. `×N`
+  after the declaration is how many times it was entered at that step.
+- Under it, one line per construct: `if 14  then ✗  else ×1` is an `if` by the
+  line it starts on, both arms, and how many times each ran; `for 18 ×2` is a
+  loop body that ran twice. A `switch` names its cases by line, a `try` its
+  `catch` and `finally`. The code after a construct is not drawn.
+- `✗` is an arm the case went into nowhere, before the case or during it. This
+  is where the case does not protect the code it visited, and `then ×6  else ✗`
+  is a condition that held every time. To ask whether a test exercises line N,
+  read the arm at N: `✗` is no, a count is yes.
+- `in 255 then: if 257 …` is a construct inside the `then` of the `if` at 255.
+  `↑` is an arm entered at an earlier step that this step runs inside.
+- `steps a-b ran N times in all:` is a loop, drawn once; the counts under it are
+  all its passes added together.
 - `through <package>, steps a-b: names` is a run of steps inside a workspace
   package other than the test's own. Open it with `--in <package>`.
-- `… steps 1-2` is what this part leaves out. Ask `--around` a step at its edge
-  to read further.
+- `… steps 1-2 left out` is what this part leaves out. Ask `--around` a step at
+  its edge to read further.
 - `loaded N files` is modules evaluated one inside another; each file is named
   once.
 - `before the case` is what the runner ran outside the case just before it:
   `beforeEach`, the previous case's `afterEach`.
+- At the declarations level, `steps 36, 39×6` lists each step the declaration
+  was at; `39×6` is step 39, which came round six times, as entries or returns.
 
 The step before another is where the case came from, not its caller. The tape
 holds which regions ran, not calls and returns, so no step names a parent; the

@@ -26,6 +26,8 @@ export interface Line {
   readonly stop?: Stop;
   /** On the head of a loop, how many times it went round in all. */
   readonly times?: number;
+  /** On the head of a loop, the first and last step inside it. */
+  readonly span?: readonly [from: number, to: number];
   /** Indices of the heads of the loops this line is inside, outermost first. */
   readonly heads: readonly number[];
 }
@@ -33,6 +35,8 @@ export interface Line {
 /** Steps a window leaves out, so a reader knows what to ask for next. */
 export interface Gap {
   readonly gap: readonly [from: number, to: number];
+  /** How many of the loops the window shows the steps sit inside. */
+  readonly depth: number;
 }
 
 /** Number every stop, the steps before the case first. */
@@ -42,8 +46,11 @@ export function numbered(route: Route): Line[] {
   const walk = (steps: readonly Step<Stop>[], before: boolean, heads: readonly number[]): void => {
     for (const each of steps) {
       if ('repeat' in each) {
+        const head = lines.length;
+        const first = step + 1;
         lines.push({ depth: heads.length, before, times: each.times, heads });
-        walk(each.repeat, before, [...heads, lines.length - 1]);
+        walk(each.repeat, before, [...heads, head]);
+        lines[head] = { ...lines[head]!, span: [first, step] };
         continue;
       }
       step += 1;
@@ -62,8 +69,8 @@ export interface Visit {
   readonly startLine?: number;
   readonly endLine?: number;
   readonly steps: readonly number[];
-  /** Whether any of those steps is inside a loop. */
-  readonly looped: boolean;
+  /** Beside each step, how many times the repeat it is inside went round in all; 1 for a step in none. */
+  readonly passes: readonly number[];
 }
 
 /** A file on the route, the step that loaded it, and the declarations visited in it. */
@@ -74,15 +81,15 @@ export interface FileVisits {
 }
 
 /** Every file in the order the case first reached it, each declaration in the order it was first visited. */
-export function overview(lines: readonly Line[]): FileVisits[] {
-  const files = new Map<string, { loadedAt?: number; declarations: Map<string, Visit & { steps: number[] }> }>();
+export function overview(lines: readonly (Line | Gap)[]): FileVisits[] {
+  const files = new Map<string, { loadedAt?: number; declarations: Map<string, Visit & { steps: number[]; passes: number[] }> }>();
   const fileOf = (file: string) => {
     let found = files.get(file);
     if (found === undefined) files.set(file, found = { declarations: new Map() });
     return found;
   };
   for (const line of lines) {
-    if (line.stop === undefined || line.step === undefined) continue;
+    if ('gap' in line || line.stop === undefined || line.step === undefined) continue;
     if ('loaded' in line.stop) {
       for (const file of line.stop.loaded) fileOf(file).loadedAt ??= line.step;
       continue;
@@ -91,14 +98,16 @@ export function overview(lines: readonly Line[]): FileVisits[] {
     const declarations = fileOf(file).declarations;
     const key = `${name}\0${startLine}\0${endLine}`;
     const known = declarations.get(key);
+    const head = line.heads.at(-1);
+    const passes = head === undefined ? 1 : (lines[head] as Line).times ?? 1;
     if (known === undefined) {
       declarations.set(key, {
         name, kind, ...(startLine === undefined ? {} : { startLine }), ...(endLine === undefined ? {} : { endLine }),
-        steps: [line.step], looped: line.depth > 0,
+        steps: [line.step], passes: [passes],
       });
     } else {
       known.steps.push(line.step);
-      if (line.depth > 0) declarations.set(key, { ...known, looped: true });
+      known.passes.push(passes);
     }
   }
   return [...files].map(([file, { loadedAt, declarations }]) => ({
@@ -122,6 +131,15 @@ export function window(lines: readonly Line[], pick: (line: Line) => boolean, re
     }
   });
   const shown: (Line | Gap)[] = [];
+  const spans = [...kept].flatMap((index) => { const span = lines[index]!.span; return span === undefined ? [] : [span]; });
+  // Left out steps are split where a loop the window shows begins or ends, so no gap reads as half inside one.
+  const leaveOut = (from: number, to: number) => {
+    const cuts = spans.flatMap(([first, final]) => [first - 1, final]).filter((cut) => cut >= from && cut < to).sort((a, b) => a - b);
+    for (const [start, end] of [...new Set(cuts), to].map((cut, at, all) => [at === 0 ? from : all[at - 1]! + 1, cut] as const)) {
+      if (start > end) continue;
+      shown.push({ gap: [start, end], depth: spans.filter(([first, final]) => first <= start && end <= final).length });
+    }
+  };
   // A head is always kept with the lines inside it, so each line's heads are renumbered into what is shown.
   const moved = new Map<number, number>();
   let last = 0;
@@ -130,13 +148,13 @@ export function window(lines: readonly Line[], pick: (line: Line) => boolean, re
     // A loop's head stands where its first pass begins, so the steps left out
     // before that pass are left out before the head.
     const next = line.step ?? lines[stops.find((stop) => stop > index)!]!.step!;
-    if (next > last + 1) shown.push({ gap: [last + 1, next - 1] });
+    if (next > last + 1) leaveOut(last + 1, next - 1);
     last = Math.max(last, line.step ?? next - 1);
     moved.set(index, shown.length);
     shown.push({ ...line, heads: line.heads.map((head) => moved.get(head)!) });
   }
   const end = stops.length;
-  if (shown.length > 0 && last < end) shown.push({ gap: [last + 1, end] });
+  if (shown.length > 0 && last < end) leaveOut(last + 1, end);
   return shown;
 }
 

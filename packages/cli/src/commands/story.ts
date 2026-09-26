@@ -24,7 +24,6 @@ import {
   listStories,
   readRoute,
   STORY_VARIABLE,
-  type Arm,
   type Place,
   type Route,
   type StoryEntry,
@@ -34,6 +33,7 @@ import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { BUDGET, drawings, pick, type Drawing, type FileSteps, type PackageVisits, type Through } from './story-levels.js';
+import { armTree } from './story-tree.js';
 import { inFile, numbered, window, type FileVisits, type Gap, type Line } from './story-view.js';
 
 /** One route and how much of it to read, or the stories to choose from when the flags name more than one. */
@@ -79,6 +79,8 @@ interface Part {
   readonly open: ReadonlySet<string>;
   /** What `--in` asked for, to say so when the case goes through none of it. */
   readonly asked?: string;
+  /** Which steps the part keeps, said above them, so a step outside what was asked is not read as a filter ignored. */
+  readonly kept?: string;
 }
 
 function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: (file: string) => string | undefined, own: string | undefined): Part {
@@ -94,11 +96,12 @@ function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: 
         if (home !== undefined && (home === zoom.in || file.includes(zoom.in))) open.add(home);
       }
     }
-    return { lines: window(lines, chosen, 1), open, asked: `package or file matching \`${zoom.in}\`` };
+    const asked = `package or file matching \`${zoom.in}\``;
+    return { lines: window(lines, chosen, 1), open, asked, kept: `the steps through the ${asked}, and the step either side of each run of them` };
   }
   const steps = lines.filter((line) => line.step !== undefined).length;
   if (zoom.around > steps) throw new OperatorError(`--around ${zoom.around} is past the end: this route has ${steps} steps`);
-  return { lines: window(lines, (line) => line.step === zoom.around, AROUND), open };
+  return { lines: window(lines, (line) => line.step === zoom.around, AROUND), open, kept: `the ${AROUND} steps either side of step ${zoom.around}, and the loops they sit in` };
 }
 
 /** Steps shown either side of the one `--around` names. */
@@ -122,15 +125,19 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const part = partOf(lines, answer.zoom, packageOf, own);
   const drawn = drawings(part.lines, packageOf, part.open);
   const width = String(steps).length;
-  const texts = drawn.map((drawing) => drawingText(drawing, route.before.length > 0, width, route.untaken));
-  const chosen = pick(texts.map((text) => text.length), answer.zoom !== undefined && 'whole' in answer.zoom);
+  const starts = armStarts(lines, route.untaken);
+  const texts = drawn.map((drawing) => drawingText(drawing, route.before.length > 0, width, route.untaken, starts));
+  const chosen = pick(texts.map(size), answer.zoom !== undefined && 'whole' in answer.zoom);
   const reading = drawn[chosen]!;
-  const finer = chosen + 1 < drawn.length ? { level: drawn[chosen + 1]!.level, lines: texts[chosen + 1]!.length } : undefined;
+  const finer = chosen + 1 < drawn.length ? { level: drawn[chosen + 1]!.level, characters: size(texts[chosen + 1]!) } : undefined;
   if (format === 'json') {
     const { before: _before, route: _route, untaken: _untaken, ...head } = route;
-    const never = 'lines' in reading ? nevers(reading.lines, route.untaken) : new Map();
-    const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map((line) => lineJson(line, never)) } : reading;
-    return `${JSON.stringify({ ...head, ...(own === undefined ? {} : { package: own }), steps, reading: shown, ...(finer === undefined ? {} : { finer }) }, null, 2)}\n`;
+    const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map(lineJson) } : reading;
+    const never = 'lines' in reading ? drawnUntaken(reading.lines, route.untaken) : [];
+    return `${JSON.stringify({
+      ...head, ...(own === undefined ? {} : { package: own }), steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
+      ...(finer === undefined ? {} : { finer }),
+    }, null, 2)}\n`;
   }
   const text = header(route, steps);
   if (steps === 0) text.push('', '  the case reached no instrumented code');
@@ -138,15 +145,26 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   else {
     if (finer !== undefined) {
       text.push(
-        `  drawn by ${reading.level}: by ${finer.level} it is ${finer.lines} lines, over the ${BUDGET} a reading is held to;`,
+        `  drawn by ${reading.level}, because by ${finer.level} it would be ${finer.characters} characters, over the ${BUDGET} a reading is held to;`,
         '  narrow it with --in <package or file> or --around <step>, or read every step with --whole',
       );
     }
+    if (part.kept !== undefined) text.push(`  ${part.kept}`);
     if (reading.level === 'steps') {
       text.push(`  passed through ${listed(reading.passed)}, a line for each run of steps; open one with --in <package>`);
     }
-    if ('lines' in reading && nevers(reading.lines, route.untaken).size > 0) {
-      text.push('  `never` names what a declaration holds that the case went into nowhere, before the case or during it');
+    if (reading.level === 'declarations') {
+      text.push('  key  step   entering a declaration or coming back to it; 39×6 is step 39, which came round 6 times');
+    }
+    if ('lines' in reading) {
+      text.push(
+        '  key  step   one declaration, from entering or coming back to it until the case goes on to another',
+        '       ×N     beside a declaration, times it was entered at that step; beside an arm or a loop, times it ran',
+        '              there; under `steps a-b ran N times`, every pass of them is added',
+        '       ✗      an arm the case never took, or a loop whose body never ran',
+        '       ↑      an arm or a loop body entered at an earlier step, which this step runs inside',
+        '       in 255 then:  inside the `then` arm of the `if` on line 255',
+      );
     }
     text.push(...texts[chosen]!);
   }
@@ -154,15 +172,20 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
 }
 
 /** A drawing as the lines of text it reads as, blank line first. */
-function drawingText(drawing: Drawing, sections: boolean, width: number, untaken: readonly Untaken[]): string[] {
+function drawingText(drawing: Drawing, sections: boolean, width: number, untaken: readonly Untaken[], starts: Starts): string[] {
   const text: string[] = [];
   switch (drawing.level) {
     case 'packages': packagesText(drawing.packages, text); break;
     case 'files': filesText(drawing.files, text); break;
     case 'declarations': overviewText(drawing.visits, text); break;
-    default: linesText(drawing.lines, sections, width, nevers(drawing.lines, untaken), text);
+    default: linesText(drawing.lines, sections, width, untaken, starts, text);
   }
   return text;
+}
+
+/** How long a reading is, in characters. */
+function size(text: readonly string[]): number {
+  return text.reduce((sum, line) => sum + line.length + 1, 0);
 }
 
 function header(route: Route, steps: number): string[] {
@@ -212,7 +235,7 @@ function overviewText(files: readonly FileVisits[], text: string[]): void {
     for (const visit of file.declarations) {
       const where = lineRange(visit);
       const name = where === '' ? '(the file alone)' : `${where}  ${declaration(visit)}`;
-      text.push(`    ${name}  ${stepList(visit.steps)}${visit.looped ? ', in a loop' : ''}`);
+      text.push(`    ${name}  ${stepList(visit.steps, visit.passes)}`);
     }
   }
 }
@@ -221,19 +244,20 @@ function linesText(
   lines: readonly (Line | Gap | Through)[],
   sections: boolean,
   width: number,
-  never: ReadonlyMap<Line, readonly Unentered[]>,
+  untaken: readonly Untaken[],
+  starts: Starts,
   text: string[],
 ): void {
-  text.push('');
+  const names = shortNames(lines);
+  const never = new Map(untaken.map(({ place: at, arms }) => [`${at.file}\0${at.name}`, arms]));
+  text.push('', ...filesIn(names), '');
   let before: boolean | undefined;
   const blank = ' '.repeat(width);
-  lines.forEach((line, at) => {
+  lines.forEach((line) => {
     if ('gap' in line) {
-      // At the depth of what follows, so a gap inside a loop reads as inside it.
-      const next = lines[at + 1];
-      const indent = '  '.repeat(next === undefined || 'gap' in next ? 0 : next.depth);
+      const indent = '  '.repeat(line.depth);
       const [from, to] = line.gap;
-      text.push(`  ${blank}  ${indent}… ${from === to ? `step ${from}` : `steps ${from}-${to}`}`);
+      text.push(`  ${blank}  ${indent}… ${from === to ? `step ${from}` : `steps ${from}-${to}`} left out`);
       return;
     }
     if (sections && line.before !== before) text.push(line.before ? '  before the case' : '  the case');
@@ -244,50 +268,91 @@ function linesText(
       text.push(`  ${String(from).padStart(width)}  ${indent}through ${line.through}, steps ${from}-${to}: ${named(line.names)}`);
       return;
     }
-    const number = line.step === undefined ? blank : String(line.step).padStart(width);
     const stop = line.stop;
-    const body = stop === undefined ? `repeats${count(line.times ?? 0)}` : 'loaded' in stop ? loaded(stop.loaded) : place(stop.place, stop.entered, stop.arms, never.get(line) ?? []);
-    text.push(`  ${number}  ${indent}${body}`);
+    if (stop === undefined) {
+      const [from, to] = line.span ?? [0, 0];
+      const steps = from === to ? `step ${from}` : `steps ${from}-${to}`;
+      text.push(`  ${blank}  ${indent}${steps} ran ${line.times ?? 0} times in all:`);
+      return;
+    }
+    const number = String(line.step).padStart(width);
+    if ('loaded' in stop) {
+      text.push(`  ${number}  ${indent}${loaded(stop.loaded.map((file) => names.get(file) ?? file))}`);
+      return;
+    }
+    text.push(`  ${number}  ${indent}${placeText(stop.place, stop.entered, names)}`);
+    const key = `${stop.place.file}\0${stop.place.name}`;
+    const tree = armTree(stop.arms, never.get(key) ?? [], starts.get(key) ?? new Map());
+    for (const branch of tree) text.push(`  ${blank}  ${indent}  ${branch}`);
   });
 }
 
-function lineJson(line: Line | Gap | Through, never: ReadonlyMap<Line, readonly Unentered[]>): unknown {
-  if ('gap' in line || 'through' in line) return line;
-  const { step, depth, before, stop, times } = line;
-  const arms = never.get(line);
-  return stop === undefined ? { repeats: times, depth, before } : { step, depth, before, ...stop, ...(arms === undefined ? {} : { never: arms }) };
+/** The line each arm of each declaration starts on, from every step on the route that took it and every arm it never took. */
+type Starts = ReadonlyMap<string, ReadonlyMap<string, number>>;
+
+function armStarts(lines: readonly Line[], untaken: readonly Untaken[]): Starts {
+  const starts = new Map<string, Map<string, number>>();
+  const add = (at: Place, arms: readonly { readonly path: string; readonly startLine?: number }[]) => {
+    const key = `${at.file}\0${at.name}`;
+    const known = starts.get(key) ?? starts.set(key, new Map()).get(key)!;
+    for (const arm of arms) if (arm.startLine !== undefined) known.set(arm.path, arm.startLine);
+  };
+  for (const { stop } of lines) if (stop !== undefined && 'place' in stop) add(stop.place, stop.arms);
+  for (const { place: at, arms } of untaken) add(at, arms);
+  return starts;
 }
 
-type Unentered = Untaken['arms'][number];
+function lineJson(line: Line | Gap | Through): unknown {
+  if ('gap' in line || 'through' in line) return line;
+  const { step, depth, before, stop, times, span } = line;
+  return stop === undefined ? { repeats: times, steps: span, depth, before } : { step, depth, before, ...stop };
+}
+
+/** What the declarations a drawing draws never went into: the route carries it once, and so does the reading. */
+function drawnUntaken(lines: readonly (Line | Gap | Through)[], untaken: readonly Untaken[]): Untaken[] {
+  const drawn = new Set(lines.flatMap((line) =>
+    'gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop ? [] : [`${line.stop.place.file}\0${line.stop.place.name}`]));
+  return untaken.filter(({ place: at }) => drawn.has(`${at.file}\0${at.name}`));
+}
 
 /**
- * The arms each declaration never went into, on the first line a drawing draws
- * it at: once is enough to know it, and a coarser drawing does not draw them.
+ * Each file a drawing names, by its shortest trailing part that no other file
+ * there shares: a basename, and a directory more when two basenames collide.
  */
-function nevers(lines: readonly (Line | Gap | Through)[], untaken: readonly Untaken[]): Map<Line, readonly Unentered[]> {
-  const left = new Map(untaken.map(({ place: at, arms }) => [`${at.file}\0${at.name}`, arms]));
-  const out = new Map<Line, readonly Unentered[]>();
+function shortNames(lines: readonly (Line | Gap | Through)[]): Map<string, string> {
+  const files = new Set<string>();
   for (const line of lines) {
-    if ('gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop) continue;
-    const key = `${line.stop.place.file}\0${line.stop.place.name}`;
-    const arms = left.get(key);
-    if (arms === undefined) continue;
-    out.set(line, arms);
-    left.delete(key);
+    if ('gap' in line || 'through' in line || line.stop === undefined) continue;
+    if ('loaded' in line.stop) for (const file of line.stop.loaded) files.add(file);
+    else files.add(line.stop.place.file);
   }
-  return out;
+  const names = new Map<string, string>();
+  for (const file of files) {
+    const parts = file.split('/');
+    let take = 1;
+    while (take < parts.length && [...files].some((other) => other !== file && other.endsWith(`/${parts.slice(-take).join('/')}`))) take += 1;
+    names.set(file, parts.slice(-take).join('/'));
+  }
+  return names;
 }
 
-/** A declaration, how many times it was entered when more than once, the arms it went into, and those it never did. */
-function place(place: Place, entered: number, arms: readonly Arm[], never: readonly Unentered[]): string {
+/** The files a drawing names, grouped by the directory their short names leave off: `in packages/core/src: hash.ts, merkle.ts`. */
+function filesIn(names: ReadonlyMap<string, string>): string[] {
+  const directories = new Map<string, string[]>();
+  for (const [file, name] of names) {
+    const directory = file.slice(0, file.length - name.length).replace(/\/$/, '') || '.';
+    (directories.get(directory) ?? directories.set(directory, []).get(directory)!).push(name);
+  }
+  const width = Math.max(...[...directories.keys()].map((directory) => directory.length));
+  return [...directories].map(([directory, files], at) =>
+    `  ${at === 0 ? 'in' : '  '} ${`${directory}:`.padEnd(width + 1)} ${files.join(', ')}`);
+}
+
+/** A declaration by name, then where it is, and how many times it was entered when more than once. */
+function placeText(place: Place, entered: number, names: ReadonlyMap<string, string>): string {
+  const file = names.get(place.file) ?? place.file;
   const where = lineRange(place);
-  const at = where === '' ? place.file : `${place.file}:${where}  ${declaration(place)}`;
-  const inside = arms.map((arm) => `${armText(arm)}${count(arm.times)}`);
-  return `${at}${count(entered)}${inside.length === 0 ? '' : `  ${inside.join(', ')}`}${never.length === 0 ? '' : `  never ${never.map(armText).join(', ')}`}`;
-}
-
-function armText(arm: Unentered): string {
-  return `${arm.path}${arm.startLine === undefined ? '' : ` ${lineRange(arm)}`}`;
+  return where === '' ? `${file}${count(entered)}` : `${declaration(place)}  ${file}:${where}${count(entered)}`;
 }
 
 /** `×N` for a count over one; nothing for once. */
@@ -305,22 +370,27 @@ function declaration({ name, kind }: { readonly name: string; readonly kind: Pla
   return kind === 'function' || kind === 'module' ? named : `${named}  ${kind}`;
 }
 
-/** Runs of steps shown for one place before the rest are counted. */
+/** Runs of steps a package or a file lists before the rest are counted; a declaration lists every one. */
 const LISTED = 6;
 
-/** Steps in order, consecutive ones as a range: `steps 3-5, 9, 12-14`. */
-function stepList(steps: readonly number[]): string {
-  if (steps.length === 1) return `step ${steps[0]}`;
-  const runs: [number, number][] = [];
-  for (const step of steps) {
+/**
+ * Steps in order, consecutive ones as a range: `steps 3-5, 9, 12-14`. With
+ * `passes`, a step inside a repeat carries how many times it went round,
+ * `39×6`, and every step is listed.
+ */
+function stepList(steps: readonly number[], passes?: readonly number[]): string {
+  if (steps.length === 1) return `step ${steps[0]}${passes === undefined ? '' : count(passes[0]!).trim()}`;
+  const runs: [number, number, number][] = [];
+  steps.forEach((step, at) => {
+    const times = passes?.[at] ?? 1;
     const last = runs.at(-1);
-    if (last !== undefined && step === last[1] + 1) last[1] = step;
-    else runs.push([step, step]);
-  }
-  const shown = runs.slice(0, LISTED);
+    if (last !== undefined && step === last[1] + 1 && times === last[2]) last[1] = step;
+    else runs.push([step, step, times]);
+  });
+  const shown = passes === undefined ? runs.slice(0, LISTED) : runs;
   const rest = steps.length - shown.reduce((sum, [from, to]) => sum + to - from + 1, 0);
-  const listed = shown.map(([from, to]) => (from === to ? `${from}` : `${from}-${to}`)).join(', ');
-  return `steps ${listed}${rest > 0 ? `, and ${rest} more` : ''}`;
+  const listed = shown.map(([from, to, times]) => `${from === to ? from : `${from}-${to}`}${count(times).trim()}`).join(', ');
+  return `steps ${listed}${rest > 0 ? `, and ${rest} more steps` : ''}`;
 }
 
 const SHOWN = 3;

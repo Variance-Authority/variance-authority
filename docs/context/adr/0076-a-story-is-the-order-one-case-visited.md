@@ -1,7 +1,7 @@
 # ADR-0076 — A story is the order one case visited, taped beside the record
 
 **Status:** accepted
-**Date:** 2026-09-26 (arms, counts, the picked level and the arms never taken added the same day)
+**Date:** 2026-09-26 (arms, counts, the picked level, the arms never taken and the arms drawn as a tree added the same day)
 **Narrows:** ADR-0056 (a journey is the places visited)
 **Relates to:** ADR-0002 (absent is not empty), ADR-0069 (every answer has an
 owner), [spec 0071](../../specs/0071-a-test-is-read-alone.md)
@@ -50,19 +50,27 @@ never read by anything that selects or compares.**
    went round, and its passes fold even when they took different arms, their
    counts added. What each declaration on the route holds and the case went
    into nowhere is carried once, for the route: it is the region inventory
-   less the tape, so the reader computes it where it holds both, and it is
-   drawn only at the levels that draw steps, on the first step the declaration
-   is at. It names where a case visited code without protecting it, which the
-   arms taken cannot: a guard that never fired leaves no visit. The map is not the territory: the route answers *which parts of
-   the system does this case go through, in what order, and down which arms*, and
-   a debugger answers the rest.
+   less the tape, so the reader computes it where it holds both. It names where
+   a case visited code without protecting it, which the arms taken cannot: a
+   guard that never fired leaves no visit. At the levels that draw steps, a
+   step's arms are drawn as the code nests them — one line per `if`, loop,
+   `switch`, `try` or `await`, named by its line, its arms side by side with
+   their counts and an arm taken nowhere as `✗` beside them — rather than as
+   region paths. A path spells its whole nesting, `for#0/body/while#0/body/…`,
+   so a list of them is mostly repeated prefix, and a clean-room reader could
+   not tell which `if` an arm belonged to or which arms were a pair. The map
+   is not the territory: the route answers *which parts of the system does this
+   case go through, in what order, and down which arms*, and a debugger answers
+   the rest.
 4. **The route is read a part at a time, at a level picked from its size.** A
    long case is hundreds of stops, and the reader — an agent's context most of
    all — needs a page, not a tape. So stops are numbered as steps, and one part
    of a route is drawn at up to five levels: packages, files, declarations,
    steps with other workspace packages passed through, every step. The reading
-   is the finest level that fits in sixty lines, it names the level and the size
-   of the next one down, and `--in`, `--around` and `--whole` narrow the part,
+   is the finest level that fits in 5,000 characters — characters, because a
+   step drawn with its arms is several lines and a line of a list is one, and
+   what a reader pays for is the text — it names the level and the size of the
+   next one down, and `--in`, `--around` and `--whole` narrow the part,
    which picks again inside it. A package is the nearest `package.json` above a
    file; steps in a row inside a package that is neither the test's own nor one
    `--in` named are one line naming the package, the steps and the declarations.

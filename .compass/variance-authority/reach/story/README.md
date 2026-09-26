@@ -18,8 +18,9 @@ In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit; and, to name what was visited, the
 region inventory the record beside it holds. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
-declarations with the arms taken in each and, when steps are drawn, the arms
-each never went into, modules loaded along the way as one
+declarations with, when steps are drawn, the branches and loops each went
+through drawn as the code nests them, every arm counted and an arm the case took
+nowhere marked beside the ones it took, modules loaded along the way as one
 step, a loop drawn once with how many times it went round — drawn by packages,
 files, declarations, steps or every step, whichever is the finest that fits.
 
@@ -76,6 +77,8 @@ by guess.
   JSON
 - `packages/cli/src/commands/story-view.ts` — the numbered route, the overview,
   and the windows through one file or package or around one step
+- `packages/cli/src/commands/story-tree.ts` — a step's arms drawn as the code
+  nests them, from the region paths
 - `packages/cli/src/commands/story-levels.ts` — the levels a part is drawn at,
   the one picked, and the packages passed through
 - `packages/cli/src/package-home.ts` — the package a file is in, from the
