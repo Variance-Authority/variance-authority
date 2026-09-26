@@ -34,7 +34,7 @@ suite's own recording, and comments on the pull request under a marker of its
 own, so it never overwrites the gate's comment.
 
 Here, the gate runs on every pull request and on every push to `main`, the sweep
-nightly, and the shards on demand only — sharding twelve subjects across three
+nightly, and the shards on demand only — sharding fourteen subjects across three
 installs saves nothing, and the shards find their pull-request comment by the
 same hidden HTML marker the gate uses, so on the same event the two would
 overwrite each other.

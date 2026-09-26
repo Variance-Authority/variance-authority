@@ -212,6 +212,41 @@ export const Composed = {
 };
 
 /**
+ * Read at two widths because the story says so, not because the run config does.
+ *
+ * The index carries no parameters, so the only way this story becomes two
+ * subjects is the collector asking the running preview what the story declared.
+ * Laid out padded rather than centred, so the card is as wide as the page and
+ * each width paints a different image. No `Button` inside, so the `wide-button`
+ * build leaves both widths unchanged and the changed-subject list stays about
+ * the edit.
+ */
+export const ReceiptAtTwoWidths = {
+  name: 'Card — receipt at two widths',
+  parameters: { layout: 'padded', variance: { widths: [375, 800] } },
+  render: () => (
+    <Tokens>
+      <Card title="Receipt">
+        <span>Paid in full</span>
+      </Card>
+    </Tokens>
+  ),
+};
+
+/** Asks not to be read, in its own parameters, and is reported as excluded rather than dropped. */
+export const ReceiptNotRead = {
+  name: 'Card — receipt not read',
+  parameters: { variance: { exclude: true } },
+  render: () => (
+    <Tokens>
+      <Card title="Receipt">
+        <span>Refunded</span>
+      </Card>
+    </Tokens>
+  ),
+};
+
+/**
  * The story that changes what the stories after it mean.
  *
  * Everything above is a subject. This one is a *cause*: it appends a rule to
@@ -223,7 +258,7 @@ export const Composed = {
  * `tags: ['no-variance']` keeps it out of the run, and `excludeTags` in
  * `variance.config.json` is what honours the tag. Recording a baseline for it
  * would be recording a baseline for the act of contaminating the page, and the
- * twelve subjects the case reports stay twelve.
+ * fourteen subjects the case reports stay fourteen.
  *
  * `src/alone.chromium.test.js` is the file that uses it, by collecting a second
  * story before and after this one runs.
@@ -278,7 +313,7 @@ export const LeaksASheet = {
  *
  * `src/finish.chromium.test.js` is the file that uses it. `no-variance` keeps it
  * out of the run: it is a subject about the driver, not about a component, and
- * the case still reports twelve.
+ * the case still reports fourteen.
  */
 export const FinishesLate = {
   name: 'Button — busy after render',
