@@ -167,7 +167,7 @@ run of characters outside `A-Z`, `a-z`, `0-9`, `.`, `_` and `-` becomes one `-`,
 and leading and trailing `-` and `.` are removed. An empty part is dropped, and
 a name with nothing left is `unnamed`. Case is kept.
 
-- **Two names that fold to one are one line.** `feat/cart page` and
+- **Two names that fold to one are one line.** `feat/cart+page` and
   `feat/cart-page` both write `branch/feat/cart-page`, and the last publish
   replaces the other's entries. A reader on either branch reads the record and
   is told it is *another run of* its branch when its `HEAD` does not contain the
@@ -256,7 +256,7 @@ environment, and reads each pair whole:
 | Bitbucket Pipelines | `BITBUCKET_BUILD_NUMBER` | `BITBUCKET_COMMIT` |
 
 Anywhere else, pass both `--run <id>` and `--commit <sha>` to `variance run`.
-`--commit` without `--run` names no commit. A run report that names no commit
+`--commit` is read only together with `--run`. A run report that names no commit
 publishes nothing and prints `nothing published: this report names no commit.`
 A run report with no composition section prints the same line.
 
@@ -359,7 +359,6 @@ each reason needs a different action:
 | The message says | What to do |
 | --- | --- |
 | `nothing is published there` | publish from a push to that mainline |
-| `it holds only report-v1` | the line has entries, but not the one asked for: check what the config CI publishes with sets |
 | `it holds suite-index-v2, a format this version does not read` | upgrade the CLI |
 | `no share is configured` | add a `share` section |
 | `nothing answered from config, remote-head, event` | set `share.mainlines`, or run `git remote set-head origin --auto` |
@@ -385,9 +384,9 @@ is:
    run report this process cannot open is still yours, and the error says why.
 2. **Your branch's line.** The branch is `GITHUB_HEAD_REF` on a pull request,
    `GITHUB_REF_NAME` on a GitHub Actions branch run, or your checkout's branch.
-   It is not asked on a mainline, on a detached checkout, or on a pull request
-   from a fork, because a branch line of the same name is a branch of the base
-   repository.
+   It is not asked on a mainline or on a detached checkout. On a pull request
+   from a fork it is not asked either, because a branch line of that name
+   belongs to a branch of the base repository.
 3. **The mainline your checkout is measured against**, chosen as in [Looking
    up](#looking-up-mainlines-record).
 
@@ -411,10 +410,11 @@ when there is one:
   run before a rebase, a colleague's run of the same branch, or a branch whose
   name folds to the same line. It still answers.
 - **`which this clone does not hold: read as another run of feat/cart, not this
-  checkout's`** — your clone does not have the commit, so it cannot tell.
+  checkout's`** — your clone does not have the commit, and the answer is read as
+  another run of the branch.
 
-From the mainline, with the [distance](#looking-up-mainlines-record) a lookup
-prints. When your branch line was asked and did not answer, the reason follows
+An answer from the mainline gives the [distance](#looking-up-mainlines-record)
+a lookup prints. When your branch line was asked and did not answer, the reason follows
 on its own line, because a refused credential there is something to fix:
 
 ```text
@@ -459,6 +459,9 @@ there is no run report at /work/web/.variance/report.json, which is where `repor
   mainline main: it holds only suite-index-v1
 ```
 
+*it holds only suite-index-v1* means CI publishes to that line without
+`report.carry` set to `"share"`.
+
 Without a `share` section, the same message ends with *`variance run` writes it
 there, and no share is configured to read CI's from*.
 
@@ -495,11 +498,12 @@ was published at, is not used, and the note says why. When no record is read,
 **A share never fails a run.** `variance run` does not read or write the share,
 so nothing a run decides depends on it.
 
-**`variance share` exits 0 on every miss**, for a lookup and for a publish, and
-prints which one it met:
+A **miss** is a lookup or a publish the share did not complete.
+**`variance share` exits 0 on every miss**, and prints which one it met:
 
 - a store that did not answer, or timed out;
-- a credential or a request the store refused;
+- a request the store refused, such as a rejected credential or a file it may
+  not write;
 - a token variable that is not set, or is empty;
 - an entry in a format this version does not read;
 - bytes that do not decode;
@@ -572,7 +576,7 @@ name. Every kind takes `mainlines` and `remote`. There are three kinds.
   the `http.extraheader` your clone has for that remote, which is where
   `actions/checkout` writes its token. A credential helper set only in your
   clone's `.git/config` is not used. Git never prompts, and each git command
-  has 60 s.
+  is stopped after 60 s.
 - **A lookup reuses a fetched line for 60 s**, so ten lookups in a minute fetch
   once.
 - **A missing remote, or a name git cannot make a ref of, is a miss.** A clone
