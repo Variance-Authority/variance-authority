@@ -7,10 +7,10 @@ report, no images and no coverage record, the answer is *nothing here*, even
 though CI derived all three minutes ago.
 **Built on:** `SharedCache` and `shareKey` in `packages/core/src/share/index.ts`,
 the `directory` and `http` share kinds in `packages/cli/src/config-share.ts`,
-the image ref `refs/variance/<branch>` that the composite action pushes, and the
-local cache layers `yarn test:since` already reads over a recording made at
-another commit. ADR-0077 decides that placement is declared per artifact in the
-config, and it cites this spec for the git carrier.
+the mainline lookup in `packages/cli/src/commands/share.ts`, and the image ref
+that the composite action pushes and the `images-cleanup` job deletes. ADR-0077
+decides that placement is declared per artifact in the config, and it cites
+this spec for the share's layout.
 
 ## Purpose
 
@@ -26,100 +26,150 @@ falls short in its own way:
 A checkout does not need history. Work branches off a mainline and is brought up
 to date with it before it merges: that is what a merge queue, a required
 up-to-date branch or a rebase is for. So the question a checkout asks is never
-*what was mainline at the commit I left from*. It is *what is mainline now*,
-plus the local difference, which the cache layers already answer. We store the
-latest, and we rely on engineers keeping their branches current.
+*what was mainline at the commit I left from*. It is *what is mainline now*, and
+how far this checkout is from it. We store the latest, and we rely on engineers
+keeping their branches current.
 
 ## What would discharge it
 
-**1. One record per mainline, the latest one.** `share.mainline` names one
-mainline or a few, such as `main` and a release branch. Each has a store at
-`refs/variance/<mainline>` holding what the newest published run on that
-mainline derived, and nothing older. There is no window, no delta and no lookup
-along a lineage. A branch reads the mainline it left from, the one with the
-nearest merge base. The share kind is `{ "kind": "git" }`, and `namespace`
-changes the prefix for a repository that already uses `refs/variance/`.
+**1. One record per mainline, the latest one.** `share.mainlines` lists branch
+names in order of priority, such as `["main", "release/2.0"]`, on the remote
+`share.remote` names, `origin` by default. It replaces `share.mainline`, which
+named one ref whose lineage a lookup walked, and `share.depth`, which bounded
+that walk. Both are deleted, not aliased, and the lineage lookup goes with them
+for every share kind. A reader takes the mainline that a pull request names as
+its base when it knows one. Otherwise it takes the one with the nearest merge
+base, and a tie goes to the first listed.
 
-**2. A publish replaces, and never goes backwards.** Every publish writes one
-parentless commit and force-pushes it with a lease. It replaces the held record
-only when the run's commit descends from the held record's commit, so a slow
-run of an older commit cannot overwrite a newer one. A publish that loses the
-lease reads the ref again and decides again, once. Nothing sits under
+**2. One layout, whatever the carrier.** Every share kind holds the same paths:
+
+- `mainline/<name>/`, the latest record of each mainline;
+- `branch/<name>/`, the latest run of each branch;
+- `images/<digest>`, every image any record names.
+
+Under the `git` kind, `{ "kind": "git" }`, the two record prefixes are refs,
+`refs/variance/mainline/<name>` and `refs/variance/branch/<name>`, and each
+ref's tree holds that record and the images it names. The cleanup job deletes
+under `branch/` only, so a pull request from a release branch into `main`
+cannot remove the release record. `namespace` moves the whole prefix for a
+repository that already uses `refs/variance/`. Nothing sits under
 `refs/heads/`, so a clone does not fetch these refs and the branch list does
 not show them.
 
-**3. Metadata and images follow different rules.**
+**3. A record is entries, and each entry names its commit.** A record holds the
+run report and its verdict, and one entry per carried suite, each with its
+record and names table. The names are repo-relative already. Each entry is
+versioned, `report-v1` and `suite-v1`, and names the commit it was derived at.
+For a pull request that commit is the merge commit CI ran on, and the head
+commit the pull request pointed at is recorded beside it. No entry contains the
+digest that keys a local cache layer, because that digest is of one machine's
+absolute path. The entry's format decides its size, and the carrier compresses
+nothing.
 
-- **Metadata** is one bundle per publish: the run report, the verdict it
-  reached, the coverage record with paths rewritten repo-relative at publish,
-  and its names table. Its artifact name carries a version, `bundle-v1`. It is
-  fetched whole, because it is one record. Its size is the encoding's job, and
-  no key or blob may contain the digest that keys the local cache layer, which
-  is this machine's absolute path.
-- **Images** are already compressed, so the only savings are storing each once
-  and fetching only what is looked at. The bundle names each image by its pixel
-  digest. The images sit under that digest, beside the bundle, so one that did
-  not change costs nothing on the next publish. A reader fetches one image when
-  it opens it, into its own git directory under the cache and never through the
-  user's clone. Approved baselines stay where the review flow puts them.
+**4. Who publishes, and what may replace what.**
 
-**4. A branch's own run goes on the branch's ref.** A branch run publishes its
-bundle and its changed images to `refs/variance/<branch>` on every run, not only
-a red one, keyed by the pull request's head commit, never by the merge commit
-CI checks out. The ref is still deleted when the pull request closes. A pull
-request from a fork holds a read-only token and publishes nothing, which is a
-position: its reader still gets the mainline.
+- A mainline record is published only by a run on a push to that mainline. A
+  merge-queue run, whose branch is temporary, publishes nothing.
+- A publish replaces the entries it carries and keeps the others, so suites
+  from different jobs or runners land in one record. A matrix of shards
+  publishes once, from the job that merges the shards.
+- A mainline entry is kept only when the held entry's commit strictly descends
+  from the run's commit, which is a slow run of an older commit finishing last.
+  In every other case the entry is replaced, including after a force-push or an
+  ejected queue group. The publisher fetches the mainline's commits alone
+  (`--filter=tree:0`) to answer that. When it cannot answer, it replaces and
+  logs why.
+- A branch record is replaced on every publish, because a rebase leaves no
+  descent to test. The reader checks whether the record still belongs, as
+  item 5 says.
+- A publish builds on the held tree, fetched without blobs, and pushes with
+  `--force-with-lease=<ref>:<held commit>`. An image already there is not sent
+  again. A lost lease reads the ref again and applies the same entries again,
+  until the lease holds or a held entry is newer.
+- `variance` publishes, and the action calls it. The pull-request comment links
+  images at their digest paths in the branch ref's commit.
+- A pull request from a fork holds a read-only token and publishes nothing.
+  Its reader still gets the mainline.
 
-**5. A reader says what it read, against what.** When a command finds no local
-report, it fetches the branch's ref, then the mainline's, before it answers
-*nothing here*. This covers `variance ask`, the report-reading MCP tools, and
-`variance serve`: they ask what CI found on this branch. A command that reads a
-**base** reads the mainline's ref and never the branch's. That covers `variance
-review`, `variance select` and a run with `--since`. A base taken from the
-branch would measure the change against itself. The branch's record stays
-readable as what ran this code on the branch, and it is never a base. A hit names its commit, and where that commit sits relative to
-the checkout: the branch head itself, or so many commits before or after the
-merge base. The local difference is read the way the cache layers read it
-today. A bundle far from the merge base is still an answer, and the distance is
-the instruction to update the branch. A miss says which of these it is, because
-they need different actions:
+**5. A reader says what it read, against what.** Every reader fetches from the
+remote that hosts the mainlines, into its own git directory under the cache,
+never through the user's clone. A fetched record goes into a read layer of its
+own, beneath anything this checkout recorded, and never over `config.report`.
+Fetches run without a terminal prompt and under a timeout. A fetched ref is
+reused for a short while, so one editor session asking ten questions fetches
+once.
 
-- nothing published on that ref;
-- a bundle in a newer format, so upgrade the CLI;
-- no credentials for the store;
-- no merge base with any mainline, as in a shallow clone.
+- **What CI found here:** `variance ask`, the report-reading MCP tools,
+  `variance serve` and the editors. With no local report, they read the branch
+  record, then the mainline record. A branch record whose commit `HEAD` does not
+  contain is reported as another branch's run, or an earlier version of this
+  branch, with its commit. It is never reported as this checkout's run.
+- **A base:** `variance review`, `variance select` and a run with `--since`.
+  They read the mainline record and never the branch's. A base taken from the
+  branch would measure the change against itself. A local recording still wins
+  over the fetched one, and the answer names which of the two it read.
 
-**6. `tribunal` serves the same records.** `GET` and `PUT /share/<key>` on the
-worker, for the bundle of each mainline and branch and for images by digest,
-backed by the bucket it already owns. An `http` share pointed at a deployment
-then works unchanged. The ingest token writes. A read-only share token, read
-from the environment, reads. The review token grants approval and is not the
-key to reading.
+A hit names its commit and how many commits separate it from `HEAD`'s merge
+base with that mainline. A shallow clone that cannot count leaves the distance
+absent rather than zero, and still answers. A large distance is the
+instruction to update the branch. An image is fetched when it is opened: the
+tree names its blob, and a partial fetch brings that blob alone. A miss says
+which of these it is, because each needs a different action:
 
-**7. Who can write is a stated position.** GitHub rulesets cover branches and
-tags, so nothing protects `refs/variance/*`: anyone with write access can
-replace a mainline record. The damage is bounded because selection is advisory
-off the mainline. A poisoned record costs a branch a wrong selection, and the
-mainline's own run records afresh. That position goes in `docs/placement.md`
-when this lands.
+- nothing published under that name;
+- an entry in a newer format, so upgrade the CLI;
+- refused, so check the credentials;
+- the store could not be reached, or did not answer in time.
+
+**6. The share tells a miss from a refusal, and refuses a stale write.** A
+reader of this layout needs what `SharedCache` rules out on purpose:
+
+- a `get` that says *absent*, *refused* or *unreachable* rather than `null` for
+  all three;
+- a listing, so a newer format is visible rather than absent;
+- a conditional `put`, `If-Match` on the held version, so the replacement rule
+  in item 4 holds on `http` as it does on `git`.
+
+The derivation cache keeps its never-fails wrapper. It is the reader that gains
+the distinction.
+
+**7. `tribunal` serves the same layout.** `GET`, `PUT` and a listing under
+`/share/`, backed by the bucket the worker already owns. `PUT` takes `If-Match`.
+An `http` share pointed at a deployment then works unchanged. The ingest token
+reads and writes, since a publish reads before it writes. A share token, a
+third secret beside ingest and review, only reads. The review token grants
+approval and does not open the share.
+
+**8. Who can write is a stated position.** GitHub rulesets cover branches and
+tags, so nothing protects `refs/variance/*`, and anyone with write access can
+replace a mainline record. A poisoned record costs a branch a wrong selection
+until the mainline's next publish replaces it, which item 4 lets it do. That
+position goes in `docs/placement.md` when this lands.
 
 ## Acceptance
 
-1. On a pull request under `cache`, CI goes red. Then, in a fresh clone of that
-   branch with no `.variance/`, `variance ask` names the changed subjects and the
-   head commit CI ran at.
+1. On a pull request with baselines under `cache` and a `git` share, CI goes
+   red. Then, in a fresh clone of that branch with no `.variance/`,
+   `variance ask` names the changed subjects and the head commit the pull
+   request pointed at.
 2. On a branch with no run of its own, the same command answers from the
    mainline record and says how far its commit is from the branch's merge base.
-3. After a hundred merges, each mainline ref is one commit holding one bundle,
-   and an image unchanged across all of them was pushed once.
+   In a clone with `--depth 1` it answers too, and says the distance is unknown.
+3. After a hundred merges, each mainline ref is one commit, and an image
+   unchanged across all of them was pushed once.
 4. A run of an older mainline commit that finishes last leaves the newer record
-   in place.
-5. A coverage record published by CI and fetched into a checkout at a different
+   in place. After a force-push to the mainline, the next run replaces the
+   record.
+5. Two jobs publishing different suites at one commit leave both suites in the
+   record.
+6. A pull request from `release/2.0` into `main` publishes under `branch/`, and
+   closing it leaves `mainline/release/2.0` in place.
+7. A coverage record published by CI and fetched into a checkout at a different
    absolute path selects the same tests as it does in CI.
-6. A ref holding only `bundle-v2` is reported as a newer format, not as nothing
-   published.
-7. On a branch whose own ref holds a bundle, `variance review` and `variance
+8. A record holding only `suite-v2` is reported as a newer format. A missing
+   token is reported as refused. Neither is reported as nothing published.
+9. On a branch whose own ref holds a record, `variance review` and `variance
    select` take their base from the mainline record, and say so.
-8. Pointing the same reader at a tribunal deployment returns the same bytes as
-   the git ref. It is refused without the share token, and a review token does
-   not open it.
+10. Pointing the same reader at a tribunal deployment returns the same bytes as
+    the git refs. It is refused without the share token, and a review token does
+    not open it.
