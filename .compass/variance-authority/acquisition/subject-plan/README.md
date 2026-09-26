@@ -62,7 +62,7 @@ leak is attributed to different subjects on different machines.
   parsing what a built index declares
 - `packages/cli/src/commands/collector.ts` — `planStorybook`, `planList`, `matchesGlob`
 - `packages/route-collector/src/sitemap.ts` — `locationsIn`, `discover`, `routesFromFiles`
-- `packages/route-collector/src/widths.ts` — `widthsOf`, the plan once per declared width
+- `packages/playwright/src/viewport.ts` — `widthsOf`, the plan once per declared width
 - `packages/route-collector/src/serve.ts` — `pagesIn`, a served directory as a subject list
 
 ## Diagram
