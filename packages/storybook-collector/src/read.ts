@@ -6,6 +6,7 @@ import { suspenseRefusal } from '@variance-authority/react';
 import { collectStory, harnessPage } from '@variance-authority/storybook';
 import type { StoryRecorder } from './execution.js';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
+import { storyIdOf } from './parameters.js';
 import type { StorybookCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
 import type { World } from './world.js';
@@ -57,7 +58,7 @@ export async function readStory(
 ): Promise<Collected> {
   const { config, options, baseUrl, roots, source } = reading;
   const { page, engine, network } = world;
-  const storyId = planned.subject.id.replace(/^story:/, '');
+  const storyId = storyIdOf(planned.subject.id);
 
   const viewport = planned.viewport ?? config.viewport;
   const readySelector = options.ready?.[storyId];

@@ -13,9 +13,11 @@ import {
   type ShowStatus,
 } from './preview-protocol.js';
 import { awaitFinish } from './finish-wait.js';
+import { PARAMETERS_KEY, type ParametersRead } from './parameters.js';
 import { applyGlobals } from './preview-globals.js';
 import { previewUrl } from './preview-url.js';
 import { showStory } from './show-story.js';
+import { readStoryParameters } from './story-parameters.js';
 import { beginFinishWatch } from './story-finished.js';
 
 /**
@@ -389,6 +391,18 @@ export async function collectStories(
   }
 
   return outcomes;
+}
+
+/**
+ * Every story's `parameters.variance`, from a preview that is already open.
+ *
+ * Asked once per session rather than once per story: `extract()` loads every
+ * story module, and after that the answer does not change until the build does.
+ * A preview that cannot answer returns why, and the caller decides what a run
+ * without parameters means.
+ */
+export async function readParameters(page: StoryPage): Promise<ParametersRead> {
+  return page.evaluate(readStoryParameters, PARAMETERS_KEY);
 }
 
 /**

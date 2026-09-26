@@ -40,3 +40,71 @@ export function unresizable(wanted: Viewport, run: Viewport): string | undefined
 
   return undefined;
 }
+
+/** The part of a planned subject a width list reads and rewrites. */
+export interface WidthPlanned {
+  readonly subject: { readonly id: string };
+  readonly viewport?: Viewport;
+}
+
+/**
+ * The plan, once per declared width.
+ *
+ * Beside `unresizable` because it is the other half of the same fact: a width is
+ * a resize, so one open page can read a subject at every width a run declares,
+ * and each width is its own subject — its own baseline, its own verdict, its own
+ * place in the report. Reading one page at three widths and calling it one result
+ * would hide two of the three answers behind whichever failed first.
+ *
+ * Returned unchanged when no widths are declared, which is the ordinary case and
+ * has to stay byte-identical: a suite that adds and then removes `widths` must
+ * get its original subject ids back, or every baseline it has is orphaned.
+ *
+ * A subject that already declares its own viewport keeps it. Per-subject beats
+ * per-run everywhere else in this system, and a width list is a run-level default
+ * — overriding a subject's own declaration with one would be the config quietly
+ * winning an argument the subject already had.
+ */
+export function widthsOf<S extends WidthPlanned, P extends { readonly subjects: readonly S[] }>(
+  plan: P,
+  widths: readonly number[] | undefined,
+  viewport: Viewport,
+): P {
+  if (widths === undefined || widths.length === 0) return plan;
+
+  const distinct = [...new Set(widths)].sort((left, right) => left - right);
+
+  return {
+    ...plan,
+    subjects: plan.subjects.flatMap((planned): S[] =>
+      planned.viewport !== undefined
+        ? [planned]
+        : distinct.map(
+            (width) =>
+              ({
+                ...planned,
+                subject: { ...planned.subject, id: `${planned.subject.id}@${width}` },
+                viewport: { ...viewport, width },
+              }) as S,
+          ),
+    ),
+  };
+}
+
+/**
+ * The id a widened subject was planned under.
+ *
+ * Only strips a suffix `widthsOf` could have added. A project whose own subject
+ * ids contain an `@` — `page@2x`, an email route — keeps them, because the suffix
+ * is matched against the declared width list rather than against any trailing
+ * number.
+ */
+export function unwidened(id: string, widths: readonly number[] | undefined): string {
+  if (widths === undefined) return id;
+
+  const at = id.lastIndexOf('@');
+  if (at === -1) return id;
+
+  const suffix = Number(id.slice(at + 1));
+  return widths.includes(suffix) ? id.slice(0, at) : id;
+}
