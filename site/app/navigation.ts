@@ -325,6 +325,7 @@ export const NAVIGATION = [
         href: "/agents/code-review",
         label: "Review a change against what the code did",
       },
+      { href: "/docs/test-stories", label: "Read the route one test takes" },
       {
         href: "/agents/cli",
         label: "Ask a run from the command line",
