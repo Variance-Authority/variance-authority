@@ -73,7 +73,11 @@ position: its reader still gets the mainline.
 **5. A reader says what it read, against what.** When a command finds no local
 report, it fetches the branch's ref, then the mainline's, before it answers
 *nothing here*. This covers `variance ask`, the report-reading MCP tools, and
-`variance serve`. A hit names its commit, and where that commit sits relative to
+`variance serve`: they ask what CI found on this branch. A command that reads a
+**base** reads the mainline's ref and never the branch's. That covers `variance
+review`, `variance select` and a run with `--since`. A base taken from the
+branch would measure the change against itself. The branch's record stays
+readable as what ran this code on the branch, and it is never a base. A hit names its commit, and where that commit sits relative to
 the checkout: the branch head itself, or so many commits before or after the
 merge base. The local difference is read the way the cache layers read it
 today. A bundle far from the merge base is still an answer, and the distance is
@@ -114,6 +118,8 @@ when this lands.
    absolute path selects the same tests as it does in CI.
 6. A ref holding only `bundle-v2` is reported as a newer format, not as nothing
    published.
-7. Pointing the same reader at a tribunal deployment returns the same bytes as
+7. On a branch whose own ref holds a bundle, `variance review` and `variance
+   select` take their base from the mainline record, and say so.
+8. Pointing the same reader at a tribunal deployment returns the same bytes as
    the git ref. It is refused without the share token, and a review token does
    not open it.
