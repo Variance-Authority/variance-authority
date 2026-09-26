@@ -1,5 +1,6 @@
 import type { Viewport } from '@variance-authority/core/format';
 import type { BaselineLayout } from '@variance-authority/store/durable';
+import { baselineCarrierOf } from './config-placement.js';
 import {
   declaredSecret,
   fail,
@@ -153,6 +154,11 @@ export interface DirectoryBaselines {
    * turn on. An operator who moves them is choosing to keep them somewhere.
    */
   readonly records?: string;
+  /**
+   * Who carries the directory to the next job: `actions-cache` or nobody. `lfs`
+   * and `remote` take none, because git and the service already carry them.
+   */
+  readonly carry?: 'actions-cache';
 }
 
 export interface LfsBaselines {
@@ -356,14 +362,16 @@ export function parseBaselines(value: unknown, options: ParseOptions): Baselines
     };
   }
 
-  const source = object(value, 'baselines', ['kind', 'root', 'layout', 'records'], options);
+  const source = object(value, 'baselines', ['kind', 'root', 'layout', 'records', 'carry'], options);
   const layout = parseLayout(source['layout'], options);
   const records = parseRecords(source['records'], options);
+  const carry = baselineCarrierOf(source['carry'], options);
   return {
     kind: 'directory',
     root: resolveFrom(options.baseDir, nonEmpty(source, 'root', options, 'baselines.root')),
     ...(layout !== undefined ? { layout } : {}),
     ...(records !== undefined ? { records } : {}),
+    ...(carry !== undefined ? { carry } : {}),
   };
 }
 

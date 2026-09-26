@@ -15,6 +15,7 @@ import { ConfigError, messageOf } from './config-values.js';
 import { OperatorError } from './exit.js';
 import { said } from './here.js';
 import { parseConfig, type Config } from './config.js';
+import { checkCarriers } from './config-placement.js';
 
 /**
  * Read and validate a config file.
@@ -71,6 +72,9 @@ export async function loadConfig(path: string): Promise<Config> {
     );
   }
   const suites = declaredSuites(baseDir);
+  // Again once the root's suites are in: a member file may hold the share, and
+  // the suites it would carry are only ever declared at the root.
+  if (suites !== undefined) checkCarriers({ share: config.share, reportCarry: undefined, suites }, { source, baseDir });
   return { ...config, cacheRoot, ...(suites === undefined ? {} : { suites }) };
 }
 

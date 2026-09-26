@@ -48,10 +48,27 @@
     "history": { "$ref": "#/$defs/history" },
     "review": { "$ref": "#/$defs/review" },
     "report": {
-      "type": "string",
-      "minLength": 1,
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path"],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Where `run` writes the report, resolved against this file's directory."
+            },
+            "carry": {
+              "$ref": "#/$defs/carry",
+              "description": "Who carries the report, and the images it names, off the machine that wrote it."
+            }
+          }
+        }
+      ],
       "default": ".variance/report.json",
-      "description": "Where `run` writes, and where `report`, `accept` and `serve` read. Relative paths resolve against this file's directory."
+      "description": "Where `run` writes, and where `report`, `accept` and `serve` read. Relative paths resolve against this file's directory. The object form adds `carry`; the string form is a report that stays on the machine that wrote it."
     },
     "images": {
       "type": "string",
@@ -108,6 +125,10 @@
           "kind": {
             "enum": ["unit", "integration", "e2e", "visual"],
             "description": "What the suite is for. A Playwright suite may be e2e or visual, and a Vitest browser suite may be unit or visual: the runner does not decide."
+          },
+          "carry": {
+            "$ref": "#/$defs/carry",
+            "description": "Who carries the suite's recording off the machine that recorded it. Without it, the recording stays there."
           }
         }
       },
@@ -115,6 +136,10 @@
     }
   },
   "$defs": {
+    "carry": {
+      "enum": ["actions-cache", "share"],
+      "description": "Who moves an artifact to the next machine. `actions-cache`: the CI host, from job to job, with the path and key `variance carry` prints. `share`: variance itself, through the `share` section, where a checkout can read it too."
+    },
     "secret": {
       "description": "A value the config declares and does not contain. Either the string itself, or `{ \"env\": \"NAME\" }` naming the environment variable that holds it — a declaration, so the config still determines the run completely while the secret stays out of version control.",
       "oneOf": [
@@ -262,6 +287,10 @@
           "type": "string",
           "minLength": 1,
           "description": "Directory the `.json` records go in, resolved against this file. A record changes whenever the document does, so records beside their images make a diff out of every edit — including the ones that moved no pixel. Pointed at an ignored directory or a CI cache, `root` holds images and nothing else. Both halves are still written and still read."
+        },
+        "carry": {
+          "const": "actions-cache",
+          "description": "Carry the directory from job to job through the Actions cache. `share` is refused: a share keeps only the latest record per mainline, and baselines are kept by subject and identity."
         }
       }
     },

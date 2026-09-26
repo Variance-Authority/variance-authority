@@ -40,13 +40,26 @@ export const SUITE_KINDS = ['unit', 'integration', 'e2e', 'visual'] as const;
 export type SuiteKind = (typeof SUITE_KINDS)[number];
 
 /**
+ * Who moves an artifact from the machine that wrote it to the next one. A closed
+ * list split by who moves the bytes: `actions-cache` is moved by the host, job to
+ * job, and `share` is moved by `variance` itself, through the root config's
+ * `share` section, where a checkout can reach it too.
+ */
+export const CARRIERS = ['actions-cache', 'share'] as const;
+
+/** One of {@link CARRIERS}. */
+export type Carrier = (typeof CARRIERS)[number];
+
+/**
  * One suite the root config declares: the name a seam's `suite` option gives,
- * and what kind of test it runs.
+ * what kind of test it runs, and who carries its record off the machine.
  */
 export interface DeclaredSuite {
   /** The key it is declared under, and the name of its record directory. */
   readonly name: string;
   readonly kind: SuiteKind;
+  /** Absent when the record stays on the machine that wrote it. */
+  readonly carry?: Carrier;
 }
 
 /**
@@ -104,16 +117,28 @@ export function parseSuites(value: unknown, where: string): readonly DeclaredSui
       ? Object.keys(declared)
       : undefined;
     const kind = keys === undefined ? undefined : (declared as Record<string, unknown>)['kind'];
-    if (keys === undefined || keys.some((key) => key !== 'kind') || !SUITE_KINDS.includes(kind as SuiteKind)) {
+    const carry = keys === undefined ? undefined : (declared as Record<string, unknown>)['carry'];
+    if (
+      keys === undefined ||
+      keys.some((key) => key !== 'kind' && key !== 'carry') ||
+      !SUITE_KINDS.includes(kind as SuiteKind) ||
+      (carry !== undefined && !CARRIERS.includes(carry as Carrier))
+    ) {
       throw new SuitesError(
         where,
         `suites.${name}`,
-        `must be { "kind": ${SUITE_KINDS.map((one) => `"${one}"`).join(' | ')} }, not ${JSON.stringify(declared)}`,
+        `must be { "kind": ${quoted(SUITE_KINDS)}, "carry"?: ${quoted(CARRIERS)} }, not ${JSON.stringify(declared)}`,
       );
     }
 
-    return { name, kind: kind as SuiteKind };
+    return carry === undefined
+      ? { name, kind: kind as SuiteKind }
+      : { name, kind: kind as SuiteKind, carry: carry as Carrier };
   });
+}
+
+function quoted(values: readonly string[]): string {
+  return values.map((one) => `"${one}"`).join(' | ');
 }
 
 /**

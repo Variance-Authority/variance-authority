@@ -34,6 +34,13 @@ describe('the suites a repository declares', () => {
     ]);
   });
 
+  test('carry the carrier each one names, and none for a record that stays on the machine', () => {
+    expect(parseSuites({ unit: { kind: 'unit', carry: 'actions-cache' }, stories: { kind: 'visual' } }, 'here.json')).toEqual([
+      { name: 'stories', kind: 'visual' },
+      { name: 'unit', kind: 'unit', carry: 'actions-cache' },
+    ]);
+  });
+
   test('are absent, not empty, when the config declares none or there is no config', async () => {
     expect(declaredSuites(await repository({ project: 'p' }))).toBeUndefined();
     expect(declaredSuites(await repository())).toBeUndefined();
@@ -44,7 +51,8 @@ describe('the suites a repository declares', () => {
     [{}, '"suites" declares no suite'],
     [{ '../up': { kind: 'unit' } }, '"suites.../up" is not a suite name'],
     [{ '.work': { kind: 'unit' } }, '"suites..work" is not a suite name'],
-    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual" }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'smoke' } }, '"suites.unit" must be { "kind": "unit" | "integration" | "e2e" | "visual", "carry"?: "actions-cache" | "share" }, not {"kind":"smoke"}'],
+    [{ unit: { kind: 'unit', carry: 'artifact' } }, '"suites.unit" must be { "kind"'],
     [{ unit: { kind: 'unit', runner: 'jest' } }, '"suites.unit" must be { "kind"'],
     [{ unit: 'unit' }, '"suites.unit" must be { "kind"'],
   ])('refuse %j', (value, message) => {

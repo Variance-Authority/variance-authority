@@ -113,10 +113,12 @@ export {
   type RecordLocationOptions,
 } from './record-location.js';
 export {
+  CARRIERS,
   SUITE_KINDS,
   SuitesError,
   declaredSuites,
   parseSuites,
+  type Carrier,
   type DeclaredSuite,
   type SuiteKind,
 } from './suites.js';
