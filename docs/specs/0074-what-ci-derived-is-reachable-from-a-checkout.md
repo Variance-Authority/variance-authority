@@ -61,9 +61,10 @@ repository that already uses `refs/variance/`. Nothing sits under
 not show them.
 
 **3. A record is entries, and each entry names its commit.** A record holds the
-run report and its verdict, and one entry per carried suite, each with its
-record and names table. The names are repo-relative already. Each entry is
-versioned, `report-v1` and `suite-v1`, and names the commit it was derived at.
+run report and its verdict, one entry per carried suite holding that suite's
+record, and the suite index the run derived. The paths they hold are
+repo-relative already. Each entry is versioned, `report-v1`, `suite-v1` and
+`suite-index-v1`, and names the commit it was derived at.
 For a pull request that commit is the merge commit CI ran on, and the head
 commit the pull request pointed at is recorded beside it. No entry contains the
 digest that keys a local cache layer, because that digest is of one machine's
@@ -123,25 +124,27 @@ which of these it is, because each needs a different action:
 - nothing published under that name;
 - an entry in a newer format, so upgrade the CLI;
 - refused, so check the credentials;
-- the store could not be reached, or did not answer in time.
+- the store could not be reached, or did not answer in time;
+- the store answered with bytes that are not the entry its manifest names.
 
 **6. The share tells a miss from a refusal, and refuses a stale write.** A
 reader of this layout needs what `SharedCache` rules out on purpose:
 
-- a `get` that says *absent*, *refused* or *unreachable* rather than `null` for
-  all three;
-- a listing, so a newer format is visible rather than absent;
+- a `get` that says *absent*, *refused*, *unreachable* or *unreadable* rather
+  than `null` for all four;
+- a manifest per line naming every entry it holds, which is the listing, so a
+  newer format is visible rather than absent;
 - a conditional `put`, `If-Match` on the held version, so the replacement rule
   in item 4 holds on `http` as it does on `git`.
 
 The derivation cache keeps its never-fails wrapper. It is the reader that gains
 the distinction.
 
-**7. `tribunal` serves the same layout.** `GET`, `PUT` and a listing under
-`/share/`, backed by the bucket the worker already owns. `PUT` takes `If-Match`.
-An `http` share pointed at a deployment then works unchanged. The ingest token
-reads and writes, since a publish reads before it writes. A share token, a
-third secret beside ingest and review, only reads. The review token grants
+**7. `tribunal` serves the same layout.** `GET` and `PUT` under `/share/`,
+backed by the bucket the worker already owns. `PUT` takes `If-Match`. An `http`
+share pointed at a deployment then works unchanged. The ingest token reads and
+writes, since a publish reads before it writes. A share token, a third secret
+beside ingest and review, only reads. The review token grants
 approval and does not open the share.
 
 **8. Who can write is a stated position.** GitHub rulesets cover branches and
