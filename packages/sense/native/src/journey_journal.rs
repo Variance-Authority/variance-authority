@@ -57,6 +57,9 @@ pub struct CaseRun {
     pub part_tests: Vec<Vec<u32>>,
     /// The modules parts name, looked up by path in any store.
     pub part_wanted: HashSet<ModuleId>,
+    /// The part files that ran code under no journey a case handed out, by
+    /// file name: what they ran is charged to nobody.
+    pub unclaimed: Vec<String>,
 }
 
 struct Coordinate {
@@ -124,12 +127,15 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
     }
     let mut part_tests = Vec::with_capacity(part_paths.len());
     let mut part_wanted = HashSet::new();
+    let mut unclaimed = Vec::new();
     for path in &part_paths {
         let mut visitor = PartInspectVisitor {
             journeys: HashSet::new(),
             wanted: &mut part_wanted,
+            ran: false,
         };
         replay_part(path, &mut visitor)?;
+        let ran = visitor.ran;
         let mut claimed: Vec<u32> = visitor
             .journeys
             .iter()
@@ -139,6 +145,9 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
             .collect();
         claimed.sort_unstable();
         claimed.dedup();
+        if claimed.is_empty() && ran {
+            unclaimed.push(path.file_name().map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy()).into_owned());
+        }
         part_tests.push(claimed);
     }
     Ok(CaseRun {
@@ -152,6 +161,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
         journey_tests,
         part_tests,
         part_wanted,
+        unclaimed,
     })
 }
 
@@ -176,6 +186,8 @@ fn listed(directory: &Path, extension: Option<&str>) -> Result<Vec<PathBuf>, Str
 struct PartInspectVisitor<'a> {
     journeys: HashSet<String>,
     wanted: &'a mut HashSet<ModuleId>,
+    /// Whether any frame named a module.
+    ran: bool,
 }
 
 impl Visitor for PartInspectVisitor<'_> {
@@ -188,6 +200,7 @@ impl Visitor for PartInspectVisitor<'_> {
     }
 
     fn wants(&mut self, id: &ModuleId) -> bool {
+        self.ran = true;
         self.wanted.insert(id.clone());
         false
     }

@@ -41,8 +41,8 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     const sink = await open(parts);
     // Jest and the service share nothing but the environment the service
     // inherits: a parts directory to write to and a label to build under. Each
-    // test file starts its own service, so the two files' requests land in two
-    // processes and two part files.
+    // test file starts its own service, so the three files' requests land in
+    // three processes and three part files.
     await execute(process.execPath, [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false'], {
       cwd: fixture,
       env: {
@@ -56,8 +56,14 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
         XDG_CACHE_HOME: directory,
       },
     }).finally(sink.close);
-    expect(await readdir(parts)).toHaveLength(2);
-    await finalizeJestJourneys(journeyFile);
+    const written = await readdir(parts);
+    expect(written).toHaveLength(3);
+    const finalized = await finalizeJestJourneys(journeyFile);
+    // The silent file's service was never handed a journey, so what it ran is
+    // no case's: the finalize names its part rather than guessing an owner.
+    expect(finalized.unclaimed).toHaveLength(1);
+    expect(written).toContain(finalized.unclaimed![0]);
+    expect(finalized.unrecorded).toEqual([]);
 
     const index = decodeExecutionIndex(await readFile(journeyFile));
     const pricing = index.modules.find((module) => module.file === at('service/pricing.mjs'));
@@ -82,7 +88,7 @@ describe.each(Object.entries(targets))('a journey across a service boundary, wri
     // charged to every case that process served: the refund file's service
     // answered it, so the refund file is selected when it changes. It is
     // never charged to the other file's cases, whose requests went to another
-    // process.
+    // process, nor to the silent file's, whose process served no journey.
     expect(walking("return '$9.99'")).toEqual([at('test/refund.case.ts > refunds a small amount')]);
     // A case that never crossed the fence has nothing on the far side.
     expect(index.tests.map((test) => test.id)).not.toContain(at('test/quote.case.ts > never calls the service'));

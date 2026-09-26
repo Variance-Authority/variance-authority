@@ -70,14 +70,21 @@ public final class Parts {
 
     TreeSet<String> journeys = new TreeSet<>();
     Map<String, Map<String, Coverage.Method>> byFile = new TreeMap<>();
-    int unresolved = 0;
+    // A class that resolved to no source file has no regions, so it is named by
+    // its class with nothing entered and no record: the fold reports it as a
+    // module a case ran that no record holds.
+    Map<String, TreeSet<String>> unknownBy = new TreeMap<>();
     for (Map<String, Object> row : rows) {
       String owner = (String) row.get("owner");
       String journey = owner.startsWith("journey:") ? owner.substring("journey:".length()) : NONE;
       journeys.add(journey);
       List<?> unknown = (List<?>) row.get("unknown");
-      // FIXME: a class that resolved to no source file is dropped here, so its row cannot mark its journey incomplete.
-      if (unknown != null) unresolved += unknown.size();
+      if (unknown != null) {
+        for (Object name : unknown) {
+          // The agent registers the internal name; a reader knows `shop.Cart`.
+          unknownBy.computeIfAbsent(journey, k -> new TreeSet<>()).add(((String) name).replace('/', '.'));
+        }
+      }
       for (Object o : (List<?>) row.get("methods")) {
         @SuppressWarnings("unchecked")
         Map<String, Object> m = (Map<String, Object>) o;
@@ -85,8 +92,6 @@ public final class Parts {
         methods.computeIfAbsent(m.get("class") + "." + m.get("method"), k -> new Coverage.Method(m)).tests.add(journey);
       }
     }
-    if (unresolved > 0) System.err.println("presence: " + unresolved + " entries of classes with no source file are not in the parts");
-
     List<Coverage.Module> modules = new ArrayList<>();
     for (Map.Entry<String, Map<String, Coverage.Method>> e : byFile.entrySet()) {
       String text = Coverage.text(e.getKey());
@@ -97,7 +102,7 @@ public final class Parts {
 
     ByteArrayOutputStream part = new ByteArrayOutputStream();
     for (String journey : journeys) {
-      byte[] frame = frame(journey, modules);
+      byte[] frame = frame(journey, modules, unknownBy.getOrDefault(journey, new TreeSet<>()));
       if (frame != null) {
         part.write(le(frame.length), 0, 4);
         part.write(frame, 0, frame.length);
@@ -154,8 +159,12 @@ public final class Parts {
 
   // ---------------------------------------------------------------- part frames
 
-  /** One journey's frame: every module it entered, by path, with the regions it entered. */
-  private static byte[] frame(String journey, List<Coverage.Module> modules) {
+  /**
+   * One journey's frame: every module it entered, by path, with the regions it
+   * entered, then every class it entered that has no source file, by class name
+   * with no region.
+   */
+  private static byte[] frame(String journey, List<Coverage.Module> modules, TreeSet<String> unknown) {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     out.write(PART_MAGIC, 0, PART_MAGIC.length);
     // No case, no settling, then the journey: `packJourney` in sense's journal-format.cts.
@@ -169,8 +178,8 @@ public final class Parts {
       entered.add(module);
       hits.add(ordinals);
     }
-    if (entered.isEmpty()) return null;
-    number(out, entered.size());
+    if (entered.isEmpty() && unknown.isEmpty()) return null;
+    number(out, entered.size() + unknown.size());
     for (int i = 0; i < entered.size(); i++) {
       out.write(NAMED);
       text(out, entered.get(i).file);
@@ -183,6 +192,13 @@ public final class Parts {
       }
       // Nothing entered while loading, and nothing loaded before the journey: a
       // service's startup is its own window, owned by no journey.
+      number(out, 0);
+      number(out, 0);
+    }
+    for (String name : unknown) {
+      out.write(NAMED);
+      text(out, name);
+      number(out, 0);
       number(out, 0);
       number(out, 0);
     }

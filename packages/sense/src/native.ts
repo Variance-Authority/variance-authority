@@ -281,6 +281,10 @@ export interface NativeJourneyFold {
   readonly passes: number;
   /** Files two builds cut into different regions, read at the regions both hold. */
   readonly renumbered: readonly string[];
+  /** Modules a case ran that no record holds: a change there selects nothing. */
+  readonly unrecorded: readonly string[];
+  /** Part files that ran code under no journey a case handed out. */
+  readonly unclaimed: readonly string[];
 }
 
 export type NativeJourneyFoldResult = Omit<NativeJourneyFold, 'bytes'>;

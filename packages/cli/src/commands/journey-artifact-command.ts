@@ -22,6 +22,8 @@ export async function runJourneyArtifactCommand(
       `journeys: wrote ${parsed.journeyFile} (${result.tests} tests, ${result.modules} modules, ${result.crossings} crossings)\n`,
     );
     streams.out(renumbered(result));
+    streams.out(unclaimed(result));
+    streams.out(unrecorded(result));
     return EXIT_CLEAN;
   }
 
@@ -49,5 +51,35 @@ function renumbered(result: JourneyArtifactResult): string {
     `journeys: ${count} cut into different regions by different transforms; ` +
     'crossings there are credited to the regions every transform shares:\n' +
     files.map((file) => `  ${file}\n`).join('')
+  );
+}
+
+/**
+ * The part files no case claimed, by name: a process that ran code while no
+ * journey a case handed out reached it. Its coverage is charged to nobody, so
+ * a change to what only it ran selects nothing.
+ */
+function unclaimed(result: JourneyArtifactResult): string {
+  const files = result.unclaimed ?? [];
+  if (files.length === 0) return '';
+  const count = files.length === 1 ? '1 part ran' : `${files.length} parts ran`;
+  return (
+    `journeys: ${count} code under no case's journey id, so a change to what only they ran selects nothing; ` +
+    'the hop in front of each has to forward the id:\n' +
+    files.map((file) => `  ${file}\n`).join('')
+  );
+}
+
+/**
+ * The modules a case ran that no record holds, by name. What ran there has no
+ * region to be credited to, so a change to them selects nothing.
+ */
+function unrecorded(result: JourneyArtifactResult): string {
+  const modules = result.unrecorded ?? [];
+  if (modules.length === 0) return '';
+  const count = modules.length === 1 ? '1 module' : `${modules.length} modules`;
+  return (
+    `journeys: cases ran ${count} no record holds, so a change there selects nothing:\n` +
+    modules.map((module) => `  ${module}\n`).join('')
   );
 }

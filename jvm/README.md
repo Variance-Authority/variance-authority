@@ -244,6 +244,11 @@ The fold charges each journey's frame to the case that minted it. It charges
 the between frame, which holds the service's startup and anything no journey
 claimed, to every case that sent this process at least one request.
 
+A class that is `unknown` goes into its journey's frame by class name, with no
+regions. No record holds that name, so `journeys finalize` lists it among the
+modules cases ran that no record holds: a change to it selects nothing, and the
+finalize tells you which classes those are.
+
 To convert a record already on disk:
 
 ```bash
@@ -301,13 +306,16 @@ edit to a test file. It checks that:
 
 `parts.mjs` runs the shop under the agent with a parts directory, runs Jest in
 band against it, stops the JVM, and then finalizes Jest's journey file. It
-checks four things:
+moves `Cart.java` out of the declared sources before it compiles, and it checks
+that:
 
 - A method that one case's request ran is charged to that case alone.
 - The readiness probe and the JVM's startup are charged to both cases that
   crossed.
 - A case that never called the shop is absent.
 - A change to a Java line selects the Jest file that reached it.
+- The finalize names `shop.Cart`, compiled from outside the sources, as a
+  module no record holds.
 
 It runs in band so that the first check can be exact.
 

@@ -34,6 +34,17 @@ export interface JourneyArtifactResult {
    * either build recorded and never misses a case that ran a changed line.
    */
   readonly renumbered: readonly string[];
+  /**
+   * Modules a case ran that no record holds, from a finalize. What ran there
+   * is in no region, so a change to them selects nothing.
+   */
+  readonly unrecorded?: readonly string[];
+  /**
+   * Part files that ran code under no journey a case handed out, from a
+   * finalize. What they ran is charged to no case, so a change there selects
+   * nothing.
+   */
+  readonly unclaimed?: readonly string[];
 }
 
 /** The retryable material Jest leaves for a post-run finalizer. */

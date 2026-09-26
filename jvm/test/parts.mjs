@@ -9,13 +9,14 @@
 //
 // Asserts that each method region is charged to the case whose request ran it, that
 // the service's unattributed windows are charged to every case that crossed into it,
-// that a case which never called the shop is not there, and that a change to a Java
-// line selects the Jest file that reached it.
+// that a case which never called the shop is not there, that a change to a Java
+// line selects the Jest file that reached it, and that a class compiled from outside
+// the declared sources is named by the finalize rather than dropped.
 //
 // Usage: node parts.mjs <work dir> <agent bin dir>
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -40,6 +41,11 @@ function docker(...args) {
 rmSync(work, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
 cpSync(join(here, 'shop'), shop, { recursive: true });
+// A generated class: compiled and run, but outside the sources the agent is told
+// about, so no record holds it.
+const generated = join(shop, 'backend', 'src', 'generated', 'java', 'shop');
+mkdirSync(generated, { recursive: true });
+renameSync(join(shop, sources, 'shop', 'Cart.java'), join(generated, 'Cart.java'));
 writeFileSync(join(shop, '.gitignore'), '.va/\nnode_modules\n');
 symlinkSync(join(repoRoot, 'node_modules'), join(shop, 'node_modules'));
 execFileSync('git', ['-C', shop, 'init', '-q']);
@@ -50,7 +56,7 @@ docker(
   'run', '-d', '--name', name, '-p', `${port}:${port}`, '-e', `PORT=${port}`,
   '-e', 'VARIANCE_AUTHORITY_PARTS=/repo/.va/parts',
   '-v', `${shop}:/repo`, '-v', `${bin}:/va:ro`, '-w', '/repo', image, 'sh', '-euc',
-  `javac -d /tmp/c -cp /va/variance-agent-rt.jar $(find ${sources} -name '*.java')
+  `javac -d /tmp/c -cp /va/variance-agent-rt.jar $(find backend/src -name '*.java')
    exec java -javaagent:/va/variance-agent.jar=includes=shop.*,sources=${sources} \
      -cp /tmp/c:/va/variance-agent-rt.jar shop.Server`,
 );
@@ -93,7 +99,7 @@ const written = readdirSync(parts).sort();
 assert.deepEqual(written.map((f) => f.replace(/^jvm-\d+-[0-9a-f-]+/, 'jvm')), ['jvm.rec', 'jvm.vac']);
 
 // Regroup: the run finished, the service finished, now the fold.
-await finalizeJestJourneys(journeyFile);
+const finalized = await finalizeJestJourneys(journeyFile);
 const index = decodeExecutionIndex(readFileSync(journeyFile));
 const java = (file) => `${sources}/shop/${file}`;
 const source = (file) => readFileSync(join(shop, java(file)), 'utf8');
@@ -121,6 +127,8 @@ const checks = [
   // The probe's request and the JVM's startup carried no journey: the service's own
   // work, charged to every case that crossed into it.
   ['an unattributed request charges every case that crossed', () => assert.deepEqual(walking('Server.java', 'index.html'), [cart, kettle])],
+  ['a class outside the sources is named, not dropped', () => assert.deepEqual(finalized.unrecorded, ['shop.Cart'])],
+  ['every part ran under a case that crossed', () => assert.deepEqual(finalized.unclaimed, [])],
   ['a case that never crossed has nothing beyond the fence', () => assert.ok(!index.tests.some((t) => t.id === 'jest/search.case.ts > never calls the shop'))],
 ];
 const change = (file, text) => new Map([[java(file), [{ start: lineOf(file, text), end: lineOf(file, text) }]]]);
