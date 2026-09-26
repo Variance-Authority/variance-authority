@@ -1,4 +1,4 @@
-// compass: variance-authority.reach.journey
+// compass: variance-authority.reach.story
 /**
  * Stories: the order one case went through the code, taped under
  * `VARIANCE_AUTHORITY_STORY=1` and read back as a route.

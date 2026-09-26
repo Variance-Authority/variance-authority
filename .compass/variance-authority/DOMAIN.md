@@ -328,6 +328,21 @@ source, attributed to the test that entered it.
 An edge no execution witnessed is absent rather than impossible. A truncated
 recording is dropped from the pool rather than counted as a miss.
 
+#### Story
+
+##### What it is
+
+The order one test case visited instrumented source in one realm, drawn as a
+route through declarations.
+
+##### Invariants
+
+A story is taken only when asked for, and taking it leaves the journey it rides
+on exactly as it would have been. It is never folded into the record, never
+compared and never selected on. It claims order only — a visit is not a call,
+so no step is another's parent — and what it could not keep, a later visit past
+its limit or another case's work inside this one, is said rather than dropped.
+
 ### Relationships
 
 - ← [Observation](#observation) — receives which component a file declares

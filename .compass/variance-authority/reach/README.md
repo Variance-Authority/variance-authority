@@ -36,8 +36,10 @@ an execution inside a service process.
 - `packages/sense/src/test-selection/` — the execution record and its queries
 - `packages/core/src/relate/` — the graph, its traversals, and the closure fold
 - `packages/cli/src/commands/` — `run-select.ts`, `affected.ts`, `reach.ts`,
-  `journey.ts`, `since.ts`, `changes.ts`, `installed.ts`, `index-command.ts`,
-  `source-graph.ts`
+  `journey.ts`, `story.ts`, `story-view.ts`, `since.ts`, `changes.ts`,
+  `installed.ts`, `index-command.ts`, `source-graph.ts`
+- `packages/sense/src/story/` — the order one case visited, and the route read
+  from it
 
 ## Communicates with
 
@@ -135,6 +137,7 @@ block would have to print its own.
 | [instrument](./instrument/README.md) | Cutting source into arrival regions and splicing a presence probe in front of each one |
 | [crossings](./crossings/README.md) | The record of which tests entered which region, and the answers taken from it |
 | [journey](./journey/README.md) | Carrying a **journey** across process boundaries under one opaque identity, and joining what each participant reported into one path |
+| [story](./story/README.md) | Taking the order one case visited, when asked, and reading it back as a route through declarations, a part at a time |
 | `packages/sense/src/source-index-format.ts`, `packages/sense/src/source-index-file.ts`, `packages/sense/src/immutable-log.ts`, `packages/sense/src/ordered-map.ts` | L5 — the segmented binary codec and the ordered structures the source index is written through |
 | `packages/sense/src/test-selection/format.ts`, `packages/sense/src/test-selection/format-validation.ts` | L5 — the versioned binary codec for the execution record |
 | `packages/sense/src/test-selection/vitest.ts` | L5 — the runner configuration wrapper that installs the instrument and persists what it recorded |
@@ -156,6 +159,8 @@ flowchart TB
     INST[instrument] --> CROSS[crossings]
     INST --> JRN[journey]
     JRN --> CROSS
+    INST --> STORY[story]
+    CROSS --> STORY
     CROSS --> SEL
   end
 

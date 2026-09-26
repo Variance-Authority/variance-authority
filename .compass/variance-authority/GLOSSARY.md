@@ -715,6 +715,26 @@ source, attributed to the test that entered it.
 
 [**Reach**](./DOMAIN.md#reach)
 
+## **Story**
+
+### Meaning
+
+The order one test case visited the arrival regions of instrumented source, in
+one realm, read as a route through the declarations those regions belong to.
+Where a **journey** says which regions an execution entered, a story says in
+what order one case went through them. It claims order and nothing else: no
+nesting, no caller, no time.
+
+### Bounded context
+
+[**Reach**](./DOMAIN.md#reach)
+
+### Product appearance
+
+A map to read before opening files: *which parts of the system does this case
+go through, and in what order*, taken only when somebody asks for it and read a
+part at a time. Nothing that selects or compares reads it.
+
 ## **Announcement**
 
 ### Meaning
