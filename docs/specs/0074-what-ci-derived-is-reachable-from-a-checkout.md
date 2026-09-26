@@ -34,7 +34,11 @@ keeping their branches current.
 
 **1. One record per mainline, the latest one.** `share.mainlines` lists branch
 names in order of priority, such as `["main", "release/2.0"]`, on the remote
-`share.remote` names, `origin` by default. It replaces `share.mainline`, which
+`share.remote` names, `origin` by default. Unset, it is the one branch that
+`refs/remotes/<remote>/HEAD` names, because git owns the default branch. A CI
+checkout often has no such ref, and there the event's own default branch
+answers. With neither, nothing is published or saved, and the log says which
+answer was missing. It replaces `share.mainline`, which
 named one ref whose lineage a lookup walked, and `share.depth`, which bounded
 that walk. Both are deleted, not aliased, and the lineage lookup goes with them
 for every share kind. A reader takes the mainline that a pull request names as
