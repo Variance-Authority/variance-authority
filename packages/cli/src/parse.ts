@@ -13,6 +13,7 @@ import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
 import { parseShareArgs, type ParsedShare } from './share-args.js';
+import { parseCarryArgs, type ParsedCarry } from './carry-args.js';
 import { parsePushArgs, type ParsedPush } from './push-args.js';
 import { parseAskArgs, type ParsedAsk } from './ask-args.js';
 import { parseCommentArgs, type ParsedComment } from './comment-args.js';
@@ -107,7 +108,7 @@ export type Parsed =
       readonly reports: readonly string[];
     }
   | ParsedAsk
-  | ParsedDistill | ParsedCovering | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare
+  | ParsedDistill | ParsedCovering | ParsedReview | ParsedIndex | ParsedSelect | ParsedReach | ParsedShare | ParsedCarry
   | {
       readonly command: 'accept';
       readonly config: string;
@@ -305,6 +306,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
     case 'select': return parseSelectArgs(flags);
     case 'reach': return parseReachArgs(flags);
     case 'share': return parseShareArgs(flags, config);
+    case 'carry': return parseCarryArgs(flags);
 
     case 'adjudicate': {
       const claims = flags.values.get('--claims');

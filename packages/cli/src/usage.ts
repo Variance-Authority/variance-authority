@@ -33,6 +33,7 @@ export const COMMANDS = [
   'serve',
   'doctor',
   'share',
+  'carry',
   'comment',
 ] as const;
 
@@ -115,6 +116,9 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   serve: ['--just-answer'],
   doctor: [],
   share: ['--mainline', '--publish'],
+  // `--config` by name: `carry` reads a project only when one is named, so it
+  // is configless for the table below and still takes the flag.
+  carry: ['--config', '--format'],
   comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker'],
 };
 
@@ -137,6 +141,7 @@ export const USAGE = [
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>]',
+  'variance carry   restore | save [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
   '',
   '`--version` prints the version of this tool.',
@@ -150,9 +155,11 @@ export const USAGE = [
  * read project configuration. One holds a live listener; the next three read
  * evidence a run left behind, named on the command line or found where a run puts it;
  * the last three are asked by a repository whose tests another runner runs, and
- * which may have configured this tool for nothing else.
+ * which may have configured this tool for nothing else. `carry` is on the list
+ * for the same reason and names `--config` itself: the suites it carries are
+ * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'review', 'index', 'select', 'reach'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'review', 'index', 'select', 'reach', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

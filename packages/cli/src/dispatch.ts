@@ -52,7 +52,8 @@ import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
 import { renderComment } from './commands/comment.js';
 import { doctor, machineProbes } from './commands/doctor.js';
-import { publishedLine, shareLines } from './commands/share.js';
+import { mainlinesOf, publishedLine, shareLines } from './commands/share.js';
+import { runCarry } from './commands/carry.js';
 import { answerConfigless, constantAnswer, withoutConfig } from './commands/configless.js';
 import { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
@@ -88,6 +89,7 @@ export async function dispatch(
   if (withoutConfig(parsed)) return answerConfigless(parsed, streams);
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return runJourneyArtifactCommand(parsed, streams);
+  if (parsed.command === 'carry') return runCarry(parsed, streams, mainlinesOf);
 
   const config = await loadConfig(parsed.config);
   switch (parsed.command) {

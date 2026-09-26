@@ -161,6 +161,7 @@ variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>]
+variance carry   restore | save [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
 
@@ -180,6 +181,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
 | `share` | says what the share holds for your mainline, or publishes this run to its line |
+| `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
@@ -1712,6 +1714,72 @@ has the gate. On GitHub Actions that is one step:
 must look at, and `2` when the run did not happen as configured. Do not grep the
 output: the three integers are the contract, and a check whose colour depends on
 a sentence changes meaning the day the wording improves.
+
+### What the next job reads
+
+A job ends and its machine goes away, and three things it wrote are what the
+next job compares against: the baselines, each suite's recording, and the
+report. The config names where each one is written, and its `carry` names who
+moves it to the next machine:
+
+- `actions-cache`: the host's cache, from one job to a later one in the same
+  repository.
+- `share`: `variance share --publish`, to the line a checkout on another
+  machine reads back. [Sharing](../../docs/sharing.md) says where a line lives
+  and who may write it.
+
+A file with no `carry` stays on the machine that wrote it.
+
+```jsonc
+// variance.config.json, beside the project
+{
+  "project": "todomvc",
+  "profile": "chromium",
+  "viewport": { "width": 1280, "height": 800 },
+  "retention": "durable",
+  "subjects": { "kind": "storybook", "index": "storybook-static/index.json", "collector": "variance/collector.mjs" },
+  "baselines": { "kind": "directory", "root": ".variance/baselines", "carry": "actions-cache" },
+  "report": { "path": ".variance/run.json", "carry": "share" },
+  "share": { "kind": "git" }
+}
+```
+
+Suites are declared in the `variance.config.json` at the repository root,
+each with its own `carry`:
+`"suites": { "unit": { "kind": "unit", "carry": "actions-cache" } }`.
+
+`variance carry restore` and `variance carry save` print what `actions/cache`
+asks for: each file's paths, its key and, on a restore, the keys to fall back
+to. With `--format github` the lines are step outputs, so the workflow names
+no path the config already names:
+
+```yaml
+- id: carry
+  run: npx variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
+- if: steps.carry.outputs.baselines-key != ''
+  uses: actions/cache/restore@v4
+  with:
+    path: ${{ steps.carry.outputs.baselines-path }}
+    key: ${{ steps.carry.outputs.baselines-key }}
+    restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+- run: npx variance run --config variance.config.json
+```
+
+A key is `variance-<file>:<branch>:<commit>`. The branch is the one a pull
+request targets, so a pull request restores what its target saved and never
+what it saved itself. A save appends the run id, because the Actions cache
+never overwrites a key, and a restore falls back to the newest key on the
+branch.
+
+Only a push to a mainline saves a recording. On any other run `carry save`
+prints no key for it and says why on stderr. The mainlines are the first of
+these that answers: the config's `share.mainlines`, the branch the remote's
+`HEAD` names, the repository's default branch in the event. When none answers,
+nothing is saved, and the message names the answers that were missing.
+
+`carry` also prints `report`, `images` and `review`, which are paths to upload
+and the directory to pass `variance review --out`. They have no key, because
+an upload is not looked up again.
 
 Posting the report back to the pull request is the one thing a command line
 cannot do for itself. Read the report path out of your config and post it with

@@ -106,31 +106,44 @@ builds no key.**
   review output), with no key, because upload is not a lookup. Without
   `--format github` it prints the same facts as prose.
 
-- **An Actions cache key is
-  `variance-<project>-<artifact>[-<suite>]-<mainline>-<layer>-<sha>`**, and a
-  save appends the run. This key is the `actions-cache` carrier's alone.
-  - `<mainline>` is the branch the run's base belongs to, so a pull request
-    into `release/2.0` restores `release/2.0`'s recording and not `main`'s.
-  - `<layer>` is the digest `repositoryLayers` already keys the recording
-    directory by. Job to job, the recording is restored to the same absolute
-    path, which is why `os` and `arch` are dropped from the key.
+- **An Actions cache key is `variance-<artifact>:<line>:<sha>`**, and a save
+  appends `-<run>-<attempt>`. This key is the `actions-cache` carrier's alone
+  ([`carry.ts`](../../../packages/cli/src/commands/carry.ts)).
+  - `<artifact>` is `<project>-baselines`, `<project>-report`, or
+    `suite-<name>-<layer>` for a recording. `<layer>` is the digest
+    `repositoryLayers` already keys the recording directory by, so a recording
+    is restored only to the absolute path it was made at, which is why `os` and
+    `arch` are dropped from the key. Baselines and a report name no path, so
+    their keys have no layer.
+  - `<line>` is the branch a pull request targets, or the branch a push lands
+    on, so a pull request into `release/2.0` restores `release/2.0`'s recording
+    and not `main`'s. The colons around it are there because git refuses a colon
+    in a ref name: no line's prefix is another line's, so `main` never restores
+    `main-2`.
   - **The renderer leaves the key.** The store partitions by identity digest
     and answers `incomparable` across it, which is the answer the chart's
     baseline-store boundary asks for.
-  - Restore keys are the base commit, then the newest entry under the
-    prefix. The commit is in the key only because an Actions cache key cannot
-    be overwritten, so a save needs a new one; what a restore wants is the
-    latest, the same rule the share keeps.
+  - A recording's restore keys are the base commit, then the newest entry on
+    the line, then the newest on each other mainline. Baselines and a report
+    restore by this commit first, so a re-run finds what an accept in it saved.
+    The commit is in the key only because an Actions cache key cannot be
+    overwritten, so a save needs a new one; what a restore wants is the latest,
+    the same rule the share keeps.
 
-- **The base's cases are the CLI's to keep.**
-  - When `carry restore` finds a recording made at the base, `variance` sets
-    that suite's cases aside in its own layer before the suite overwrites
-    them.
-  - `review --since <base>` reads the set-aside cases without `--against`.
-    `--against` remains for a caller who holds a file.
+- **The base's cases are the suite's to keep.**
+  - Runs at one commit add to the layer of replaced cases instead of
+    overwriting it, and the last run's record names the commit those cases
+    were recorded at, until a run at that commit runs a file again.
+  - `review --since <base>` reads that layer without `--against`, and leaves
+    out what the base's branch moved after its commit. So a restore that found
+    the newest recording on the line rather than the base's is still compared
+    fairly, and the workflow copies nothing aside. `--against` remains for a
+    caller who holds a file.
 
-- **Review output defaults under the report's directory**, so `--out` is
-  optional and the upload path comes from `carry`.
+- **`carry` names the review output's directory**, `.variance/review` under
+  the repository root, and the workflow passes it to `review --out`. `review`
+  keeps writing files only where `--out` says: a default would write into
+  every checkout that asked a question, for the benefit of one CI step.
 
 - **Only a push to a mainline saves a recording.** The mainlines are the
   first of these that answers, the same order spec 0074 reads:
