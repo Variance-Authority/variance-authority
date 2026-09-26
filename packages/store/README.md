@@ -21,7 +21,7 @@ recording how that image was painted.
 
 - **Node 22 or newer.**
 - **ESM only.** Every `@variance-authority/*` package ships `"type": "module"` and no CommonJS build, so `require()` will not load it.
-- The `lfs` and `changelog` entrypoints run `git`, which has to be on `PATH`. The other two need nothing but a writable directory.
+- The `lfs` and `changelog` entrypoints, and `createGitLineCell` in `./share`, run `git`, which has to be on `PATH`. `./durable` and `createDirectoryLineCell` need nothing but a writable directory.
 
 ```bash
 npm install --save-dev @variance-authority/store
@@ -202,7 +202,7 @@ choice of where baselines live is yours to state.
 | `./durable` | a writable directory | baselines in a plain directory. The single-machine and self-hosted-runner case: nothing shares them. |
 | `./lfs` | a writable directory and `git` | the same layout, with the images tracked by git-LFS so a team gets them on checkout. Take it when baselines must travel with the branch. |
 | `./changelog` | `git` and a repository | reading back why a baseline is what it is. Take it when you are building a history view rather than running a comparison; nothing in the render path imports it. |
-| `./share` | a writable directory | a directory storing bytes a run derived — not baselines. See the last section. |
+| `./share` | a writable directory, or `git` and a remote your clone can fetch | the latest of what a run derived on each mainline and each branch — a run report, one record per suite — and the images those name. Not baselines. `createDirectoryLineCell` keeps lines in a directory, and `createGitLineCell` keeps them as refs in the repository that hosts your code. An HTTP endpoint or a bucket needs nothing from this package: `httpLineCell` is in `@variance-authority/core/share`. See the last section. |
 
 Both store backends implement one contract, `RasterStore`, which is defined in
 `@variance-authority/raster` and installed with this package:

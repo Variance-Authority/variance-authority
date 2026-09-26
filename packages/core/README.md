@@ -298,8 +298,11 @@ and a line answers that: one mainline or one branch, holding the latest entry
 of each kind — the run report, one record per suite — and the images those
 entries name, by digest.
 
-Excerpt: `token` is your store's credential, `report` is what `core/segment`
-encoded, and `digests` are the images it names.
+Excerpt: `token` is your store's credential, `report` is the entry's bytes, and
+`digests` are the images it names. `core/share` stores an entry's bytes and
+never reads them, so their format is yours. The CLI's `report-v1` entry holds
+two parts: the run report's JSON, and a JSON table from each image path the
+report names to that image's digest.
 
 ```ts
 import { findEntry, httpLineCell, publishLine, readLine } from '@variance-authority/core/share';
