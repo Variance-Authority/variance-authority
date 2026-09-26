@@ -138,7 +138,7 @@ export function writeParts(
   };
   const flush = async (): Promise<void> => {
     const frames: (Uint8Array | undefined)[] = [];
-    for (const journey of [...buckets.keys()]) {
+    for (const journey of buckets.keys()) {
       if (journey !== UNATTRIBUTED) {
         depth.delete(journey);
         frames.push(journeyFrame(journey));
