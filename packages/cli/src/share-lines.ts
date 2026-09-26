@@ -69,8 +69,10 @@ export async function mainlinesOf(
 
 /**
  * The line a publish from this run writes and the head a pull request pointed
- * at, or why it writes none. `noMainline` is present when no mainline is known,
- * and names the answers that were missing.
+ * at, or why it writes none. `noMainline` is present when no mainline is known
+ * and the line turned on it, and names the answers that were missing. A pull
+ * request's line is its head branch whatever the mainline is, so it never
+ * carries one.
  */
 export type RunLine =
   | { readonly line: ShareLine; readonly head?: string; readonly noMainline?: MainlinesMissing }
@@ -91,22 +93,25 @@ export type MainlinesMissing = Extract<Mainlines, { missing: unknown }>['missing
  * a mainline writes nothing for the same reason.
  *
  * When no mainline is known, no branch is one, so a push to the branch you
- * meant as the mainline writes `branch/<name>`. The line says which answers
- * were missing, so the publish can say why.
+ * meant as the mainline writes `branch/<name>`. A branch line decided that way
+ * says which answers were missing, so the publish can say why.
  */
 export async function lineOfRun(
   config: Pick<Config, 'share'>,
   env: Env = process.env,
   cwd: string = process.cwd(),
 ): Promise<RunLine> {
-  const mainlines = await mainlinesOf(config, env, cwd);
-  const line = await runLineOf(mainlines, env, cwd);
-  return 'missing' in mainlines && 'line' in line ? { ...line, noMainline: mainlines.missing } : line;
+  return runLineOf(await mainlinesOf(config, env, cwd), env, cwd);
 }
 
 async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<RunLine> {
   const isMainline = (name: string): boolean => 'names' in mainlines && mainlines.names.includes(name);
   const queued = (name: string): boolean => name.startsWith('gh-readonly-queue/');
+  // A branch that is not a mainline, which is what every branch is when no mainline is known.
+  const branch = (name: string): RunLine => ({
+    line: { kind: 'branch', name },
+    ...('missing' in mainlines ? { noMainline: mainlines.missing } : {}),
+  });
 
   // TODO: only GitHub Actions describes a CI run here. GitLab CI (CI_COMMIT_BRANCH,
   // CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, CI_MERGE_REQUEST_TARGET_BRANCH_NAME,
@@ -133,13 +138,13 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
         ? { line: { kind: 'mainline', name } }
         : { none: `only a push to ${name} publishes its record, and this run is a ${event ?? 'run'}` };
     }
-    return { line: { kind: 'branch', name } };
+    return branch(name);
   }
 
   const name = (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], cwd))?.trim();
   if (name === undefined || name === '') return { none: 'this checkout is not on a branch' };
   if (isMainline(name)) return { none: `only a push to ${name} publishes its record, and this run is not on CI` };
-  return { line: { kind: 'branch', name } };
+  return branch(name);
 }
 
 /**

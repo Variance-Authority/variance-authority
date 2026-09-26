@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { parseShare } from '../config-share.js';
 import type { Env } from '../share-lines.js';
@@ -105,17 +105,37 @@ describe('publishing a run', () => {
     await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
     const record = testCoverageFile(repository.dir, { suite: 'unit' });
     await mkdir(dirname(record), { recursive: true });
-    await writeFile(record, 'record');
+    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[0]!, tests: [], modules: [] });
     await writeFile(`${record}.cases.bin`, 'cases');
 
     const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
     expect(done).toMatchObject({ published: { written: ['suite-index-v1', 'suite-v1/unit'] } });
+    expect(done).not.toHaveProperty('unpublished');
 
     const found = await mainlineSuite(config, 'unit', { env: LOCAL, cwd: repository.dir });
     expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[0], distance: 1 });
-    const text = (bytes: Uint8Array | undefined): string => new TextDecoder().decode(bytes);
-    expect('coverage' in found && [text(found.coverage), text(found.cases)]).toEqual(['record', 'cases']);
+    expect('coverage' in found && Buffer.from(found.coverage).equals(await readFile(record))).toBe(true);
+    expect('coverage' in found && new TextDecoder().decode(found.cases)).toBe('cases');
     expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v1', 'suite-v1/unit'] });
+  });
+
+  it('leaves a suite\'s record out when it was recorded at another commit, and says so', async () => {
+    const repository = await repositoryOf(2);
+    const config = { ...configOf({ root: join(home, 'share'), mainlines: ['main'] }), suites: [{ name: 'unit', carry: 'share' }] } as Config;
+    await writeFile(join(repository.dir, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    const record = testCoverageFile(repository.dir, { suite: 'unit' });
+    await mkdir(dirname(record), { recursive: true });
+    await writeTestCoverage(record, { version: 3, instrumentation: 'fixture', commit: repository.commits[1]!, tests: [], modules: [] });
+
+    const done = await publishRun(config, await reportAt(repository.commits[0]!), { env: PUSH, cwd: repository.dir });
+
+    const why = `its record at ${record} was recorded at ${repository.commits[1]!}, not at ${repository.commits[0]!}`;
+    expect(done).toMatchObject({ published: { written: ['suite-index-v1'] }, unpublished: [`suite-v1/unit: ${why}`] });
+    const again = { ...config, share: configOf({ root: join(home, 'again'), mainlines: ['main'] }).share } as Config;
+    expect(await shareLines(again, { publish: true, report: await reportAt(repository.commits[0]!) }, { env: PUSH, cwd: repository.dir })).toEqual([
+      `wrote suite-index-v1 to mainline main in the directory ${join(home, 'again')}.`,
+      `left out suite-v1/unit: ${why}.`,
+    ]);
   });
 
   it('writes a branch line from a pull request, with the head it pointed at', async () => {
@@ -203,6 +223,19 @@ describe('what a run and `variance share` say', () => {
     ]);
   });
 
+  it('says nothing of the mainline for a pull request, whose line is its head branch whatever the mainline is', async () => {
+    const repository = await repositoryOf(1);
+    await git(repository.dir, 'remote', 'set-head', 'origin', '--delete');
+    const root = join(home, 'share');
+    const event = join(home, 'event.json');
+    const repo = { full_name: 'acme/web' };
+    await writeFile(event, JSON.stringify({ pull_request: { head: { sha: 'abcd', repo }, base: { repo } } }));
+    const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'pull_request', GITHUB_HEAD_REF: 'feat/x', GITHUB_EVENT_PATH: event };
+
+    expect(await shareLines(configOf({ root }), { publish: true, report: await reportAt(repository.commits[0]!) }, { env, cwd: repository.dir }))
+      .toEqual([`wrote suite-index-v1 to branch feat/x in the directory ${root}.`]);
+  });
+
   it('says how many images the carried report names and this machine could not read, and names the first', async () => {
     const repository = await repositoryOf(1);
     const root = join(home, 'share');
@@ -218,6 +251,23 @@ describe('what a run and `variance share` say', () => {
       `wrote suite-index-v1, report-v1 to mainline main in the directory ${root}.`,
       `left out 2 image(s) the report names and this machine could not read, the first at ${join(written, 'images', 'before.png')}.`,
     ]);
+  });
+
+  it('says nothing of the images a report left out when the line kept the report it holds', async () => {
+    const repository = await repositoryOf(2);
+    const root = join(home, 'share');
+    const config = carrying(configOf({ root, mainlines: ['main'] }));
+    const written = join(home, 'ci');
+    await mkdir(written, { recursive: true });
+    const images = { before: 'images/before.png' };
+    const observed = { subject: 'page/footer', verdict: 'changed', because: 'it changed', changedPixels: 1, regions: [], images };
+    await writeFile(join(written, 'run.json'), JSON.stringify({ ...reportOf(repository.commits[0]!), observations: [observed] }));
+    await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir });
+
+    const said = await shareLines(config, { publish: true, report: join(written, 'run.json') }, { env: PUSH, cwd: repository.dir });
+
+    expect(said[0]).toBe(`nothing written to mainline main in the directory ${root}.`);
+    expect(said.filter((line) => line.startsWith('left out'))).toEqual([]);
   });
 
   it('says a share token the environment does not hold is missing, and a run never asks for it', async () => {

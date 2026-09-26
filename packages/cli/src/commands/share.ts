@@ -19,7 +19,7 @@ import {
   type SuiteIndex,
 } from '@variance-authority/report/suite-index';
 import type { Config } from '../config.js';
-import { readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
+import { REPORT_ENTRY, readSuiteEntry, reportEntryOf, suiteEntry, suiteEntryOf, type NamedImage } from '../share-entries.js';
 import {
   descendsOf,
   distanceFrom,
@@ -103,11 +103,17 @@ export interface Here {
  *
  * `noMainline` names the answers that were missing when no mainline is known,
  * which is why the line is a branch's. `leftOut` is present when the report was
- * carried, and names each image the report names that this machine could not
- * read, as the absolute path it was looked for at.
+ * written, and names each image the report names that this machine could not
+ * read, as the absolute path it was looked for at. `unpublished` is present
+ * when a suite's record here was not published, and says for each why.
  */
 export type RunPublish =
-  | ({ readonly line: ShareLine; readonly published: Published; readonly leftOut?: readonly string[] } & NoMainline)
+  | ({
+      readonly line: ShareLine;
+      readonly published: Published;
+      readonly leftOut?: readonly string[];
+      readonly unpublished?: readonly string[];
+    } & NoMainline)
   | ({ readonly line: ShareLine; readonly miss: MainlineMiss } & NoMainline)
   | { readonly none: string };
 
@@ -147,10 +153,13 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
     images = carried.images;
     leftOut = carried.leftOut;
   }
+  const unpublished: string[] = [];
   for (const suite of config.suites ?? []) {
     if (suite.carry !== 'share') continue;
     const entry = await suiteEntryOf(cwd, suite.name, at);
-    if (entry !== undefined) entries.push(entry);
+    if (entry === undefined) continue;
+    if ('unpublished' in entry) unpublished.push(`${suiteEntry(suite.name)}: ${entry.unpublished}`);
+    else entries.push(entry);
   }
 
   const byDigest = new Map(images.map((image) => [image.digest, image.path]));
@@ -163,7 +172,14 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
     },
   });
   if ('kind' in published) return { line: run.line, miss: published, ...noMainline };
-  return { line: run.line, published, ...(leftOut !== undefined ? { leftOut } : {}), ...noMainline };
+  return {
+    line: run.line,
+    published,
+    // A report the line kept is not this run's, so what this run left out of it is not news.
+    ...(leftOut !== undefined && published.written.includes(REPORT_ENTRY) ? { leftOut } : {}),
+    ...(unpublished.length === 0 ? {} : { unpublished }),
+    ...noMainline,
+  };
 }
 
 /**
@@ -365,6 +381,7 @@ export async function shareLines(
         : [
             `left out ${String(leftOut.length)} image(s) the report names and this machine could not read, the first at ${leftOut[0]!}.`,
           ]),
+      ...(done.unpublished ?? []).map((why) => `left out ${why}.`),
     ];
   }
 

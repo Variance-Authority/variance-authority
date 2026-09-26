@@ -28,7 +28,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { ShareEntry } from '@variance-authority/core/share';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, testCoverageFile } from '@variance-authority/sense/test-selection';
 import { readCliRunReport } from './commands/run-report.js';
 
 /** The entry a run report is published under. */
@@ -128,13 +128,32 @@ export function readReportEntry(
 }
 
 /**
- * One suite's record as a `suite-v1/<suite>` entry, or undefined when the suite
- * has recorded nothing here, which is not an empty record.
+ * One suite's record as a `suite-v1/<suite>` entry; undefined when the suite
+ * has recorded nothing here, which is not an empty record; or why the record
+ * here is not published.
+ *
+ * A record is published only under the commit it names. Its regions are line
+ * coordinates in that commit's text, so a record an earlier run left here,
+ * published under this run's commit, would place every region in the wrong
+ * text. The base reader refuses such a record by the same test; refusing it
+ * here keeps the bytes off the line.
  */
-export async function suiteEntryOf(root: string, suite: string, at: Derived): Promise<ShareEntry | undefined> {
+export async function suiteEntryOf(
+  root: string,
+  suite: string,
+  at: Derived,
+): Promise<ShareEntry | { readonly unpublished: string } | undefined> {
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
   if (record === undefined) return undefined;
+  let recorded: string | undefined;
+  try {
+    recorded = askCoverageFile(coverage, (view) => view.commit);
+  } catch (error) {
+    return { unpublished: `its record at ${coverage} does not read: ${error instanceof Error ? error.message : String(error)}` };
+  }
+  if (recorded === undefined) return { unpublished: `its record at ${coverage} names no commit` };
+  if (recorded !== at.commit) return { unpublished: `its record at ${coverage} was recorded at ${recorded}, not at ${at.commit}` };
   const cases = await held(`${coverage}.cases.bin`);
 
   return {

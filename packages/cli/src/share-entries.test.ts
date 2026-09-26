@@ -1,10 +1,10 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { testCoverageFile } from '@variance-authority/sense/test-selection';
+import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -60,25 +60,56 @@ describe('a report as a `report-v1` entry', () => {
 });
 
 describe('a suite as a `suite-v1/<suite>` entry', () => {
-  it('holds the coverage record and its per-case index, and no names table', async () => {
-    const root = join(dir, 'repo');
+  async function recorded(name: string, commit?: string): Promise<{ readonly root: string; readonly coverage: string }> {
+    const root = join(dir, name);
     await mkdir(root, { recursive: true });
     execFileSync('git', ['init', '--quiet', root]);
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
     const coverage = testCoverageFile(root, { suite: 'unit' });
     await mkdir(dirname(coverage), { recursive: true });
-    await writeFile(coverage, 'rows');
+    await writeTestCoverage(coverage, { version: 3, instrumentation: 'fixture', ...(commit === undefined ? {} : { commit }), tests: [], modules: [] });
+
+    return { root, coverage };
+  }
+
+  it('holds the coverage record and its per-case index, and no names table', async () => {
+    const { root, coverage } = await recorded('repo', AT.commit);
     await writeFile(`${coverage}.cases.bin`, 'cases');
 
     const entry = await suiteEntryOf(root, 'unit', { commit: AT.commit });
 
+    if (entry === undefined || 'unpublished' in entry) throw new Error(`not published: ${JSON.stringify(entry)}`);
     expect(entry).toMatchObject({ name: 'suite-v1/unit', commit: AT.commit });
-    const parts = unframe(entry!.bytes);
+    const parts = unframe(entry.bytes);
     expect(typeof parts === 'string' ? parts : [...parts.keys()]).toEqual(['coverage.bin', 'coverage.bin.cases.bin']);
-    const read = readSuiteEntry(entry!.bytes);
+    const read = readSuiteEntry(entry.bytes);
     if (typeof read === 'string') throw new Error(read);
-    expect(new TextDecoder().decode(read.coverage)).toBe('rows');
+    expect(Buffer.from(read.coverage).equals(await readFile(coverage))).toBe(true);
     expect(new TextDecoder().decode(read.cases)).toBe('cases');
+  });
+
+  it('is not published under a commit other than the one the record names, and says which it names', async () => {
+    const { root, coverage } = await recorded('stale', 'c'.repeat(40));
+
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit })).toEqual({
+      unpublished: `its record at ${coverage} was recorded at ${'c'.repeat(40)}, not at ${AT.commit}`,
+    });
+  });
+
+  it('is not published when the record names no commit', async () => {
+    const { root, coverage } = await recorded('nowhere');
+
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit })).toEqual({ unpublished: `its record at ${coverage} names no commit` });
+  });
+
+  it('is not published when the record does not read, and says why', async () => {
+    const { root, coverage } = await recorded('torn', AT.commit);
+    await writeFile(coverage, 'rows');
+
+    const entry = await suiteEntryOf(root, 'unit', { commit: AT.commit });
+
+    const why = entry !== undefined && 'unpublished' in entry ? entry.unpublished : JSON.stringify(entry);
+    expect(why).toContain(`its record at ${coverage} does not read: `);
   });
 
   it('is absent for a suite that has recorded nothing here, never empty', async () => {
