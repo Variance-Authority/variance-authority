@@ -26,6 +26,8 @@ import {
   type Tree,
 } from '@variance-authority/mcp/tools';
 import { grepSource, readChanged, readSource, readTaint, searchSource, wholeSource } from './ask-source.js';
+import { readingFor } from './report-source.js';
+import type { Here } from './share.js';
 import { readVantage } from './watch.js';
 
 /**
@@ -139,10 +141,12 @@ export interface AskRequest {
   readonly at?: string;
   /** `--format json`: the answer as data. Only `search` answers in it. */
   readonly format?: 'json';
-  /** The configured report. Names the directory the previous subject is kept in. */
+  /** The configured report. Names the directory the previous subject is kept in, or, when a line is read in its place, the kept copy does. */
   readonly report: string;
   /** The report to answer from — the configured one, or the shards the operator named. */
   readonly read: () => Promise<RunReport>;
+  /** Where the share is read from when the configured report is absent. Injected so a test need not move the process. */
+  readonly here?: Here;
   /** How a watcher is read. Injected so the live path is testable without a socket. */
   readonly look?: (at: string) => Promise<VantageReading>;
   /** How the checkout is read. Injected so the source path is testable without a repository. */
@@ -297,8 +301,10 @@ async function finished(
   const tool = question.report;
   if (tool === undefined) throw noWatcher(question);
 
-  const asked = join(dirname(request.report), ASKED);
-  const report = await request.read();
+  // Read first: a report fetched from the share keeps its subject beside the
+  // fetched copy, never beside `config.report`, where it would outlive nothing.
+  const { report, path, says } = await readingFor(request, input);
+  const asked = join(dirname(path), ASKED);
   const previous = await recorded(asked);
   // A path is a fact about a tree, and this is the one side of the product that
   // is already standing in one. Read only for the questions that say they need
@@ -313,7 +319,7 @@ async function finished(
   // After the answer and only after it, which is the MCP rule verbatim: a
   // refused call must not become the thing the next diff compares against.
   await record(asked, report);
-  return answer;
+  return says === undefined ? answer : `${says}\n\n${answer}`;
 }
 
 /**
@@ -435,6 +441,7 @@ export function questions(): string {
     '',
     ...(HELP_TOOLS as readonly Tool<Help>[]).flatMap(entry),
     'The report is the configured one unless report paths are named.',
+    'With no configured report on disk, it is read from the share: your branch\'s line, then the mainline\'s.',
     '`--config` and sharded reports work as they do on `variance report`.',
     `Live questions need \`--at <address>\`, which defaults to \`${VANTAGE_VARIABLE}\`;`,
     '`variance watch` starts a watcher and prints both.',

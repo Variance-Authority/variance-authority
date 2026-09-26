@@ -1,8 +1,32 @@
 import { readFile } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';
 import type { Config } from '../config.js';
+import { OperatorError } from '../exit.js';
 import { mergeReports } from './merge.js';
 import { readCliRunReport, type CliRunReport } from './run.js';
+
+/**
+ * The configured report is not on disk: no run has written it in this checkout.
+ *
+ * A refusal rather than an `ENOENT` stack, for the reason `accept` gives: the
+ * state of a working directory is not a defect in this tool. It carries the
+ * configuration because one caller has somewhere else to look. `ask` reads the
+ * share's record in its place; `report`, `adjudicate`, `comment` and `push`
+ * refuse, because a gate that read CI's record would pass or fail a run this
+ * checkout never made.
+ */
+export class AbsentReport extends OperatorError {
+  readonly config: Config;
+
+  constructor(config: Config, options?: ErrorOptions) {
+    super(
+      `there is no run report at ${config.report}, which is where \`report\` in your configuration points; ` +
+        '`variance run` writes it there',
+      options,
+    );
+    this.config = config;
+  }
+}
 
 /**
  * The report the operator meant: the configured one, or the shards they named.
@@ -25,7 +49,12 @@ export async function reportsFor(
   return mergeReports(
     await Promise.all(
       named.map(async (path) => {
-        const report = await readCliRunReport(path);
+        const report = await readCliRunReport(path).catch((error: unknown) => {
+          // Only the configured path: a shard the operator named and mistyped
+          // is their typo, and says so in the words the filesystem used.
+          const absent = paths.length === 0 && (error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
+          throw absent ? new AbsentReport(config, { cause: error }) : error;
+        });
         return { path, report: embed ? await embedImages(report, dirname(path)) : report };
       }),
     ),

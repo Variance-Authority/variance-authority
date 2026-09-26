@@ -1,11 +1,14 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RunReport } from '@variance-authority/report';
 import { writeRunReport } from '@variance-authority/report/file';
+import type { Config } from './config.js';
+import { publishRun } from './commands/share.js';
 
 /**
  * One connection answers about the run and about the code.
@@ -88,15 +91,64 @@ describe('the server `variance serve` starts', () => {
   });
 });
 
-async function ask<Result>(method: string, params?: Record<string, unknown>): Promise<Result> {
+describe('`variance serve` in a checkout with no report', () => {
+  it('answers from the mainline record the share holds, and every answer names the commit it read', async () => {
+    const checkout = await mkdtemp(join(tmpdir(), 'variance-serve-share-'));
+    try {
+      const git = async (...args: string[]): Promise<string> => (await promisify(execFile)('git', args, { cwd: checkout })).stdout.trim();
+      await git('init', '--quiet', '-b', 'main');
+      await git('-c', 'user.email=test@example.com', '-c', 'user.name=Test', 'commit', '--quiet', '--allow-empty', '-m', 'one');
+      const commit = await git('rev-parse', 'HEAD');
+      const share = { kind: 'directory', root: join(checkout, 'share'), mainlines: ['main'] } as const;
+      await writeFile(
+        join(checkout, 'variance.config.json'),
+        JSON.stringify({
+          project: 'mounted',
+          profile: 'chromium',
+          viewport: { width: 256, height: 96, deviceScaleFactor: 1, colorScheme: 'light' },
+          retention: 'ephemeral',
+          subjects: { kind: 'collector', collector: 'collector/index.mjs' },
+          fonts: ['Arial/600/normal/system'],
+          report: { path: 'report.json', carry: 'share' },
+          share,
+        }),
+      );
+      // CI's run, written somewhere this checkout's configured report is not.
+      const ci = join(checkout, 'ci', 'run.json');
+      await writeRunReport(ci, { ...REPORT, run: { id: 'ci', commit }, composition: { subjects: ['page/home'], components: [] } } as unknown as RunReport);
+      const config = { project: 'mounted', report: join(checkout, 'report.json'), share, reportCarry: 'share' } as Config;
+      const env = { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push', GITHUB_REF_TYPE: 'branch', GITHUB_REF_NAME: 'main' };
+      expect(await publishRun(config, ci, { env, cwd: checkout })).toMatchObject({ published: { written: ['suite-index-v1', 'report-v1'] } });
+
+      const result = await ask<{ readonly content: readonly { readonly text: string }[] }>(
+        'tools/call',
+        { name: 'variance_summary' },
+        checkout,
+      );
+      expect(result.content[0]!.text).toMatch(new RegExp(`^report: read from mainline main, evaluated at ${commit}, .*; kept at .+run\\.json\\.\n\n`));
+    } finally {
+      await rm(checkout, { recursive: true, force: true });
+    }
+  });
+});
+
+async function ask<Result>(method: string, params?: Record<string, unknown>, cwd = workspace): Promise<Result> {
+  // Nothing from the host's CI: which line a reader reads is decided by the
+  // checkout here, not by the pull request this suite happens to run for.
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GITHUB_')));
   const child = spawn(process.execPath, [BIN, 'serve'], {
-    cwd: workspace,
+    cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...env, NO_COLOR: '1', XDG_CACHE_HOME: join(cwd, 'cache') },
   });
   try {
     const answer = new Promise<Result>((resolve, reject) => {
       let buffer = '';
+      let said = '';
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        said += chunk;
+      });
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', (chunk: string) => {
         buffer += chunk;
@@ -116,7 +168,7 @@ async function ask<Result>(method: string, params?: Record<string, unknown>): Pr
         }
       });
       child.on('error', reject);
-      child.on('exit', (code) => reject(new Error(`the server exited with ${String(code)} before answering`)));
+      child.on('exit', (code) => reject(new Error(`the server exited with ${String(code)} before answering: ${said}`)));
     });
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })}\n`);
     return await answer;

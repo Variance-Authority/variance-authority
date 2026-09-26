@@ -117,6 +117,18 @@ export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
 }
 
 /**
+ * Where a report read from a share is kept: one directory per entry digest,
+ * holding `run.json` and whatever the reader opened beside it.
+ *
+ * In the cache and never at `config.report`, because the configured path is
+ * where this checkout's own run writes, and a record from CI put there would be
+ * read back as a run this checkout made.
+ */
+export function sharedReportRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'report');
+}
+
+/**
  * The cache `loadConfig` resolved, or the one this directory's repository
  * names when the config was built in code and never read from a file.
  */

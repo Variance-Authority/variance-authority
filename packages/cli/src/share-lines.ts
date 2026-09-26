@@ -119,6 +119,47 @@ export async function lineOfRun(
   return { line: { kind: 'branch', name } };
 }
 
+/**
+ * The branch line a reader reads, or why it reads none.
+ *
+ * Not {@link lineOfRun}: every refusal there is about who may write, and a
+ * reader of a fork's pull request or of a merge-queue branch reads whatever
+ * its branch holds. The name is the one the host gives a pull request's head,
+ * or the one it gives a pushed branch, or the branch this checkout is on. A
+ * mainline is read as a mainline, so it is never asked for as a branch.
+ */
+export async function lineOfReader(
+  config: Pick<Config, 'share'>,
+  env: Env = process.env,
+  cwd: string = process.cwd(),
+): Promise<{ readonly line: ShareLine } | { readonly none: string }> {
+  const pushed = env['GITHUB_ACTIONS'] === 'true' && env['GITHUB_REF_TYPE'] === 'branch' ? env['GITHUB_REF_NAME'] : undefined;
+  const name = [env['GITHUB_HEAD_REF'], pushed].find((one) => one !== undefined && one !== '')
+    ?? (await git(['symbolic-ref', '--quiet', '--short', 'HEAD'], cwd))?.trim();
+  if (name === undefined || name === '') return { none: 'this checkout is not on a branch' };
+  const mainlines = await mainlinesOf(config, env, cwd);
+  if ('names' in mainlines && mainlines.names.includes(name)) return { none: `${name} is a mainline` };
+  return { line: { kind: 'branch', name } };
+}
+
+/**
+ * How many commits `HEAD` is past `commit`: `false` when `HEAD` does not
+ * contain it, absent when this clone cannot say — a commit it does not hold,
+ * or a history too shallow to walk.
+ *
+ * Git's exit code is the answer, so this asks it directly rather than through
+ * a runner that folds every failure into one.
+ */
+export async function headPast(commit: string, cwd: string = process.cwd()): Promise<number | false | undefined> {
+  const contains = await new Promise<boolean | undefined>((resolve) => {
+    execFile('git', ['merge-base', '--is-ancestor', commit, 'HEAD'], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } }, (error) =>
+      resolve(error === null ? true : error.code === 1 ? false : undefined),
+    );
+  });
+  if (contains !== true) return contains;
+  return count(`${commit}..HEAD`, cwd);
+}
+
 /** How long a reader reuses a fetched line: one editor session asking ten questions fetches once. */
 export const READ_REUSE_MS = 60_000;
 

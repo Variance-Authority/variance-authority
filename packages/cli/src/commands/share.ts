@@ -4,6 +4,7 @@ import {
   findEntry,
   publishLine,
   readLine,
+  type HeldEntry,
   type Published,
   type ShareEntry,
   type ShareLine,
@@ -164,8 +165,18 @@ export interface MainlineIndex extends MainlineAt {
   readonly index: SuiteIndex;
 }
 
+/**
+ * Which mainline was asked and why it did not answer. `holds` names what the
+ * line does hold when the miss is an entry it lacks, rather than the line.
+ */
+export interface MainlineMissed {
+  readonly mainline?: string;
+  readonly miss: MainlineMiss;
+  readonly holds?: readonly string[];
+}
+
 /** A mainline index, or which mainline was asked and why it did not answer. */
-export type MainlineRead = MainlineIndex | { readonly mainline?: string; readonly miss: MainlineMiss };
+export type MainlineRead = MainlineIndex | MainlineMissed;
 
 /**
  * The suite index the reader's mainline holds.
@@ -180,11 +191,11 @@ export async function mainlineIndex(
 ): Promise<MainlineRead> {
   const found = await mainlineEntry(config, SUITE_INDEX_ENTRY, options);
   if ('miss' in found) return found;
-  const { bytes, ...at } = found;
+  const { at, held } = found;
   const local = await readSuiteIndex(suiteIndexPath(config, at.commit)).catch(() => null);
   if (local !== null) return { ...at, from: 'local', index: local };
 
-  const read = await bytes();
+  const read = await held.bytes();
   if (!(read instanceof Uint8Array)) return { mainline: at.mainline, miss: read };
   let index: SuiteIndex;
   try {
@@ -217,11 +228,11 @@ export async function mainlineSuite(
   config: Config,
   suite: string,
   options: Here & { readonly mainline?: string } = {},
-): Promise<MainlineSuite | { readonly mainline?: string; readonly miss: MainlineMiss }> {
+): Promise<MainlineSuite | MainlineMissed> {
   const found = await mainlineEntry(config, suiteEntry(suite), options);
   if ('miss' in found) return found;
-  const { bytes, ...at } = found;
-  const read = await bytes();
+  const { at, held } = found;
+  const read = await held.bytes();
   if (!(read instanceof Uint8Array)) return { mainline: at.mainline, miss: read };
   const parts = readSuiteEntry(read);
   if (typeof parts === 'string') return { mainline: at.mainline, miss: { kind: 'unreadable', detail: parts } };
@@ -235,14 +246,11 @@ export async function mainlineSuite(
  * bytes are read only when asked, because a commit this machine already holds
  * is answered from disk.
  */
-async function mainlineEntry(
+export async function mainlineEntry(
   config: Config,
   name: string,
   options: Here & { readonly mainline?: string },
-): Promise<
-  | (MainlineAt & { readonly bytes: () => Promise<Uint8Array | ShareMiss> })
-  | { readonly mainline?: string; readonly miss: MainlineMiss }
-> {
+): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
   const env = options.env ?? process.env;
   const cwd = options.cwd ?? process.cwd();
   let mainline = options.mainline;
@@ -253,22 +261,44 @@ async function mainlineEntry(
     }
     mainline = chosen.name;
   }
+  const found = await lineEntry(config, { kind: 'mainline', name: mainline }, name, cwd);
+  if ('miss' in found) return { mainline, ...found };
+
+  const distance = await distanceFrom(config, mainline, found.entry.commit, cwd);
+  return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}) }, held: found };
+}
+
+/** One entry a line holds, and its bytes and images on demand. */
+export interface LineEntry {
+  readonly entry: HeldEntry;
+  readonly bytes: () => Promise<Uint8Array | ShareMiss>;
+  readonly image: (digest: string) => Promise<Uint8Array | ShareMiss>;
+}
+
+/**
+ * Where `line` holds `name`, or why it does not.
+ *
+ * An `absent` entry on a line that exists carries what the line does hold, so
+ * a reader can say *it holds suite-index-v1* rather than *nothing is
+ * published*, which would send somebody to look for a publish that happened.
+ */
+export async function lineEntry(
+  config: Config,
+  line: ShareLine,
+  name: string,
+  cwd: string,
+): Promise<LineEntry | { readonly miss: MainlineMiss; readonly holds?: readonly string[] }> {
   const cell = await lineCellOf(config, { cwd, reuseMs: READ_REUSE_MS });
-  if (cell === undefined) return { mainline, miss: { kind: 'unconfigured', detail: 'no share is configured' } };
-  if ('kind' in cell) return { mainline, miss: cell };
+  if (cell === undefined) return { miss: { kind: 'unconfigured', detail: 'no share is configured' } };
+  if ('kind' in cell) return { miss: cell };
 
-  const held = await readLine(cell, { kind: 'mainline', name: mainline });
-  if ('kind' in held) return { mainline, miss: held };
+  const held = await readLine(cell, line);
+  if ('kind' in held) return { miss: held };
   const entry = findEntry(held.manifest, name);
-  if ('kind' in entry) return { mainline, miss: entry };
-
-  const distance = await distanceFrom(config, mainline, entry.commit, cwd);
-  return {
-    mainline,
-    commit: entry.commit,
-    ...(distance !== undefined ? { distance } : {}),
-    bytes: () => held.entry(entry),
-  };
+  if ('kind' in entry) {
+    return entry.kind === 'absent' ? { miss: entry, holds: held.manifest.entries.map((one) => one.name) } : { miss: entry };
+  }
+  return { entry, bytes: () => held.entry(entry), image: (digest) => held.image(digest) };
 }
 
 /**
@@ -311,7 +341,7 @@ export async function shareLines(
   });
   if ('miss' in found) {
     const line = found.mainline === undefined ? 'no mainline' : `mainline ${found.mainline}`;
-    return [`${line}: ${describeMiss(found.miss)}.`];
+    return [`${line}: ${describeMiss(found.miss, found.holds)}.`];
   }
 
   const lexicon = found.index.lexicon;
@@ -333,10 +363,11 @@ function describeShare(config: Config): string {
   return `${share.namespace ?? 'refs/variance'} on ${share.remote ?? 'origin'}`;
 }
 
-function describeMiss(miss: MainlineMiss): string {
+/** A miss in the words `variance share` prints it in, and what the line holds instead when it holds something. */
+export function describeMiss(miss: MainlineMiss, holds?: readonly string[]): string {
   switch (miss.kind) {
     case 'absent':
-      return 'nothing is published there';
+      return holds === undefined || holds.length === 0 ? 'nothing is published there' : `it holds only ${holds.join(', ')}`;
     case 'newer':
       return `it holds ${miss.names.join(', ')}, a format this version does not read`;
     default:
@@ -350,7 +381,7 @@ function describeMiss(miss: MainlineMiss): string {
  * The one signal an operator has that publishing has stopped: a mainline
  * answering from forty commits back is a mainline nothing has pushed to since.
  */
-function describeDistance(distance: number | undefined): string {
+export function describeDistance(distance: number | undefined): string {
   if (distance === undefined) return 'at a distance this clone cannot count';
   if (distance === 0) return 'at the merge base with this checkout';
   if (distance > 0) return `${String(distance)} commit(s) behind the merge base with this checkout`;

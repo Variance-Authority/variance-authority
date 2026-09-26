@@ -57,7 +57,10 @@ variance ask changelog --shape v1:8f2c
 
 The report is the configured one unless report paths follow the question, in
 which case those are read and merged — the same selection `variance report`
-takes, for the same sharded runs.
+takes, for the same sharded runs. When the configured report is not on disk,
+`ask` answers from the report CI published for your branch or mainline, and
+the answer opens with the line and commit it read; the CLI's page says
+[which record that is](../packages/cli/README.md#a-checkout-with-no-run-of-its-own).
 
 ## An answer is not a verdict
 
@@ -81,7 +84,7 @@ variance ask diff
 `diff` compares the current report with the report the previous question was
 answered from. An MCP connection keeps that state in memory for as long as it
 lasts; a command line is a new process per question, so the report each answer
-was read from is recorded beside the configured report as `asked.json`. It is
+was read from is recorded beside that report as `asked.json`. It is
 replaced after every successful answer and never after a refusal, which is what
 lets a re-run be compared against what was actually read.
 

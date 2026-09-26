@@ -248,9 +248,36 @@ cannot lose its exit code to a question.
 
 `ask diff` reports what changed since the previous question was answered. An MCP
 connection keeps that state in memory for as long as it lasts; a command line
-cannot, so the report each answer was read from is recorded beside the
-configured report as `asked.json`. Deleting it costs the next `ask diff` its
-comparison and nothing else.
+cannot, so the report each answer was read from is recorded beside that report
+as `asked.json`. Deleting it costs the next `ask diff` its comparison and
+nothing else.
+
+#### A checkout with no run of its own
+
+When the configured report is not on disk, `ask` and `serve` answer from the
+report CI published to the [share](../../docs/sharing.md): the line for your
+branch first, then your mainline's. CI publishes it when its config sets
+`report.carry` to `share`. Each answer opens with the line it read, the commit
+that run was evaluated at, and where that commit is relative to your `HEAD`:
+
+```text
+report: read from branch feat/cart, evaluated at 51ab09e… for pull request head 9c4e1d2…, 2 commit(s) before HEAD; kept at <cache>/report/<digest>/run.json.
+```
+
+- **A branch record your `HEAD` does not contain is not yours.** After a
+  rebase, or before you pull, the answer says it is *another run of* the
+  branch, and it still answers.
+- **The configured `report` path is never written.** The record is kept in
+  [the cache](../../docs/cache.md) under its digest, so the next `variance run`
+  writes your own report where it always does, and `ask` and `serve` read that
+  one from then on. `report`, `adjudicate`, `comment` and `push` do not read the
+  share: they gate a run, and this checkout made none.
+- **Images are fetched by digest, for the subjects a question names.** `ask
+  describe --subject story:card` fetches that subject's images beside the kept
+  report, so the paths the answer prints open. `serve` fetches no images.
+- **A share with no record for you is a refusal that lists what it asked.**
+  Each line gets its own line in the message, with what it answered: nothing
+  published, a credential refused, a format this version does not read.
 
 ### Distill: find a smaller test boundary
 

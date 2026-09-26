@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -10,6 +10,8 @@ import type { RunReport } from '@variance-authority/report';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
+import { ask, type AskRequest } from './ask.js';
+import { reportsFor } from './report-read.js';
 import { mainlineIndex, mainlineSuite, mainlinesOf, publishedLine, publishRun, shareLines } from './share.js';
 
 /**
@@ -112,7 +114,7 @@ describe('publishing a run', () => {
     expect(found).toMatchObject({ mainline: 'main', commit: repository.commits[0], distance: 1 });
     const text = (bytes: Uint8Array | undefined): string => new TextDecoder().decode(bytes);
     expect('coverage' in found && [text(found.coverage), text(found.cases)]).toEqual(['record', 'cases']);
-    expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' } });
+    expect(await mainlineSuite(config, 'e2e', { env: LOCAL, cwd: repository.dir })).toEqual({ mainline: 'main', miss: { kind: 'absent' }, holds: ['suite-index-v1', 'suite-v1/unit'] });
   });
 
   it('writes a branch line from a pull request, with the head it pointed at', async () => {
@@ -189,7 +191,91 @@ describe('what a run and `variance share` say', () => {
   });
 });
 
-it.todo('`variance ask` in a checkout with no report answers from the branch record, then the mainline record, and names the commit it read — needs the report readers in `ask`, `serve` and the MCP tools to call `readLine` when the local report is absent');
+describe('`variance ask` in a checkout with no report', () => {
+  it('answers from the branch record, then the mainline record, and names the commit it read', async () => {
+    const repository = await repositoryOf(2);
+    const config = carrying(configOf({ root: join(home, 'share'), mainlines: ['main'] }));
+    await publishRun(config, await reportAt(repository.commits[1]!), { env: PUSH, cwd: repository.dir });
+    const head = await branchOf(repository.dir, 'feat/x');
+
+    const fromMainline = await asked(config, repository.dir);
+    expect(fromMainline).toMatch(new RegExp(
+      `^report: read from mainline main, evaluated at ${repository.commits[1]!}, at the merge base with this checkout; ` +
+        'kept at (.+)/report/[0-9a-f]{64}/run\\.json\\.\nbranch feat/x: nothing is published there\\.\n\n',
+    ));
+
+    await publishRun(config, await reportAt(head), { env: await pullRequest(head), cwd: repository.dir });
+    const fromBranch = await asked(config, repository.dir);
+    expect(fromBranch).toMatch(new RegExp(
+      `^report: read from branch feat/x, evaluated at ${head} for pull request head ${head}, which is HEAD; kept at (.+)\\.\n\n`,
+    ));
+
+    // What was read is kept under the cache, and the question asked is recorded
+    // beside it. The configured report is where this checkout's own run writes,
+    // and nothing is ever written there.
+    const kept = /kept at (.+)\.\n\n/.exec(fromBranch)![1]!;
+    await expect(stat(join(dirname(kept), 'asked.json'))).resolves.toBeDefined();
+    await expect(stat(config.report)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    await git(repository.dir, 'commit', '--quiet', '--allow-empty', '-m', 'one more');
+    expect(await asked(config, repository.dir)).toContain(`for pull request head ${head}, 1 commit(s) before HEAD; kept at`);
+  });
+
+  it('says a branch record HEAD does not contain is another run of the branch', async () => {
+    const repository = await repositoryOf(1);
+    const config = carrying(configOf({ root: join(home, 'share'), mainlines: ['main'] }));
+    const head = await branchOf(repository.dir, 'feat/x');
+    await publishRun(config, await reportAt(head), { env: await pullRequest(head), cwd: repository.dir });
+
+    // The branch was rebased: the record's commit is still in this clone, but not under HEAD.
+    await git(repository.dir, 'checkout', '--quiet', '-B', 'feat/x', 'main');
+    await git(repository.dir, 'commit', '--quiet', '--allow-empty', '-m', 'rebased');
+    expect(await asked(config, repository.dir)).toContain(
+      `evaluated at ${head} for pull request head ${head}, which this checkout does not contain: another run of feat/x, not this checkout's;`,
+    );
+
+    const elsewhere = 'e'.repeat(40);
+    await publishRun(config, await reportAt(elsewhere), { env: await pullRequest(elsewhere), cwd: repository.dir });
+    expect(await asked(config, repository.dir)).toContain(
+      `evaluated at ${elsewhere} for pull request head ${elsewhere}, which this clone does not hold: read as another run of feat/x, not this checkout's;`,
+    );
+  });
+
+  it('reads no branch line on a mainline, and fetches the images of the subject it is asked about', async () => {
+    const repository = await repositoryOf(1);
+    const config = carrying(configOf({ root: join(home, 'share'), mainlines: ['main'] }));
+    const written = join(home, 'ci');
+    await mkdir(join(written, 'images'), { recursive: true });
+    await writeFile(join(written, 'images', 'footer.png'), 'pixels');
+    const report = reportOf(repository.commits[0]!);
+    const observed = { subject: 'page/footer', verdict: 'changed', because: 'it changed', changedPixels: 1, regions: [], images: { after: 'images/footer.png' } };
+    await writeFile(join(written, 'run.json'), JSON.stringify({ ...report, observations: [observed] }));
+    await publishRun(config, join(written, 'run.json'), { env: PUSH, cwd: repository.dir });
+
+    const answer = await asked(config, repository.dir, { question: 'describe', subject: 'page/footer' });
+    // On a mainline the branch is not asked, and an answer from it says nothing about one.
+    expect(answer.split('\n').slice(0, 2)).toEqual([expect.stringMatching(/^report: read from mainline main, /), '']);
+    const kept = /kept at (.+)\.\n/.exec(answer)![1]!;
+    expect(await readFile(join(dirname(kept), 'images', 'footer.png'), 'utf8')).toBe('pixels');
+  });
+
+  it('refuses with every line it asked when none holds a report, and says so when no share is configured', async () => {
+    const repository = await repositoryOf(1);
+    await branchOf(repository.dir, 'feat/x');
+    const config = carrying(configOf({ root: join(home, 'share'), mainlines: ['main'] }));
+    const absent = `there is no run report at ${config.report}, which is where \`report\` in your configuration points`;
+
+    await expect(asked(config, repository.dir)).rejects.toThrow(
+      `${absent}, and the share holds none for this checkout:\n` +
+        '  branch feat/x: nothing is published there\n' +
+        '  mainline main: nothing is published there',
+    );
+    await expect(asked(configOf({}), repository.dir)).rejects.toThrow(
+      `${absent}; \`variance run\` writes it there, and no share is configured to read CI's from`,
+    );
+  });
+});
+
 it.todo('`variance review` and `variance select` take their base from the mainline record\'s `suite-v1` entry when this checkout recorded none, and say which they read — needs the base readers to read the mainline line before deriving a base');
 
 describe('a git share', () => {
@@ -215,6 +301,30 @@ describe('a git share', () => {
     }
   });
 });
+
+/** A question asked the way `dispatch` asks it: the configured report, read through `reportsFor`. */
+async function asked(config: Config, cwd: string, rest: Partial<AskRequest> = {}): Promise<string> {
+  return ask({ question: 'summary', report: config.report, read: () => reportsFor([], config), here: { env: LOCAL, cwd }, ...rest });
+}
+
+function carrying(config: Config): Config {
+  return { ...config, reportCarry: 'share' } as Config;
+}
+
+/** Check out a new branch with one commit of its own, and return that commit. */
+async function branchOf(dir: string, name: string): Promise<string> {
+  await git(dir, 'checkout', '--quiet', '-b', name);
+  await git(dir, 'commit', '--quiet', '--allow-empty', '-m', name);
+  return git(dir, 'rev-parse', 'HEAD');
+}
+
+/** The environment of a pull request from `feat/x` whose head is `head`. */
+async function pullRequest(head: string): Promise<Env> {
+  const event = join(home, `event-${head}.json`);
+  const repo = { full_name: 'acme/web' };
+  await writeFile(event, JSON.stringify({ pull_request: { head: { sha: head, repo }, base: { repo } } }));
+  return { GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'pull_request', GITHUB_HEAD_REF: 'feat/x', GITHUB_EVENT_PATH: event };
+}
 
 async function emptyLocalCache(): Promise<void> {
   process.env['XDG_CACHE_HOME'] = await mkdtemp(join(home, 'cold-'));
@@ -263,6 +373,7 @@ async function reportAt(commit: string): Promise<string> {
 function reportOf(commit: string): RunReport {
   return {
     runVersion: 1,
+    identity: { renderer: 'playwright-chromium', engine: 'chromium@131', platform: 'linux/x64', deviceScaleFactor: 1, fonts: [] },
     observations: [],
     run: { id: 'run-1', commit },
     composition: {

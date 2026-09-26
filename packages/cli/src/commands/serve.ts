@@ -7,6 +7,7 @@ import { readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority
 import { HELP, HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
+import { reportSource } from './report-source.js';
 
 /**
  * `variance serve` — the MCP surface, which is wiring and nothing else.
@@ -50,6 +51,8 @@ interface Bench {
   readonly report: RunReport;
   /** Absent until one of the seven is asked; nothing else reads it. */
   readonly help?: Help;
+  /** The line and commit the report was read from, when it came from the share. */
+  readonly says?: string;
 }
 
 const SOURCE_QUESTIONS: ReadonlySet<string> = new Set(HELP_TOOLS.map((tool) => tool.name));
@@ -84,7 +87,15 @@ const BENCH: Served<Bench> = {
   name: REPORTS.name,
   version: REPORTS.version,
   tools: [
-    ...over(REPORTS.tools, (bench) => bench.report, 'no run report was read'),
+    ...over(REPORTS.tools, (bench) => bench.report, 'no run report was read').map((tool) => ({
+      ...tool,
+      // Every answer from a line says which line and commit it is about, so an
+      // agent never mistakes CI's run for one made in this checkout.
+      run: (bench: Bench, input: Readonly<Record<string, unknown>>, invocation?: Parameters<Tool<Bench>['run']>[2]): string => {
+        const answer = tool.run(bench, input, invocation);
+        return bench.says === undefined ? answer : `${bench.says}\n\n${answer}`;
+      },
+    })),
     ...over(
       HELP.tools,
       (bench) => bench.help,
@@ -100,7 +111,10 @@ const BENCH: Served<Bench> = {
 };
 
 export interface ServeOptions {
-  /** The report to answer from. Defaults to the config's. */
+  /**
+   * The report to answer from. Defaults to the config's, and, when that is not
+   * on disk, to the one the share holds for this checkout's branch or mainline.
+   */
   readonly report?: string;
   /** The checkout the source questions read, and the tree a start point resolves against. */
   readonly root?: string;
@@ -110,9 +124,15 @@ export interface ServeOptions {
 
 /** Returns the stop function. The caller owns the process lifetime, not this. */
 export async function serve(config: Config, options: ServeOptions = {}): Promise<() => void> {
-  const path = options.report ?? config.report;
   const root = options.root ?? process.cwd();
   const index = sourceIndexPath(root);
+  // TODO: images are not fetched for a report read from a line, because a tool
+  // answers synchronously; a path an answer prints opens only after `variance
+  // ask` has fetched that subject's images.
+  const source = options.report === undefined ? await reportSource(config, { cwd: root }) : { local: options.report };
+  let path = 'local' in source ? source.local : source.path;
+  let says = 'local' in source ? undefined : source.says;
+  if (says !== undefined) process.stderr.write(`variance: ${says}\n`);
 
   // Read once before serving, so a path that is not a run report fails at
   // startup rather than on whichever request happens to arrive first. The
@@ -132,12 +152,23 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     // reading on every successful call would buy that comparison nothing.
     remember: (bench) => ({ report: structuredClone(bench.report) }),
     subject: async (asked) => {
-      try {
-        report = await readRunReport(path);
-      } catch {
-        // A report that becomes unreadable mid-run — being rewritten, most
-        // likely — must not take the server down. The previous one is stale,
-        // not wrong.
+      if (says !== undefined) {
+        // A line's record does not change under its digest. The checkout's own
+        // run does, and the first one written replaces it for every request after.
+        const own = await readRunReport(config.report).catch(() => undefined);
+        if (own !== undefined) {
+          report = own;
+          path = config.report;
+          says = undefined;
+        }
+      } else {
+        try {
+          report = await readRunReport(path);
+        } catch {
+          // A report that becomes unreadable mid-run — being rewritten, most
+          // likely — must not take the server down. The previous one is stale,
+          // not wrong.
+        }
       }
       if (asked !== undefined && SOURCE_QUESTIONS.has(asked)) {
         try {
@@ -163,7 +194,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
           if (help === undefined) process.stderr.write(`variance: ${failure instanceof Error ? failure.message : String(failure)}\n`);
         }
       }
-      return { report, ...(help === undefined ? {} : { help }) };
+      return { report, ...(help === undefined ? {} : { help }), ...(says === undefined ? {} : { says }) };
     },
   });
 }
