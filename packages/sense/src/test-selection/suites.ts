@@ -33,6 +33,10 @@ import { rootConfig } from './cache-layers.js';
  */
 export const SUITE_KINDS = ['unit', 'integration', 'e2e', 'visual'] as const;
 
+/**
+ * One of {@link SUITE_KINDS}: the role a declared suite plays, which is what a
+ * reader names beside a suite's answer, since the runner alone cannot say it.
+ */
 export type SuiteKind = (typeof SUITE_KINDS)[number];
 
 /**

@@ -3,6 +3,7 @@ import { distanceRange } from '@variance-authority/sense/test-selection';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 import type { CoveringFormat } from './commands/covering.js';
+import { oneRecord } from './commands/suite-record.js';
 
 /** Where the answer is read from and how it is written, whichever was asked. */
 export interface CoveringSource {
@@ -17,6 +18,13 @@ export interface CoveringSource {
    * whole suite — the run that wrote the index last, or every case of one file.
    */
   readonly cases?: string;
+  /**
+   * `--suite <name>`: the one declared suite whose record is read. Absent, a
+   * repository that declares suites is read suite by suite.
+   */
+  readonly suite?: string;
+  /** The held text already read, by a caller that asks the same question of every suite. */
+  readonly held?: string;
 }
 
 /** A question about one piece of source. */
@@ -198,9 +206,12 @@ function executionAnd(flags: Flags): CoveringSource {
   const execution = flags.values.get('--execution');
   const cases = flags.values.get('--cases');
   if (cases === '') throw new OperatorError('`--cases` takes `last` or a test file.');
+  const suite = flags.values.get('--suite');
+  oneRecord(suite, execution, '--execution');
   return {
     command: 'covering',
     ...(execution === undefined ? {} : { execution: resolve(execution) }),
+    ...(suite === undefined ? {} : { suite }),
     ...(cases === undefined ? {} : { cases }),
     root: resolve(flags.values.get('--root') ?? process.cwd()),
     format: format as CoveringFormat,

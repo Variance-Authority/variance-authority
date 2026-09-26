@@ -93,6 +93,12 @@ for one runner, so each reads one suite's record: the one `--suite <name>`
 names, or the only one declared. With more than one declared and no `--suite`,
 they stop and list the suites.
 
+`variance covering` asks the other question, which suites saw this code, so it
+reads every declared suite's record and answers under each suite's name and
+kind. A suite that never loaded the file says so, and so does a suite with no
+recording yet. A payment module your unit suite walked and your visual suite
+never loaded reads as exactly that. `--suite <name>` asks one record alone.
+
 ## What each host records
 
 Five hosts write this file, and they write the same structures into it. What

@@ -38,11 +38,11 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import {
   distanceToSource,
-  testCoverageFile,
   type CoveringTest,
   type SourcePoint,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { snapshotFor } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt } from '../covering-args.js';
 
@@ -130,14 +130,21 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
     ...(request.function === undefined ? {} : { function: request.function }),
   };
 
+  const snapshot = snapshotFor(request);
+  if (snapshot === undefined) {
+    throw new OperatorError(
+      'import hops are read from a suite\'s coverage snapshot, and an index named by `--execution` is no ' +
+        'declared suite\'s; ask with `--suite <name>` instead.',
+    );
+  }
   const { audience, distances } = await distanceToSource(
-    testCoverageFile(request.root),
+    snapshot,
     point,
     { relations },
   );
   if (!audience.recorded) {
     throw new OperatorError(
-      `import hops are read from the coverage snapshot at \`${testCoverageFile(request.root)}\`, ` +
+      `import hops are read from the coverage snapshot at \`${snapshot}\`, ` +
         `which holds no instrumented row for \`${request.file}\`. The per-case index and the ` +
         'snapshot are written by the same run, so a file in one and not the other means the two ' +
         'are from different runs; record once and ask again.',

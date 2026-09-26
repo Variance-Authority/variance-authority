@@ -25,7 +25,7 @@ import type { Parsed } from '../parse.js';
 import { askSource, questions } from './ask.js';
 import { questionFor } from './asking.js';
 import { COMMENT_MARKER } from './comment.js';
-import { covering, formatCovering } from './covering.js';
+import { coveringAnswer, formatCoveringAnswer } from './covering-suites.js';
 import { distillFiles, formatDistill } from './distill.js';
 import { indexOutput } from './index-command.js';
 import { reachOutput } from './reach-command.js';
@@ -125,7 +125,7 @@ export async function answerConfigless(
     // for the run that happened somewhere else.
     case 'covering': {
       try {
-        streams.out(formatCovering(await covering(parsed), parsed.format));
+        streams.out(formatCoveringAnswer(await coveringAnswer(parsed), parsed.format));
       } catch (error) {
         // A program reading JSON is told which refusal this is on the stream it
         // parses; the sentence still goes to stderr, for the person.

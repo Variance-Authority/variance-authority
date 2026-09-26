@@ -55,6 +55,9 @@ final class Record {
     return local.canExecute() ? local.getPath() : "variance";
   }
 
+  // TODO: a repository that declares suites answers under `suites`, one answer
+  // per suite with its `kind`, `frame` and ranges; this reads only `ranges`, so
+  // the gutter paints nothing there until it groups the marks and the popup by suite.
   static Answer ask(String root, String file, String text) {
     Asked asked = run(root, text, "covering", "--file", file, "--root", root, "--text", "-", "--format", "json");
     return asked.refusal() != null ? new Answer(List.of(), null, asked.refusal(), asked.quiet()) : read(asked.answer());

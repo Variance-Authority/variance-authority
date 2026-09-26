@@ -147,7 +147,7 @@ variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>
 variance index   [--no-git]
 variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
-variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
+variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance review  [--since <ref>] [--against <record>] [--out <dir>] [--root <path>] [--format text|markdown|json]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]
@@ -338,6 +338,24 @@ variance covering --file src/checkout/total.ts --function applyDiscount --format
 
 Each test file is named once, with its cases under it. Over a whole file, a
 range walked by the same cases as the one before says so in one line.
+
+When the root `variance.config.json` declares
+[suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
+`covering` asks every suite's record and answers under each suite's name and
+kind, because each suite proves something different:
+
+```text
+checkout (e2e): nothing is recorded in /repo: no run left a per-case index at …
+stories (visual): `src/checkout/total.ts` is not in the index at …
+unit (unit):
+  2 named tests covered line 48 of src/checkout/total.ts:
+  …
+```
+
+In JSON the answer is a `suites` list. Each entry is that suite's own answer
+with its `suite` and `kind`, or its `reason` with `refused` set to `unrecorded`
+or to `unloaded`, for a file the suite never loaded. `--suite <name>` asks one
+record alone, and answers in the shape a repository with one record does.
 
 `--format refs` is the same answer for an agent, which pays for every repeated
 name. Each case is numbered once, in a table at the end, and every range names

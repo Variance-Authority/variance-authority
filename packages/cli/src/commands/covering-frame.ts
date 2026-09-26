@@ -28,7 +28,7 @@ import {
   type SourceTestRange,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
-import type { CoveringAt } from '../covering-args.js';
+import type { CoveringAt, CoveringSource } from '../covering-args.js';
 
 /** A recorded range where it stands in the held text, and the one state it is painted as. */
 export interface CoveringRange extends SourceTestRange {
@@ -43,15 +43,31 @@ export interface CoveringRange extends SourceTestRange {
  * frame it against.
  */
 export async function placementFor(request: CoveringAt, from: string): Promise<Placement | undefined> {
-  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
-  const snapshot = testCoverageFile(request.root);
-  if (!from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
+  const snapshot = snapshotFor(request);
+  if (snapshot === undefined || !from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
   const text = await heldText(request);
   if (text === undefined) return undefined;
   return placeInText(snapshot, request.root, request.file, text);
 }
 
-async function heldText(request: CoveringAt): Promise<string | undefined> {
+/**
+ * The snapshot beside the record the question reads.
+ *
+ * Undefined for an index handed in by path in a repository that declares
+ * suites and a question that names none: no declared record is that index's,
+ * so there is no snapshot to frame it against or date it by.
+ */
+export function snapshotFor(request: CoveringSource): string | undefined {
+  try {
+    return testCoverageFile(request.root, { suite: request.suite });
+  } catch (error) {
+    if (request.execution !== undefined) return undefined;
+    throw error;
+  }
+}
+
+export async function heldText(request: CoveringAt): Promise<string | undefined> {
+  if (request.held !== undefined) return request.held;
   if (request.text === '-') return readStandardInput();
   if (request.text !== undefined) {
     try {

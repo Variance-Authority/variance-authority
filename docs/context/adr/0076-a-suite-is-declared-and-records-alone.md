@@ -32,6 +32,13 @@ journey, and whether payment code ran under the visual suite, which should
 render it from fixtures. Neither question can be answered by a record that
 does not know which suite wrote each row.
 
+The editor asks the same question from the other end. A gutter that says
+which cases went through a line has to say which suite they belong to, and
+tell a suite that never loaded the file from a suite that has not run yet,
+because a rerun starts one suite and not the others. A suite is a role, not a
+runner: one Playwright install can record the visual suite under one config
+and an end-to-end suite under another, and each proves something different.
+
 ## Decision
 
 **A suite is named and given a kind in the root `variance.config.json`, before

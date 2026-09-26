@@ -56,11 +56,11 @@ export async function readExecutionFor(
  * holds the answer and re-recording a suite to ask one question about one line
  * is not a reasonable price for a format change.
  */
-export async function defaultExecutionFile(root: string): Promise<string> {
-  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
-  const columns = `${testCoverageFile(root)}.cases.bin`;
+export async function defaultExecutionFile(root: string, suite?: string): Promise<string> {
+  const record = testCoverageFile(root, { suite });
+  const columns = `${record}.cases.bin`;
   if (await readable(columns)) return columns;
-  const json = `${testCoverageFile(root)}.cases.json`;
+  const json = `${record}.cases.json`;
   return (await readable(json)) ? json : columns;
 }
 
@@ -71,8 +71,8 @@ export async function defaultExecutionFile(root: string): Promise<string> {
  * defect somebody fixes, and this one is a project that never ran the recorder,
  * which a program asking on every edit has to be able to recognise.
  */
-export async function recordedExecutionFile(root: string): Promise<string> {
-  const file = await defaultExecutionFile(root);
+export async function recordedExecutionFile(root: string, suite?: string): Promise<string> {
+  const file = await defaultExecutionFile(root, suite);
   if (await readable(file)) return file;
   throw new OperatorError(
     `nothing is recorded in \`${root}\`: no run left a per-case index at \`${file}\`. ` +
