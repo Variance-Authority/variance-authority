@@ -86,6 +86,8 @@ back to the default, because you would not know where the recording went.
   suite/<project>/<commit>.bin   every run's suite index, by the commit it names
   share/<digest>.git             a git share's own repository, one per remote URL
   share/read/<suite>/<commit>/   a suite's record as its mainline published it, read by review and select
+  report/<digest>/               a run report read from a share, and the images an answer fetched
+  report/<digest>.images.json    that run report's image table
 ```
 
 `<repository>` is the first 32 hexadecimal characters of the SHA-256 of the
@@ -97,7 +99,7 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 
 The [execution record](execution-record.md) page describes `coverage.bin`, the
 [source index](source-index.md) page describes `source-index.bin`, the
-[sharing](sharing.md) page describes `suite/` and `share/`, and the
+[sharing](sharing.md) page describes `suite/`, `share/` and `report/`, and the
 [CLI reference](../packages/cli/README.md) describes when `select` and `review`
 read `share/read/`.
 
