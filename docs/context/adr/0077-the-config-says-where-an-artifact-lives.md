@@ -75,8 +75,11 @@ builds no key.**
     endpoint and credentials are written once, in `share`, and not per
     artifact. A share holds one record per mainline and per branch, and
     nothing older. The record is a set of entries: `report-v1`, and one
-    `suite-v1` per carried suite with its names table, each naming the commit
-    it was derived at. Images sit beside the record, once each, by pixel
+    `suite-v1` per carried suite, each naming the commit it was derived at. A
+    `suite-v1` holds the coverage record and its per-case index and no names
+    table, because both name files repository-relative and the table only
+    numbers what the next instrumented build emits
+    ([`share-entries.ts`](../../../packages/cli/src/share-entries.ts)). Images sit beside the record, once each, by pixel
     digest. So `carry: "share"` on a suite or on the report makes it an entry
     in the record, and a publish replaces only the entries it carries. No
     entry holds the layer digest below, because a reader on another machine
