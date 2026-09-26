@@ -126,6 +126,14 @@ nobody accepted, and one render cannot separate them from the reviewed ones. In
 that case `main` stays red until somebody dispatches an accept there, and the
 run's log says why.
 
+Runs on `main` wait for each other instead of cancelling each other, so a
+merge's run always has the run before it to read. GitHub still keeps only one
+waiting run, so of three merges close together the middle one may never run,
+and a rebase merge runs only its last commit. A commit like that, with no
+finished check of its own, is skipped when an accepted pull request brought it
+in, and the run reads the commit before it instead. A commit nothing accepted
+stops there, and `main` stays red.
+
 ## The pictures in the comment
 
 The comment shows the leading cause's before and after on its first screen, and

@@ -33,6 +33,14 @@
 // those apart from the ones the pull request's reviewer saw; promoting would
 // accept both under one name.
 //
+// A parent with no finished check has not said either way. Its run was
+// cancelled, or replaced while it queued behind another, or never started: a
+// rebase merge lands every commit of the pull request and only the last one gets
+// a run. Such a parent is looked through when an accepted pull request brought
+// it in — its pixels were reviewed there — and the question passes to its own
+// parent, until a commit whose check finished decides. A parent nothing accepted
+// stops the carry, because nothing says its pixels were ever seen.
+//
 // Writes `promote`, `because` and `intent` to `$GITHUB_OUTPUT`. `fetch` and the
 // REST API only, like `post-comment.mjs`, for the same reason: a dependency here
 // would be a third party deciding what the baseline is.
@@ -40,6 +48,8 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 
 const API_VERSION = '2022-11-28';
+/** How many commits `lastDecided` reads back before it gives up. */
+const LOOK_BACK = 20;
 
 const repository = required('GITHUB_REPOSITORY');
 const token = required('GITHUB_TOKEN');
@@ -111,8 +121,7 @@ async function decide(name) {
 
 /** The acceptance a merged pull request already carries, if `main` may take it. */
 async function carried() {
-  const pulls = await request('GET', `/commits/${sha}/pulls`);
-  const merged = pulls.find((candidate) => candidate.merged_at && candidate.merge_commit_sha === sha);
+  const merged = (await merges(sha)).find((candidate) => candidate.merge_commit_sha === sha);
   if (merged === undefined) return { promote: false, because: 'not the merge of a pull request' };
 
   const head = await conclusion(merged.head.sha);
@@ -123,19 +132,72 @@ async function carried() {
     };
   }
 
-  const commit = await request('GET', `/commits/${sha}`);
-  const parent = commit.parents[0]?.sha;
-  const before = parent === undefined ? 'absent' : await conclusion(parent);
-  if (before !== 'success') {
+  const before = await lastDecided(sha);
+  if (before.state !== 'success') {
     return {
       promote: false,
       because:
-        `#${merged.number} was accepted, but \`main\` was ${before} before it merged, so ` +
-        'its render cannot be told apart from pixels `main` already held unaccepted',
+        `#${merged.number} was accepted, but ${before.why}, so its render cannot be told ` +
+        'apart from pixels `main` already held unaccepted',
     };
   }
+  // A rebase merge's own earlier commits name the same pull request.
+  const others = before.through.filter((number) => number !== `#${merged.number}`);
+  const verb = others.length === 1 ? 'was' : 'were';
+  const also = others.length === 0 ? '' : `, and so ${verb} ${others.join(', ')} before it`;
+  return { promote: true, because: `#${merged.number} was accepted on its pull request${also}` };
+}
 
-  return { promote: true, because: `#${merged.number} was accepted on its pull request` };
+/**
+ * What `main` was before `commit`: the nearest first-parent ancestor whose check
+ * finished, and the accepted pull requests looked through on the way to it.
+ */
+async function lastDecided(commit) {
+  const through = [];
+  let at = commit;
+  for (let step = 0; step < LOOK_BACK; step++) {
+    const parent = (await request('GET', `/commits/${at}`)).parents[0]?.sha;
+    if (parent === undefined) {
+      return { state: 'absent', why: `\`main\` has no commit before ${at.slice(0, 12)}`, through };
+    }
+    const state = await conclusion(parent);
+    if (state === 'success') return { state, through };
+    const short = parent.slice(0, 12);
+    if (state === 'failure') return { state, why: `\`main\` was red at ${short}`, through };
+
+    // Any merged pull request that brought this commit in, not only one whose
+    // merge commit it is: a rebase merge brings in several.
+    let accepted;
+    for (const candidate of await merges(parent)) {
+      if ((await conclusion(candidate.head.sha)) === 'success') {
+        accepted = candidate;
+        break;
+      }
+    }
+    if (accepted === undefined) {
+      const ran = state === 'absent' ? 'no check ran' : `its check was ${state}`;
+      return {
+        state,
+        why:
+          `\`main\` at ${short} was never judged (${ran}) ` +
+          'and no accepted pull request brought it in',
+        through,
+      };
+    }
+    if (!through.includes(`#${accepted.number}`)) through.push(`#${accepted.number}`);
+    at = parent;
+  }
+  return {
+    state: 'absent',
+    why: `none of the ${LOOK_BACK} commits before it on \`main\` has a finished \`${check}\` check`,
+    through,
+  };
+}
+
+/** The merged pull requests that brought `commit` into the repository. */
+async function merges(commit) {
+  const pulls = await request('GET', `/commits/${commit}/pulls`);
+  return pulls.filter((candidate) => candidate.merged_at);
 }
 
 /**

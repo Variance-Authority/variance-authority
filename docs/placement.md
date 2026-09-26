@@ -237,8 +237,12 @@ A reviewer reads the report and adds the `variance: accept` label. That starts a
 run that accepts every changed subject, compares again, and saves the baseline
 root into the pull request's own cache scope. When the pull request merges, the
 run on `main` renders the merge and accepts what it rendered, if the pull request's check was green at its
-head and `main` was green before the merge. When either was red, `main` stays
-red until somebody dispatches the workflow with `accept` ticked.
+head and `main` was green before the merge. A commit on `main` that has no
+finished check of its own, because its run was cancelled or because it is one of
+a rebase merge's earlier commits, is skipped when an accepted pull request
+brought it in, and the run reads the commit before it instead. When either
+check was red, `main` stays red until somebody dispatches the workflow with
+`accept` ticked.
 
 Nothing lands in git history, and approval is a label rather than a review of a
 diff. A push after an accept does not dismiss a reviewer's approval of the pull

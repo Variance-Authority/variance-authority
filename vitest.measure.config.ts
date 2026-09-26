@@ -16,10 +16,10 @@ import { defineConfig } from 'vitest/config';
  * is the bound, so under load it began to fail for a reason that has nothing to
  * do with the code it exists to hold.
  *
- * A ratio whose halves are the *same* code stays where it was — the collection
- * cost in `packages/dom` divides one `collect` regime by another — so it is a
- * test and it stays in the suite. What moves here is what instrumentation can
- * distort.
+ * A share whose halves are both the product stays where it was — the collection
+ * cost in `packages/dom` times the index against the rest of the same `collect`
+ * — so it is a test and it stays in the suite. What moves here is what
+ * instrumentation can distort.
  *
  * Same runner, and these are tests: they have a subject and they exercise it.
  * Different command, because `yarn test` now answers "does it work, and what did
