@@ -94,8 +94,6 @@ export interface PushOptions {
   readonly build: string;
   readonly commit: string;
   readonly branch?: string;
-  // TODO: `variance push` in dispatch.ts does not pass `config.share` yet, so from
-  // the command line the version note never names the share.
   /**
    * The project's share, read only to say whether it is stored at this
    * deployment: a deployment older than API 3 costs a project its share only

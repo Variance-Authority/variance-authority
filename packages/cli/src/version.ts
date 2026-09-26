@@ -114,7 +114,7 @@ const ADDED: readonly { readonly api: number; readonly share: boolean; readonly 
   {
     api: 3,
     share: true,
-    symptom: 'It answers 404 under /share/, so the share this project stores at the deployment holds nothing',
+    symptom: 'The deployment answers 404 under /share/, so the share this project stores there holds nothing',
   },
 ];
 

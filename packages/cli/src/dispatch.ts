@@ -373,6 +373,7 @@ export async function dispatch(
           build: identity.run,
           commit: identity.commit,
           ...(parsed.branch !== undefined ? { branch: parsed.branch } : {}),
+          ...(config.share !== undefined ? { share: config.share } : {}),
           onProgress: ticker.on,
         });
       } finally {
