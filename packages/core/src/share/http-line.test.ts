@@ -88,6 +88,43 @@ describe('httpLineCell', () => {
     expect(await readLine(httpLineCell({ endpoint: options.endpoint }), MAIN)).toMatchObject({ kind: 'refused' });
   });
 
+  it("says the store's own reason with a refusal, and answers a store that failed as unreachable", async () => {
+    const answers: Record<string, { status: number; type?: string; body?: string }> = {
+      json: { status: 422, type: 'application/json; charset=utf-8', body: JSON.stringify({ error: 'the key names "Feature"\nand not "feature"' }) },
+      text: { status: 405, type: 'text/plain', body: 'share is not routed here' },
+      page: { status: 400, type: 'text/html', body: '<h1>Bad Request</h1>' },
+      busy: { status: 429 },
+      failed: { status: 500, type: 'application/json', body: JSON.stringify({ error: 'the disk is full' }) },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const answer = answers[url.split('/')[3]!]!;
+      const bytes = ascii(answer.body ?? '');
+      return {
+        ok: false,
+        status: answer.status,
+        headers: { get: (name: string) => (name === 'content-type' ? answer.type ?? null : null) },
+        arrayBuffer: async () => bytes.slice().buffer,
+        text: async () => answer.body ?? '',
+      };
+    }));
+    const read = (name: string) => readLine(httpLineCell({ endpoint: `https://objects.test/${name}` }), MAIN);
+
+    expect(await read('json')).toEqual({
+      kind: 'refused',
+      detail: 'https://objects.test/json/mainline/release/2.0/manifest.json: HTTP 422: the key names "Feature" and not "feature"',
+    });
+    expect(await read('text')).toEqual({
+      kind: 'refused',
+      detail: 'https://objects.test/text/mainline/release/2.0/manifest.json: HTTP 405: share is not routed here',
+    });
+    expect(await read('page')).toEqual({ kind: 'refused', detail: 'https://objects.test/page/mainline/release/2.0/manifest.json: HTTP 400' });
+    expect(await read('busy')).toEqual({ kind: 'unreachable', detail: 'https://objects.test/busy/mainline/release/2.0/manifest.json: HTTP 429' });
+    expect(await read('failed')).toEqual({
+      kind: 'unreachable',
+      detail: 'https://objects.test/failed/mainline/release/2.0/manifest.json: HTTP 500: the disk is full',
+    });
+  });
+
   it('answers a store that cannot be reached as unreachable', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       throw new Error('getaddrinfo ENOTFOUND');

@@ -25,8 +25,14 @@ declare const fetch: (
   readonly status: number;
   readonly headers: { get(name: string): string | null };
   arrayBuffer(): Promise<ArrayBuffer>;
+  text(): Promise<string>;
 }>;
 declare const AbortSignal: { timeout(ms: number): unknown };
+
+type Answer = Awaited<ReturnType<typeof fetch>>;
+
+/** The most of a store's reason one miss carries, so a long body does not become the whole message. */
+const REASON_LIMIT = 1000;
 
 /**
  * How long one request may take, its body included, when the options do not
@@ -67,7 +73,7 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
   async function get(url: string): Promise<{ bytes: Uint8Array; etag: string | null } | ShareMiss> {
     try {
       const response = await fetch(url, { headers: { ...headers }, signal: AbortSignal.timeout(timeoutMs) });
-      if (!response.ok) return missOf(url, response.status);
+      if (!response.ok) return await missOf(url, response);
       return { bytes: new Uint8Array(await response.arrayBuffer()), etag: response.headers.get('etag') };
     } catch (error) {
       return thrown(url, error, timeoutMs);
@@ -75,7 +81,7 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
   }
 
   async function put(url: string, body: Uint8Array, condition: Record<string, string>): Promise<'written' | 'conflict' | ShareMiss> {
-    let response: Awaited<ReturnType<typeof fetch>>;
+    let response: Answer;
     try {
       response = await fetch(url, {
         method: options.method ?? 'PUT',
@@ -88,7 +94,7 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
     }
     if (response.ok) return 'written';
     if (response.status === 412 || response.status === 409) return 'conflict';
-    return missOf(url, response.status);
+    return missOf(url, response);
   }
 
   return {
@@ -140,8 +146,50 @@ function thrown(url: string, error: unknown, timeoutMs: number): ShareMiss {
   return { kind: 'unreachable', detail: `${url}: ${String(failed.message)}${cause}` };
 }
 
-function missOf(url: string, status: number): ShareMiss {
+/**
+ * A status the store answered with, as the miss it is. 404 is nothing
+ * published. 408, 429 and a 5xx say the store could not take the request now,
+ * so they are `unreachable`. Every other 4xx is the store saying no — a token
+ * it does not take, a key it will not hold, a path it does not route — so it
+ * is `refused`, and the detail carries the store's own reason when it sent one.
+ */
+async function missOf(url: string, response: Answer): Promise<ShareMiss> {
+  const { status } = response;
   if (status === 404) return { kind: 'absent' };
-  if (status === 401 || status === 403) return { kind: 'refused', detail: `${url}: HTTP ${String(status)}` };
-  return { kind: 'unreachable', detail: `${url}: HTTP ${String(status)}` };
+  const reason = await reasonOf(response);
+  const detail = `${url}: HTTP ${String(status)}${reason === undefined ? '' : `: ${reason}`}`;
+  if (status >= 400 && status < 500 && status !== 408 && status !== 429) return { kind: 'refused', detail };
+
+  return { kind: 'unreachable', detail };
+}
+
+/**
+ * The reason a store gave with a status: the `error` of a JSON body, as
+ * tribunal and most APIs send it, or a plain-text body, on one line. Undefined
+ * for any other body, which is a page for a person rather than a reason, and
+ * for a body that does not read.
+ */
+async function reasonOf(response: Answer): Promise<string | undefined> {
+  const type = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+  if (type !== 'application/json' && type !== 'text/plain') return undefined;
+  let body: string;
+  try {
+    body = await response.text();
+  } catch {
+    return undefined;
+  }
+  let reason = body;
+  if (type === 'application/json') {
+    try {
+      const parsed = JSON.parse(body) as { readonly error?: unknown };
+      if (typeof parsed.error !== 'string') return undefined;
+      reason = parsed.error;
+    } catch {
+      return undefined;
+    }
+  }
+  const line = reason.replace(/\s+/g, ' ').trim();
+  if (line === '') return undefined;
+
+  return line.length > REASON_LIMIT ? `${line.slice(0, REASON_LIMIT)}…` : line;
 }
