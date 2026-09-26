@@ -77,7 +77,8 @@ back to the default, because you would not know where the recording went.
     coverage.bin                 which test ran which region of which module
     coverage.bin.cases.bin       the same, for each test case
     coverage.runs.json           the runs at the current commit, and the commit before them
-    suites/<name>/               the same three files for each suite you declare
+    coverage.stories/            a test story for each case a run taped, when you ask for them
+    suites/<name>/               the same files for each suite you declare
     names.bin                    the ids those records use for file paths
     source-index.bin             the source index, and its segments beside it
     <label>/                     one record store per runner or plugin
@@ -99,6 +100,7 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 
 The [execution record](execution-record.md) page describes `coverage.bin`, the
 [source index](source-index.md) page describes `source-index.bin`, the
+[test stories](test-stories.md) page describes `coverage.stories/`, the
 [sharing](sharing.md) page describes `suite/`, `share/` and `report/`, and the
 [CLI reference](../packages/cli/README.md) describes when `select` and `review`
 read `share/read/`.

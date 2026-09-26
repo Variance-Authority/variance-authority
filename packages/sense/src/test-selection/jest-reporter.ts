@@ -121,15 +121,13 @@ class JestCoverageReporter {
   }
 
   onRunStart(): void {
-    this.#runDirectory = resolve(
-      dirname('journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile),
-      `.run-${process.pid}-${randomUUID()}`,
-    );
+    const recordFile = 'journeyFile' in this.#config ? this.#config.journeyFile : this.#config.coverageFile;
+    this.#runDirectory = resolve(dirname(recordFile), `.run-${process.pid}-${randomUUID()}`);
     process.env[RUN_DIRECTORY_VARIABLE] = this.#runDirectory;
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
-    const stories = askedForStories(this.#config.root);
+    const stories = askedForStories(recordFile);
     if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
   }
 

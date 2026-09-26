@@ -33,38 +33,73 @@ without the variable does not tape anything.
 variance story --name "removes the last item"
 ```
 
-`--file` and `--name` match text in the test file path and the case name:
+`--file` and `--name` match text in the test file path and the case name. A
+long case goes through hundreds of declarations, and you rarely need all of
+them, so the answer opens on the files the case went through, in the order it
+first reached them, and the declarations in each with the steps it was there:
 
 ```text
 story  src/cart.test.ts > cart > removes the last item
-  goes through 4 files
+  goes through 4 files in 7 steps
 
-  before the case
-    src/cart.test.ts:3-8  beforeEach.arg0
-  the case
-    loaded 3 files: src/cart.ts, src/price.ts, src/format.ts
-    src/cart.ts:12-30  Cart/removeItem
-    repeats
-      src/price.ts:6-8  applyTier
-      src/format.ts:14-19  formatPrice
-    src/cart.ts:12-30  Cart/removeItem
-    src/cart.ts:33-35  Cart/notify
+  src/cart.test.ts
+    3-8  beforeEach.arg0  step 1
+
+  src/cart.ts  loaded at step 2
+    12-30  Cart/removeItem  steps 3, 6
+    33-35  Cart/notify  step 7
+
+  src/price.ts  loaded at step 2
+    6-8  applyTier  step 4, in a loop
+
+  src/format.ts  loaded at step 2
+    14-19  formatPrice  step 5, in a loop
 ```
 
-Each line is one declaration at `file:start-end`: a function, a handler, or a
-module's top level, named by where it is declared in its file — `Cart/removeItem`
-is the `removeItem` method of `Cart`, and `beforeEach.arg0` is the callback
-passed to `beforeEach`. Visits in a row inside one declaration are one line. A
-return to the caller is a line of its own, which is why `Cart/removeItem`
-appears again after the loop.
+A step is one stop on the route, numbered in the order the case reached it. A
+declaration is named by where it is declared in its file: `Cart/removeItem` is
+the `removeItem` method of `Cart`, and `beforeEach.arg0` is the callback passed
+to `beforeEach`.
 
+Then you read the part you care about. `--in <file>` gives the steps through
+the files whose path contains the text, with one step either side;
+`--around <step>` gives the three steps either side of one; `--whole` gives
+every step:
+
+```bash
+variance story --name "removes the last item" --around 6
+```
+
+```text
+story  src/cart.test.ts > cart > removes the last item
+  goes through 4 files in 7 steps
+
+     … steps 1-2
+  the case
+  3  src/cart.ts:12-30  Cart/removeItem
+     repeats
+  4    src/price.ts:6-8  applyTier
+  5    src/format.ts:14-19  formatPrice
+  6  src/cart.ts:12-30  Cart/removeItem
+  7  src/cart.ts:33-35  Cart/notify
+```
+
+- **`… steps 1-2`** is the steps the part leaves out, so you know what to ask
+  for next.
 - **`repeats`** is a loop, drawn once with the steps of one pass under it.
 - **`loaded 3 files: …`** is modules evaluated one inside another, each file
   named once.
 - **`before the case`** is what the runner ran outside the case just before it,
   such as `beforeEach`.
 
-`--format json` gives the same route as data. When the text matches several
+Visits in a row inside one declaration are one step. A return to the caller is
+a step of its own, which is why `Cart/removeItem` is step 3 and step 6. The step
+number is the only link between two parts you read. The step before another is
+where the case came from, not its caller: the tape holds which regions ran, not
+calls and returns, and a function that returns without entering another region
+leaves nothing to join on.
+
+`--format json` gives the same answer as data. When the text matches several
 cases, you get the list of them instead, and you narrow the text.
 
 ## What the route leaves out

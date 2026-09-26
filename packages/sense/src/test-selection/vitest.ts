@@ -203,7 +203,7 @@ export function withTestSelection(
           setupId,
           setupSource(run.runDirectory, run.caseDirectory, {
             continuations: options.continuations === true,
-            story: askedForStories(root),
+            story: askedForStories(coverageFile),
           }),
         ),
         ...setupFiles,

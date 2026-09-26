@@ -33,8 +33,11 @@ never read by anything that selects or compares.**
 1. **The tap wraps the engine.** `story-tap.cts` is a root that forwards every
    hit to the engine after taping it. The presence record under the tap is byte
    for byte the record without it; `collectors.test.ts` gates on that.
-2. **One file per case**, `<cache>/…/story/<digest>.story`, the last run
-   replacing the earlier one. It keeps what ran outside any case just before the
+2. **One file per case**, `<digest>.story` in `coverage.stories/` beside the
+   record the run writes, the last run replacing the earlier one. Beside the
+   record, not at the top of the cache layer, because a story is named through
+   that record's regions: with suites declared, a story the unit suite taped is
+   read through the unit suite's record. It keeps what ran outside any case just before the
    case as `before`, and says what it could not keep: `untaped` after the tape
    limit, `interleaved` when another case's work ran inside this one under
    `continuations`, `stopped` when the body threw.
@@ -45,7 +48,16 @@ never read by anything that selects or compares.**
    is drawn once. Branch arms and loop counts stay on the tape. The map is not
    the territory: the route answers *which parts of the system does this case go
    through, in what order*, and a debugger answers the rest.
-4. **Narrowing is the runner's.** The variable tapes every case the run runs;
+4. **The route is read a part at a time.** A long case is hundreds of stops,
+   and the reader — an agent's context most of all — needs the part near the
+   code about to change. So stops are numbered as steps, the answer opens on an
+   overview (files in first-arrival order, each declaration with its steps), and
+   `--in`, `--around` and `--whole` read a window. A trace-style parent id per
+   stop was considered and rejected: the tape holds visits, not calls and
+   returns, and a function that returns without entering another region leaves
+   no mark, so a parent drawn from it would nest each sibling under the one
+   before. The step number joins the parts and claims only order.
+5. **Narrowing is the runner's.** The variable tapes every case the run runs;
    `-t`, a file argument or a filter picks the case.
 
 ## What this narrows in ADR-0056

@@ -236,7 +236,7 @@ export function withTestSelection(
           runner: RSTEST_API,
           continuations: options.continuations === true,
           scope,
-          story: askedForStories(root),
+          story: askedForStories(coverageFile),
         }),
       ),
       ...setupFiles,

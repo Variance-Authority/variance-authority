@@ -19,17 +19,16 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { isAbsolute, join, relative } from 'node:path';
+import { dirname, isAbsolute, join, relative } from 'node:path';
 import type { BlockKind } from '../instrument/index.js';
 import { readModuleNames } from '../module-names.js';
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
-import { testCoverageFile } from '../test-selection/index.js';
 import { moduleNamesFile } from '../test-selection/instrumented-modules.js';
 import { findModules } from '../test-selection/lookup.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
-import { storyDirectory } from './directory.js';
+import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
 import stories from './format.cjs';
 
@@ -75,24 +74,25 @@ export interface StoryEntry {
 
 /** Every story in this checkout, by test file and then case name. */
 export function listStories(root: string): StoryEntry[] {
-  const directory = storyDirectory(root);
-  if (!existsSync(directory)) return [];
   const entries: StoryEntry[] = [];
-  for (const name of readdirSync(directory)) {
-    if (!name.endsWith('.story')) continue;
-    const path = join(directory, name);
-    const story = stories.decodeStory(readFileSync(path));
-    entries.push({ path, file: inCheckout(root, story.file), name: story.name, visits: story.visits.length });
+  for (const directory of storyDirectories(root)) {
+    if (!existsSync(directory)) continue;
+    for (const name of readdirSync(directory)) {
+      if (!name.endsWith('.story')) continue;
+      const path = join(directory, name);
+      const story = stories.decodeStory(readFileSync(path));
+      entries.push({ path, file: inCheckout(root, story.file), name: story.name, visits: story.visits.length });
+    }
   }
   return entries.sort((left, right) => compare(left.file, right.file) || compare(left.name, right.name));
 }
 
-/** The route in the story at `path`, named through this checkout's recording. */
+/** The route in the story at `path`, named through the record it was taped beside. */
 export function readRoute(root: string, path: string): Route {
   const story = stories.decodeStory(readFileSync(path));
   const names = existsSync(moduleNamesFile(root)) ? readModuleNames(moduleNamesFile(root)) : undefined;
   const files = story.rows.map(([id]) => (typeof id === 'string' ? id : names?.pathOf(id) ?? `module ${id}`));
-  const snapshot = testCoverageFile(root);
+  const snapshot = recordOfStories(dirname(path));
   const regions = existsSync(snapshot)
     ? askCoverageFile(snapshot, (view) => story.rows.map(([, count], row) => regionsOf(view, files[row]!, count)))
     : story.rows.map(() => undefined);
