@@ -21,6 +21,7 @@ import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
 import { instrumentationId, type ModuleId } from '../instrument/index.js';
 import { nameModules } from '../module-names.js';
+import { askedForStories } from '../story/directory.js';
 import journalFormat from './journal-format.cjs';
 import { writeCaseIndex } from './case-fold.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
@@ -45,6 +46,7 @@ import {
   CASE_DIRECTORY_VARIABLE,
   CONTINUATIONS_VARIABLE,
   jestStore,
+  STORY_DIRECTORY_VARIABLE,
   RUN_DIRECTORY_VARIABLE,
   SELECTION_GLOBALS,
   SELECTION_SETUP,
@@ -127,6 +129,8 @@ class JestCoverageReporter {
     this.#caseDirectory = `${this.#runDirectory}-cases`;
     process.env[CASE_DIRECTORY_VARIABLE] = this.#caseDirectory;
     if (this.#config.continuations === true) process.env[CONTINUATIONS_VARIABLE] = '1';
+    const stories = askedForStories(this.#config.root);
+    if (stories !== undefined) process.env[STORY_DIRECTORY_VARIABLE] = stories;
   }
 
   async onRunComplete(contexts: Iterable<JestTestContext>, results: JestRunResults): Promise<void> {
@@ -136,6 +140,7 @@ class JestCoverageReporter {
     delete process.env[RUN_DIRECTORY_VARIABLE];
     delete process.env[CASE_DIRECTORY_VARIABLE];
     delete process.env[CONTINUATIONS_VARIABLE];
+    delete process.env[STORY_DIRECTORY_VARIABLE];
     this.#runDirectory = undefined;
     this.#caseDirectory = undefined;
 

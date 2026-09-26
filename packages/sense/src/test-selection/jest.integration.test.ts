@@ -11,6 +11,9 @@ import { decodeExecutionIndex } from './execution-format.js';
 import { journeyGaps } from './execution-set-format.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from './jest-journey-artifact.js';
 
+// The story format is a CommonJS sandbox module whose own requires resolve only
+// once built, so it is read from `dist/` as the jest seam itself loads it.
+const stories = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 const execute = promisify(execFile);
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
@@ -245,5 +248,39 @@ describe('the Jest integration', () => {
     // What the author declared is declared for every project.
     expect(alpha).toContain(at('jest.projects.config.mjs'));
     expect(beta).toContain(at('jest.projects.config.mjs'));
+  }, 120_000);
+  it('writes a story for each case it runs under `VARIANCE_AUTHORITY_STORY=1`, and the same recording as without it', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-story-'));
+    temporary.push(directory);
+    const run = async (story: boolean): Promise<string> => {
+      const into = resolve(directory, story ? 'story' : 'plain');
+      await execute(
+        process.execPath,
+        [jest, '--config', resolve(fixture, 'jest.config.mjs'), '--watchman=false', 'test/alpha.case.ts'],
+        {
+          cwd: fixture,
+          env: {
+            ...process.env,
+            VARIANCE_AUTHORITY_COVERAGE: resolve(into, 'coverage.bin'),
+            VARIANCE_AUTHORITY_JEST_CACHE: resolve(into, 'cache'),
+            XDG_CACHE_HOME: into,
+            ...(story ? { VARIANCE_AUTHORITY_STORY: '1' } : {}),
+          },
+        },
+      );
+      return into;
+    };
+
+    const plain = await run(false);
+    const taped = await run(true);
+    const written = async (into: string): Promise<string[]> =>
+      (await readdir(into, { recursive: true })).filter((path) => path.endsWith('.story'));
+
+    expect(await written(plain)).toEqual([]);
+    const names = await Promise.all((await written(taped)).map(async (path) =>
+      stories.decodeStory(await readFile(resolve(taped, path))).name));
+    // The `it.skip` in alpha runs nothing, so it tapes nothing.
+    expect(names.sort()).toEqual(['ran after the project\'s own setup file', 'takes the alpha path']);
+    expect(await readFile(resolve(taped, 'coverage.bin'))).toEqual(await readFile(resolve(plain, 'coverage.bin')));
   }, 120_000);
 });

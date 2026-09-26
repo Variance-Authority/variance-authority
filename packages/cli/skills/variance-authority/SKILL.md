@@ -32,7 +32,7 @@ It reads no config and no run, so it is the whole install check.
 | `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left |
 | `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
 | `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `gaps`) | none | the checkout |
-| `watch`, `distill`, `covering`, `index`, `select`, `reach` | none | see the reference that owns it |
+| `watch`, `distill`, `covering`, `story`, `index`, `select`, `reach` | none | see the reference that owns it |
 
 The config is `variance.config.json` in the working directory, or the file
 `--config <path>` names. There is no search of parent directories and no
@@ -56,6 +56,7 @@ when its condition holds, not before.
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
+| Where does this one test go, and in what order? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md) |
 | What can this test be reduced to? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
 | What does this workspace publish? Where is a name declared, and who imports it? | [workspace API](references/workspace-api.md) | |

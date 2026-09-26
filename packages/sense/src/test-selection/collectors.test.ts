@@ -10,6 +10,9 @@ import journals from './journal-format.cjs';
 const collectors = createRequire(import.meta.url)(
   '../../dist/test-selection/collectors.cjs',
 ) as typeof import('./collectors.cjs');
+const stories = createRequire(import.meta.url)(
+  '../../dist/story/format.cjs',
+) as typeof import('../story/format.cjs');
 
 type Probe = (ordinal: number) => void;
 type Scope = { enter<Result>(key: string, body: () => Result): Result };
@@ -28,7 +31,10 @@ const FILE = 'file.test.js';
 class Model {
   depth = 0;
   current: Presence = new Map();
+  /** Every visit in order, `module:ordinal` with `:E` while evaluating: what a story is. */
+  told: string[] = [];
   touch(id: string, count: number, ordinal: number): void {
+    this.told.push(`${id}:${ordinal}${this.depth > 0 ? ':E' : ''}`);
     let row = this.current.get(id);
     if (row === undefined) {
       row = new Uint32Array(count);
@@ -62,11 +68,13 @@ interface Loaded {
  * outside an evaluation and then inside one, modules first evaluated in the
  * middle of a case, and a module evaluated a second time under the same id.
  */
-function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number) {
+function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, story = false) {
   const next = random(seed);
   const holder: Record<PropertyKey, unknown> = {};
-  const collector =
-    mode === 'flat' ? collectors.flat(holder) : collectors.scoped(holder, mode === 'continuations');
+  const written = new Map<string, Uint8Array>();
+  const collector = mode === 'flat'
+    ? collectors.flat(holder)
+    : collectors.scoped(holder, mode === 'continuations', story ? (key, bytes) => written.set(key, bytes) : undefined);
   const model = new Model();
   const loaded: Loaded[] = [];
 
@@ -112,6 +120,7 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number) {
       engine: journals.encodeJournal(FILE, modules, sealed),
       model: journals.encodeJournal(FILE, model.current, sealedModel),
       frames: [undefined, undefined],
+      stories: undefined,
     };
   }
 
@@ -135,14 +144,23 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number) {
   const ambient: Presence = new Map();
   model.current = ambient;
   const scope = holder[CASE_SCOPE] as Scope;
+  // What each case's story should say, as `before` and the case, the last run
+  // of a case replacing the first as the written story does.
+  const told = new Map<string, readonly [string[], string[]]>();
+  model.told = [];
   for (let index = 0; index < 60; index += 1) {
     work(next(20), 0);
     const key = journals.packCase(FILE, `case ${index % 45}`, String(index % 45));
     const presence: Presence = new Map();
+    const before = model.told;
+    model.told = [];
     scope.enter(key, () => {
       model.current = presence;
       work(next(300), 0);
     });
+    // A case that visited nothing is told as nothing, before included.
+    told.set(key, model.told.length > 0 ? [before, model.told] : [[], []]);
+    model.told = [];
     model.current = ambient;
     // The case returned, so its frame is named as one that finished.
     fold(journals.settledCase(key, false), presence);
@@ -154,7 +172,27 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number) {
     engine: journals.encodeJournal(FILE, done.modules, sealed),
     model: journals.encodeJournal(FILE, union, sealedModel),
     frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
+    stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
   };
+}
+
+/** A story's visits in the model's spelling. */
+function spoken(bytes: Uint8Array): readonly [string[], string[]] {
+  const story = stories.decodeStory(bytes);
+  const bases: number[] = [];
+  let total = 0;
+  for (const [, count] of story.rows) {
+    bases.push(total);
+    total += count;
+  }
+  const say = (visits: Int32Array): string[] =>
+    [...visits].map((entry) => {
+      const index = entry & ~EVALUATING;
+      let row = bases.length - 1;
+      while (bases[row]! > index) row -= 1;
+      return `${story.rows[row]![0]}:${index - bases[row]!}${entry & EVALUATING ? ':E' : ''}`;
+    });
+  return [say(story.before), say(story.visits)];
 }
 
 describe('the recording a file writes', () => {
@@ -167,6 +205,20 @@ describe('the recording a file writes', () => {
         if (frames[0] !== undefined) {
           expect(Buffer.from(frames[0]).equals(Buffer.from(frames[1]!)), `.vac, seed ${seed}`).toBe(true);
         }
+      }
+    },
+  );
+
+  it.each(['sequential', 'continuations'] as const)(
+    'is the same journal with stories taped, and each story is every visit its case made, in order: %s',
+    (mode) => {
+      for (const seed of [1, 7, 42, 1009, 65_537]) {
+        const plain = drive(mode, seed);
+        const { engine, frames, stories: [written, told] = [] } = drive(mode, seed, true);
+        expect(Buffer.from(engine).equals(Buffer.from(plain.engine)), `.va, seed ${seed}`).toBe(true);
+        expect(Buffer.from(frames[0]!).equals(Buffer.from(plain.frames[0]!)), `.vac, seed ${seed}`).toBe(true);
+        expect(told!.size, `seed ${seed}`).toBeGreaterThan(30);
+        expect(written, `stories, seed ${seed}`).toEqual(told);
       }
     },
   );

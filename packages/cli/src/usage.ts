@@ -24,6 +24,7 @@ export const COMMANDS = [
   'report',
   'ask',
   'distill',
+  'story',
   'watch',
   'adjudicate',
   'accept',
@@ -106,6 +107,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--format',
   ],
   distill: ['--test', '--eyes', '--execution', '--root', '--format'],
+  story: ['--file', '--name', '--root', '--format'],
   watch: [],
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
@@ -132,6 +134,7 @@ export const USAGE = [
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
   'variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--file <text>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--limit <n>] [--at <address>] [--format text|json] [<report>...]',
   'variance distill --test <id> [--eyes <path>] [--execution <path>] [--root <path>] [--format text|json]',
+  'variance story   [--file <text>] [--name <text>] [--root <path>] [--format text|json]',
   'variance watch',
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
@@ -151,15 +154,15 @@ export const USAGE = [
 /**
  * The flags a command accepts, the configuration ones included where they apply.
  *
- * `watch`, `distill`, `covering`, `review`, `index`, `select` and `reach` do not
- * read project configuration. One holds a live listener; the next three read
- * evidence a run left behind, named on the command line or found where a run puts it;
- * the last three are asked by a repository whose tests another runner runs, and
+ * `watch`, `distill`, `covering`, `review`, `story`, `index`, `select` and
+ * `reach` do not read project configuration. One holds a live listener; the
+ * next four read evidence a run left behind, named on the command line or found
+ * where a run puts it; the last three are asked by a repository whose tests another runner runs, and
  * which may have configured this tool for nothing else. `carry` is on the list
  * for the same reason and names `--config` itself: the suites it carries are
  * the repository root's, and a project is read only when one is named.
  */
-const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'review', 'index', 'select', 'reach', 'carry'];
+const CONFIGLESS: readonly string[] = ['watch', 'distill', 'covering', 'review', 'story', 'index', 'select', 'reach', 'carry'];
 
 export function flagsFor(command: (typeof COMMANDS)[number]): readonly string[] {
   return CONFIGLESS.includes(command)

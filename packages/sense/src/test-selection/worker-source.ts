@@ -67,6 +67,8 @@ export interface SetupShim {
    * what each costs.
    */
   readonly continuations?: boolean;
+  /** Where each case's story goes, when the run asked for stories. */
+  readonly story?: string | undefined;
 }
 
 export function setupSource(
@@ -82,6 +84,10 @@ import { createRequire } from 'node:module';
 const journalFormat = createRequire(${JSON.stringify(HERE)})('./journal-format.cjs');
 const collector = createRequire(${JSON.stringify(HERE)})('./collectors.cjs').scoped(globalThis, ${
     shim.continuations === true
+  }, ${
+    shim.story === undefined
+      ? 'undefined'
+      : `createRequire(${JSON.stringify(HERE)})('../story/format.cjs').storyWriter(${JSON.stringify(shim.story)})`
   });
 const seal = (testFile) => collector.seal(testFile);
 const finish = (testFile) => collector.finish(testFile);

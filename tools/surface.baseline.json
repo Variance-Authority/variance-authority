@@ -2311,6 +2311,10 @@
           "types": "./dist/test-selection/journey.d.ts",
           "default": "./dist/test-selection/journey.js"
         },
+        "./story": {
+          "types": "./dist/story/index.d.ts",
+          "default": "./dist/story/index.js"
+        },
         "./vitest": {
           "types": "./dist/test-selection/vitest.d.ts",
           "default": "./dist/test-selection/vitest.js"
@@ -2669,6 +2673,22 @@
         "stitchJourneys": "function",
         "unsettledScopes": "function"
       },
+      "./story": {
+        "PERIOD": "const",
+        "Place": "interface",
+        "Region": "interface",
+        "Route": "interface",
+        "STORY_VARIABLE": "const",
+        "Step": "type",
+        "Stop": "type",
+        "StoryEntry": "interface",
+        "askedForStories": "function",
+        "drawRoute": "function",
+        "foldSteps": "function",
+        "listStories": "function",
+        "readRoute": "function",
+        "storyDirectory": "function"
+      },
       "./vitest": {
         "TestSelectionOptions": "interface",
         "mergeCoverage": "function",
@@ -2698,6 +2718,7 @@
         "SELECTION_REPORTER": "const",
         "SELECTION_SETUP": "const",
         "SELECTION_TRANSFORM": "const",
+        "STORY_DIRECTORY_VARIABLE": "const",
         "SelectionReporterConfig": "interface",
         "SelectionTransformerConfig": "interface",
         "TRACE_ENVIRONMENT": "const",

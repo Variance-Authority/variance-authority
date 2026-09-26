@@ -29,6 +29,7 @@ import {
 import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selection-run.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { askedForStories } from '../story/directory.js';
 
 export interface TestSelectionOptions {
   /**
@@ -202,6 +203,7 @@ export function withTestSelection(
           setupId,
           setupSource(run.runDirectory, run.caseDirectory, {
             continuations: options.continuations === true,
+            story: askedForStories(root),
           }),
         ),
         ...setupFiles,

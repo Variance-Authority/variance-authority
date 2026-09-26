@@ -31,6 +31,7 @@ import { runFor, runStamp, writeSeamModule, type SelectionRun } from './selectio
 import { browserSetupSource, caseGlobalsSource, setupSource } from './worker-source.js';
 import { recordFileFor } from './record-location.js';
 import { repositoryRoot } from './repository-root.js';
+import { askedForStories } from '../story/directory.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -235,6 +236,7 @@ export function withTestSelection(
           runner: RSTEST_API,
           continuations: options.continuations === true,
           scope,
+          story: askedForStories(root),
         }),
       ),
       ...setupFiles,

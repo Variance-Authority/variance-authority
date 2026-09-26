@@ -214,6 +214,14 @@ export const CASE_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CASES'
  */
 export const CONTINUATIONS_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_CONTINUATIONS';
 
+/**
+ * Set beside them when the run asked for stories, to the directory they go to,
+ * and read once by `jest-globals.cts`, which installs the tap with its
+ * collector. Mirrors `STORY_VARIABLE` for the sandbox, which cannot resolve a
+ * cache directory.
+ */
+export const STORY_DIRECTORY_VARIABLE = 'VARIANCE_AUTHORITY_TEST_SELECTION_STORY';
+
 /** Jest's pattern for the modules it transforms when nothing is configured. */
 const DEFAULT_PATTERN = '\\.[jt]sx?$';
 

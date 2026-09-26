@@ -35,6 +35,8 @@ afterEach(forget);
 
 
 describe('a head reports what each journey entered', () => {
+  it.todo('writes the story of each journey it reports under `VARIANCE_AUTHORITY_STORY=1` — needs `collectJourneys` to install the story tap in front of its engine');
+
   it('keeps two journeys apart while they interleave inside one module', async () => {
     await inRoot(async (root) => {
       const driven = await driver();

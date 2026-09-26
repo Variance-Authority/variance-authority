@@ -17,6 +17,8 @@ import async_hooks = require('node:async_hooks');
 import crypto = require('node:crypto');
 import journals = require('./journal-format.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
+import storyTap = require('../instrument/story-tap.cjs');
+import stories = require('../story/format.cjs');
 import type { ModuleId } from '../instrument/index.js';
 import type { JourneyTrace } from './journey.js';
 
@@ -24,6 +26,8 @@ type Engine = ReturnType<typeof probeLog.createEngine>;
 type Bucket = ReturnType<Engine['open']>;
 type View = ReturnType<Engine['read']>;
 type Presence = Map<ModuleId, Uint32Array>;
+/** Where a case's story goes once the case settles; see `story/format.cts`. */
+type StoryWriter = (key: string, bytes: Uint8Array) => void;
 
 /** What the journal writer reads once the file is done with. */
 interface Collector {
@@ -119,20 +123,29 @@ function foldInto(union: Presence, view: View): void {
  * every module the first file evaluated has already read the root and keeps it.
  * So a later file writes into the same engine through buckets of its own. The
  * two kinds of engine differ in whether the root asks an async scope on every
- * probe, which a realm decides once.
+ * probe, which a realm decides once. So is whether a story is taped: the tap
+ * is the root, and a module loaded before it would never write to it.
  */
-function attach(holder: Holder, continuations: boolean): Engine {
+function attach(holder: Holder, continuations: boolean, story = false): Engine {
   const found = probeLog.engineOf(holder.__VA__);
   if (found !== undefined) {
-    if (found.scoped === continuations) return found;
-    throw new Error(
-      'variance-authority: this realm is already recording ' +
-        (found.scoped ? 'with' : 'without') +
-        ' continuations, and a module keeps the recording it first found.',
-    );
+    if (found.scoped !== continuations) {
+      throw new Error(
+        'variance-authority: this realm is already recording ' +
+          (found.scoped ? 'with' : 'without') +
+          ' continuations, and a module keeps the recording it first found.',
+      );
+    }
+    if (story && storyTap.tapOf(holder.__VA__) === undefined) {
+      throw new Error(
+        'variance-authority: this realm was recording before stories were asked for, and a module ' +
+          'keeps the recording it first found, so a story would miss every module loaded before now.',
+      );
+    }
+    return found;
   }
   const engine = probeLog.createEngine(continuations);
-  holder.__VA__ = engine.root;
+  holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }
 
@@ -168,9 +181,12 @@ function flat(holder: Holder): Collector {
  *
  * @param continuations Hold the case bracket in an async context rather than
  * a variable, and mark the cases whose work outlived them.
+ * @param story Where each case's story goes as the case settles, when the run
+ * asked for stories.
  */
-function scoped(holder: Holder, continuations: boolean): Collector {
-  const engine = attach(holder, continuations);
+function scoped(holder: Holder, continuations: boolean, story?: StoryWriter): Collector {
+  const engine = attach(holder, continuations, story !== undefined);
+  const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
   // A bucket is written the moment its case settles and then dropped, so a
@@ -258,6 +274,12 @@ function scoped(holder: Holder, continuations: boolean): Collector {
       engine.use(ambient);
     }
     if (!bucket.closed) close(bucket, bucket.key);
+    if (tap === undefined || bucket.key === AMBIENT) return;
+    story!(bucket.key, stories.encodeStory(tap.read(), bucket.key, stopped.get(bucket.key)));
+    // The tape starts again once no case is running, so it holds one case at a
+    // time where cases run one at a time, and never cuts one that is running.
+    for (const [key, open] of buckets) if (key !== AMBIENT && open.open) return;
+    tap.reset();
   };
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
@@ -326,6 +348,8 @@ function scoped(holder: Holder, continuations: boolean): Collector {
         if (scopes === undefined) engine.use(ambient);
       }
       const view = close(before, ambientKey(testFile));
+      // Loading the file is no case's story.
+      tap?.reset();
       return view === undefined ? new Map() : presenceOf(view);
     },
     finish(testFile) {

@@ -11,7 +11,7 @@
  * narrative one. `constantAnswer` covers three *arguments* — `comment --marker`,
  * an `ask` with no question, and an `ask` whose question is about the source —
  * whose commands otherwise go on to load a config like any other.
- * `withoutConfig` covers seven whole commands, and narrows them out of the
+ * `withoutConfig` covers eight whole commands, and narrows them out of the
  * union so that what is left in `dispatch` is exactly the set that has a
  * `--config` to read. `usage.ts` states the same fact from
  * the other side: `CONFIGLESS` is what keeps the flag off them, so a command
@@ -32,12 +32,13 @@ import { reachOutput } from './reach-command.js';
 import { review } from './review.js';
 import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
+import { formatStory, story } from './story.js';
 import { watch, watching as watchingLines } from './watch.js';
 
-/** The seven commands that read no project configuration at all. */
+/** The eight commands that read no project configuration at all. */
 export type Configless = Extract<
   Parsed,
-  { command: 'watch' | 'distill' | 'covering' | 'review' | 'index' | 'select' | 'reach' }
+  { command: 'watch' | 'distill' | 'covering' | 'review' | 'story' | 'index' | 'select' | 'reach' }
 >;
 
 export function withoutConfig(parsed: Parsed): parsed is Configless {
@@ -46,6 +47,7 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
     || parsed.command === 'distill'
     || parsed.command === 'covering'
     || parsed.command === 'review'
+    || parsed.command === 'story'
     || parsed.command === 'index'
     || parsed.command === 'select'
     || parsed.command === 'reach'
@@ -149,6 +151,15 @@ export async function answerConfigless(
         await writeFile(join(parsed.out, 'review.md'), formatReview(answer, 'markdown'));
       }
       streams.out(formatReview(answer, parsed.format));
+      return EXIT_CLEAN;
+    }
+
+    // `covering`'s reason, for one case instead of one line: a run writes the
+    // story beside its recording when the variable asks, and whoever reads it
+    // may be an agent in a checkout that configured this tool for nothing but
+    // its test seam.
+    case 'story': {
+      streams.out(formatStory(story(parsed), parsed.format));
       return EXIT_CLEAN;
     }
 
