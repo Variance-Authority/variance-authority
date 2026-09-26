@@ -306,6 +306,7 @@
         "EntryName": "interface",
         "HeldEntry": "interface",
         "HeldLine": "interface",
+        "HttpLineOptions": "interface",
         "HttpShareOptions": "interface",
         "LineCell": "interface",
         "LineManifest": "interface",
@@ -322,6 +323,7 @@
         "entryProblem": "function",
         "findEntry": "function",
         "firstShared": "function",
+        "httpLineCell": "function",
         "httpShare": "function",
         "linePath": "function",
         "manifestPaths": "function",
@@ -2898,7 +2900,10 @@
         "runCommand": "const"
       },
       "./share": {
-        "createDirectoryShare": "function"
+        "GitLineOptions": "interface",
+        "createDirectoryLineCell": "function",
+        "createDirectoryShare": "function",
+        "createGitLineCell": "function"
       },
       "./changelog": {
         "ChangelogAnswer": "type",

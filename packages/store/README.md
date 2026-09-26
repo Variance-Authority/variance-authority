@@ -447,6 +447,42 @@ and a rename, so two jobs publishing at once cannot leave half a segment behind.
 [Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
 operator's side of it.
 
+### A line: the latest a mainline or a branch published
+
+The same export gives you two cells for `publishLine` and `readLine` in
+`@variance-authority/core/share`. A cell stores one manifest per line and
+replaces it only when it still holds the version it was read at, so two jobs
+publishing at once keep both entries rather than the last one.
+
+`createDirectoryLineCell(root)` keeps `<kind>/<name>/manifest.json` and the
+line's entries under `root`, and every image once under `root/images/`. A lock
+directory holds the condition, because `mkdir` is atomic on NFS as well as on a
+local disk.
+
+`createGitLineCell(options)` keeps each line as one commit under a ref in the
+repository that hosts your code, so any checkout that can fetch its branch can
+read its mainline's record with the credentials it already has:
+
+```js
+import { createGitLineCell } from '@variance-authority/store/share';
+
+const cell = createGitLineCell({
+  url: 'https://github.com/acme/web.git',
+  gitDir: '.variance/share.git',
+});
+```
+
+`url` is the remote. `gitDir` is a bare repository the cell creates and owns;
+it never touches your clone. `namespace` is where the refs sit, `refs/variance`
+unless you set it. `reuseMs` is how long a fetched line is read again without
+fetching, 0 unless you set it. `timeoutMs` bounds each git command, 60 seconds
+unless you set it.
+
+The cell's repository is a partial clone: a fetch brings commits and trees, and
+a blob comes when it is read. Publishing a line that already names a thousand
+images downloads none of them and sends only the new ones. The ref holds one
+commit with no parent, so what the line replaced is the remote's to collect.
+
 ---
 
 **[@variance-authority/store](https://variance-authority.dev/reference/packages/store)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · MIT

@@ -248,3 +248,4 @@ function segment(value: string): string {
 
 export * from './line.js';
 export * from './publish.js';
+export * from './http-line.js';
