@@ -4,37 +4,57 @@
 function, the branch taken at each `if`, the branches never taken, and loop
 counts, in one answer under 5,000 characters. It reads no config.
 
-Ask it before you open files for one test:
+It is for a close look at a few tests, never at a suite. Record one only when
+you can write the question in one line about named tests: which path does this
+test take through this function, why does it pass or fail, does it reach the
+real code or a mock. Read the source first, and record only when it leaves the
+question open:
 
-- **A test fails and you do not know the code under it.** Read the route, find
-  the step where it went a way you did not expect, and open that line.
-- **You are about to edit code for one test.** The steps name the files and
-  lines the test runs. Open those, not every file the test imports; most of
-  what a test imports, it never runs.
-- **You need to know whether this test checks your edit.** A branch marked `✗`
-  is code this test never ran, so an edit there passes it whatever the edit
-  does. Ask `covering` for the tests that do run that line.
+- **You are about to change code you do not know, and reading does not say what
+  runs**: a call through an interface, a plugin, a handler registered
+  elsewhere. Ask `covering --file <path> --function <name> --hops` for the
+  tests that run it. `--hops` lists the nearest test files first; record the
+  first three tests it lists, and no more. Their steps
+  name the files and lines to open. A branch marked `✗` is code they never ran,
+  so they pass whatever an edit there does.
+- **A test's result surprises you and nothing names the cause**: an assertion
+  failed on a value made elsewhere, or a test passes when it should not. Find
+  the step where the route left the path you expected, or the `✗` on the
+  branch the test is named for.
+- **A test passes alone and fails with its file**, or fails alone and passes
+  with it. Record it alone with `-t`, then with its whole file, read the story after each run (the second replaces the
+  first), and compare from the first step where they differ.
 
-Skip it when a stack trace already names the line, or when the question is
-about many tests: `covering` answers which tests ran a line, `story` answers
-what one test ran, in order. It shows no values; for a value, use a debugger at
-the line it names.
+Never record:
 
-A run writes a story only when asked. Set the variable and always narrow the
-run to the one test with the runner's own filter — every test the run runs
-writes one, and a later run of the same test replaces it:
+- **A run that names anything but test files.** A run records every test it
+  runs, so a directory, a package, a pattern or no argument records all of
+  them. Pass one test file, and `-t` with the test's name when you have it;
+  for the tests `covering` names, pass their files and names. Never in CI.
+- **A performance test or a benchmark**, or a test for a question about time. A
+  loop that runs thousands of times runs many times slower while recorded, and
+  a story holds no times. If a story shows a loop count in the thousands, or
+  says the recording filled up, choose another test.
+- **To find which tests run a line.** That is `covering`, from the record every
+  run already keeps.
+- **For a value.** A story shows none; use a debugger at the line it names.
+- **When a stack trace already names the line.** Open that line.
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
 
-Recording needs the suite set up with `@variance-authority/sense`. When
-`story` answers `no story in this checkout` after such a run, the project does
-not have it: stop asking and read the code.
+Every test the run runs writes its story, and a later run of the same test
+replaces it. Recording needs the suite set up with
+`@variance-authority/sense`. When `story` answers `no story in this checkout`
+after such a run, check that the test ran and was not skipped. If it did, the
+project does not record stories: answer from the source, say the route was not
+read from a story, and do not record more tests to find one.
 
-A story is the code as it was when the test ran. After you edit that code, run
-the test again with the variable before you read its story again.
+A story is the code as it was when the test ran. After an edit to the test, to
+any file on its route, or to its mocks or config, run the test again with the
+variable before you quote its story.
 
 Then read it:
 

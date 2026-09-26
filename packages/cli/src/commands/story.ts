@@ -51,7 +51,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const all = listStories(parsed.root);
   if (all.length === 0) {
     throw new OperatorError(
-      `no story in this checkout: run the test with ${STORY_VARIABLE}=1, and the runner writes one for every test it runs`,
+      `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
     );
   }
   const matching = all.filter(

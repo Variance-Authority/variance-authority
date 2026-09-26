@@ -2,9 +2,10 @@
 
 A **test story** is the code one test ran, in the order it ran it: each
 function it went through, the branch it took at each `if`, the branches it
-never took, and how many times each loop went round. Read it before you change
-code for one test. It names the few lines that test runs, so you open those
-and not every file the test imports.
+never took, and how many times each loop ran. It is for looking closely
+at a few tests: one test, one test file, or the tests you know go through the
+function you are about to change. Read it to follow how that code runs, then
+open only the lines it names.
 
 Coverage already tells you which code a test ran, as a set: each function and
 branch ran or did not, in no order and with no counts. [Test
@@ -34,47 +35,77 @@ idea inside your editor while a test runs, with the value each line saw. Here
 your own runner writes the story into [the cache](cache.md): Vitest, Jest or
 Rstest, with [Sense](../packages/sense/README.md) installed, the package that
 records coverage for test selection. You read it with one command, in a
-terminal, in CI or from an agent. A test story shows no values. For a value, set a breakpoint
+terminal or from an agent. A test story shows no values. For a value, set a breakpoint
 at the line the story names.
 
 ## When to read one
 
-- **A test fails in code you do not know.** The story lists the functions it
-  went through, in which files, and which branch it took at each `if`. Find the
-  step where it went a way you did not expect, and open that line.
-- **You are about to change a function, and you need to know whether this test
-  checks the change.** In a story, a branch marked `✗` is code this test never ran. An edit
-  there passes this test whatever the edit does. `variance covering` names the
-  tests that do run it; [test-level coverage](test-level-coverage.md#the-process)
-  describes it.
+- **You are about to change code you do not know.** Reading the source does not
+  always say which code runs: a call through an interface, a plugin, or a
+  handler registered in another file. Ask which tests run the function, and
+  read the story of one to three of them:
+
+  ```bash
+  variance covering --file src/cart.ts --function removeItem --hops
+  ```
+
+  Each story is the route from the test to that function and back, with the
+  branch taken at each `if`. A branch marked `✗` is code these tests never ran,
+  so they pass whatever an edit there does. [Test-level
+  coverage](test-level-coverage.md#the-process) describes `covering`.
+- **A test gives a result you do not expect, and nothing names the cause.** A
+  failed assertion names the line in the test, not the code that made the
+  value. Find the step where the route left the path you expected. A test that
+  passes when it should not is often a test whose branch is marked `✗`, or
+  whose route goes into a mock and not into the code it names.
+- **A test passes alone and fails with its file, or fails alone and passes
+  with its file.** Record it both ways, alone with the test-name filter and then
+  with its whole file, and read the story after each run, because the second run
+  replaces the first. `before the test` shows what the runner ran just before
+  it, such as another test's `afterEach`. The first step where the two routes
+  differ is where to look.
 - **You give one test to an agent to fix or extend.** The agent reads the story
   first and opens only the lines it names, instead of reading files to find
   out where the test goes. The `variance-authority` skill that ships with
-  [the CLI](../packages/cli/README.md) tells an agent to ask for it.
-- **A test does more work than it looks like.** `for 18 ×400` is a loop that ran
-  400 times, and `loaded 38 files` is 38 modules the test imported to get
-  there. These are counts, not times. [Make one test cost less](optimize-a-test.md)
-  is how to act on them.
+  [the CLI](../packages/cli/README.md) tells an agent when to ask for it.
 
-To find which tests run a line, read journeys through `variance covering`, not
-stories. A story answers about one test.
+## When not to record one
+
+Recording adds work at every piece of code the test runs, and writes a story
+for every test in the run. For the one test you are looking into, the run takes
+about as long as without it. For many tests the run is slower and the stories
+are large, and nobody reads them.
+
+- **Not the whole suite, not a package, and not in CI.** A run records every
+  test it runs, so a run given a directory, a pattern or nothing records all of
+  them. Name one test file, and a test name when you have one.
+- **Not to find which tests run a line.** That question has no order in it.
+  `variance covering` answers it from the record every run already keeps.
+- **Not a performance test or a benchmark, and not a question about time.** A
+  test that runs a loop many thousands of times runs many times slower while it
+  is recorded, and a story holds no times. `for 18 ×400`, a loop at line 18
+  whose body ran 400 times, is a count. Use a profiler for time.
+- **Not a question about a value.** A story shows no values. Set a breakpoint
+  at the line it names.
+- **Not when a stack trace already names the line.** Open that line.
 
 ## Record one
 
 A story comes from the same recording as test selection, so your suite needs
 [Sense](../packages/sense/README.md) set up for its runner first. Then set
-`VARIANCE_AUTHORITY_STORY=1` and run the test with your runner's own filter:
+`VARIANCE_AUTHORITY_STORY=1` and name the tests with your runner's own
+arguments, one test or one file:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts
 ```
 
-Every test the run runs writes its story, so filter the run to the test you
-want, and a later run of the same test replaces it. Sense writes stories from
-the same instrumented build that records journeys, and nothing else
-changes: the coverage a run records with the variable is the same, byte for
-byte, as the coverage it records without it, and a run without the variable
-writes no story.
+Each test the run runs writes its story, and a later run of the same test
+replaces it. Sense writes stories from the same instrumented build that records
+journeys, and nothing else changes: the coverage a run records with the
+variable is the same, byte for byte, as the coverage it records without it, and
+a run without the variable writes no story.
 
 A story is the code as it was when the test ran. After you edit that code, run
 the test again with the variable before you read the story again.
