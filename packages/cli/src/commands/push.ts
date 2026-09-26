@@ -13,7 +13,8 @@ import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 import type { CliRunReport } from './run-report.js';
 import { alreadyHeld, endpointOf } from './push-have.js';
-import { type Reached, reach, versionNote } from '../version.js';
+import type { ShareConfig } from '../config-share.js';
+import { type Reached, reach, shareAt, versionNote } from '../version.js';
 
 /**
  * The caller the tribunal's write half never had.
@@ -93,6 +94,14 @@ export interface PushOptions {
   readonly build: string;
   readonly commit: string;
   readonly branch?: string;
+  // TODO: `variance push` in dispatch.ts does not pass `config.share` yet, so from
+  // the command line the version note never names the share.
+  /**
+   * The project's share, read only to say whether it is stored at this
+   * deployment: a deployment older than API 3 costs a project its share only
+   * when the share is there.
+   */
+  readonly share?: ShareConfig;
   /**
    * Told where this is, while it is still there.
    *
@@ -236,8 +245,9 @@ export async function push(options: PushOptions): Promise<PushResult> {
   // does — it is the same body either way — but it is the sentence that explains
   // the next forty seconds, and a sentence printed after the wait it describes
   // is a sentence nobody needed.
-  const service = await reach(send, endpointOf(options.review), options.review.token());
-  const note = versionNote(service);
+  const deployment = endpointOf(options.review);
+  const service = await reach(send, deployment, options.review.token());
+  const note = versionNote(service, shareAt(options.share, deployment));
   options.onProgress?.({ phase: 'service', ...(note !== undefined ? { note } : {}) });
   const images: Record<string, Record<string, unknown>> = {};
   const counted = { after: 0, before: 0 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLI_VERSION, NEEDS_API, reach, versionNote } from './version.js';
+import { CLI_VERSION, NEEDS_API, reach, shareAt, versionNote } from './version.js';
 
 /**
  * Whether the two halves can tell each other apart.
@@ -32,7 +32,7 @@ describe('knowing which halves are talking', () => {
     expect(reached).toEqual({ known: true, api: 3, schema: 17 });
     // And the agreement is silent: a tool that announces every normal state is
     // a tool whose output people stop reading.
-    expect(versionNote(reached)).toBeUndefined();
+    expect(versionNote(reached, true)).toBeUndefined();
   });
 
   it('reads a 404 as the strongest available evidence rather than as nothing', async () => {
@@ -42,8 +42,11 @@ describe('knowing which halves are talking', () => {
     // The deployment that predates this route is exactly the deployment that
     // predates everything the route would have warned about, so the absence of
     // an answer is itself the answer.
-    expect(versionNote(reached)).toContain('older than that route');
-    expect(versionNote(reached)).toContain('full upload of every image');
+    expect(versionNote(reached, false)).toContain('older than that route');
+    expect(versionNote(reached, false)).toContain('full upload of every image');
+    expect(versionNote(reached, false)).toContain('run identity');
+    expect(versionNote(reached, false)).not.toContain('/share/');
+    expect(versionNote(reached, true)).toContain('404 under /share/');
   });
 
   it('survives a deployment that cannot be reached at all', async () => {
@@ -63,19 +66,46 @@ describe('knowing which halves are talking', () => {
   });
 
   it('names which half is older, in both directions', async () => {
-    const behind = versionNote({ known: true, api: NEEDS_API - 1 });
+    const behind = versionNote({ known: true, api: 2 }, true);
     expect(behind).toContain('Redeploy the tribunal');
     expect(behind).toContain(`variance ${CLI_VERSION}`);
-    // What is missing is said as what the operator would see: a deployment from
-    // before the share pushes whole, and one from before `/review/have` does not.
+    // What is missing is said as what the operator would see.
     expect(behind).toContain('404 under /share/');
-    expect(versionNote({ known: true, api: 1 })).toContain('upload it cannot skip');
+    expect(behind).not.toContain('full upload');
 
-    const ahead = versionNote({ known: true, api: NEEDS_API + 1 });
+    const ahead = versionNote({ known: true, api: NEEDS_API + 1 }, true);
     // Not an error and not a fix: an older CLI pushes correctly, and saying so
     // is what stops somebody chasing a version number that is not the problem.
     expect(ahead).toContain('this CLI is the older half');
     expect(ahead).not.toContain('Redeploy');
+  });
+
+  it('names every capability a deployment lacks, and only those this project uses', () => {
+    // API 1 predates `/review/have` and document identity, and API 2 predates the
+    // share. Each level names what it lacks, not only the newest thing.
+    const first = versionNote({ known: true, api: 1 }, false);
+    expect(first).toContain('full upload of every image');
+    expect(first).toContain('run identity');
+    expect(first).not.toContain('/share/');
+    expect(versionNote({ known: true, api: 1 }, true)).toContain('404 under /share/');
+
+    // A project whose share is not at this deployment loses nothing at API 2,
+    // so a push there says nothing rather than asking for a redeploy.
+    expect(versionNote({ known: true, api: 2 }, false)).toBeUndefined();
+  });
+
+  it('counts a share as stored at the deployment only when it is an http share under its endpoint', () => {
+    const http = (endpoint: string) => ({ kind: 'http', endpoint }) as const;
+    expect(shareAt(http('https://review.example/share'), 'https://review.example')).toBe(true);
+    expect(shareAt(http('https://review.example/api/share/'), 'https://review.example/api/')).toBe(true);
+    expect(shareAt(http('https://REVIEW.example/api/share'), 'https://review.example/api')).toBe(true);
+
+    expect(shareAt(http('https://bucket.example/share'), 'https://review.example')).toBe(false);
+    // A prefix of the path is not a parent of it.
+    expect(shareAt(http('https://review.example/api-share'), 'https://review.example/api')).toBe(false);
+    expect(shareAt({ kind: 'directory', root: '/srv/share' }, 'https://review.example')).toBe(false);
+    expect(shareAt({ kind: 'git' }, 'https://review.example')).toBe(false);
+    expect(shareAt(undefined, 'https://review.example')).toBe(false);
   });
 
   it('reports a version that came from the manifest', () => {

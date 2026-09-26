@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import type { ShareConfig } from './config-share.js';
 
 /**
  * What this tool is, and what it expects the other end to be.
@@ -93,38 +94,88 @@ export async function reach(
 }
 
 /**
- * What a deployment at `api` does not have that this CLI would use, said as the
- * symptom an operator sees. Before 2 a push uploads what it could have named by
- * digest; at 2 a push is whole, and only a share pointed at the deployment misses.
+ * What each API level added that a push from this CLI uses, said as the symptom
+ * an operator sees on a deployment older than it. `share` marks the one that
+ * matters only to a project whose share is stored at that deployment.
  */
-function lacking(api: number): string {
-  return api < 2
-    ? 'the difference is upload it cannot skip'
-    : 'it answers 404 under /share/, so a share whose endpoint is this deployment holds nothing';
+const ADDED: readonly { readonly api: number; readonly share: boolean; readonly symptom: string }[] = [
+  {
+    api: 2,
+    share: false,
+    symptom: 'A push is a full upload of every image, because the deployment cannot say which images it already has',
+  },
+  {
+    api: 2,
+    share: false,
+    symptom:
+      'An approved baseline is stored under the run identity rather than the document one, so the subject can ' +
+      'stay `new` after its approval',
+  },
+  {
+    api: 3,
+    share: true,
+    symptom: 'It answers 404 under /share/, so the share this project stores at the deployment holds nothing',
+  },
+];
+
+/** Every symptom of a deployment at `api`, or of one that did not say, for this project. */
+function missing(api: number | undefined, share: boolean): string {
+  return ADDED.filter((added) => (api === undefined || api < added.api) && (share || !added.share))
+    .map((added) => added.symptom)
+    .join('. ');
+}
+
+/**
+ * Whether `share` is an `http` share stored at the deployment `endpoint` names,
+ * which is the one case where a deployment older than API 3 costs this project
+ * its share. Scheme and host are compared as `URL` spells them, and trailing
+ * slashes are ignored.
+ */
+export function shareAt(share: ShareConfig | undefined, endpoint: string): boolean {
+  if (share?.kind !== 'http') return false;
+  const base = normal(endpoint);
+  const at = normal(share.endpoint);
+  return at === base || at.startsWith(`${base}/`);
+}
+
+function normal(url: string): string {
+  let spelled = url;
+  try {
+    spelled = new URL(url).href;
+  } catch {
+    // Not a URL: compared as written, which matches only the same string.
+  }
+  return spelled.replace(/\/+$/, '');
 }
 
 /**
  * The line an operator gets, or nothing when there is nothing to say.
  *
- * Silent when the two agree, because a tool that narrates its successes trains
- * people to stop reading it. Loud in both directions when they do not: a service
- * behind this CLI and a service ahead of it fail differently, and an operator
- * deciding whether to redeploy or to downgrade needs to know which one they have.
+ * Silent when the two agree, and when the deployment is older but lacks nothing
+ * this project uses: a tool that narrates its successes trains people to stop
+ * reading it, and the push summary names both numbers either way. Otherwise it
+ * names every symptom that applies, in both directions: a service behind this CLI
+ * and a service ahead of it fail differently, and an operator deciding whether to
+ * redeploy or to downgrade needs to know which one they have.
+ *
+ * `share` is {@link shareAt} for this project and this deployment.
  */
-export function versionNote(reached: Reached): string | undefined {
+export function versionNote(reached: Reached, share: boolean): string | undefined {
   if (!reached.known) {
     return (
       `this deployment did not say which API version it serves — ${reached.because}. ` +
-      `variance ${CLI_VERSION} speaks ${String(NEEDS_API)}, so expect a full upload of every ` +
-      'image and a baseline promoted under the run identity rather than the document one'
+      `variance ${CLI_VERSION} speaks ${String(NEEDS_API)}, so expect what a deployment older ` +
+      `than API 2 does. ${missing(undefined, share)}`
     );
   }
   if (reached.api === NEEDS_API) return undefined;
   if (reached.api < NEEDS_API) {
+    const symptoms = missing(reached.api, share);
+    if (symptoms === '') return undefined;
     return (
       `this deployment serves API ${String(reached.api)} and variance ${CLI_VERSION} speaks ` +
-      `${String(NEEDS_API)}: it is the older half, and ${lacking(reached.api)}. ` +
-      'Redeploy the tribunal from a matching release'
+      `${String(NEEDS_API)}: it is the older half. ${symptoms}. Redeploy the tribunal from a ` +
+      'matching release'
     );
   }
   return (

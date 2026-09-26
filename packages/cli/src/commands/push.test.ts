@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OperatorError } from '../exit.js';
-import { push, type PushProgress } from './push.js';
+import { push, type PushOptions, type PushProgress } from './push.js';
 import { formatPush } from './push-progress.js';
 import { REVIEW, disk, header, options, report, surface, SIDECAR } from './push-fixture.js';
 
@@ -302,6 +302,26 @@ describe('saying where a push has got to', () => {
     );
 
     expect(result.images.after).toBe(1);
+  });
+
+  it('asks for a redeploy at API 2 only when the project stores its share at that deployment', async () => {
+    const noteOf = async (share?: PushOptions['share']): Promise<string | undefined> => {
+      const seen: PushProgress[] = [];
+      await push(
+        options({
+          ...(share === undefined ? {} : { share }),
+          onProgress: (event) => seen.push(event),
+          deps: { fetch: surface({ api: 2 }).fetch, read: disk({}) },
+        }),
+      );
+      const service = seen.find((event) => event.phase === 'service');
+      return service?.phase === 'service' ? service.note : undefined;
+    };
+
+    // API 2 lacks only the share, so a project with none there has nothing to hear.
+    expect(await noteOf()).toBeUndefined();
+    expect(await noteOf({ kind: 'http', endpoint: 'https://bucket.example/share' })).toBeUndefined();
+    expect(await noteOf({ kind: 'http', endpoint: `${REVIEW.endpoint}/share` })).toContain('404 under /share/');
   });
 });
 

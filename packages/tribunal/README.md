@@ -315,11 +315,11 @@ Share objects sit under `<project>/share/` in the bucket and have no rows, so
 
 `api` is the wire contract, not the package version — it changes when what a
 client may send or expect changes. `variance push` asks before it uploads and
-says so when the two disagree, because a CLI newer than its deployment is not an
-error: it works, and what the older deployment lacks shows up somewhere else —
-as upload it could have skipped before API 2, and as a share that is always
-empty before API 3. Until something prints both numbers, neither looks like a
-version mismatch.
+prints both numbers. A CLI newer than its deployment is not an error: it works,
+and what the older deployment lacks shows up somewhere else — before API 2 as
+upload it could have skipped and as an approved subject that stays `new`, and
+before API 3 as a share that is always empty. Until something prints both
+numbers, neither looks like a version mismatch.
 
 ## What a reviewer sees
 
