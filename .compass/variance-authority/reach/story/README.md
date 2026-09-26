@@ -18,7 +18,8 @@ In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit; and, to name what was visited, the
 region inventory the record beside it holds. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
-declarations with the arms taken in each, modules loaded along the way as one
+declarations with the arms taken in each and, when steps are drawn, the arms
+each never went into, modules loaded along the way as one
 step, a loop drawn once with how many times it went round — drawn by packages,
 files, declarations, steps or every step, whichever is the finest that fits.
 
@@ -46,7 +47,8 @@ business; asking for stories takes one for every case the run runs.
 It is a map, not a trace. The route is drawn at the grain of a declaration,
 because the question is which parts of the system a case goes through and in
 what order; the arms taken inside a declaration and how many times are carried
-on its step, and the order of every visit inside it stays on the tape. A package
+on its step, the arms it never went into are carried once for the route, and
+the order of every visit inside it stays on the tape. A package
 is the one its manifest says, never one computed from how the code is called. Steps are numbered and the number is the only join between
 parts of a route: a visit is not a call, a function that returns leaves no
 mark, so no step is drawn as another's parent.

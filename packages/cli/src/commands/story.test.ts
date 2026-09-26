@@ -28,6 +28,7 @@ const ROUTE: Route = {
   ],
   files: ['src/cart.test.ts', 'src/cart.ts', 'src/format.ts', 'src/price.ts', 'src/tax.ts'],
   unresolved: [],
+  untaken: [],
   untaped: 0,
   interleaved: 2,
 };
@@ -69,6 +70,30 @@ describe('a story read as a route', () => {
         '',
       ].join('\n'),
     );
+  });
+
+  it('names what a declaration never went into on the first step it is drawn at, and only at the levels that draw steps', () => {
+    const removeItem = ROUTE.route[1]!;
+    const never = [{ path: 'if#0/else', startLine: 17, endLine: 17 }, { path: 'for#0/after', startLine: 24, endLine: 29 }];
+    const again: Route = {
+      ...ROUTE,
+      route: [...ROUTE.route, removeItem],
+      untaken: [{ place: { file: 'src/cart.ts', name: 'Cart/removeItem', kind: 'function', startLine: 12, endLine: 30 }, arms: never }],
+    };
+    const text = formatStory({ route: again }, 'text').split('\n');
+    expect(text).toContain('  `never` names what a declaration holds that the case went into nowhere, before the case or during it');
+    expect(text.filter((line) => line.includes('Cart/removeItem'))).toEqual([
+      '  3  src/cart.ts:12-30  Cart/removeItem  if#0/then 14-16, for#0/body 18-22 ×40  never if#0/else 17, for#0/after 24-29',
+      '  6  src/cart.ts:12-30  Cart/removeItem  if#0/then 14-16, for#0/body 18-22 ×40',
+    ]);
+    const json = JSON.parse(formatStory({ route: again }, 'json'));
+    expect(json.untaken).toBeUndefined();
+    expect(json.reading.lines.filter((line: { never?: unknown }) => line.never !== undefined)).toEqual([
+      expect.objectContaining({ step: 3, never }),
+    ]);
+
+    const long: Route = { ...again, route: [removeItem, ...through('src/a.ts', 40), ...through('src/b.ts', 40, 40)] };
+    expect(formatStory({ route: long }, 'text')).not.toContain('never');
   });
 
   it('draws a long route at the finest level that fits, and names the level below and how to reach it', () => {
@@ -164,7 +189,7 @@ describe('a story read as a route', () => {
   });
 
   it('gives the reading, its level and the numbered steps as json', () => {
-    const { before: _before, route: _route, ...head } = ROUTE;
+    const { before: _before, route: _route, untaken: _untaken, ...head } = ROUTE;
     expect(JSON.parse(formatStory({ route: ROUTE, zoom: { around: 5 } }, 'json'))).toEqual({
       ...head,
       steps: 5,

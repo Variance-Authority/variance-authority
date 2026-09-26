@@ -93,4 +93,20 @@ describe('a route', () => {
     const route = drawRoute(ROOT, story([]), ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
     expect([route.route, route.files]).toEqual([[], []]);
   });
+
+  it('names the arms of each declaration it stopped at that the case never went into, leaving out one inside an arm it lists', () => {
+    const files = ['src/cart.ts', 'src/format.ts'];
+    const removeItem = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 };
+    expect(drawRoute(ROOT, story([1, 4]), files, [CART, undefined]).untaken).toEqual([
+      { place: removeItem, arms: [{ path: 'for#0/body', startLine: 18, endLine: 20 }] },
+    ]);
+    expect(drawRoute(ROOT, story([1, 2]), files, [CART, undefined]).untaken).toEqual([
+      { place: removeItem, arms: [{ path: 'for#0/body/if#0/then', startLine: 19, endLine: 19 }] },
+    ]);
+  });
+
+  it('counts an arm taken before the case as taken, and names nothing in a file the recording holds no regions for', () => {
+    const files = ['src/cart.ts', 'src/format.ts'];
+    expect(drawRoute(ROOT, story([1, 2, 6], [3]), files, [CART, undefined]).untaken).toEqual([]);
+  });
 });

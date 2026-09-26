@@ -68,6 +68,11 @@ variance story --name "removes the last item" --whole         # every step, howe
 - After the declaration come the arms it took, with their lines and `×N` when
   more than once: `if#0/else 16-17, for#0/body 18-22 ×2`. `×N` after the
   declaration itself is how many times it was entered.
+- `never if#0/then 14-15`, on the first step a declaration is drawn at, is what
+  it holds that the case went into nowhere, before the case or during it. Only
+  the two levels that draw steps show it. This is where the case does not
+  protect the code it visited, and `never if#0/else` is a condition that held
+  every time.
 - `repeats ×N` is a loop, drawn once; the arms and counts under it are all its
   passes added together.
 - `through <package>, steps a-b: names` is a run of steps inside a workspace

@@ -2683,6 +2683,7 @@
         "Step": "type",
         "Stop": "type",
         "StoryEntry": "interface",
+        "Untaken": "interface",
         "askedForStories": "function",
         "drawRoute": "function",
         "foldSteps": "function",

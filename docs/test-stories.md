@@ -40,12 +40,13 @@ the branch arms it took there:
 ```text
 story  src/cart.test.ts > cart > removes the last item
   goes through 4 files in 7 steps
+  `never` names what a declaration holds that the case went into nowhere, before the case or during it
 
   before the case
   1  src/cart.test.ts:3-8  beforeEach.arg0
   the case
   2  loaded 3 files: src/cart.ts, src/price.ts, src/format.ts
-  3  src/cart.ts:12-30  Cart/removeItem  if#0/else 16-17, for#0/body 18-22 ×2
+  3  src/cart.ts:12-30  Cart/removeItem  if#0/else 16-17, for#0/body 18-22 ×2  never if#0/then 14-15
      repeats ×2
   4    src/price.ts:6-8  applyTier ×2  if#0/then 7
   5    src/format.ts:14-19  formatPrice ×2
@@ -60,6 +61,12 @@ story  src/cart.test.ts > cart > removes the last item
 - **`if#0/else 16-17, for#0/body 18-22 ×2`** is the arms the case took inside
   the declaration, with their lines, in the order it first took them. `×2` is
   how many times: here the loop body ran twice and the `else` once.
+- **`never if#0/then 14-15`** is what the declaration holds that the case went
+  into nowhere: not at this step, not at any other, not before the case. It
+  sits on the first step the declaration is drawn at. Whatever those lines do,
+  this case does not protect it. An arm inside one already listed is left out,
+  and an `else` nobody wrote is listed like any other, so `never if#0/else`
+  says the condition held every time.
 - **`repeats ×2`** is a loop, drawn once with the steps of one pass under it.
   Passes that took different arms are still one loop, and their counts add:
   `applyTier ×2  if#0/then 7` is two entries, one of them through the `then`.
@@ -112,7 +119,8 @@ Then you read the part you care about, and the level is picked again inside it:
 - `--whole` gives every step, however long.
 
 A part that leaves steps out says so with a line like `… steps 1-2`, so you
-know what to ask for next.
+know what to ask for next. What a declaration never went into is drawn only when
+steps are: on a table of contents it would be most of the page.
 
 ### Other packages are passed through
 
@@ -141,7 +149,8 @@ application stays on the route. `--in @acme/ui` opens the package, and its steps
 are drawn like your own.
 
 `--format json` gives the same answer as data: the reading with its `level`,
-and the size of the next level down as `finer`. When the text matches several
+the size of the next level down as `finer`, and `never` on the step that draws
+it. When the text matches several
 cases, you get the list of them instead, and you narrow the text.
 
 ## What the route leaves out

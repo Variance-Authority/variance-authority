@@ -17,6 +17,14 @@
  * pass did inside the stop, not where the route went; a folded stop adds its
  * passes' counts together.
  *
+ * What a declaration holds and the case never went into — anywhere in it,
+ * before the case or during it — is carried once for the route, not on a stop:
+ * `untaken`, each declaration's arms that no visit reached, a nested arm left
+ * out when the arm around it is listed. It is the difference between the
+ * regions the snapshot holds and the ones the tape names, so it is computed
+ * here, where both are read, and nowhere else. An `else` nobody wrote is one of
+ * them: never going into it says the condition held every time.
+ *
  * A region is named from the coverage snapshot, which holds every recorded
  * module's regions by ordinal. A module whose regions the snapshot does not
  * hold with the count the story recorded — not recorded yet, or recorded from
@@ -66,6 +74,12 @@ export type Stop =
   | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[] }
   | { readonly loaded: readonly string[] };
 
+/** The arms of one declaration on the route that the case never went into. */
+export interface Untaken {
+  readonly place: Place;
+  readonly arms: readonly Omit<Arm, 'times'>[];
+}
+
 /** One case's route. */
 export interface Route {
   /** The test file, relative to the checkout. */
@@ -78,6 +92,8 @@ export interface Route {
   readonly files: readonly string[];
   /** Files on the route the snapshot holds no matching regions for, so they are drawn as the file alone. */
   readonly unresolved: readonly string[];
+  /** For each declaration the route stopped at, in the order first reached, the arms no visit went into; one with none is left out, and so is one in an unresolved file. */
+  readonly untaken: readonly Untaken[];
   /** Visits the tape did not keep; a route that is missing its end says so. */
   readonly untaped: number;
   /** How many times another case's work ran in the middle of this one. */
@@ -147,6 +163,9 @@ export function drawRoute(
   const declarations = regions.map((own, row) => (own === undefined ? undefined : declarationsOf(shown[row]!, own)));
   const seen = new Set<string>();
   const unresolved = new Set<string>();
+  const taken = new Set<number>();
+  // Each declaration stopped at, by key, with the row its regions are in.
+  const placed = new Map<string, { place: Place; row: number }>();
 
   const stopsOf = (visits: Int32Array): Stop[] => {
     const stops: Stop[] = [];
@@ -156,6 +175,7 @@ export function drawRoute(
     let paths = new Map<string, { times: number }>();
     for (const entry of visits) {
       const index = entry & 0x7fffffff;
+      taken.add(index);
       let row = bases.length - 1;
       while (bases[row]! > index) row -= 1;
       const file = shown[row]!;
@@ -180,6 +200,7 @@ export function drawRoute(
         place = declarations[row]!.get(region.name)!;
       }
       const key = `${place.file}\0${place.name}`;
+      if (region !== undefined && !placed.has(key)) placed.set(key, { place, row });
       if (key !== last || open === undefined) {
         open = { place, entered: 0, arms: [] };
         paths = new Map();
@@ -204,14 +225,33 @@ export function drawRoute(
     return stops;
   };
   const keyOf = (stop: Stop): string => ('loaded' in stop ? `\0${stop.loaded.join('\0')}` : `${stop.place.file}\0${stop.place.name}`);
+  const before = foldSteps(stopsOf(story.before), keyOf, added);
+  const route = foldSteps(stopsOf(story.visits), keyOf, added);
+
+  const untaken: Untaken[] = [];
+  for (const { place, row } of placed.values()) {
+    const arms: Omit<Arm, 'times'>[] = [];
+    regions[row]!.forEach((region, ordinal) => {
+      if (region.name !== place.name || region.path === 'entry' || region.path === 'module') return;
+      if (taken.has(bases[row]! + ordinal)) return;
+      // An arm's regions come after the arm, so the one around it is already listed.
+      if (arms.some((arm) => region.path.startsWith(`${arm.path}/`))) return;
+      arms.push({
+        path: region.path,
+        ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
+      });
+    });
+    if (arms.length > 0) untaken.push({ place, arms });
+  }
 
   return {
     file: inCheckout(root, story.file),
     name: story.name,
-    before: foldSteps(stopsOf(story.before), keyOf, added),
-    route: foldSteps(stopsOf(story.visits), keyOf, added),
+    before,
+    route,
     files: [...seen].sort(compare),
     unresolved: [...unresolved].sort(compare),
+    untaken,
     untaped: story.untaped,
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),

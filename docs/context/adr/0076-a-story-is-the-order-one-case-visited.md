@@ -1,7 +1,7 @@
 # ADR-0076 — A story is the order one case visited, taped beside the record
 
 **Status:** accepted
-**Date:** 2026-09-26 (arms, counts and the picked level added the same day)
+**Date:** 2026-09-26 (arms, counts, the picked level and the arms never taken added the same day)
 **Narrows:** ADR-0056 (a journey is the places visited)
 **Relates to:** ADR-0002 (absent is not empty), ADR-0069 (every answer has an
 owner), [spec 0071](../../specs/0071-a-test-is-read-alone.md)
@@ -48,7 +48,12 @@ never read by anything that selects or compares.**
    is drawn once. Each stop carries how many times its declaration was entered
    and the arms it went into, each with a count; a loop carries how many times it
    went round, and its passes fold even when they took different arms, their
-   counts added. The map is not the territory: the route answers *which parts of
+   counts added. What each declaration on the route holds and the case went
+   into nowhere is carried once, for the route: it is the region inventory
+   less the tape, so the reader computes it where it holds both, and it is
+   drawn only at the levels that draw steps, on the first step the declaration
+   is at. It names where a case visited code without protecting it, which the
+   arms taken cannot: a guard that never fired leaves no visit. The map is not the territory: the route answers *which parts of
    the system does this case go through, in what order, and down which arms*, and
    a debugger answers the rest.
 4. **The route is read a part at a time, at a level picked from its size.** A

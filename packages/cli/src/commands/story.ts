@@ -28,6 +28,7 @@ import {
   type Place,
   type Route,
   type StoryEntry,
+  type Untaken,
 } from '@variance-authority/sense/story';
 import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
@@ -121,13 +122,14 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const part = partOf(lines, answer.zoom, packageOf, own);
   const drawn = drawings(part.lines, packageOf, part.open);
   const width = String(steps).length;
-  const texts = drawn.map((drawing) => drawingText(drawing, route.before.length > 0, width));
+  const texts = drawn.map((drawing) => drawingText(drawing, route.before.length > 0, width, route.untaken));
   const chosen = pick(texts.map((text) => text.length), answer.zoom !== undefined && 'whole' in answer.zoom);
   const reading = drawn[chosen]!;
   const finer = chosen + 1 < drawn.length ? { level: drawn[chosen + 1]!.level, lines: texts[chosen + 1]!.length } : undefined;
   if (format === 'json') {
-    const { before: _before, route: _route, ...head } = route;
-    const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map(lineJson) } : reading;
+    const { before: _before, route: _route, untaken: _untaken, ...head } = route;
+    const never = 'lines' in reading ? nevers(reading.lines, route.untaken) : new Map();
+    const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map((line) => lineJson(line, never)) } : reading;
     return `${JSON.stringify({ ...head, ...(own === undefined ? {} : { package: own }), steps, reading: shown, ...(finer === undefined ? {} : { finer }) }, null, 2)}\n`;
   }
   const text = header(route, steps);
@@ -143,19 +145,22 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
     if (reading.level === 'steps') {
       text.push(`  passed through ${listed(reading.passed)}, a line for each run of steps; open one with --in <package>`);
     }
+    if ('lines' in reading && nevers(reading.lines, route.untaken).size > 0) {
+      text.push('  `never` names what a declaration holds that the case went into nowhere, before the case or during it');
+    }
     text.push(...texts[chosen]!);
   }
   return `${text.join('\n')}\n`;
 }
 
 /** A drawing as the lines of text it reads as, blank line first. */
-function drawingText(drawing: Drawing, sections: boolean, width: number): string[] {
+function drawingText(drawing: Drawing, sections: boolean, width: number, untaken: readonly Untaken[]): string[] {
   const text: string[] = [];
   switch (drawing.level) {
     case 'packages': packagesText(drawing.packages, text); break;
     case 'files': filesText(drawing.files, text); break;
     case 'declarations': overviewText(drawing.visits, text); break;
-    default: linesText(drawing.lines, sections, width, text);
+    default: linesText(drawing.lines, sections, width, nevers(drawing.lines, untaken), text);
   }
   return text;
 }
@@ -212,7 +217,13 @@ function overviewText(files: readonly FileVisits[], text: string[]): void {
   }
 }
 
-function linesText(lines: readonly (Line | Gap | Through)[], sections: boolean, width: number, text: string[]): void {
+function linesText(
+  lines: readonly (Line | Gap | Through)[],
+  sections: boolean,
+  width: number,
+  never: ReadonlyMap<Line, readonly Unentered[]>,
+  text: string[],
+): void {
   text.push('');
   let before: boolean | undefined;
   const blank = ' '.repeat(width);
@@ -235,23 +246,48 @@ function linesText(lines: readonly (Line | Gap | Through)[], sections: boolean, 
     }
     const number = line.step === undefined ? blank : String(line.step).padStart(width);
     const stop = line.stop;
-    const body = stop === undefined ? `repeats${count(line.times ?? 0)}` : 'loaded' in stop ? loaded(stop.loaded) : place(stop.place, stop.entered, stop.arms);
+    const body = stop === undefined ? `repeats${count(line.times ?? 0)}` : 'loaded' in stop ? loaded(stop.loaded) : place(stop.place, stop.entered, stop.arms, never.get(line) ?? []);
     text.push(`  ${number}  ${indent}${body}`);
   });
 }
 
-function lineJson(line: Line | Gap | Through): unknown {
+function lineJson(line: Line | Gap | Through, never: ReadonlyMap<Line, readonly Unentered[]>): unknown {
   if ('gap' in line || 'through' in line) return line;
   const { step, depth, before, stop, times } = line;
-  return stop === undefined ? { repeats: times, depth, before } : { step, depth, before, ...stop };
+  const arms = never.get(line);
+  return stop === undefined ? { repeats: times, depth, before } : { step, depth, before, ...stop, ...(arms === undefined ? {} : { never: arms }) };
 }
 
-/** A declaration, how many times it was entered when more than once, and the arms it went into. */
-function place(place: Place, entered: number, arms: readonly Arm[]): string {
+type Unentered = Untaken['arms'][number];
+
+/**
+ * The arms each declaration never went into, on the first line a drawing draws
+ * it at: once is enough to know it, and a coarser drawing does not draw them.
+ */
+function nevers(lines: readonly (Line | Gap | Through)[], untaken: readonly Untaken[]): Map<Line, readonly Unentered[]> {
+  const left = new Map(untaken.map(({ place: at, arms }) => [`${at.file}\0${at.name}`, arms]));
+  const out = new Map<Line, readonly Unentered[]>();
+  for (const line of lines) {
+    if ('gap' in line || 'through' in line || line.stop === undefined || 'loaded' in line.stop) continue;
+    const key = `${line.stop.place.file}\0${line.stop.place.name}`;
+    const arms = left.get(key);
+    if (arms === undefined) continue;
+    out.set(line, arms);
+    left.delete(key);
+  }
+  return out;
+}
+
+/** A declaration, how many times it was entered when more than once, the arms it went into, and those it never did. */
+function place(place: Place, entered: number, arms: readonly Arm[], never: readonly Unentered[]): string {
   const where = lineRange(place);
   const at = where === '' ? place.file : `${place.file}:${where}  ${declaration(place)}`;
-  const inside = arms.map((arm) => `${arm.path}${arm.startLine === undefined ? '' : ` ${lineRange(arm)}`}${count(arm.times)}`);
-  return `${at}${count(entered)}${inside.length === 0 ? '' : `  ${inside.join(', ')}`}`;
+  const inside = arms.map((arm) => `${armText(arm)}${count(arm.times)}`);
+  return `${at}${count(entered)}${inside.length === 0 ? '' : `  ${inside.join(', ')}`}${never.length === 0 ? '' : `  never ${never.map(armText).join(', ')}`}`;
+}
+
+function armText(arm: Unentered): string {
+  return `${arm.path}${arm.startLine === undefined ? '' : ` ${lineRange(arm)}`}`;
 }
 
 /** `×N` for a count over one; nothing for once. */
