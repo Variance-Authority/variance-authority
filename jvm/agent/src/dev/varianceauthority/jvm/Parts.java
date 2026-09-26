@@ -66,7 +66,6 @@ public final class Parts {
       if (!line.isEmpty()) rows.add(Coverage.Json.object(line));
     }
     if (rows.isEmpty()) return;
-    String prefix = checkoutPrefix();
 
     TreeSet<String> journeys = new TreeSet<>();
     Map<String, Map<String, Coverage.Method>> byFile = new TreeMap<>();
@@ -94,10 +93,9 @@ public final class Parts {
     }
     List<Coverage.Module> modules = new ArrayList<>();
     for (Map.Entry<String, Map<String, Coverage.Method>> e : byFile.entrySet()) {
-      String text = Coverage.text(e.getKey());
+      String text = Coverage.source(e.getKey());
       if (text == null) throw new IOException("recorded file " + e.getKey() + " is not in the checkout");
-      Coverage.Module module = Coverage.module(e.getKey(), text, new ArrayList<>(e.getValue().values()));
-      modules.add(new Coverage.Module(name(prefix, e.getKey()), module.sourceDigest, module.blocks));
+      modules.add(Coverage.module(e.getKey(), text, new ArrayList<>(e.getValue().values())));
     }
 
     ByteArrayOutputStream part = new ByteArrayOutputStream();

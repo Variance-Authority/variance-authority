@@ -70,6 +70,8 @@ public final class Agent implements ClassFileTransformer {
   /** Where the checkout's own classes load from, when {@code includes} did not name them. */
   private final Path checkout;
   private final Map<String, String> resolved = new HashMap<>();
+  /** Where this JVM runs, from the checkout: a row names its files as the checkout does, so any module's JVM can read them. */
+  private final String prefix = Parts.checkoutPrefix();
   private Map<String, List<String>> byName;
 
   private Agent(String args) {
@@ -101,6 +103,7 @@ public final class Agent implements ClassFileTransformer {
     inst.addTransformer(new Agent(args));
     Presence.on = true;
     parts();
+    RecordLocation.resolve();
   }
 
   /**
@@ -199,7 +202,7 @@ public final class Agent implements ClassFileTransformer {
         for (AbstractInsnNode n : m.instructions) {
           if (n instanceof LineNumberNode) lines.add(((LineNumberNode) n).line);
         }
-        index = Presence.register(meta(file, cn.name, m.name + m.desc, lines));
+        index = Presence.register(meta(Parts.name(prefix, file), cn.name, m.name + m.desc, lines));
       }
       InsnList probe = new InsnList();
       probe.add(new FieldInsnNode(Opcodes.GETSTATIC, "dev/varianceauthority/jvm/rt/Presence", "P", "[Z"));

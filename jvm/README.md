@@ -42,7 +42,7 @@ Vintage engine. With Maven Surefire:
 <plugin>
   <artifactId>maven-surefire-plugin</artifactId>
   <configuration>
-    <argLine>-javaagent:${va.bin}/variance-agent.jar -javaagent:${va.bin}/variance-junit.jar -Dva.out=${project.build.directory}/va</argLine>
+    <argLine>-javaagent:${va.bin}/variance-agent.jar -javaagent:${va.bin}/variance-junit.jar -Dva.suite=unit</argLine>
   </configuration>
 </plugin>
 ```
@@ -58,17 +58,31 @@ tasks.test {
   jvmArgs(
     "-javaagent:$va/variance-agent.jar",
     "-javaagent:$va/variance-junit.jar",
-    "-Dva.out=${layout.buildDirectory.dir("va").get().asFile}",
+    "-Dva.suite=unit",
   )
 }
 ```
 
-Each top-level test class becomes one row of `record.jsonl` in `va.out`. When
-the test plan finishes, the listener writes the same record as `coverage.va`.
+`unit` is a suite your root `variance.config.json` declares, as it does for
+your Node suites:
 
-Each test JVM keeps its own rows under `va.out/records` and, when its plan
-finishes, merges every finished JVM's rows into `record.jsonl`. Forks that share
-a `va.out` merge in turn, so the last one to finish writes the whole suite. A
+```json
+{ "suites": { "unit": { "kind": "unit" }, "checkout": { "kind": "e2e" } } }
+```
+
+When the test plan finishes, the listener writes the suite's record to
+`suites/unit/coverage.bin` in your checkout's cache directory: the file a Node
+seam naming `suite: 'unit'` writes, and the one a reader of that suite opens. In a worktree it is the worktree's own directory, and the first run
+there starts from the rows the primary checkout recorded. If your repository
+declares no suites, leave `-Dva.suite` out and the record is the checkout's one
+`coverage.bin`. A suite your configuration does not declare fails the JVM
+before a test runs, and so does no suite once you declare any.
+
+Each top-level test class becomes one row. Each test JVM keeps its own rows
+under `.jvm/records` beside the record and, when its plan finishes, merges
+every finished JVM's rows into `record.jsonl`. Every module and fork of the
+build shares that directory and merges in turn, so the last one to finish
+writes the whole suite, whichever module it ran. A
 rerun replaces the rows of the classes it ran and keeps the rest, so
 `-Dtest=AddTest` leaves the other classes' rows in place. A row that read a file
 whose text has changed since is dropped, and its class runs until it is recorded
@@ -78,7 +92,8 @@ again.
 | --- | --- | --- | --- |
 | `includes` | agent option | the checkout's own classes | Colon-separated class-name globs, with `*` and `?`, as JaCoCo's. |
 | `sources` | agent option | `src/main/java:src/test/java:src/main/kotlin:src/test/kotlin` | Colon-separated source roots, relative to the test JVM's working directory. |
-| `va.out` | system property | `va-exec` | Where `record.jsonl`, `coverage.va` and `events.tsv` go. |
+| `va.suite` | system property | none | The declared suite this JVM records into. |
+| `va.out` | system property | the suite's directory in the cache | A directory of your own for `record.jsonl`, `coverage.va` and `events.tsv`, read with `variance select --execution <va.out>/coverage.va`. It is not checked against your configuration, and naming it with `va.suite` fails the JVM. |
 | `va.commit` | system property | none | The commit `coverage.va` names as its baseline. |
 | `va.parts` | system property | `VARIANCE_AUTHORITY_PARTS` | A service's parts directory. See below. |
 | `va.presence.capacity` | system property | 4,194,304 | How many methods the store can flag. |
@@ -292,9 +307,10 @@ module runs each test class in a JVM of its own, two at a time, into one
 node jvm/test/record.mjs "$WORK/record" jvm/dist/bin
 node jvm/test/parts.mjs "$WORK/parts" jvm/dist/bin
 node jvm/test/journey.mjs "$WORK/journey" jvm/dist/bin packages/cli/dist/bin.js
+node jvm/test/suite.mjs "$WORK/suite" jvm/dist/bin
 ```
 
-All three need Docker and a built checkout (`yarn build`). `journey.mjs` also
+All four need Docker and a built checkout (`yarn build`). `journey.mjs` also
 needs Playwright's Chromium.
 
 `record.mjs` records the build fresh, again, with `-Dtest=AddTest`, and after an
@@ -307,6 +323,19 @@ edit to a test file. It checks that:
 - A rerun replaces rows, and `-Dtest=` keeps the rows of the classes it did not
   run.
 - An edit retires the rows of the class whose record read the edited file.
+
+`suite.mjs` records the same build with `-Dva.suite=unit` in a checkout that
+declares its suites, and in a worktree of it. It checks that:
+
+- The agent puts the record where sense's `testCoverageFile` does, in the
+  checkout, in a module of it, in the worktree, and in a repository with no
+  suites.
+- An undeclared suite, no suite, a suite in a repository that declares none,
+  and `va.out` with `va.suite` each fail the JVM.
+- Both modules' JVMs write one record, and an edit in either module selects
+  from it.
+- The worktree's first run, with `-Dtest=AddTest`, keeps the base's rows for the
+  other classes.
 
 `parts.mjs` runs the shop under the agent with a parts directory, runs Jest in
 band against it, stops the JVM, and then finalizes Jest's journey file. It

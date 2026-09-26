@@ -21,10 +21,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
@@ -51,11 +53,12 @@ import java.util.TreeSet;
  * or failed class is written incomplete, so its absences justify no skip.
  *
  * The listener writes it beside {@code record.jsonl} when the plan finishes; the
- * {@code main} writes it for a record already on disk. Source texts are read from
- * the working directory, which must be the commit the record was made at, and
- * named as {@link Parts} names them: relative to the checkout, so a module's
- * record matches a diff taken at its root. A driver's journey subjects are
- * written as the table spells them.
+ * {@code main} writes it for a record already on disk. A row names its files
+ * relative to the checkout, as the agent registered them, so a module's record
+ * matches a diff taken at its root and a JVM in one module can merge another's.
+ * Their texts are read from the checkout, which must be at the commit the record
+ * was made at. A driver's journey subjects are read from the working directory
+ * and written as the table spells them.
  *
  * The bytes are sense's snapshot format 8 with every column and set stored
  * uncompressed, which its reader accepts: a run is compressed only when that pays,
@@ -96,7 +99,9 @@ public final class Coverage {
   /**
    * Called by the listener when this JVM's plan finishes: seals {@code own}, this
    * JVM's record under {@code <out>/records}, then writes {@code record.jsonl} and
-   * {@code coverage.va} from every sealed record there.
+   * the snapshot from every sealed record there: {@code coverage.va} in a
+   * {@code va.out} the caller named, and the layer's record otherwise, as
+   * {@link RecordLocation} places it.
    *
    * A seal is a last line naming the text of every file the record's rows read,
    * as this JVM saw it. A record whose texts still hold is current, and for each
@@ -145,31 +150,47 @@ public final class Coverage {
       Path temporary = record.resolveSibling("record.jsonl.tmp");
       Files.write(temporary, merged.toString().getBytes(StandardCharsets.UTF_8));
       Files.move(temporary, record, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-      write(record, out.resolve("coverage.va"), System.getProperty("va.commit"), roots);
+      write(record, RecordLocation.snapshot(out), System.getProperty("va.commit"), roots);
     }
+  }
+
+  /** Whether a JVM's record carries its seal, so the JVM that wrote it has finished. */
+  static boolean sealed(Path file) throws IOException {
+    return Sealed.read(file) != null;
   }
 
   /** Appends the seal: when this JVM finished, and the digest of every file its rows read. */
   private static void seal(Path own, List<String> roots) throws IOException {
     TreeSet<String> files = new TreeSet<>();
+    StringBuilder sealed = new StringBuilder();
+    String prefix = Parts.checkoutPrefix();
     if (Files.isRegularFile(own)) {
       for (String line : Files.readAllLines(own, StandardCharsets.UTF_8)) {
         if (line.isEmpty()) continue;
         Map<String, Object> row = Json.object(line);
         String owner = (String) row.get("owner");
-        if (!owner.startsWith("between")) files.add(testFile(owner, roots));
+        if (!owner.startsWith("between")) {
+          // The test class's file is found under this JVM's roots, and a JVM
+          // in another module could not find it: the row carries it.
+          String test = Parts.name(prefix, testFile(owner, roots));
+          line = "{\"test\":" + Agent.quote(test) + "," + line.substring(1);
+          files.add(test);
+        }
         for (Object o : (List<?>) row.get("methods")) files.add((String) ((Map<?, ?>) o).get("file"));
+        sealed.append(line).append('\n');
       }
     }
-    StringBuilder seal = new StringBuilder("{\"end\":").append(System.currentTimeMillis()).append(",\"texts\":{");
+    sealed.append("{\"end\":").append(System.currentTimeMillis()).append(",\"texts\":{");
     boolean first = true;
     for (String file : files) {
-      String text = text(file);
-      seal.append(first ? "" : ",").append(Agent.quote(file)).append(':').append(Agent.quote(text == null ? "" : digest(text)));
+      String text = source(file);
+      sealed.append(first ? "" : ",").append(Agent.quote(file)).append(':').append(Agent.quote(text == null ? "" : digest(text)));
       first = false;
     }
-    seal.append("}}\n");
-    Files.write(own, seal.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+    sealed.append("}}\n");
+    Path temporary = own.resolveSibling(own.getFileName() + ".tmp");
+    Files.write(temporary, sealed.toString().getBytes(StandardCharsets.UTF_8));
+    Files.move(temporary, own, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
   }
 
   /** One JVM's record that carries its seal. */
@@ -204,7 +225,7 @@ public final class Coverage {
     /** Whether every file the rows read still has the text it had. */
     boolean current() throws IOException {
       for (Map.Entry<?, ?> e : texts.entrySet()) {
-        String text = text((String) e.getKey());
+        String text = source((String) e.getKey());
         if (text == null || !digest(text).equals(e.getValue())) return false;
       }
       return true;
@@ -340,9 +361,10 @@ public final class Coverage {
       throws IOException {
     Model model = new Model();
     model.commit = commit;
-    // Named as the checkout names them, as a diff at its root does; read where this JVM runs.
+    // Named as the checkout names them, as a diff at its root does. A row's
+    // files are already; a test class found under this JVM's roots is named here.
     String prefix = Parts.checkoutPrefix();
-    Map<String, String> read = new HashMap<>();
+    Set<String> named = new HashSet<>();
     Map<String, Test> tests = new TreeMap<>();
     Map<String, Map<String, Method>> byFile = new TreeMap<>();
     List<String> everyone = new ArrayList<>();
@@ -360,10 +382,9 @@ public final class Coverage {
       List<String> files;
       if (journeys == null) {
         if (owner.startsWith("between")) continue;
-        String file = testFile(owner, roots);
-        String named = Parts.name(prefix, file);
-        read.put(named, file);
-        files = Collections.singletonList(named);
+        String test = row.containsKey("test") ? (String) row.get("test") : Parts.name(prefix, testFile(owner, roots));
+        named.add(test);
+        files = Collections.singletonList(test);
       } else if (owner.startsWith("journey:")) {
         String subject = journeys.get(owner.substring("journey:".length()));
         if (subject == null) {
@@ -381,7 +402,7 @@ public final class Coverage {
         boolean complete = (unknown == null || unknown.isEmpty()) && (prior == null || prior.complete);
         String digest = prior != null ? prior.digest : null;
         if (prior == null) {
-          String text = text(read.getOrDefault(file, file));
+          String text = named.contains(file) ? source(file) : text(file);
           digest = text == null ? null : digest(text);
         }
         tests.put(file, new Test(file, complete, digest));
@@ -401,10 +422,9 @@ public final class Coverage {
     if (unclaimed > 0) System.err.println("presence: " + unclaimed + " journey rows no subject claimed: traffic the driver did not mint");
     model.tests.addAll(tests.values());
     for (Map.Entry<String, Map<String, Method>> e : byFile.entrySet()) {
-      String text = text(e.getKey());
+      String text = source(e.getKey());
       if (text == null) throw new IOException("recorded file " + e.getKey() + " is not in the checkout");
-      Module module = module(e.getKey(), text, new ArrayList<>(e.getValue().values()));
-      model.modules.add(new Module(Parts.name(prefix, e.getKey()), module.sourceDigest, module.blocks));
+      model.modules.add(module(e.getKey(), text, new ArrayList<>(e.getValue().values())));
     }
     return model;
   }
@@ -419,6 +439,15 @@ public final class Coverage {
       }
     }
     return "src/test/java/" + base + ".java";
+  }
+
+  private static volatile Path checkout;
+
+  /** The text of a file as the checkout names it, whichever module this JVM runs in; null when there is none. */
+  static String source(String named) throws IOException {
+    Path root = checkout;
+    if (root == null) checkout = root = Parts.checkoutRoot();
+    return text(root.resolve(named).toString());
   }
 
   static String text(String file) throws IOException {
@@ -774,7 +803,10 @@ public final class Coverage {
     }
   }
 
-  /** Just enough JSON for the record's own rows: objects, arrays, strings, integers. */
+  /**
+   * Just enough JSON for the record's own rows and the root config: objects,
+   * arrays, strings, numbers, the literals, and whitespace between tokens.
+   */
   static final class Json {
     private final String s;
     private int at;
@@ -788,45 +820,99 @@ public final class Coverage {
       return (Map<String, Object>) new Json(line).value();
     }
 
+    /** A whole document: one value and nothing after it. */
+    static Object parse(String text) {
+      Json json = new Json(text);
+      Object value = json.value();
+      json.space();
+      if (json.at != text.length()) throw new IllegalArgumentException("unexpected '" + text.charAt(json.at) + "' at " + json.at);
+      return value;
+    }
+
+    private void space() {
+      while (at < s.length() && Character.isWhitespace(s.charAt(at))) at++;
+    }
+
+    private char next() {
+      space();
+      if (at >= s.length()) throw new IllegalArgumentException("unexpected end at " + at);
+      return s.charAt(at);
+    }
+
+    private void expect(char c) {
+      if (next() != c) throw new IllegalArgumentException("expected '" + c + "' at " + at);
+      at++;
+    }
+
     private Object value() {
-      char c = s.charAt(at);
+      char c = next();
       if (c == '{') {
         Map<String, Object> out = new LinkedHashMap<>();
         at++;
-        if (s.charAt(at) == '}') {
+        if (next() == '}') {
           at++;
           return out;
         }
         for (;;) {
+          if (next() != '"') throw new IllegalArgumentException("expected a key at " + at);
           String key = string();
-          at++; // ':'
+          expect(':');
           out.put(key, value());
-          if (s.charAt(at++) == '}') return out;
+          char end = next();
+          at++;
+          if (end == '}') return out;
+          if (end != ',') throw new IllegalArgumentException("expected ',' or '}' at " + (at - 1));
         }
       }
       if (c == '[') {
         List<Object> out = new ArrayList<>();
         at++;
-        if (s.charAt(at) == ']') {
+        if (next() == ']') {
           at++;
           return out;
         }
         for (;;) {
           out.add(value());
-          if (s.charAt(at++) == ']') return out;
+          char end = next();
+          at++;
+          if (end == ']') return out;
+          if (end != ',') throw new IllegalArgumentException("expected ',' or ']' at " + (at - 1));
         }
       }
       if (c == '"') return string();
+      for (String literal : new String[] {"true", "false", "null"}) {
+        if (s.startsWith(literal, at)) {
+          at += literal.length();
+          return literal.equals("null") ? null : Boolean.valueOf(literal);
+        }
+      }
       int from = at;
-      while (at < s.length() && (s.charAt(at) == '-' || Character.isDigit(s.charAt(at)))) at++;
+      boolean integer = true;
+      for (char d; at < s.length() && "-+.eE0123456789".indexOf(d = s.charAt(at)) >= 0; at++) {
+        integer &= d == '-' || Character.isDigit(d);
+      }
       if (from == at) throw new IllegalArgumentException("unexpected '" + c + "' at " + at);
-      return Long.parseLong(s.substring(from, at));
+      String number = s.substring(from, at);
+      return integer ? (Object) Long.parseLong(number) : (Object) Double.parseDouble(number);
     }
 
     private String string() {
       StringBuilder out = new StringBuilder();
       at++;
-      for (char c; (c = s.charAt(at++)) != '"';) out.append(c == '\\' ? s.charAt(at++) : c);
+      for (char c; (c = s.charAt(at++)) != '"';) {
+        if (c != '\\') {
+          out.append(c);
+          continue;
+        }
+        char e = s.charAt(at++);
+        if (e == 'u') {
+          out.append((char) Integer.parseInt(s.substring(at, at + 4), 16));
+          at += 4;
+        } else {
+          int escape = "nrtbf".indexOf(e);
+          out.append(escape < 0 ? e : "\n\r\t\b\f".charAt(escape));
+        }
+      }
       return out.toString();
     }
   }

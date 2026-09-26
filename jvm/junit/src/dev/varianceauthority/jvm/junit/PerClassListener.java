@@ -37,9 +37,10 @@ import org.junit.platform.launcher.TestPlan;
  * The store is the presence agent's when it is loaded, and JaCoCo's otherwise.
  * Presence rows are appended in the analyzer's format to this JVM's own record,
  * `records/<pid>-<uuid>.jsonl`, so forks that share `va.out` never write one file,
- * and a between row is named for its JVM. When the plan finishes the agent seals
- * that record and merges every finished one into `record.jsonl` and sense's
- * `coverage.va`; JaCoCo
+ * and a between row is named for its JVM. The presence agent sets `va.out` to
+ * its suite's directory when the caller named none. When the plan finishes the
+ * agent seals that record and merges every finished one into `record.jsonl` and
+ * sense's snapshot; JaCoCo
  * windows are written as `<class>.exec` for the analyzer. Either is reached by
  * reflection: presence through the bootstrap loader, JaCoCo through the system
  * class loader, which is also the check that an agent jar is visible to a
