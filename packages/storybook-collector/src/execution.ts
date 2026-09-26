@@ -26,6 +26,7 @@ import {
 } from '@variance-authority/sense/journal';
 import { parseStoryIndex } from '@variance-authority/storybook';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
+import { storyIdOf } from './parameters.js';
 
 /** Where a story run's execution evidence is joined, read and kept. */
 export interface StoryExecutionOptions {
@@ -112,7 +113,11 @@ export async function createStoryRecorder(
       const journal = await drainExecution(page);
       if (journal === undefined) return;
       seen = true;
-      const storyId = subjectId.replace(/^story:/, '');
+      // A story read at several widths is one declaration and several cases:
+      // each width executed the story on its own, and a hook that reads the
+      // width took a different branch at each.
+      const widened = subjectId.replace(/^story:/, '');
+      const storyId = storyIdOf(subjectId);
       const story = storyFiles.get(storyId);
       const precondition =
         story === undefined ? undefined : await preconditionOf(root, story.file);
@@ -128,7 +133,13 @@ export async function createStoryRecorder(
       // the command line, a preview rebuilt since — has no file to be a case
       // in, and contributes to the file-level record only.
       if (story !== undefined) {
-        cases.push({ file: story.file, name: `${story.title}/${story.name}`, id: storyId, stopped: !complete, journal });
+        cases.push({
+          file: story.file,
+          name: `${story.title}/${story.name}${widened.slice(storyId.length)}`,
+          id: widened,
+          stopped: !complete,
+          journal,
+        });
       }
     },
 

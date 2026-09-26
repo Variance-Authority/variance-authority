@@ -352,6 +352,12 @@ export async function observeLocator(
   });
   if (unsettled !== undefined) throw new Error(unsettled);
   const snapshot: SemanticSnapshot = normalize(capture);
+  // FIXME: two Playwright projects that differ only in viewport or colour scheme
+  // share this key, so the second is compared against the first project's
+  // image and reports `changed`, with "the subject resized". A render identity
+  // folds in the scale and nothing else about the viewport, and nothing here
+  // sets `label`, the one part of the key the store files apart, so no layer
+  // partitions on what the `start-*.md` pages say an image is stored under.
   const key: BaselineKey = { subject: subject.id };
 
   if (materialization.kind === 'in-place') {

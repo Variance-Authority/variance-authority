@@ -1,12 +1,11 @@
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { matchesGlob } from '@variance-authority/core/judge';
 import { normalize as normalizeCapture } from '@variance-authority/core/rules';
-import { acquireFromAgent, unresizable } from '@variance-authority/playwright';
+import { acquireFromAgent, unresizable, unwidened } from '@variance-authority/playwright';
 import { suspenseRefusal } from '@variance-authority/react';
 import type { Collected, CollectorConfig, PlannedSubject } from './contract.js';
 import type { RouteCollectorOptions } from './options.js';
 import type { AcquireRequest, Acquired } from './page-agent.js';
-import { routeOf } from './widths.js';
 import type { RouteWorld } from './world.js';
 
 /**
@@ -55,7 +54,7 @@ export async function readRoute(
 
   const id = planned.subject.id;
   const readyFor = (subject: string): string | undefined => {
-    const route = routeOf(subject, options.widths);
+    const route = unwidened(subject, options.widths);
     const declared = Object.entries(options.ready ?? {});
     // A literal key first, then a pattern. `matchesGlob` escapes everything but
     // `*` and `?`, so a key that names one subject still matches only itself and
@@ -75,7 +74,7 @@ export async function readRoute(
   // route. Resolved here rather than by rewriting the plan's ids, because the id
   // is what a baseline, a report line and a `--subjects` glob all name — and
   // those have to stay distinct per width.
-  const url = routes[routeOf(id, options.widths)];
+  const url = routes[unwidened(id, options.widths)];
 
   // Reported, never dropped. An id in the plan with no route here is a hole in
   // this run's coverage, and a run that observes 29 of 30 subjects and says

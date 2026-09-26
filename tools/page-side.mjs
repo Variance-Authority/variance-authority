@@ -74,6 +74,7 @@ export const SERIALIZED = [
   'packages/storybook/src/preview-globals',
   'packages/storybook/src/show-story',
   'packages/storybook/src/story-finished',
+  'packages/storybook/src/story-parameters',
 ];
 
 /**

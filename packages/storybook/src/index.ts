@@ -33,6 +33,8 @@ export { parseStoryIndex } from './index-file.js';
 export type { StoryEntry, ExcludedEntry, StoryIndex, IndexShape } from './index-file.js';
 
 export { toSubjects, storySubjectId } from './subjects.js';
+export { declarationOf, PARAMETERS_KEY } from './parameters.js';
+export type { ParametersRead, StoryDeclaration } from './parameters.js';
 export type {
   StoryParameters,
   StoryViewport,
@@ -52,6 +54,7 @@ export {
   harnessPage,
   collectStory,
   collectStories,
+  readParameters,
 } from './preview.js';
 export type {
   BrowserHarness,

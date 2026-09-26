@@ -1432,6 +1432,7 @@
         "ImageSize": "interface",
         "NetworkObservation": "interface",
         "NetworkOptions": "interface",
+        "WidthPlanned": "interface",
         "acquireFromAgent": "function",
         "blankKey": "function",
         "blankPng": "function",
@@ -1444,7 +1445,9 @@
         "freezeGif": "function",
         "imageSize": "function",
         "observeNetwork": "function",
-        "unresizable": "function"
+        "unresizable": "function",
+        "unwidened": "function",
+        "widthsOf": "function"
       },
       "./engines": {
         "ALL_ENGINES": "const",
@@ -2906,7 +2909,9 @@
         "ExcludedEntry": "interface",
         "ExcludedStory": "interface",
         "IndexShape": "type",
+        "PARAMETERS_KEY": "const",
         "PREVIEW_PATH": "const",
+        "ParametersRead": "type",
         "Readiness": "type",
         "STORYBOOK_ERROR_OVERLAY": "const",
         "STORYBOOK_EVENTS": "const",
@@ -2915,6 +2920,7 @@
         "ShowRequest": "interface",
         "ShowResult": "interface",
         "ShowStatus": "type",
+        "StoryDeclaration": "type",
         "StoryEntry": "interface",
         "StoryError": "interface",
         "StoryIndex": "interface",
@@ -2927,9 +2933,11 @@
         "SubjectPlan": "interface",
         "collectStories": "function",
         "collectStory": "function",
+        "declarationOf": "function",
         "harnessPage": "function",
         "parseStoryIndex": "function",
         "previewUrl": "function",
+        "readParameters": "function",
         "showStory": "const",
         "storySubjectId": "function",
         "toSubjects": "function"

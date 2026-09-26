@@ -198,7 +198,7 @@ type Resolved = { readonly viewport: Viewport } | { readonly reason: string };
  * fallback to the run viewport, because rendering at a size the story explicitly
  * rejected produces a baseline that is wrong rather than absent.
  */
-function resolveViewport(override: StoryViewport, base: Viewport | undefined): Resolved {
+export function resolveViewport(override: StoryViewport, base: Viewport | undefined): Resolved {
   const width = pixels(override.width, 'width');
   if (typeof width === 'string') return { reason: width };
   const height = pixels(override.height, 'height');
