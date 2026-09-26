@@ -6,7 +6,7 @@
 
 Takes the order one test case visited instrumented source, when a run asks for
 it, and reads it back as a **story**: a numbered route through declarations,
-opened on an overview and read a part at a time.
+drawn at the finest level that fits a page and read a part at a time.
 
 ## Bounded context
 
@@ -18,9 +18,9 @@ In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit; and, to name what was visited, the
 region inventory the record beside it holds. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
-declarations, modules loaded along the way as one step, a loop drawn once — and
-an overview of the files and declarations it went through with the steps it was
-at each.
+declarations with the arms taken in each, modules loaded along the way as one
+step, a loop drawn once with how many times it went round — drawn by packages,
+files, declarations, steps or every step, whichever is the finest that fits.
 
 ## Depends on
 
@@ -45,8 +45,9 @@ business; asking for stories takes one for every case the run runs.
 
 It is a map, not a trace. The route is drawn at the grain of a declaration,
 because the question is which parts of the system a case goes through and in
-what order; which arm of an `if` ran, and how many times a loop went round,
-stay on the tape. Steps are numbered and the number is the only join between
+what order; the arms taken inside a declaration and how many times are carried
+on its step, and the order of every visit inside it stays on the tape. A package
+is the one its manifest says, never one computed from how the code is called. Steps are numbered and the number is the only join between
 parts of a route: a visit is not a call, a function that returns leaves no
 mark, so no step is drawn as another's parent.
 
@@ -72,7 +73,11 @@ by guess.
 - `packages/cli/src/commands/story.ts` — `variance story`, the route as text or
   JSON
 - `packages/cli/src/commands/story-view.ts` — the numbered route, the overview,
-  and the windows through one file or around one step
+  and the windows through one file or package or around one step
+- `packages/cli/src/commands/story-levels.ts` — the levels a part is drawn at,
+  the one picked, and the packages passed through
+- `packages/cli/src/package-home.ts` — the package a file is in, from the
+  nearest manifest
 
 ## Diagram
 

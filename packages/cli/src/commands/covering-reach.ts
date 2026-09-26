@@ -34,14 +34,13 @@
  * not a rounding: `at-source.ts` says the same thing from the other end.
  */
 
-import { existsSync } from 'node:fs';
-import { dirname, join, resolve as resolvePath } from 'node:path';
 import {
   distanceToSource,
   type CoveringTest,
   type SourcePoint,
 } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
+import { packageOf } from '../package-home.js';
 import { snapshotFor } from './covering-frame.js';
 import { relationsFor } from './source-graph.js';
 import type { CoveringAt } from '../covering-args.js';
@@ -155,40 +154,6 @@ async function measureHops(request: CoveringAt): Promise<ReadonlyMap<string, num
   for (const distance of distances) hops.set(distance.test, distance.hops);
   return hops;
 }
-
-/**
- * The directory of the nearest manifest at or above a file, inside the root.
- *
- * The manifest is the package boundary — the same rule the scanner follows —
- * and the walk stops at the root so a workspace never resolves to whatever
- * `package.json` happens to sit above the checkout. Synchronous because it is a
- * handful of `stat` calls per distinct directory, and remembered because a file
- * of four hundred witnesses asks about the same directories over and over.
- * `undefined` means there is no manifest to scope to.
- */
-function packageOf(root: string, file: string): string | undefined {
-  const key = JSON.stringify([root, file]);
-  const cached = HOMES.get(key);
-  if (cached !== undefined) return cached === '' ? undefined : cached;
-
-  let at = dirname(resolvePath(root, file));
-  let home: string | undefined;
-  for (;;) {
-    if (existsSync(join(at, 'package.json'))) {
-      home = at;
-      break;
-    }
-    if (at === root) break;
-    const up = dirname(at);
-    if (up === at) break;
-    at = up;
-  }
-  HOMES.set(key, home ?? '');
-  return home;
-}
-
-/** One process asks about one root, so the walk is worth remembering. */
-const HOMES = new Map<string, string>();
 
 function relativeTo(root: string, directory: string): string {
   return directory.startsWith(`${root}/`) ? directory.slice(root.length + 1) : directory;

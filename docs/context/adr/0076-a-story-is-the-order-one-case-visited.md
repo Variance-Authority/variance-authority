@@ -1,7 +1,7 @@
 # ADR-0076 — A story is the order one case visited, taped beside the record
 
 **Status:** accepted
-**Date:** 2026-09-26
+**Date:** 2026-09-26 (arms, counts and the picked level added the same day)
 **Narrows:** ADR-0056 (a journey is the places visited)
 **Relates to:** ADR-0002 (absent is not empty), ADR-0069 (every answer has an
 owner), [spec 0071](../../specs/0071-a-test-is-read-alone.md)
@@ -45,18 +45,37 @@ never read by anything that selects or compares.**
    by its declaration — the function, handler or top level the region belongs
    to — merges consecutive visits to one declaration, draws modules evaluated
    one inside another as one `loaded` stop, and folds tandem repeats so a loop
-   is drawn once. Branch arms and loop counts stay on the tape. The map is not
-   the territory: the route answers *which parts of the system does this case go
-   through, in what order*, and a debugger answers the rest.
-4. **The route is read a part at a time.** A long case is hundreds of stops,
-   and the reader — an agent's context most of all — needs the part near the
-   code about to change. So stops are numbered as steps, the answer opens on an
-   overview (files in first-arrival order, each declaration with its steps), and
-   `--in`, `--around` and `--whole` read a window. A trace-style parent id per
-   stop was considered and rejected: the tape holds visits, not calls and
-   returns, and a function that returns without entering another region leaves
-   no mark, so a parent drawn from it would nest each sibling under the one
-   before. The step number joins the parts and claims only order.
+   is drawn once. Each stop carries how many times its declaration was entered
+   and the arms it went into, each with a count; a loop carries how many times it
+   went round, and its passes fold even when they took different arms, their
+   counts added. The map is not the territory: the route answers *which parts of
+   the system does this case go through, in what order, and down which arms*, and
+   a debugger answers the rest.
+4. **The route is read a part at a time, at a level picked from its size.** A
+   long case is hundreds of stops, and the reader — an agent's context most of
+   all — needs a page, not a tape. So stops are numbered as steps, and one part
+   of a route is drawn at up to five levels: packages, files, declarations,
+   steps with other workspace packages passed through, every step. The reading
+   is the finest level that fits in sixty lines, it names the level and the size
+   of the next one down, and `--in`, `--around` and `--whole` narrow the part,
+   which picks again inside it. A package is the nearest `package.json` above a
+   file; steps in a row inside a package that is neither the test's own nor one
+   `--in` named are one line naming the package, the steps and the declarations.
+   A trace-style parent id per stop was considered and rejected: the tape holds
+   visits, not calls and returns, and a function that returns without entering
+   another region leaves no mark, so a parent drawn from it would nest each
+   sibling under the one before. The step number joins the parts and claims
+   only order.
+
+   Three alternatives were weighed for the level. A fixed overview, the first
+   version of this reader, spent a second call on every short case to reach the
+   steps it already fit. Depth limits and hiding constructors, as in per-test
+   sequence diagrams (Cornelissen et al., CSMR 2007), cut by a structure the
+   tape does not have. A utility metric by fan-in and fan-out (Hamou-Lhadj and
+   Lethbridge, ICPC 2006) finds the library code a reader skips by computing it;
+   the manifest already says which package a file is in, so the boundary is
+   carried, not computed (ADR-0069), and nothing is hidden that the line does not
+   name.
 5. **Narrowing is the runner's.** The variable tapes every case the run runs;
    `-t`, a file argument or a filter picks the case.
 

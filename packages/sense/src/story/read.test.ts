@@ -45,10 +45,30 @@ function drawn(steps: readonly Step<Stop>[]): string {
 }
 
 describe('a route', () => {
-  it('goes through declarations, with a loop drawn once and the arms inside it left on the tape', () => {
+  it('goes through declarations, with a loop drawn once and each pass\'s arms added to the stop it took them in', () => {
     const route = drawRoute(ROOT, story([1, 2, 3, 4, 2, 4, 2, 3, 4]), ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
     expect(drawn(route.route)).toBe('(removeItem price)');
-    expect(route.route[0]).toMatchObject({ repeat: [{ token: { place: { name: 'removeItem', startLine: 12 } } }, {}] });
+    expect(route.route[0]).toEqual({
+      times: 3,
+      repeat: [
+        {
+          token: {
+            place: { file: 'src/cart.ts', name: 'removeItem', kind: 'function', startLine: 12, endLine: 30 },
+            entered: 1,
+            arms: [
+              { path: 'for#0/body', startLine: 18, endLine: 20, times: 3 },
+              { path: 'for#0/body/if#0/then', startLine: 19, endLine: 19, times: 2 },
+            ],
+          },
+        },
+        { token: { place: expect.objectContaining({ name: 'price' }), entered: 3, arms: [] } },
+      ],
+    });
+  });
+
+  it('counts a declaration entered again without leaving it as one stop entered twice', () => {
+    const route = drawRoute(ROOT, story([4, 4, 1]), ['src/cart.ts', 'src/format.ts'], [CART, undefined]);
+    expect(route.route).toMatchObject([{ token: { place: { name: 'price' }, entered: 2 } }, { token: { entered: 1 } }]);
   });
 
   it('draws modules evaluated one inside another as one stop naming each file once', () => {

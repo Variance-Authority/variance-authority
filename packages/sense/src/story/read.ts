@@ -3,13 +3,19 @@
  *
  * The tape is the territory, and the route is a map of it. It is drawn at the
  * grain of a declaration — the function, handler or top level a region belongs
- * to — because the question it answers is *which parts of the system does this
- * case go through, and in what order*, not which arm of which `if` it took on
- * the forty-first pass. So a run of visits inside one declaration is one stop,
- * a run of visits made while modules were evaluating is one `loaded` stop
- * naming the files, and a loop is drawn once. Coming back to a caller stays a
- * stop: it is what makes a loop's passes the same steps, so what makes the
- * loop fold.
+ * to — because the question it answers first is *which parts of the system does
+ * this case go through, and in what order*. So a run of visits inside one
+ * declaration is one stop, a run of visits made while modules were evaluating
+ * is one `loaded` stop naming the files, and a loop is drawn once. Coming back
+ * to a caller stays a stop: it is what makes a loop's passes the same steps, so
+ * what makes the loop fold.
+ *
+ * What happened inside a stop is carried on it rather than drawn as more
+ * stops: how many times the declaration was entered, and every other region it
+ * went into — an arm of an `if`, a loop's body — with how many times. A loop's
+ * passes may take different arms and still fold, because the arms are what the
+ * pass did inside the stop, not where the route went; a folded stop adds its
+ * passes' counts together.
  *
  * A region is named from the coverage snapshot, which holds every recorded
  * module's regions by ordinal. A module whose regions the snapshot does not
@@ -42,8 +48,23 @@ export interface Place {
   readonly endLine?: number;
 }
 
-/** One stop on a route: a declaration, or modules evaluated one inside another. */
-export type Stop = { readonly place: Place } | { readonly loaded: readonly string[] };
+/** A region inside a declaration that a stop went into, and how many times. */
+export interface Arm {
+  /** Where in the declaration it sits: `for#0/body/if#0/then`. */
+  readonly path: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+  readonly times: number;
+}
+
+/**
+ * One stop on a route: a declaration, or modules evaluated one inside another.
+ * `entered` counts the declaration's own region, so a stop the case came back
+ * to from a callee without calling it again has entered it no times.
+ */
+export type Stop =
+  | { readonly place: Place; readonly entered: number; readonly arms: readonly Arm[] }
+  | { readonly loaded: readonly string[] };
 
 /** One case's route. */
 export interface Route {
@@ -130,6 +151,9 @@ export function drawRoute(
   const stopsOf = (visits: Int32Array): Stop[] => {
     const stops: Stop[] = [];
     let last = '';
+    // The stop being added to, and its arms by path; a stop once left is never reopened.
+    let open: { place: Place; entered: number; arms: Arm[] } | undefined;
+    let paths = new Map<string, { times: number }>();
     for (const entry of visits) {
       const index = entry & 0x7fffffff;
       let row = bases.length - 1;
@@ -137,25 +161,45 @@ export function drawRoute(
       const file = shown[row]!;
       seen.add(file);
       if (entry & stories.EVALUATING) {
-        const open = stops.at(-1);
-        if (open !== undefined && 'loaded' in open && last === '\0loaded') {
-          if (!open.loaded.includes(file)) (open.loaded as string[]).push(file);
+        const loading = stops.at(-1);
+        if (loading !== undefined && 'loaded' in loading && last === '\0loaded') {
+          if (!loading.loaded.includes(file)) (loading.loaded as string[]).push(file);
         } else stops.push({ loaded: [file] });
+        open = undefined;
         last = '\0loaded';
         continue;
       }
       const own = regions[row];
       let place: Place;
+      let region: Region | undefined;
       if (own === undefined) {
         unresolved.add(file);
         place = { file, name: '', kind: 'module' };
       } else {
-        const region = own[index - bases[row]!]!;
+        region = own[index - bases[row]!]!;
         place = declarations[row]!.get(region.name)!;
       }
       const key = `${place.file}\0${place.name}`;
-      if (key !== last) stops.push({ place });
+      if (key !== last || open === undefined) {
+        open = { place, entered: 0, arms: [] };
+        paths = new Map();
+        stops.push(open);
+      }
       last = key;
+      if (region === undefined || region.path === 'entry' || region.path === 'module') open.entered += 1;
+      else {
+        const arm = paths.get(region.path);
+        if (arm !== undefined) arm.times += 1;
+        else {
+          const entered = {
+            path: region.path,
+            ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
+            times: 1,
+          };
+          paths.set(region.path, entered);
+          open.arms.push(entered);
+        }
+      }
     }
     return stops;
   };
@@ -164,14 +208,25 @@ export function drawRoute(
   return {
     file: inCheckout(root, story.file),
     name: story.name,
-    before: foldSteps(stopsOf(story.before), keyOf),
-    route: foldSteps(stopsOf(story.visits), keyOf),
+    before: foldSteps(stopsOf(story.before), keyOf, added),
+    route: foldSteps(stopsOf(story.visits), keyOf, added),
     files: [...seen].sort(compare),
     unresolved: [...unresolved].sort(compare),
     untaped: story.untaped,
     interleaved: story.interleaved,
     ...(story.stopped === undefined ? {} : { stopped: story.stopped }),
   };
+}
+
+/** Two passes of one stop, as the one stop that stands for both. */
+function added(kept: Stop, folded: Stop): Stop {
+  if ('loaded' in kept || 'loaded' in folded) return kept;
+  const arms = new Map(kept.arms.map((arm) => [arm.path, arm]));
+  for (const arm of folded.arms) {
+    const known = arms.get(arm.path);
+    arms.set(arm.path, known === undefined ? arm : { ...known, times: known.times + arm.times });
+  }
+  return { place: kept.place, entered: kept.entered + folded.entered, arms: [...arms.values()] };
 }
 
 /**

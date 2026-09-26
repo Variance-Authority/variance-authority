@@ -36,6 +36,14 @@ describe('a folded route', () => {
 
   it('folds tokens by the key the caller gives, and the first stands for the rest', () => {
     const steps = foldSteps([{ at: 'a', line: 1 }, { at: 'a', line: 2 }], (token) => token.at);
-    expect(steps).toEqual([{ repeat: [{ token: { at: 'a', line: 1 } }] }]);
+    expect(steps).toEqual([{ repeat: [{ token: { at: 'a', line: 1 } }], times: 2 }]);
+  });
+
+  it('counts how many times each loop went round in all, and adds the passes of each step together', () => {
+    const tokens = 'a a b a a a b'.split(' ').map((at) => ({ at, times: 1 }));
+    const steps = foldSteps(tokens, (token) => token.at, (kept, folded) => ({ at: kept.at, times: kept.times + folded.times }));
+    expect(steps).toEqual([
+      { repeat: [{ repeat: [{ token: { at: 'a', times: 5 } }], times: 5 }, { token: { at: 'b', times: 2 } }], times: 2 },
+    ]);
   });
 });

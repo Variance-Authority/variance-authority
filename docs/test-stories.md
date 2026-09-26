@@ -34,72 +34,114 @@ variance story --name "removes the last item"
 ```
 
 `--file` and `--name` match text in the test file path and the case name. A
-long case goes through hundreds of declarations, and you rarely need all of
-them, so the answer opens on the files the case went through, in the order it
-first reached them, and the declarations in each with the steps it was there:
+short case is read step by step, each step the declaration the case was in and
+the branch arms it took there:
 
 ```text
 story  src/cart.test.ts > cart > removes the last item
   goes through 4 files in 7 steps
 
-  src/cart.test.ts
-    3-8  beforeEach.arg0  step 1
-
-  src/cart.ts  loaded at step 2
-    12-30  Cart/removeItem  steps 3, 6
-    33-35  Cart/notify  step 7
-
-  src/price.ts  loaded at step 2
-    6-8  applyTier  step 4, in a loop
-
-  src/format.ts  loaded at step 2
-    14-19  formatPrice  step 5, in a loop
-```
-
-A step is one stop on the route, numbered in the order the case reached it. A
-declaration is named by where it is declared in its file: `Cart/removeItem` is
-the `removeItem` method of `Cart`, and `beforeEach.arg0` is the callback passed
-to `beforeEach`.
-
-Then you read the part you care about. `--in <file>` gives the steps through
-the files whose path contains the text, with one step either side;
-`--around <step>` gives the three steps either side of one; `--whole` gives
-every step:
-
-```bash
-variance story --name "removes the last item" --around 6
-```
-
-```text
-story  src/cart.test.ts > cart > removes the last item
-  goes through 4 files in 7 steps
-
-     … steps 1-2
+  before the case
+  1  src/cart.test.ts:3-8  beforeEach.arg0
   the case
-  3  src/cart.ts:12-30  Cart/removeItem
-     repeats
-  4    src/price.ts:6-8  applyTier
-  5    src/format.ts:14-19  formatPrice
-  6  src/cart.ts:12-30  Cart/removeItem
+  2  loaded 3 files: src/cart.ts, src/price.ts, src/format.ts
+  3  src/cart.ts:12-30  Cart/removeItem  if#0/else 16-17, for#0/body 18-22 ×2
+     repeats ×2
+  4    src/price.ts:6-8  applyTier ×2  if#0/then 7
+  5    src/format.ts:14-19  formatPrice ×2
+  6  src/cart.ts:12-30  Cart/removeItem  for#0/after 24-29
   7  src/cart.ts:33-35  Cart/notify
 ```
 
-- **`… steps 1-2`** is the steps the part leaves out, so you know what to ask
-  for next.
-- **`repeats`** is a loop, drawn once with the steps of one pass under it.
+- **A step** is one stop on the route, numbered in the order the case reached
+  it. A declaration is named by where it is declared in its file:
+  `Cart/removeItem` is the `removeItem` method of `Cart`, and `beforeEach.arg0`
+  is the callback passed to `beforeEach`.
+- **`if#0/else 16-17, for#0/body 18-22 ×2`** is the arms the case took inside
+  the declaration, with their lines, in the order it first took them. `×2` is
+  how many times: here the loop body ran twice and the `else` once.
+- **`repeats ×2`** is a loop, drawn once with the steps of one pass under it.
+  Passes that took different arms are still one loop, and their counts add:
+  `applyTier ×2  if#0/then 7` is two entries, one of them through the `then`.
 - **`loaded 3 files: …`** is modules evaluated one inside another, each file
   named once.
 - **`before the case`** is what the runner ran outside the case just before it,
   such as `beforeEach`.
 
 Visits in a row inside one declaration are one step. A return to the caller is
-a step of its own, which is why `Cart/removeItem` is step 3 and step 6. The step
-number is the only link between two parts you read. The step before another is
-where the case came from, not its caller: the tape holds which regions ran, not
-calls and returns, and a function that returns without entering another region
-leaves nothing to join on.
+a step of its own, which is why `Cart/removeItem` is step 3 and step 6, and step
+6 names only the arms after the loop. The step before another is where the case
+came from, not its caller: the tape holds which regions ran, not calls and
+returns, and a function that returns without entering another region leaves
+nothing to join on.
 
-`--format json` gives the same answer as data. When the text matches several
+### A long case opens on its table of contents
+
+A case that goes through hundreds of declarations does not fit on a page, and
+you rarely need all of it. So the reading is drawn at the finest level that fits
+in 60 lines, and says which level it chose and how long the next one down is:
+
+| Level | One line for |
+|---|---|
+| packages | each workspace package the case went through, with its steps |
+| files | each file, grouped by package |
+| declarations | each declaration, under its file, with its steps |
+| steps | each step, with other packages passed through |
+| every step | each step |
+
+This is the largest case in this repository's own suite, 116 steps drawn by
+declarations:
+
+```text
+story  packages/core/src/relate/merkle.test.ts > the closure digest > calls a new node changed rather than absent
+  goes through 5 files in 116 steps
+  drawn by declarations: by every step it is 145 lines, over the 60 a reading is held to;
+  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+
+  packages/core/src/format/hash.ts
+    31-33  digestString  steps 1, 40, 47, 56, 95, 102, in a loop
+    77-79  digestCombine  steps 46, 101, in a loop
+  …
+```
+
+Then you read the part you care about, and the level is picked again inside it:
+
+- `--in <package or file>` gives the steps through the files whose path contains
+  the text, or the files of the package named, with one step either side.
+- `--around <step>` gives the three steps either side of one.
+- `--whole` gives every step, however long.
+
+A part that leaves steps out says so with a line like `… steps 1-2`, so you
+know what to ask for next.
+
+### Other packages are passed through
+
+A case in an application goes through the workspace's other packages: a design
+system, a utility library. When a reading is drawn by steps, the steps in a row
+inside a package other than the test's own are one line, naming the package,
+the steps and the declarations they were at. The package is the nearest
+`package.json` above the file.
+
+```text
+story  src/checkout.test.tsx > checkout > pays
+  goes through 6 files in 68 steps
+  drawn by steps: by every step it is 69 lines, over the 60 a reading is held to;
+  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+  passed through @acme/ui, a line for each run of steps; open one with --in <package>
+
+   1  src/checkout.tsx:10-60  Checkout
+   2  through @acme/ui, steps 2-41: Button, Icon, useTheme
+  42  src/checkout.tsx:40-52  Checkout/onPay  if#0/then 42-44
+  43  through @acme/ui, steps 43-67: Button, Icon, useTheme
+  68  src/pay.ts:3-20  pay
+```
+
+A step back in your own package ends the line, so a callback into the
+application stays on the route. `--in @acme/ui` opens the package, and its steps
+are drawn like your own.
+
+`--format json` gives the same answer as data: the reading with its `level`,
+and the size of the next level down as `finer`. When the text matches several
 cases, you get the list of them instead, and you narrow the text.
 
 ## What the route leaves out
@@ -107,10 +149,10 @@ cases, you get the list of them instead, and you narrow the text.
 The route is drawn from a tape of every region the case ran, in order, and it
 does not show all of that tape:
 
-- **Which arm ran.** A route names the declaration, not the `if` arm or the
-  `case` inside it. The [execution record](execution-record.md) answers which
-  regions ran.
-- **How many times.** A loop is drawn once, however many passes it made.
+- **The order inside a step.** The arms of a step are listed in the order the
+  case first took each one, not in the order of every visit.
+- **How each pass differed.** A loop is drawn once, with the arms and counts of
+  all its passes added together.
 - **Another case's work.** When a runner tracks cases through async context and
   another case's work runs in the middle of this one, that work is left out, and
   the header says how many times it happened.

@@ -14,7 +14,7 @@ VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 ```
 
-Then read it, overview first:
+Then read it:
 
 ```bash
 variance story --name "removes the last item"
@@ -25,54 +25,55 @@ variance story --file src/cart.test.ts --name "removes" --format json
 When they match several stories, the answer lists them with their visit counts
 and prints no route; narrow the text and ask again.
 
-The overview names each file in the order the case first reached it, and each
-declaration in it with the steps the case was there. A step is one stop on the
-route, numbered in order. It is the cheap read: it tells you which files matter
-before you spend context on the route itself.
+The answer fits a page. It is drawn at the finest level that fits in 60 lines —
+every step, then steps with other workspace packages passed through, then
+declarations, files, packages — and the header names the level and how long
+the next one down would be. A short case comes back step by step:
 
 ```text
 story  src/cart.test.ts > cart > removes the last item
   goes through 4 files in 7 steps
 
-  src/cart.test.ts
-    3-8  beforeEach.arg0  step 1
-
-  src/cart.ts  loaded at step 2
-    12-30  Cart/removeItem  steps 3, 6
-    33-35  Cart/notify  step 7
-
-  src/price.ts  loaded at step 2
-    6-8  applyTier  step 4, in a loop
-
-  src/format.ts  loaded at step 2
-    14-19  formatPrice  step 5, in a loop
+  before the case
+  1  src/cart.test.ts:3-8  beforeEach.arg0
+  the case
+  2  loaded 3 files: src/cart.ts, src/price.ts, src/format.ts
+  3  src/cart.ts:12-30  Cart/removeItem  if#0/else 16-17, for#0/body 18-22 ×2
+     repeats ×2
+  4    src/price.ts:6-8  applyTier ×2  if#0/then 7
+  5    src/format.ts:14-19  formatPrice ×2
+  6  src/cart.ts:12-30  Cart/removeItem  for#0/after 24-29
+  7  src/cart.ts:33-35  Cart/notify
 ```
 
-Then read only the part you need — one of:
+A long one opens coarser, and the header says how to go finer:
+
+```text
+  drawn by declarations: by every step it is 145 lines, over the 60 a reading is held to;
+  narrow it with --in <package or file> or --around <step>, or read every step with --whole
+```
+
+Narrow to the part you need, and the level is picked again inside it:
 
 ```bash
 variance story --name "removes the last item" --in price.ts   # the steps through these files, one either side
+variance story --name "removes the last item" --in @acme/ui   # the steps through a package, opened
 variance story --name "removes the last item" --around 6      # three steps either side of step 6
-variance story --name "removes the last item" --whole         # every step
-```
-
-```text
-     … steps 1-2
-  the case
-  3  src/cart.ts:12-30  Cart/removeItem
-     repeats
-  4    src/price.ts:6-8  applyTier
-  5    src/format.ts:14-19  formatPrice
-  6  src/cart.ts:12-30  Cart/removeItem
-  7  src/cart.ts:33-35  Cart/notify
+variance story --name "removes the last item" --whole         # every step, however long
 ```
 
 - A step is a declaration — a function, a handler, a module's top level — at
   `file:start-end`, named by its path in the file. Consecutive visits inside
   one declaration are one step; a return to the caller is a step of its own.
+- After the declaration come the arms it took, with their lines and `×N` when
+  more than once: `if#0/else 16-17, for#0/body 18-22 ×2`. `×N` after the
+  declaration itself is how many times it was entered.
+- `repeats ×N` is a loop, drawn once; the arms and counts under it are all its
+  passes added together.
+- `through <package>, steps a-b: names` is a run of steps inside a workspace
+  package other than the test's own. Open it with `--in <package>`.
 - `… steps 1-2` is what this part leaves out. Ask `--around` a step at its edge
   to read further.
-- `repeats` is a loop, drawn once. How many times it went round is not printed.
 - `loaded N files` is modules evaluated one inside another; each file is named
   once.
 - `before the case` is what the runner ran outside the case just before it:
@@ -82,9 +83,9 @@ The step before another is where the case came from, not its caller. The tape
 holds which regions ran, not calls and returns, so no step names a parent; the
 step numbers are what join two parts you read.
 
-The route is a map. It does not say which arm of an `if` ran or how many times
-a loop went round; use a debugger for that. What the route could not draw, it
-says in the header:
+The route is a map. It does not give the order of every visit inside a step or
+how each pass of a loop differed; use a debugger for that. What the route could
+not draw, it says in the header:
 
 - *drawn as the file alone* — the recording holds no regions for that file at
   this text. `yarn test` records them.

@@ -6,4 +6,4 @@
 
 export { askedForStories, storyDirectories, storyDirectory, STORY_VARIABLE } from './directory.js';
 export { foldSteps, PERIOD, type Step } from './fold.js';
-export { drawRoute, listStories, readRoute, type Place, type Region, type Route, type Stop, type StoryEntry } from './read.js';
+export { drawRoute, listStories, readRoute, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry } from './read.js';

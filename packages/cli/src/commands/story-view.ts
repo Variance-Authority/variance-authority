@@ -24,6 +24,8 @@ export interface Line {
   /** Whether the runner ran it outside the case, just before it. */
   readonly before: boolean;
   readonly stop?: Stop;
+  /** On the head of a loop, how many times it went round in all. */
+  readonly times?: number;
   /** Indices of the heads of the loops this line is inside, outermost first. */
   readonly heads: readonly number[];
 }
@@ -40,7 +42,7 @@ export function numbered(route: Route): Line[] {
   const walk = (steps: readonly Step<Stop>[], before: boolean, heads: readonly number[]): void => {
     for (const each of steps) {
       if ('repeat' in each) {
-        lines.push({ depth: heads.length, before, heads });
+        lines.push({ depth: heads.length, before, times: each.times, heads });
         walk(each.repeat, before, [...heads, lines.length - 1]);
         continue;
       }
@@ -104,7 +106,10 @@ export function overview(lines: readonly Line[]): FileVisits[] {
   }));
 }
 
-/** The lines within `reach` steps of any step `pick` chooses, with the loops they sit in and the gaps between. */
+/**
+ * The lines within `reach` steps of any step `pick` chooses, with the loops
+ * they sit in and the gaps between. Each line's `heads` index what is returned.
+ */
 export function window(lines: readonly Line[], pick: (line: Line) => boolean, reach: number): (Line | Gap)[] {
   const stops = lines.flatMap((line, index) => (line.step === undefined ? [] : [index]));
   const kept = new Set<number>();
@@ -117,6 +122,8 @@ export function window(lines: readonly Line[], pick: (line: Line) => boolean, re
     }
   });
   const shown: (Line | Gap)[] = [];
+  // A head is always kept with the lines inside it, so each line's heads are renumbered into what is shown.
+  const moved = new Map<number, number>();
   let last = 0;
   for (const index of [...kept].sort((a, b) => a - b)) {
     const line = lines[index]!;
@@ -125,15 +132,16 @@ export function window(lines: readonly Line[], pick: (line: Line) => boolean, re
     const next = line.step ?? lines[stops.find((stop) => stop > index)!]!.step!;
     if (next > last + 1) shown.push({ gap: [last + 1, next - 1] });
     last = Math.max(last, line.step ?? next - 1);
-    shown.push(line);
+    moved.set(index, shown.length);
+    shown.push({ ...line, heads: line.heads.map((head) => moved.get(head)!) });
   }
   const end = stops.length;
   if (shown.length > 0 && last < end) shown.push({ gap: [last + 1, end] });
   return shown;
 }
 
-/** Whether a stop is in a file whose path contains `text`. */
-export function inFile(text: string): (line: Line) => boolean {
-  return ({ stop }) =>
-    stop !== undefined && ('loaded' in stop ? stop.loaded.some((file) => file.includes(text)) : stop.place.file.includes(text));
+/** Whether a stop is in the package named `text`, or in a file whose path contains it. */
+export function inFile(text: string, packageOf: (file: string) => string | undefined): (line: Line) => boolean {
+  const matches = (file: string) => file.includes(text) || packageOf(file) === text;
+  return ({ stop }) => stop !== undefined && ('loaded' in stop ? stop.loaded.some(matches) : matches(stop.place.file));
 }

@@ -2674,6 +2674,7 @@
         "unsettledScopes": "function"
       },
       "./story": {
+        "Arm": "interface",
         "PERIOD": "const",
         "Place": "interface",
         "Region": "interface",

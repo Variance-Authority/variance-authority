@@ -52,6 +52,8 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/cart.ts': "a reader's own module, quoted from a sample test story",
   'src/price.ts': "a reader's own module, quoted from a sample test story",
   'src/format.ts': "a reader's own module, quoted from a sample test story",
+  'src/checkout.tsx': "a reader's own component, quoted from a sample test story",
+  'src/pay.ts': "a reader's own module, quoted from a sample test story",
   'packages/query-core/src/query.ts': "TanStack Query's own module, named by the case study",
   'packages/zod/src/v4/locales/ru.ts': "Zod's own module, named by the case study",
   'packages/resolution/attw.test.ts':
