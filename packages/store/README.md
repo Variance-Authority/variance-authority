@@ -476,7 +476,15 @@ const cell = createGitLineCell({
 it never touches your clone. `namespace` is where the refs sit, `refs/variance`
 unless you set it. `reuseMs` is how long a fetched line is read again without
 fetching, 0 unless you set it. `timeoutMs` bounds each git command, 60 seconds
-unless you set it.
+unless you set it. `extraHeader` is the `http.extraheader` your clone sends to
+`url`: `actions/checkout` writes its token there, in the clone's own
+configuration, so pass it on. The cell gives it to git through the environment
+and never writes it to disk.
+
+`gitDescends(options, branch)` answers the question a mainline publish asks:
+whether one commit of `branch` strictly descends from another. It fetches the
+branch's commits alone into the same `gitDir`, once, and answers `undefined`
+when the fetch fails or a commit is not in it.
 
 The cell's repository is a partial clone: a fetch brings commits and trees, and
 a blob comes when it is read. Publishing a line that already names a thousand

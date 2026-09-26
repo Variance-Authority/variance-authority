@@ -2903,7 +2903,8 @@
         "GitLineOptions": "interface",
         "createDirectoryLineCell": "function",
         "createDirectoryShare": "function",
-        "createGitLineCell": "function"
+        "createGitLineCell": "function",
+        "gitDescends": "function"
       },
       "./changelog": {
         "ChangelogAnswer": "type",

@@ -114,7 +114,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
   doctor: [],
-  share: ['--ref', '--publish'],
+  share: ['--mainline', '--publish'],
   comment: ['--body-file', '--run-url', '--to-accept', '--image-root', '--marker'],
 };
 
@@ -136,7 +136,7 @@ export const USAGE = [
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
-  'variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker',
   '',
   '`--version` prints the version of this tool.',

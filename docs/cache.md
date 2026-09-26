@@ -2,8 +2,8 @@
 
 The cache is one directory where variance-authority keeps what it can rebuild
 from your checkout: the test-selection recording, the
-[source index](source-index.md), the renders a run took and the suite indexes a
-[share](sharing.md) publishes. Your repository says where it is, in `cacheRoot`
+[source index](source-index.md), the renders a run took, the suite indexes a
+[share](sharing.md) publishes, and what a git share fetched. Your repository says where it is, in `cacheRoot`
 of the `variance.config.json` at its root. When it does not say, it is
 `~/.cache/variance-authority`. Every command, every test runner integration and
 every function that takes a `cacheRoot` option read that one answer, so a
@@ -82,7 +82,8 @@ back to the default, because you would not know where the recording went.
     <label>/                     one record store per runner or plugin
     .work/<worktree>/            a git worktree's own layer, the same files again
   renders/                       the images a run took, reused while they match
-  suite/<project>/<commit>.bin   suite indexes, when you share them
+  suite/<project>/<commit>.bin   every run's suite index, by the commit it names
+  share/<digest>.git             a git share's own repository, one per remote URL
 ```
 
 `<repository>` is the first 32 hexadecimal characters of the SHA-256 of the
@@ -94,7 +95,7 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 
 The [execution record](execution-record.md) page describes `coverage.bin`, the
 [source index](source-index.md) page describes `source-index.bin`, and the
-[sharing](sharing.md) page describes `suite/`.
+[sharing](sharing.md) page describes `suite/` and `share/`.
 
 ## Worktrees
 

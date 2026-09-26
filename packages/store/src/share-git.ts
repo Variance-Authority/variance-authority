@@ -5,10 +5,83 @@ import {
   decodeManifest,
   linePath,
   manifestPaths,
+  type Descends,
   type LineCell,
   type ShareLine,
   type ShareMiss,
 } from '@variance-authority/core/share';
+
+/** Where a git line cell's remote is, and where it keeps its own repository. */
+export interface GitLineOptions {
+  /** The remote's URL, as `git remote get-url` prints it. */
+  readonly url: string;
+  /** The bare repository this cell keeps. Created on first use. */
+  readonly gitDir: string;
+  /** Where the lines sit. Defaults to `refs/variance`. */
+  readonly namespace?: string;
+  /** How long a fetched line is reused before it is fetched again. Defaults to 0. */
+  readonly reuseMs?: number;
+  /** How long one git command may take. Defaults to 60 seconds. */
+  readonly timeoutMs?: number;
+  /**
+   * The `http.extraheader` your clone sends to `url`. `actions/checkout` writes
+   * its token there, in the clone's own configuration, where this repository
+   * cannot see it. Given to every command through the environment, and never
+   * written to disk.
+   */
+  readonly extraHeader?: string;
+}
+
+const REMOTE = 'share';
+const EMPTY = '0'.repeat(40);
+
+type Git = (args: readonly string[], input?: Uint8Array, env?: Record<string, string>) => Promise<Ran>;
+
+/** Git in the cell's own repository, prepared on first use. */
+function gitIn(options: GitLineOptions): Git {
+  const timeout = options.timeoutMs ?? 60_000;
+  const header = headerEnv(options.extraHeader);
+  let ready: Promise<void> | undefined;
+  return async (args, input, env = {}) => {
+    ready ??= prepare(options, timeout);
+    await ready;
+    return runGit(['--git-dir', options.gitDir, ...args], { input, env: { ...header, ...env }, timeout });
+  };
+}
+
+/** A configuration value git reads from the environment, after any the environment already names. */
+function headerEnv(value: string | undefined): Record<string, string> {
+  if (value === undefined) return {};
+  const at = Number(process.env['GIT_CONFIG_COUNT'] ?? '0') || 0;
+  return {
+    GIT_CONFIG_COUNT: String(at + 1),
+    [`GIT_CONFIG_KEY_${String(at)}`]: 'http.extraheader',
+    [`GIT_CONFIG_VALUE_${String(at)}`]: value,
+  };
+}
+
+/**
+ * Whether one commit of `branch` strictly descends from another, as git answers
+ * it from that branch's history on the remote.
+ *
+ * Fetched once, with `--filter=tree:0`, into the same repository the cell
+ * keeps: commits alone, never a tree or a blob, and never into your clone. A
+ * commit the fetch did not bring, or a fetch that failed, is `undefined`, which
+ * `publishLine` answers by replacing.
+ */
+export function gitDescends(options: GitLineOptions, branch: string): Descends {
+  const git = gitIn(options);
+  const tracked = `refs/variance-history/${branch}`;
+  let fetched: Promise<boolean> | undefined;
+  return async (descendant, ancestor) => {
+    if (descendant === ancestor) return false;
+    fetched ??= git(['fetch', '--no-tags', '--no-write-fetch-head', '--filter=tree:0', REMOTE, `+refs/heads/${branch}:${tracked}`])
+      .then((ran) => ran.code === 0);
+    if (!(await fetched)) return undefined;
+    const ran = await git(['merge-base', '--is-ancestor', ancestor, descendant]);
+    return ran.code === 0 ? true : ran.code === 1 ? false : undefined;
+  };
+}
 
 /**
  * A line as a ref: `refs/variance/mainline/main` is one commit whose tree holds
@@ -24,32 +97,9 @@ import {
  * keeps a publish from downloading every image the line holds to write a tree
  * that names them, and a push from sending one the remote already has.
  */
-export interface GitLineOptions {
-  /** The remote's URL, as `git remote get-url` prints it. */
-  readonly url: string;
-  /** The bare repository this cell keeps. Created on first use. */
-  readonly gitDir: string;
-  /** Where the lines sit. Defaults to `refs/variance`. */
-  readonly namespace?: string;
-  /** How long a fetched line is reused before it is fetched again. Defaults to 0. */
-  readonly reuseMs?: number;
-  /** How long one git command may take. Defaults to 60 seconds. */
-  readonly timeoutMs?: number;
-}
-
-const REMOTE = 'share';
-const EMPTY = '0'.repeat(40);
-
 export function createGitLineCell(options: GitLineOptions): LineCell {
   const namespace = (options.namespace ?? 'refs/variance').replace(/\/+$/, '');
-  const timeout = options.timeoutMs ?? 60_000;
-  let ready: Promise<void> | undefined;
-
-  const git = async (args: readonly string[], input?: Uint8Array, env: Record<string, string> = {}): Promise<Ran> => {
-    ready ??= prepare(options, timeout);
-    await ready;
-    return runGit(['--git-dir', options.gitDir, ...args], { input, env, timeout });
-  };
+  const git = gitIn(options);
 
   const refOf = (line: ShareLine): string | ShareMiss => {
     const ref = `${namespace}/${linePath(line)}`;

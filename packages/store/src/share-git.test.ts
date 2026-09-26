@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { findEntry, publishLine, readLine, type ShareEntry } from '@variance-authority/core/share';
-import { createGitLineCell } from './share-git.js';
+import { createGitLineCell, gitDescends } from './share-git.js';
 
 const MAIN = { kind: 'mainline', name: 'release/2.0' } as const;
 const REF = 'refs/variance/mainline/release/2.0';
@@ -93,5 +93,24 @@ describe('createGitLineCell', () => {
     expect(await readLine(cellAt('a'), MAIN)).toEqual({ kind: 'absent' });
     const gone = createGitLineCell({ url: `file://${join(home, 'nowhere.git')}`, gitDir: join(home, 'c') });
     expect(await readLine(gone, MAIN)).toMatchObject({ kind: 'unreachable' });
+  });
+
+  it('answers descent from the branch history alone, and says when it cannot', async () => {
+    const commit = (tree: string, ...parents: string[]): string =>
+      execFileSync('git', ['--git-dir', remote, 'commit-tree', tree, ...parents.flatMap((one) => ['-p', one]), '-m', 'c'], {
+        encoding: 'utf8',
+        env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' },
+      }).trim();
+    const tree = execFileSync('git', ['--git-dir', remote, 'mktree'], { input: '', encoding: 'utf8' }).trim();
+    const first = commit(tree);
+    const second = commit(tree, first);
+    git(remote, 'update-ref', 'refs/heads/main', second);
+
+    const descent = gitDescends({ url, gitDir: join(home, 'a') }, 'main');
+    expect(await descent(second, first)).toBe(true);
+    expect(await descent(first, second)).toBe(false);
+    expect(await descent(first, first)).toBe(false);
+    expect(await descent('f'.repeat(40), first)).toBeUndefined();
+    expect(await gitDescends({ url, gitDir: join(home, 'b') }, 'gone')(second, first)).toBeUndefined();
   });
 });

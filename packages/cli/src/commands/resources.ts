@@ -109,6 +109,14 @@ export function suiteIndexRoot(config: Pick<Config, 'cacheRoot'>): string {
 }
 
 /**
+ * Where a share keeps its own git repositories: one per remote, holding the
+ * lines of a `git` share and the mainline history every kind asks descent of.
+ */
+export function shareRoot(config: Pick<Config, 'cacheRoot'>): string {
+  return join(cacheOf(config), 'share');
+}
+
+/**
  * The cache `loadConfig` resolved, or the one this directory's repository
  * names when the config was built in code and never read from a file.
  */

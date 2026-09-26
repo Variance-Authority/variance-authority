@@ -178,4 +178,4 @@ function missOf(path: string, error: unknown): ShareMiss {
   return { kind: 'unreachable', detail: `${path}: ${(error as Error).message}` };
 }
 
-export { createGitLineCell, type GitLineOptions } from './share-git.js';
+export { createGitLineCell, gitDescends, type GitLineOptions } from './share-git.js';

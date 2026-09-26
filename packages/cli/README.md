@@ -160,7 +160,7 @@ variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shar
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
-variance share   [--config <path>] [--ref <ref>] [--publish] [<report>]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker
 ```
 
@@ -179,7 +179,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `journeys` | finalizes one runner's journey artifact, stitches artifacts from CI shards, or reads back which regions this run's subjects covered differently |
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | says what this machine can observe, before a run, not after one |
-| `share` | says what the share has for mainline, or publishes what this run derived |
+| `share` | says what the share holds for your mainline, or publishes this run to its line |
 | `watch` | listens to a suite that is still running, so `ask` has something live to ask |
 | `distill` | combines one test's portable Eyes attention and Sense execution evidence into reduction opportunities |
 | `serve` | exposes the last run's report, and the source questions `ask` answers, to an MCP client over stdio |
