@@ -262,7 +262,7 @@ Every path takes `Authorization: Bearer <token>`; none may be asked anonymously.
 | `GET /review/changelog[?component&subject&since&limit]` | review | every approval, grouped by shape |
 | `POST /review/sweep[?days=N]` | review | retention, below |
 | `GET /share/<mainline\|branch>/<line>/manifest.json` | ingest or share | the line's manifest, with its version as the `ETag`. 404 when nothing was published |
-| `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none; a stale version answers 412 |
+| `PUT /share/<mainline\|branch>/<line>/manifest.json` | ingest | replace the manifest. With `If-Match: <ETag>` it replaces only that version, and with `If-None-Match: *` only when there is none. A stale version answers 412, and a write with neither header answers 428 |
 | `GET /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest or share | one entry's bytes, immutable and cacheable |
 | `PUT /share/<mainline\|branch>/<line>/entries/<sha256>` | ingest | store an entry. 400 when the bytes do not have that digest |
 | `GET /share/images/<sha256>`, `PUT /share/images/<sha256>` | ingest or share to read, ingest to write | an image any line names, stored once for every line |

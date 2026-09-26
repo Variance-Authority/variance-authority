@@ -149,6 +149,28 @@ describe('a tribunal as the store of an http share', () => {
     expect(replaced.headers.get('etag')).not.toBe(current);
   });
 
+  it('refuses a manifest write that names no version, and stores nothing', async () => {
+    await publishLine(cell(INGEST), MAIN, [entry('report-v1')], { descends, image });
+    const path = `${ORIGIN}/share/mainline/release/2.0/manifest.json`;
+    const version = async () =>
+      (await worker.fetch(new Request(path, { headers: { authorization: `Bearer ${INGEST}` } }))).headers.get('etag');
+    const stored = await version();
+
+    const response = await worker.fetch(
+      new Request(path, { method: 'PUT', headers: { authorization: `Bearer ${INGEST}` }, body: '{}' }),
+    );
+    expect(response.status).toBe(428);
+    expect(await response.text()).toMatch(/If-Match.*If-None-Match: \*/);
+    expect(await version()).toBe(stored);
+
+    // The client never sends one: the first publish above wrote with
+    // `If-None-Match: *`, and a second writes on the version it read.
+    expect(await publishLine(cell(INGEST), MAIN, [entry('report-v2')], { descends, image })).toMatchObject({
+      written: ['report-v2'],
+      attempts: 1,
+    });
+  });
+
   it('writes with POST the same as with PUT, for a host that routes on it', async () => {
     const published = await publishLine(cell(INGEST, 'POST'), MAIN, [entry('report-v1')], { descends, image });
     expect(published).toMatchObject({ written: ['report-v1'] });

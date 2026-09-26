@@ -28,7 +28,10 @@ import { BadRequest, MethodNotAllowed, json } from './worker-http.js';
  * read at — `If-Match` on its `ETag`, or `If-None-Match: *` when the writer found
  * no manifest — and a write whose version is stale answers 412. That status is
  * the one `publishLine` reads as a lost race, so the losing writer reads the
- * winner's manifest, adds its own entries to it, and writes again.
+ * winner's manifest, adds its own entries to it, and writes again. A manifest
+ * write with neither header answers 428: it would replace whatever is stored,
+ * and `httpLineCell` sends one of the two on every write to a store that
+ * answered its read with an `ETag`, which this one always does.
  *
  * The comparison is R2's own `onlyIf`, and the version is R2's own `httpEtag`.
  * Nothing here reads the stored manifest to compare it, because a read and a
@@ -88,6 +91,16 @@ export function createShareRoutes({ bucket, project }: ShareSurface): ShareRoute
       return new Response(request.method === 'HEAD' ? null : await found.arrayBuffer(), { headers });
     }
 
+    const options = relative.blob ? undefined : conditionOf(request);
+    if (!relative.blob && options === undefined) {
+      return json(428, {
+        error:
+          `the manifest at ${path} is replaced only on the version it was read at. Send If-Match ` +
+          'with the ETag it was read with, or If-None-Match: * when there was no manifest. A write ' +
+          'with neither would drop what another writer added',
+      });
+    }
+
     const bytes = await request.arrayBuffer();
     if (relative.blob) {
       const digest = await digestOf(bytes);
@@ -99,7 +112,6 @@ export function createShareRoutes({ bucket, project }: ShareSurface): ShareRoute
       }
     }
 
-    const options = relative.blob ? undefined : conditionOf(request);
     const written: R2Written | null = await stored(`the share object ${key}`, () =>
       bucket.put(key, bytes, options),
     );
