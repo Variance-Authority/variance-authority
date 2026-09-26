@@ -225,7 +225,7 @@ export interface MainlineSuite extends MainlineAt {
  * to say, and a copy written here would be a layer nobody asked for.
  */
 export async function mainlineSuite(
-  config: Config,
+  config: Pick<Config, 'share' | 'cacheRoot'>,
   suite: string,
   options: Here & { readonly mainline?: string } = {},
 ): Promise<MainlineSuite | MainlineMissed> {
@@ -247,7 +247,7 @@ export async function mainlineSuite(
  * is answered from disk.
  */
 export async function mainlineEntry(
-  config: Config,
+  config: Pick<Config, 'share' | 'cacheRoot'>,
   name: string,
   options: Here & { readonly mainline?: string },
 ): Promise<{ readonly at: MainlineAt; readonly held: LineEntry } | MainlineMissed> {
@@ -283,7 +283,7 @@ export interface LineEntry {
  * published*, which would send somebody to look for a publish that happened.
  */
 export async function lineEntry(
-  config: Config,
+  config: Pick<Config, 'share' | 'cacheRoot'>,
   line: ShareLine,
   name: string,
   cwd: string,
