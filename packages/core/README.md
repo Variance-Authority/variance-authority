@@ -327,9 +327,11 @@ read, and the blobs the manifest names. `httpLineCell` writes the manifest with
 `If-Match`, which S3, GCS and R2 honour. `endpoint` is a base URL every path is
 appended to. `headers` is sent on every request, which is where a bucket's
 `Authorization` or a deployment's token goes. `method` is the verb a write uses
-— `PUT` for a bucket, `POST` for a deployment that routes on it. A presigned
-base needs only the endpoint. `memoryLineCell()` holds a line in this process,
-for tests and for a run that shares with itself.
+— `PUT` for a bucket, `POST` for a deployment that routes on it. `timeoutMs`
+is how long one request may take, reading its body included, before the store
+is `unreachable` with a message that says it timed out; it is 60 000 when you
+leave it out. A presigned base needs only the endpoint. `memoryLineCell()`
+holds a line in this process, for tests and for a run that shares with itself.
 
 `descends` is git's answer to whether one commit strictly descends from
 another, and `undefined` when the history is not at hand. `image` supplies the

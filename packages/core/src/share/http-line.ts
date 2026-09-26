@@ -18,6 +18,7 @@ declare const fetch: (
     method?: string;
     headers?: Record<string, string>;
     body?: Uint8Array;
+    signal?: unknown;
   },
 ) => Promise<{
   readonly ok: boolean;
@@ -25,6 +26,14 @@ declare const fetch: (
   readonly headers: { get(name: string): string | null };
   arrayBuffer(): Promise<ArrayBuffer>;
 }>;
+declare const AbortSignal: { timeout(ms: number): unknown };
+
+/**
+ * How long one request may take, its body included, when the options do not
+ * say. A store that accepts a connection and never answers would otherwise
+ * hold `ask`, `serve` and a publish open with nothing said.
+ */
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export interface HttpLineOptions {
   /** Base URL. Every path is appended to it, with exactly one `/` between. */
@@ -33,6 +42,11 @@ export interface HttpLineOptions {
   readonly headers?: Readonly<Record<string, string>>;
   /** The verb a write uses. `PUT` for a bucket, `POST` for a deployment that routes on it. */
   readonly method?: 'PUT' | 'POST';
+  /**
+   * Milliseconds one request may take, from sending it to the last byte of its
+   * body, before the store is `unreachable`. 60 000 when absent.
+   */
+  readonly timeoutMs?: number;
 }
 
 /**
@@ -43,18 +57,21 @@ export interface HttpLineOptions {
 export function httpLineCell(options: HttpLineOptions): LineCell {
   const base = options.endpoint.replace(/\/+$/, '');
   const headers = options.headers ?? {};
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const where = (line: ShareLine, path: 'manifest.json' | BlobPath): string =>
     path.startsWith('images/') ? `${base}/${path}` : `${base}/${linePath(line)}/${path}`;
 
+  // The signal is made per request and covers reading the body, so a store
+  // that sends its headers and then stalls times out like one that never
+  // answers at all.
   async function get(url: string): Promise<{ bytes: Uint8Array; etag: string | null } | ShareMiss> {
-    let response: Awaited<ReturnType<typeof fetch>>;
     try {
-      response = await fetch(url, { headers: { ...headers } });
+      const response = await fetch(url, { headers: { ...headers }, signal: AbortSignal.timeout(timeoutMs) });
+      if (!response.ok) return missOf(url, response.status);
+      return { bytes: new Uint8Array(await response.arrayBuffer()), etag: response.headers.get('etag') };
     } catch (error) {
-      return { kind: 'unreachable', detail: `${url}: ${(error as Error).message}` };
+      return thrown(url, error, timeoutMs);
     }
-    if (!response.ok) return missOf(url, response.status);
-    return { bytes: new Uint8Array(await response.arrayBuffer()), etag: response.headers.get('etag') };
   }
 
   async function put(url: string, body: Uint8Array, condition: Record<string, string>): Promise<'written' | 'conflict' | ShareMiss> {
@@ -64,9 +81,10 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
         method: options.method ?? 'PUT',
         headers: { 'content-type': 'application/octet-stream', ...headers, ...condition },
         body,
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (error) {
-      return { kind: 'unreachable', detail: `${url}: ${(error as Error).message}` };
+      return thrown(url, error, timeoutMs);
     }
     if (response.ok) return 'written';
     if (response.status === 412 || response.status === 409) return 'conflict';
@@ -105,6 +123,21 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
       return put(where(line, 'manifest.json'), write.manifest, condition);
     },
   };
+}
+
+/**
+ * A request that threw, as the miss it is. A timeout says how long it waited;
+ * anything else says the platform's message and, when it wraps one, the
+ * reason underneath, which is where a refused connection or an unknown host
+ * is named.
+ */
+function thrown(url: string, error: unknown, timeoutMs: number): ShareMiss {
+  const failed = error as { readonly name?: unknown; readonly message?: unknown; readonly cause?: { readonly message?: unknown } };
+  if (failed.name === 'TimeoutError') {
+    return { kind: 'unreachable', detail: `${url}: timed out after ${String(timeoutMs / 1000)} s` };
+  }
+  const cause = typeof failed.cause?.message === 'string' ? `: ${failed.cause.message}` : '';
+  return { kind: 'unreachable', detail: `${url}: ${String(failed.message)}${cause}` };
 }
 
 function missOf(url: string, status: number): ShareMiss {

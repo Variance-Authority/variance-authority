@@ -1,3 +1,5 @@
+import { createServer, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { httpLineCell } from './http-line.js';
 import { findEntry, publishLine, readLine } from './publish.js';
@@ -91,5 +93,23 @@ describe('httpLineCell', () => {
       throw new Error('getaddrinfo ENOTFOUND');
     }));
     expect(await readLine(httpLineCell(options), MAIN)).toMatchObject({ kind: 'unreachable' });
+  });
+
+  it('answers a store that takes a request and never replies as unreachable, saying it timed out', async () => {
+    const waiting: ServerResponse[] = [];
+    const server = createServer((_request, response) => void waiting.push(response));
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const endpoint = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}/va`;
+    try {
+      const cell = httpLineCell({ endpoint, timeoutMs: 200 });
+      expect(await readLine(cell, MAIN)).toEqual({
+        kind: 'unreachable',
+        detail: `${endpoint}/mainline/release/2.0/manifest.json: timed out after 0.2 s`,
+      });
+      expect(waiting).toHaveLength(1);
+    } finally {
+      for (const response of waiting) response.destroy();
+      await new Promise((done) => server.close(done));
+    }
   });
 });
