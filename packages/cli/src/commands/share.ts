@@ -134,6 +134,10 @@ export async function publishRun(config: Config, reportPath: string, here: Here 
   const cwd = here.cwd ?? process.cwd();
   const report = await readCliRunReport(reportPath);
   const kept = await keepSuiteIndex(config, report);
+  // FIXME: a report with no composition section (a raster-only capture,
+  // ephemeral retention, a merged shard report) has no suite index, so this
+  // publishes nothing, not report-v1 and not suite-v1, and says the report names
+  // no commit when it may name one. docs/sharing.md states this boundary.
   if (kept === undefined) return { none: 'this report names no commit' };
 
   const cell = await lineCellOf(config, { cwd });
