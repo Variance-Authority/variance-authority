@@ -35,10 +35,10 @@ import {
  *
  * Three kinds, one layout: the latest record of each mainline and each branch,
  * and every image once by digest. `directory` is a path, which is what
- * `actions/cache`, `aws s3 sync`, an NFS mount and a laptop all are; `http` is a
- * base URL and optional credentials, which is what a bucket and a tribunal
- * deployment are; `git` is refs under `refs/variance/` in the repository that
- * already hosts the code.
+ * `aws s3 sync`, an NFS mount and a laptop all are; `http` is a base URL and
+ * optional credentials, which is what a bucket and a tribunal deployment are;
+ * `git` is refs under `refs/variance/` in the repository that already hosts the
+ * code.
  */
 export type ShareConfig = DirectoryShare | HttpShare | GitShare;
 

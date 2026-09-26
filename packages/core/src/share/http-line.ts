@@ -94,6 +94,8 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
     }
     if (response.ok) return 'written';
     if (response.status === 412 || response.status === 409) return 'conflict';
+    // FIXME: a write answered 404 is read as `absent`, so the publish prints
+    // "nothing is published there" for a store that would not take the write.
     return missOf(url, response);
   }
 
@@ -111,8 +113,9 @@ export function httpLineCell(options: HttpLineOptions): LineCell {
       return 'bytes' in held ? held.bytes : held;
     },
     async store(line, write) {
-      // TODO: an entry or image no manifest names any more stays in the store;
-      // nothing here deletes, and a bucket's lifecycle rule is the collector.
+      // TODO: an entry or image no manifest names any more stays in the store,
+      // and a branch's line outlives the branch; nothing here deletes, and a
+      // bucket's lifecycle rule is the collector.
       for (const [path, bytes] of write.blobs) {
         const outcome = await put(where(line, path), bytes, {});
         if (outcome === 'conflict') {

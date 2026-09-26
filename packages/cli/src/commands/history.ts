@@ -106,6 +106,9 @@ export function identityOf(
   for (const [run, commit] of candidates) {
     // Both or neither. A pair completed from two sources describes a run that
     // never existed.
+    // FIXME: `--run` or `--commit` passed alone is dropped here without a word:
+    // on CI the pair comes from the environment instead, and off CI the report
+    // names no commit, so `variance share --publish` later writes nothing.
     if (run !== undefined && run !== '' && commit !== undefined && commit !== '') {
       return { run, commit };
     }

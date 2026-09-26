@@ -110,6 +110,10 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
     return ref;
   };
 
+  // FIXME: the remote keeps `branch/Feature` and `branch/feature` apart, but on
+  // a disk that ignores case this cache's loose ref and its marker are one file
+  // for both, so fetching one line overwrites the other's local ref, and `blob`
+  // and a reused marker then answer the other line's commit.
   async function fetched(ref: string): Promise<string | ShareMiss> {
     const marker = join(options.gitDir, 'variance-fetched', ref);
     const reuse = options.reuseMs ?? 0;
@@ -190,6 +194,8 @@ export function createGitLineCell(options: GitLineOptions): LineCell {
       await rm(index, { force: true });
       if (tree.code !== 0) return missOf(tree);
       // No parent: a line is its latest, and what it replaced is the remote's to collect.
+      // TODO: nothing deletes a line, so a branch's ref outlives the branch, and
+      // with it every image its tree names.
       const commit = await git(['commit-tree', text(tree.stdout).trim(), '-m', `variance: ${line.kind} ${line.name}`], undefined, IDENTITY);
       if (commit.code !== 0) return missOf(commit);
       const sha = text(commit.stdout).trim();

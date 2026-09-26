@@ -117,13 +117,18 @@ async function runLineOf(mainlines: Mainlines, env: Env, cwd: string): Promise<R
   // CI_MERGE_REQUEST_SOURCE_BRANCH_NAME, CI_MERGE_REQUEST_TARGET_BRANCH_NAME,
   // CI_DEFAULT_BRANCH) and Bitbucket Pipelines (BITBUCKET_BRANCH, BITBUCKET_PR_ID,
   // BITBUCKET_PR_DESTINATION_BRANCH) are not read: a detached checkout on either
-  // publishes nothing, and one on a branch is taken for a run off CI.
-  // `mainlinesOf`'s event and `readerMainline`'s base are GitHub's alone too.
+  // publishes nothing, and one on a branch is taken for a run off CI, so a
+  // mainline job there is refused as "not on CI" and no mainline line is ever
+  // written. `mainlinesOf`'s event and `readerMainline`'s base are GitHub's alone too.
   if (env['GITHUB_ACTIONS'] === 'true') {
     const event = env['GITHUB_EVENT_NAME'];
     if (event === 'merge_group') return { none: 'a merge-queue run publishes nothing; its branch is temporary' };
     if (event === 'pull_request' || event === 'pull_request_target') {
       const pull = (await eventOf(env))?.pull_request;
+      // FIXME: under `pull_request_target` a fork's token can write, so this
+      // message's reason is false there. And that event's `GITHUB_SHA` is the
+      // base branch's tip, so a same-repository pull request's line is written
+      // at the base's commit, with the head commit only beside it.
       if (fromFork(pull)) return { none: 'a pull request from a fork publishes nothing; its token is read-only' };
       const name = env['GITHUB_HEAD_REF'];
       if (name === undefined || name === '') return { none: 'the pull request names no head branch' };

@@ -153,6 +153,10 @@ async function decide(
       kept.push({ name: occupant.name, commit: occupant.commit, because: 'newer-format' });
       continue;
     }
+    // TODO: shards of one run publish at one commit, so each replaces the
+    // last one's `suite-index-v1` and `report-v1`, and the line keeps the index
+    // and report of whichever shard published last, covering its subjects only.
+    // Nothing here merges two entries of one slot.
     if (line.kind === 'branch' || occupant.commit === entry.commit) {
       write.push(entry);
       continue;

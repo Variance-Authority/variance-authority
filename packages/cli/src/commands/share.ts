@@ -233,6 +233,9 @@ export async function mainlineIndex(
   const found = await mainlineEntry(config, SUITE_INDEX_ENTRY, options);
   if ('miss' in found) return found;
   const { at, held } = found;
+  // TODO: nothing compares this machine's index with the digest the manifest
+  // names. Two runs at one commit that composed different subjects (a shard, a
+  // filtered run) keep different indexes, and this one wins over the line's.
   const local = await readSuiteIndex(suiteIndexPath(config, at.commit)).catch(() => null);
   if (local !== null) return { ...at, from: 'local', index: local };
 

@@ -42,11 +42,10 @@ const LOCK_STALE_MS = 60_000;
  * A line as files: `<root>/<kind>/<name>/manifest.json`, the line's entries
  * beside it, and `<root>/images/<digest>` shared by every line.
  *
- * A directory is the backend other transports already are: `actions/cache`
- * restores and saves a path, `aws s3 sync` mirrors one, and an NFS mount and a
- * developer's own `~/.cache` are one. So the operator's choice of transport is
- * very often not a choice of backend, and the code path CI exercises is the one
- * a laptop does.
+ * A directory is the backend other transports already are: `aws s3 sync`
+ * mirrors one, and an NFS mount and a developer's own `~/.cache` are one. So
+ * the operator's choice of transport is very often not a choice of backend, and
+ * the code path CI exercises is the one a laptop does.
  *
  * The version a write is conditional on is the digest of the manifest's bytes,
  * and the condition is held by a lock directory, because `mkdir` is the one
@@ -127,8 +126,8 @@ export function createDirectoryLineCell(root: string): LineCell {
         const version = 'version' in held ? held.version : undefined;
         if (!('version' in held) && held.kind !== 'absent') return held;
         if (version !== write.expected) return 'conflict';
-        // TODO: an entry or image no manifest names any more stays on disk;
-        // nothing here deletes.
+        // TODO: an entry or image no manifest names any more stays on disk, and a
+        // branch's line outlives the branch; nothing here deletes.
         for (const [path, bytes] of write.blobs) await place(where(line, path), bytes);
         await place(join(dir, 'manifest.json'), write.manifest);
         return 'written';
