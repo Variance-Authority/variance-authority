@@ -135,21 +135,9 @@ jobs:
         shell: bash
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
-      # The same store every other workflow here reads, painted by `variance.yml`
-      # on each push to `main`. Restored per shard because a shard is a whole run
-      # of a slice: it compares, and it has nothing to compare against otherwise.
-      #
-      # The key names the image because the image is the renderer, and it has to
-      # name the same one as `container.image` above. Nothing checks that it does;
-      # a mismatch is reported `incomparable` rather than diffed (ADR-0011).
-      - name: restore the baselines main last painted
-        uses: actions/cache/restore@v4
-        with:
-          path: cases/storybook-case/.variance/baselines
-          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
-          restore-keys: |
-            variance-baselines-playwright-v1.62.1-noble-
-
+      # The action restores the store every other workflow here reads, painted
+      # by `variance.yml`, from the key `variance carry` names: a shard is a
+      # whole run of a slice, and it has nothing to compare against otherwise.
       - id: variance
         uses: ./.github/actions/variance
         with:
@@ -184,7 +172,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: variance-shard-${{ matrix.shard.name }}
-          path: cases/storybook-case/.variance/
+          path: |
+            ${{ steps.variance.outputs.report }}
+            ${{ steps.variance.outputs.images }}
           # Without this every shard uploads nothing and the merge below refuses
           # for the right reason with the wrong cause: `.variance` is a dotted
           # directory and this action skips hidden files by default.
@@ -243,11 +233,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The report's filename comes from the config, through the same locator
-          # the action uses, rather than being guessed or re-declared here. A
-          # config that moved `report` would otherwise make this find nothing and
-          # report it as a missing shard.
-          report_path="$(node .github/actions/variance/locate-artifacts.mjs cases/storybook-case/variance.config.json \
+          # The report's filename comes from the config, through `variance carry`
+          # as the action reads it, rather than being guessed or re-declared
+          # here. A config that moved `report` would otherwise make this find
+          # nothing and report it as a missing shard.
+          report_path="$(node packages/cli/dist/bin.js carry restore \
+            --config cases/storybook-case/variance.config.json --format github \
             | sed -n 's/^report=//p')"
           name="$(basename "$report_path")"
 

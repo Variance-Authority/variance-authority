@@ -103,25 +103,28 @@ jobs:
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
       # A sweep re-collects rather than paints, so this is not where its baselines
-      # come from — `variance.yml` paints them on every push to `main`, and this
-      # restores what that left.
+      # come from: `variance.yml` paints them on every push to `main`, and this
+      # restores what that left, from the key `variance carry` names.
       #
       # Without it every subject here would be `new` every night, the run would
       # exit 1 on all twelve, and a nightly job that is red whatever happened is a
       # nightly job people mute. The flake finding would still be in the report;
       # nobody would be reading it.
-      #
-      # The key carries the image tag because the image is the renderer, and it
-      # has to name the same image as `container.image` above. Nothing checks that
-      # it does: a mismatch restores baselines painted by a different Chromium,
-      # which the run reports `incomparable` rather than diffing (ADR-0011).
-      - name: restore the baselines main last painted
+      - id: carry
+        name: what the host carries
+        shell: bash
+        run: |
+          node packages/cli/dist/bin.js carry restore \
+            --config cases/storybook-case/variance.config.json \
+            --format github >> "$GITHUB_OUTPUT"
+
+      - if: ${{ steps.carry.outputs.baselines-key != '' }}
+        name: restore the baselines main last painted
         uses: actions/cache/restore@v4
         with:
-          path: cases/storybook-case/.variance/baselines
-          key: variance-baselines-playwright-v1.62.1-noble-${{ github.sha }}
-          restore-keys: |
-            variance-baselines-playwright-v1.62.1-noble-
+          path: ${{ steps.carry.outputs.baselines-path }}
+          key: ${{ steps.carry.outputs.baselines-key }}
+          restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
 
       - id: sweep
         name: variance run --flakes
@@ -163,15 +166,20 @@ jobs:
       # or it gets nothing, and "one page, no service behind it" is what the HTML
       # renderer is for. Image paths in it are relative to the report, which is why
       # the whole directory is uploaded rather than the page alone.
-      - if: ${{ always() && steps.sweep.outputs.exit-code != '2' }}
+      - id: page
+        if: ${{ always() && steps.sweep.outputs.exit-code != '2' }}
         name: render the sweep as one page
         shell: bash
+        env:
+          REPORT: ${{ steps.carry.outputs.report }}
         run: |
           set -euo pipefail
+          page="$(dirname "$REPORT")/sweep.html"
           node packages/cli/dist/bin.js report \
             --config cases/storybook-case/variance.config.json \
             --format html \
-            --exit-zero-on-changes > cases/storybook-case/.variance/sweep.html
+            --exit-zero-on-changes > "$page"
+          echo "path=$page" >> "$GITHUB_OUTPUT"
 
           # `--exit-zero-on-changes` *is* right here, and for the opposite reason
           # to the step above: this step renders, it does not adjudicate. The
@@ -183,7 +191,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: variance-sweep
-          path: cases/storybook-case/.variance/
+          path: |
+            ${{ steps.carry.outputs.report }}
+            ${{ steps.carry.outputs.images }}
+            ${{ steps.page.outputs.path }}
           # Without this the artifact is empty and nothing says so. `.variance` is
           # a dotted directory, and this action skips hidden files by default —
           # so the upload would succeed and the zip would hold nothing.

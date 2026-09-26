@@ -10,7 +10,7 @@ alone),
 [spec 0074](../../specs/0074-what-ci-derived-is-reachable-from-a-checkout.md)
 (the `git` carrier, which a checkout can reach),
 [`packages/cli/src/config-share.ts`](../../../packages/cli/src/config-share.ts),
-[`.github/actions/variance/locate-artifacts.mjs`](../../../.github/actions/variance/locate-artifacts.mjs)
+the action's `locate-artifacts.mjs`, which this decision deletes
 
 ## Context
 

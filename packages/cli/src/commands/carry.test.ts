@@ -164,6 +164,7 @@ describe('the output the host reads', () => {
       `variance-shop-baselines:main:${SHA}-`,
       'variance-shop-baselines:main:',
       'VARIANCE_CARRY_END',
+      'baselines-root=/r/.variance/baselines',
       'report=/r/.variance/run.json',
       'images=/r/.variance/images',
       `review=${join(root, '.variance/review')}`,
@@ -175,6 +176,27 @@ describe('the output the host reads', () => {
     const plan = carryPlan({ direction: 'restore', root, config: project({ images: '/r/x\nreport-key=forged' }), run: PULL, mainlines: MAIN });
 
     expect(() => githubOutput(plan)).toThrow(/line break/);
+  });
+
+  it('names the store a commit-back stages, whoever carries it, and no store the checkout does not hold', () => {
+    const committed = carryPlan({
+      direction: 'save',
+      root,
+      config: project({ baselines: { kind: 'lfs', root: '/r/baselines' } } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+    const remote = carryPlan({
+      direction: 'save',
+      root,
+      config: project({ baselines: { kind: 'remote', endpoint: 'https://store.test' } } as Partial<Config>),
+      run: PULL,
+      mainlines: MAIN,
+    });
+
+    expect(githubOutput(committed)).toContain('\nbaselines-root=/r/baselines\n');
+    expect(committed.cached).toEqual([]);
+    expect(githubOutput(remote)).not.toContain('baselines-root');
   });
 });
 

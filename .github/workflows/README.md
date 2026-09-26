@@ -59,8 +59,25 @@ resolve.
 
 Every job runs inside `mcr.microsoft.com/playwright:v1.62.1-noble`. An approved
 image is keyed by the identity of the machine that painted it, so a moving runner
-image means baselines invalidated on somebody else's schedule. Pin the image, and
-put its tag in the cache key.
+image means baselines invalidated on somebody else's schedule. Pin the image.
+
+No workflow here names a path the config names, or builds a cache key.
+`variance carry restore --format github` prints both as step outputs, from
+the config's `carry` fields, and the steps hand them to `actions/cache`:
+
+```yaml
+- id: carry
+  run: npx --no-install variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
+- if: steps.carry.outputs.baselines-key != ''
+  uses: actions/cache/restore@v4
+  with:
+    path: ${{ steps.carry.outputs.baselines-path }}
+    key: ${{ steps.carry.outputs.baselines-key }}
+    restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+```
+
+The action does this itself, so a job that uses it names the config and
+nothing else.
 
 ## Who accepts a change
 
@@ -138,14 +155,15 @@ stops there, and `main` stays red.
 
 The comment shows the leading cause's before and after on its first screen, and
 each further cause's pair inside its fold. The action pushes the report's before
-and after images to `refs/variance/<branch>`, named for the pull request's
+and after images to `refs/variance/images/<branch>`, named for the pull request's
 branch: one commit with no parent, replaced by every run that finds a change. It
 is not a branch, so a clone does not fetch it and the branch list does not show
 it. The comment links the commit rather than the ref, so an image cache never
 shows a previous run's pictures. When the pull request closes, merged or not, a
 second job deletes the ref.
 
-That ref is why `variance.yml` asks for `contents: write`. Anyone who can read
+That ref and the report's share lines below are why `variance.yml` asks for
+`contents: write`. Anyone who can read
 the repository can read the images. A pull request from a fork runs with a
 read-only token, so the push is refused, the step warns, and the comment arrives
 without pictures. To turn this off in your copy, drop the `image-ref` input and
@@ -155,13 +173,25 @@ the `images-cleanup` job.
 
 `.variance/` is git-ignored: a report changes whenever the document does, so
 reports beside their images would make a diff out of every edit that moved no
-pixel. The store is the runner's cache instead, written by `variance.yml` only
-on a run that accepts, and only after a comparison against it came back green.
+pixel. The store is the runner's cache instead, which the case's config declares
+with `baselines.carry: actions-cache`. `variance.yml` writes it only on a run
+that accepts, and only after a comparison against it came back green.
 
 A pull request and a push to `main` are both gates, both red when a subject
-moved. A cache key that does not match the renderer cannot produce a wrong diff:
-a baseline whose identity differs from the run's is reported `incomparable` and
-no image is produced, so the worst a stale key does is make a check loud.
+moved. The cache key does not name the renderer, because the store already
+partitions by it: a baseline whose identity differs from the run's is reported
+`incomparable` and no image is produced, so the worst an image bump does is make
+a check loud until the next accept.
+
+## Where the report lives here
+
+The report is carried by the share, as the case's config declares with
+`report.carry: share` and `share: { "kind": "git" }`. After the gate,
+`variance share --publish` writes it to a ref under `refs/variance/`: the
+mainline's on a push to `main`, and the branch's on a pull request. Any
+checkout that can fetch `main` can read the report `main` last published, and
+compare a local edit against it, without running a browser. A pull request from
+a fork publishes nothing, because its token cannot push.
 
 The three are not a ladder. A repository can run all of them, and most that shard
 also want the sweep — the sweep asks something no verdict can reach, and sharding

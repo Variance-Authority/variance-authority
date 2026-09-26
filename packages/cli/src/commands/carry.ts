@@ -82,6 +82,12 @@ export interface CarryPlan {
   readonly line?: string;
   readonly base?: string;
   readonly cached: readonly Cached[];
+  /**
+   * Where the baseline store sits on disk, for a host step that commits what an
+   * accept wrote. Absent for a `remote` store and under ephemeral retention,
+   * which keep nothing in the checkout.
+   */
+  readonly baselinesRoot?: string;
   /** What a reviewer downloads: uploaded as it is, so it has a path and no key. */
   readonly uploads: readonly { readonly name: string; readonly path: string }[];
   /** What is carried and not printed, or not carried, and why: said, never silent. */
@@ -221,11 +227,13 @@ export function carryPlan(input: CarryInput): CarryPlan {
     );
   }
 
+  const store = config?.baselines;
   return {
     direction,
     ...(line === undefined ? {} : { line }),
     ...(run.base === undefined ? {} : { base: run.base }),
     cached,
+    ...(store === undefined || store.kind === 'remote' ? {} : { baselinesRoot: store.root }),
     uploads: [
       ...(config === undefined ? [] : [{ name: 'report', path: config.report }, { name: 'images', path: config.images }]),
       { name: 'review', path: resolve(input.root, REVIEW_OUT) },
@@ -252,7 +260,7 @@ function savesRecording(run: HostRun, line: string | undefined, mainlines: Mainl
  *
  * `<artifact>-path`, `<artifact>-key` and, on a restore,
  * `<artifact>-restore-keys`, with the multi-line values in the heredoc form
- * the host reads. An artifact that is not carried this time prints nothing,
+ * the host reads; then `baselines-root` and the uploads, one path each. An artifact that is not carried this time prints nothing,
  * so a step guarded by `<artifact>-key != ''` does not run.
  */
 export function githubOutput(plan: CarryPlan): string {
@@ -272,6 +280,7 @@ export function githubOutput(plan: CarryPlan): string {
     one(`${cached.artifact}-key`, cached.key);
     if (cached.restoreKeys !== undefined) many(`${cached.artifact}-restore-keys`, cached.restoreKeys);
   }
+  if (plan.baselinesRoot !== undefined) one('baselines-root', plan.baselinesRoot);
   for (const upload of plan.uploads) one(upload.name, upload.path);
 
   return `${lines.join('\n')}\n`;
@@ -287,7 +296,9 @@ export function carryText(plan: CarryPlan): string {
     lines.push('', `${cached.artifact}: ${cached.key}`, ...cached.paths.map((path) => `  ${path}`));
     if (cached.restoreKeys !== undefined) lines.push('  then', ...cached.restoreKeys.map((key) => `    ${key}`));
   }
-  lines.push('', ...plan.uploads.map((upload) => `${upload.name}: ${upload.path}`));
+  lines.push('');
+  if (plan.baselinesRoot !== undefined) lines.push(`baselines: ${plan.baselinesRoot}`);
+  lines.push(...plan.uploads.map((upload) => `${upload.name}: ${upload.path}`));
   if (plan.notes.length > 0) lines.push('', ...plan.notes);
 
   return `${lines.join('\n')}\n`;

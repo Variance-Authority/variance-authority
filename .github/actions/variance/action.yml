@@ -14,8 +14,17 @@ description: >-
 # operator's workflow, next to the baselines, not hidden inside an action.
 #
 # So this is bash around `variance run`. Every decision it makes is a decision the
-# CLI already made, and the three things it adds — a comment, an optional commit
-# and an optional upload — are the three a command line cannot do for itself.
+# CLI already made, and the things it adds — a comment, an optional commit, an
+# optional upload and the cache moves — are the ones a command line cannot do for
+# itself.
+#
+# ## Every path and key comes from `variance carry`
+#
+# The config says where each artifact lives and who carries it. `variance carry`
+# reads it with the CLI's own parser and prints the paths and the cache keys, so
+# nothing below names a path or builds a key. A config whose baselines declare
+# `carry: actions-cache` gets them restored before the run and saved after an
+# accept; any other config gets no key, and those steps do not run.
 #
 # ## The check's colour comes from the exit code, and from nothing else
 #
@@ -35,9 +44,9 @@ description: >-
 inputs:
   config:
     description: >-
-      Path to the variance config, relative to `working-directory`. Every path the
-      action needs afterwards — the report, the baseline store — is read from this
-      file rather than repeated as an input, so the two can never disagree.
+      Path to the variance config, relative to `working-directory`. Every path and
+      cache key the action needs afterwards is read from this file by `variance
+      carry` rather than repeated as an input, so the two can never disagree.
     required: false
     default: variance.config.json
 
@@ -77,6 +86,18 @@ inputs:
     description: 'Post the docket to the pull request. One comment, updated in place.'
     required: false
     default: 'true'
+
+  accept:
+    description: >-
+      Promote what this run renders before the gate compares, and save the store
+      for every run after when that comparison comes back green. For a store the
+      host cache carries (`carry: actions-cache`); a committed store accepts
+      through `commit-baselines` instead. Turn it on only for a run a person
+      asked for, as `.github/workflows/variance.yml` does: on every run,
+      `accept --all` promotes the regression the check was added to catch. Off
+      by default.
+    required: false
+    default: 'false'
 
   commit-baselines:
     description: >-
@@ -125,7 +146,7 @@ inputs:
     description: >-
       A ref to push the report's before and after images to, so the comment can
       show the leading cause's pair on its first screen, such as
-      `refs/variance/<head branch>`. Outside `refs/heads/`, a clone does not
+      `refs/variance/images/<head branch>`. Outside `refs/heads/`, a clone does not
       fetch it and the branch list does not show it. One commit with no parent,
       replaced by every run that finds a change, and linked by its commit so a
       reader never sees the previous run's pictures from a cache. Empty is off.
@@ -150,14 +171,71 @@ outputs:
     value: ${{ steps.run.outputs.exit-code }}
   report:
     description: 'Absolute path to the run report, resolved from the config.'
-    value: ${{ steps.locate.outputs.report }}
+    value: ${{ steps.carry.outputs.report }}
+  images:
+    description: 'Absolute path to the directory the report names its images in.'
+    value: ${{ steps.carry.outputs.images }}
   baselines:
-    description: 'Absolute path to the baseline store, or empty under ephemeral retention.'
-    value: ${{ steps.locate.outputs.baselines }}
+    description: 'Absolute path to the baseline store, or empty when the checkout holds none: a remote store, or ephemeral retention.'
+    value: ${{ steps.carry.outputs.baselines-root }}
 
 runs:
   using: composite
   steps:
+    # Before the run, because the baselines have to be in place before it
+    # compares. A config the parser refuses stops here, with the CLI's message.
+    - id: carry
+      name: what the host carries
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry restore --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
+
+    # Saved keys end in the run, so no key is exact and the newest prefix match
+    # wins: this commit's accept first, then the newest on the line. A pull
+    # request searches its own cache scope before its base's, which is how an
+    # accept made on it outranks what the base painted since.
+    - if: ${{ steps.carry.outputs.baselines-key != '' }}
+      name: restore the newest accepted baselines
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.carry.outputs.baselines-path }}
+        key: ${{ steps.carry.outputs.baselines-key }}
+        restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
+
+    # `--exit-zero-on-changes` because this run is not asking: the person has
+    # already decided. It suppresses 1 and never 2, so a run whose browser did
+    # not launch still fails here rather than accepting an empty report. The
+    # gate below then compares against what was promoted, and the store is kept
+    # only when that comes back green.
+    - if: ${{ inputs.accept == 'true' }}
+      name: promote what this run proposes
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+        VARIANCE_PROFILE: ${{ inputs.profile }}
+        VARIANCE_SUBJECTS: ${{ inputs.subjects }}
+        VARIANCE_INTENT: ${{ inputs.intent }}
+      run: |
+        set -euo pipefail
+
+        args=(run --config "$VARIANCE_CONFIG" --exit-zero-on-changes)
+        if [ -n "$VARIANCE_PROFILE" ]; then args+=(--profile "$VARIANCE_PROFILE"); fi
+        if [ -n "$VARIANCE_SUBJECTS" ]; then args+=(--subjects "$VARIANCE_SUBJECTS"); fi
+        if [ -n "$VARIANCE_INTENT" ]; then args+=(--intent "$VARIANCE_INTENT"); fi
+
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND "${args[@]}"
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND accept --config "$VARIANCE_CONFIG" --all
+
     - id: run
       name: variance run
       shell: bash
@@ -189,25 +267,6 @@ runs:
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
         echo "variance exited $code"
 
-    - id: locate
-      name: locate the report
-      # Skipped on 2 for the reason in the header: the config was refused, so
-      # there is no report from this run and the one on disk belongs to another.
-      if: ${{ steps.run.outputs.exit-code != '2' }}
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      env:
-        VARIANCE_CONFIG: ${{ inputs.config }}
-      run: |
-        # In a container job `github.action_path` is the runner's host path; the
-        # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
-        # mounted spelling and `github.workspace` the host's, so the prefix swap
-        # is a no-op on a job that runs on the host.
-        here="${{ github.action_path }}"
-        host_root=$(dirname "$(dirname "${{ github.workspace }}")")
-        here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
-        node "$here/locate-artifacts.mjs" "$VARIANCE_CONFIG" >> "$GITHUB_OUTPUT"
-
     # Beside the report rather than in `RUNNER_TEMP`: in a container job the
     # runner's temp path is the host's spelling, and the upload runs inside the
     # container. The report directory is resolved in here, so it is the right one.
@@ -219,7 +278,7 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
-        VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
+        VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
       run: |
         set -euo pipefail
         page="$(dirname "$VARIANCE_REPORT")/variance-report.html"
@@ -259,7 +318,7 @@ runs:
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
-        VARIANCE_REPORT: ${{ steps.locate.outputs.report }}
+        VARIANCE_REPORT: ${{ steps.carry.outputs.report }}
         VARIANCE_IMAGE_REF: ${{ inputs.image-ref }}
       run: |
         set -uo pipefail
@@ -347,7 +406,10 @@ runs:
         GITHUB_TOKEN: ${{ inputs.github-token }}
         VARIANCE_MARKER: ${{ steps.render.outputs.marker }}
       run: |
-        # The host path, spelled the way the container mounts it: see `locate`.
+        # In a container job `github.action_path` is the runner's host path; the
+        # container mounts the same tree elsewhere. `GITHUB_WORKSPACE` is the
+        # mounted spelling and `github.workspace` the host's, so the prefix swap
+        # is a no-op on a job that runs on the host.
         here="${{ github.action_path }}"
         host_root=$(dirname "$(dirname "${{ github.workspace }}")")
         here="$(dirname "$(dirname "$GITHUB_WORKSPACE")")${here#"$host_root"}"
@@ -362,15 +424,14 @@ runs:
       env:
         VARIANCE_COMMAND: ${{ inputs.command }}
         VARIANCE_CONFIG: ${{ inputs.config }}
-        VARIANCE_BASELINES: ${{ steps.locate.outputs.baselines }}
-        VARIANCE_RETENTION: ${{ steps.locate.outputs.retention }}
+        VARIANCE_BASELINES: ${{ steps.carry.outputs.baselines-root }}
         VARIANCE_MESSAGE: ${{ inputs.commit-message }}
         VARIANCE_BRANCH: ${{ github.head_ref }}
       run: |
         set -euo pipefail
 
-        if [ "$VARIANCE_RETENTION" = "ephemeral" ] || [ -z "$VARIANCE_BASELINES" ]; then
-          echo "::error::commit-baselines is on, but this config stores no baselines; ephemeral retention renders both sides in one run and keeps nothing"
+        if [ -z "$VARIANCE_BASELINES" ]; then
+          echo "::error::commit-baselines is on, but this config keeps no baselines in the checkout: a remote store keeps them on the service, and ephemeral retention renders both sides in one run and keeps nothing"
           exit 2
         fi
 
@@ -439,6 +500,31 @@ runs:
 
         git push origin "HEAD:refs/heads/$VARIANCE_BRANCH"
 
+    # Saved under this commit and this run, so the next comparison restores this
+    # store and not an older one. An Actions cache key is never overwritten,
+    # which is why the key names the run: accepting the same commit twice must
+    # keep the second. Only after a green gate, so an accept is kept once a
+    # comparison against it agreed.
+    - id: keep
+      if: ${{ inputs.accept == 'true' && steps.run.outputs.exit-code == '0' }}
+      name: what the host keeps
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        VARIANCE_CONFIG: ${{ inputs.config }}
+      run: |
+        set -euo pipefail
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry save --config "$VARIANCE_CONFIG" --format github >> "$GITHUB_OUTPUT"
+
+    - if: ${{ steps.keep.outputs.baselines-key != '' }}
+      name: keep the accepted baselines for every run after this one
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.keep.outputs.baselines-path }}
+        key: ${{ steps.keep.outputs.baselines-key }}
+
     - name: verdict
       # `always()`, so the exit code still decides the check even if the comment
       # step failed. A comment that could not be posted is a real failure and the
@@ -471,7 +557,7 @@ runs:
             exit 2
             ;;
           '')
-            echo "::error::the run step produced no exit code, so this action cannot say what happened."
+            echo "::error::variance run never reported an exit code; the step that failed above says why."
             exit 2
             ;;
           *)
