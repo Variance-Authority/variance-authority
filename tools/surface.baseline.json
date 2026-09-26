@@ -465,6 +465,7 @@
         "UNATTRIBUTED": "const",
         "UnstableLocation": "interface",
         "UnstableProperty": "interface",
+        "ValueChange": "interface",
         "alsoCovering": "function",
         "attributeMovement": "function",
         "attributeRegions": "function",

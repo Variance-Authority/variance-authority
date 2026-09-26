@@ -348,7 +348,13 @@ live('the durable workflow, end to end', () => {
     expect(out).toMatch(/src\/ds\.jsx:\d+/);
     expect(out).toContain('cause ');
     expect(out).toContain('Button');
-    expect(out).not.toContain('collateral');
+    // No region blames the wrapper. `Tokens` is still named as collateral among
+    // the components, because its box grew with `Button`'s — which is true, and
+    // is not the region's claim.
+    expect(out).not.toMatch(/collateral +\d+px/);
+    expect(out).toMatch(/cause +Button — geometry, token/);
+    // And the declaration the `wide-button` build changed, with both values.
+    expect(out).toMatch(/padding-left \S+ → \S+/);
 
     // And the line is the element's, not the component's.
     //

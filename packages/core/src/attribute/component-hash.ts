@@ -1,4 +1,5 @@
 import { BANDS, type Band } from '../compare/band.js';
+import { declaredIn } from '../compare/cascade.js';
 import type { CanonicalValue } from '../format/canonical.js';
 import type { Rect } from '../format/capture.js';
 import type { Digest } from '../format/hash.js';
@@ -52,6 +53,7 @@ export interface BandDigests {
  */
 export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHash[] {
   const layout = snapshot.profile.layout;
+  const declared = declaredIn(snapshot);
 
   const accumulated = new Map<
     string,
@@ -62,11 +64,12 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       style: CanonicalValue[];
       geometry: CanonicalValue[];
       boxes: (Rect | null)[];
+      values: Map<string, Set<string>>;
     }
   >();
 
   for (const boundary of boundaries(snapshot.root)) {
-    const shape = shapeOf(boundary, layout);
+    const shape = shapeOf(boundary, layout, undefined, declared);
 
     const entry = accumulated.get(boundary.component) ?? {
       structure: [],
@@ -75,6 +78,7 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       style: [],
       geometry: [],
       boxes: [],
+      values: new Map<string, Set<string>>(),
     };
     entry.structure.push(shape.structure);
     entry.semantics.push(shape.semantics);
@@ -82,6 +86,11 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
     entry.style.push(shape.style);
     entry.geometry.push(shape.geometry);
     entry.boxes.push(shape.box);
+    for (const [property, values] of Object.entries(shape.values ?? {})) {
+      const seen = entry.values.get(property) ?? new Set<string>();
+      for (const value of values) seen.add(value);
+      entry.values.set(property, seen);
+    }
     accumulated.set(boundary.component, entry);
   }
 
@@ -98,13 +107,27 @@ export function hashComponents(snapshot: SemanticSnapshot): readonly ComponentHa
       // nulls is a measurement nobody took written as one they did. Absent
       // instead, which is the same rule `geometry` above obeys.
       ...(layout ? { boxes: entry.boxes } : {}),
+      values: sortedValues(entry.values),
     }))
     // Code-unit order, not `localeCompare`. The doc above promises byte-identical
     // output for an unchanged subject, and a locale-aware comparison makes that a
     // promise about the machine's `LANG` — which was tolerable while these were
     // internal and is not now that they are written into a sidecar, committed
     // beside a baseline, and read back on someone else's runner.
-    .sort((a, b) => (a.component < b.component ? -1 : a.component > b.component ? 1 : 0));
+    .sort((a, b) => byCodeUnit(a.component, b.component));
+}
+
+/** Properties and their values in code-unit order, so the sidecar is byte-stable. */
+function sortedValues(values: ReadonlyMap<string, ReadonlySet<string>>): Record<string, string[]> {
+  const sorted: Record<string, string[]> = {};
+  for (const property of [...values.keys()].sort(byCodeUnit)) {
+    sorted[property] = [...values.get(property)!].sort(byCodeUnit);
+  }
+  return sorted;
+}
+
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**
@@ -325,6 +348,29 @@ export interface ComponentBands {
    * always non-zero on at least one axis.
    */
   readonly grew?: { readonly width: number; readonly height: number };
+
+  /**
+   * Which declared values changed, by property, when both sides recorded them.
+   *
+   * `token` says a declaration under here moved; this names it. `from` holds the
+   * values only the baseline had and `to` the values only this run has, so a
+   * component rendered as primary and secondary that changed one background
+   * reports that background and not the other. An empty side is a property no
+   * node declared on that side, which was measured and is not the same as absent.
+   *
+   * Absent when either sidecar predates the record, and when the style digest
+   * moved but no property's set of values did — a value that moved from one
+   * node to another is a real change this cannot describe, and an empty list
+   * would say there was none. Present is never empty.
+   */
+  readonly changed?: readonly ValueChange[];
+}
+
+/** One property whose set of declared values differs between two revisions. */
+export interface ValueChange {
+  readonly property: string;
+  readonly from: readonly string[];
+  readonly to: readonly string[];
 }
 
 /**
@@ -361,11 +407,13 @@ export function movedBandsBetween(
     const bands = movedBands(was, entry);
     if (bands.length === 0) continue;
     const grew = grewBetween(was.boxes, entry.boxes);
+    const changed = was.style === entry.style ? undefined : changedBetween(was.values, entry.values);
     moved.push({
       component: entry.component,
       bands,
       cause: ownContentMoved(was, entry),
       ...(grew === undefined ? {} : { grew }),
+      ...(changed === undefined ? {} : { changed }),
     });
   }
 
@@ -375,7 +423,32 @@ export function movedBandsBetween(
     moved.push({ component: entry.component, bands: ['geometry'], cause: true, presence: 'removed' });
   }
 
-  return moved.sort((left, right) => left.component.localeCompare(right.component));
+  return moved.sort((left, right) => byCodeUnit(left.component, right.component));
+}
+
+/**
+ * Every property whose values differ, or nothing when that cannot be said.
+ *
+ * Read only when the `style` digest moved, which is the digest these values
+ * were declared into: a component whose declarations hashed the same has
+ * nothing here to name, whatever else about it changed.
+ */
+function changedBetween(
+  before: ComponentHash['values'],
+  after: ComponentHash['values'],
+): readonly ValueChange[] | undefined {
+  if (before === undefined || after === undefined) return undefined;
+
+  const changed: ValueChange[] = [];
+  const properties = new Set([...Object.keys(before), ...Object.keys(after)]);
+  for (const property of [...properties].sort(byCodeUnit)) {
+    const was = before[property] ?? [];
+    const now = after[property] ?? [];
+    const from = was.filter((value) => !now.includes(value));
+    const to = now.filter((value) => !was.includes(value));
+    if (from.length > 0 || to.length > 0) changed.push({ property, from, to });
+  }
+  return changed.length === 0 ? undefined : changed;
 }
 
 /**

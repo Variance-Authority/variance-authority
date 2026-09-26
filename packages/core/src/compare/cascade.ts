@@ -23,6 +23,11 @@ export function declaredIn(snapshot: SemanticSnapshot): ReadonlySet<string> {
   return new Set(snapshot.styleProvenance.map(keyOf));
 }
 
+/** Whether a declaration set `property` at the node at `path`, per {@link declaredIn}. */
+export function declares(declared: ReadonlySet<string>, path: string, property: string): boolean {
+  return declared.has(`${path}\u0000${property}`);
+}
+
 function keyOf(entry: StyleProvenanceEntry): string {
   return `${entry.path}\u0000${entry.property}`;
 }
@@ -75,7 +80,7 @@ export function cascadeInputs(
 function inheritedAt(node: SemanticNode, declared: ReadonlySet<string>): Map<string, Digest> {
   const found = new Map<string, Digest>();
   for (const [property, value] of Object.entries(node.style)) {
-    if (declared.has(`${node.path}\u0000${property}`)) continue;
+    if (declares(declared, node.path, property)) continue;
     found.set(property, digestValue(value));
   }
   return found;

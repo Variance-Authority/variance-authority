@@ -10,6 +10,7 @@ import {
 import type {
   FindingRecord,
   FlakinessRecord,
+  ObservationRecord,
   RegionRecord,
   RunReport,
 } from '@variance-authority/report';
@@ -149,6 +150,8 @@ export const describe: Tool = {
       lines.push('', ...describePresentation(observation.signals.presentation));
     }
 
+    lines.push(...movedLines(observation.moved));
+
     if (observation.regions.length === 0) return lines.join('\n');
 
     lines.push('', ...observation.regions.map(regionLine));
@@ -273,6 +276,47 @@ function unstableAt(
       component.file === undefined ? component.name : `${component.name} ${component.file}`,
     )
     .join(', ');
+}
+
+type Moved = NonNullable<ObservationRecord['moved']>[number];
+
+/**
+ * What each component's hashes say changed, and which declared values did.
+ *
+ * Before the regions because it answers a different question from the same
+ * change: a region says where the pixels differ, and a reflow merges a padding
+ * edit and everything it pushed into one region whose box fits no component.
+ * The hashes never looked at a pixel, so they still name the component, the
+ * band, how much its box grew and — when both sidecars recorded values — the
+ * property and its two values, which is the line somebody edited.
+ */
+function movedLines(moved: readonly Moved[] | undefined): readonly string[] {
+  if (moved === undefined || moved.length === 0) return [];
+
+  return [
+    '',
+    'components:',
+    ...moved.flatMap((entry) => [
+      `  ${entry.cause ? 'cause     ' : 'collateral'} ${entry.component} — ` +
+        [
+          entry.presence ?? entry.bands.join(', '),
+          ...(entry.grew === undefined ? [] : [grownBy(entry.grew)]),
+        ].join('; '),
+      ...(entry.changed ?? []).map(
+        (change) => `      ${change.property} ${valuesOf(change.from)} → ${valuesOf(change.to)}`,
+      ),
+    ]),
+  ];
+}
+
+function grownBy(grew: { readonly width: number; readonly height: number }): string {
+  const signed = (value: number): string => `${value > 0 ? '+' : ''}${value}`;
+  return `box ${signed(grew.width)} × ${signed(grew.height)} px`;
+}
+
+/** An empty side is a property no node declared, which is a reading and not a gap. */
+function valuesOf(values: readonly string[]): string {
+  return values.length === 0 ? '(not declared)' : values.join(', ');
 }
 
 function regionLine(region: RegionRecord): string {

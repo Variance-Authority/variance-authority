@@ -52,6 +52,7 @@ when its condition holds, not before.
 | Question | Read | Then, only if |
 |---|---|---|
 | What did the last run find? What changed? Did my edit land? | [ask a run](references/ask-a-run.md) | you have a description, not a subject id: [locate](references/locate.md) |
+| I changed UI code. Did the edit land, what else moved, and which declaration moved it? | [check an edit](references/check-an-edit.md) | |
 | What is a suite that has not finished doing? | [live run](references/live-run.md) | nothing arrives: [producers](references/producers.md) |
 | A reading, a field or a domain is unavailable | [producers](references/producers.md) | |
 | Which tests ran this line? What did my change do to the cases? | [covering](references/covering.md) | |
