@@ -124,6 +124,7 @@ which of these it is, because each needs a different action:
 - nothing published under that name;
 - an entry in a newer format, so upgrade the CLI;
 - refused, so check the credentials;
+- a token whose variable this machine does not set, named, so set it;
 - the store could not be reached, or did not answer in time;
 - the store answered with bytes that are not the entry its manifest names.
 
@@ -173,8 +174,9 @@ position goes in `docs/placement.md` when this lands.
    closing it leaves `mainline/release/2.0` in place.
 7. A coverage record published by CI and fetched into a checkout at a different
    absolute path selects the same tests as it does in CI.
-8. A record holding only `suite-v2` is reported as a newer format. A missing
-   token is reported as refused. Neither is reported as nothing published.
+8. A record holding only `suite-v2` is reported as a newer format. A token the
+   store does not accept is reported as refused, and a token whose variable is
+   not set names the variable. None of them is reported as nothing published.
 9. On a branch whose own ref holds a record, `variance review` and `variance
    select` take their base from the mainline record, and say so.
 10. Pointing the same reader at a tribunal deployment returns the same bytes as
