@@ -143,9 +143,9 @@ ids are the safe default after initial setup.
 ## Commands
 
 ```bash
-variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]
+variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git]
-variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]
 variance review  [--since <ref>] [--against <record>] [--out <dir>] [--root <path>] [--format text|markdown|json]
@@ -156,7 +156,7 @@ variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
 variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]
-variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
+variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>
 variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]
 variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>]
@@ -1088,7 +1088,8 @@ answered by the shards that did: that row says one build could not read the
 module, and nothing about the tests another build watched run it.
 
 Where it lands is this checkout's own cache, the file every run on this
-machine layers over, unless `--into <path>` names somewhere else — a job that
+machine layers over — the record of the suite `--suite` names, when the root
+config declares suites — unless `--into <path>` names somewhere else — a job that
 folds and uploads names the artifact it uploads. Landing is a layer, not a
 replacement: what was already there is merged under the fold, so the result
 stands at the fold's commit, retires every observation the fold re-recorded
@@ -1156,6 +1157,13 @@ The journal is what [`@variance-authority/sense`](../sense/README.md) wrote the
 last time that suite ran: its seams record Vitest, Jest and Rstest, and
 [`@variance-authority/sense/runner`](../sense/README.md#record-a-runner-this-package-has-no-seam-for)
 records any other runner.
+
+When the root `variance.config.json` declares
+[suites](https://variance-authority.dev/docs/execution-record#one-record-for-each-suite),
+each suite records on its own, and `select` reads one of them: the one
+`--suite <name>` names, or the only one declared. With more than one declared
+and no `--suite`, it stops and lists them. `variance run --since` and
+`variance journeys` read the same way.
 
 It prints a **skip** list, never a run list, and that is the whole of its safety.
 A run list has to be complete to be correct, and this journal is never

@@ -7,6 +7,7 @@ import {
 import { landJourneys } from './land.js';
 import { recordedJourneys } from './resources.js';
 import { subjectsInReport } from './run-report.js';
+import { suiteRecord } from './suite-record.js';
 
 /** What `variance journeys` was asked for, once the flags are off the command line. */
 export interface JourneysRequest {
@@ -18,6 +19,8 @@ export interface JourneysRequest {
   /** Shard directories to land before anything is read. */
   readonly shards: readonly string[];
   readonly into?: string;
+  /** Whose record is read and landed on, when more than one suite is declared. */
+  readonly suite?: string;
   readonly file?: string;
   readonly limit?: number;
 }
@@ -33,10 +36,9 @@ export interface JourneysRequest {
  * a filter over an answer somebody else's subjects had already shaped.
  */
 export async function journeysOutput(request: JourneysRequest): Promise<string> {
+  const record = request.into ?? (await suiteRecord(request.cwd, request.suite));
   const landed =
-    request.shards.length === 0
-      ? undefined
-      : await landJourneys(request.cwd, request.shards, request.into);
+    request.shards.length === 0 ? undefined : await landJourneys(request.cwd, request.shards, record);
 
   const named = request.all ? undefined : await subjectsInReport(request.report);
   const pool: JourneyPool = request.all
@@ -47,7 +49,7 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
 
   const reading = formatJourneys(
     journeysOf({
-      ...(await recordedJourneys(request.cwd, named, landed?.at)),
+      ...(await recordedJourneys(request.cwd, named, landed?.at ?? record)),
       pool,
       ...(request.file !== undefined ? { file: request.file } : {}),
       ...(request.limit !== undefined ? { limit: request.limit } : {}),

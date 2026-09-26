@@ -2,6 +2,7 @@ import { OperatorError } from '../exit.js';
 import { said } from '../here.js';
 import type { LandedJourneys } from './journeys.js';
 import { isMissing, messageOf } from './resources.js';
+import { suiteRecord } from './suite-record.js';
 
 /**
  * N shard snapshots into the one this repository reads, and the reading points
@@ -35,7 +36,7 @@ export async function landJourneys(
   into?: string,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const at = into ?? selection.testCoverageFile(root);
+  const at = into ?? (await suiteRecord(root));
 
   const read = await Promise.all(
     shards.map(async (path) => {

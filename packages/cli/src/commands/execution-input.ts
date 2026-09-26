@@ -57,6 +57,7 @@ export async function readExecutionFor(
  * is not a reasonable price for a format change.
  */
 export async function defaultExecutionFile(root: string): Promise<string> {
+  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
   const columns = `${testCoverageFile(root)}.cases.bin`;
   if (await readable(columns)) return columns;
   const json = `${testCoverageFile(root)}.cases.json`;

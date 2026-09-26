@@ -19,6 +19,7 @@ import { indexPosition } from './since.js';
 const { commitOfIndex } = vi.hoisted(() => ({ commitOfIndex: vi.fn() }));
 
 vi.mock('@variance-authority/sense/test-selection', () => ({
+  declaredSuites: () => undefined,
   testCoverageFile: () => '/nowhere/coverage.bin',
   recordedCommit: commitOfIndex,
 }));

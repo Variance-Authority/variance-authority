@@ -49,6 +49,7 @@ import {
 import { isMissing, journeyAgainst } from './resources.js';
 import { diffPoint, diffSince } from './since.js';
 import { relationsFor } from './source-graph.js';
+import { suiteRecord } from './suite-record.js';
 import {
   formatSelection,
   selectionNotes,
@@ -68,6 +69,8 @@ export interface SelectRequest {
   readonly execution?: string;
   /** `--diff <patch>`: the change, handed in; `-` is stdin. */
   readonly diff?: string;
+  /** `--suite <name>`: whose record is read, when more than one suite is declared. */
+  readonly suite?: string;
 }
 
 /**
@@ -96,7 +99,7 @@ export async function selectOutput(request: SelectRequest): Promise<SelectOutput
   ) {
     return await journeyOutput({ ...request, execution: request.execution });
   }
-  const at = request.execution ?? selection.testCoverageFile(request.cwd);
+  const at = request.execution ?? (await suiteRecord(request.cwd, request.suite));
 
   // Asked of the file before anything is decoded, because *no recording here*
   // is the ordinary state of a repository and must not arrive as a failure to

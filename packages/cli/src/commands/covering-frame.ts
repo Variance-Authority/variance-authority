@@ -43,6 +43,7 @@ export interface CoveringRange extends SourceTestRange {
  * frame it against.
  */
 export async function placementFor(request: CoveringAt, from: string): Promise<Placement | undefined> {
+  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
   const snapshot = testCoverageFile(request.root);
   if (!from.startsWith(snapshot) || !existsSync(snapshot)) return undefined;
   const text = await heldText(request);

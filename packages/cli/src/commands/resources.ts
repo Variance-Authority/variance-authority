@@ -13,6 +13,7 @@ import type { Relations } from '@variance-authority/core/relate';
 import type { Config } from '../config.js';
 import type { JourneyReading } from './journeys.js';
 import { OperatorError } from '../exit.js';
+import { suiteRecord } from './suite-record.js';
 
 /**
  * The machine-shaped things a run needs before it can start: a decoder, a store,
@@ -147,7 +148,7 @@ export async function journeyAgainst(
   at?: string,
 ): Promise<ExecutionNarrowing | undefined> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = at ?? selection.testCoverageFile(root);
+  const file = at ?? (await suiteRecord(root));
   const sourceAt = selection.textAtRecording(root, selection.changedLines(diff).keys());
 
   try {
@@ -190,7 +191,7 @@ export async function recordedJourneys(
   at?: string,
 ): Promise<JourneyReading> {
   const selection = await import('@variance-authority/sense/test-selection');
-  const file = at ?? selection.testCoverageFile(root);
+  const file = at ?? (await suiteRecord(root));
 
   let coverage;
   try {

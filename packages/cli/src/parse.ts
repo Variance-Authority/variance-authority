@@ -8,6 +8,7 @@ import { didYouMean, nearest } from './nearest.js';
 import { parseCoveringArgs, type ParsedCovering } from './covering-args.js';
 import { parseDistill, type ParsedDistill } from './distill-args.js';
 import { parseSelectArgs, type ParsedSelect } from './select-args.js';
+import { oneRecord } from './commands/suite-record.js';
 import { parseIndexArgs, type ParsedIndex } from './index-args.js';
 import { parseReachArgs, type ParsedReach } from './reach-args.js';
 import { parseReviewArgs, type ParsedReview } from './review-args.js';
@@ -88,6 +89,8 @@ export type Parsed =
        * with a side effect. Implied by `--since` when a file graph is configured.
        */
       readonly against?: string;
+      /** `--suite <name>`: whose record `--since` narrows by, when more than one suite is declared. */
+      readonly suite?: string;
       /** `--flakes`: read every subject twice, not only the ones that changed. */
       readonly flakes: boolean;
       readonly exitZeroOnChanges: boolean;
@@ -154,6 +157,8 @@ export type Parsed =
       /** Shard snapshots to fold and land before reading, and `--into <path>`, where they land; this repository's cache otherwise. */
       readonly shards: readonly string[];
       readonly into?: string;
+      /** `--suite <name>`: whose record is read, and where shards land; beside `--into`, refused. */
+      readonly suite?: string;
     }
   | {
       readonly command: 'journeys';
@@ -243,6 +248,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
       const commit = flags.values.get('--commit');
       const since = flags.values.get('--since');
       const against = flags.values.get('--against');
+      const suite = flags.values.get('--suite');
       noPositionals(flags.positionals, 'run');
 
       return {
@@ -255,6 +261,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(commit !== undefined ? { commit } : {}),
         ...(since !== undefined ? { since } : {}),
         ...(against !== undefined ? { against } : {}),
+        ...(suite !== undefined ? { suite } : {}),
         flakes: flags.present.has('--flakes'),
         exitZeroOnChanges: flags.present.has('--exit-zero-on-changes'),
       };
@@ -428,6 +435,8 @@ export function parseArgs(argv: readonly string[]): Parsed {
       if (into !== undefined && flags.positionals.length === 0) {
         throw new OperatorError('`--into` says where a fold lands, and nothing was named to fold');
       }
+      const suite = flags.values.get('--suite');
+      oneRecord(suite, into, '--into');
 
       return {
         command: 'journeys',
@@ -437,6 +446,7 @@ export function parseArgs(argv: readonly string[]): Parsed {
         ...(limit !== undefined ? { limit } : {}),
         shards: flags.positionals.map((path) => resolve(path)),
         ...(into !== undefined ? { into: resolve(into) } : {}),
+        ...(suite !== undefined ? { suite } : {}),
       };
     }
 

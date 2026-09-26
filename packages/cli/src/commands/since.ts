@@ -19,6 +19,7 @@ import { join, relative } from 'node:path';
 import { OperatorError } from '../exit.js';
 import { installDiff, type DiffPoint, type InstallDiff } from './installed.js';
 import type { MovedExports } from './reach.js';
+import { suiteRecord } from './suite-record.js';
 
 /**
  * Files a diff against `ref` touched, named the way the run names files.
@@ -260,6 +261,7 @@ function inCoordinates(diff: string, here: string, repository: string): string {
 export async function indexPosition(
   root: string,
   roots: readonly string[] = [],
+  suite?: string,
 ): Promise<{ readonly commit: string; readonly changed: number } | undefined> {
   const run = promisify(execFile);
   const selection = await import('@variance-authority/sense/test-selection');
@@ -269,7 +271,7 @@ export async function indexPosition(
     // The position, and nothing else decoded to reach it: a snapshot of a
     // repository holds hundreds of thousands of regions and this asks it for
     // forty characters.
-    const commit = await selection.recordedCommit(selection.testCoverageFile(repository));
+    const commit = await selection.recordedCommit(await suiteRecord(repository, suite));
     if (commit === undefined) return undefined;
     const changed = (await changedFiles(run, repository, commit)).length;
     return { commit, changed };
@@ -401,6 +403,8 @@ export interface NarrowingRequest {
   readonly against?: string;
   /** Whether a file graph is configured, which is what makes `--since` imply `--against`. */
   readonly relations: boolean;
+  /** `--suite <name>`: whose record's commit the diff is measured from. */
+  readonly suite?: string;
 }
 
 /**
@@ -438,7 +442,7 @@ export async function narrowingFor(
   };
   readonly index?: { readonly commit: string; readonly changed: number };
 }> {
-  const index = await indexPosition(process.cwd(), dirs);
+  const index = await indexPosition(process.cwd(), dirs, request.suite);
   const diff =
     request.since === undefined ? undefined : await diffSince(request.since, dirs, index?.commit);
   // The install is read at the same point the file list is measured from. A

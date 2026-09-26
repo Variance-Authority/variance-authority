@@ -88,6 +88,11 @@ names no suite, names one the file does not declare, or names a suite and a
 `coverageFile` together. A repository that declares no suites keeps the one
 `coverage.bin` described above.
 
+`variance select`, `variance run --since` and `variance journeys` each answer
+for one runner, so each reads one suite's record: the one `--suite <name>`
+names, or the only one declared. With more than one declared and no `--suite`,
+they stop and list the suites.
+
 ## What each host records
 
 Five hosts write this file, and they write the same structures into it. What

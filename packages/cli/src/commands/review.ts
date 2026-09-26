@@ -122,6 +122,7 @@ export interface Review {
 
 export async function review(request: ParsedReview): Promise<Review> {
   const { root } = request;
+  // TODO: a repository that declares suites is read suite by suite, grouped by kind, with a suite that has no record reported as unrecorded; until then this reads the one record and refuses once suites are declared.
   const coverageFile = testCoverageFile(root);
   const runs = await readCommitRuns(coverageFile);
   const ref = request.since ?? runs?.over;

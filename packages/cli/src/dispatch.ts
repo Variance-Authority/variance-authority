@@ -46,6 +46,7 @@ import { accept, formatAcceptance, readCandidate, reportToPromoteFrom } from './
 import { writeAcceptMessage } from './commands/accept-message.js';
 import { changelog, formatChangelog } from './commands/changelog.js';
 import { journeysOutput } from './commands/journeys-command.js';
+import { suiteRecord } from './commands/suite-record.js';
 import { runJourneyArtifactCommand } from './commands/journey-artifact-command.js';
 import { formatPush, push, pushTicker } from './commands/push.js';
 import { serve } from './commands/serve.js';
@@ -125,6 +126,7 @@ export async function dispatch(
           ...(parsed.since !== undefined ? { since: parsed.since } : {}),
           ...(parsed.against !== undefined ? { against: parsed.against } : {}),
           relations: effective.source?.relations === true,
+          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
         },
         effective.source?.dirs ?? [],
       );
@@ -155,8 +157,10 @@ export async function dispatch(
             scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
             scanRelations: async (dirs) =>
               relationsFor(process.cwd(), dirs, effective.source?.taints, effective.source?.before),
-            readJourney: async (...asked) => journeyAgainst(process.cwd(), ...asked),
-            readJourneys: async (subjects) => recordedJourneys(process.cwd(), subjects),
+            readJourney: async (diff, relations, packages) =>
+              journeyAgainst(process.cwd(), diff, relations, packages, await suiteRecord(process.cwd(), parsed.suite)),
+            readJourneys: async (subjects) =>
+              recordedJourneys(process.cwd(), subjects, await suiteRecord(process.cwd(), parsed.suite)),
             ...(effective.source?.changes === undefined
               ? {}
               : {
@@ -311,6 +315,7 @@ export async function dispatch(
           all: parsed.all,
           shards: parsed.shards,
           ...(parsed.into !== undefined ? { into: parsed.into } : {}),
+          ...(parsed.suite !== undefined ? { suite: parsed.suite } : {}),
           ...(parsed.file !== undefined ? { file: parsed.file } : {}),
           ...(parsed.limit !== undefined ? { limit: parsed.limit } : {}),
         }),

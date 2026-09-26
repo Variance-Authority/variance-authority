@@ -50,11 +50,12 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--commit',
     '--since',
     '--against',
+    '--suite',
     '--flakes',
     '--exit-zero-on-changes',
   ],
   index: ['--no-git'],
-  select: ['--since', '--execution', '--diff', '--format', '--no-git'],
+  select: ['--since', '--execution', '--diff', '--suite', '--format', '--no-git'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -107,7 +108,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   adjudicate: ['--claims', '--exit-zero-on-changes'],
   accept: ['--all', '--shape', '--message-file', '--message'],
   changelog: ['--component', '--subject', '--limit', '--since'],
-  journeys: ['--all', '--file', '--limit', '--into'],
+  journeys: ['--all', '--file', '--limit', '--into', '--suite'],
   review: ['--since', '--against', '--out', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
   serve: ['--just-answer'],
@@ -117,9 +118,9 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 };
 
 export const USAGE = [
-  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--flakes] [--exit-zero-on-changes]',
+  'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git]',
-  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-]] [--format plain|json|vitest|jest] [--no-git]',
+  'variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--format plain|json|vitest|jest] [--no-git]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--execution <path>] [--root <path>] [--format text|refs|json]',
   'variance review  [--since <ref>] [--against <record>] [--out <dir>] [--root <path>] [--format text|markdown|json]',
@@ -130,7 +131,7 @@ export const USAGE = [
   'variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]',
   'variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]',
   'variance changelog [--config <path>] [--component <text>] [--subject <id>] [--limit <n>] [--since <rev>]',
-  'variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
+  'variance journeys [--config <path>] [--all] [--file <text>] [--limit <n>] [<shard.bin>... [--into <path>]] [--suite <name>] | finalize <journey-file> | stitch <shard.bin>... --into <journey-file>',
   'variance push    [--config <path>] [--run <id>] [--commit <sha>] [--branch <name>] [<report>...]',
   'variance serve   [--config <path>] [--just-answer] # MCP over stdio',
   'variance doctor  [--config <path>]',
