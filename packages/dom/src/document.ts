@@ -10,7 +10,7 @@ import type {
 import { detectProfile } from './collect.js';
 import { inheritedSeed } from './inherit.js';
 import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
-import type { ConditionEnvironment } from './media.js';
+import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, elements } from './dom-list.js';
 
 /**
@@ -88,12 +88,16 @@ export function acquireDocument(root: Element, options: AcquireOptions): RenderD
   const view = ownerDocument.defaultView;
   const diagnostics: Diagnostic[] = [];
 
+  // The flattened CSS is what a deferred renderer paints, so it asks the engine
+  // about the pointing device for the same reason the capture does.
+  const device = deviceProbe(view);
   const conditions: ConditionEnvironment = {
     width: options.viewport.width,
     height: options.viewport.height,
     deviceScaleFactor: options.viewport.deviceScaleFactor,
     colorScheme: options.viewport.colorScheme,
     ...(options.features ? { features: options.features } : {}),
+    ...(device ? { device } : {}),
   };
 
   const index = options.index ?? indexStyleSheets(ownerDocument, conditions);

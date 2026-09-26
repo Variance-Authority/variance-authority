@@ -149,9 +149,17 @@ export async function acquire(root: Element, request: AcquireRequest): Promise<s
     ...(request.tier === undefined ? {} : { tier: request.tier }),
   });
 
+  // The width media queries resolve against is the page's, not the one the
+  // driver asked for. They differ under `isMobile`: a page with no viewport meta
+  // lays out at 980 px inside a 390 px window, and a key built from the window
+  // files it beside a desktop page of the same size.
+  const view = root.ownerDocument.defaultView;
   const shared = {
     subject: request.subject,
-    viewport: request.viewport,
+    viewport:
+      view === null
+        ? request.viewport
+        : { ...request.viewport, width: view.innerWidth, height: view.innerHeight },
     ...(request.fonts !== undefined ? { fonts: request.fonts } : {}),
   };
 

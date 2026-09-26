@@ -108,6 +108,7 @@ export function conditionKey(environment: ConditionEnvironment): string {
     `scheme=${environment.colorScheme}`,
     `features=${features.join(',')}`,
     `supports=${environment.supports ? 'probed' : 'assumed'}`,
+    `device=${environment.device ? 'probed' : 'assumed'}`,
   ].join(' ');
 }
 

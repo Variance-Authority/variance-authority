@@ -76,6 +76,12 @@ export async function stableRaster(
     // throw on a zero-sized element, which is the refusal wearing a library's
     // name.
     const box = await locator.boundingBox();
+    // FIXME: on a page emulated with `isMobile` and `hasTouch`, a subject wider
+    // than the visual viewport switches the page's touch emulation off for the
+    // rest of the test — `(pointer: coarse)` stops matching and
+    // `maxTouchPoints` drops to 0. Playwright sends `captureBeyondViewport`
+    // for an element that does not fit, and Chromium drops touch emulation on
+    // that call. A page that declares `width=device-width` fits and keeps it.
     const pixels =
       box === null || box.width === 0 || box.height === 0
         ? {}
