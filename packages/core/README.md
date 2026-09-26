@@ -322,6 +322,35 @@ derivation — and is indistinguishable from a cold one except by the wall clock
 [Sharing an evaluation](https://variance-authority.dev/docs/sharing) is the
 operator's side of it.
 
+### Keep the latest of a line
+
+A key per commit answers *what was derived here*. A checkout usually asks *what
+is mainline now*, and a line answers that: one mainline or one branch, holding
+the latest entry of each kind — the run report, one record per suite — and the
+images those entries name, by digest.
+
+```ts
+import { publishLine, readLine, findEntry } from '@variance-authority/core/share';
+
+await publishLine(cell, { kind: 'mainline', name: 'main' }, [
+  { name: 'report-v1', commit, bytes: report, images: digests },
+], { descends, image: (digest) => readImage(digest) });
+```
+
+`cell` is the backend: a manifest it replaces only against the version you
+read, and the blobs the manifest names. `descends` is git's answer to whether
+one commit strictly descends from another, and `undefined` when the history is
+not at hand. `image` supplies the bytes of an image the line does not hold yet,
+so an unchanged image is sent once. `attempts` bounds how many times a publish
+re-reads a line other writers keep moving.
+
+A publish replaces only the entries it carries, so suites from different jobs
+land on one line. On a mainline, a held entry whose commit descends from yours
+stays: that is an older run finishing last. A held entry in a newer format stays
+on any line. Unlike `SharedCache`, a line reports why it missed — `absent`,
+`newer`, `refused`, `unreachable` or `unreadable` — because each asks you for a
+different action.
+
 ## What it refuses
 
 **Absent is not empty.** Not measured, measured as zero, and unobservable stay

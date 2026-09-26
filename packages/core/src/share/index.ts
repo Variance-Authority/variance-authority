@@ -245,3 +245,6 @@ function segment(value: string): string {
   const cleaned = value.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
   return cleaned === '' ? 'unnamed' : cleaned;
 }
+
+export * from './line.js';
+export * from './publish.js';
