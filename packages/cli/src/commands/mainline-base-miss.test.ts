@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { mainlineMissed } from './mainline-base.js';
-import { cloneOf, git, parseReview, published, ranHere, recordIn, selectedIn, BEFORE, DISCOUNTS } from './mainline-fixture.js';
+import { cloneOf, git, parseReview, publishRaw, published, ranHere, recordIn, selectedIn, BEFORE, DISCOUNTS } from './mainline-fixture.js';
 import { review } from './review.js';
 import { formatReview } from './review-text.js';
 import { selectOutput } from './select-command.js';
@@ -101,7 +101,8 @@ describe('`variance select` when the mainline\'s record is not read', () => {
   });
 
   it('skips nothing, and keeps nothing, when the record published does not read', async () => {
-    const ci = await published(home, { record: (dir) => writeFile(testCoverageFile(dir, { suite: 'unit' }), 'not a record') });
+    const ci = await published(home, { publish: false, record: (dir) => writeFile(testCoverageFile(dir, { suite: 'unit' }), 'not a record') });
+    await publishRaw(home, ci.dir, ci.first);
 
     const said = await selectedIn(await laptop(ci.origin));
 
@@ -112,7 +113,8 @@ describe('`variance select` when the mainline\'s record is not read', () => {
 
   it('skips nothing when the record published at one commit was recorded at another', async () => {
     const elsewhere = 'a'.repeat(40);
-    const ci = await published(home, { record: (dir) => recordIn(dir, elsewhere, ['test/total.test.ts'], [DISCOUNTS]) });
+    const ci = await published(home, { publish: false, record: (dir) => recordIn(dir, elsewhere, ['test/total.test.ts'], [DISCOUNTS]) });
+    await publishRaw(home, ci.dir, ci.first);
 
     const said = await selectedIn(await laptop(ci.origin));
 

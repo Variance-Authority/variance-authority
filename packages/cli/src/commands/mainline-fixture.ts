@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
+import { publishLine } from '@variance-authority/core/share';
 import type { RunReport } from '@variance-authority/report';
 import {
   commitRunsFile,
@@ -15,7 +16,8 @@ import {
 import { readFlags } from '../args.js';
 import type { Config } from '../config.js';
 import { parseReviewArgs } from '../review-args.js';
-import type { Env } from '../share-lines.js';
+import { frame, suiteEntry } from '../share-entries.js';
+import { lineCellOf, type Env } from '../share-lines.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
@@ -118,6 +120,28 @@ export async function publishTo(home: string, dir: string, commit: string, env: 
   const reached = 'published' in done ? `${done.line.kind} ${done.line.name}: ${done.published.written.join(', ')}` : undefined;
   const wanted = `${line}: suite-index-v1, suite-v1/unit`;
   if (reached !== wanted) throw new Error(`the run was to publish ${wanted}, and the share answered ${JSON.stringify(done)}`);
+}
+
+/**
+ * What `dir` recorded, written to the mainline's line as it is, the way a
+ * writer that does not check a record before publishing it would: an older CLI,
+ * or another tool. `publishTo` goes through the CLI's own publish, which leaves
+ * out a record that does not read or names another commit, so a test about a
+ * reader meeting one of those puts it on the line this way.
+ */
+export async function publishRaw(home: string, dir: string, commit: string): Promise<void> {
+  const cell = await lineCellOf(shareConfig(home));
+  if (cell === undefined || !('load' in cell)) throw new Error(`the share in ${home} is not a line cell: ${JSON.stringify(cell)}`);
+  const record = testCoverageFile(dir, { suite: 'unit' });
+  const cases = await readFile(`${record}.cases.bin`).catch(() => undefined);
+  const bytes = frame([['coverage.bin', await readFile(record)], ...(cases === undefined ? [] : [['coverage.bin.cases.bin', cases] as const])]);
+  const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes }], {
+    descends: async () => undefined,
+    image: async (digest) => { throw new Error(`no image ${digest}`); },
+  });
+  if (!('written' in done) || !done.written.includes(suiteEntry('unit'))) {
+    throw new Error(`the record was to reach mainline main, and the share answered ${JSON.stringify(done)}`);
+  }
 }
 
 /**
